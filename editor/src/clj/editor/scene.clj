@@ -924,6 +924,12 @@
   (input hidden-renderable-tags types/RenderableTags)
   (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
   (input cursor-type g/Keyword)
+  (input background-id g/NodeID :cascade-delete)
+  (input camera-id g/NodeID :cascade-delete)
+  (input grid g/NodeID :cascade-delete)
+  (input rulers-id g/NodeID :cascade-delete)
+  (input selection-id g/NodeID :cascade-delete)
+  (input tool-controller-id g/NodeID :cascade-delete)
 
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
@@ -1322,7 +1328,6 @@
   (input selected-updatables g/Any)
   (input localization g/Any)
   (input keymap g/Any)
-  (input grid g/Any)
   (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
   (output info-text g/Str (g/fnk [scene tool-info-text]
                             (or tool-info-text (:info-text scene))))
@@ -2208,6 +2213,12 @@
 
                   (g/connect resource-node   :scene                         view-id         :scene)
 
+                  (g/connect background      :_node-id                      view-id         :background-id)
+                  (g/connect camera          :_node-id                      view-id         :camera-id)
+                  (g/connect rulers          :_node-id                      view-id         :rulers-id)
+                  (g/connect selection       :_node-id                      view-id         :selection-id)
+                  (g/connect tool-controller :_node-id                      view-id         :tool-controller-id)
+
                   (g/connect background      :renderable                    view-id         :aux-renderables)
 
                   (g/connect camera          :local-camera                  view-id         :local-camera)
@@ -2454,42 +2465,42 @@
                                (throw (http-server/error (http-server/response 422 "Resource is not loaded\n"))))
              view-type (or (coll/first-where #(= :scene (:id %)) (:view-types resource-type))
                            (throw (http-server/error (http-server/response 422 "Resource does not support previews\n"))))
-             make-preview-fn (:make-preview-fn view-type)]
-    (let [view-graph (g/make-graph! :volatility 2)]
+             make-preview-fn (:make-preview-fn view-type)
+             opts (assoc (:scene (:view-opts resource-type))
+                    :app-view app-view
+                    :camera (c/make-camera :orthographic identity {:fov-x width :fov-y height})
+                    :select-fn (fn [_selection _op-seq])
+                    :inherit-selection false
+                    :project project
+                    :workspace workspace)
+             graph (g/node-id->graph-id project)
+             undo-stack-revisions-before (g/undo-stack-revisions)]
+    (let [preview (make-preview-fn graph resource-node opts width height)]
       (try
-        (let [opts (assoc (:scene (:view-opts resource-type))
-                     :app-view app-view
-                     :camera (c/make-camera :orthographic identity {:fov-x width :fov-y height})
-                     :select-fn (fn [_selection _op-seq])
-                     :inherit-selection false
-                     :project project
-                     :workspace workspace)
-              undo-stack-revisions-before (g/undo-stack-revisions)
-              preview (make-preview-fn view-graph resource-node opts width height)]
-          (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
-                  (format "The %s view-type :make-preview-fn created undo steps for '%s'."
-                          (:id view-type)
-                          (resource/proj-path resource)))
-          (g/with-auto-evaluation-context evaluation-context
-            (try
-              (let [out (ByteArrayOutputStream.)
-                    ^BufferedImage frame (g/node-value preview :frame evaluation-context)
-                    flipped-frame (BufferedImage. (.getWidth frame) (.getHeight frame) (.getType frame))
-                    graphics (.createGraphics flipped-frame)]
-                (try
-                  (.drawImage graphics frame 0 (.getHeight frame) (.getWidth frame) (- (.getHeight frame)) nil)
-                  (finally
-                    (.dispose graphics)))
-                (ImageIO/write flipped-frame "png" out)
-                (http-server/response 200 {"content-type" "image/png"} (.toByteArray out)))
-              (finally
-                (dispose-preview preview evaluation-context)
-                (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
-                        (format "The %s view-type :dispose-preview-fn created undo steps for '%s'."
-                                (:id view-type)
-                                (resource/proj-path resource)))))))
+        (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                (format "The %s view-type :make-preview-fn created undo steps for '%s'."
+                        (:id view-type)
+                        (resource/proj-path resource)))
+        (g/with-auto-evaluation-context evaluation-context
+          (try
+            (let [out (ByteArrayOutputStream.)
+                  ^BufferedImage frame (g/node-value preview :frame evaluation-context)
+                  flipped-frame (BufferedImage. (.getWidth frame) (.getHeight frame) (.getType frame))
+                  graphics (.createGraphics flipped-frame)]
+              (try
+                (.drawImage graphics frame 0 (.getHeight frame) (.getWidth frame) (- (.getHeight frame)) nil)
+                (finally
+                  (.dispose graphics)))
+              (ImageIO/write flipped-frame "png" out)
+              (http-server/response 200 {"content-type" "image/png"} (.toByteArray out)))
+            (finally
+              (dispose-preview preview evaluation-context)
+              (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                      (format "The %s view-type :dispose-preview-fn created undo steps for '%s'."
+                              (:id view-type)
+                              (resource/proj-path resource))))))
         (finally
-          (g/delete-graph! view-graph))))))
+          (g/transact {:undoable false} (g/delete-node preview)))))))
 
 (defn routes [project app-view]
   {"/preview/{*path}"

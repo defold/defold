@@ -114,6 +114,24 @@ public class FontRendererTest {
     }
 
     @Test
+    public void testStyleFlagsMatchNativeCompiler() {
+        String[] markup = {
+            "<outline color=#123456>", "<outline size=2>", "<shadow color=#123456>",
+            "<shadow x=2>", "<shadow y=2>", "<shadow blur=2>",
+            "<outline alpha=0.5>", "<shadow alpha=0.5>"
+        };
+        int[] flags = {
+            FontRenderer.Style.FLAG_OUTLINE_COLOR, FontRenderer.Style.FLAG_OUTLINE_WIDTH,
+            FontRenderer.Style.FLAG_SHADOW_COLOR, FontRenderer.Style.FLAG_SHADOW_X,
+            FontRenderer.Style.FLAG_SHADOW_Y, FontRenderer.Style.FLAG_SHADOW_BLUR,
+            FontRenderer.Style.FLAG_OUTLINE_ALPHA, FontRenderer.Style.FLAG_SHADOW_ALPHA
+        };
+        for (int i = 0; i < markup.length; ++i) {
+            assertEquals(markup[i], flags[i], FontRenderer.compileStyle(markup[i]).flags);
+        }
+    }
+
+    @Test
     public void testLayoutSelection() throws Exception {
         try (FontRenderer legacy = createRenderer(32.0f, 512, 512, false);
              FontRenderer skribidi = createRenderer(32.0f, 512, 512, true)) {

@@ -131,11 +131,7 @@ namespace dmEngine
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
         dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
-        /// If the shared context is set, the three environment specific contexts below will point to the same context
-        dmScript::HContext                          m_SharedScriptContext;
-        dmScript::HContext                          m_GOScriptContext;
-        dmScript::HContext                          m_RenderScriptContext;
-        dmScript::HContext                          m_GuiScriptContext;
+        dmScript::HContext                          m_ScriptContext;
         dmResource::HFactory                        m_Factory;
         dmGui::HContext                             m_GuiContext;
         dmMessage::HSocket                          m_SystemSocket;
@@ -163,9 +159,14 @@ namespace dmEngine
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         bool                                        m_RunWhileIconified;
-        bool                                        m_UseSwVSync;
+        uint32_t                                    m_SwapInterval;             // Swap interval requested by the application
+        uint32_t                                    m_EffectiveSwapInterval;    // Swap interval currently applied to the graphics context
         uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
-        float                                       m_AccumFrameTime;           // Used to trigger frame updates when using m_UpdateFrequency != 0
+        uint64_t                                    m_NextFrameTime;            // Next engine-frame pacing deadline
+        uint32_t                                    m_FramePacingFrequency;     // Frequency used to calculate m_NextFrameTime
+        uint32_t                                    m_FrameTimeRemainder;       // Fractional microsecond remainder carried between deadlines
+        float                                       m_PacedFrameTimeDebt;       // Signed accounted-elapsed-versus-simulated time balance, preserved across pacing modes
+        float                                       m_AccumFrameTime;           // Remainder when frame pacing is controlled by the platform
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_FixedUpdateFrequency;
         uint32_t                                    m_Width;
@@ -240,6 +241,24 @@ namespace dmEngine
         EngineUpdate        m_EngineUpdate;
         EngineGetResult     m_EngineGetResult;
     };
+
+    /**
+     * Check whether Step() may use the engine-side frame pacer. Platform-owned
+     * callback loops perform their scheduling externally.
+     * @return true if Step() may apply engine-side frame pacing
+     */
+    bool UseEngineFramePacing();
+
+    // Advances a deadline by one rational frame period without accumulating
+    // integer microsecond rounding error. Exposed here for unit testing.
+    uint64_t AdvanceFrameDeadline(uint64_t deadline, uint32_t frequency, uint32_t& remainder);
+
+    // Calculates a timer-paced simulation step. The balance tracks elapsed time
+    // capped at max(max_time_step, fixed_dt), minus simulated time; excess hitch
+    // time is discarded. Positive balance below fixed_dt is retained. Catch-up
+    // adds at most max(0, max_time_step - fixed_dt); negative balance shortens the
+    // step without allowing negative dt. Exposed for deterministic unit testing.
+    float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance);
 
     /**
      *

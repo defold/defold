@@ -37,7 +37,8 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [util.coll :refer [pair]])
+            [util.coll :refer [pair]]
+            [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Label$LabelDesc Label$LabelDesc$BlendMode Label$LabelDesc$Pivot]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]))
@@ -131,7 +132,8 @@
                                          (update-in [:shadow 3] * alpha))))
                            renderables)
         node-ids (into #{} (map :node-id) renderables)]
-    (font/request-vertex-buffer gl node-ids font-data text-entries render-args)))
+    (when font-data
+      (font/request-vertex-buffer gl node-ids font-data text-entries render-args))))
 
 (defn render-tris [^GL2 gl render-args renderables rcount]
   (let [renderable (first renderables)
@@ -185,9 +187,10 @@
              :bottom 0.0)]
     (mapv * size [xs ys 1])))
 
-(g/defnk produce-save-value [text size color outline shadow leading tracking pivot blend-mode line-break font material]
+(g/defnk produce-save-value [text size color outline shadow leading tracking pivot blend-mode line-break font material style]
   (protobuf/make-map-without-defaults Label$LabelDesc
     :text text
+    :style style
     :size (protobuf/vector3->vector4-zero size)
     :color color
     :outline outline
@@ -205,7 +208,7 @@
   (let [scene {:node-id _node-id
                :aabb aabb}
         font-map (get-in text-data [:font-data :font-map])
-        texture-recip-uniform (font/get-texture-recip-uniform font-map)
+        texture-recip-uniform (some-> font-map font/get-texture-recip-uniform)
         material-shader (assoc-in material-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
     (if text-data
       (let [[w h _] size
@@ -235,8 +238,9 @@
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Label$LabelDesc pb)}))
 
-(g/defnk produce-build-targets [_node-id resource font material save-value dep-build-targets]
-  (or (when-let [errors (->> [[font :font font-message]
+(g/defnk produce-build-targets [_node-id resource font material save-value dep-build-targets font-map style]
+  (or (font/style-error _node-id font-map style)
+      (when-let [errors (->> [[font :font font-message]
                               [material :material material-message]]
                           (keep (fn [[v prop-kw name]]
                                   (validation/prop-error :fatal _node-id prop-kw validation/prop-nil? v name)))
@@ -249,7 +253,7 @@
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-label
-            :user-data {:proto-msg save-value
+            :user-data {:proto-msg (assoc save-value :style-hash (if (= "" style) 0 (murmur/hash64 style)))
                         :dep-resources dep-resources}
             :deps dep-build-targets})])))
 
@@ -293,6 +297,11 @@
             (dynamic label (properties/label-dynamic :label :line-break))
             (dynamic tooltip (properties/tooltip-dynamic :label :line-break)))
 
+  (property style g/Str (default "default")
+            (dynamic label (properties/label-dynamic :font :style))
+            (dynamic tooltip (properties/tooltip-dynamic :font :style))
+            (dynamic edit-type (g/fnk [font-map] (font/style-choices font-map)))
+            (dynamic error (g/fnk [_node-id font-map style] (font/style-error _node-id font-map style))))
   (property font resource/Resource ; Always assigned in load-fn.
             (value (gu/passthrough font-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -338,8 +347,8 @@
   (output markup-error g/Any :cached (g/fnk [_node-id ^:try font-map text]
                                             (when-not (g/error-value? font-map)
                                               (font/markup-error _node-id :text font-map text))))
-  (output text-layout g/Any :cached (g/fnk [size font-map text line-break leading tracking]
-                                           (font/layout-text font-map text line-break (first size) tracking leading)))
+  (output text-layout g/Any :cached (g/fnk [size font-map text line-break leading tracking style]
+                                           (font/layout-text (some-> font-map (assoc :style style)) text line-break (first size) tracking leading)))
   (output text-data g/KeywordMap (g/fnk [text-layout font-data line-break color outline shadow pivot size]
                                         (let [text-size [(:width text-layout) (:height text-layout) 0]
                                               text-data {:text-layout text-layout
@@ -381,6 +390,7 @@
         resolve-resource #(workspace/resolve-resource basis resource %)]
     (gu/set-properties-from-pb-map self Label$LabelDesc label
       text :text
+      style :style
       size (protobuf/vector4->vector3 :size)
       legacy-scale (protobuf/vector4->vector3 :scale) ; Legacy field. Migrated to ComponentDesc or EmbeddedComponentDesc in PrototypeDesc when saving.
       color :color

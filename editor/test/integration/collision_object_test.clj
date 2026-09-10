@@ -52,7 +52,25 @@
                 (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere")})
                 (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.box")})
                 (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")})]
-               (outline-seq outline)))))))
+               (outline-seq outline))))
+
+      (testing "the round and box shapes are presented as Circle and Rectangle under 2D physics, an existing Capsule keeps its name, and only 2D shapes are offered"
+        (with-open [_ (test-util/make-system-reverter)]
+          (test-util/set-setting! (test-util/resource-node project "/game.project") ["physics" "type"] "2D")
+          (let [node-id (test-util/resource-node project "/collision_object/three_shapes.collisionobject")
+                outline (g/node-value node-id :node-outline)
+                menu-labels (set (map :label (test-util/handler-options :edit.add-embedded-component [{:name :workbench :env {:selection [node-id] :app-view app-view}}] nil)))]
+            (is (= (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.circle")})
+                   (second (outline-seq outline))))
+            (is (= (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.rectangle")})
+                   (nth (outline-seq outline) 2)))
+            (is (= (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")})
+                   (nth (outline-seq outline) 3)))
+            (is (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.circle")))
+            (is (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.rectangle")))
+            (is (not (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule"))))
+            (is (not (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere"))))
+            (is (not (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.box"))))))))))
 
 (deftest add-shapes
   (testing "Adding a sphere"

@@ -252,8 +252,9 @@ namespace dmRender
     void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
 
-    // Set current frame time and delta-time (in seconds) used for built-in material constants.
-    void SetFrameTime(HRenderContext render_context, float time, float dt);
+    // Begin a render frame by setting its time and delta-time (in seconds) and resetting
+    // per-frame renderer state such as submitted light instances.
+    void BeginFrame(HRenderContext render_context, float time, float dt);
 
     HMaterial GetContextMaterial(HRenderContext render_context);
 
@@ -493,6 +494,8 @@ namespace dmRender
      * and is the basis for what's being written into the light buffer. It has a position and a rotation (direction),
      * and in the future it is likely that a light instance can override certain parameters of the light prototype.
      * A light prototype can be used across many light instances, and must live as long as the lights live.
+     * Instance data persists between frames; SubmitLightInstance selects which instances participate in the
+     * current frame's light buffer.
      */
     HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params);
     void            SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params);
@@ -503,7 +506,7 @@ namespace dmRender
     HLightInstance  NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype);
     void            DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);
     void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation, float scale);
-    void            SetAmbientLight(HRenderContext render_context, dmVMath::Vector3 color);
+    void            SubmitLightInstance(HRenderContext render_context, HLightInstance light_instance);
     void            SetLightBufferCount(HRenderContext render_context, uint32_t max_lights);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)

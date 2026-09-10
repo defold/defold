@@ -302,7 +302,7 @@ def get_pr_authors(pr):
             author_node = author_node or {}
             login = (author_node.get("user") or {}).get("login")
             author = login or author_node.get("name")
-            if author and author not in authors:
+            if author and (author not in authors) and (author != "defold-services"):
                 authors.append(author)
 
     if not authors:
@@ -530,24 +530,24 @@ def parse_github_project(version):
 
         # Remove closing keywords
         flags = re.IGNORECASE
-        entry["body"] = re.sub(r"Resolves https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Resolves #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Resolved https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Resolved #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Resolve https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Resolve #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Closes https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Closes #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Closed https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Closed #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Close https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Close #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fixes https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fixes #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fixed https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fixed #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fix https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fix #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolves:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolves:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolved:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolved:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolve:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolve:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closes:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closes:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closed:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closed:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Close:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Close:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixes:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixes:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixed:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixed:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fix:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fix:? #\d*.*", "", entry["body"], flags=flags).strip()
 
         # Remove other common ways to reference issues
         flags = re.IGNORECASE

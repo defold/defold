@@ -16,12 +16,14 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.atlas :as atlas]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.texture-util :as texture-util]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :as test-support]))
+            [support.test-support :as test-support]
+            [util.coll :as coll]))
 
 (deftest valid-fps
   (test-util/with-loaded-project
@@ -58,6 +60,48 @@
                "diamond_dogs"
                "test_anim"}
              animation-ids-in-ddf)))))
+
+(deftest image-variants-share-a-rect-but-keep-their-own-geometry
+  (test-support/with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/image_project")
+          project (test-util/setup-project! workspace)
+          resource (test-util/make-resource!
+                     workspace "/main/variants.atlas"
+                     {:margin 0
+                      :extrude-borders 0
+                      :inner-padding 0
+                      :images [{:image "/images/diamond.png"}]
+                      :animations [{:id "variant"
+                                    :images [{:image "/images/diamond.png"
+                                              :pivot-x 0.0
+                                              :sprite-trim-mode :sprite-trim-mode-6}]}]})
+          _ (workspace/resource-sync! workspace)
+          atlas (project/get-resource-node project resource)
+          image->rect (g/node-value atlas :image->rect)
+          rects (coll/vals image->rect)]
+
+      (testing "The source image is packed once"
+        (is (= 1 (count (g/node-value atlas :layout-rects))))
+        (is (= 1 (count (into #{} (map (juxt :x :y :width :height :page)) rects)))))
+
+      (testing "But each entry keeps its own geometry"
+        (is (= 2 (count image->rect)))
+        (is (= #{0.0 0.5} (into #{} (map (comp double :pivot-x)) (coll/keys image->rect))))
+        (is (= #{:sprite-trim-mode-off :sprite-trim-mode-6} (into #{} (map :sprite-trim-mode) (coll/keys image->rect))))
+        (is (= #{-0.5 0.0} (into #{} (map (comp double :pivot-x :geometry)) rects)))
+        (is (= #{:sprite-trim-mode-off :sprite-trim-mode-6} (into #{} (map (comp :trim-mode :geometry)) rects))))
+
+      (testing "And the scene of each image node renders its own geometry"
+        (let [image-nodes (into []
+                                (comp (map :node-id)
+                                      (filter #(g/node-instance? atlas/AtlasImage %)))
+                                (tree-seq :children :children (g/node-value atlas :node-outline)))
+              scene-trim-modes (into #{}
+                                     (map (fn [image-node]
+                                            (-> (g/node-value image-node :scene) :renderable :user-data :rect :geometry :trim-mode)))
+                                     image-nodes)]
+          (is (= 2 (count image-nodes)))
+          (is (= #{:sprite-trim-mode-off :sprite-trim-mode-6} scene-trim-modes)))))))
 
 (deftest sprite-trim-mode-image-io-error
   (test-support/with-clean-system

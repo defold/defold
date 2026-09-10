@@ -32,12 +32,12 @@ mkdir -p libexec/x86_64-macos
 mkdir -p libexec/arm64-macos
 mkdir -p libexec/x86_64-win32
 mkdir -p libexec/arm64-ios
-mkdir -p libexec/arm64_sim-ios
+# mkdir -p libexec/arm64_sim-ios
 # mkdir -p libexec/armv7-android
 mkdir -p libexec/arm64-android
-mkdir -p libexec/x86_64-android
+# mkdir -p libexec/x86_64-android
 mkdir -p libexec/wasm-web
-mkdir -p libexec/wasm_pthread-web
+# mkdir -p libexec/wasm_pthread-web
 
 cp -v "$DYNAMO_HOME/ext/share/java/bundletool-all.jar" libexec/bundletool-all.jar
 
@@ -180,8 +180,8 @@ if [ -d "$DYNAMO_HOME/archive/$SHA1" ]; then
 copy x86_64-linux/stripped/dmengine x86_64-linux/dmengine
 copy x86_64-linux/stripped/dmengine_release x86_64-linux/dmengine_release
 # copy x86_64-linux/stripped/dmengine_headless x86_64-linux/dmengine_headless
-copy arm64-linux/stripped/dmengine arm64-linux/dmengine
-copy arm64-linux/stripped/dmengine_release arm64-linux/dmengine_release
+# copy arm64-linux/stripped/dmengine arm64-linux/dmengine
+# copy arm64-linux/stripped/dmengine_release arm64-linux/dmengine_release
 # copy arm64-linux/stripped/dmengine_headless arm64-linux/dmengine_headless
 copy x86_64-macos/stripped/dmengine x86_64-macos/dmengine
 copy x86_64-macos/stripped/dmengine_release x86_64-macos/dmengine_release
@@ -194,23 +194,23 @@ copy x86_64-win32/dmengine_release.exe x86_64-win32/dmengine_release.exe
 # copy x86_64-win32/dmengine_headless.exe x86_64-win32/dmengine_headless.exe
 copy arm64-ios/stripped/dmengine arm64-ios/dmengine
 copy arm64-ios/stripped/dmengine_release arm64-ios/dmengine_release
-copy arm64_sim-ios/stripped/dmengine arm64_sim-ios/dmengine
-copy arm64_sim-ios/stripped/dmengine_release arm64_sim-ios/dmengine_release
+# copy arm64_sim-ios/stripped/dmengine arm64_sim-ios/dmengine
+# copy arm64_sim-ios/stripped/dmengine_release arm64_sim-ios/dmengine_release
 # copy armv7-android/stripped/libdmengine.so armv7-android/libdmengine.so
 # copy armv7-android/stripped/libdmengine_release.so armv7-android/libdmengine_release.so
 copy arm64-android/stripped/libdmengine.so arm64-android/libdmengine.so # TODO only valid once arm64-android CI target is present --jbnn
 copy arm64-android/stripped/libdmengine_release.so arm64-android/libdmengine_release.so # TODO only valid once arm64-android CI target is present --jbnn
-copy x86_64-android/stripped/libdmengine.so x86_64-android/libdmengine.so
-copy x86_64-android/stripped/libdmengine_release.so x86_64-android/libdmengine_release.so
+# copy x86_64-android/stripped/libdmengine.so x86_64-android/libdmengine.so
+# copy x86_64-android/stripped/libdmengine_release.so x86_64-android/libdmengine_release.so
 copy wasm-web/dmengine.js wasm-web/dmengine.js
 copy wasm-web/dmengine.wasm wasm-web/dmengine.wasm
 copy wasm-web/dmengine_release.js wasm-web/dmengine_release.js
 copy wasm-web/dmengine_release.wasm wasm-web/dmengine_release.wasm
 
-copy wasm_pthread-web/dmengine.js wasm_pthread-web/dmengine.js
-copy wasm_pthread-web/dmengine.wasm wasm_pthread-web/dmengine.wasm
-copy wasm_pthread-web/dmengine_release.js wasm_pthread-web/dmengine_release.js
-copy wasm_pthread-web/dmengine_release.wasm wasm_pthread-web/dmengine_release.wasm
+# copy wasm_pthread-web/dmengine.js wasm_pthread-web/dmengine.js
+# copy wasm_pthread-web/dmengine.wasm wasm_pthread-web/dmengine.wasm
+# copy wasm_pthread-web/dmengine_release.js wasm_pthread-web/dmengine_release.js
+# copy wasm_pthread-web/dmengine_release.wasm wasm_pthread-web/dmengine_release.wasm
 
 fi
 

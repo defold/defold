@@ -57,6 +57,7 @@ BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
 
 _CMAKE_FEATURE_FLAG_MAP = {
     '--with-asan': 'WITH_ASAN',
+    '--with-hwasan': 'WITH_HWASAN',
     '--with-ubsan': 'WITH_UBSAN',
     '--with-tsan': 'WITH_TSAN',
     '--with-valgrind': 'WITH_VALGRIND',
@@ -3644,10 +3645,14 @@ class Configuration(object):
         # * Editor files
         # * Defold SDK files
         # * launcher files, used to launch editor2
-        # * rarely used platforms: armv7-android
+        # * rarely used platforms: armv7-android, wasm_pthread-web,
+        #   x86_64-android and arm64_sim-ios
+        # * arm64-linux vanilla engines (keep native compiler libraries)
         # * headless builds
         pattern = re.compile(
-            r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$|/armv7-android(/|$)|headless'
+            r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$'
+            r'|/(armv7-android|wasm_pthread-web|x86_64-android|arm64_sim-ios)(/|$)|headless'
+            r'|/arm64-linux/(stripped/)?(lib)?dmengine[^/]*$'
         )
         prefix = s3.get_archive_prefix(self.get_archive_path(), self._git_sha1())
         for obj_summary in bucket.objects.filter(Prefix=prefix):
@@ -3868,10 +3873,9 @@ class Configuration(object):
 
         if u.scheme == 's3':
             bucket = s3.get_bucket(u.netloc)
-            # create redirect so that the old s3 paths still work
-            # s3://d.defold.com/archive/channel/sha1/engine/* -> http://d.defold.com/archive/sha1/engine/*
+            # Keep legacy archive paths working without redirecting HTTPS downloads to HTTP.
             redirect_key = self.get_archive_redirect_key(url)
-            redirect_url = url.replace("s3://", "http://")
+            redirect_url = url.replace("s3://", "https://")
 
             if not self.thread_pool:
                 self.thread_pool = ThreadPool(8)
