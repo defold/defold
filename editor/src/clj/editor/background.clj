@@ -31,11 +31,11 @@
         y1 (.bottom viewport)]
     (render-util/render-color-quad!
       gl render-args ::background
+      colors/scene-background
       [[x0 y1]
        [x1 y1]
        [x1 y0]
-       [x0 y0]]
-      colors/scene-background)))
+       [x0 y0]])))
 
 (g/defnode Background
   (output renderable pass/RenderData (g/fnk [] {pass/background [{:world-transform geom/Identity4d :render-fn render-background}]})))

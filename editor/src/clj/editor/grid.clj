@@ -24,7 +24,8 @@
             [editor.prefs :as prefs]
             [editor.shaders :as shaders]
             [editor.types :as types]
-            [editor.ui.settings-popup :as settings-popup])
+            [editor.ui.settings-popup :as settings-popup]
+            [util.array :as array])
   (:import com.jogamp.opengl.GL2
            [editor.types AABB Camera]
            [java.util List]
@@ -141,8 +142,8 @@
   (if (= :perspective (:type camera))
     (let [max-fov (math/deg->rad (max ^double (:fov-x camera) ^double (:fov-y camera)))
           fog-start (* max-fov ^double (:z-far camera))]
-      (float-array [fog-start (* 2.0 fog-start) 1.0 0.0]))
-    (float-array [0.0 1.0 0.0 0.0])))
+      (array/of-floats fog-start (* 2.0 fog-start) 1.0 0.0))
+    (array/of-floats 0.0 1.0 0.0 0.0)))
 
 (defn render-scaled-grids
   [^GL2 gl render-args renderables _count]

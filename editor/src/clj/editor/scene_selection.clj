@@ -71,14 +71,13 @@
             max-p (reduce max-fn [start current])
             max-x (nth max-p 0)
             max-y (nth max-p 1)
-            z 0.0
             color (mapv #(/ % 255.0) [131 188 212])
-            positions [[min-x min-y z]
-                       [min-x max-y z]
-                       [max-x max-y z]
-                       [max-x min-y z]]]
-        (render-util/render-color-line-loop! gl render-args ::selection-box-outline positions color)
-        (render-util/render-color-quad! gl render-args ::selection-box-fill positions (conj color 0.2))))))
+            positions [[min-x min-y]
+                       [min-x max-y]
+                       [max-x max-y]
+                       [max-x min-y]]]
+        (render-util/render-color-line-loop! gl render-args ::selection-box-outline color positions)
+        (render-util/render-color-quad! gl render-args ::selection-box-fill (conj color 0.2) positions)))))
 
 (defn- select [controller op-seq mode toggle?]
   (let [select-fn (g/node-value controller :select-fn)

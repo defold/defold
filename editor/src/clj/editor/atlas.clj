@@ -105,11 +105,11 @@
         y1 (+ y0 (:height rect))]
     (render-util/render-color-quad!
       gl render-args ::atlas-image-selection
-      [[x0 y0 0.0]
-       [x0 y1 0.0]
-       [x1 y1 0.0]
-       [x1 y0 0.0]]
-      color)))
+      color
+      [[x0 y0]
+       [x0 y1]
+       [x1 y1]
+       [x1 y0]])))
 
 (defn- renderables->outline-vertex-component-count
   [renderables]

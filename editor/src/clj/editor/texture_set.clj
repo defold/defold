@@ -443,12 +443,12 @@
                     y0 (.y world-pos)
                     x1 (+ x0 scaled-width)
                     y1 (- y0 scaled-height)
-                    positions [[x0 y0 0.0]
-                               [x0 y1 0.0]
-                               [x1 y1 0.0]
-                               [x1 y0 0.0]]]
-                (render-util/render-color-quad! gl render-args ::animation-background positions colors/scene-background)
-                (render-util/render-color-line-loop! gl render-args ::animation-outline positions colors/outline-color)
+                    positions [[x0 y0]
+                               [x0 y1]
+                               [x1 y1]
+                               [x1 y0]]]
+                (render-util/render-color-quad! gl render-args ::animation-background colors/scene-background positions)
+                (render-util/render-color-line-loop! gl render-args ::animation-outline colors/outline-color positions)
                 (gl/with-gl-bindings gl render-args [animation-overlay-shader vertex-binding gpu-texture]
                   (shader/set-samplers-by-index animation-overlay-shader gl 0 (:texture-units gpu-texture))
                   (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 vertex-count))))))))))

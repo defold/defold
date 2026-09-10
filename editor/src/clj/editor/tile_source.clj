@@ -265,11 +265,11 @@
                   [[x0 y0] [x1 y1]] (tile-coords (+ (dec start-tile) frame) tile-source-attributes [sx sy])]
               (render-util/render-color-line-loop!
                 gl render-args ::animation-outline
-                [[x0 y0 0.0]
-                 [x0 y1 0.0]
-                 [x1 y1 0.0]
-                 [x1 y0 0.0]]
-                colors/selected-outline-color)))))
+                colors/selected-outline-color
+                [[x0 y0]
+                 [x0 y1]
+                 [x1 y1]
+                 [x1 y0]])))))
 
       pass/overlay
       (texture-set/render-animation-overlay gl render-args renderables))))

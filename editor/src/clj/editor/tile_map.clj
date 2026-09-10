@@ -803,11 +803,11 @@
             y1 (+ y0 (* height tile-height))]
         (render-util/render-color-line-loop!
           gl render-args ::brush-outline
-          [[x0 y0 0.0]
-           [x1 y0 0.0]
-           [x1 y1 0.0]
-           [x0 y1 0.0]]
-          color)))))
+          color
+          [[x0 y0]
+           [x1 y0]
+           [x1 y1]
+           [x0 y1]])))))
 
 (defn conj-brush-quad!
   [vbuf {:keys [tile h-flip v-flip rotate90]} uvs w h x y]
@@ -1085,11 +1085,11 @@
   (let [{:keys [right bottom]} viewport]
     (render-util/render-color-quad!
       gl render-args ::palette-background
+      [0.0 0.0 0.0 0.7]
       [[0.0 0.0]
        [right 0.0]
        [right bottom]
-       [0.0 bottom]]
-      [0.0 0.0 0.0 0.7])))
+       [0.0 bottom]])))
 
 (defn render-palette
   [^GL2 gl render-args renderables count]
@@ -1121,11 +1121,11 @@
             y1 (* tile-height (inc (max-l sy ey)))]
         (render-util/render-color-line-loop!
           gl render-args ::editor-select-outline
-          [[x0 y0 0.0]
-           [x1 y0 0.0]
-           [x1 y1 0.0]
-           [x0 y1 0.0]]
-          color)))))
+          color
+          [[x0 y0]
+           [x1 y0]
+           [x1 y1]
+           [x0 y1]])))))
 
 (defn render-editor-select
   [^GL2 gl render-args renderables n]
