@@ -1312,8 +1312,7 @@ class Configuration(object):
             self.fatal("Ninja not found in PATH")
         self._log(f"Found Ninja: {ninja}")
 
-        cmake_target_platform = self._cmake_target_platform(target_platform)
-        args = ["cmake", f"-DTARGET_PLATFORM={cmake_target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
+        args = ["cmake", f"-DTARGET_PLATFORM={self.target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
         if self.verbose:
             args.insert(1, '-DDEFOLD_VERBOSE=ON')
 
@@ -1803,13 +1802,8 @@ class Configuration(object):
         dynamo_home = self.dynamo_home
         self.full_archive_path = full_archive_path
 
-        artifact_platform = self._engine_artifact_platform(self.target_platform)
-        if artifact_platform == self.target_platform:
-            bin_dir = self.build_utility.get_binary_path()
-            lib_dir = self.build_utility.get_library_path()
-        else:
-            bin_dir = join(dynamo_home, 'bin', artifact_platform)
-            lib_dir = join(dynamo_home, 'lib', artifact_platform)
+        bin_dir = self.build_utility.get_binary_path()
+        lib_dir = self.build_utility.get_library_path()
 
         # upload editor 2.0 launcher
         if self.target_platform in ['x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
@@ -2096,16 +2090,8 @@ class Configuration(object):
             defines.append(f"-D{option}:STRING={';'.join(features)}")
         return defines
 
-    def _cmake_target_platform(self, platform):
-        return platform
-
     def _platform_build_home(self, platform):
         return self.defold_root
-
-    def _engine_artifact_platform(self, platform):
-        if self._build_engine_with_waf():
-            return platform
-        return self._cmake_target_platform(platform)
 
     def _cmake_top_build_dir(self, platform):
         build_home = self._platform_build_home(platform)
@@ -2400,7 +2386,6 @@ class Configuration(object):
         self._remove_tree(join(build_home, 'share', 'extender', 'build', platform))
 
     def _build_engine_libs_cmake(self, name, lib_set, platform, skip_tests = False, reuse_builddir = False, allow_compatible_configure = False, use_existing_bob_light = False):
-        platform = self._cmake_target_platform(platform)
         build_home = self._platform_build_home(platform)
         builddir = self._cmake_top_build_dir(platform)
 
@@ -2702,7 +2687,7 @@ class Configuration(object):
     def build_ext(self):
         self.check_sdk()
 
-        platform = self._cmake_target_platform(self.target_platform)
+        platform = self.target_platform
         source_dir = join(self.defold_root, 'external')
         build_dir = join(source_dir, 'build', platform)
         build_type = self._find_cmake_build_type(self.waf_options)
@@ -2759,7 +2744,6 @@ class Configuration(object):
             self._build_external_lib_cmake(lib, self.target_platform)
 
     def _build_external_lib_cmake(self, lib, platform):
-        cmake_platform = platform
         version = EXTERNAL_PACKAGE_VERSIONS[lib]
         product_name = EXTERNAL_PACKAGE_NAMES.get(lib, lib)
         default_package_name = '%s-%s' % (product_name, version)
@@ -2787,7 +2771,7 @@ class Configuration(object):
             '-B', build_dir,
             '-GNinja',
             '-DCMAKE_BUILD_TYPE=%s' % build_type,
-            '-DTARGET_PLATFORM=%s' % cmake_platform,
+            '-DTARGET_PLATFORM=%s' % platform,
             '-DDEFOLD_EXTERNAL_PLATFORM=%s' % platform,
             '-DDEFOLD_SDK_ROOT=%s' % self.dynamo_home,
             '-DDEFOLD_EXTERNAL_INSTALL_PREFIX=%s' % install_dir,
@@ -3094,7 +3078,7 @@ class Configuration(object):
         self._log('Building API docs')
         docs_dir = join(self.defold_root, 'engine/docs')
         builddir = join(docs_dir, 'build')
-        platform = self._cmake_target_platform(self.target_platform)
+        platform = self.target_platform
         build_type = self._find_cmake_build_type(self.waf_options)
         docs_run_tests = 'OFF' if self.skip_tests or self.target_platform != self.host else 'ON'
         is_verbose = self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options)

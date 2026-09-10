@@ -196,11 +196,6 @@ public class Platform {
     }
 
     public static Platform get(String pair) {
-
-        // Support the legacy Windows platform name.
-        if (pair.equals("win32"))
-            pair = "x86_64-win32";
-
         Platform[] platforms = Platform.values();
         for (Platform p : platforms) {
             if (p.getPair().equals(pair)) {

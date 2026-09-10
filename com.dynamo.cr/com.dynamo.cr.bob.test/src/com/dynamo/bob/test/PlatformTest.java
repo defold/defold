@@ -34,7 +34,7 @@ public class PlatformTest {
     @Test
     public void testPlatformGetFn() {
         testPlatformGet(Platform.X86_64Win32);
-        assertTrue(Platform.X86_64Win32 == Platform.get("win32"));
+        assertNull(Platform.get("win32"));
         assertNull(Platform.get("x86-win32"));
         testPlatformGet(Platform.X86_64MacOS);
         testPlatformGet(Platform.Arm64MacOS);
