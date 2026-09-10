@@ -91,7 +91,7 @@
         },
         {
             "author": "ekharkunov",
-            "body": "This fixes an issue with how the bits per pixels are calculated for compresses textures to avoid runtime errors when transcoding textures.",
+            "body": "This fixes an issue with how the bits per pixels are calculated for compressed textures to avoid runtime errors when transcoding textures.",
             "closed_issues": [
                 12743
             ],
@@ -383,7 +383,7 @@
         },
         {
             "author": "JCash, ekharkunov",
-            "body": "This change updates to Clang 20 for Linux builds. The version matches the version we use on our cloud build server (note that the the supported Linux version is still Ubuntu 22.04).",
+            "body": "This change updates to Clang 20 for Linux builds. The version matches the version we use on our cloud build server (note that the supported Linux version is still Ubuntu 22.04).",
             "closed_issues": [
                 12036
             ],
@@ -401,7 +401,7 @@
         },
         {
             "author": "JosephFerano",
-            "body": "- Camera state (2D/3D, position, rotation, zoom, etc;) is now remembered for every resource. This means that if you close a resource tab (like collection, atlas, go, etc;) or restart the editor, however you left the camera will be the state it starts in.\r\n- Scene visibility settings are also now per scene and remembered, so you can modify the visibility for one collection differently from another.\r\n- 3D resources (such as model, gltf/glb,mesh, etc;) now start in perspective mode\r\n- Grid settings now remember if you are working in a 2D or 3D scene. If you toggle the 2D button, you the grid settings will change to whatever you have for that specific mode.",
+            "body": "This change persists scene settings and camera state:\r\n\r\n- Camera state (2D/3D, position, rotation, zoom, etc;) is now remembered for every resource. If a resource tab is closed (like collection, atlas, go, etc;) or the editor is restarted, the camera will restored to the state it was in.\r\n- Scene visibility settings are also now per scene and remembered. The visibility for one collection can be different from another.\r\n- 3D resources (such as model, gltf/glb,mesh, etc;) now start in perspective mode\r\n- Grid settings now remember if working in a 2D or 3D scene. When the 2D button is toggled the grid settings will change to whatever was configured for that specific mode.",
             "closed_issues": [
                 12472
             ],
@@ -447,7 +447,7 @@
         },
         {
             "author": "ekharkunov",
-            "body": "The fix is check if device supports ETC2 and upload texture as ETC2 instead of ETC1.",
+            "body": "This fix checks if device supports ETC2 and upload texture as ETC2 instead of ETC1.",
             "closed_issues": [
                 12844
             ],
@@ -979,7 +979,7 @@
         },
         {
             "author": "britzl",
-            "body": "Added `graphics.webgl_version_hint` to be able to select a WebGL 1 context even when the device supports WebGL 2. This may be useful in scenarios when when the WebGL 2 implementation or reported extensions contain bugs or inconsistencies.",
+            "body": "Added `graphics.webgl_version_hint` to be able to select a WebGL 1 context even when the device supports WebGL 2. This may be useful in scenarios when the WebGL 2 implementation or reported extensions contain bugs or inconsistencies.",
             "closed_issues": [
                 12397
             ],
@@ -1330,7 +1330,7 @@
             "pr_repository": "defold",
             "referencecommits": [],
             "repository": "defold",
-            "title": "Editor use latest basic3d template",
+            "title": "Editor uses the latest Basic 3D template",
             "type": "NEW",
             "url": "https://github.com/defold/defold/pull/12971"
         },
@@ -1510,7 +1510,7 @@
         },
         {
             "author": "JosephFerano",
-            "body": "Sometimes script files could load first before Lua LSP had a change to finish loading so the structure pane and Jump to Symbol would not work until modifying the file.",
+            "body": "Sometimes script files could load first before Lua LSP had a chance to finish loading so the structure pane and Jump to Symbol would not work until modifying the file.",
             "closed_issues": [
                 12951
             ],
@@ -2889,6 +2889,6 @@
             "url": "https://github.com/defold/defold/pull/12968"
         }
     ],
-    "timestamp": 1789039476.893996,
+    "timestamp": 1789043637.6596081,
     "version": "1.13.2"
 }
