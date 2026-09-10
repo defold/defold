@@ -334,7 +334,7 @@
         },
         {
             "author": "britzl",
-            "body": "This change speeds up live update archive creation by changing the underlying data structure holding  the excluded files.",
+            "body": "This change significantly speeds up live update archive creation by changing the underlying data structure holding  the excluded files.",
             "closed_issues": [
                 12806
             ],
@@ -383,7 +383,7 @@
         },
         {
             "author": "JCash, ekharkunov",
-            "body": "This matches the version we use on our cloud build server.\r\nNote that the the supported linux version is still Ubuntu 22.04.",
+            "body": "This change updates to Clang 20 for Linux builds. The version matches the version we use on our cloud build server (note that the the supported Linux version is still Ubuntu 22.04).",
             "closed_issues": [
                 12036
             ],
@@ -756,7 +756,7 @@
         },
         {
             "author": "JCash",
-            "body": "The user facing gamepad name now is trimmed of whitespace:\r\nE.g. `USB Joystick ` will now show as `USB Joystick`.",
+            "body": "The user facing gamepad name now is trimmed of whitespace:\r\nE.g. `'USB Joystick '` will now show as `'USB Joystick'`.",
             "closed_issues": [
                 12758
             ],
@@ -777,7 +777,7 @@
         },
         {
             "author": "JCash",
-            "body": "- Added `.otf` font support\r\n  - Now supports TrueType `glyf`, OpenType CFF1/CFF2 outlines in both legacy and full-shaping engines.\r\n- Replaced runtime `stb_truetype` with our own implementation for legacy support.\r\n- Optimized TrueType SDF generation by 3.6x-5.9x\r\n- Optimized full text shaping 17-18%",
+            "body": "This change adds `.otf` font support as well as TrueType `glyf` and OpenType CFF1/CFF2 outlines in both legacy and full-shaping engines. The TrueType SDF generation has been optimized by 3.6x-5.9x. Full text shaping speed has improved by 17-18%",
             "closed_issues": [
                 12264
             ],
@@ -1244,7 +1244,7 @@
         },
         {
             "author": "JosephFerano",
-            "body": "",
+            "body": "This change improves performance when viewing markdown files containing large images.",
             "closed_issues": [
                 12927
             ],
@@ -1380,7 +1380,7 @@
         },
         {
             "author": "JCash",
-            "body": "Improved DDF (our internal message format) encoding and decoding performance, including up to 4.7\u00d7 faster small-message decoding and 17% faster repeated-field decoding.  \r\nRecursive message encoding is significantly faster\u2014up to 95\u00d7 in deep-message benchmarks\u2014without API changes.",
+            "body": "Improved DDF (our internal message format) encoding and decoding performance, including up to 4.7\u00d7 faster small-message decoding and 17% faster repeated-field decoding. Recursive message encoding is significantly faster: up to 95\u00d7 in deep-message benchmarks.",
             "closed_issues": [
                 12977
             ],
@@ -1576,7 +1576,10 @@
             "author": "AGulev, vlaaad",
             "body": "Defold now ships accurate Lua annotations for game and editor scripts and uses them with the upstream Lua Language Server. This enables Defold-aware completions and diagnostics, including `editor.*` functions and constants, recognizes built-in types such as `hash`, `url`, and vectors, and prevents invalid API documentation from being published.\r\n<img width=\"940\" height=\"726\" alt=\"CleanShot 2026-08-20 at 19 13 38@2x\" src=\"https://github.com/user-attachments/assets/5a5ddc05-cc8f-42cf-a05e-a39a78413102\" />\r\n\r\n<img width=\"800\" height=\"625\" alt=\"CleanShot 2026-08-20 at 19 16 20\" src=\"https://github.com/user-attachments/assets/388e0940-8ff4-49a8-b718-3cfb77607d16\" />",
             "closed_issues": [
-                6895
+                6895,
+                10916,
+                10328,
+                9064
             ],
             "duplicate": false,
             "issue_number": 6895,
@@ -1918,7 +1921,8 @@
             "author": "ekharkunov",
             "body": "This fixes a long standing issue with size verification of downloaded files in an HTML5 build. The engine loader will now also retry downloaded if file verification failed. It is also possible to completely disable size verification by checking `html5.verify_downloaded_file_size` property in game.project.",
             "closed_issues": [
-                9043
+                9043,
+                10006
             ],
             "duplicate": false,
             "issue_number": 9043,
@@ -2009,8 +2013,882 @@
             "title": "Fix Android bundling for the x86_64 architecture when stripping executables",
             "type": "FIX",
             "url": "https://github.com/defold/defold/pull/13045"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "<img width=\"800\" height=\"439\" alt=\"output\" src=\"https://github.com/user-attachments/assets/7bcdf50a-e063-4193-a4a4-e99551db2ad3\" />",
+            "closed_issues": [
+                8021
+            ],
+            "duplicate": false,
+            "issue_number": 8021,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "d211e4e4e33feee8d9600f7c0dcc50436504bc07",
+            "pr_number": 13041,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Show mouse coordinates in the scene view",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/13041"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Fixed a few issues related to OpenGL compute shader support on Windows - compute shader support was compiled out of the Windows OpenGL graphics library. After enabling it, several existing OpenGL backend issues prevented compute output from rendering correctly:\r\n\r\n* Compute programs did not initialize their resource-binding metadata, causing constants such as uniform-buffer members to be reported as missing.\r\n* Storage-image detection relied on OpenGL\u2019s active-uniform iteration order. This order is not guaranteed and could cause sampled textures and storage images to be bound to the wrong units.\r\n* Compute dispatch only issued an image-access memory barrier. A texture-fetch barrier is also required when a texture written by a compute shader is subsequently sampled while rendering.",
+            "closed_issues": [
+                13032
+            ],
+            "duplicate": false,
+            "issue_number": 13032,
+            "labels": [
+                "engine",
+                "windows",
+                "graphics",
+                "shader"
+            ],
+            "mergecommit": "976b54a19608c8350091623f98bfeda652b90a30",
+            "pr_number": 13040,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Compute shaders not working on win32",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13040"
+        },
+        {
+            "author": "britzl",
+            "body": "Fix a crash during asynchronous texture upload.",
+            "closed_issues": [
+                13017
+            ],
+            "duplicate": false,
+            "issue_number": 13017,
+            "labels": [
+                "bug",
+                "engine",
+                "vulkan"
+            ],
+            "mergecommit": "303dc259374d01c63c67989f7afd0df37697ec1d",
+            "pr_number": 13021,
+            "pr_repository": "defold",
+            "referencecommits": [
+                "16cb3f673cdbd1d0746c77a94269fb20a119723b"
+            ],
+            "repository": "defold",
+            "title": "Fix crash during async texture upload",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13021"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Fixed an issue where using Vulkan on Android, the engine could crash during startup when the application lifecycle changed while the Vulkan surface was being created, for example if the app was paused or the screen was locked immediately after launch. The Vulkan backend used the current ANativeWindow without retaining it or verifying that it remained current. Android could destroy or replace that window concurrently, leaving Vulkan surface creation operating on a stale native-window pointer.\r\n\r\nThe fix moves Android window lifecycle handling into GLFW, which now waits until the application is resumed and a valid window is available, retains the window during Vulkan surface creation, and verifies afterward that it is still current. If the lifecycle changed during creation, the stale Vulkan surface is destroyed and creation is retried with the new window.",
+            "closed_issues": [
+                13012
+            ],
+            "duplicate": false,
+            "issue_number": 13012,
+            "labels": [
+                "bug",
+                "engine",
+                "android",
+                "graphics"
+            ],
+            "mergecommit": "ad83fa3ff97601557e0d89349f7bd54fc60b6b0f",
+            "pr_number": 13014,
+            "pr_repository": "defold",
+            "referencecommits": [
+                "57b4e12a14ae485ebb65f5c264611b2dbe4828a0"
+            ],
+            "repository": "defold",
+            "title": "Syncronize getting native window for android when using vulkan",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13014"
+        },
+        {
+            "author": "britzl",
+            "body": "This fixes a crash when a call to `sys.load_buffer_async()` is pending when the engine is rebooted and a new call to `sys.load_buffer_async()` is done after the reboot.",
+            "closed_issues": [
+                13001
+            ],
+            "duplicate": false,
+            "issue_number": 13001,
+            "labels": [
+                "bug",
+                "engine"
+            ],
+            "mergecommit": "d7948b67686d95d97ca056d9d9478137d22d1a63",
+            "pr_number": 13003,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix crash during async buffer loading during engine reboot",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13003"
+        },
+        {
+            "author": "britzl",
+            "body": "This fixes a crash when a dynamic resource (texture, sound etc) is created in collection A, released in collection B and then collection A is unloaded (or the engine is shut down or rebooted).",
+            "closed_issues": [
+                13002
+            ],
+            "duplicate": false,
+            "issue_number": 13002,
+            "labels": [
+                "bug",
+                "engine"
+            ],
+            "mergecommit": "9f9dd23b70461d5253dcdf7f8cea17a40fa54f30",
+            "pr_number": 13011,
+            "pr_repository": "defold",
+            "referencecommits": [
+                "63124d7fd7570a51224f34d3d6459a2f7d11bfe7"
+            ],
+            "repository": "defold",
+            "title": "Fix crash when creating and releasing dynamic resources from different collections",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13011"
+        },
+        {
+            "author": "AGulev, vlaaad",
+            "body": "Defold now ships accurate Lua annotations for game and editor scripts and uses them with the upstream Lua Language Server. This enables Defold-aware completions and diagnostics, including `editor.*` functions and constants, recognizes built-in types such as `hash`, `url`, and vectors, and prevents invalid API documentation from being published.\r\n<img width=\"940\" height=\"726\" alt=\"CleanShot 2026-08-20 at 19 13 38@2x\" src=\"https://github.com/user-attachments/assets/5a5ddc05-cc8f-42cf-a05e-a39a78413102\" />\r\n\r\n<img width=\"800\" height=\"625\" alt=\"CleanShot 2026-08-20 at 19 16 20\" src=\"https://github.com/user-attachments/assets/388e0940-8ff4-49a8-b718-3cfb77607d16\" />",
+            "closed_issues": [
+                10916
+            ],
+            "duplicate": true,
+            "issue_number": 10916,
+            "labels": [
+                "feature request",
+                "engine",
+                "lua"
+            ],
+            "mergecommit": "671dcea5a3df101fad9e6052e40c38017d34e837",
+            "pr_number": 12851,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add validated Lua API type annotations to the editor",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12851"
+        },
+        {
+            "author": "AGulev, vlaaad",
+            "body": "Defold now ships accurate Lua annotations for game and editor scripts and uses them with the upstream Lua Language Server. This enables Defold-aware completions and diagnostics, including `editor.*` functions and constants, recognizes built-in types such as `hash`, `url`, and vectors, and prevents invalid API documentation from being published.\r\n<img width=\"940\" height=\"726\" alt=\"CleanShot 2026-08-20 at 19 13 38@2x\" src=\"https://github.com/user-attachments/assets/5a5ddc05-cc8f-42cf-a05e-a39a78413102\" />\r\n\r\n<img width=\"800\" height=\"625\" alt=\"CleanShot 2026-08-20 at 19 16 20\" src=\"https://github.com/user-attachments/assets/388e0940-8ff4-49a8-b718-3cfb77607d16\" />",
+            "closed_issues": [
+                10328
+            ],
+            "duplicate": true,
+            "issue_number": 10328,
+            "labels": [
+                "feature request",
+                "editor",
+                "documentation",
+                "pipeline",
+                "lsp"
+            ],
+            "mergecommit": "671dcea5a3df101fad9e6052e40c38017d34e837",
+            "pr_number": 12851,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add validated Lua API type annotations to the editor",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12851"
+        },
+        {
+            "author": "AGulev, vlaaad",
+            "body": "Defold now ships accurate Lua annotations for game and editor scripts and uses them with the upstream Lua Language Server. This enables Defold-aware completions and diagnostics, including `editor.*` functions and constants, recognizes built-in types such as `hash`, `url`, and vectors, and prevents invalid API documentation from being published.\r\n<img width=\"940\" height=\"726\" alt=\"CleanShot 2026-08-20 at 19 13 38@2x\" src=\"https://github.com/user-attachments/assets/5a5ddc05-cc8f-42cf-a05e-a39a78413102\" />\r\n\r\n<img width=\"800\" height=\"625\" alt=\"CleanShot 2026-08-20 at 19 16 20\" src=\"https://github.com/user-attachments/assets/388e0940-8ff4-49a8-b718-3cfb77607d16\" />",
+            "closed_issues": [
+                9064
+            ],
+            "duplicate": true,
+            "issue_number": 9064,
+            "labels": [
+                "bug",
+                "editor",
+                "lsp"
+            ],
+            "mergecommit": "671dcea5a3df101fad9e6052e40c38017d34e837",
+            "pr_number": 12851,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add validated Lua API type annotations to the editor",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12851"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "When editing a material containing a matrix4 value it is now presented as a 4x4 grid of input fields for float values:\r\n\r\n<img width=\"693\" height=\"294\" alt=\"image\" src=\"https://github.com/user-attachments/assets/dc046f06-8b27-43c6-8cdd-393c0eee4298\" />",
+            "closed_issues": [
+                13008
+            ],
+            "duplicate": false,
+            "issue_number": 13008,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "c5a268033d4cbe1a215f45b2539c81103873d2ae",
+            "pr_number": 13054,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Material editor: Fix User matrix4 to show 4x4 floats",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13054"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Added independent W-axis wrapping configuration for texture samplers. Material and compute samplers can now specify wrap modes for W in addition to U and V, enabling full wrapping control for sampler3D textures.\r\n\r\n<img width=\"730\" height=\"213\" alt=\"image\" src=\"https://github.com/user-attachments/assets/c5bef9b9-9e90-4518-b63d-7b08cabc53a4\" />\r\n\r\nExample project: \r\n[3d-sampler-settings.zip](https://github.com/user-attachments/files/31548108/3d-sampler-settings.zip)",
+            "closed_issues": [
+                12019
+            ],
+            "duplicate": false,
+            "issue_number": 12019,
+            "labels": [
+                "feature request",
+                "engine",
+                "graphics"
+            ],
+            "mergecommit": "d798039db463a4b64d0f55e2a086bb8f491d395e",
+            "pr_number": 13042,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add wrap settings for 3D samplers in the editor",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/13042"
+        },
+        {
+            "author": "matgis",
+            "body": "Fixed a misunderstanding around the `[\"network\" \"ssl_certificates\"]` setting. It was never supposed to be set to a folder, but should denote a single `.pem` file containing all the certificates. Setting it to a directory was never possible using the editor, but we used a directory in the tests. Bob will produce an error if the setting denotes a directory.",
+            "closed_issues": [
+                13056
+            ],
+            "duplicate": false,
+            "issue_number": 13056,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "6b98835b58de655730eb8ee594677fb1cf9dc70e",
+            "pr_number": 13056,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "The \u201cnetwork/ssl_certificates\u201d game.project setting should denote a file in the editor",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13056"
+        },
+        {
+            "author": "AGulev",
+            "body": "On affected Windows systems, the editor should no longer intermittently freeze while creating resources such as atlases, fonts, and GUIs. The workaround prevents the single-CPU graphics initialization state identified in the reporter\u2019s process dump.",
+            "closed_issues": [
+                12678
+            ],
+            "duplicate": false,
+            "issue_number": 12678,
+            "labels": [
+                "bug",
+                "more info",
+                "editor",
+                "windows"
+            ],
+            "mergecommit": "eb09d3e6269222074333bc1a83a3786705261f25",
+            "pr_number": 13062,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix editor freezes during resource creation on Windows",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13062"
+        },
+        {
+            "author": "britzl",
+            "body": "This change fixes a crash when calling `font.prewarm_text()` twice for the same font and in short succession.",
+            "closed_issues": [
+                13015
+            ],
+            "duplicate": false,
+            "issue_number": 13015,
+            "labels": [
+                "bug",
+                "engine",
+                "font"
+            ],
+            "mergecommit": "cb6165fa58f67b1e1ea27f7fef68be6a04768a0e",
+            "pr_number": 13043,
+            "pr_repository": "defold",
+            "referencecommits": [
+                "050db4e784791ff8937cd42cd4a71e0470fcb922"
+            ],
+            "repository": "defold",
+            "title": "Fix a crash when calling `font.prewarm_text()` twice in short succession",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13043"
+        },
+        {
+            "author": "britzl",
+            "body": "This changes improves how the engine is polling for gamepad changes to avoid rare crashes and race conditions.",
+            "closed_issues": [
+                13029
+            ],
+            "duplicate": false,
+            "issue_number": 13029,
+            "labels": [
+                "bug",
+                "triage"
+            ],
+            "mergecommit": "a7cf2be41409e1349f08844032e92e886a42bdfd",
+            "pr_number": 13090,
+            "pr_repository": "defold",
+            "referencecommits": [
+                "6da9fcd023579135f1c208afdf50807439b1f093",
+                "ae1a579a84d7b68b3dab752118d7c7f8a9d8db4e",
+                "24c281c72af2fb5ebea7751c77d94a00a98a09b2"
+            ],
+            "repository": "defold",
+            "title": "Fix Android input device polling crash",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13090"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "WebGL doesn't support texture arrays of BC-family compressed format. This change makes sure to fall back to ETC2 when uploading to array/3D targets.",
+            "closed_issues": [
+                13070
+            ],
+            "duplicate": false,
+            "issue_number": 13070,
+            "labels": [],
+            "mergecommit": "0950b82c6cdb6e73447a1d926220568ab12e7f08",
+            "pr_number": 13070,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Handle case of BC7 texture arrays in WebGL",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13070"
+        },
+        {
+            "author": "AGulev",
+            "body": "Explicit `.projectc` arguments that reference a missing file now fail during startup instead of silently loading the bundled project. Extension-owned arguments such as Steam\u2019s `+connect_lobby <lobby ID>` remain ignored by project-file detection, preserving the original fix while preventing engine tests and CI jobs from hanging.",
+            "closed_issues": [
+                12880
+            ],
+            "duplicate": false,
+            "issue_number": 12880,
+            "labels": [
+                "bug"
+            ],
+            "mergecommit": "97c84e735d2f4219c60dac34db1122353d852615",
+            "pr_number": 13096,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix fallback for missing project files",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13096"
+        },
+        {
+            "author": "AGulev",
+            "body": "Large ZIP archives mounted from uncompressed Android assets no longer cause accessed archive pages to accumulate in the game process RSS (Resident Set Size).",
+            "closed_issues": [
+                13099
+            ],
+            "duplicate": false,
+            "issue_number": 13099,
+            "labels": [
+                "android"
+            ],
+            "mergecommit": "8113d3b687ad7b9f5fb74ff05da451d2ffe2b212",
+            "pr_number": 13099,
+            "pr_repository": "defold",
+            "referencecommits": [
+                "1b9a30a480558a39823b12b799a0dce69da109a9",
+                "24c281c72af2fb5ebea7751c77d94a00a98a09b2"
+            ],
+            "repository": "defold",
+            "title": "Reduce memory usage for ZIP archives in Android assets",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13099"
+        },
+        {
+            "author": "vlaaad",
+            "body": "We now support installing Android bundles on wireless devices with spaces in their names.",
+            "closed_issues": [
+                12723
+            ],
+            "duplicate": false,
+            "issue_number": 12723,
+            "labels": [
+                "bug",
+                "editor",
+                "android",
+                "debugger"
+            ],
+            "mergecommit": "652b8539e6904d0288105c832280e977d433525f",
+            "pr_number": 13098,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Support wireless Android devices with spaces in their names",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13098"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now, it's possible to create bundles using the new `/bob` endpoint. The options and commands are the same options that bob CLI uses. For example:\r\n\r\n```sh\r\ncurl -sS -X POST \"http://localhost:$(cat .internal/editor.port)/bob\" \\\r\n  -H \"Authorization: Bearer $(cat .internal/editor.token)\" \\\r\n  -d '{\"options\":{\"platform\":\"x86_64-linux\",\"archive\":true},\"commands\":[\"build\",\"bundle\"]}' | jq\r\n{\r\n  \"success\": true,\r\n  \"issues\": []\r\n}\r\n```",
+            "closed_issues": [
+                12830
+            ],
+            "duplicate": false,
+            "issue_number": 12830,
+            "labels": [
+                "feature request",
+                "editor",
+                "AI/LLM workflow"
+            ],
+            "mergecommit": "dee53f3428e3d4cd90f3b104f92f8c23b2b3aacb",
+            "pr_number": 13051,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add /bob endpoint to editor HTTP server",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/13051"
+        },
+        {
+            "author": "vlaaad",
+            "body": "The editor now provides contextual completion for component and url strings in Lua files.\r\n\r\nFor example, when typing a string literal starting with `#`, the editor will suggest available component names in the context where the script is used. Similarly, the editor now provides completions for URL strings like `\"/id/path#component\"` and `\"socket:/id#component\"`.",
+            "closed_issues": [
+                12921
+            ],
+            "duplicate": false,
+            "issue_number": 12921,
+            "labels": [
+                "feature request",
+                "editor",
+                "text-editor",
+                "performance"
+            ],
+            "mergecommit": "ce8596690db6a3c5cec1e1917c57b142674f26a3",
+            "pr_number": 12950,
+            "pr_repository": "defold",
+            "referencecommits": [
+                "00e744f61d16628f7e098985fbe5c4fe92e57de7"
+            ],
+            "repository": "defold",
+            "title": "Implement reference completion in the editor",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12950"
+        },
+        {
+            "author": "AGulev",
+            "body": "Custom vector attributes on sprites now retain the correct property type when their shader contains attributes omitted from the material. This prevents `go.animate()` from reporting an incorrect-type Lua error after setting attributes such as `tint`:\r\n>The property 'tint' of '[collection:/attributes_uninitialized_element_ids#sprite]'\r\nhas incorrect type 4 (errcode: -4)",
+            "closed_issues": [
+                13108
+            ],
+            "duplicate": false,
+            "issue_number": 13108,
+            "labels": [
+                "bug",
+                "triage"
+            ],
+            "mergecommit": "84a2b99004b4a1be6b10dbbdfe44bc6a361418a6",
+            "pr_number": 13113,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix custom vertex attribute animation type errors",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13113"
+        },
+        {
+            "author": "AGulev",
+            "body": "Lua errors raised from deep call stacks now reach `sys.set_error_handler` with their original message and a usable traceback instead of `nil` values. Tracebacks accommodate realistic long source paths and clearly indicate when bounded output must be truncated.",
+            "closed_issues": [
+                13112
+            ],
+            "duplicate": false,
+            "issue_number": 13112,
+            "labels": [
+                "bug",
+                "triage"
+            ],
+            "mergecommit": "0c9968ea2b5df64a895247dd16230078fc30ce6f",
+            "pr_number": 13115,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Preserve Lua error messages and tracebacks",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13115"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "We have improved WebGPU parity with Vulkan/OpenGL by:\r\n\r\n* Completing core render-target support, including resizing, MRT, MSAA resolves, depth/stencil attachments, load/store operations, and safe target switching.\r\n* Fixing off-screen render-target orientation and associated face-culling behavior without requiring project shader changes.\r\n* Correcting cubemap and layered texture uploads.\r\n* Fixing texture/sampler bindings, bind-group invalidation, and filterable float texture support.\r\n* Correcting canvas sizing on high-DPI displays.\r\n* Fixing WebGPU instanced model rendering and instance-buffer reuse across render passes.\r\n* Improving WebGPU validation and error reporting.",
+            "closed_issues": [
+                10682
+            ],
+            "duplicate": false,
+            "issue_number": 10682,
+            "labels": [
+                "bug",
+                "engine",
+                "webgpu"
+            ],
+            "mergecommit": "eb01f28fecbb725bd2ff18906331b39b10edc5aa",
+            "pr_number": 13116,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "WebGPU feature consolidation",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13116"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Fixed an issue where the ambient light contribution from multiple collections were overwritten at random from secondary collections.",
+            "closed_issues": [
+                13004
+            ],
+            "duplicate": false,
+            "issue_number": 13004,
+            "labels": [
+                "bug",
+                "engine",
+                "graphics",
+                "Light"
+            ],
+            "mergecommit": "588842b6a1d5afbc94244096980a936e85684870",
+            "pr_number": 13127,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix accumulated ambient light over collections",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13127"
+        },
+        {
+            "author": "ThomasRopke, ekharkunov",
+            "body": "Running a game in the iOS Simulator on an Apple Silicon Mac used to require Rosetta, a replaced universal simulator runtime and manual signing, because the old `x86_64-ios platform` produced an Intel binary that modern Xcode simulator runtimes cannot install. This release adds a new `arm64_sim-ios` platform that builds, bundles, installs and launches natively in the simulator with no extra setup.\r\n\r\nIn the editor, the iOS bundle dialog now has a single \"Simulator\" checkbox instead of the architecture checkboxes, and simulator bundles no longer ask for a signing identity or provisioning profile.\r\n\r\n\u26a0\ufe0f \u26a0\ufe0f \u26a0\ufe0f **Important note**: the `x86_64-ios` platform is removed. If your app manifest or native extension references x86_64-ios, rename that section to `arm64_sim-ios`. The long-unsupported armv7-ios entries have also been cleaned up.",
+            "closed_issues": [
+                11705
+            ],
+            "duplicate": false,
+            "issue_number": 11705,
+            "labels": [
+                "feature request",
+                "engine",
+                "editor",
+                "bob",
+                "ios"
+            ],
+            "mergecommit": "dce8e2fd6b7c466f695c8e84e9151fbbf6f2f4fa",
+            "pr_number": 12900,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Native Apple Silicon support for the iOS Simulator",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12900"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "This fixes a long standing issue with size verification of downloaded files in an HTML5 build. The engine loader will now also retry downloaded if file verification failed. It is also possible to completely disable size verification by checking `html5.verify_downloaded_file_size` property in game.project.",
+            "closed_issues": [
+                10006
+            ],
+            "duplicate": true,
+            "issue_number": 10006,
+            "labels": [
+                "bug",
+                "engine",
+                "html5",
+                "pipeline"
+            ],
+            "mergecommit": "b08c05c90ee5abb2d67b6f19623757ba7aaa2ea9",
+            "pr_number": 13034,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix HTML5 size verification",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13034"
+        },
+        {
+            "author": "hodor",
+            "body": "The editor now shows proper names for collision shapes in 2D (e.g., Circle) and 3D (e.g., Sphere).",
+            "closed_issues": [
+                12917
+            ],
+            "duplicate": false,
+            "issue_number": 12917,
+            "labels": [
+                "feature request",
+                "editor",
+                "physics"
+            ],
+            "mergecommit": "9e960ee86edec86691b87f10fdc1e98ab6978339",
+            "pr_number": 12919,
+            "pr_repository": "defold",
+            "referencecommits": [
+                "52b2c37c79f464a586f68a3fb00eb3ede332ea9c"
+            ],
+            "repository": "defold",
+            "title": "Show the round collision shape as \"Circle\" in projects with 2D physics",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12919"
+        },
+        {
+            "author": "JCash",
+            "body": "This fixes an issue when trying to build for Windows using an older app manifest.\r\nThe fix is renaming some windows libraries in the app manifest automatically when opening the project.",
+            "closed_issues": [
+                13022
+            ],
+            "duplicate": false,
+            "issue_number": 13022,
+            "labels": [
+                "bug",
+                "engine"
+            ],
+            "mergecommit": "776d20f78c98f0be6d05735a82a364f38036de7b",
+            "pr_number": 13105,
+            "pr_repository": "defold",
+            "referencecommits": [
+                "f625bf1b2942db3b220783e28f1e9ae623350a00"
+            ],
+            "repository": "defold",
+            "title": "Migrate app manifests for Windows builds",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13105"
+        },
+        {
+            "author": "britzl",
+            "body": "The browser `unload` event is about to be fully deprecated in Chrome. In Chrome 152 the top-50 websites and 80% of all page loads will treat `unload` as deprecated. Furthermore, Chrome reports it as a `Permissions policy violation`. This change replaces use of the `unload` event in the engine with `pagehide`.",
+            "closed_issues": [
+                13145
+            ],
+            "duplicate": false,
+            "issue_number": 13145,
+            "labels": [
+                "task",
+                "engine",
+                "html5",
+                "glfw"
+            ],
+            "mergecommit": "563a7de0d3af8de6bbc1566d77e3c53d725febe5",
+            "pr_number": 13146,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Removed use of deprecated browser `unload` event",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/13146"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Building with dependency metadata enabled no longer fails for libraries that declare included directories.",
+            "closed_issues": [
+                13080
+            ],
+            "duplicate": false,
+            "issue_number": 13080,
+            "labels": [
+                "editor",
+                "triage"
+            ],
+            "mergecommit": "ae4ed6da15f8d30492472bd9da7f55b6a0219374",
+            "pr_number": 13142,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix build failure when dependency metadata is enabled",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13142"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "A bug was fixed where reusing the same atlas image for different animations but with a different pivot and/or trim mode would end up sharing the same geometry. Now animations with different pivot/trim will retain their own geometry while using the same image.",
+            "closed_issues": [
+                7403,
+                13019
+            ],
+            "duplicate": false,
+            "issue_number": 7403,
+            "labels": [
+                "editor",
+                "sprite",
+                "atlas"
+            ],
+            "mergecommit": "e0366ac0c01d549067cdfcad0fc19fbaba1eeece",
+            "pr_number": 13141,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix editor atlas multiple image animation trim/pivot ",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13141"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "A bug was fixed where reusing the same atlas image for different animations but with a different pivot and/or trim mode would end up sharing the same geometry. Now animations with different pivot/trim will retain their own geometry while using the same image.",
+            "closed_issues": [
+                13019
+            ],
+            "duplicate": true,
+            "issue_number": 13019,
+            "labels": [
+                "editor",
+                "bob",
+                "atlas",
+                "investigation"
+            ],
+            "mergecommit": "e0366ac0c01d549067cdfcad0fc19fbaba1eeece",
+            "pr_number": 13141,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix editor atlas multiple image animation trim/pivot ",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13141"
+        },
+        {
+            "author": "JCash",
+            "body": "You can now create the rich text named styles directly in the `.font` file.\r\n\r\n<img width=\"50%\" height=\"50%\" alt=\"image\" src=\"https://github.com/user-attachments/assets/abf23cfa-d507-4b8f-b418-a2c841163ec1\" />",
+            "closed_issues": [
+                13122
+            ],
+            "duplicate": false,
+            "issue_number": 13122,
+            "labels": [],
+            "mergecommit": "5374e27f0c6e4fe0099df747dc72759a984d72cd",
+            "pr_number": 13122,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added font style support in editor",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13122"
+        },
+        {
+            "author": "britzl",
+            "body": "This fixes an issue where the engine would crash if using a tilemap in a game where 2D physics is excluded.",
+            "closed_issues": [
+                13020
+            ],
+            "duplicate": false,
+            "issue_number": 13020,
+            "labels": [
+                "bug",
+                "engine",
+                "physics"
+            ],
+            "mergecommit": "abe58514dd63ee9ce4326de680865a5ffb6851d0",
+            "pr_number": 13150,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix crash when using a tilemap when 2D physics is excluded",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/13150"
+        },
+        {
+            "author": "JosephFerano, matgis",
+            "body": "Various scenarios related to how lines were indented have been fixed. They also now match the indentation rules for LuaLS LSP server so formatting your document and indentation changes should work the same.\r\n\r\n<img width=\"579\" height=\"139\" alt=\"image\" src=\"https://github.com/user-attachments/assets/7640bdf2-6a06-40b9-93d9-194cc21203fb\" />",
+            "closed_issues": [
+                5178,
+                5255,
+                12767
+            ],
+            "duplicate": false,
+            "issue_number": 5178,
+            "labels": [
+                "feature request",
+                "editor",
+                "text-editor"
+            ],
+            "mergecommit": "64907d8ff4e7c5ed28748863a1cd43a1396aba52",
+            "pr_number": 12995,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Text editor indentation fixes and alignment on function parameters",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12995"
+        },
+        {
+            "author": "JosephFerano, matgis",
+            "body": "Various scenarios related to how lines were indented have been fixed. They also now match the indentation rules for LuaLS LSP server so formatting your document and indentation changes should work the same.\r\n\r\n<img width=\"579\" height=\"139\" alt=\"image\" src=\"https://github.com/user-attachments/assets/7640bdf2-6a06-40b9-93d9-194cc21203fb\" />",
+            "closed_issues": [
+                5255
+            ],
+            "duplicate": true,
+            "issue_number": 5255,
+            "labels": [
+                "feature request",
+                "editor",
+                "text-editor"
+            ],
+            "mergecommit": "64907d8ff4e7c5ed28748863a1cd43a1396aba52",
+            "pr_number": 12995,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Text editor indentation fixes and alignment on function parameters",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12995"
+        },
+        {
+            "author": "JosephFerano, matgis",
+            "body": "Various scenarios related to how lines were indented have been fixed. They also now match the indentation rules for LuaLS LSP server so formatting your document and indentation changes should work the same.\r\n\r\n<img width=\"579\" height=\"139\" alt=\"image\" src=\"https://github.com/user-attachments/assets/7640bdf2-6a06-40b9-93d9-194cc21203fb\" />",
+            "closed_issues": [
+                12767
+            ],
+            "duplicate": true,
+            "issue_number": 12767,
+            "labels": [
+                "bug",
+                "more info",
+                "editor",
+                "text-editor"
+            ],
+            "mergecommit": "64907d8ff4e7c5ed28748863a1cd43a1396aba52",
+            "pr_number": 12995,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Text editor indentation fixes and alignment on function parameters",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12995"
+        },
+        {
+            "author": "JosephFerano",
+            "body": "It is now possible to open a color picker when editing a vertex/fragment constant or vertex attributes representing a color.\r\n\r\n<img width=\"800\" height=\"559\" alt=\"output\" src=\"https://github.com/user-attachments/assets/f4ca3c15-fa38-428a-aa79-3779b1463ca5\" />",
+            "closed_issues": [
+                9004
+            ],
+            "duplicate": false,
+            "issue_number": 9004,
+            "labels": [
+                "feature request",
+                "editor",
+                "colorpicker"
+            ],
+            "mergecommit": "ab17c3f444589cef15c47f06d551c0d8dac863f1",
+            "pr_number": 12968,
+            "pr_repository": "defold",
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add color picker to material vertex/fragment constants and vertex attributes",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12968"
         }
     ],
-    "timestamp": 1789033217.2291698,
+    "timestamp": 1789039476.893996,
     "version": "1.13.2"
 }

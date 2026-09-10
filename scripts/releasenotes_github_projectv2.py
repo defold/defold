@@ -193,7 +193,11 @@ QUERY_PROJECT_ISSUES_AND_PRS = r"""
     projectV2(number: %s) {
       id
       title
-      items(first: 100) {
+      items(first: 100, after: %s) {
+        pageInfo {
+          endCursor
+          hasNextPage
+        }
         nodes {
           type
           content {
@@ -283,8 +287,15 @@ def get_pullrequest(number, repository = "defold"):
     return pr
 
 def get_issues_and_prs(project):
-    data = github_query(QUERY_PROJECT_ISSUES_AND_PRS % project.get("number"))
-    return data["organization"]["projectV2"]["items"]["nodes"]
+    items = []
+    cursor = None
+    while True:
+        data = github_query(QUERY_PROJECT_ISSUES_AND_PRS % (project.get("number"), json.dumps(cursor)))
+        page = data["organization"]["projectV2"]["items"]
+        items.extend(page["nodes"])
+        if not page["pageInfo"]["hasNextPage"]:
+            return items
+        cursor = page["pageInfo"]["endCursor"]
 
 def get_labels(*args):
     labels = []
