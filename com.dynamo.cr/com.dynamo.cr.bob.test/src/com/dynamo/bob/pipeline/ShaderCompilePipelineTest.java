@@ -400,11 +400,10 @@ public class ShaderCompilePipelineTest {
     }
 
     @Test
-    public void testLegacyRemapsWhiteOverlayShaderStageLocations() throws Exception {
-        // Regression for github.com/defold/defold/issues/13164. The unused first
-        // fragment varying is optimized away after glslang assigns locations,
-        // leaving the two live fragment inputs at locations 1 and 2 while the
-        // corresponding vertex outputs occupy locations 0 and 1.
+    public void testLegacyRemapsStageLocationsAfterUnusedVaryingRemoval() throws Exception {
+        // The unused first fragment varying is optimized away after glslang
+        // assigns locations, leaving the two live fragment inputs at locations
+        // 1 and 2 while the corresponding vertex outputs occupy locations 0 and 1.
         String vsShader =
                 """
                 precision mediump float;
@@ -431,30 +430,22 @@ public class ShaderCompilePipelineTest {
                 #else
                     precision mediump int;
                 #endif
-                varying mediump vec4 position;
+                varying mediump vec4 unused_varying;
                 varying mediump vec2 var_texcoord0;
                 varying lowp vec4 var_color;
                 uniform lowp sampler2D texture_sampler;
                 void main()
                 {
-                    const lowp vec3 tint_color = vec3(1, 1, 1);
-                    const lowp vec4 grayscale_color = vec4(1, 1, 1, 1);
-                    const lowp float brightness = 2.0;
-                    const lowp float contrast = 1.0;
-                    lowp vec4 texture_color = texture2D(texture_sampler, var_texcoord0.xy) * var_color;
-                    lowp vec3 grayscaled_texture = vec3(dot(texture_color, grayscale_color));
-                    lowp vec3 contrasted_texture = (grayscaled_texture.rgb - 1.0) * contrast + texture_color.a * 1.0;
-                    lowp vec3 brightened_texture = contrasted_texture * brightness;
-                    gl_FragColor = vec4(brightened_texture * tint_color, texture_color.a);
+                    gl_FragColor = texture2D(texture_sampler, var_texcoord0.xy) * var_color;
                 }
                 """;
 
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescs = toShaderDescs(vsShader, fsShader);
-        shaderModuleDescs.get(0).resourcePath = "/main/materials/white_overlay/white_overlay.vp";
-        shaderModuleDescs.get(1).resourcePath = "/main/materials/white_overlay/white_overlay.fp";
+        shaderModuleDescs.get(0).resourcePath = "/test/location_remap.vp";
+        shaderModuleDescs.get(1).resourcePath = "/test/location_remap.fp";
 
         ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(
-                "/main/materials/white_overlay/white_overlay",
+                "/test/location_remap",
                 shaderModuleDescs,
                 new ShaderCompilePipeline.Options());
         try {
