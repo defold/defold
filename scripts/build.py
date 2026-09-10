@@ -3681,10 +3681,14 @@ class Configuration(object):
         # * Editor files
         # * Defold SDK files
         # * launcher files, used to launch editor2
-        # * rarely used platforms: armv7-android and x86-win32
+        # * rarely used platforms: armv7-android, x86-win32, wasm_pthread-web,
+        #   x86_64-android and arm64_sim-ios
+        # * arm64-linux vanilla engines (keep native compiler libraries)
         # * headless builds
         pattern = re.compile(
-            r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$|/(armv7-android|x86-win32)(/|$)|headless'
+            r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$'
+            r'|/(armv7-android|x86-win32|wasm_pthread-web|x86_64-android|arm64_sim-ios)(/|$)|headless'
+            r'|/arm64-linux/(stripped/)?(lib)?dmengine[^/]*$'
         )
         prefix = s3.get_archive_prefix(self.get_archive_path(), self._git_sha1())
         for obj_summary in bucket.objects.filter(Prefix=prefix):

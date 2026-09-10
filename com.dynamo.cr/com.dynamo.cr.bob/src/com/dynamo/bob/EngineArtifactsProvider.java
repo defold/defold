@@ -122,7 +122,9 @@ public final class EngineArtifactsProvider {
             String exeName = platform.getExePrefix() + defaultDmengineExeName + exeSuffix;
             File file = getOrDownloadArtifact(platform.getPair(), exeName, platform.getOs(), true);
             if (file == null || !file.exists() || file.length() == 0) {
-                throw new IOException(String.format("%s could not be found locally or downloaded, create an application manifest to build the engine remotely.", exeName));
+                throw new IOException(String.format(
+                        "The %s engine for %s (%s) is not available locally and could not be downloaded. " +
+                        "Check your internet connection and try again.", variant, platform.getPair(), exeName));
             }
             binaryFiles.add(file);
         }
