@@ -153,11 +153,11 @@
      (cond-> (into (array-map :node-id node-id)
                    (node-util/node-debug-info node-id evaluation-context))
 
-             (some? original-node-id)
-             (assoc :original-node-id original-node-id)
+       (some? original-node-id)
+       (assoc :original-node-id original-node-id)
 
-             (coll/not-empty override-node-ids)
-             (assoc :override-node-ids override-node-ids)))))
+       (coll/not-empty override-node-ids)
+       (assoc :override-node-ids override-node-ids)))))
 
 (defn outline-labels [node-id & outline-labels]
   (into (sorted-set)
@@ -261,7 +261,7 @@
                      (comp (remove excluded-map-entry?)
                            (map filter-map-entry))
                      m)
-               (meta m))))
+      (meta m))))
 
 (defn exclude-keys-deep [m excluded-keys]
   (assert (or (nil? m) (map? m)))
@@ -278,7 +278,7 @@
               (value-fn value)
               (deep-keep-finalize-coll-value-fn
                 (into (with-meta (sorted-map)
-                                 (meta value))
+                        (meta value))
                       (keep (fn [entry]
                               (when-some [v' (util/deep-keep deep-keep-finalize-coll-value-fn wrapped-value-fn (val entry))]
                                 (pair (key entry) v'))))
@@ -291,7 +291,7 @@
               (value-fn key value)
               (letfn [(finalize-into [target-map value]
                         (into (with-meta target-map
-                                         (meta value))
+                                (meta value))
                               (keep (fn [[k v]]
                                       (when-some [v' (util/deep-keep-kv-helper deep-keep-finalize-coll-value-fn wrapped-value-fn k v)]
                                         (pair k v'))))
@@ -629,7 +629,10 @@
   "Returns node counts and types, sorted by descending count."
   []
   (ordered-occurrences
-    (eduction (map (comp :k g/node-type)) (coll/vals (gt/nodes (g/now))))))
+    (->> (g/now)
+         gt/nodes
+         coll/vals
+         (e/map (comp :k g/node-type)))))
 
 (defn println-err
   [& more]
@@ -696,12 +699,12 @@
                                  (let [node-id (gt/endpoint-node-id endpoint)
                                        label (gt/endpoint-label endpoint)]
                                    (cond->> (g/successors basis node-id label)
-                                            successor-filter
-                                            (into [] (filter #(successor-filter [endpoint %])))))))))
+                                     successor-filter
+                                     (into [] (filter #(successor-filter [endpoint %])))))))))
                          endpoints)]
                (cond-> (into acc next-level)
-                       (pos? (count next-level))
-                       (recur (into #{} (mapcat val) next-level)))))]
+                 (pos? (count next-level))
+                 (recur (into #{} (mapcat val) next-level)))))]
      (let [endpoint->successors (get-successors {} endpoints)]
        (into #{}
              (mapcat
@@ -1185,19 +1188,19 @@
                               ^Graphics$TextureImage$Image image (first alternatives)]
                           (cond-> {:type (protobuf/pb-enum->val (.getType texture-image))}
 
-                                  image
-                                  (assoc :format (protobuf/pb-enum->val (.getFormat image))
-                                         :width (.getWidth image)
-                                         :height (.getHeight image))
+                            image
+                            (assoc :format (protobuf/pb-enum->val (.getFormat image))
+                                   :width (.getWidth image)
+                                   :height (.getHeight image))
 
-                                  (> alternatives-count 1)
-                                  (assoc :alternatives alternatives-count)
+                            (> alternatives-count 1)
+                            (assoc :alternatives alternatives-count)
 
-                                  :always
-                                  (assoc :bytes (transduce (map (fn [^Graphics$TextureImage$Image image]
-                                                                  (.getDataSize image)))
-                                                           +
-                                                           alternatives))))))}]
+                            :always
+                            (assoc :bytes (transduce (map (fn [^Graphics$TextureImage$Image image]
+                                                            (.getDataSize image)))
+                                                     +
+                                                     alternatives))))))}]
 
         (deep-diff/printer
           {:color-scheme
@@ -1249,9 +1252,9 @@
      (if (deep-diff.minimize-impl/has-diff-item? diff)
        (deep-diff/pretty-print
          (cond-> diff
-                 (:minimize opts) (deep-diff/minimize))
+           (:minimize opts) (deep-diff/minimize))
          (cond-> pretty-printer
-                 opts (merge opts)))
+           opts (merge opts)))
        (println "Values are identical.")))))
 
 (defn- to-diffable-text
@@ -1329,11 +1332,11 @@
                                 value-message (recurse value-field-desc)]
                             {:key-info {:key-class key-class}
                              :value-info (cond-> {:value-class value-class}
-                                                 value-message (assoc :value-message value-message))})
+                                           value-message (assoc :value-message value-message))})
                           (let [value-class (protobuf/pb-field-desc-class field-desc)
                                 value-message (recurse field-desc)]
                             {:value-info (cond-> {:value-class value-class}
-                                                 value-message (assoc :value-message value-message))}))
+                                           value-message (assoc :value-message value-message))}))
 
                         field-name (.getName field-desc)
                         field-kind (protobuf/pb-field-desc-field-kind field-desc)
@@ -1374,7 +1377,7 @@
 (defn resource-pb-classes [workspace]
   (letfn [(info->value-classes [{:keys [value-class value-message]}]
             (cond->> (mapcat info->value-classes (vals value-message))
-                     (and value-message value-class) (cons value-class)))]
+              (and value-message value-class) (cons value-class)))]
     (into (sorted-set-by class-name-comparator)
           (mapcat info->value-classes)
           (vals (pb-resource-type-info workspace)))))

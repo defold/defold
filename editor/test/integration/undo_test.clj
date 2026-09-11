@@ -38,7 +38,7 @@
 
 (deftest redo-undone-deletion-still-deletes
   (test-util/with-loaded-project
-    (let [go-node    (test-util/resource-node project "/switcher/test.go")]
+    (let [go-node (test-util/resource-node project "/switcher/test.go")]
       (is (= 1 (count (outline-children go-node))))
 
       (g/transact (g/delete-node (:node-id (first (outline-children go-node)))))

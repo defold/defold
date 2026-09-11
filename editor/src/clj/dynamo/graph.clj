@@ -108,7 +108,7 @@
                                  (pair (.getFileName ste)
                                        (.getLineNumber ste)))
                                (.getStackTrace exception))}
-            cause (assoc :cause (comparable-exception-data cause)))))
+      cause (assoc :cause (comparable-exception-data cause)))))
 
 (defmacro make-evaluation-context-scope-violation-exception [fn-sym]
   `(Error. (str '~fn-sym " called from inside auto evaluation-context scope.\nStack trace shows scope creation at the top, followed by the violation.")))
@@ -271,7 +271,7 @@
       (aset-long tps-counts 0 transaction-count)
       (when (> now (+ last-report-time 1000000000))
         (let [elapsed-time (/ (- now last-report-time) 1000000000.00)]
-         (do (println "TPS" (/ transaction-count elapsed-time))))
+          (println "TPS" (/ transaction-count elapsed-time)))
         (aset-long tps-counts 1 now)
         (aset-long tps-counts 0 0)))
     tps-counts))
@@ -525,8 +525,8 @@
   list without the last two elements"
   [argv]
   (if (and
-       (<= 2 (count argv))
-       (= :as (nth argv (- (count argv) 2))))
+        (<= 2 (count argv))
+        (= :as (nth argv (- (count argv) 2))))
     [(last argv) (take (- (count argv) 2) argv)]
     [nil argv]))
 
@@ -578,13 +578,13 @@
 (deftype IdPair     [(s/one s/Str "id") (s/one s/Int "node-id")])
 (deftype Dict       {s/Str s/Int})
 (deftype Properties
-    {:properties {s/Keyword {:node-id                              s/Int
-                             (s/optional-key :validation-problems) s/Any
-                             :value                                s/Any ; Can be property value or ErrorValue
-                             :type                                 s/Any
-                             s/Keyword                             s/Any}}
-     (s/optional-key :node-id) s/Int
-     (s/optional-key :display-order) [(s/conditional vector? [(s/one s/Any "category") s/Keyword] keyword? s/Keyword)]})
+  {:properties {s/Keyword {:node-id                              s/Int
+                           (s/optional-key :validation-problems) s/Any
+                           :value                                s/Any ; Can be property value or ErrorValue
+                           :type                                 s/Any
+                           s/Keyword                             s/Any}}
+   (s/optional-key :node-id) s/Int
+   (s/optional-key :display-order) [(s/conditional vector? [(s/one s/Any "category") s/Keyword] keyword? s/Keyword)]})
 (deftype Err ErrorValue)
 
 ;; ---------------------------------------------------------------------------
@@ -824,7 +824,7 @@
   (first (tx-nodes-added (transact (apply make-node node-type args)))))
 
 (defn delete-node
- "Returns the transaction step for deleting a node.
+  "Returns the transaction step for deleting a node.
   Needs to be executed within a transact to actually create the node on a graph.
 
   Example:
@@ -835,7 +835,7 @@
   (it/delete-node node-id))
 
 (defn delete-nodes
- "Returns the transaction step for deleting nodes.
+  "Returns the transaction step for deleting nodes.
   Needs to be executed within a transact to actually delete the nodes from a graph."
   [node-ids]
   (it/delete-nodes node-ids))
@@ -894,7 +894,7 @@
   (it/connect source-id source-label target-id target-label))
 
 (defn connect!
- "Creates the transaction step to make a connection from an output of the source node to an input on the target node
+  "Creates the transaction step to make a connection from an output of the source node to an input on the target node
   and applies it in a transaction
 
   Example:
@@ -920,7 +920,7 @@
   (it/disconnect source-id source-label target-id target-label))
 
 (defn disconnect!
- "Creates the transaction step to remove a connection from an output of the source node to the input on the target node.
+  "Creates the transaction step to remove a connection from an output of the source node to the input on the target node.
   It also applies it in transaction, returning the transaction result, (tx-result).
   Note that there might still be connections between the two nodes,
   from other outputs to other inputs.
@@ -1042,7 +1042,7 @@
   nil)
 
 (defn invalidate
- "Creates the transaction step to invalidate all the outputs of the node.  It will take effect when the transaction is
+  "Creates the transaction step to invalidate all the outputs of the node.  It will take effect when the transaction is
   applied in a transact.
 
   Example:
@@ -1079,10 +1079,10 @@
    (assert node-id)
    (let [jammable-outputs (in/jammable-output-labels node-type)]
      (list
-      (set-property node-id :_output-jammers
-                    (zipmap jammable-outputs
-                            (repeat defective-value)))
-      (invalidate node-id)))))
+       (set-property node-id :_output-jammers
+         (zipmap jammable-outputs
+                 (repeat defective-value)))
+       (invalidate node-id)))))
 
 (defn mark-defective!
   "Creates the transaction step to mark a node as _defective_.
@@ -1486,14 +1486,6 @@
    (targets-of (now) node-id label))
   ([basis node-id label]
    (ig/targets basis node-id label)))
-
-(defn find-node
-  "Looks up nodes with a property that matches the given value. Exact
-  equality is used. At present, this does a linear scan of all
-  nodes. Future enhancements may offer indexing for faster access of
-  some properties."
-  [basis property-label expected-value]
-  (ig/node-by-property basis property-label expected-value))
 
 (defn invalidate-outputs!
   "Invalidate the given outputs and _everything_ that could be
@@ -1994,7 +1986,7 @@
                             :properties-by-override-node-key (persistent! properties-by-override-node-key)})))
                      (when (seq overridden-properties)
                        (assoc! properties-by-override-node-key
-                               override-node-key overridden-properties))))))
+                         override-node-key overridden-properties))))))
              properties-by-override-node-key))
        (transient {})
        (ig/pre-traverse basis [source-node-id] ig/cascade-delete-sources)))))

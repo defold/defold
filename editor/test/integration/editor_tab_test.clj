@@ -114,14 +114,15 @@
 (deftest close-non-resource-tab-test
   (test-util/with-loaded-project
     (setup-editor-tabs-split! app-view)
-    (let [^Tab tab (open-test-tab! app-view)
+    (let [game-project (test-util/resource-node project "/game.project")
+          ^Tab tab (open-test-tab! app-view)
           view-id (editor-tab/view-node-id tab)]
       (test-util/with-ui-run-later-rebound
         (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
 
-      (testing "closing it disposes its view node without deleting the project nodes"
-        (is (g/now))
-        (is (nil? (g/node-by-id view-id))))
+      (testing "closing it disposes its view node without deleting project resource nodes"
+        (is (nil? (g/node-by-id view-id)))
+        (is (g/node-by-id game-project)))
 
       (testing "closing it detaches the view from the tab"
         (is (nil? (editor-tab/view-node-id tab)))

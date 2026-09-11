@@ -914,8 +914,8 @@
            (collect-override-chains+explicit-arcs
              (fn [basis node-id]
                (coll/into-> (explicit-arcs-by-source basis node-id) []
-                            (filter (fn [arc]
-                                      (node-by-id-at basis (gt/target-id arc))))))
+                 (filter (fn [arc]
+                           (node-by-id-at basis (gt/target-id arc))))))
              basis
              node-id)
            ;; Looking at the arcs we found, what arcs to new targets
@@ -936,8 +936,8 @@
            (collect-override-chains+explicit-arcs
              (fn [basis node-id]
                (coll/into-> (explicit-arcs-by-source basis node-id label) []
-                            (filter (fn [arc]
-                                      (node-by-id-at basis (gt/target-id arc))))))
+                 (filter (fn [arc]
+                           (node-by-id-at basis (gt/target-id arc))))))
              basis
              node-id)
            lifted-arcs (lift-source-arcs basis override-chains+explicit-arcs)]
@@ -1074,7 +1074,7 @@
   (if (coll/empty? endpoints)
     #{}
     (let [node-successors (gt/successors basis)
-          cache-key [endpoints (System/identityHashCode node-successors)]]
+          cache-key (pair endpoints (System/identityHashCode node-successors))]
       (.get basis-dependencies-cache
             cache-key
             (fn [_]
@@ -1101,10 +1101,6 @@
                       (recur next-tasks))))
                 (.keySet all-endpoints)))))))
 
-(defn node-by-property
-  [basis label value]
-  (into [] (filter #(= value (get % label))) (vals (gt/nodes basis))))
-
 (defn sources
   ([basis node-id] (mapv gt/source (inputs basis node-id)))
   ([basis node-id label] (mapv gt/source (inputs basis node-id label))))
@@ -1117,7 +1113,6 @@
   [basis source-id source-label target-id target-label]
   (let [targets (targets basis source-id source-label)]
     (coll/any? #{[target-id target-label]} targets)))
-
 
 (defn make-override [root-id traverse-fn init-props-fn]
   {:root-id root-id
@@ -1296,7 +1291,6 @@
 
 (defn basis-plan-repoint-override-node
   [basis override-node-id new-original-node-id]
-
   (when-let [override-node (node-by-id-at basis override-node-id)]
     (let [override-node-ids (-> basis gt/node->overrides (get new-original-node-id))]
       {:override-node-id override-node-id

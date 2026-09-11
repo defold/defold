@@ -1215,7 +1215,7 @@
   [(->ClearPropertyTXS node-id property-label)])
 
 (defonce/type UpdateGraphValueTXC
-              [graph-value-key old-value new-value]
+  [graph-value-key old-value new-value]
 
   TransactionChange
   (perform [_this ctx]
@@ -1622,7 +1622,7 @@
 
 (def tx-report-keys
   (cond-> [:basis :nodes-added :nodes-deleted :outputs-modified :label :sequence-label :undoable-changes]
-          (du/metrics-enabled?) (conj :metrics)))
+    (du/metrics-enabled?) (conj :metrics)))
 
 (defn finalize-update
   [{:keys [tx-data-context] :as ctx}]

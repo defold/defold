@@ -135,13 +135,13 @@
           true [writable-dir-1 read-only-dir-1] false))
       (testing "paste!"
         (are [target-resource src-files expected]
-             (let [alerted (atom false)
-                   message (atom "")]
-               (with-redefs [dialogs/make-info-dialog (fn [_localization props]
-                                                        (reset! alerted true)
-                                                        (reset! message (:content props)))]
-                 (asset-browser/paste! workspace target-resource src-files (constantly nil) test-util/localization)
-                 (= expected (not (or @alerted (= "dialog.asset-paste-reserved.content" (:k @message)))))))
+          (let [alerted (atom false)
+                message (atom "")]
+            (with-redefs [dialogs/make-info-dialog (fn [_localization props]
+                                                     (reset! alerted true)
+                                                     (reset! message (:content props)))]
+              (asset-browser/paste! workspace target-resource src-files (constantly nil) test-util/localization)
+              (= expected (not (or @alerted (= "dialog.asset-paste-reserved.content" (:k @message)))))))
 
           root-resource [(make-file "car/car.script")] true
 
@@ -168,10 +168,10 @@
           [fixed-1] false))
       (testing "validate-rename"
         (are [parent-path new-name expected] (= expected (nil? (asset-browser/validate-new-resource-name root-dir parent-path new-name)))
-          
+
           "" "fine" true
           "" "game.project" true
-          
+
           "" "builtins" false
           "" "build" false
           "" ".internal" false

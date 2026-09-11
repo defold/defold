@@ -179,8 +179,8 @@
                    (str "- " resource-name ": " (localization-state message))))))]
 
     (cond-> error-message-lines
-            (< max-error-count (count distinct-errors))
-            (conj (localization-state error-render-and-more-message)))))
+      (< max-error-count (count distinct-errors))
+      (conj (localization-state error-render-and-more-message)))))
 
 (defn- render-error
   [gl render-args _renderables _nrenderables]
@@ -451,9 +451,9 @@
         texture geom/Identity4d
         transforms (math/derive-render-transforms world view proj texture)]
     (assoc transforms
-           :pass pass
-           :camera camera
-           :viewport viewport)))
+      :pass pass
+      :camera camera
+      :viewport viewport)))
 
 (defn- pass->render-args-with-preview-lights [^Region viewport ^Camera camera passes preview-lights preview-ambient-light]
   (into {}
@@ -719,12 +719,12 @@
         ;; hidden tags. However, hiding specific objects from the Outline View
         ;; should also eliminate their light contribution.
         preview-light-renderables (cond-> (:preview-light-renderables flattened-scene)
-                                          (and (not has-hidden-outline-key-path)
-                                               (get-in flat-renderable [:user-data :editor-preview-light]))
-                                          (conj! flat-renderable))
+                                    (and (not has-hidden-outline-key-path)
+                                         (get-in flat-renderable [:user-data :editor-preview-light]))
+                                    (conj! flat-renderable))
         scene-aabb (cond-> (:scene-aabb flattened-scene)
-                           (and is-visible (not (geom/empty-aabb? visibility-aabb)))
-                           (geom/aabb-union (geom/aabb-transform visibility-aabb world-transform)))]
+                     (and is-visible (not (geom/empty-aabb? visibility-aabb)))
+                     (geom/aabb-union (geom/aabb-transform visibility-aabb world-transform)))]
     (reduce (fn [flattened-scene child-scene]
               (let [parent-node-id (:node-id scene)
                     child-node-id (:node-id child-scene)
@@ -1009,9 +1009,9 @@
         children (:children scene)
         finalize-claim-fn (:finalize-claim-fn scene)]
     (cond-> (assoc scene :node-id new-node-id :node-outline-key new-node-outline-key)
-            children (assoc :children (mapv (partial map-scene #(claim-child-scene % old-node-id new-node-id new-node-outline-key))
-                                            children))
-            finalize-claim-fn (finalize-claim-fn old-node-id new-node-id))))
+      children (assoc :children (mapv (partial map-scene #(claim-child-scene % old-node-id new-node-id new-node-outline-key))
+                                      children))
+      finalize-claim-fn (finalize-claim-fn old-node-id new-node-id))))
 
 (defn- box-selection? [^Rect picking-rect]
   (or (> (.width picking-rect) selection/min-pick-size)
@@ -1185,9 +1185,9 @@
             camera-inset-width (:width camera-inset-data)
             camera-inset-height (:height camera-inset-data)
             children (cond-> []
-                             info-text (conj (info-label info-text))
-                             close-button (conj close-button)
-                             camera-inset-image (conj (camera-inset-image-view camera-inset-image camera-inset-width camera-inset-height)))]
+                       info-text (conj (info-label info-text))
+                       close-button (conj close-button)
+                       camera-inset-image (conj (camera-inset-image-view camera-inset-image camera-inset-width camera-inset-height)))]
         (if (not (coll/empty? children))
           {:pick-on-bounds false
            :children children
@@ -1337,7 +1337,7 @@
   (output active-tool g/Keyword (gu/passthrough active-tool))
   (output manip-space g/Keyword (gu/passthrough manip-space))
   (output active-updatables g/Any :cached (g/fnk [updatables active-updatable-ids]
-                                                 (into [] (keep updatables) active-updatable-ids)))
+                                            (into [] (keep updatables) active-updatable-ids)))
 
   (output selection g/Any (gu/passthrough selection))
   (output all-renderables pass/RenderData :cached (g/fnk [aux-render-data tool-render-data scene-render-data]
@@ -1387,12 +1387,12 @@
         viewport   (g/node-value view :viewport)
         world-pos  (Point3d. (screen->world camera viewport screen-pos))
         world-dir  (doto (screen->world camera viewport (doto (Vector3d. screen-pos) (.setZ 1)))
-                         (.sub world-pos)
-                         (.normalize))]
+                     (.sub world-pos)
+                     (.normalize))]
     (assoc action
-           :screen-pos screen-pos
-           :world-pos world-pos
-           :world-dir world-dir)))
+      :screen-pos screen-pos
+      :world-pos world-pos
+      :world-dir world-dir)))
 
 (defn refresh-scene-view! [node-id dt]
   (let [basis (g/now)
@@ -1473,12 +1473,12 @@
 
 (handler/defhandler :scene.play :global
   (active? [app-view evaluation-context]
-           (when-let [view (active-scene-view app-view evaluation-context)]
-             (seq (g/node-value view :updatables evaluation-context))))
+    (when-let [view (active-scene-view app-view evaluation-context)]
+      (seq (g/node-value view :updatables evaluation-context))))
   (enabled? [app-view evaluation-context]
-            (when-let [view (active-scene-view app-view evaluation-context)]
-              (let [selected (g/node-value view :selected-updatables evaluation-context)]
-                (not (empty? selected)))))
+    (when-let [view (active-scene-view app-view evaluation-context)]
+      (let [selected (g/node-value view :selected-updatables evaluation-context)]
+        (not (empty? selected)))))
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (play-handler view))))
 
@@ -1674,11 +1674,11 @@
         :local (localization/message "command.scene.set-manipulator-space.option.local"))
       (localization/message "command.scene.set-manipulator-space")))
   (active? [app-view evaluation-context]
-           (active-scene-view app-view evaluation-context))
+    (active-scene-view app-view evaluation-context))
   (enabled? [app-view user-data evaluation-context]
-            (let [active-tool (g/node-value app-view :active-tool evaluation-context)]
-              (contains? (scene-tools/supported-manip-spaces active-tool)
-                         (:manip-space user-data))))
+    (let [active-tool (g/node-value app-view :active-tool evaluation-context)]
+      (contains? (scene-tools/supported-manip-spaces active-tool)
+                 (:manip-space user-data))))
   (options [user-data]
     (when-not user-data
       [{:label (localization/message "command.scene.set-manipulator-space.option.world")
@@ -2202,8 +2202,9 @@
                                                      (g/operation-sequence op-seq)
                                                      (g/operation-label (localization/message "operation.select"))
                                                      (select-fn selection))))]
-                   camera          [c/CameraController :local-camera (or (:camera opts)
-                                                                         (c/default-scene-camera prefs (:default-camera-projection opts)))
+                   camera          [c/CameraController
+                                    :local-camera (or (:camera opts)
+                                                      (c/default-scene-camera prefs (:default-camera-projection opts)))
                                     :image-view (g/node-value view-id :image-view)
                                     :prefs prefs]
                    grid            (grid-type :prefs prefs)
@@ -2320,12 +2321,12 @@
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
-                                :id :scene
-                                :label (localization/message "resource.view.scene")
-                                :make-view-fn make-view
-                                :make-preview-fn make-preview
-                                :dispose-preview-fn dispose-preview
-                                :focus-fn focus-view!))
+    :id :scene
+    :label (localization/message "resource.view.scene")
+    :make-view-fn make-view
+    :make-preview-fn make-preview
+    :dispose-preview-fn dispose-preview
+    :focus-fn focus-view!))
 
 (g/defnk produce-transform [position rotation scale]
   (math/clj->mat4 position rotation scale))

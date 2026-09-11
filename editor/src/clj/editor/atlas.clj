@@ -318,8 +318,8 @@
                                                               :icon image-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
 
-                                                             (resource/resource? maybe-image-resource)
-                                                             (assoc :link maybe-image-resource :outline-show-link? true))))
+                                                       (resource/resource? maybe-image-resource)
+                                                       (assoc :link maybe-image-resource :outline-show-link? true))))
   (output ddf-message g/Any (g/fnk [maybe-image-resource order sprite-trim-mode pivot-x pivot-y]
                               (-> (protobuf/make-map-without-defaults AtlasProto$AtlasImage
                                     :image (resource/resource->proj-path maybe-image-resource)
@@ -800,7 +800,6 @@
   (output atlas-images-variants [Image] :cached (g/fnk [animation-images]
                                                   (into [] (distinct) (flatten animation-images))))
 
-
   (output layout-data-generator g/Any          produce-layout-data-generator)
   (output texture-set-data g/Any               :cached produce-texture-set-data)
   (output layout-data      g/Any               :cached (g/fnk [layout-data-generator] (texture-util/call-generator layout-data-generator)))
@@ -875,10 +874,10 @@
     (g/make-nodes
       [atlas-image AtlasImage]
       (gu/set-properties-from-pb-map atlas-image AtlasProto$AtlasImage image-msg
-                                     image :image
-                                     sprite-trim-mode :sprite-trim-mode
-                                     pivot-x :pivot-x
-                                     pivot-y :pivot-y)
+        image :image
+        sprite-trim-mode :sprite-trim-mode
+        pivot-x :pivot-x
+        pivot-y :pivot-y)
       (attach-fn parent atlas-image))))
 
 (def ^:private make-image-nodes-in-atlas (partial make-image-nodes attach-image-to-atlas))

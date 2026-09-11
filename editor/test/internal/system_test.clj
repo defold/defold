@@ -283,10 +283,10 @@
 (defn touch
   [node label & [seq-id]]
   (g/transact (keep identity
-                     [(g/operation-label label)
-                      (when seq-id
-                        (g/operation-sequence seq-id))
-                      (g/set-property node :touched label)])))
+                    [(g/operation-label label)
+                     (when seq-id
+                       (g/operation-sequence seq-id))
+                     (g/set-property node :touched label)])))
 
 (deftest undo-stack-revision-test
   (testing "Non-undoable transactions do not change the revision"
@@ -529,9 +529,10 @@
   (output source-label g/Str :cached (g/fnk [source-label] (when source-label (str/upper-case source-label)))))
 
 (defn- show-sarcs-tarcs [msg]
-  (println msg
-           "\n\t:sarcs " (gt/sarcs (g/now))
-           "\n\t:tarcs"  (gt/tarcs (g/now))))
+  (let [basis (g/now)]
+    (println msg
+             "\n\t:sarcs " (gt/sarcs basis)
+             "\n\t:tarcs" (gt/tarcs basis))))
 
 (deftest undo-restores-all-source-arcs
   (testing "Delete with connections, undo, re-delete"

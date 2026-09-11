@@ -195,7 +195,7 @@
 
 (deftest output-caching-does-not-accidentally-cache-inputs
   (ts/with-clean-system
-    (let [[node-id]       (ts/tx-nodes (g/make-node OutputChaining))]
+    (let [[node-id] (ts/tx-nodes (g/make-node OutputChaining))]
       (g/node-value node-id :chained-output)
       (let [cache (g/cache)]
         (is (cached? cache node-id :chained-output))
@@ -217,7 +217,6 @@
 
   (input    eponymous g/Keyword)
   (output   eponymous g/Keyword (g/fnk [eponymous] eponymous))
-
 
   (property position g/Keyword (default :position-property))
   (output   position g/Str     (g/fnk [position] (name position)))
@@ -320,7 +319,7 @@
   (testing "source doesn't send errors"
     (ts/with-clean-system
       (are [label connected? source-label expected-pfn-val]
-           (= expected-pfn-val (arrange-sv-error label connected? source-label))
+        (= expected-pfn-val (arrange-sv-error label connected? source-label))
         ;; output-label connected? source-label  expected-pfn
         :unary-no-sub   false      :dontcare         nil
         :multi-no-sub   false      :dontcare         '()
@@ -429,7 +428,7 @@
             _                                  (g/mark-defective! sender2 (g/error-fatal "Bad things have happened"))
             error-value                        (g/node-value receiver :multi-output)]
         (are [node label sev e]
-             (and (= node (:_node-id e)) (= label (:_label e)) (= sev (:severity error-value)))
+          (and (= node (:_node-id e)) (= label (:_label e)) (= sev (:severity error-value)))
           receiver :multi-output :fatal   error-value
           receiver :multi        :fatal   (cause error-value)
           sender2  :a-property   :fatal   (cause (cause error-value)))))))

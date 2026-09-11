@@ -28,7 +28,7 @@ The editor maintains a single graph containing project data, workspace state, an
 
 ## The workspace
 
-The workspace is represented by nodes in the same graph as the project model. It is associated with the project directory on disk and keeps track of files in the project. It does not host editable state derived from those files; that belongs to project resource nodes. Instead, it keeps track of file-system changes and is responsible for notifying the project model about external modifications to project files. It also acts as a registry of the various `resource-types` (effectively based on file extensions) and the recipes for loading each type of resource into the graph.
+The workspace is represented by nodes in the graph alongside the project model. It is associated with the project directory on disk and keeps track of files in the project. It does not host editable state derived from those files; that belongs to project resource nodes. Instead, it keeps track of file-system changes and is responsible for notifying the project model about external modifications to project files. It also acts as a registry of the various `resource-types` (effectively based on file extensions) and the recipes for loading each type of resource into the graph.
 
 ## Resource sync
 

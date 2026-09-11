@@ -307,12 +307,14 @@
 (deftest substitute-levels
   (with-clean-system
     (let [[fatal warning info
-           fatal-sink warning-sink info-sink] (tx-nodes (g/make-node FatalOutputNode)
-                                                        (g/make-node WarningOutputNode)
-                                                        (g/make-node InfoOutputNode)
-                                                        (g/make-node SinkNode)
-                                                        (g/make-node SinkNode)
-                                                        (g/make-node SinkNode))]
+           fatal-sink warning-sink info-sink]
+          (tx-nodes
+            (g/make-node FatalOutputNode)
+            (g/make-node WarningOutputNode)
+            (g/make-node InfoOutputNode)
+            (g/make-node SinkNode)
+            (g/make-node SinkNode)
+            (g/make-node SinkNode))]
 
       (g/transact (concat (connect-error-sink fatal fatal-sink)
                           (connect-error-sink warning warning-sink)

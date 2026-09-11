@@ -334,8 +334,8 @@
     (shared-editor-settings/shared-editor-settings-file project-path)
     (shared-editor-settings/map->save-data-content
       (cond-> {}
-              (seq non-editable-directory-proj-paths)
-              (assoc :non-editable-directories (vec non-editable-directory-proj-paths))))))
+        (seq non-editable-directory-proj-paths)
+        (assoc :non-editable-directories (vec non-editable-directory-proj-paths))))))
 
 (defn write-defunload-patterns!
   ^File [project-path patterns]
@@ -534,18 +534,17 @@
   (output active-view g/NodeID (gu/passthrough active-view)))
 
 (defn setup-app-view! [project]
-  (let []
-    (first
-      (g/tx-nodes-added
-        (g/transact
-          {:undoable false}
-          (g/make-nodes [app-view [MockAppView
-                                   :active-tool :move
-                                   :manip-space :world
-                                   :scene (Scene. (VBox.))]]
-            (g/connect project :_node-id app-view :project-id)
-            (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
-              (g/connect project label app-view label))))))))
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (g/make-nodes [app-view [MockAppView
+                                 :active-tool :move
+                                 :manip-space :world
+                                 :scene (Scene. (VBox.))]]
+          (g/connect project :_node-id app-view :project-id)
+          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
+            (g/connect project label app-view label)))))))
 
 (defn- make-tab! [project app-view path make-view-fn!]
   (let [node-id (project/get-resource-node project path)
@@ -980,8 +979,8 @@
 
 (defn dump-outline [root path]
   (-> (outline root path)
-    outline->str
-    println))
+      outline->str
+      println))
 
 (defn resolve-prop [node-id label]
   (let [prop (get-in (g/node-value node-id :_properties) [:properties label])
@@ -1491,11 +1490,11 @@
 
 (defmacro saved-pb [node-id pb-class]
   (with-meta `(protobuf/str->pb ~pb-class (resource-node/save-data-content (g/node-value ~node-id :save-data)))
-             {:tag pb-class}))
+    {:tag pb-class}))
 
 (defmacro built-pb [node-id pb-class]
   (with-meta `(protobuf/bytes->pb ~pb-class (node-build-output ~node-id))
-             {:tag pb-class}))
+    {:tag pb-class}))
 
 (defn- resource-type-for-build-output-path [resource-types-by-build-ext ^String build-output-path]
   ;; Return the resource-type with the longest build-ext that matches the end of
