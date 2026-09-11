@@ -256,12 +256,30 @@ namespace dmResource
     HPreloader NewPreloader(HFactory factory, const char* name);
 
     /**
+     * Create a new preloader with a fixed request capacity.
+     * @param factory Factory handle
+     * @param name Resource to load
+     * @param request_count Maximum number of resource requests, including the root
+     * @return Preloader handle, or null if the capacity is invalid
+     */
+    HPreloader NewPreloader(HFactory factory, const char* name, uint32_t request_count);
+
+    /**
      * Create a new preloader
      * @param factory Factory handle
      * @param array of names of resources to load
      * @return CREATE_RESULT_OK on success
      */
     HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names);
+
+    /**
+     * Create a new preloader with a fixed request capacity.
+     * @param factory Factory handle
+     * @param names Resources to load
+     * @param request_count Maximum number of resource requests, including the root
+     * @return Preloader handle, or null if the capacity is invalid
+     */
+    HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names, uint32_t request_count);
 
     /**
      * Perform one update tick of the preloader, with a soft time limit for
