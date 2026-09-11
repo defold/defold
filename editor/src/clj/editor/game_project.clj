@@ -388,14 +388,13 @@
         (g/connect self :settings-map project :settings)))))
 
 (defn- load-game-project [project self resource source-value]
-  (let [graph-id (g/node-id->graph-id self)
-        workspace (resource/workspace resource)
+  (let [workspace (resource/workspace resource)
         resource-setting-connections (reduce-kv (fn [m k v] (assoc m k [self v])) {} resource-setting-connections-template)]
     (concat
       (g/connect workspace :resource-map self :resource-map)
       (g/connect workspace :resource-snapshot self :resource-snapshot)
       (g/connect workspace :dependencies self :dependencies)
-      (g/make-nodes graph-id [settings-node settings/SettingsNode]
+      (g/make-nodes [settings-node settings/SettingsNode]
         (g/connect settings-node :_node-id self :nodes)
         (g/connect settings-node :settings-map self :settings-map)
         (g/connect settings-node :save-value self :save-value)

@@ -22,11 +22,10 @@
             [internal.util :as util]
             [util.coll :as coll]
             [util.defonce :as defonce])
-  (:import [java.util.concurrent.atomic AtomicLong]))
+  (:import [java.util ConcurrentModificationException]
+           [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
-
-(declare graphs)
 
 (def ^:private maximum-cached-items 20000)
 (def ^:private maximum-undo-steps 60)
@@ -102,13 +101,10 @@
                   conj)]
     (tape-op paper-tape new-state)))
 
-(defn last-graph            [system]          (-> system :last-graph))
 (defn system-cache          [system]          (some-> system :cache))
-(defn graphs                [system]          (-> system :graphs))
-(defn graph                 [system graph-id] (some-> system :graphs (get graph-id)))
-(defn graph-time            [system graph-id] (some-> system :graphs (get graph-id) :tx-id))
-(defn basis                 [system]          (ig/multigraph-basis (:graphs system)))
-(defn id-generators         [system]          (-> system :id-generators))
+
+(defn basis [system] (:graph system))
+(defn node-id-generator     [system]          (-> system :node-id-generator))
 (defn override-id-generator [system]          (-> system :override-id-generator))
 
 (defn- bump-invalidate-counters
@@ -129,7 +125,7 @@
   (assert (coll/every? gt/endpoint? outputs))
   ;; 'dependencies' takes a map, where outputs is a vec of node-id+label pairs
   (let [basis (basis system)
-        cache-entries (gt/dependencies basis outputs)]
+        cache-entries (ig/dependencies basis outputs)]
     (-> system
         (update :cache c/cache-invalidate cache-entries)
         (update :invalidate-counters bump-invalidate-counters cache-entries))))
@@ -149,7 +145,7 @@
                  endpoint+value-pairs)
 
         invalidated-endpoints
-        (gt/dependencies basis (mapv first changed-endpoint+value-pairs))]
+        (ig/dependencies basis (mapv first changed-endpoint+value-pairs))]
 
     (-> system
         (update :invalidate-counters bump-invalidate-counters invalidated-endpoints)
@@ -159,10 +155,7 @@
 
 (defn- remove-deleted-user-data
   [user-data deleted-node-ids]
-  (reduce-kv (fn [user-data graph-id deleted-node-ids]
-               (update user-data graph-id #(apply dissoc % deleted-node-ids)))
-             user-data
-             (group-by gt/node-id->graph-id deleted-node-ids)))
+  (reduce dissoc user-data deleted-node-ids))
 
 (defn- commit-transaction-effects
   [system outputs-modified nodes-deleted]
@@ -171,47 +164,32 @@
       (update :user-data remove-deleted-user-data (coll/keys nodes-deleted))
       (update :invalidate-counters bump-invalidate-counters outputs-modified)))
 
-(defn modified-graph-states
-  [pre-tx-graphs post-tx-graphs]
-  (coll/transform-> post-tx-graphs
-    (filter (fn [[graph-id graph]]
-              (not (identical? (pre-tx-graphs graph-id)
-                               graph))))))
-
 (defn- ensure-no-concurrent-modifications!
-  [system modified-post-tx-graphs]
-  (coll/reduce-kv-> modified-post-tx-graphs nil
-    (fn [_ graph-id modified-graph]
-      (let [start-tx (:tx-id modified-graph -1)
-            sidereal-tx (graph-time system graph-id)]
-        (when (< start-tx sidereal-tx)
-          ;; graph was modified concurrently by a different transaction.
-          (throw
-            (ex-info
-              "Concurrent modification of graph"
-              {:graph-id graph-id
-               :start-tx start-tx
-               :sidereal-tx sidereal-tx})))))))
+  [system pre-tx-basis post-tx-basis]
+  (when-not (identical? pre-tx-basis post-tx-basis)
+    (let [start-tx (gt/tx-id post-tx-basis)
+          current-tx (gt/tx-id (basis system))]
+      (when (< start-tx current-tx)
+        (throw (ConcurrentModificationException.
+                 (format "Concurrent modification of graph: transaction revision %s, current revision %s"
+                         start-tx current-tx)))))))
 
-(defn- commit-graph-states
-  [system modified-post-tx-graphs]
-  (update
-    system :graphs
-    (fn [graphs]
-      (coll/reduce-kv-> modified-post-tx-graphs graphs
-        (fn [graphs graph-id modified-graph]
-          (assoc graphs graph-id (update modified-graph :tx-id util/safe-inc)))))))
+(defn- commit-basis
+  [system pre-tx-basis post-tx-basis]
+  (if (identical? pre-tx-basis post-tx-basis)
+    system
+    (assoc system :graph (update post-tx-basis :tx-id util/safe-inc))))
 
 (defn- replay-changes
   [system transaction-changes change-fn]
   (let [ctx (it/new-transaction-context
               (basis system)
-              (id-generators system)
+              (node-id-generator system)
               (override-id-generator system)
               {}
               nil
               false)
-        pre-tx-graphs (it/ctx-graphs ctx)
+        pre-tx-basis (:basis ctx)
         ctx (reduce (fn [ctx transaction-change]
                       (-> ctx
                           (change-fn transaction-change)
@@ -219,11 +197,10 @@
                     ctx
                     transaction-changes)
         {:keys [nodes-deleted outputs-modified] :as tx-result} (it/finalize-applied-changes ctx)
-        post-tx-graphs (get-in tx-result [:basis :graphs])
-        modified-post-tx-graphs (modified-graph-states pre-tx-graphs post-tx-graphs)]
-    (ensure-no-concurrent-modifications! system modified-post-tx-graphs)
+        post-tx-basis (:basis tx-result)]
+    (ensure-no-concurrent-modifications! system pre-tx-basis post-tx-basis)
     (-> system
-        (commit-graph-states modified-post-tx-graphs)
+        (commit-basis pre-tx-basis post-tx-basis)
         (commit-transaction-effects outputs-modified nodes-deleted))))
 
 (defn undo-action
@@ -263,67 +240,33 @@
                                  tape/truncate)))
       system)))
 
-(defn- make-initial-graph
-  [{graph :initial-graph :or {graph (assoc (ig/empty-graph) :_graph-id 0)}}]
-  graph)
-
 (defn make-cache
   [{:keys [cache-size cache-retain?] :or {cache-size maximum-cached-items}}]
   (c/make-cache cache-size cache-retain?))
 
-(defn- next-available-graph-id
-  [system]
-  (let [used (set (coll/keys (graphs system)))]
-    (coll/first-where (complement used) (range 0 gt/MAX-GROUP-ID))))
-
 (defn next-node-id
-  ^long [system ^long graph-id]
-  (gt/next-node-id (id-generators system) graph-id))
+  ^long [system]
+  (gt/next-node-id (node-id-generator system)))
 
-(defn take-node-ids*
-  [id-generators ^long graph-id ^long node-id-count]
-  (let [^AtomicLong id-generator (get id-generators graph-id)
+(defn take-node-ids
+  [system ^long node-id-count]
+  (let [^AtomicLong node-id-generator (node-id-generator system)
         node-ids (long-array node-id-count)]
     (loop [index 0]
       (when (< index node-id-count)
-        (let [node-id (gt/make-node-id graph-id (.getAndIncrement id-generator))]
-          (aset node-ids index node-id)
-          (recur (inc index)))))
+        (aset node-ids index (.getAndIncrement node-id-generator))
+        (recur (inc index))))
     node-ids))
-
-(defn take-node-ids
-  [system ^long graph-id ^long node-id-count]
-  (take-node-ids* (id-generators system) graph-id node-id-count))
-
-(defn- attach-graph*
-  [system graph-id graph]
-  (-> system
-      (assoc :last-graph graph-id)
-      (assoc-in [:id-generators graph-id] (integer-counter))
-      (assoc-in [:graphs graph-id] (assoc graph :_graph-id graph-id))))
-
-(defn attach-graph
-  [system graph]
-  (let [graph-id (next-available-graph-id system)]
-    (attach-graph* system graph-id graph)))
-
-(defn detach-graph
-  [system graph]
-  (let [graph-id (if (map? graph) (:_graph-id graph) graph)]
-    (update system :graphs dissoc graph-id)))
 
 (defn make-system
   [configuration]
-  (let [initial-graph (make-initial-graph configuration)
-        cache (make-cache configuration)]
-    (-> {:graphs {}
-         :undo {global-undo-key (new-undo)}
-         :id-generators {}
-         :override-id-generator (integer-counter)
-         :cache cache
-         :invalidate-counters {}
-         :user-data {}}
-        (attach-graph initial-graph))))
+  {:graph (or (:initial-graph configuration) (ig/empty-graph))
+   :undo {global-undo-key (new-undo)}
+   :node-id-generator (integer-counter)
+   :override-id-generator (integer-counter)
+   :cache (make-cache configuration)
+   :invalidate-counters {}
+   :user-data {}})
 
 (defn- register-undoable-changes
   [system undo-key label sequence-label undoable-changes]
@@ -333,28 +276,16 @@
           undo (merge-or-push-undo undo label sequence-label undoable-changes)]
       (set-undo system undo-key undo))))
 
-(defn merge-graphs
-  [system modified-post-tx-graphs outputs-modified nodes-deleted undo-key label sequence-label undoable-changes full-invalidation]
-  (ensure-no-concurrent-modifications! system modified-post-tx-graphs)
+(defn merge-basis
+  [system pre-tx-basis post-tx-basis outputs-modified nodes-deleted undo-key label sequence-label undoable-changes full-invalidation]
+  (ensure-no-concurrent-modifications! system pre-tx-basis post-tx-basis)
   (-> system
       (register-undoable-changes undo-key label sequence-label undoable-changes)
-      (commit-graph-states modified-post-tx-graphs)
+      (commit-basis pre-tx-basis post-tx-basis)
       (commit-transaction-effects outputs-modified nodes-deleted)
       (cond-> full-invalidation
         (-> (update :cache c/cache-clear)
             (update :invalidate-counters update full-invalidation-endpoint util/safe-inc)))))
-
-(defn basis-graphs-identical?
-  [basis1 basis2]
-  (let [graphs1 (:graphs basis1)
-        graphs2 (:graphs basis2)]
-    (or (identical? graphs1 graphs2)
-        (and (= (count graphs1) (count graphs2))
-             (coll/reduce-kv-> graphs1 true
-               (fn [_ graph-id graph]
-                 (if (identical? graph (get graphs2 graph-id))
-                   true
-                   (reduced false))))))))
 
 (defn default-evaluation-context [system]
   (in/default-evaluation-context (basis system)
@@ -366,8 +297,8 @@
   ;;  * only supplying a cache makes no sense and is a programmer error
   ;;  * if neither is supplied, use from system
   ;;  * if only given basis it's not at all certain that system cache is
-  ;;    derived from the given basis. One safe case is if the graphs of
-  ;;    basis "==" graphs of system. If so, we use the system cache.
+  ;;    derived from the given basis. One safe case is if the
+  ;;    basis is identical to the system basis. If so, we use the system cache.
   ;;  * if given basis & cache we assume the cache is derived from the basis
   ;; We can only later on update the cache if we have invalidate-counters from
   ;; when the evaluation context was created, and those are only merged if
@@ -380,7 +311,7 @@
         options)
       (let [system-basis (basis system)]
         (if (or (nil? options-basis)
-                (basis-graphs-identical? options-basis system-basis))
+                (identical? options-basis system-basis))
           (assoc options
             :basis system-basis
             :cache (system-cache system)
@@ -449,39 +380,27 @@
     system))
 
 (defn user-data [system node-id key]
-  (let [graph-id (gt/node-id->graph-id node-id)]
-    (-> system :user-data (get graph-id) (get node-id) (get key))))
+  (get-in system [:user-data node-id key]))
 
 (defn assoc-user-data [system node-id key value]
-  (let [graph-id (gt/node-id->graph-id node-id)]
-    (update system :user-data update graph-id update node-id assoc key value)))
+  (assoc-in system [:user-data node-id key] value))
 
 (defn update-user-data [system node-id key f & args]
-  (let [graph-id (gt/node-id->graph-id node-id)]
-    (update-in system [:user-data graph-id node-id key] #(apply f %1 %2) args)))
+  (update-in system [:user-data node-id key] #(apply f %1 %2) args))
 
 (defn merge-user-data [system values-by-key-by-node-id]
-  (assoc system
-    :user-data (reduce (fn [user-data [graph-id values-by-key-by-node-id]]
-                         (assoc user-data
-                           graph-id (reduce (fn [graph-user-data [node-id values-by-key]]
-                                              (update graph-user-data node-id coll/merge values-by-key))
-                                            (get user-data graph-id)
-                                            values-by-key-by-node-id)))
-                       (:user-data system)
-                       (group-by (fn [[node-id]]
-                                   (gt/node-id->graph-id node-id))
-                                 values-by-key-by-node-id))))
+  (update system :user-data
+          (fn [user-data]
+            (reduce-kv (fn [user-data node-id values-by-key]
+                         (update user-data node-id coll/merge values-by-key))
+                       user-data
+                       values-by-key-by-node-id))))
 
 (defn clone-system [system]
-  {:graphs (:graphs system)
+  {:graph (:graph system)
    :undo (:undo system)
-   :id-generators (into {}
-                        (map (fn [[graph-id ^AtomicLong gen]]
-                               [graph-id (AtomicLong. (.longValue gen))]))
-                        (:id-generators system))
+   :node-id-generator (AtomicLong. (.longValue ^AtomicLong (:node-id-generator system)))
    :override-id-generator (AtomicLong. (.longValue ^AtomicLong (:override-id-generator system)))
    :cache (:cache system)
    :user-data (:user-data system)
-   :invalidate-counters (:invalidate-counters system)
-   :last-graph (:last-graph system)})
+   :invalidate-counters (:invalidate-counters system)})

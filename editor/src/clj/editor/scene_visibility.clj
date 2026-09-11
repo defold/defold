@@ -23,6 +23,7 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.settings-popup :as settings-popup]
+            [internal.graph.types :as gt]
             [internal.util :as iutil]
             [schema.core :as s]
             [util.coll :as coll])
@@ -136,7 +137,7 @@
 
   (output unselected-outline-name-paths OutlineNamePaths :cached (g/fnk [selected-outline-name-paths outline-name-paths]
                                                                    (set/difference outline-name-paths selected-outline-name-paths)))
-  
+
   (output unselected-hideable-outline-name-paths OutlineNamePaths :cached (g/fnk [hidden-outline-name-paths unselected-outline-name-paths]
                                                                             (not-empty (set/difference unselected-outline-name-paths hidden-outline-name-paths))))
 
@@ -152,12 +153,12 @@
                                                                                     hide-history))
                                                                                 scene-hide-history-datas)))))
 
-(defn make-scene-visibility-node! [graph prefs app-view]
+(defn make-scene-visibility-node! [prefs app-view]
   (first
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
-        (g/make-node graph SceneVisibilityNode :prefs prefs :app-view app-view)))))
+        (g/make-node SceneVisibilityNode :prefs prefs :app-view app-view)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Per-Object Visibility
@@ -170,10 +171,12 @@
                                                          [scene-resource-node hide-history])))
 
 (defn- find-scene-hide-history-node [scene-visibility scene-resource-node]
-  (some (fn [[scene-hide-history-node]]
-          (when (some-> (g/node-feeding-into scene-hide-history-node :scene-resource-node) (= scene-resource-node))
-            scene-hide-history-node))
-        (g/sources-of scene-visibility :scene-hide-history-datas)))
+  (let [basis (g/now)]
+    (some (fn [arc]
+            (let [scene-hide-history-node (gt/source-id arc)]
+              (when (some-> (g/node-feeding-into basis scene-hide-history-node :scene-resource-node) (= scene-resource-node))
+                scene-hide-history-node)))
+          (g/inputs basis scene-visibility :scene-hide-history-datas))))
 
 (defn- show-outline-name-paths! [scene-visibility outline-name-paths]
   (assert (set? (not-empty outline-name-paths)))
@@ -210,10 +213,9 @@
         (g/update-property scene-hide-history-node :hide-history conj outline-name-paths))
       (g/transact
         {:undoable false}
-        (g/make-nodes (g/node-id->graph-id scene-visibility)
-                      [scene-hide-history-node [SceneHideHistoryNode :hide-history [outline-name-paths]]]
-                      (g/connect scene-resource-node :_node-id scene-hide-history-node :scene-resource-node)
-                      (g/connect scene-hide-history-node :scene-hide-history-data scene-visibility :scene-hide-history-datas))))))
+        (g/make-nodes [scene-hide-history-node [SceneHideHistoryNode :hide-history [outline-name-paths]]]
+          (g/connect scene-resource-node :_node-id scene-hide-history-node :scene-resource-node)
+          (g/connect scene-hide-history-node :scene-hide-history-data scene-visibility :scene-hide-history-datas))))))
 
 (handler/defhandler :scene.visibility.hide-unselected :workbench
   (active? [scene-visibility evaluation-context]

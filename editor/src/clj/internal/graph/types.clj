@@ -107,7 +107,6 @@
   ^Endpoint [^Arc arc]
   (endpoint (target-id arc) (target-label arc)))
 
-(defn graph-id? [v] (integer? v))
 (defn node-id? [v] (integer? v))
 
 (defonce/protocol Evaluation
@@ -128,76 +127,58 @@
   (original            [this]                          "Return the ID of the original of this node, if any")
   (set-original        [this original-id]              "Set the ID of the original of this node, if any"))
 
-(defonce/protocol IBasis
-  (node-by-id-at    [this node-id])
-  (node-by-property [this label value])
-  (arcs-by-source   [this node-id] [this node-id label])
-  (arcs-by-target   [this node-id] [this node-id label])
-  (sources          [this node-id] [this node-id label])
-  (targets          [this node-id] [this node-id label])
-  (connected?       [this source-id source-label target-id target-label])
-  (dependencies     [this endpoints]
-    "Follow arcs through the graphs, from outputs to the inputs
-     connected to them, and from those inputs to the downstream
-     outputs that use them, and so on. Continue following links until
-     all reachable outputs are found.
+(defonce/record Graph [nodes sarcs successors tarcs tx-id graph-values overrides node->overrides])
 
-     Takes a coll of endpoints and returns a set of endpoints")
-  (original-node    [this node-id]))
+(defn graph-arc-count [^Graph graph]
+  (reduce-kv
+    (fn [arc-count _source-id label->arc-table]
+      (reduce-kv
+        (fn [arc-count _source-label arc-table]
+          (unchecked-add
+            (long arc-count)
+            (long
+              (if (instance? Arc arc-table)
+                1
+                (count arc-table)))))
+        arc-count
+        label->arc-table))
+    0
+    (.-sarcs graph)))
 
-(defn basis? [value]
-  (satisfies? IBasis value))
+(defmethod print-method Graph [^Graph graph ^Writer writer]
+  (.write writer "#g/graph {:tx-id ")
+  (print-method (.-tx-id graph) writer)
+  (.write writer " :nodes ")
+  (print-method (count (.-nodes graph)) writer)
+  (.write writer " :arcs ")
+  (print-method (graph-arc-count graph) writer)
+  (.write writer "}"))
+
+(defn graph? [value]
+  (instance? Graph value))
+
+(definline nodes [graph] `(.-nodes ~(with-meta graph {:tag `Graph})))
+(definline sarcs [graph] `(.-sarcs ~(with-meta graph {:tag `Graph})))
+(definline successors [graph] `(.-successors ~(with-meta graph {:tag `Graph})))
+(definline tarcs [graph] `(.-tarcs ~(with-meta graph {:tag `Graph})))
+(definline tx-id [graph] `(.-tx-id ~(with-meta graph {:tag `Graph})))
+(definline graph-values [graph] `(.-graph-values ~(with-meta graph {:tag `Graph})))
+(definline overrides [graph] `(.-overrides ~(with-meta graph {:tag `Graph})))
+(definline node->overrides [graph] `(.-node->overrides ~(with-meta graph {:tag `Graph})))
 
 ;; ---------------------------------------------------------------------------
 ;; ID helpers
 ;; ---------------------------------------------------------------------------
 
-;; A gid is a graph-id.
-;; A nid is a partial node-id - the part that uniquely identifies the node within a graph.
-;; An oid does the same for override layers within a graph.
-;; A node-id combines a graph-id with a nid to uniquely identify a node in the system.
-
-(def ^:const NID-BITS                                56)
-(def ^:const NID-MASK                  0xffffffffffffff)
-(def ^:const NID-SIGN-EXTEND         -72057594037927936) ;; as a signed long
-(def ^:const GID-BITS                                 7)
-(def ^:const GID-MASK                              0x7f)
-(def ^:const MAX-GROUP-ID                           254)
-
-(defn make-node-id
-  ^long [^long graph-id ^long nid]
-  (bit-or
-    (bit-shift-left graph-id NID-BITS)
-    (bit-and nid 0xffffffffffffff)))
-
 (defn next-node-id
-  ^long [nid-generators-by-graph-id graph-id]
-  (let [^AtomicLong nid-generator (get nid-generators-by-graph-id graph-id)
-        nid (.getAndIncrement nid-generator)]
-    (make-node-id graph-id nid)))
+  ^long [^AtomicLong node-id-generator]
+  (.getAndIncrement node-id-generator))
 
-(defn node-id->graph-id
-  ^long [^long node-id]
-  (bit-and (bit-shift-right node-id NID-BITS) GID-MASK))
-
-(defn node-id->nid
-  ^long [^long node-id]
-  (bit-and node-id NID-MASK))
-
-(defn node->graph-id
-  ^long [node]
-  (node-id->graph-id (node-id node)))
-
-(defn make-override-id
-  ^long [^long graph-id ^long oid]
-  (bit-or
-    (bit-shift-left graph-id NID-BITS)
-    (bit-and oid 0xffffffffffffff)))
+;; Deprecated compatibility function. Remove after 2027-09-08.
+(defn ^:deprecated node-id->graph-id
+  ^long [^long _node-id]
+  0)
 
 (defn next-override-id
-  ^long [^AtomicLong oid-generator ^long graph-id]
-  (make-override-id graph-id (.getAndIncrement oid-generator)))
-
-(defn override-id->graph-id
-  ^long [^long override-id]
-  (bit-and (bit-shift-right override-id NID-BITS) GID-MASK))
+  ^long [^AtomicLong override-id-generator]
+  (.getAndIncrement override-id-generator))

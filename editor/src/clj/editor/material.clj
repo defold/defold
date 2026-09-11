@@ -32,6 +32,7 @@
             [editor.resource-node :as resource-node]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
             [util.murmur :as murmur]
@@ -539,10 +540,10 @@
             deletions (util/detect-deletions old-name-index new-name-index)]
         (into []
               (comp
-                (map first)
+                (map gt/target-id)
                 (distinct)
                 (mapcat #(handle-sampler-names-changed evaluation-context % old-name-index new-name-index renames deletions)))
-              (g/targets-of (:basis evaluation-context) self label))))))
+              (g/outputs (:basis evaluation-context) self label))))))
 
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)

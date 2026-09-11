@@ -17,6 +17,7 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [internal.cache :as c]
+            [internal.graph :as ig]
             [internal.graph.error-values :as ie]
             [internal.graph.types :as gt]
             [internal.util :as util]
@@ -362,7 +363,7 @@
 ;;; ----------------------------------------
 ;;; Construction support
 
-(defn throw-clear-property-disallowed-exception! [node-type property-label]
+(defn- throw-clear-property-disallowed-exception! [node-type property-label]
   (throw
     (ex-info
       (format "Not possible to clear property %s of node-type %s since the node is not an override."
@@ -447,7 +448,7 @@
 
 (defn default-evaluation-context
   [basis cache initial-invalidate-counters]
-  (assert (gt/basis? basis))
+  (assert (ig/graph? basis))
   (assert (c/cache? cache))
   (assert (map? initial-invalidate-counters))
   {:basis basis
@@ -1352,10 +1353,10 @@
 
 (defn pull-first-input-value
   [node input-label evaluation-context]
-  (let [basis (:basis evaluation-context)
-        [upstream-id output-label] (first (gt/sources basis (gt/node-id node) input-label))]
-    (when-let [upstream-node (and upstream-id (gt/node-by-id-at basis upstream-id))]
-      (gt/produce-value upstream-node output-label evaluation-context))))
+  (let [basis (:basis evaluation-context)]
+    (when-let [arc (first (ig/arcs-by-target basis (gt/node-id node) input-label))]
+      (let [upstream-node (ig/node-by-id-at basis (gt/source-id arc))]
+        (gt/produce-value upstream-node (gt/source-label arc) evaluation-context)))))
 
 (defn pull-first-input-with-substitute
   [sub node input-label evaluation-context]
@@ -1369,10 +1370,10 @@
 (defn pull-input-values
   [node input-label evaluation-context]
   (let [basis (:basis evaluation-context)]
-    (mapv (fn [[upstream-id output-label]]
-            (let [upstream-node (gt/node-by-id-at basis upstream-id)]
-              (gt/produce-value upstream-node output-label evaluation-context)))
-          (gt/sources basis (gt/node-id node) input-label))))
+    (mapv (fn [arc]
+            (let [upstream-node (ig/node-by-id-at basis (gt/source-id arc))]
+              (gt/produce-value upstream-node (gt/source-label arc) evaluation-context)))
+          (ig/arcs-by-target basis (gt/node-id node) input-label))))
 
 (defn pull-input-values-with-substitute
   [sub node input-label evaluation-context]
@@ -1536,7 +1537,7 @@
     (assert false (str "A production function for " (:name description) " " output " needs an argument this node can't supply. There is no input, output, or property called " (pr-str argument)))))
 
 (defn- original-root [node-id basis]
-  (let [node (gt/node-by-id-at basis node-id)
+  (let [node (ig/node-by-id-at basis node-id)
         orig-id (:original-id node)]
     (if orig-id
       (recur orig-id basis)
@@ -1544,7 +1545,7 @@
 
 (defn output-jammer [node node-id label basis]
   (let [original (if (:original-id node)
-                   (gt/node-by-id-at basis (original-root node-id basis))
+                   (ig/node-by-id-at basis (original-root node-id basis))
                    node)]
     (when-some [jam-value (get (:_output-jammers original) label)]
       (if (ie/error? jam-value)
@@ -1571,7 +1572,7 @@
 
 (defn- node-type-name [node-id evaluation-context]
   (let [basis (:basis evaluation-context)
-        node (gt/node-by-id-at basis node-id)]
+        node (ig/node-by-id-at basis node-id)]
     (type-name (gt/node-type node))))
 
 (defn- update-in-production [in-production endpoint]
@@ -1735,7 +1736,7 @@
                           (schema-check-result-form description label node-id-sym label-sym evaluation-context-sym result-sym
                             (cache-result-form description label node-id-sym label-sym evaluation-context-sym result-sym
                               result-sym))))))))))))))
-  
+
 (defn- assemble-properties-map-form
   [node-id-sym value-sym display-order-sym]
   `{:properties ~value-sym
@@ -1818,7 +1819,7 @@
   (get-property [this basis property]
     (let [value (get properties property ::not-found)]
       (case value
-        ::not-found (gt/get-property (gt/node-by-id-at basis original-id) basis property)
+        ::not-found (gt/get-property (ig/node-by-id-at basis original-id) basis property)
         value)))
   (set-property [this basis property value]
     (if (= :_output-jammers property)
@@ -1857,7 +1858,7 @@
                           (tracer state traced-node-id output-type traced-label)))))
 
                   beh (behavior node-type output)
-                  original (gt/node-by-id-at basis original-id)
+                  original (ig/node-by-id-at basis original-id)
                   orig-props (:properties (gt/produce-value original output evaluation-context))
                   props ((:fn beh) this output evaluation-context)
                   declared? (partial contains? (all-properties node-type))]
@@ -1932,7 +1933,7 @@
         :else
         (if (contains? (all-properties node-type) output)
           (trace-expr-result node-id output evaluation-context :raw-property (get properties output))
-          (when-some [node (gt/node-by-id-at basis original-id)]
+          (when-some [node (ig/node-by-id-at basis original-id)]
             (gt/produce-value node output evaluation-context))))))
 
   gt/OverrideNode

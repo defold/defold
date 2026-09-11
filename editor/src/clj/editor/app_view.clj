@@ -474,8 +474,8 @@
        resource))))
 
 (defn- disconnect-sources [basis target-node target-label]
-  (for [[source-node source-label] (g/sources-of basis target-node target-label)]
-    (g/disconnect source-node source-label target-node target-label)))
+  (for [arc (g/inputs basis target-node target-label)]
+    (g/disconnect (gt/source-id arc) (gt/source-label arc) target-node target-label)))
 
 (defn- replace-connection [basis source-node source-label target-node target-label]
   (concat
@@ -1296,7 +1296,7 @@
 
         start-lint!
         (fn start-lint! []
-          (when lint (lsp/pull-workspace-diagnostics! (lsp/get-node-lsp project) lint-promise)))
+          (when lint (lsp/pull-workspace-diagnostics! (lsp/get-lsp) lint-promise)))
 
         run-on-background-thread!
         (fn run-on-background-thread! [background-thread-fn ui-thread-fn]
@@ -2338,7 +2338,7 @@
              right-split-desc (g/node-value app-view :right-split-desc evaluation-context)]
     (ui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
 
-(defn make-app-view [graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
+(defn make-app-view [project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)
         editor-tab-pane (TabPane.)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
@@ -2350,16 +2350,16 @@
                      (g/tx-nodes-added
                        (g/transact
                          {:undoable false}
-                         (g/make-node graph AppView
-                                      :stage stage
-                                      :scene app-scene
-                                      :editor-tabs-split editor-tabs-split
-                                      :right-split right-split
-                                      :tool-tab-pane tool-tab-pane
-                                      :active-tool :move
-                                      :manip-space :world
-                                      :keymap keymap
-                                      :localization localization))))]
+                         (g/make-node AppView
+                           :stage stage
+                           :scene app-scene
+                           :editor-tabs-split editor-tabs-split
+                           :right-split right-split
+                           :tool-tab-pane tool-tab-pane
+                           :active-tool :move
+                           :manip-space :world
+                           :keymap keymap
+                           :localization localization))))]
       (configure-editor-tab-pane! editor-tab-pane app-view prefs)
 
       (ui/observe (.focusOwnerProperty app-scene)
@@ -2489,8 +2489,8 @@
     `:view-type` - optional, view-type map. See workspace/register-view-type
     `:wrap-content-fn` - optional, (fn [parent]) returning the tab content
                          wrapping the view parent
-    `:make-view-fn` - required, (fn [graph parent opts]) returning a
-                      view/WorkbenchView created in the supplied graph
+    `:make-view-fn` - required, (fn [parent opts]) returning a
+                      view/WorkbenchView
     `:connect-view-fn` - optional, (fn [view-node-id]) returning transaction
                          data applied together with the AppView connections
     `:on-closed-fn` - optional, (fn [view-node-id]) called when the tab closes,
@@ -2510,9 +2510,8 @@
               (.setGraphic icon)
               (editor-tab/set-view-type! view-type)
               (editor-tab/set-instance-key! instance-key))
-        graph (g/node-id->graph-id app-view)
         undo-stack-revisions-before (g/undo-stack-revisions)
-        view (make-view-fn graph parent (assoc opts :app-view app-view :tab tab))]
+        view (make-view-fn parent (assoc opts :app-view app-view :tab tab))]
     (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
             (format "The editor tab :make-view-fn created undo steps for '%s'."
                     (.getText tab)))
@@ -2548,7 +2547,7 @@
 
 (defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
   (let [basis (g/now)
-        project (project/get-project basis resource-node)
+        project (project/get-project basis)
         resource (resource-node/resource basis resource-node)
         workspace (resource/workspace resource)
         resource-type (resource/lookup-resource-type basis workspace resource)
@@ -2580,8 +2579,8 @@
                                          (ui/children! [(make-info-box! localization)
                                                         (doto parent (VBox/setVgrow Priority/ALWAYS))]))))
 
-                  :make-view-fn (fn make-resource-view [view-graph parent view-opts]
-                                  ((:make-view-fn view-type) view-graph parent resource-node view-opts))
+                  :make-view-fn (fn make-resource-view [parent view-opts]
+                                  ((:make-view-fn view-type) parent resource-node view-opts))
 
                   :connect-view-fn (fn connect-view [view]
                                      (view/connect-resource-node view resource-node))
@@ -2842,12 +2841,12 @@
 (g/defnode ReleaseNotesView
   (inherits view/NonResourceWorkbenchView))
 
-(defn- make-release-notes-view [view-graph parent {:keys [content project ^Tab tab]}]
+(defn- make-release-notes-view [parent {:keys [content project ^Tab tab]}]
   (let [view (first
                (g/tx-nodes-added
                  (g/transact
                    {:undoable false}
-                   (g/make-node view-graph ReleaseNotesView))))]
+                   (g/make-node ReleaseNotesView))))]
     (ui/advance-graph-user-data-component!
       view :view
       {:fx/type fxui/ext-with-anchor-pane-props
@@ -3438,7 +3437,6 @@
                              image-view ^ImageView (.getGraphic tooltip)]
                          (when-not (.getImage image-view)
                            (let [resource-node (project/get-resource-node project resource)
-                                 graph (g/node-id->graph-id app-view)
                                  select-fn (partial select app-view)
                                  opts (assoc ((:id view-type) (:view-opts resource-type))
                                         :app-view app-view
@@ -3446,7 +3444,7 @@
                                         :project project
                                         :workspace workspace)
                                  undo-stack-revisions-before (g/undo-stack-revisions)
-                                 preview (make-preview-fn graph resource-node opts 256 256)]
+                                 preview (make-preview-fn resource-node opts 256 256)]
                              (try
                                (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
                                        (format "The %s view-type :make-preview-fn created undo steps for '%s'."

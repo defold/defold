@@ -21,7 +21,8 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt])
   (:import [java.io StringReader]))
 
 (set! *warn-on-reflection* true)
@@ -83,7 +84,7 @@
   (test-util/with-loaded-project
     (let [game-object-path "/game_object/embedded_components.go"
           game-object (project/get-resource-node project game-object-path)
-          embedded-component (ffirst (g/sources-of game-object :child-scenes))]
+          embedded-component (some-> (first (g/inputs (g/now) game-object :child-scenes)) gt/source-id)]
       (doseq [original-scale
               (mapv #(with-meta % {:version "original"})
                     [[(float 1.0) (float 1.0) (float 1.0)]

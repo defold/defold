@@ -20,6 +20,8 @@
           <entry key="dev/run-with-terminal-progress" value="-1" />
           <entry key="dynamo.graph/construct" value="-1" />
           <entry key="dynamo.graph/let-ec" value="-1" />
+          <entry key="dynamo.graph/make-node" value="-1" />
+          <entry key="dynamo.graph/make-node!" value="-1" />
           <entry key="dynamo.graph/make-nodes" value="-1" />
           <entry key="dynamo.graph/override" value="-1" />
           <entry key="dynamo.graph/precluding-errors" value="-1" />

@@ -365,7 +365,7 @@
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project basis self)
+                         project (project/get-project basis)
                          workspace (project/workspace project evaluation-context)
                          proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)]
                      (letfn [(connect-resource [proj-path-or-resource connections]

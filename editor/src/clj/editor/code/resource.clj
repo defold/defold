@@ -193,7 +193,7 @@
   (property modified-lines types/Lines (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         lsp (lsp/get-node-lsp basis self)]
+                         lsp (lsp/get-lsp basis)]
                      (if-some [[resource source-value disk-sha256] (init-disk-state self evaluation-context)]
                        (do
                          (lsp/notify-lines-modified! lsp resource source-value new-value)

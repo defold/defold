@@ -15,7 +15,9 @@
 (ns dynamo.integration.property-setters
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :as ts]))
+            [internal.graph.types :as gt]
+            [support.test-support :as ts]
+            [util.coll :as coll]))
 
 (g/defnode ResourceNode
   (property path g/Str (default ""))
@@ -26,12 +28,14 @@
 
   (property reference g/Int
             (value (g/fnk [_node-id]
-                   (ffirst (g/sources-of _node-id :source))))
-            (set (fn [_evaluation-context self old-value new-value]
+                     (some-> (first (g/inputs (g/now) _node-id :source))
+                             gt/source-id)))
+            (set (fn [evaluation-context self old-value new-value]
                    (if new-value
                      (g/connect new-value :contents self :source)
-                      (when-let [old-source (ffirst (g/sources-of self :source))]
-                        (g/disconnect old-source :contents self :source))))))
+                     (when-let [old-source (some-> (first (g/inputs (:basis evaluation-context) self :source))
+                                                   gt/source-id)]
+                       (g/disconnect old-source :contents self :source))))))
 
   (property derived-property g/Str
             (value (g/fnk [source]
@@ -43,17 +47,16 @@
 (deftest fronting-a-connection-via-a-property
   (ts/with-clean-system
     (let [[provider user] (g/tx-nodes-added
-                           (g/transact
-                            (g/make-nodes world
-                                          [provider [ResourceNode :path "/images/something.png"]
-                                           user     ResourceUser])))]
-      (is (= [] (g/sources (g/now) user :source)))
+                            (g/transact
+                              (g/make-nodes [provider [ResourceNode :path "/images/something.png"]
+                                             user     ResourceUser])))]
+      (is (coll/empty? (g/inputs (g/now) user :source)))
       (is (instance? Long provider))
 
       (g/set-property! user :reference provider)
 
-      (is (= 1 (count (g/sources (g/now) user :source))))
-      (is (= [provider :contents] (first (g/sources (g/now) user :source))))
+      (is (= [(gt/->Arc provider :contents user :source)]
+             (g/inputs (g/now) user :source)))
 
       (is (= provider (g/node-value user :reference)))
       #_(is (= provider (get-in (g/node-value user :_properties) [:properties :reference :value])))
@@ -65,11 +68,10 @@
   (testing "an output uses a property with a getter, changing the upstream node affects the output"
     (ts/with-clean-system
       (let [[provider user] (g/tx-nodes-added
-                             (g/transact
-                              (g/make-nodes world
-                                            [provider [ResourceNode :path "/images/something.png"]
-                                             user     ResourceUser])))]
-        (is (= [] (g/sources (g/now) user :source)))
+                              (g/transact
+                                (g/make-nodes [provider [ResourceNode :path "/images/something.png"]
+                                               user     ResourceUser])))]
+        (is (coll/empty? (g/inputs (g/now) user :source)))
         (is (instance? Long provider))
 
         (g/set-property! user :reference provider)
@@ -98,7 +100,7 @@
     (ts/with-clean-system
       (let [[chain] (g/tx-nodes-added
                       (g/transact
-                        (g/make-nodes world [chain [ChainedProps :chain-two "test-val"]])))]
+                        (g/make-nodes [chain [ChainedProps :chain-two "test-val"]])))]
         (is (= "test-val" (g/node-value chain :final)))))))
 
 (g/defnode DefaultSetter
@@ -112,5 +114,5 @@
     (ts/with-clean-system
       (let [[node] (g/tx-nodes-added
                      (g/transact
-                       (g/make-nodes world [node DefaultSetter])))]
+                       (g/make-nodes [node DefaultSetter])))]
         (is (= "test-val" (g/node-value node :final)))))))

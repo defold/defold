@@ -124,8 +124,8 @@
               value))]
     (util/deep-keep-kv util/with-sorted-keys value-fn output)))
 
-(defn- load-non-editable-project! [world project-path proj-paths-by-node-key]
-  (let [workspace (log/without-logging (tu/setup-workspace! world project-path))
+(defn- load-non-editable-project! [project-path proj-paths-by-node-key]
+  (let [workspace (log/without-logging (tu/setup-workspace! project-path))
         project (tu/setup-project! workspace)
 
         non-editable-node-ids-by-node-key
@@ -159,8 +159,8 @@
 ;; build-target-test
 ;; -----------------------------------------------------------------------------
 
-(defn- create-build-target-test-project! [world project-path atlas-proj-paths]
-  (let [workspace (tu/setup-workspace! world project-path)
+(defn- create-build-target-test-project! [project-path atlas-proj-paths]
+  (let [workspace (tu/setup-workspace! project-path)
         project (tu/setup-project! workspace)]
     (tu/make-atlas-resource-node! project "/assets/from-script.atlas")
     (tu/make-atlas-resource-node! project "/assets/from-chair-embedded-sprite.atlas")
@@ -210,9 +210,9 @@
        :script script
        :workspace workspace})))
 
-(defn- load-build-target-test-project! [world project-path]
+(defn- load-build-target-test-project! [project-path]
   (load-non-editable-project!
-    world project-path
+    project-path
     {:chair "/assets/chair.go"
      :house "/assets/house.collection"
      :room "/assets/room.collection"}))
@@ -229,7 +229,7 @@
                             house
                             project
                             room
-                            workspace] :as editable-node-ids-by-node-key} (create-build-target-test-project! world project-path atlas-proj-paths)]
+                            workspace] :as editable-node-ids-by-node-key} (create-build-target-test-project! project-path atlas-proj-paths)]
                 (doseq [[node-key atlas-proj-path] atlas-property-proj-paths-by-node-key]
                   (tu/prop! (editable-node-ids-by-node-key node-key) :__atlas (tu/resource workspace atlas-proj-path)))
                 (let [editable-results
@@ -241,12 +241,12 @@
                                        :house (g/node-value house :build-targets)}}]
                   (tu/save-project! project)
                   (tu/set-non-editable-directories! project-path ["/assets"])
-                  (lsp/await (lsp/get-node-lsp project))
+                  (lsp/await (lsp/get-lsp))
                   editable-results)))]
         ;; Reload the project now that the resources are in a non-editable state
         ;; and compare the non-editable output to the editable output.
         (with-clean-system
-          (let [non-editable-node-ids-by-node-key (load-build-target-test-project! world project-path)]
+          (let [non-editable-node-ids-by-node-key (load-build-target-test-project! project-path)]
             (compare-output :build-targets editable-results non-editable-node-ids-by-node-key)
 
             (testing "Verify the built source paths match."
@@ -255,7 +255,7 @@
                 (testing (str node-key)
                   (is (= editable-build-source-paths
                          (tu/node-built-source-paths non-editable-node-id))))))
-            (lsp/await (lsp/get-node-lsp (:project non-editable-node-ids-by-node-key)))))))))
+            (lsp/await (lsp/get-lsp))))))))
 
 (deftest build-target-test
   (doseq [atlas-property-proj-paths-by-node-key
@@ -303,7 +303,7 @@
         ;; non-editable directory, and reference both collections from the main
         ;; collection.  We want to ensure the build targets for the embedded
         ;; resources are fused into one.
-        (let [workspace (tu/setup-workspace! world project-path)
+        (let [workspace (tu/setup-workspace! project-path)
               project (tu/setup-project! workspace)
               game-project (tu/resource-node project "/game.project")
               main-collection (tu/make-resource-node! project "/main.collection")]
@@ -335,14 +335,14 @@
                 (is (string/includes? (:prototype editable-room-instance-pb-map) "generated"))
                 (is (= (:prototype editable-room-instance-pb-map)
                        (:prototype non-editable-room-instance-pb-map))))))
-          (lsp/await (lsp/get-node-lsp project)))))))
+          (lsp/await (lsp/get-lsp)))))))
 
 ;; -----------------------------------------------------------------------------
 ;; scene-test
 ;; -----------------------------------------------------------------------------
 
-(defn- create-scene-test-project! [world project-path]
-  (let [workspace (tu/setup-workspace! world project-path)
+(defn- create-scene-test-project! [project-path]
+  (let [workspace (tu/setup-workspace! project-path)
         project (tu/setup-project! workspace)]
     (tu/make-atlas-resource-node! project "/assets/from-sprite.atlas")
     (tu/make-atlas-resource-node! project "/assets/from-chair-embedded-sprite.atlas")
@@ -425,9 +425,9 @@
        :room room
        :workspace workspace})))
 
-(defn- load-scene-test-project! [world project-path]
+(defn- load-scene-test-project! [project-path]
   (load-non-editable-project!
-    world project-path
+    project-path
     {:chair "/assets/chair.go"
      :house "/assets/house.collection"
      :room "/assets/room.collection"}))
@@ -442,17 +442,17 @@
               (let [{:keys [chair
                             house
                             project
-                            room] :as _editable-node-ids-by-node-key} (create-scene-test-project! world project-path)]
+                            room] :as _editable-node-ids-by-node-key} (create-scene-test-project! project-path)]
                 (let [editable-results
                       {:scene {:chair (g/node-value chair :scene)
                                :room (g/node-value room :scene)
                                :house (g/node-value house :scene)}}]
                   (tu/save-project! project)
                   (tu/set-non-editable-directories! project-path ["/assets"])
-                  (lsp/await (lsp/get-node-lsp project))
+                  (lsp/await (lsp/get-lsp))
                   editable-results)))]
         ;; Reload the project now that the resources are in a non-editable state
         ;; and compare the non-editable output to the editable output.
         (with-clean-system
-          (let [non-editable-node-ids-by-node-key (load-scene-test-project! world project-path)]
+          (let [non-editable-node-ids-by-node-key (load-scene-test-project! project-path)]
             (compare-output :scene editable-results non-editable-node-ids-by-node-key)))))))

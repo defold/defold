@@ -215,7 +215,7 @@
   (or (when error-node-id
         (g/with-auto-evaluation-context evaluation-context
           (let [basis (:basis evaluation-context)
-                error-node (g/node-by-id-at basis error-node-id)]
+                error-node (g/node-by-id basis error-node-id)]
             (when (and (some? error-node)
                        (g/node-instance*? outline/OutlineNode error-node))
               (some (fn [{:keys [node-id] :as node-outline}]

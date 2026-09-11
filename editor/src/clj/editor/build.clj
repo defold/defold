@@ -64,7 +64,7 @@
 (defn- resolve-deps-impl
   ([build-targets project report-node-id-progress! evaluation-context]
    (let [proj-path->dynamic-build-targets (code.transpilers/build-output
-                                            (project/code-transpilers (:basis evaluation-context) project)
+                                            (project/code-transpilers (:basis evaluation-context))
                                             evaluation-context)]
      (if (g/error-value? proj-path->dynamic-build-targets)
        proj-path->dynamic-build-targets

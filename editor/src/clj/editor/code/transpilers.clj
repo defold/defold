@@ -235,7 +235,7 @@
               (for [removed-class removed]
                 (g/delete-node (old-transpiler-class->node-id removed-class)))
               (for [{:keys [source-ext build-file-proj-path instance]} (create-lua-transpilers added)]
-                (g/make-nodes (g/node-id->graph-id code-transpilers) [transpiler TranspilerNode]
+                (g/make-nodes [transpiler TranspilerNode]
                   (r/register-code-resource-type
                     workspace
                     :ext source-ext

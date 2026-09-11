@@ -159,7 +159,7 @@
             (set (fn [evaluation-context self _old-value new-value]
                    (let [basis (:basis evaluation-context)
                          resource (resource-node/resource basis self)
-                         project (project/get-project basis self)
+                         project (project/get-project basis)
                          connections [[:proj-path+full-lines :included-proj-paths+full-lines]]]
                      (concat
                        (g/disconnect-sources basis self :included-proj-paths+full-lines)

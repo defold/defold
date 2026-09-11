@@ -21,14 +21,12 @@
             [internal.graph.types :as gt]
             [internal.system :as is]
             [support.test-support :as ts])
-  (:import [clojure.lang ExceptionInfo]))
+  (:import [clojure.lang ExceptionInfo]
+           [java.util ConcurrentModificationException]))
 
 (g/defnode Root
   (property where g/Str)
   (property touched g/Num))
-
-(defn graphs        []    (is/graphs        @g/*the-system*))
-(defn graph         [gid] (is/graph         @g/*the-system* gid))
 
 (defn- undo-states
   []
@@ -41,26 +39,46 @@
     [(map :label (is/undo-stack undo))
      (map :label (is/redo-stack undo))]))
 
-(deftest graph-registration
+(deftest system-graph-snapshot
   (ts/with-clean-system
-    (is (= 1 (count (graphs))))))
+    (is (identical? (:graph @g/*the-system*) (g/now)))))
+
+(deftest node-id-allocation
+  (let [system (is/make-system {})]
+    (is (= 0 (is/next-node-id system)))
+    (is (= [1 2] (vec (is/take-node-ids system 2))))
+    (let [clone (is/clone-system system)]
+      (is (= [3 4] (vec (is/take-node-ids clone 2))))
+      (is (= 3 (is/next-node-id system)))
+      (is (= 5 (is/next-node-id clone))))))
 
 (deftest tx-id
   (testing "graph time advances with transactions"
     (ts/with-clean-system
-      (let [before (is/graph-time @g/*the-system* world)
-            tx-report (g/transact (g/make-node world Root))
-            after (is/graph-time @g/*the-system* world)]
+      (let [before (gt/tx-id (is/basis @g/*the-system*))
+            tx-report (g/transact (g/make-node Root))
+            after (gt/tx-id (is/basis @g/*the-system*))]
         (is (= :ok (:status tx-report)))
         (is (< before after))))))
+
+(deftest concurrent-modification
+  (ts/with-clean-system
+    (let [node-id (first (g/tx-nodes-added (g/transact (g/make-node Root))))
+          pre-tx-basis (g/now)
+          tx-result (g/transact {:dry-run true} (g/set-property node-id :touched 1))]
+      (g/transact (g/set-property node-id :touched 2))
+      (let [system @g/*the-system*]
+        (is (thrown? ConcurrentModificationException
+                     (g/commit-tx-result! tx-result {} pre-tx-basis)))
+        (is (identical? system @g/*the-system*))))))
 
 (deftest undo-capture
   (testing "undoable actions are stored"
     (ts/with-clean-system
-      (let [before (is/graph-time @g/*the-system* world)
+      (let [before (gt/tx-id (is/basis @g/*the-system*))
             undo-before (undo-states)
-            tx-report (g/transact (g/make-node world Root))
-            after (is/graph-time @g/*the-system* world)
+            tx-report (g/transact (g/make-node Root))
+            after (gt/tx-id (is/basis @g/*the-system*))
             undo-after (undo-states)]
         (is (= :ok (:status tx-report)))
         (is (< before after))
@@ -68,7 +86,7 @@
 
   (testing "transaction labels appear in undo"
     (ts/with-clean-system
-      (let [tx-report (g/transact [(g/make-node world Root)
+      (let [tx-report (g/transact [(g/make-node Root)
                                    (g/operation-label (localization/message "operation.build-root"))])
             root (first (g/tx-nodes-added tx-report))
             _ (g/transact [(g/set-property root :touched 1)
@@ -98,7 +116,7 @@
 
   (testing "undo steps can be stored under a custom undo-key"
     (ts/with-clean-system
-      (let [[root] (ts/tx-nodes (g/make-node world Root :touched 0))]
+      (let [[root] (ts/tx-nodes (g/make-node Root :touched 0))]
         (g/reset-undo! :undo/global)
 
         (g/transact {:undo-key :undo/custom}
@@ -130,7 +148,7 @@
       (is (not (g/has-undo? :undo/global)))
       (is (not (g/has-redo? :undo/global)))
 
-      (let [root (g/make-node! world Root)]
+      (let [root (g/make-node! Root)]
 
         (is (g/has-undo? :undo/global))
         (is (not (g/has-redo? :undo/global)))
@@ -151,7 +169,7 @@
       (is (not (g/has-undo? :undo/global)))
       (is (not (g/has-redo? :undo/global)))
 
-      (let [[root] (ts/tx-nodes (g/make-node world Root))]
+      (let [[root] (ts/tx-nodes (g/make-node Root))]
 
         (is (g/has-undo? :undo/global))
         (is (not (g/has-redo? :undo/global)))
@@ -175,14 +193,14 @@
     (ts/with-clean-system
       (is (not (g/has-undo? :undo/global)))
 
-      (g/transact (g/make-node world Root))
+      (g/transact (g/make-node Root))
 
       (is (g/has-undo? :undo/global)))))
 
 (deftest non-undoable-transactions
   (testing "non-undoable transactions are not appended to undo"
     (ts/with-clean-system
-      (let [[root] (ts/tx-nodes (g/make-node world Root :where "initial" :touched 0))]
+      (let [[root] (ts/tx-nodes (g/make-node Root :where "initial" :touched 0))]
         (g/reset-undo! :undo/global)
 
         (g/transact
@@ -202,7 +220,7 @@
 
   (testing "nested non-undoable transaction data is not reverted by undo"
     (ts/with-clean-system
-      (let [[root] (ts/tx-nodes (g/make-node world Root :where "initial" :touched 0))]
+      (let [[root] (ts/tx-nodes (g/make-node Root :where "initial" :touched 0))]
         (g/reset-undo! :undo/global)
 
         (g/transact
@@ -220,7 +238,7 @@
 
   (testing "nested non-undoable transaction data does not make labels undoable"
     (ts/with-clean-system
-      (let [[root] (ts/tx-nodes (g/make-node world Root :where "initial" :touched 0))]
+      (let [[root] (ts/tx-nodes (g/make-node Root :where "initial" :touched 0))]
         (g/reset-undo! :undo/global)
 
         (g/transact
@@ -233,7 +251,7 @@
 
   (testing "later non-undoable transactions to the same property are reverted"
     (ts/with-clean-system
-      (let [[root] (ts/tx-nodes (g/make-node world Root :where "initial"))]
+      (let [[root] (ts/tx-nodes (g/make-node Root :where "initial"))]
         (g/reset-undo! :undo/global)
 
         (g/transact
@@ -248,7 +266,7 @@
 
   (testing "later non-undoable clears to the same property are reverted"
     (ts/with-clean-system
-      (let [[root] (ts/tx-nodes (g/make-node world Root :where "initial"))
+      (let [[root] (ts/tx-nodes (g/make-node Root :where "initial"))
             [override-root] (ts/tx-nodes (g/override root))]
         (g/reset-undo! :undo/global)
 
@@ -265,15 +283,15 @@
 (defn touch
   [node label & [seq-id]]
   (g/transact (keep identity
-                     [(g/operation-label label)
-                      (when seq-id
-                        (g/operation-sequence seq-id))
-                      (g/set-property node :touched label)])))
+                    [(g/operation-label label)
+                     (when seq-id
+                       (g/operation-sequence seq-id))
+                     (g/set-property node :touched label)])))
 
 (deftest undo-stack-revision-test
   (testing "Non-undoable transactions do not change the revision"
     (ts/with-clean-system
-      (let [[root] (ts/tx-nodes (g/make-node world Root :touched 0))]
+      (let [[root] (ts/tx-nodes (g/make-node Root :touched 0))]
         (g/reset-undo! :undo/global)
 
         (let [revision-before (g/undo-stack-revision :undo/global)]
@@ -284,7 +302,7 @@
 
   (testing "Coalesced transactions change the revision without changing the stack count"
     (ts/with-clean-system
-      (let [[root] (ts/tx-nodes (g/make-node world Root :touched 0))]
+      (let [[root] (ts/tx-nodes (g/make-node Root :touched 0))]
         (g/reset-undo! :undo/global)
         (touch root 1 ::sequence)
 
@@ -297,7 +315,7 @@
 
   (testing "Transactions change the revision when the stack is at capacity"
     (ts/with-clean-system
-      (let [[root] (ts/tx-nodes (g/make-node world Root :touched -1))]
+      (let [[root] (ts/tx-nodes (g/make-node Root :touched -1))]
         (g/reset-undo! :undo/global)
 
         (dotimes [value 60]
@@ -318,7 +336,7 @@
 
       (is (= (undo-redo-states) [[] []]))
 
-      (let [[root] (ts/tx-nodes (g/make-node world Root))]
+      (let [[root] (ts/tx-nodes (g/make-node Root))]
 
         (is (= (undo-redo-states) [[nil] []]))
 
@@ -337,7 +355,7 @@
 
       (is (= (undo-redo-states) [[] []]))
 
-      (let [[root] (ts/tx-nodes (g/make-node world Root))]
+      (let [[root] (ts/tx-nodes (g/make-node Root))]
 
         (is (= (undo-redo-states) [[nil] []]))
 
@@ -356,7 +374,7 @@
 
       (is (= (undo-redo-states) [[] []]))
 
-      (let [[root] (ts/tx-nodes (g/make-node world Root))]
+      (let [[root] (ts/tx-nodes (g/make-node Root))]
 
         (is (= (undo-redo-states) [[nil] []]))
 
@@ -388,7 +406,7 @@
 
       (is (= (undo-redo-states) [[] []]))
 
-      (let [[root] (ts/tx-nodes (g/make-node world Root))]
+      (let [[root] (ts/tx-nodes (g/make-node Root))]
 
         (is (= (undo-redo-states) [[nil] []]))
 
@@ -422,8 +440,7 @@
 
   (testing "Canceling the current sequence discards redo based on it"
     (ts/with-clean-system
-      (let [pgraph-id world
-            [root] (ts/tx-nodes (g/make-node pgraph-id Root :touched 0))]
+      (let [[root] (ts/tx-nodes (g/make-node Root :touched 0))]
         (g/reset-undo! :undo/global)
 
         (touch root 1 :a)
@@ -446,7 +463,7 @@
 
       (is (= (undo-redo-states) [[] []]))
 
-      (let [[root] (ts/tx-nodes (g/make-node world Root))]
+      (let [[root] (ts/tx-nodes (g/make-node Root))]
 
         (is (= (undo-redo-states) [[nil] []]))
 
@@ -479,13 +496,13 @@
 
 (deftest tracing
   (ts/with-clean-system
-    (let [[source-p1 pipe-p1 sink-p1] (ts/tx-nodes (g/make-node world Source :source-label "first")
-                                                   (g/make-node world Pipe)
-                                                   (g/make-node world Sink))
+    (let [[source-p1 pipe-p1 sink-p1] (ts/tx-nodes (g/make-node Source :source-label "first")
+                                                   (g/make-node Pipe)
+                                                   (g/make-node Sink))
 
-          [source-a1 sink-a1 sink-a2] (ts/tx-nodes (g/make-node world Source :source-label "second")
-                                                   (g/make-node world Sink)
-                                                   (g/make-node world Sink))]
+          [source-a1 sink-a1 sink-a2] (ts/tx-nodes (g/make-node Source :source-label "second")
+                                                   (g/make-node Sink)
+                                                   (g/make-node Sink))]
 
       (g/transact
         [(g/connect source-p1 :source-label sink-p1 :target-label)
@@ -511,25 +528,26 @@
   (input source-label g/Str)
   (output source-label g/Str :cached (g/fnk [source-label] (when source-label (str/upper-case source-label)))))
 
-(defn- show-sarcs-tarcs [msg graph]
-  (println msg
-           "\n\t:sarcs " (get-in (g/now) [:graphs graph :sarcs])
-           "\n\t:tarcs"  (get-in (g/now) [:graphs graph :tarcs])))
+(defn- show-sarcs-tarcs [msg]
+  (let [basis (g/now)]
+    (println msg
+             "\n\t:sarcs " (gt/sarcs basis)
+             "\n\t:tarcs" (gt/tarcs basis))))
 
 (deftest undo-restores-all-source-arcs
   (testing "Delete with connections, undo, re-delete"
     (ts/with-clean-system
-      (let [[source link sink] (ts/tx-nodes (g/make-node world Source :source-label "initial")
-                                            (g/make-node world ChainedLink)
-                                            (g/make-node world Sink))]
+      (let [[source link sink] (ts/tx-nodes (g/make-node Source :source-label "initial")
+                                            (g/make-node ChainedLink)
+                                            (g/make-node Sink))]
         (g/transact
-         (concat
-          (g/connect source :source-label link :source-label)
-          (g/connect link   :source-label sink :target-label)))
+          (concat
+            (g/connect source :source-label link :source-label)
+            (g/connect link   :source-label sink :target-label)))
 
         (is (= "INITIAL" (g/node-value sink :loud)))
         (g/transact
-         (g/set-property source :source-label "after change"))
+          (g/set-property source :source-label "after change"))
 
         (g/delete-node! source)
         (is (= nil (g/node-value sink :loud)))
@@ -545,11 +563,11 @@
 
 (defn- sarcs [node-id label]
   (ig/arc-table-arcs
-    (get-in @g/*the-system* [:graphs (g/node-id->graph-id node-id) :sarcs node-id label])))
+    (-> @g/*the-system* is/basis gt/sarcs (get node-id) (get label))))
 
 (defn- tarcs [node-id label]
   (ig/arc-table-arcs
-    (get-in @g/*the-system* [:graphs (g/node-id->graph-id node-id) :tarcs node-id label])))
+    (-> @g/*the-system* is/basis gt/tarcs (get node-id) (get label))))
 
 (defn- cached?
   [endpoint]
@@ -563,8 +581,8 @@
   (testing "undo property change keeps non-undoable connection and successors"
     (ts/with-clean-system
       (let [[p-source v-sink] (ts/tx-nodes
-                                (g/make-node world Source :source-label "initial value")
-                                (g/make-node world Sink))]
+                                (g/make-node Source :source-label "initial value")
+                                (g/make-node Sink))]
 
         (g/reset-undo! :undo/global)
         (g/transact {:undoable false}
@@ -588,10 +606,10 @@
 
         (is (= 0 (count (ts/undo-stack :undo/global))))
         (is (= "INITIAL VALUE" (g/node-value v-sink :loud)))
-        (is (= [[p-source :source-label v-sink :target-label]]
-               (g/arcs->tuples (sarcs p-source :source-label))))
-        (is (= [[p-source :source-label v-sink :target-label]]
-               (g/arcs->tuples (tarcs v-sink :target-label))))
+        (is (= [(gt/->Arc p-source :source-label v-sink :target-label)]
+               (vec (sarcs p-source :source-label))))
+        (is (= [(gt/->Arc p-source :source-label v-sink :target-label)]
+               (vec (tarcs v-sink :target-label))))
         (is (= #{(gt/endpoint p-source :_declared-properties)
                  (gt/endpoint p-source :source-label)
                  (gt/endpoint p-source :_properties)
@@ -605,10 +623,10 @@
 (deftest undo-redo-invalidates-modified-outputs
   (ts/with-clean-system
     (let [[source sink unrelated-source unrelated-sink] (ts/tx-nodes
-                                                          (g/make-node world Source :source-label "initial")
-                                                          (g/make-node world Sink)
-                                                          (g/make-node world Source :source-label "unrelated")
-                                                          (g/make-node world Sink))
+                                                          (g/make-node Source :source-label "initial")
+                                                          (g/make-node Sink)
+                                                          (g/make-node Source :source-label "unrelated")
+                                                          (g/make-node Sink))
           sink-output (gt/endpoint sink :loud)
           unrelated-output (gt/endpoint unrelated-sink :loud)]
       (g/transact
@@ -644,7 +662,7 @@
 
 (deftest undo-removes-user-data-for-deleted-nodes
   (ts/with-clean-system
-    (let [[source] (ts/tx-nodes (g/make-node world Source :source-label "initial"))]
+    (let [[source] (ts/tx-nodes (g/make-node Source :source-label "initial"))]
       (g/user-data! source ::undo-user-data :value)
       (is (= :value (g/user-data source ::undo-user-data)))
 
@@ -656,9 +674,9 @@
   (testing "undo connection removes connection and successors"
     (ts/with-clean-system
       (let [[p-source p-source2 v-sink] (ts/tx-nodes
-                                          (g/make-node world Source :source-label "initial value")
-                                          (g/make-node world Source)
-                                          (g/make-node world Sink))]
+                                          (g/make-node Source :source-label "initial value")
+                                          (g/make-node Source)
+                                          (g/make-node Sink))]
 
         (is (= 1 (count (ts/undo-stack :undo/global))))
 
@@ -686,8 +704,8 @@
                  (gt/endpoint p-source :_properties)
                  (gt/endpoint v-sink :loud)}
                (set (successors p-source :source-label))))
-        (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (sarcs p-source :source-label))))
-        (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (tarcs v-sink :target-label))))
+        (is (= [(gt/->Arc p-source :source-label v-sink :target-label)] (vec (sarcs p-source :source-label))))
+        (is (= [(gt/->Arc p-source :source-label v-sink :target-label)] (vec (tarcs v-sink :target-label))))
 
         (is (= "INITIAL VALUE" (g/node-value v-sink :loud)))
 
@@ -699,8 +717,8 @@
                  (gt/endpoint p-source :source-label)
                  (gt/endpoint p-source :_properties)}
                (set (successors p-source :source-label))))
-        (is (= [] (g/arcs->tuples (sarcs p-source :source-label))))
-        (is (= [] (g/arcs->tuples (tarcs v-sink :target-label))))
+        (is (= [] (vec (sarcs p-source :source-label))))
+        (is (= [] (vec (tarcs v-sink :target-label))))
 
         (is (= nil (g/node-value v-sink :loud)))
 
@@ -710,36 +728,52 @@
         (is (= nil (g/node-value v-sink :loud)))))))
 
 (deftest graph-values
-  (testing "Values can be attached to graphs"
-   (ts/with-clean-system
-     (let [node-id (gt/make-node-id 0 1)]
-       (g/transact [(g/set-graph-value 0 :string-value "A String")
-                    (g/set-graph-value 0 :a-node-id node-id)])
-       (is (= "A String" (g/graph-value 0 :string-value)))
-       (is (= node-id    (g/graph-value 0 :a-node-id))))))
+  (testing "Values can be attached to the graph"
+    (ts/with-clean-system
+      (let [node-id 1]
+        (g/transact [(g/set-graph-value :string-value "A String")
+                     (g/set-graph-value :a-node-id node-id)])
+        (is (= "A String" (g/graph-value :string-value)))
+        (is (= node-id    (g/graph-value :a-node-id))))))
 
   (testing "Graph values do not interfer with the original members of the graph"
     (ts/with-clean-system
-      (let [[src-node] (ts/tx-nodes (g/make-nodes world [src [Source :source-label "test"]]))]
-        (g/set-graph-value! world :nodes :new-value)
+      (let [[src-node] (ts/tx-nodes (g/make-nodes [src [Source :source-label "test"]]))]
+        (g/set-graph-value! :nodes :new-value)
         (is (= "test" (g/node-value src-node :source-label)))
-        (is (= :new-value (g/graph-value world :nodes)))))))
+        (is (= :new-value (g/graph-value :nodes)))))))
 
 (deftest user-data
   (ts/with-clean-system
-    (let [[project-node view-node] (ts/tx-nodes (g/make-node world Source :source-label "first")
-                                     (g/make-node world Sink))]
+    (let [[project-node view-node] (ts/tx-nodes (g/make-node Source :source-label "first")
+                                                (g/make-node Sink))]
       (g/user-data! project-node ::my-user-data :project)
       (g/user-data! view-node ::my-user-data :view)
       (is (= :project (g/user-data project-node ::my-user-data)))
       (is (= :view (g/user-data view-node ::my-user-data)))
+
+      (testing "merging values"
+        (g/user-data-merge! {project-node {::merged-user-data :project-merged}
+                             view-node {::merged-user-data :view-merged}})
+        (is (= {project-node {::merged-user-data :project-merged
+                              ::my-user-data :project}
+                view-node {::merged-user-data :view-merged
+                           ::my-user-data :view}}
+               (:user-data @g/*the-system*))))
+
       (testing "swapping in a value"
         (is (= :new-view (g/user-data-swap! view-node ::my-user-data (fn [v prefix] (keyword (str prefix (name v)))) "new-")))
         (is (= :new-view (g/user-data view-node ::my-user-data))))
+
       (testing "value removed after node is deleted"
         (g/delete-node! project-node)
         (is (nil? (g/user-data project-node ::my-user-data)))
-        (is (= :new-view (g/user-data view-node ::my-user-data))))
+        (is (= :new-view (g/user-data view-node ::my-user-data)))
+        (is (= {view-node {::merged-user-data :view-merged
+                           ::my-user-data :new-view}}
+               (:user-data @g/*the-system*))))
+
       (testing "value removed after view node is deleted"
         (g/delete-node! view-node)
-        (is (nil? (g/user-data view-node ::my-user-data)))))))
+        (is (nil? (g/user-data view-node ::my-user-data)))
+        (is (= {} (:user-data @g/*the-system*)))))))

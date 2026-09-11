@@ -14,7 +14,9 @@
 
 {:function-arguments-indentation :cursive
  :indent-line-comments? true
- :extra-indents {assoc [[:block 1]]
+ :extra-indents {.addEventFilter [[:inner 0]]
+                 are [[:inner 0]]
+                 assoc [[:block 1]]
                  assoc! [[:block 1]]
                  cljfx.composite/props [[:inner 0]]
                  clojure.core.cache/defcache [[:inner 0]]
@@ -29,6 +31,8 @@
                  dynamo.graph/construct [[:inner 0]]
                  dynamo.graph/deftype [[:block 1] [:inner 1 -1]]
                  dynamo.graph/let-ec [[:inner 0]]
+                 dynamo.graph/make-node [[:inner 0]]
+                 dynamo.graph/make-node! [[:inner 0]]
                  dynamo.graph/make-nodes [[:inner 0]]
                  dynamo.graph/fnk [[:block 1]]
                  dynamo.graph/override [[:inner 0]]
@@ -113,6 +117,7 @@
                  integration.test-util/with-temp-dir! [[:inner 0]]
                  integration.test-util/write-file-resource! [[:inner 0]]
                  org.httpkit.server/with-channel [[:inner 0]]
+                 schema.core/defrecord [[:inner 0] [:inner 1]]
                  schema.core/enum [[:block 0] [:inner 1 -1]]
                  support.test-support/with-clean-system [[:inner 0]]
                  util.bit-set/into-> [[:inner 0]]
@@ -129,9 +134,10 @@
                  util.debug-util/log-time-and-memory [[:inner 0]]
                  util.debug-util/measuring [[:inner 0]]
                  util.debug-util/metrics-time [[:inner 0]]
+                 util.defonce/interface [[:block 1] [:inner 1]]
                  util.defonce/protocol [[:block 1] [:inner 1]]
-                 util.defonce/record [[:block 2] [:inner 1]]
-                 util.defonce/type [[:block 2] [:inner 1]]
+                 util.defonce/record [[:inner 0] [:inner 1]]
+                 util.defonce/type [[:inner 0] [:inner 1]]
                  util.profiler/profile [[:inner 0]]
                  vlaaad.reveal/defaction [[:inner 0]]
                  vlaaad.reveal/defstream [[:inner 0]]}

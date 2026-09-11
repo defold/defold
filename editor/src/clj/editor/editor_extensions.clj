@@ -149,12 +149,12 @@
   (output project-reload-signature g/Int :cached produce-project-reload-signature)
   (output library-reload-signature g/Int :cached produce-library-reload-signature))
 
-(defn make [graph]
+(defn make []
   (first
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
-        (g/make-node graph EditorExtensions)))))
+        (g/make-node EditorExtensions)))))
 
 ;; region script API
 
@@ -1078,7 +1078,7 @@
   [project kind & {:keys [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!] :as opts}]
   {:pre [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!]}
   (g/let-ec [basis (:basis evaluation-context)
-             lsp (lsp/get-node-lsp basis project)
+             lsp (lsp/get-lsp basis)
              script-annotations (project/script-annotations project evaluation-context)
              extensions (g/node-value project :editor-extensions evaluation-context)
              old-state (ext-state project evaluation-context)

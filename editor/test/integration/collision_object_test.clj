@@ -23,6 +23,7 @@
             [editor.properties :as properties]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc]
            [com.jogamp.opengl GL2]))
@@ -319,7 +320,10 @@
   (test-util/with-loaded-project
     (let [collision-object-path "/collision_object/three_shapes.collisionobject"
           collision-object (project/get-resource-node project collision-object-path)
-          [[sphere-shape] [box-shape] [capsule-shape]] (g/sources-of collision-object :child-scenes)]
+          child-scene-arcs (g/inputs (g/now) collision-object :child-scenes)
+          sphere-shape (gt/source-id (nth child-scene-arcs 0))
+          box-shape (gt/source-id (nth child-scene-arcs 1))
+          capsule-shape (gt/source-id (nth child-scene-arcs 2))]
 
       (testing "Sphere Shape"
         (doseq [original-diameter [(float 10.0) (double 10.0)]]

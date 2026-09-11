@@ -22,6 +22,7 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [service.log :as log]
             [support.test-support :as test-support]
             [util.coll :as coll])
@@ -88,8 +89,8 @@
       (g/set-properties! collision-shape :mesh-name "Triangle" :mesh-index 0)
 
       (is (= ["simpleTriangle.bin"] (g/node-value model-scene :source-value)))
-      (is (= [[buffer-node :sha256]]
-             (g/sources-of model-scene :external-buffer-sha256s)))
+      (is (= [(gt/->Arc buffer-node :sha256 model-scene :external-buffer-sha256s)]
+             (g/inputs (g/now) model-scene :external-buffer-sha256s)))
       (is (coll/empty? (get-in (g/node-value model-scene :content)
                                [:mesh-set :raw-models 0 :meshes])))
       (is (= 0.0 (first-x)))

@@ -23,6 +23,7 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [support.test-support :as test-support]
             [util.coll :as coll]
             [util.fn :as fn]))
@@ -60,7 +61,7 @@
       (test-util/write-defunload-patterns! project-path defunload-patterns)
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
 
           ;; Add dependencies to all sanctioned extensions to game.project.
           (test-util/set-libraries! workspace test-util/sanctioned-extension-urls)
@@ -113,7 +114,7 @@
                           (is (not (g/error? (g/node-value resource-node :build-targets evaluation-context))))
                           (when (resource-type-has-view-type? resource-type :scene)
                             (is (not (g/error? (g/node-value resource-node :scene evaluation-context)))))))))))
-              (lsp/await (lsp/get-node-lsp project)))))))))
+              (lsp/await (lsp/get-lsp)))))))))
 
 (defn- loaded-proj-path? [project proj-path]
   (let [resource-node-id (project/get-resource-node project proj-path)]
@@ -126,7 +127,7 @@
       (test-util/write-defunload-patterns! project-path ["/unloaded"])
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
 
           (fs/copy! (io/file "test/resources/images/small.png")
                     (io/file project-path "unloaded/unloaded.png"))
@@ -345,7 +346,7 @@
                   (is (= ["/loaded_referencing_unloaded_go.collection"]
                          (mapv (comp resource/proj-path :resource first)
                                node-load-info-tx-data-calls))))))
-            (lsp/await (lsp/get-node-lsp project))))))))
+            (lsp/await (lsp/get-lsp))))))))
 
 (deftest defunload-scene-edit-test
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
@@ -353,7 +354,7 @@
       (test-util/write-defunload-patterns! project-path ["/unloaded"])
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
 
           (fs/copy! (io/file "test/resources/images/small.png")
                     (io/file project-path "unloaded/unloaded.png"))
@@ -471,7 +472,7 @@
                   (is (= []
                          (mapv (comp resource/proj-path :resource first)
                                node-load-info-tx-data-calls))))))
-            (lsp/await (lsp/get-node-lsp project))))))))
+            (lsp/await (lsp/get-lsp))))))))
 
 (deftest defunload-script-edit-test
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
@@ -479,7 +480,7 @@
       (test-util/write-defunload-patterns! project-path ["/unloaded"])
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
 
           (fs/copy! (io/file "test/resources/images/small.png")
                     (io/file project-path "unloaded/unloaded.png"))
@@ -551,10 +552,10 @@
               (is (loaded-proj-path? "/loaded_referencing_unloaded_tilesource.script")))
 
             (testing "Unloaded resource shells have their global connections."
-              (is (contains? (set (g/sources-of project :breakpoints))
-                             [unloaded-lua-node :breakpoints]))
-              (is (contains? (set (g/sources-of script-intelligence :required-module-infos))
-                             [unloaded-lua-node :required-module-info])))
+              (is (contains? (set (g/inputs (g/now) project :breakpoints))
+                             (gt/->Arc unloaded-lua-node :breakpoints project :breakpoints)))
+              (is (contains? (set (g/inputs (g/now) script-intelligence :required-module-infos))
+                             (gt/->Arc unloaded-lua-node :required-module-info script-intelligence :required-module-infos))))
 
             (testing "Editing a script to reference unloaded Lua modules will not load transitive dependencies."
               (let [node-load-info-tx-data-calls
@@ -622,4 +623,4 @@
                          (mapv (comp resource/proj-path :resource first)
                                node-load-info-tx-data-calls))))))
 
-            (lsp/await (lsp/get-node-lsp project))))))))
+            (lsp/await (lsp/get-lsp))))))))

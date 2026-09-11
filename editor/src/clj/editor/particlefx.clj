@@ -1178,21 +1178,20 @@
 
 (defn- make-modifier
   [parent-id modifier node-outline-key]
-  (let [graph-id (g/node-id->graph-id parent-id)]
-    (g/make-nodes graph-id [mod-node [ModifierNode :node-outline-key node-outline-key]]
-      (gu/set-properties-from-pb-map mod-node Particle$Modifier modifier
-        position :position
-        rotation :rotation
-        type :type
-        use-direction (protobuf/int->boolean :use-direction))
-      (into []
-            (mapcat (fn [property]
-                      (case (:key property)
-                        :modifier-key-magnitude (g/set-property mod-node :magnitude (pb-property->curve-spread property))
-                        :modifier-key-max-distance (g/set-property mod-node :max-distance (pb-property->curve property))
-                        nil)))
-            (:properties modifier))
-      (attach-modifier parent-id mod-node false))))
+  (g/make-nodes [mod-node [ModifierNode :node-outline-key node-outline-key]]
+    (gu/set-properties-from-pb-map mod-node Particle$Modifier modifier
+      position :position
+      rotation :rotation
+      type :type
+      use-direction (protobuf/int->boolean :use-direction))
+    (into []
+          (mapcat (fn [property]
+                    (case (:key property)
+                      :modifier-key-magnitude (g/set-property mod-node :magnitude (pb-property->curve-spread property))
+                      :modifier-key-max-distance (g/set-property mod-node :max-distance (pb-property->curve property))
+                      nil)))
+          (:properties modifier))
+    (attach-modifier parent-id mod-node false)))
 
 (defn- add-modifier-handler [parent-id type select-fn]
   (when-some [modifier (get-in mod-types [type :template])]
@@ -1241,11 +1240,10 @@
   ([self emitter]
    (make-emitter self emitter nil false))
   ([self emitter select-fn resolve-id?]
-   (let [project (project/get-project self)
+   (let [project (project/get-project)
          workspace (project/workspace project)
-         graph-id (g/node-id->graph-id self)
          resolve-resource #(workspace/resolve-workspace-resource workspace %)]
-     (g/make-nodes graph-id [emitter-node EmitterNode]
+     (g/make-nodes [emitter-node EmitterNode]
        (gu/set-properties-from-pb-map emitter-node Particle$Emitter emitter
          position :position
          rotation :rotation
@@ -1313,7 +1311,6 @@
                :command :edit.add-embedded-component
                :user-data {:emitter-type type}})
             emitter-types))))
-
 
 ;;--------------------------------------------------------------------
 ;; Manipulators

@@ -162,7 +162,7 @@
            :message (localization/message "notification.changes-view.git-error")})
         nil))))
 
-(defn make-changes-view [graph workspace prefs localization ^Parent parent async-reload!]
+(defn make-changes-view [workspace prefs localization ^Parent parent async-reload!]
   (assert (fn? async-reload!))
   (let [^ListView list-view (.lookup parent "#changes")
         diff-button (.lookup parent "#changes-diff")
@@ -173,11 +173,11 @@
                   (g/tx-nodes-added
                     (g/transact
                       {:undoable false}
-                      (g/make-node graph ChangesView
-                                   :list-view list-view
-                                   :progress-overlay progress-overlay
-                                   :git git
-                                   :prefs prefs))))
+                      (g/make-node ChangesView
+                        :list-view list-view
+                        :progress-overlay progress-overlay
+                        :git git
+                        :prefs prefs))))
         disk-available-listener (reify ChangeListener
                                   (changed [_this _observable _old _new]
                                     (g/let-ec [can-revert (ui/bound-action-enabled? revert-button evaluation-context)]

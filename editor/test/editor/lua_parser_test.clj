@@ -173,7 +173,7 @@
 
 (deftest test-properties
   (test-support/with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
+    (let [workspace (test-util/setup-workspace!)
           resolve-workspace-resource (partial workspace/resolve-workspace-resource workspace)]
       (is (= [{:name "test"
                :type :script-property-type-number
@@ -231,7 +231,8 @@
               {:type :script-property-type-resource :resource-kind "render_target" :value nil}
               {:type :script-property-type-resource :resource-kind "render_target" :value (resolve-workspace-resource "/absolute/path/to/resource.render_target")}]
              (map #(select-keys % [:value :type :resource-kind])
-                  (src->properties workspace
+                  (src->properties
+                    workspace
                     (string/join "\n" ["go.property(\"test\", true)"
                                        "go.property(\"test\", false)"
                                        "go.property(\"test\", 1)"

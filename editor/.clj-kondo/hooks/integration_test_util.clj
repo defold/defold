@@ -19,7 +19,6 @@
   '{app-view 0
     cache nil
     project 0
-    world 0
     workspace 0})
 
 (def implicit-scratch-project-bindings

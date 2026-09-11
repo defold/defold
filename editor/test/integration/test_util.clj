@@ -57,6 +57,7 @@
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.system :as is]
             [internal.util :as util]
             [lambdaisland.deep-diff2 :as deep-diff]
@@ -210,7 +211,7 @@
   directory path must be a temp directory.
 
   IMPORTANT! If you use the deleter for a project directory where you set up a
-  system, you need to use (lsp/await (lsp/get-node-lsp project)) before the
+  system, you need to use (lsp/await (lsp/get-lsp)) before the
   body returns, otherwise you might get `:editor.resource/project-directory`
   spec failures in the output."
   ^AutoCloseable [directory-path]
@@ -334,8 +335,8 @@
     (shared-editor-settings/shared-editor-settings-file project-path)
     (shared-editor-settings/map->save-data-content
       (cond-> {}
-              (seq non-editable-directory-proj-paths)
-              (assoc :non-editable-directories (vec non-editable-directory-proj-paths))))))
+        (seq non-editable-directory-proj-paths)
+        (assoc :non-editable-directories (vec non-editable-directory-proj-paths))))))
 
 (defn write-defunload-patterns!
   ^File [project-path patterns]
@@ -364,12 +365,11 @@
     file))
 
 (defn setup-workspace!
-  ([graph]
-   (setup-workspace! graph project-path))
-  ([graph project-path]
+  ([]
+   (setup-workspace! project-path))
+  ([project-path]
    (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
-         workspace (workspace/make-workspace graph
-                                             project-path
+         workspace (workspace/make-workspace project-path
                                              {}
                                              workspace-config
                                              localization)]
@@ -387,11 +387,11 @@
     temp-project-path))
 
 (defn setup-scratch-workspace!
-  ([graph]
-   (setup-scratch-workspace! graph project-path))
-  ([graph project-path]
+  ([]
+   (setup-scratch-workspace! project-path))
+  ([project-path]
    (let [temp-project-path (make-temp-project-copy! project-path)]
-     (setup-workspace! graph temp-project-path))))
+     (setup-workspace! temp-project-path))))
 
 (defn fetch-library-results! [project-directory library-uris]
   (let [lib-results (library/fetch! project-directory library-uris progress/null-render-progress!)]
@@ -454,16 +454,14 @@
 
 (defn setup-project!
   ([workspace]
-   (let [project-graph (g/node-id->graph-id workspace)
-         extensions (extensions/make project-graph)
-         project (project/make-project project-graph workspace extensions)
+   (let [extensions (extensions/make)
+         project (project/make-project workspace extensions)
          project (project/load-project! project)]
      (g/reset-undo! :undo/global)
      project))
   ([workspace resources]
-   (let [project-graph (g/node-id->graph-id workspace)
-         extensions (extensions/make project-graph)
-         project (project/make-project project-graph workspace extensions)
+   (let [extensions (extensions/make)
+         project (project/make-project workspace extensions)
          project (project/load-project! project progress/null-render-progress! resources)]
      (g/reset-undo! :undo/global)
      project)))
@@ -537,18 +535,17 @@
   (output active-view g/NodeID (gu/passthrough active-view)))
 
 (defn setup-app-view! [project]
-  (let [project-graph (g/node-id->graph-id project)]
-    (first
-      (g/tx-nodes-added
-        (g/transact
-          {:undoable false}
-          (g/make-nodes project-graph [app-view [MockAppView
-                                                 :active-tool :move
-                                                 :manip-space :world
-                                                 :scene (Scene. (VBox.))]]
-            (g/connect project :_node-id app-view :project-id)
-            (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
-              (g/connect project label app-view label))))))))
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (g/make-nodes [app-view [MockAppView
+                                 :active-tool :move
+                                 :manip-space :world
+                                 :scene (Scene. (VBox.))]]
+          (g/connect project :_node-id app-view :project-id)
+          (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
+            (g/connect project label app-view label)))))))
 
 (defn- make-tab! [project app-view path make-view-fn!]
   (let [node-id (project/get-resource-node project path)
@@ -561,8 +558,7 @@
           {:undoable false}
           (g/set-property app-view :active-view view))
         [node-id view])
-      (let [graph (g/node-id->graph-id app-view)
-            view (make-view-fn! graph node-id)]
+      (let [view (make-view-fn! node-id)]
         (g/transact
           {:undoable false}
           (concat
@@ -576,8 +572,8 @@
 
 (defn open-tab! [project app-view path]
   (first
-    (make-tab! project app-view path (fn [graph _resource-node]
-                                       (->> (g/make-node graph MockView)
+    (make-tab! project app-view path (fn [_resource-node]
+                                       (->> (g/make-node MockView)
                                             (g/transact {:undoable false})
                                             g/tx-nodes-added
                                             first)))))
@@ -586,8 +582,8 @@
   ([project app-view path width height]
    (open-scene-view! project app-view path width height {}))
   ([project app-view path width height tool-opts]
-   (make-tab! project app-view path (fn [graph resource-node]
-                                      (scene/make-preview graph resource-node (merge {:prefs (make-build-stage-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} tool-opts) width height)))))
+   (make-tab! project app-view path (fn [resource-node]
+                                      (scene/make-preview resource-node (merge {:prefs (make-build-stage-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} tool-opts) width height)))))
 
 (defn close-tab! [project app-view path]
   (let [node-id (project/get-resource-node project path)
@@ -597,10 +593,10 @@
       (g/transact {:undoable false} (g/delete-node view)))))
 
 (defn setup!
-  ([graph]
-   (setup! graph project-path))
-  ([graph project-path]
-   (let [workspace (setup-workspace! graph project-path)
+  ([]
+   (setup! project-path))
+  ([project-path]
+   (let [workspace (setup-workspace! project-path)
          project (setup-project! workspace)
          app-view (setup-app-view! project)]
      [workspace project app-view])))
@@ -608,7 +604,7 @@
 (defn- load-system-and-project-raw [path]
   (test-support/with-clean-system {:cache-size system-cache-size
                                    :cache-retain? project/cache-retain?}
-    (let [workspace (setup-workspace! world path)]
+    (let [workspace (setup-workspace! path)]
       (fetch-libraries! workspace)
       (let [project (setup-project! workspace)]
         [@g/*the-system* workspace project]))))
@@ -667,13 +663,14 @@
    (uncached-save-data-outputs-by-proj-path basis (g/cache) project))
   ([basis cache project]
    (into (sorted-map)
-         (keep (fn [[node-id]]
-                 (when-not (g/defective? basis node-id)
-                   (let [resource (resource-node/resource basis node-id)
+         (keep (fn [arc]
+                 (let [node-id (gt/source-id arc)]
+                   (when-not (g/defective? basis node-id)
+                     (let [resource (resource-node/resource basis node-id)
                          proj-path (resource/proj-path resource)]
-                     (when-some [uncached-save-data-outputs (not-empty (uncached-save-data-outputs basis cache node-id))]
-                       (pair proj-path uncached-save-data-outputs))))))
-         (g/sources-of basis project :save-data))))
+                       (when-some [uncached-save-data-outputs (not-empty (uncached-save-data-outputs basis cache node-id))]
+                         (pair proj-path uncached-save-data-outputs)))))))
+         (g/inputs basis project :save-data))))
 
 (defn- split-keyword-options [forms]
   (let [keyword-options (into {}
@@ -697,8 +694,7 @@
                                                (load-system-and-project ~project-path))
                                              (load-system-and-project ~project-path))
            system-clone# (is/clone-system system#)
-           ~'cache (:cache system-clone#)
-           ~'world (g/node-id->graph-id ~'workspace)]
+           ~'cache (:cache system-clone#)]
        (binding [g/*the-system* (atom system-clone#)]
          (let [~'app-view (setup-app-view! ~'project)]
            ~@forms)))))
@@ -709,7 +705,7 @@
     `(let [options# ~options]
        (test-support/with-clean-system {:cache-size ~system-cache-size
                                         :cache-retain? project/cache-retain?}
-         (let [~'workspace (setup-scratch-workspace! ~'world ~project-path)]
+         (let [~'workspace (setup-scratch-workspace! ~project-path)]
            (fetch-libraries! ~'workspace)
            (let [~'project (if (:logging-suppressed options#)
                              (log/without-logging
@@ -725,7 +721,7 @@
      (with-open [project-directory-deleter# (make-directory-deleter ~'project-path)]
        (test-support/with-clean-system {:cache-size ~system-cache-size
                                         :cache-retain? project/cache-retain?}
-         (let [~'workspace (setup-workspace! ~'world ~'project-path)]
+         (let [~'workspace (setup-workspace! ~'project-path)]
            (doseq [[proj-path# save-value#] save-values-by-proj-path#]
              (write-file-resource! ~'workspace proj-path# save-value#))
            (workspace/resource-sync! ~'workspace)
@@ -733,7 +729,7 @@
            (let [~'project (setup-project! ~'workspace)
                  ~'app-view (setup-app-view! ~'project)
                  ret# (do ~@body)]
-             (lsp/await (lsp/get-node-lsp ~'project))
+             (lsp/await (lsp/get-lsp))
              ret#))))))
 
 (defmacro with-ui-run-later-rebound
@@ -781,7 +777,7 @@
   ([view type x y modifiers click-count button]
    (let [pos [x y 0.0]]
      (g/transact (g/set-property view :tool-picking-rect (scene-selection/calc-picking-rect pos pos))))
-   (let [handlers (g/sources-of view :input-handlers)
+   (let [handlers (g/inputs (g/now) view :input-handlers)
          user-data (g/node-value view :selected-tool-renderables)
          action (-> {:type type :x x :y y :click-count click-count :button button}
                     (assoc :modifiers (set modifiers)))
@@ -985,8 +981,8 @@
 
 (defn dump-outline [root path]
   (-> (outline root path)
-    outline->str
-    println))
+      outline->str
+      println))
 
 (defn resolve-prop [node-id label]
   (let [prop (get-in (g/node-value node-id :_properties) [:properties label])
@@ -1242,7 +1238,7 @@
      (add-embedded-game-object! collection-id collection-id)))
   ([collection-or-instance-id parent-id]
    (let [collection-id (to-collection-node-id collection-or-instance-id)
-         project (project/get-project collection-id)
+         project (project/get-project)
          workspace (project/workspace project)
          select-fn (fn/make-call-logger)]
      (collection/add-embedded-game-object! workspace project collection-id parent-id select-fn)
@@ -1271,14 +1267,15 @@
                        {:target-node-id target-node-id
                         :target-node-type target-node-type
                         :required-target-input target-input})))
-     (mapv (fn [[source-node-id _source-label]]
-             (if (g/node-instance? basis expected-source-node-type source-node-id)
-               source-node-id
-               (throw (ex-info "Source node does not match the expected source node type."
-                               {:source-node-id source-node-id
-                                :source-node-type (g/node-type* basis source-node-id)
-                                :expected-source-node-type expected-source-node-type}))))
-           (g/sources-of basis target-node-id target-input)))))
+     (mapv (fn [arc]
+             (let [source-node-id (gt/source-id arc)]
+               (if (g/node-instance? basis expected-source-node-type source-node-id)
+                 source-node-id
+                 (throw (ex-info "Source node does not match the expected source node type."
+                                 {:source-node-id source-node-id
+                                  :source-node-type (g/node-type* basis source-node-id)
+                                  :expected-source-node-type expected-source-node-type})))))
+           (g/inputs basis target-node-id target-input)))))
 
 (def single util/only-or-throw)
 
@@ -1404,7 +1401,7 @@
                  (dissoc (material/sampler->tex-params (first (g/node-value material-node :samplers))) :default-tex-params))))))))
 
 (defn- build-node-result! [resource-node opts]
-  (let [project (project/get-project resource-node)
+  (let [project (project/get-project)
         workspace (project/workspace project)
         old-artifact-map (workspace/artifact-map workspace)]
     (g/with-auto-evaluation-context evaluation-context
@@ -1484,7 +1481,7 @@
   [node-id]
   (into #{}
         (map :resource)
-        (build/resolve-node-dependencies node-id (project/get-project node-id))))
+        (build/resolve-node-dependencies node-id (project/get-project))))
 
 (defn node-built-source-paths
   "Returns the set of all source resource proj-paths that will be built when
@@ -1492,15 +1489,15 @@
   [node-id]
   (into #{}
         (keep (comp resource/proj-path :resource :resource))
-        (build/resolve-node-dependencies node-id (project/get-project node-id))))
+        (build/resolve-node-dependencies node-id (project/get-project))))
 
 (defmacro saved-pb [node-id pb-class]
   (with-meta `(protobuf/str->pb ~pb-class (resource-node/save-data-content (g/node-value ~node-id :save-data)))
-             {:tag pb-class}))
+    {:tag pb-class}))
 
 (defmacro built-pb [node-id pb-class]
   (with-meta `(protobuf/bytes->pb ~pb-class (node-build-output ~node-id))
-             {:tag pb-class}))
+    {:tag pb-class}))
 
 (defn- resource-type-for-build-output-path [resource-types-by-build-ext ^String build-output-path]
   ;; Return the resource-type with the longest build-ext that matches the end of

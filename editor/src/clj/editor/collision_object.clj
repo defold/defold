@@ -352,7 +352,6 @@
                                                        scene-shapes/disc-lines
                                                        scene-shapes/capsule-lines))}}]}))
 
-
 (defn- preview-box-shape-renderable
   [visibility-aabb user-data prop-kw->override-value]
   (let [^Point3d ext-override
@@ -782,17 +781,14 @@
 
 (defn make-shape-node
   [parent {:keys [shape-type] :as shape}]
-  (let [graph-id (g/node-id->graph-id parent)
-        node-type (case shape-type
+  (let [node-type (case shape-type
                     :type-sphere SphereShape
                     :type-box BoxShape
                     :type-capsule CapsuleShape
                     :type-hull HullShape
                     :type-mesh MeshShape)
         node-props (dissoc shape :index :count :id-hash)]
-    (g/make-nodes
-      graph-id
-      [shape-node [node-type node-props]]
+    (g/make-nodes [shape-node [node-type node-props]]
       (attach-shape-node false parent shape-node))))
 
 (defn- decode-embedded-shape [embedded-collision-shape-data shape]
