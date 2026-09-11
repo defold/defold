@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
@@ -29,6 +30,7 @@ import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.PathUtil;
 import com.dynamo.bob.util.TimeProfiler;
 
 // Owns project-local resource walking, ignore rules, and the cached resource path list.
@@ -38,6 +40,7 @@ class ProjectResourceWalker {
     private final IFileSystem fileSystem;
     private List<String> allResourcePathsCache; // Cache for all resource paths, since Bob doesn't change project files during build
     private List<String> ignoredResourcePathPatterns;
+    private Predicate<String> ignoredResourcePathPredicate;
 
     ProjectResourceWalker(Project project, IFileSystem fileSystem) {
         this.project = project;
@@ -47,6 +50,7 @@ class ProjectResourceWalker {
     public void clearCaches() {
         allResourcePathsCache = null;
         ignoredResourcePathPatterns = null;
+        ignoredResourcePathPredicate = null;
     }
 
     public void initIgnorePatterns() throws CompileExceptionError {
@@ -141,11 +145,8 @@ class ProjectResourceWalker {
         }, results);
     }
 
-    /*
-        The same `.defignore` matching logic is implemented in the Editor.
-        If you change something here, make sure you change it in resource.clj
-        (defignore-pred).
-    */
+    // Returns the `.defignore` patterns as project paths. The matching rules
+    // live in PathUtil.makeProjPathPredicate, which the editor uses as well.
     private List<String> loadIgnoredResourcePathPatterns() throws CompileExceptionError {
         if (ignoredResourcePathPatterns != null) {
             return ignoredResourcePathPatterns;
@@ -178,15 +179,17 @@ class ProjectResourceWalker {
         }
 
         ignoredResourcePathPatterns = new ArrayList<>(patterns);
+        ignoredResourcePathPredicate = PathUtil.makeProjPathPredicate(ignoredResourcePathPatterns);
         return ignoredResourcePathPatterns;
     }
 
-    private List<String> getIgnoredResourcePathPatterns() {
+    private Predicate<String> getIgnoredResourcePathPredicate() {
         try {
-            return loadIgnoredResourcePathPatterns();
+            loadIgnoredResourcePathPatterns();
         } catch (CompileExceptionError e) {
             throw new RuntimeException(e);
         }
+        return ignoredResourcePathPredicate;
     }
 
     private boolean isIgnoredResourcePath(String path) {
@@ -195,18 +198,12 @@ class ProjectResourceWalker {
             return false;
         }
 
-        for (String ignoredPathPattern : getIgnoredResourcePathPatterns()) {
-            if (normalizedPath.equals(ignoredPathPattern) || normalizedPath.startsWith(ignoredPathPattern + "/")) {
-                return true;
-            }
-        }
-
-        return false;
+        return getIgnoredResourcePathPredicate().test("/" + normalizedPath);
     }
 
     private static String normalizeIgnoredPathPattern(String path) {
-        path = FilenameUtils.separatorsToUnix(path);
-        return Project.stripLeadingAndTrailingSlashes(path);
+        path = Project.stripLeadingAndTrailingSlashes(FilenameUtils.separatorsToUnix(path));
+        return path.isEmpty() ? path : "/" + path;
     }
 
     private static String normalizeResourcePathForMatching(String path) {

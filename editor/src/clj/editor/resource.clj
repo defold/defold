@@ -33,6 +33,7 @@
             [util.text-util :as text-util])
   (:import [clojure.lang PersistentHashMap]
            [com.defold.editor Editor]
+           [com.dynamo.bob.util PathUtil]
            [java.io Closeable File FilterInputStream IOException InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
@@ -349,25 +350,18 @@
 
 (defn make-proj-path-patterns-pred-raw
   "Returns a predicate that takes a proj-path and returns true if it starts with
-  or matches one of the listed proj-paths."
+  or matches one of the listed proj-path-patterns. Patterns may contain
+  wildcards. The matching rules are shared with Bob, see
+  PathUtil.makeProjPathPredicate."
   [proj-path-patterns]
   {:pre [(or (nil? proj-path-patterns)
              (s/assert ::proj-path-patterns proj-path-patterns))]
    :post [(s/assert ::proj-path-pred %)]}
   (if (zero? (count proj-path-patterns))
     fn/constantly-false
-    (fn matched-proj-path? [^String proj-path]
-      (let [proj-path-length (.length proj-path)]
-        (boolean
-          (coll/some
-            (fn [^String pattern]
-              ;; Make sure a "/dir" pattern matches "/dir" and "/dir/entry",
-              ;; but not "/dire".
-              (and (string/starts-with? proj-path pattern)
-                   (let [pattern-length (.length pattern)]
-                     (or (= pattern-length proj-path-length)
-                         (= \/ (.charAt proj-path pattern-length))))))
-            proj-path-patterns))))))
+    (let [pred (PathUtil/makeProjPathPredicate proj-path-patterns)]
+      (fn matched-proj-path? [^String proj-path]
+        (.test pred proj-path)))))
 
 (def ^:private make-proj-path-patterns-pred-fn
   (fn/memoize
