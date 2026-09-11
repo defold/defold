@@ -28,17 +28,17 @@
   "Throws an informative exception if the supplied value is not a
   GameObject$EmbeddedComponentDesc in map format with the :data field converted
   to a map."
-  [embedded-component-desc owning-resource]
+  [embedded-component-desc owner-resource]
   (let [component-data (:data embedded-component-desc)]
     (when-not (map? component-data)
-      (let [owning-proj-path (resource/resource->proj-path owning-resource)
+      (let [owner-proj-path (resource/resource->proj-path owner-resource)
             component-id (:id embedded-component-desc)
             component-type (:type embedded-component-desc)]
         (throw (ex-info (format "Invalid embedded component '%s' of type '%s' in '%s'."
                                 component-id
                                 component-type
-                                owning-proj-path)
-                        {:proj-path owning-proj-path
+                                owner-proj-path)
+                        {:proj-path owner-proj-path
                          :id component-id
                          :type component-type
                          :data component-data}))))))
@@ -50,15 +50,15 @@
   embedded game object have been string decoded. You'll need to call
   verify-string-decoded-embedded-component-desc! separately on the embedded
   components."
-  [embedded-instance-desc owning-resource]
+  [embedded-instance-desc owner-resource]
   (let [prototype-desc (:data embedded-instance-desc)]
     (when-not (map? prototype-desc)
-      (let [owning-proj-path (resource/resource->proj-path owning-resource)
+      (let [owner-proj-path (resource/resource->proj-path owner-resource)
             game-object-instance-id (:id embedded-instance-desc)]
         (throw (ex-info (format "Invalid embedded game object instance '%s' in '%s'."
                                 game-object-instance-id
-                                owning-proj-path)
-                        {:proj-path owning-proj-path
+                                owner-proj-path)
+                        {:proj-path owner-proj-path
                          :id game-object-instance-id
                          :data prototype-desc}))))))
 

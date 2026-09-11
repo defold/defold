@@ -31,6 +31,7 @@
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.system :as is]
             [internal.util :as util]
@@ -1698,7 +1699,8 @@
             (mapcat (fn [[_graph-id graph]]
                       (:sarcs graph)))
             (mapcat (fn [[_source-node-id source-label->arcs]]
-                      (vals source-label->arcs))))
+                      (coll/vals source-label->arcs)))
+            (mapcat ig/arc-table-arcs))
 
           migrated-resource-node-ids
           (project/load-nodes!

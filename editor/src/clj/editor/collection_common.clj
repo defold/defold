@@ -111,29 +111,31 @@
       (protobuf/sanitize-repeated :embedded-instances #(sanitize-embedded-instance-desc % ext->embedded-component-resource-type))
       (protobuf/sanitize-repeated :collection-instances sanitize-collection-instance-desc)))
 
-(defn make-collection-dependencies-fn [game-object-resource-type-fn]
-  {:pre [(ifn? game-object-resource-type-fn)]}
-  (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc)]
-    (fn collection-dependencies-fn [collection-desc include-editor-dependencies]
-      {:pre [(map? collection-desc)]} ; GameObject$CollectionDesc in map format.
-      (let [go-resource-type (game-object-resource-type-fn)
-            go-dependencies-fn (:dependencies-fn go-resource-type)]
-        (coll/into->
-          (:embedded-instances collection-desc)
-          (default-dependencies-fn collection-desc include-editor-dependencies)
-          (mapcat
-            (fn [{:keys [data] :as embedded-instance-desc}]
-              ;; If sanitation failed (due to a corrupt file), the embedded data
-              ;; might still be a string. In that case we report no
-              ;; dependencies. The load-fn will eventually mark our resource
-              ;; node as defective, so it doesn't matter.
-              (when (map? data)
-                (try
-                  (go-dependencies-fn data include-editor-dependencies)
-                  (catch Exception error
-                    (log/warn :msg (format "Couldn't determine dependencies for embedded instance %s" (:id embedded-instance-desc))
-                              :exception error)
-                    nil))))))))))
+(defonce ^:private default-collection-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc))
+
+(defn collection-dependencies-fn [read-opts owner-resource collection-desc]
+  {:pre [(map? collection-desc)]} ; GameObject$CollectionDesc in map format.
+  (let [editable (resource/editable? owner-resource)
+        editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
+        type-ext->resource-type (editable->type-ext->resource-type editable)
+        go-resource-type (type-ext->resource-type "go")
+        go-dependencies-fn (:dependencies-fn go-resource-type)]
+    (coll/into->
+      (:embedded-instances collection-desc)
+      (default-collection-dependencies-fn read-opts owner-resource collection-desc)
+      (mapcat
+        (fn [{:keys [data] :as embedded-instance-desc}]
+          ;; If sanitation failed (due to a corrupt file), the embedded data
+          ;; might still be a string. In that case we report no dependencies.
+          ;; The load-fn will eventually mark our resource node as defective,
+          ;; so it doesn't matter.
+          (when (map? data)
+            (try
+              (go-dependencies-fn read-opts owner-resource data)
+              (catch Exception error
+                (log/warn :msg (format "Couldn't determine dependencies for embedded instance %s" (:id embedded-instance-desc))
+                          :exception error)
+                nil))))))))
 
 (defn game-object-instance-build-target [game-object-build-target instance-desc-with-go-props pose proj-path->resource-property-build-target]
   {:pre [(map? game-object-build-target)

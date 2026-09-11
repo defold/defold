@@ -1512,7 +1512,7 @@
     nil
     resource-types-by-build-ext))
 
-(defn- make-build-output-infos-by-path-impl [workspace resource-types-by-build-ext ^String build-output-path]
+(defn- make-build-output-infos-by-path-impl [workspace resource-types-by-build-ext read-opts ^String build-output-path]
   (let [resource-type (resource-type-for-build-output-path resource-types-by-build-ext build-output-path)
         _ (assert (some? resource-type) (format "Unknown resource type for: '%s'" build-output-path))
         test-info (:test-info resource-type)
@@ -1530,8 +1530,10 @@
       (let [dependencies-fn (resource-node/make-ddf-dependencies-fn pb-class)
             pb (protobuf/bytes->pb pb-class built-bytes)
             pb-map (protobuf/pb->map-without-defaults pb)
+            ext (:ext resource-type)
+            fake-source-resource (workspace/make-memory-resource workspace :editable ext pb-map)
             dep-build-resource-paths (into (sorted-set)
-                                           (dependencies-fn pb-map false))]
+                                           (dependencies-fn read-opts fake-source-resource pb-map))]
         (into (sorted-map
                 build-output-path
                 (assoc build-output-info
@@ -1539,7 +1541,7 @@
                   :pb pb
                   :pb-map pb-map
                   :dep-paths dep-build-resource-paths))
-              (mapcat #(make-build-output-infos-by-path-impl workspace resource-types-by-build-ext %))
+              (mapcat #(make-build-output-infos-by-path-impl workspace resource-types-by-build-ext read-opts %))
               dep-build-resource-paths)))))
 
 (defn make-build-output-infos-by-path
@@ -1554,13 +1556,17 @@
   [workspace ^String build-output-path]
   {:pre [(string? build-output-path)
          (string/starts-with? build-output-path "/")]}
-  (let [resource-types-by-build-ext
+  (let [basis (g/now)
+        read-opts (workspace/make-read-opts basis workspace :include-editor-dependencies false)
+
+        resource-types-by-build-ext
         (into {}
               (map (fn [[_ {:keys [build-ext] :as resource-type}]]
                      (assert (string? build-ext))
                      (pair build-ext resource-type)))
-              (workspace/get-resource-type-map workspace))]
-    (make-build-output-infos-by-path-impl workspace resource-types-by-build-ext build-output-path)))
+              (resource/resource-types-by-type-ext basis workspace :editable))]
+
+    (make-build-output-infos-by-path-impl workspace resource-types-by-build-ext read-opts build-output-path)))
 
 (defn unpack-property-declarations [property-declarations]
   {:pre [(or (nil? property-declarations) (map? property-declarations))]}

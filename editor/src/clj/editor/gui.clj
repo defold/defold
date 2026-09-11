@@ -4686,10 +4686,10 @@
 
 (defonce ^:private default-gui-scene-dependencies-fn (resource-node/make-ddf-dependencies-fn Gui$SceneDesc))
 
-(defn gui-scene-dependencies [scene-desc include-editor-dependencies]
+(defn gui-scene-dependencies [read-opts owner-resource scene-desc]
   {:pre [(map? scene-desc)]} ; Gui$SceneDesc in map format.
-  (let [default-dependencies (default-gui-scene-dependencies-fn scene-desc include-editor-dependencies)]
-    (if-not (or include-editor-dependencies
+  (let [default-dependencies (default-gui-scene-dependencies-fn read-opts owner-resource scene-desc)]
+    (if-not (or (:include-editor-dependencies read-opts)
                 (coll/any? scene-node-desc-uses-default-font?
                            (:nodes scene-desc))
                 (coll/any? layout-node-desc-uses-default-font?

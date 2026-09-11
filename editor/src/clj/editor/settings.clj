@@ -47,18 +47,14 @@
   ;; resource-setting-reference only consumed by SettingsNode and already cached there.
   (output resource-setting-reference g/Any (g/fnk [_node-id path value] {:path path :node-id _node-id :value value})))
 
-(defn- type-annotate-settings [settings meta-settings]
-  (let [meta-settings-map (settings-core/make-meta-settings-map meta-settings)]
-    (mapv #(assoc % :type (:type (meta-settings-map (:path %)))) settings)))
-
 (defn- resolve-resource-settings-from-raw [basis raw-settings meta-settings owner-resource]
   ;; evaluation context is an `^:unsafe` part of the output: can be used only
   ;; for resource resolution (that are then only needed for paths)
   (let [resolve-resource #(workspace/resolve-resource basis owner-resource %)]
     (-> raw-settings
         (settings-core/settings-with-value)
-        (->> (settings-core/sanitize-settings meta-settings))
-        (type-annotate-settings meta-settings)
+        (settings-core/sanitize-settings meta-settings)
+        (settings-core/type-annotate-settings meta-settings)
         (settings-core/resolve-resource-settings :value resolve-resource))))
 
 (g/defnk produce-settings-map [^:unsafe _evaluation-context owner-resource meta-info raw-settings resource-settings]
@@ -296,8 +292,9 @@
         meta-info (-> (settings-core/add-meta-info-for-unknown-settings initial-meta-info raw-settings)
                       (update :settings settings-core/resolve-resource-settings :default resolve-resource))
         meta-settings (:settings meta-info)
-        settings (-> (settings-core/sanitize-settings meta-settings raw-settings) ; this provokes parse errors if any
-                     (type-annotate-settings meta-settings)
+        settings (-> raw-settings
+                     (settings-core/sanitize-settings meta-settings) ; this provokes parse errors if any
+                     (settings-core/type-annotate-settings meta-settings)
                      (settings-core/resolve-resource-settings :value resolve-resource))
         resource-setting-paths (set (map :path (filter #(= :resource (:type %)) meta-settings)))]
     (concat
