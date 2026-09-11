@@ -907,7 +907,6 @@ namespace dmGraphics
         }
     }
 
-#if defined(DM_PLATFORM_IOS)
     static void ResizeMainFramebufferResources(MetalContext* context, uint32_t width, uint32_t height)
     {
         if (context->m_MainDepthStencilTexture &&
@@ -944,7 +943,6 @@ namespace dmGraphics
 
         SetMainRenderTargetSize(context, width, height);
     }
-#endif
 
     static inline bool MetalFormatHasDepth(MTL::PixelFormat fmt)
     {
@@ -1727,7 +1725,10 @@ namespace dmGraphics
             {
                 colorAttachment->setTexture(frame.m_MSAAColorTexture);
                 colorAttachment->setResolveTexture(tex->m_Texture);
-                colorAttachment->setStoreAction(MTL::StoreActionMultisampleResolve);
+                // The main render target can be resumed after rendering to an
+                // offscreen target. Preserve its multisample attachment so the
+                // resumed pass can load the pixels written by the previous pass.
+                colorAttachment->setStoreAction(MTL::StoreActionStoreAndMultisampleResolve);
             }
             else if (rt->m_Base.m_SampleCount > 1)
             {
@@ -1775,12 +1776,12 @@ namespace dmGraphics
                     if (depthAttachment)
                     {
                         depthAttachment->setTexture(frame.m_MSAADepthTexture);
-                        depthAttachment->setStoreAction(MTL::StoreActionDontCare);
+                        depthAttachment->setStoreAction(MTL::StoreActionStore);
                     }
                     if (stencilAttachment)
                     {
                         stencilAttachment->setTexture(frame.m_MSAADepthTexture);
-                        stencilAttachment->setStoreAction(MTL::StoreActionDontCare);
+                        stencilAttachment->setStoreAction(MTL::StoreActionStore);
                     }
                 }
                 else
@@ -1884,6 +1885,11 @@ namespace dmGraphics
                 [native_view.layer addSublayer:context->m_Layer];
             }
         }
+#else
+        uint32_t requested_drawable_width = 0;
+        uint32_t requested_drawable_height = 0;
+        GetDrawableSize(context, &requested_drawable_width, &requested_drawable_height);
+        context->m_Layer.drawableSize = CGSizeMake(requested_drawable_width, requested_drawable_height);
 #endif
 
         NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
@@ -1916,19 +1922,10 @@ namespace dmGraphics
 
         const uint32_t drawable_width = frame.m_Drawable->texture()->width();
         const uint32_t drawable_height = frame.m_Drawable->texture()->height();
-#if defined(DM_PLATFORM_IOS)
         ResizeMainFramebufferResources(context, drawable_width, drawable_height);
-#endif
 
         color_tex->m_Texture    = frame.m_Drawable->texture();
         ds_tex->m_Texture       = context->m_MainDepthStencilTexture;
-
-        rt->m_ColorTextureParams[0].m_Width  = drawable_width;
-        rt->m_ColorTextureParams[0].m_Height = drawable_height;
-        rt->m_Base.m_ColorTextureParams[0].m_Width  = rt->m_ColorTextureParams[0].m_Width;
-        rt->m_Base.m_ColorTextureParams[0].m_Height = rt->m_ColorTextureParams[0].m_Height;
-        rt->m_Width = drawable_width;
-        rt->m_Height = drawable_height;
     }
 
     static void MetalCommandBufferCompleted(MetalContext* context, uint32_t frame_index)
@@ -3957,6 +3954,10 @@ namespace dmGraphics
         {
             context->m_ScissorChanged = true;
         }
+        else if (state == STATE_CULL_FACE)
+        {
+            context->m_CullFaceChanged = true;
+        }
         else if (state == STATE_POLYGON_OFFSET_FILL)
         {
             context->m_PolygonOffsetChanged = true;
@@ -3971,6 +3972,10 @@ namespace dmGraphics
         if (state == STATE_SCISSOR_TEST)
         {
             context->m_ScissorChanged = true;
+        }
+        else if (state == STATE_CULL_FACE)
+        {
+            context->m_CullFaceChanged = true;
         }
         else if (state == STATE_POLYGON_OFFSET_FILL)
         {
