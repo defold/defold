@@ -24,7 +24,6 @@
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.tab :as fx.tab]
-            [cljfx.fx.tab-pane :as fx.tab-pane]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
@@ -162,7 +161,7 @@
    :content content})
 
 (defn- tabs-view [{:keys [tabs]}]
-  (cond-> {:fx/type fx.tab-pane/lifecycle
+  (cond-> {:fx/type fxui/tab-pane
            :style-class ["tab-pane" "ext-tab-pane"]}
           tabs (assoc :tabs
                       (into []
