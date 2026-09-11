@@ -11,6 +11,7 @@ The Defold Foundation [development fund](https://defold.com/community-donations/
 
 # Useful links
 
+Explore the [Asset Portal](https://defold.com/assets/) for libraries, native extensions, tools, templates and art assets from the Defold team and community!
 Did you know? There are lots of [great examples with demos](https://britzl.github.io/publicexamples/) made by Björn Ritzl!
 Have you seen our [Youtube channel](https://www.youtube.com/user/defoldvideos/videos)?
 [Follow us](https://x.com/defold) on X (Twitter)!
@@ -26,12 +27,24 @@ Did you know? You can press Ctrl/Cmd+D to select the word under the cursor. Pres
 Did you know? You can edit files side by side: right-click on editor tab and select Move to Other Tab Pane.
 Drag with the middle mouse button to make a rectangular selection in the code editor!
 To move an object along its rotated axis, select Local Space from the Edit menu.
+With a language server enabled, press Ctrl/Cmd+Shift+O to search for a function or symbol in the current script and jump to it.
+Press Alt+Shift+F to format your Lua code with the language server. Select text first to format only the selected lines.
+Enable Format on save in Preferences > Code to automatically format edited scripts with the language server when saving.
+Press Ctrl/Cmd+Shift+D to duplicate the selected text in the code editor.
+Drag an asset from the Assets panel onto a compatible resource field in Properties to assign it.
+Use the Breakpoints tab to temporarily disable breakpoints without deleting them, or add conditions for when they should trigger.
+Select a camera component to preview its view in the corner of the scene editor.
+In perspective view, hold the right mouse button and use WASD to fly through your scene.
+Start a string with # in a Lua script to get suggestions for component IDs where the script is used.
 
 # Tips
 
 To avoid unexpected breaking changes in [library dependencies](https://defold.com/manuals/libraries/#library-url), depend on a versioned release instead of a moving branch such as main or master.
 You can open the [Web Profiler](https://defold.com/manuals/profiling/#the-web-profiler) from Debug > Open Web Profiler while a desktop or mobile build with profiler support is running.
 Did you know? You can [hot reload code and resources](https://defold.com/manuals/hot-reload/) without stopping your game, including on connected devices running a debug build!
+Enable Generate build report when bundling to see which resources contribute most to your game's size.
+Use camera.screen_xy_to_world() with action.screen_x and action.screen_y to convert pointer coordinates to a world position on the camera's near plane.
+Use late_update(self, dt) for final game object adjustments after the regular update phase.
 
 # Inspirational quotes
 
