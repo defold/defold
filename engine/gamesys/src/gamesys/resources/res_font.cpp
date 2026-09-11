@@ -753,7 +753,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::FontMap>(params->m_Buffer, params->m_BufferSize, &ddf);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_Material);
@@ -835,7 +835,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::FontMap>(params->m_Buffer, params->m_BufferSize, &ddf);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         // resource.set() provides a hash and buffer without a filename.

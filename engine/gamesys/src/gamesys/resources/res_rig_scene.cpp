@@ -122,7 +122,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmRigDDF_RigScene_DESCRIPTOR, (void**) &rig_scene);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         if(rig_scene->m_TextureSet[0])
@@ -170,7 +170,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmRigDDF_RigScene_DESCRIPTOR, (void**) &rig_scene);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         RigSceneResource* ss_resource = (RigSceneResource*)dmResource::GetResource(params->m_Resource);

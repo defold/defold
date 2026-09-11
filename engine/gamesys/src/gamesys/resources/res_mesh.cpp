@@ -338,7 +338,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_Material);
@@ -393,7 +393,7 @@ namespace dmGameSystem
         dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &dmMeshDDF_MeshDesc_DESCRIPTOR, (void**) &ddf);
         if (e != dmDDF::RESULT_OK)
         {
-            return dmResource::RESULT_DDF_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
         MeshResource* mesh_resource = (MeshResource*)dmResource::GetResource(params->m_Resource);
         ReleaseResources(params->m_Factory, mesh_resource);

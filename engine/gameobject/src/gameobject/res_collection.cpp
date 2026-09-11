@@ -223,7 +223,7 @@ bail:
         dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(params->m_Buffer, params->m_BufferSize, &collection_desc);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         const dmGameObjectDDF::InstanceDesc* instances = collection_desc->m_Instances.m_Data;
@@ -290,7 +290,7 @@ bail:
         dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(params->m_Buffer, params->m_BufferSize, &collection_desc);
         if ( e != dmDDF::RESULT_OK )
         {
-            return dmResource::RESULT_FORMAT_ERROR;
+            return dmResource::RESULT_PROTOBUF_ERROR;
         }
 
         HCollection prev_hcollection = (HCollection) ResourceDescriptorGetResource(params->m_Resource);
