@@ -47,7 +47,7 @@ ext {
     ]
 }
 
-gradle.taskGraph.whenReady { taskGraph ->
+def configureBuildTools = {
     // Determine Python executable
     def pythonExec = null
     def pythonCandidates = []
@@ -109,6 +109,8 @@ gradle.taskGraph.whenReady { taskGraph ->
         throw e
     }
 }
+
+configureBuildTools()
 
 task getGitRevision {
     ext.gitRevision = ""

@@ -16,8 +16,10 @@ package com.dynamo.bob.cache.test;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -67,6 +69,19 @@ public class ResourceCacheTest {
 		resourceCache.put(key, data);
 		assertTrue(resourceCache.contains(key));
 		assertArrayEquals(data, resourceCache.get(key));
+	}
+
+	@Test
+	public void testInvalidRemoteCacheUrl() throws IOException {
+		for (String remoteUrl : new String[] { "relative/path", "http://[invalid", "http://localhost/%invalid" }) {
+			resourceCache.init(cacheDir.toString(), remoteUrl);
+			try {
+				resourceCache.get("somekey");
+				fail("Expected a malformed remote cache URL to throw an IOException");
+			} catch (MalformedURLException e) {
+				assertTrue(e.getCause() instanceof IllegalArgumentException);
+			}
+		}
 	}
 
 }

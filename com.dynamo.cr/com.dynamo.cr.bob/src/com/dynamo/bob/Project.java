@@ -74,6 +74,7 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.net.ConnectException;
 import java.net.URI;
 import java.net.URL;
@@ -555,7 +556,7 @@ public class Project implements AutoCloseable {
         TimeProfiler.addData("type", "createTask");
         Builder builder;
         try {
-            builder = builderClass.newInstance();
+            builder = builderClass.getDeclaredConstructor().newInstance();
             builder.setProject(this);
             task = builder.create(inputResource);
             if (task != null) {
@@ -565,6 +566,15 @@ public class Project implements AutoCloseable {
             }
             circularDependencyChecker.remove(key);
             return task;
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof CompileExceptionError compileException) {
+                throw compileException;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw new RuntimeException(cause);
         } catch (CompileExceptionError e) {
             // Just pass CompileExceptionError on unmodified
             throw e;
@@ -971,7 +981,7 @@ public class Project implements AutoCloseable {
         }
 
         try {
-            return bundlerClass.newInstance();
+            return bundlerClass.getDeclaredConstructor().newInstance();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -1023,7 +1033,7 @@ public class Project implements AutoCloseable {
     public void registerTextureCompressors() {
         for (Class<? extends ITextureCompressor> klass : textureCompressorClasses) {
             try {
-                TextureCompression.registerCompressor(klass.newInstance());
+                TextureCompression.registerCompressor(klass.getDeclaredConstructor().newInstance());
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -1050,7 +1060,7 @@ public class Project implements AutoCloseable {
         Class<? extends IShaderCompiler> shaderCompilerClass = getShaderCompilerClass(platform);
         if (shaderCompilerClass != null) {
             try {
-                return shaderCompilerClass.newInstance();
+                return shaderCompilerClass.getDeclaredConstructor().newInstance();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

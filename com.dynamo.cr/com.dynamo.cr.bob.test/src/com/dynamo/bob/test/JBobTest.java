@@ -14,16 +14,18 @@
 
 package com.dynamo.bob.test;
 
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.junit.matchers.JUnitMatchers.hasItem;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -66,6 +68,15 @@ public class JBobTest {
 
     @BuilderParams(name = "InCopyBuilderMulti", inExts = ".in2", outExt = ".out")
     public static class InCopyBuilderMulti extends InCopyBuilder {}
+
+    @BuilderParams(name = "ConstructorException", inExts = ".in_constructor_error", outExt = ".out")
+    public static class ConstructorExceptionBuilder extends CopyBuilder {
+        static final CompileExceptionError ERROR = new CompileExceptionError("Failed to construct builder");
+
+        public ConstructorExceptionBuilder() throws CompileExceptionError {
+            throw ERROR;
+        }
+    }
 
     @BuilderParams(name = "CBuilder", inExts = ".c", outExt = ".o")
     public static class CBuilder extends CopyBuilder {
@@ -215,8 +226,8 @@ public class JBobTest {
             @Override
             public java.util.Enumeration<URL> getResources(String name) throws IOException {
                 return Collections.enumeration(Arrays.asList(
-                        new URL("jar:" + validJarPath.toUri().toURL() + "!/" + name),
-                        new URL("jar:" + missingJarPath.toUri().toURL() + "!/" + name)));
+                        URI.create("jar:" + validJarPath.toUri() + "!/" + name).toURL(),
+                        URI.create("jar:" + missingJarPath.toUri() + "!/" + name).toURL()));
             }
         };
 
@@ -436,6 +447,17 @@ public class JBobTest {
         project.setInputs(Arrays.asList("test.in_ce"));
         // build
         build();
+    }
+
+    @Test
+    public void testConstructorCompileError() throws Exception {
+        fileSystem.addFile("test.in_constructor_error", "test".getBytes());
+        try {
+            project.createTask(project.getResource("test.in_constructor_error"), ConstructorExceptionBuilder.class);
+            fail("Expected the builder constructor to fail");
+        } catch (CompileExceptionError e) {
+            assertSame(ConstructorExceptionBuilder.ERROR, e);
+        }
     }
 
     @Test
