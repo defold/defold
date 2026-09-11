@@ -143,7 +143,7 @@ public class CollisionObjectBuilder extends ProtoBuilder<CollisionObjectDesc.Bui
             CollisionShape.Builder eb = CollisionShape.newBuilder().mergeFrom(messageBuilder.getEmbeddedCollisionShape());
             ValidateShapeTypes(eb.getShapesList(), shapeResource, isPhysics2D);
             Shape.Builder sb = Shape.newBuilder()
-                    .setShapeType(CollisionShape.Type.valueOf(cb.getShapeType().getNumber()))
+                    .setShapeType(CollisionShape.Type.forNumber(cb.getShapeType().getNumber()))
                     .setPosition(Point3.newBuilder())
                     .setRotation(Quat.newBuilder().setW(1))
                     .setIndex(eb.getDataCount())

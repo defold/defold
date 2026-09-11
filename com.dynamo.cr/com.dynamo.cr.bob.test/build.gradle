@@ -1,5 +1,8 @@
 apply from: '../com.dynamo.cr.bob/build.gradle'
 
+def bobJar = file("${project.bobDir}/dist/bob.jar")
+def testClass = project.findProperty('testClass')?.toString()
+
 def testClassesDir = file("$testDir/build")
 def testTmpDir = file("$testDir/tmp")
 def DM_BOB_BUNDLERTEST_ONLY_HOST = project.hasProperty('DM_BOB_BUNDLERTEST_ONLY_HOST') ? project.property('DM_BOB_BUNDLERTEST_ONLY_HOST') : ''
@@ -30,7 +33,7 @@ task compileTest(type: JavaCompile, dependsOn: distBob) {
     options.compilerArgs << '-g'
 
     doFirst {
-        if (!file("$project.bobDir/dist/bob.jar").exists()) {
+        if (!bobJar.exists()) {
             throw new RuntimeException("bob.jar is missing")
         }
         mkdir testClassesDir
@@ -70,10 +73,10 @@ task testJar(type: Test, dependsOn: createTestJar) {
 
     testLogging {
         events 'passed', 'skipped', 'failed', 'standardOut'
-        exceptionFormat 'short'
-        showExceptions true
-        showCauses true
-        showStackTraces true
+        exceptionFormat = 'short'
+        showExceptions = true
+        showCauses = true
+        showStackTraces = true
     }
 
     classpath = files(configurations.testClasspath, "${project.bobDir}/dist/bob.jar", "${testTmpDir}/bob-tests.jar")
@@ -89,17 +92,17 @@ task runSingleTest(type: Test, dependsOn: createTestJar) {
 
     testLogging {
         events 'passed', 'skipped', 'failed', 'standardOut'
-        exceptionFormat 'short'
-        showExceptions true
-        showCauses true
-        showStackTraces true
+        exceptionFormat = 'short'
+        showExceptions = true
+        showCauses = true
+        showStackTraces = true
     }
 
     classpath = files(configurations.testClasspath, "${project.bobDir}/dist/bob.jar", "${testTmpDir}/bob-tests.jar")
     testClassesDirs = files(testClassesDir).asFileTree.matching {
         //provide a test class name with -PtestClass=com.example.MyTestClass to ./gradlew if run from terminal
-        if (project.hasProperty('testClass')) {
-            include "**/${project.testClass.replaceAll('\\.', '/')}.class"
+        if (testClass != null) {
+            include "**/${testClass.replaceAll('\\.', '/')}.class"
         } else if (System.getProperty('idea.active') != null) {
             // Specify needed class here if run from idea
             def test_class = "com.dynamo.bob.pipeline.ShaderProgramBuilderTest"

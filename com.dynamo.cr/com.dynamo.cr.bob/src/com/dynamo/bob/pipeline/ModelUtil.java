@@ -1240,7 +1240,7 @@ public class ModelUtil {
             materialBuilder.setIndex(material.index);
             materialBuilder.setIsSkinned(material.isSkinned!=0);
             materialBuilder.setAlphaCutoff(material.alphaCutoff);
-            materialBuilder.setAlphaMode(Rig.AlphaMode.valueOf(material.alphaMode.getValue()));
+            materialBuilder.setAlphaMode(Rig.AlphaMode.forNumber(material.alphaMode.getValue()));
             materialBuilder.setDoubleSided(material.doubleSided);
             materialBuilder.setUnlit(material.unlit);
 
@@ -1631,7 +1631,7 @@ public class ModelUtil {
             meshBuilder.setIndices(ByteString.copyFrom(create16BitIndices(mesh.indices)));
         }
 
-        meshBuilder.setPrimitiveType(Rig.PrimitiveType.valueOf(mesh.primitiveType.getValue()));
+        meshBuilder.setPrimitiveType(Rig.PrimitiveType.forNumber(mesh.primitiveType.getValue()));
 
         if (mesh.material != null)
             meshBuilder.setMaterialIndex(mesh.material.index);

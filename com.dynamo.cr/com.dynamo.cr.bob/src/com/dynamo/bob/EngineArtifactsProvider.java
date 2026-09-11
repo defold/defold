@@ -24,6 +24,7 @@ import com.dynamo.bob.util.TimeProfiler;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -139,7 +140,7 @@ public final class EngineArtifactsProvider {
 
     private static URL buildArtifactURL(String artifactsURL, String platformKey, String filename) throws IOException {
         try {
-            return new URL(String.format(artifactsURL + "%s/engine/%s/%s", EngineVersion.sha1, platformKey, filename));
+            return URI.create(String.format(artifactsURL + "%s/engine/%s/%s", EngineVersion.sha1, platformKey, filename)).toURL();
         } catch (Exception e) {
             throw new IOException(e);
         }

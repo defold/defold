@@ -79,7 +79,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
                 EmbeddedComponentDesc ec = EmbeddedComponentDesc.newBuilder()
                     .setId(componentDesc.getId())
                     .setType("sound")
-                    .setData(TextFormat.printToString(sd.build()))
+                    .setData(TextFormat.printer().printToString(sd.build()))
                     .build();
                 b.addEmbeddedComponents(ec);
             } else {
