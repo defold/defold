@@ -47,16 +47,13 @@ CMAKE_FLAGS="-DGLFW_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_USE_HYBRID_HPG=ON ${CMAKE_FLAGS}"
 
 case $PLATFORM in
-    win32)
-        CMAKE_FLAGS="-A Win32 ${CMAKE_FLAGS}"
-        ;;
     x86_64-win32)
         CMAKE_FLAGS="-A x64 ${CMAKE_FLAGS}"
         ;;
 esac
 
 case $PLATFORM in
-    win32|x86_64-win32)
+    x86_64-win32)
         LIB_SUFFIX=lib
         LIB_PREFIX=
         LIB_OUTPUT_PATH=Release/
@@ -137,4 +134,3 @@ popd
 mv $SOURCE_DIR/$PACKAGE .
 
 # rm -rf $SOURCE_DIR
-

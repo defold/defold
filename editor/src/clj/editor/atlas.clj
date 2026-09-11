@@ -99,19 +99,18 @@
     (pose/translation-pose page-offset 0.0 0.0)))
 
 (defn- render-rect
-  [^GL2 gl rect color offset-x]
+  [^GL2 gl render-args rect color offset-x]
   (let [x0 (+ offset-x (:x rect))
         y0 (:y rect)
         x1 (+ x0 (:width rect))
-        y1 (+ y0 (:height rect))
-        [cr cg cb ca] color]
-    (.glColor4d gl cr cg cb ca)
-    (.glBegin gl GL2/GL_QUADS)
-    (.glVertex3d gl x0 y0 0)
-    (.glVertex3d gl x0 y1 0)
-    (.glVertex3d gl x1 y1 0)
-    (.glVertex3d gl x1 y0 0)
-    (.glEnd gl)))
+        y1 (+ y0 (:height rect))]
+    (render-util/render-color-quad!
+      gl render-args ::atlas-image-selection
+      color
+      [[x0 y0]
+       [x0 y1]
+       [x1 y1]
+       [x1 y0]])))
 
 (defn- renderables->outline-vertex-component-count
   [renderables]
@@ -172,7 +171,7 @@
         user-data (-> renderable :user-data)
         rect (:rect user-data)
         page-offset-x (get-rect-page-offset (:layout-width user-data) (:page rect))]
-    (render-rect gl (:rect user-data) id-color page-offset-x)))
+    (render-rect gl render-args (:rect user-data) id-color page-offset-x)))
 
 (defn- atlas-rect->editor-rect [rect]
   (types/->Rect (:path rect) (:x rect) (:y rect) (:width rect) (:height rect)))

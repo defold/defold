@@ -367,11 +367,7 @@ public class HTML5Bundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
         List<File> binsWasm = ExtenderUtil.getNativeExtensionEngineBinaries(project, platform);
         if (binsWasm == null) {
-            try {
-                binsWasm = Bob.getDefaultDmengineFiles(platform, variant);
-            } catch(IOException e) {
-                System.err.println(String.format("Unable to bundle platform %s: %s", platform, e.getMessage()));
-            }
+            binsWasm = Bob.getDefaultDmengineFiles(platform, variant);
         }
         else {
             logger.info("Using extender binary for WASM");

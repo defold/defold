@@ -39,6 +39,7 @@
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
+            [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
@@ -261,15 +262,14 @@
           (when-let [frame (:frame state)]
             (let [user-data (:user-data renderable)
                   {:keys [start-tile tile-source-attributes]} user-data
-                  [[x0 y0] [x1 y1]] (tile-coords (+ (dec start-tile) frame) tile-source-attributes [sx sy])
-                  [cr cg cb ca] colors/selected-outline-color]
-              (.glColor4d gl cr cg cb ca)
-              (.glBegin gl GL2/GL_LINE_LOOP)
-              (.glVertex3d gl x0 y0 0)
-              (.glVertex3d gl x0 y1 0)
-              (.glVertex3d gl x1 y1 0)
-              (.glVertex3d gl x1 y0 0)
-              (.glEnd gl)))))
+                  [[x0 y0] [x1 y1]] (tile-coords (+ (dec start-tile) frame) tile-source-attributes [sx sy])]
+              (render-util/render-color-line-loop!
+                gl render-args ::animation-outline
+                colors/selected-outline-color
+                [[x0 y0]
+                 [x0 y1]
+                 [x1 y1]
+                 [x1 y0]])))))
 
       pass/overlay
       (texture-set/render-animation-overlay gl render-args renderables))))

@@ -1556,19 +1556,6 @@
     (= (:instance-count user-data)
        (prefs/get prefs [:run :instance-count]))))
 
-(defn- debugging-supported?
-  [project localization]
-  (if (project/shared-script-state? project)
-    true
-    (do (dialogs/make-info-dialog
-          localization
-          {:title (localization/message "dialog.debugging-not-supported.title")
-           :icon :icon/triangle-error
-           :header (localization/message "dialog.debugging-not-supported.header")
-           :content {:wrap-text true
-                     :text (localization/message "dialog.debugging-not-supported.content")}})
-        false)))
-
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
   (let [project-directory (workspace/project-directory workspace)
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))
@@ -1621,19 +1608,16 @@
   (active? [debug-view evaluation-context]
     (not (debug-view/debugging? debug-view evaluation-context)))
   (enabled? [] (not (build-in-progress?)))
-  (run [project workspace prefs web-server build-errors-view console-view debug-view main-stage tool-tab-pane localization]
-    (if-not (debugging-supported? project localization)
-      {:error (g/map->error {:severity :fatal
-                             :message (localization/message "dialog.debugging-not-supported.header")})}
-      (let [main-scene (.getScene ^Stage main-stage)
-            render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
-        (build-errors-view/clear-build-errors build-errors-view)
-        (try
-          (if (debug-view/can-attach? prefs)
-            (attach-debugger! workspace project prefs debug-view render-build-error!)
-            (run-with-debugger! workspace project prefs debug-view render-build-error! web-server))
-          (catch SocketTimeoutException e
-            (debug-view/show-connect-failed-info! e workspace)))))))
+  (run [project workspace prefs web-server build-errors-view console-view debug-view main-stage tool-tab-pane]
+    (let [main-scene (.getScene ^Stage main-stage)
+          render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
+      (build-errors-view/clear-build-errors build-errors-view)
+      (try
+        (if (debug-view/can-attach? prefs)
+          (attach-debugger! workspace project prefs debug-view render-build-error!)
+          (run-with-debugger! workspace project prefs debug-view render-build-error! web-server))
+        (catch SocketTimeoutException e
+          (debug-view/show-connect-failed-info! e workspace))))))
 
 (def ^:private clean-build-dialog-info
   {:title (localization/message "dialog.clean-build.title")

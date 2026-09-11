@@ -95,7 +95,7 @@ public class Exec {
         processBuilder.redirectErrorStream(true);
 
         Platform platform = Platform.getHostPlatform();
-        if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32) {
+        if (platform == Platform.X86_64Win32) {
             // On Windows `exe` files often require vcruntime140_1.dll and vcruntime140.dll
             // these files are available in jdk/bin folder
             // see https://github.com/defold/defold/issues/8277#issuecomment-1836823183

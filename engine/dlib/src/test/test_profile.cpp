@@ -35,10 +35,10 @@ TEST(dmProfile, SmallTest)
     ProfileFinalize();
 }
 
-#define TOL 0.1
-
 TEST(dmProfile, Profile)
 {
+    const double tolerance_per_wait = 0.060; // 60 ms per busy wait, including waits in child scopes.
+
     DummyProfilerRegister();
     ProfileInitialize();
 
@@ -97,13 +97,13 @@ TEST(dmProfile, Profile)
                 ASSERT_STREQ("a_d", dmHashReverseSafe64(ctx->m_Samples[index++].m_NameHash));
 
                 index = 1;
-                ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, TOL);
-                ASSERT_NEAR((50000 + 40000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, TOL);
-                ASSERT_NEAR((40000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, TOL);
-                ASSERT_NEAR((50000 + 40000 + 60000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, TOL);
-                ASSERT_NEAR((40000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, TOL);
-                ASSERT_NEAR((60000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, TOL);
-                ASSERT_NEAR((80000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, TOL);
+                ASSERT_NEAR((100000 + 50000 + 40000 + 50000 + 40000 + 60000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, 6 * tolerance_per_wait);
+                ASSERT_NEAR((50000 + 40000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, 2 * tolerance_per_wait);
+                ASSERT_NEAR((40000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, tolerance_per_wait);
+                ASSERT_NEAR((50000 + 40000 + 60000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, 3 * tolerance_per_wait);
+                ASSERT_NEAR((40000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, tolerance_per_wait);
+                ASSERT_NEAR((60000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, tolerance_per_wait);
+                ASSERT_NEAR((80000) / 1000000.0, ctx->m_Samples[index++].m_Length / ticks_per_sec, tolerance_per_wait);
             }
 
             ProfileFrameEnd(profile);

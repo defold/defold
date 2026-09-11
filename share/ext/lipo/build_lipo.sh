@@ -78,7 +78,7 @@ BIN_DIR=${BUILD_DIR}/bin/${PLATFORM}
 mkdir -p ${BIN_DIR}
 
 case $PLATFORM in
-    win32|x86_64-win32)
+    x86_64-win32)
         mv ${SOURCE_DIR}/bin/lipo ${BIN_DIR}/lipo.exe
         ;;
     *)
