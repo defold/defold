@@ -23,6 +23,37 @@ id<UIApplicationDelegate> g_AppDelegates[MAX_APP_DELEGATES];
 int g_AppDelegatesCount = 0;
 AppDelegate* g_ApplicationDelegate = 0;
 
+// Extensions compiled against older SDKs may still implement the legacy URL
+// selectors. Forward those dynamically, as we do other optional delegate methods.
+static BOOL InvokeLegacyOpenURL(id delegate, SEL selector, id* arguments, NSUInteger count)
+{
+    if (![delegate respondsToSelector:selector])
+        return NO;
+
+    NSInvocation* invocation = [NSInvocation invocationWithMethodSignature:[delegate methodSignatureForSelector:selector]];
+    [invocation setSelector:selector];
+    for (NSUInteger i = 0; i < count; ++i)
+        [invocation setArgument:&arguments[i] atIndex:i + 2];
+    [invocation invokeWithTarget:delegate];
+    BOOL handled = NO;
+    [invocation getReturnValue:&handled];
+    return handled;
+}
+
+static BOOL OpenURL(id<UIApplicationDelegate> delegate, UIApplication* application, NSURL* url,
+                    NSDictionary<UIApplicationOpenURLOptionsKey, id>* options)
+{
+    if ([delegate respondsToSelector:@selector(application:openURL:options:)])
+        return [delegate application:application openURL:url options:options];
+
+    id arguments[] = { application, url, options[UIApplicationOpenURLOptionsSourceApplicationKey],
+                       options[UIApplicationOpenURLOptionsAnnotationKey] };
+    BOOL handled = InvokeLegacyOpenURL(delegate, @selector(application:openURL:sourceApplication:annotation:), arguments, 4);
+    if (InvokeLegacyOpenURL(delegate, @selector(application:handleOpenURL:), arguments, 2))
+        handled = YES;
+    return handled;
+}
+
 @implementation AppDelegateProxy
 
 - (AppDelegateProxy*)init
@@ -61,41 +92,14 @@ AppDelegate* g_ApplicationDelegate = 0;
     return handled;
 }
 
-// NOTE: Don't understand why this special case is required. "forwardInvocation" et al
-// should be able to intercept all invocations but for some unknown reason not handleOpenURL
--(BOOL) application:(UIApplication *)application handleOpenURL:(NSURL *)url {
-    SEL sel = @selector(application:handleOpenURL:);
-    BOOL handled = NO;
-
-    if ([g_ApplicationDelegate respondsToSelector:sel]) {
-        if ([g_ApplicationDelegate application: application handleOpenURL: url])
+- (BOOL)application:(UIApplication *)application openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options {
+    // Every delegate must see the URL, even after another delegate handles it.
+    // Generic forwarding would only retain the last delegate's return value.
+    BOOL handled = OpenURL((id<UIApplicationDelegate>)g_ApplicationDelegate, application, url, options);
+    for (int i = 0; i < g_AppDelegatesCount; ++i) {
+        if (OpenURL(g_AppDelegates[i], application, url, options))
             handled = YES;
     }
-
-    for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if ([g_AppDelegates[i] respondsToSelector: sel]) {
-            if ([g_AppDelegates[i] application: application handleOpenURL: url])
-                handled = YES;
-        }
-    }
-    return handled;
-}
-
--(BOOL) application:(UIApplication *)application openURL:(NSURL *)url sourceApplication:(NSString *)sourceApplication annotation:(id)annotation{
-    SEL sel = @selector(application:openURL:sourceApplication:annotation:);
-    BOOL handled = NO;
-
-   for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if ([g_AppDelegates[i] respondsToSelector: sel])  {
-            if ([g_AppDelegates[i] application: application openURL: url sourceApplication:sourceApplication annotation:(id)annotation])
-                handled = YES;
-        }
-    }
-
-    // handleOpenURL is deprecated. We call it from here as if openURL is implemented, handleOpenURL won't be called.
-    if ([self application: application handleOpenURL:url])
-        handled = YES;
-
     return handled;
 }
 
@@ -119,6 +123,9 @@ AppDelegate* g_ApplicationDelegate = 0;
 }
 
 - (BOOL)respondsToSelector:(SEL)aSelector {
+    if ([super respondsToSelector:aSelector]) {
+        return YES;
+    }
     if ([g_ApplicationDelegate respondsToSelector: aSelector]) {
         return YES;
     }
@@ -134,7 +141,9 @@ AppDelegate* g_ApplicationDelegate = 0;
 
 - (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
 {
-    NSMethodSignature* signature = [g_ApplicationDelegate methodSignatureForSelector:aSelector];
+    NSMethodSignature* signature = [super methodSignatureForSelector:aSelector];
+    if (!signature)
+        signature = [g_ApplicationDelegate methodSignatureForSelector:aSelector];
 
     if (!signature)
     {

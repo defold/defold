@@ -20,6 +20,10 @@ option(WITH_OPUS "Enable Opus audio support" OFF)
 option(WITH_WEBGPU "Enable WebGPU graphics backend" OFF)
 option(DEFOLD_CODESIGN "Enable code signing" OFF)
 
+if(WITH_OPENAL AND TARGET_PLATFORM MATCHES "(macos|ios)$")
+    message(FATAL_ERROR "WITH_OPENAL is not supported on macOS or iOS; these platforms use AVAudio")
+endif()
+
 set(DEFOLD_CODESIGNING_IDENTITY "Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)" CACHE STRING "Codesigning identity for macOS")
 set(DEFOLD_GCLOUD_PROJECTID "" CACHE STRING "Google Cloud project id where key ring is stored")
 set(DEFOLD_GCLOUD_LOCATION "" CACHE STRING "Google Cloud region where key ring is located")

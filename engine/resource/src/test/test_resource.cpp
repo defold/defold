@@ -912,6 +912,38 @@ TEST_P(GetResourceTest, PreloadGetManyRefs)
     dmResource::DeletePreloader(pr);
 }
 
+TEST_P(GetResourceTest, PreloadPathCacheFull)
+{
+    // Normal paths exhaust the name cache. Noncanonical paths use two entries
+    // and exhaust it while inserting the canonical name instead. Both early
+    // returns must release the scoped lock exactly once: Darwin's os_unfair_lock
+    // aborts on the double unlock that the old spinlock implementation tolerated.
+    const char* prefixes[] = { "/", "/./" };
+    for (uint32_t p = 0; p < 2; ++p)
+    {
+        dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, m_ResourceName);
+        ResourcePreloadHintInfo info;
+        info.m_Preloader = pr;
+        info.m_Parent = 0;
+        bool full = false;
+        for (uint32_t i = 0; i < 4096; ++i)
+        {
+            char path[64];
+            dmSnPrintf(path, sizeof(path), "%smissing_%u.foo", prefixes[p], i);
+            if (!dmResource::PreloadHint(&info, path))
+            {
+                full = true;
+                break;
+            }
+        }
+        ASSERT_TRUE(full);
+        // Re-enter the same lock after failure and confirm existing cache entries
+        // remain usable when no new entries can be added.
+        ASSERT_TRUE(dmResource::PreloadHint(&info, m_ResourceName));
+        dmResource::DeletePreloader(pr);
+    }
+}
+
 
 TEST_P(GetResourceTest, PreloadGetAbort)
 {
