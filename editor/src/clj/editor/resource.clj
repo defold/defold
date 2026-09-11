@@ -90,12 +90,6 @@
 (defn type-ext [resource]
   (string/lower-case (ext resource)))
 
-(defn export-name
-  "Returns the optional filesystem-safe ::export-name from resource data, defaulting to the filename."
-  ^String [resource]
-  (or (get-in resource [:data ::export-name])
-      (resource-name resource)))
-
 (definline project-directory
   "Returns a File representing the canonical path of the project directory."
   ^File [basis workspace]
@@ -776,8 +770,7 @@
                    :name (or name filename)
                    :ext ext
                    :children children
-                   :data (cond-> data
-                           name (update ::export-name #(or % filename)))
+                   :data data
                    :entry {:source source :content content})]
     (if (zip-resource? source)
       (assoc resource :path (subs entry-path 1) :zip-entry (when-not children (:zip-entry source)))

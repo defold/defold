@@ -132,16 +132,30 @@
                    (proj-paths (resource/children source))))
             (is (= :file (resource/source-type source)))
             (is (resource/openable? source))
-            (is (= "robot.gltf" (resource/resource-name source) (resource/export-name source)))
+            (is (= "robot.gltf" (resource/resource-name source)))
             (is (resource/openable? mesh))
             (is (= "robot.gltf : Mesh 0" (resource/resource-name mesh)))
             (is (= "icons/32/Icons_27-AT-Mesh.png" (workspace/resource-icon mesh)))
             (is (resource/read-only? material))
-            (is (= "Paint [0].material" (resource/resource-name material) (resource/export-name material)))
+            (is (= "Paint [0].material" (resource/resource-name material)))
             (is (not (resource/save-tracked? material)))
             (is (string/includes? (slurp material) "name: \"Paint\""))
             (is (thrown? Exception (io/output-stream material)))
             (is (thrown? IOException (io/input-stream mesh)))))))))
+
+(deftest embedded-resource-names-are-safe-filenames
+  (doseq [origin [:file :zip]]
+    (testing origin
+      (with-gltf-project origin (-> (gltf-content "Paint/Chrome")
+                                   (string/replace "\"Albedo\"" "\"Albedo/Chrome\"")
+                                   (string/replace "albedo.png" "../albedo.png"))
+        (fn [_project-path workspace _project]
+          (doseq [[path expected-name original-name]
+                  [["/models/robot.gltf/materials/0.material" "Paint_Chrome [0].material" "Paint/Chrome"]
+                   ["/models/robot.gltf/images/0.png" "Albedo_Chrome [0].png" "Albedo/Chrome"]]]
+            (let [resource (workspace/find-resource workspace path)]
+              (is (= expected-name (resource/resource-name resource)))
+              (is (= original-name (:name (gltf/asset-info resource)))))))))))
 
 (deftest embedded-assets-appear-in-resource-dialogs
   (with-gltf-project :file (gltf-content "Paint")

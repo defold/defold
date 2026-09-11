@@ -37,14 +37,12 @@
           (doseq [[content expected] [[(ByteString/copyFromUtf8 "embedded") "embedded"]
                                      [{:path source-path :offset 0 :length 4} (subs (slurp source) 0 4)]]]
             (let [entry (resource/make-resource-entry source {:path "entry.txt"
-                                                             :name "Entry label"
-                                                             :content content
-                                                             :data {::resource/export-name "Entry.txt"}})
+                                                             :name "Entry label.txt"
+                                                             :content content})
                   restored (g/read-graph (g/write-graph entry (core/write-handlers)) (core/read-handlers))]
               (is (= expected (slurp restored)))
-              (is (= "Entry label" (resource/resource-name restored)))
+              (is (= "Entry label.txt" (resource/resource-name restored)))
               (is (= (str source-path "/entry.txt") (resource/proj-path restored)))
-              (is (= "Entry.txt" (resource/export-name restored)))
               (is (= (resource/openable? entry) (resource/openable? restored)))
               (is (= (path/as-path source) (path/as-path restored))))))))))
 

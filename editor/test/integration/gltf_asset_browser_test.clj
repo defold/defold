@@ -148,7 +148,6 @@
                     meshes-resource (workspace/find-resource workspace (str source-proj-path "/meshes"))]
                 (is (some? source-resource))
                 (is (= "Albedo [0].png" (resource/resource-name image-resource)))
-                (is (= "0.png" (resource/export-name image-resource)))
                 (is (= material-label (resource/resource-name material-resource)))
                 (is (= "Albedo [0].png" (#'app-view/tab-title image-resource false)))
                 (is (= material-label (#'app-view/tab-title material-resource false)))
@@ -199,7 +198,7 @@
       (let [material (workspace/find-resource workspace "/robot.glb/materials/0.material")
             ^File exported (first (#'asset-browser/fileify-resources! [material]))]
         (with-open [_deleter (test-util/make-directory-deleter (.getParentFile exported))]
-          (is (= "Paint_Chrome [0].material" (.getName exported)))
+          (is (= "Paint_Chrome [0].material" (resource/resource-name material) (.getName exported)))
           (is (= (slurp material) (slurp exported))))))))
 
 (deftest metadata-meshes-cannot-be-copied-as-empty-files

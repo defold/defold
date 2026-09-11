@@ -251,20 +251,18 @@
                                   (ByteString/copyFrom (.getContent asset)))
                         resource-name (if (= :mesh kind)
                                         (str (resource/resource-name source) " : " (FilenameUtils/getName path))
-                                        (format "%s [%d].%s" name index (FilenameUtils/getExtension path)))
-                        data (cond-> {::asset info}
-                               (= :material kind)
-                               (assoc ::resource/export-name (format "%s [%d].material"
-                                                                    (-> name
-                                                                        (string/replace #"[\\/:*?\"<>|\p{Cntrl}]" "_")
-                                                                        string/trim)
-                                                                    index)))
+                                        (format "%s [%d].%s"
+                                                (-> name
+                                                    (string/replace #"[\\/:*?\"<>|\p{Cntrl}]" "_")
+                                                    string/trim)
+                                                index
+                                                (FilenameUtils/getExtension path)))
                         child (resource/make-resource-entry source
                                                             {:path path
                                                              :name resource-name
                                                              :ext (when (= :mesh kind) "gltf-mesh")
                                                              :content content
-                                                             :data data})]
+                                                             :data {::asset info}})]
                     (update groups group (fnil conj []) child)))
                 (sorted-map)
                 (.assets extraction))]

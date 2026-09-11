@@ -150,7 +150,7 @@
     (mapv path->resource roots)))
 
 (defn- temp-resource-file! [^File dir resource]
-  (let [target (File. dir (resource/export-name resource))]
+  (let [target (File. dir (resource/resource-name resource))]
     (if (= :file (resource/source-type resource))
       (with-open [in (io/input-stream resource)
                   out (io/output-stream target)]
