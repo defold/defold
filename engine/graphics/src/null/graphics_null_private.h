@@ -85,6 +85,7 @@ namespace dmGraphics
     {
         RenderTarget m_Base;
         FrameBuffer  m_FrameBuffer;
+        FrameBuffer  m_CubeMapFrameBuffers[CUBEMAP_FACE_COUNT];
     };
 
     struct NullShaderModule
