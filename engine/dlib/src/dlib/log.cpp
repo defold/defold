@@ -87,6 +87,25 @@ static int g_TotalBytesLogged = 0;
 static FILE* g_LogFile = 0;
 static dmSpinlock::Spinlock g_ListenerLock; // Protects the array of listener functions
 
+// A writer may pass IsServerInitialized() before LogFinalize() starts, then
+// acquire the server lock after finalization. Keep both locks alive across
+// logger restarts so delayed writers can safely check the initialized flag.
+struct LogLocks
+{
+    LogLocks()
+    {
+        dmSpinlock::Create(&g_LogServerLock);
+        dmSpinlock::Create(&g_ListenerLock);
+    }
+
+    ~LogLocks()
+    {
+        dmSpinlock::Destroy(&g_ListenerLock);
+        dmSpinlock::Destroy(&g_LogServerLock);
+    }
+};
+static LogLocks g_LogLocks;
+
 #if defined(DM_HAS_NO_GETENV)
 static const char* getenv(const char*) {
     return 0;
@@ -448,8 +467,6 @@ void LogInitialize(const LogParams* params)
         return;
     }
 
-    dmSpinlock::Create(&g_LogServerLock);
-
     dmSocket::Socket server_socket = dmSocket::INVALID_SOCKET_HANDLE;
     uint16_t port = 0;
 
@@ -486,11 +503,9 @@ void LogInitialize(const LogParams* params)
         server->m_Thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
     }
 
-    dmAtomicStore32(&g_LogServerInitialized, 1);
-
     dmAtomicStore32(&g_ListenersCount, 0);
     dmAtomicStore32(&g_PendingLogCount, 0);
-    dmSpinlock::Create(&g_ListenerLock);
+    dmAtomicStore32(&g_LogServerInitialized, 1);
 
     /*
      * This message is parsed by editor 2 - don't remove or change without
@@ -558,9 +573,6 @@ void LogFinalize()
         g_dmLogServer = 0;
         CloseLogFile();
     }
-
-    dmSpinlock::Destroy(&g_ListenerLock);
-    dmSpinlock::Destroy(&g_LogServerLock);
 }
 
 uint16_t GetPort()

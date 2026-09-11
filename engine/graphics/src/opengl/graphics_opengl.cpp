@@ -40,11 +40,6 @@
 #include "graphics_opengl_private.h"
 #include <platform/window.hpp>
 
-#if defined(DM_PLATFORM_MACOS)
-    // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
-    #include <Carbon/Carbon.h>
-#endif
-
 /* Include standard OpenGL headers: GLFW uses GL_FALSE/GL_TRUE, and it is
  * convenient for the user to only have to include <GL/glfw.h>. This also
  * solves the problem with Windows <GL/gl.h> and <GL/glu.h> needing some
@@ -1569,17 +1564,6 @@ static void LogFrameBufferError(GLenum status)
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_lose_context");
         emscripten_webgl_enable_extension(emscripten_ctx, "WEBGL_multi_draw");
 #endif
-
-#if defined(DM_PLATFORM_MACOS)
-        ProcessSerialNumber psn;
-        OSErr err;
-
-        // Move window to front. Required if running without application bundle.
-        err = GetCurrentProcess( &psn );
-        if (err == noErr)
-            (void) SetFrontProcess( &psn );
-#endif
-
 
     #if !(defined(__EMSCRIPTEN__) || defined(GL_ES_VERSION_2_0))
         GLint n;
