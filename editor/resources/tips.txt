@@ -50,3 +50,12 @@ Use late_update(self, dt) for final game object adjustments after the regular up
 
 Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away.\n— Antoine de Saint-Exupéry
 Not all those who wander are lost.\n— J. R. R. Tolkien
+What I cannot create, I do not understand.\n— Richard Feynman
+Simplicity is a great virtue but it requires hard work to achieve it and education to appreciate it.\n— Edsger W. Dijkstra
+Instead, focus on making the best game you can at the time and find joy in your personal growth.\n— Derek Yu
+My advice for other devs is to be yourself, not follow trends, and not be afraid to do something unusual.\n— Eric Barone
+But just taking an idea from start to finish teaches you so much. Make lots of games.\n— Lucas Pope
+Start very small and have fun with what you are working on.\n— Edmund McMillen
+Every time you're wrong you learn something.\n— Rami Ismail
+You don't need permission to make games.\n— John Romero
+Make your code usable before you try to make it reusable.\n— Casey Muratori
