@@ -16,14 +16,42 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
+            [dynamo.graph :as g]
+            [editor.core :as core]
             [editor.fs :as fs]
             [editor.resource :as resource]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support]
             [util.fn :as fn]
-            [util.path :as path]))
+            [util.http-server :as http-server]
+            [util.path :as path])
+  (:import [com.google.protobuf ByteString]))
 
 (set! *warn-on-reflection* true)
+
+(deftest embedded-entry-transit-preserves-content-and-origin
+  (test-support/with-clean-system
+    (let [workspace (test-util/setup-workspace! world "test/resources/empty_project")]
+      (doseq [source-path ["/game.project" "/builtins/materials/sprite.material"]]
+        (let [source (workspace/find-resource workspace source-path)]
+          (doseq [[content expected] [[(ByteString/copyFromUtf8 "embedded") "embedded"]
+                                     [{:path source-path :offset 0 :length 4} (subs (slurp source) 0 4)]
+                                     [{:path source-path :offset 4 :length -1} (subs (slurp source) 4)]]]
+            (let [entry (resource/make-resource-entry source {:path "entry.txt"
+                                                             :name "Entry label.txt"
+                                                             :content content})
+                  restored (g/read-graph (g/write-graph entry (core/write-handlers)) (core/read-handlers))]
+              (is (= expected (slurp restored)))
+              (with-open [connection (http-server/->connection (:body (http-server/response 200 restored)))]
+                (is (= expected (slurp connection))))
+              (is (resource/read-only? restored))
+              (is (nil? (resource/abs-path restored)))
+              (is (thrown? java.io.IOException (spit restored "replacement")))
+              (is (= "Entry label.txt" (resource/resource-name restored)))
+              (is (= (str source-path "/entry.txt") (resource/proj-path restored)))
+              (is (= (resource/openable? entry) (resource/openable? restored)))
+              (is (= (path/as-path source) (path/as-path restored))))))))))
 
 (deftest lines->proj-path-patterns-test
   (testing "Returns empty vector for nil."

@@ -16,15 +16,16 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.gltf :as gltf]
             [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.coll :as coll])
-  (:import [com.dynamo.bob.pipeline ModelUtil ModelUtil$CollectedMorphTargetTexture ModelUtil$ModelMetadata ModelUtil$PackedMorphTargetTexture]
+  (:import [com.dynamo.bob.pipeline ModelImporterJni$DataResolver ModelUtil ModelUtil$CollectedMorphTargetTexture ModelUtil$ModelMetadata ModelUtil$PackedMorphTargetTexture]
            [com.dynamo.bob.pipeline GLTFValidator GLTFValidator$ValidateError GLTFValidator$ValidateResult]
-           [com.dynamo.bob.pipeline Modelimporter$Mesh Modelimporter$Model Modelimporter$PrimitiveType]
+           [com.dynamo.bob.pipeline Modelimporter$Material Modelimporter$Mesh Modelimporter$Model Modelimporter$PrimitiveType]
            [com.dynamo.rig.proto Rig$MeshSet Rig$Skeleton]
            [java.io InputStream]))
 
@@ -47,10 +48,14 @@
      :packed-texture (packed-morph-target-texture->map packed-texture)}))
 
 (defn- model-mesh->collision-primitive [^Modelimporter$Mesh mesh]
-  {:index-count (alength (.-indices mesh))
-   :position-count (alength (.-positions mesh))
-   :triangles (= Modelimporter$PrimitiveType/PRIMITIVE_TYPE_TRIANGLES
-                 (.-primitiveType mesh))})
+  (let [^Modelimporter$Material material (.-material mesh)]
+    (cond-> {:index-count (alength (.-indices mesh))
+             :position-count (alength (.-positions mesh))
+             :triangles (= Modelimporter$PrimitiveType/PRIMITIVE_TYPE_TRIANGLES
+                           (.-primitiveType mesh))}
+      material
+      (assoc :material-index (.-index material)
+             :material-name (.-name material)))))
 
 (defn- model->collision-mesh [^Modelimporter$Model model]
   {:index (.-index model)
@@ -95,12 +100,11 @@
 (defn- load-model-scene
   [resource ^InputStream stream morph-tex-w morph-tex-h]
   (let [workspace (resource/workspace resource)
-        project-directory (workspace/project-directory workspace)
         mesh-set-builder (Rig$MeshSet/newBuilder)
         skeleton-builder (Rig$Skeleton/newBuilder)
         path (resource/path resource)
         options nil
-        data-resolver (ModelUtil/createFileDataResolver project-directory)
+        ^ModelImporterJni$DataResolver data-resolver (gltf/make-data-resolver #(workspace/resolve-workspace-resource workspace %))
         scene (ModelUtil/loadScene stream ^String path options data-resolver)
         bones (ModelUtil/loadSkeleton scene)
         material-ids (ModelUtil/loadMaterialNames scene)
@@ -108,7 +112,7 @@
         morph-target-texture-collector (ModelUtil/createMorphTargetTextureCollector)]
     (when-not (coll/empty? bones)
       (ModelUtil/skeletonToDDF bones skeleton-builder))
-    (ModelUtil/loadModels scene mesh-set-builder morph-tex-w morph-tex-h morph-target-texture-collector)
+    (ModelUtil/loadModelsForPreview scene mesh-set-builder morph-tex-w morph-tex-h morph-target-texture-collector)
     (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
           skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
       {:mesh-set mesh-set
@@ -129,38 +133,30 @@
                                (.code error)))
                      validation-errors)))
 
-(defn- handle-gltf-validation-result [resource ^GLTFValidator$ValidateResult gltf-validation-result]
-  (when-not (.result gltf-validation-result)
-    (let [gltf-validation-errors (.errors gltf-validation-result)
-          formatted-gltf-validation-error (format-gltf-validation-errors gltf-validation-errors)]
-      (throw (ex-info (str "glTF validation failed:\n" formatted-gltf-validation-error)
-                      {:resource resource
-                       :errors gltf-validation-errors})))))
-
-(defn- load-scene-internal [resource project-settings]
-  (let [[morph-tex-w morph-tex-h] (morph-target-texture-limits project-settings)
-        ext (string/lower-case (resource/ext resource))
-        is-zip-resource? (resource/zip-resource? resource)]
-    ;; First, run glTF/glb files through the bob validator.
-    ;; For zip resources we validate from a stream and avoid validating external
-    ;; resources (buffers on disk). For regular filesystem resources we validate
-    ;; by absolute path and allow external resource validation.
-    (when (or (= ext "gltf") (= ext "glb"))
-      (if is-zip-resource?
-        (with-open [stream (io/input-stream resource)]
-          (handle-gltf-validation-result resource (GLTFValidator/validateGltf stream ext false)))
-        (handle-gltf-validation-result resource (GLTFValidator/validateGltf (resource/abs-path resource) true))))
-    ;; Then, open a new stream for actually loading the scene.
-    (with-open [stream (io/input-stream resource)]
-      (load-model-scene resource stream morph-tex-w morph-tex-h))))
+(defn- model-load-error [node-id resource message]
+  (g/->error node-id nil :fatal nil
+             (localization/message "error.model-load-failed" {"file" (resource/proj-path resource) "error" message})
+             {:type :invalid-content :resource resource}))
 
 (defn load-scene [node-id resource project-settings]
   (try
-    (load-scene-internal resource project-settings)
+    (let [ext (string/lower-case (resource/ext resource))
+          ^GLTFValidator$ValidateResult validation-result
+          (when (or (= ext "gltf") (= ext "glb"))
+            ;; Zip resources cannot validate external buffers through filesystem paths.
+            (if (resource/zip-resource? resource)
+              (with-open [stream (io/input-stream resource)]
+                (GLTFValidator/validateGltf stream ext false))
+              (GLTFValidator/validateGltf (resource/abs-path resource) true)))]
+      (if (and validation-result (not (.result validation-result)))
+        (model-load-error node-id resource
+                          (str "glTF validation failed:\n"
+                               (format-gltf-validation-errors (.errors validation-result))))
+        (let [[morph-tex-w morph-tex-h] (morph-target-texture-limits project-settings)]
+          (with-open [stream (io/input-stream resource)]
+            (load-model-scene resource stream morph-tex-w morph-tex-h)))))
     (catch Exception e
       (let [path (resource/proj-path resource)
             message (.getMessage e)]
         (log/error :message (format "The file '%s' failed to load:\n%s" path message) :exception e)
-        (g/->error node-id nil :fatal nil
-                   (localization/message "error.model-load-failed" {"file" path "error" message})
-                   {:type :invalid-content :resource resource})))))
+        (model-load-error node-id resource message)))))

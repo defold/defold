@@ -185,7 +185,9 @@
 
 (handler/defhandler :edit.copy :asset-browser
   (enabled? [selection]
-    (coll/any? resource/resource? selection))
+    (let [resources (filterv resource/resource? selection)]
+      (and (coll/not-empty resources)
+           (coll/every? resource/has-content? resources))))
   (run [selection]
     (copy (fileify-resources! (roots (filterv resource/resource? selection))))))
 
@@ -781,7 +783,7 @@
 
 (defn- drag-detected [^MouseEvent e selection]
   (let [resources (roots (filterv resource/resource? selection))
-        files (fileify-resources! resources)
+        files (fileify-resources! (filterv resource/has-content? resources))
         paths (->> resources
                    (mapv resource/proj-path)
                    (string/join "\n"))

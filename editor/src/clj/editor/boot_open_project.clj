@@ -34,6 +34,7 @@
             [editor.editor-extensions.server :as ext.server]
             [editor.engine-profiler :as engine-profiler]
             [editor.git :as git]
+            [editor.gltf-ui :as gltf-ui]
             [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
             [editor.http-server.prefs :as http-server.prefs]
@@ -315,6 +316,8 @@
                                                   panes (.getItems ^SplitPane editor-tabs-split)]
                                               (handle-resource-changes! scene panes open-views changes-view)
                                               (clean-up-resource-prefs prefs changes)))))
+
+      (gltf-ui/register-resource-listener! workspace project localization)
 
       (.addEventFilter scene
                        InputEvent/ANY

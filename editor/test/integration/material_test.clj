@@ -16,10 +16,39 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.form :as form]
+            [editor.material]
+            [editor.pipeline.shader-gen :as shader-gen]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [util.fn :as fn]))
+
+(deftest shader-transpilation-is-memoized
+  (let [transpile-shader-source-cached (var-get (ns-resolve 'editor.material 'transpile-shader-source-cached))
+        transpile-count (atom 0)]
+    (fn/clear-memoized! transpile-shader-source-cached)
+    (try
+      (with-redefs [shader-gen/transpile-shader-source
+                    (fn [_shader-proj-path shader-source & args]
+                      (swap! transpile-count inc)
+                      (if (= "invalid source" shader-source)
+                        (throw (Exception. "Invalid shader source."))
+                        args))]
+        (is (= (transpile-shader-source-cached "/test.vp" "source" 0 "mediump" "highp")
+               (transpile-shader-source-cached "/test.vp" "source" 0 "mediump" "highp")))
+        (is (= 1 @transpile-count))
+
+        (transpile-shader-source-cached "/test.vp" "different source" 0 "mediump" "highp")
+        (is (= 2 @transpile-count))
+
+        (is (thrown? Exception
+                     (transpile-shader-source-cached "/test.vp" "invalid source" 0 "mediump" "highp")))
+        (is (thrown? Exception
+                     (transpile-shader-source-cached "/test.vp" "invalid source" 0 "mediump" "highp")))
+        (is (= 4 @transpile-count)))
+      (finally
+        (fn/clear-memoized! transpile-shader-source-cached)))))
 
 (defn- prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
@@ -107,6 +136,11 @@
     (let [node-id-material-1 (test-util/resource-node project "/materials/test_combined_shader_1.material")
           node-id-material-2 (test-util/resource-node project "/materials/test_combined_shader_2.material")
           node-id-material-3 (test-util/resource-node project "/materials/test_combined_shader_3.material")
+          node-id-material-with-uniforms (test-util/resource-node project "/materials/test.material")
+          shader-material-1 (g/node-value node-id-material-1 :shader)
+          shader-material-2 (g/node-value node-id-material-2 :shader)
+          shader-material-3 (g/node-value node-id-material-3 :shader)
+          shader-material-with-uniforms (g/node-value node-id-material-with-uniforms :shader)
           build-targets-material-1 (g/node-value node-id-material-1 :build-targets)
           build-targets-material-2 (g/node-value node-id-material-2 :build-targets)
           build-targets-material-3 (g/node-value node-id-material-3 :build-targets)
@@ -119,6 +153,17 @@
       (is (= (g/node-value node-id-material-1 :fragment-program)
              (g/node-value node-id-material-2 :fragment-program)
              (g/node-value node-id-material-3 :fragment-program)))
+      (is (= (:request-data shader-material-1)
+             (:request-data shader-material-2)
+             (:request-data shader-material-3)
+             (:request-data shader-material-with-uniforms)))
+      ;; Each material needs its own mutable OpenGL uniform state.
+      (is (distinct? (:request-id shader-material-1)
+                     (:request-id shader-material-2)
+                     (:request-id shader-material-3)
+                     (:request-id shader-material-with-uniforms)))
+      (is (not= (:uniforms shader-material-1)
+                (:uniforms shader-material-with-uniforms)))
       ;; Check that the material content is different between the three materials
       (is (not (= (get-in build-targets-material-1 [0 :content-hash])
                   (get-in build-targets-material-2 [0 :content-hash])

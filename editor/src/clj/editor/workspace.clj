@@ -23,6 +23,7 @@ ordinary paths."
             [editor.code.preprocessors :as code.preprocessors]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.gltf :as gltf]
             [editor.graph-util :as gu]
             [editor.library :as library]
             [editor.localization :as localization]
@@ -185,17 +186,6 @@ ordinary paths."
       (assoc build-resource
         :resource (resource/counterpart-memory-resource source-resource)))))
 
-(defn sort-resource-tree [{:keys [children] :as tree}]
-  (let [sorted-children (->> children
-                             (map sort-resource-tree)
-                             (sort
-                               (util/comparator-chain
-                                 (util/comparator-on editor.resource/file-resource?)
-                                 (util/comparator-on #({:folder 0 :file 1} (editor.resource/source-type %)))
-                                 (util/comparator-on util/natural-order editor.resource/resource-name)))
-                             vec)]
-    (assoc tree :children sorted-children)))
-
 (defn canonical-view-type-id [view-type-id]
   (case view-type-id
     :cljfx-form-view :form
@@ -211,9 +201,11 @@ ordinary paths."
 (defn resource-view-types
   "Returns the effective registered view types advertised by the resource."
   [resource]
-  (cond->> (:view-types (resource/resource-type resource))
-    (text-util/binary? resource)
-    (filterv #(not= :code (:id %)))))
+  (let [view-types (:view-types (resource/resource-type resource))]
+    (cond->> view-types
+      (and (coll/any? #(= :code (:id %)) view-types)
+           (text-util/binary? resource))
+      (filterv #(not= :code (:id %))))))
 
 (defn- editor-openable-view-type? [view-type]
   (case view-type
@@ -861,16 +853,19 @@ ordinary paths."
      (resource-sync! workspace moved-files render-progress! new-snapshot new-map)))
   ([workspace moved-files render-progress! new-snapshot new-map]
    (let [project-directory (project-directory workspace)
-         moved-proj-paths (keep (fn [[src tgt]]
-                                  (let [src-path (resource/file->proj-path project-directory src)
-                                        tgt-path (resource/file->proj-path project-directory tgt)]
-                                    (assert (some? src-path) (str "project does not contain source " (pr-str src)))
-                                    (assert (some? tgt-path) (str "project does not contain target " (pr-str tgt)))
-                                    (when (not= src-path tgt-path)
-                                      [src-path tgt-path])))
-                                moved-files)
+         physical-moved-proj-paths
+         (into []
+               (keep (fn [[src tgt]]
+                       (let [src-path (resource/file->proj-path project-directory src)
+                             tgt-path (resource/file->proj-path project-directory tgt)]
+                         (assert (some? src-path) (str "project does not contain source " (pr-str src)))
+                         (assert (some? tgt-path) (str "project does not contain target " (pr-str tgt)))
+                         (when (not= src-path tgt-path)
+                           [src-path tgt-path]))))
+               moved-files)
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map (resource-watch/make-resource-map old-snapshot)
+         moved-proj-paths (gltf/expand-resource-moves physical-moved-proj-paths old-map new-map)
          changes (resource-watch/diff old-snapshot new-snapshot)]
      (sync-snapshot-errors-notifications! workspace (:errors old-snapshot) (:errors new-snapshot))
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))
@@ -968,7 +963,7 @@ ordinary paths."
                      (let [project-directory (io/as-file project-directory-pathname)
                            resources (:resources new-value)
                            root-file-resource (resource/make-file-resource self project-directory-pathname project-directory resources editable-proj-path? unloaded-proj-path?)
-                           resource-tree (sort-resource-tree root-file-resource)
+                           resource-tree (resource/sort-resource-tree root-file-resource)
                            resource-list (vec (sort-by resource/proj-path util/natural-order (resource/resource-seq resource-tree)))
                            resource-map (coll/pair-map-by resource/proj-path resource-list)]
                        (g/set-properties self
