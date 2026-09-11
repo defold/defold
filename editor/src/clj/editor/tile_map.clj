@@ -37,6 +37,7 @@
             [editor.pose :as pose]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
+            [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
@@ -790,7 +791,6 @@
 (defn render-brush-outline
   [^GL2 gl render-args renderables count]
   (let [renderable (first renderables)
-        world-transform (:world-transform renderable)
         user-data (:user-data renderable)
         [x y] (:cell user-data)
         color (:color user-data)
@@ -800,19 +800,14 @@
       (let [x0 (* tile-width x)
             y0 (* tile-height y)
             x1 (+ x0 (* width tile-width))
-            y1 (+ y0 (* height tile-height))
-            z 0.0
-            c color]
-        (.glMatrixMode gl GL2/GL_MODELVIEW)
-        (gl/gl-push-matrix gl
-          (gl/gl-mult-matrix-4d gl world-transform)
-          (.glColor3d gl (nth c 0) (nth c 1) (nth c 2))
-          (.glBegin gl GL2/GL_LINE_LOOP)
-          (.glVertex3d gl x0 y0 z)
-          (.glVertex3d gl x1 y0 z)
-          (.glVertex3d gl x1 y1 z)
-          (.glVertex3d gl x0 y1 z)
-          (.glEnd gl))))))
+            y1 (+ y0 (* height tile-height))]
+        (render-util/render-color-line-loop!
+          gl render-args ::brush-outline
+          color
+          [[x0 y0]
+           [x1 y0]
+           [x1 y1]
+           [x0 y1]])))))
 
 (defn conj-brush-quad!
   [vbuf {:keys [tile h-flip v-flip rotate90]} uvs w h x y]
@@ -1086,15 +1081,15 @@
         (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
 
 (defn render-palette-background
-  [^GL2 gl viewport]
-  (let [{:keys [top left right bottom]} viewport]
-    (.glColor4d gl 0.0 0.0 0.0 0.7)
-    (.glBegin gl GL2/GL_QUADS)
-    (.glVertex2d gl 0.0 0.0)
-    (.glVertex2d gl right 0.0)
-    (.glVertex2d gl right bottom)
-    (.glVertex2d gl 0.0 bottom)
-    (.glEnd gl)))
+  [^GL2 gl render-args viewport]
+  (let [{:keys [right bottom]} viewport]
+    (render-util/render-color-quad!
+      gl render-args ::palette-background
+      [0.0 0.0 0.0 0.7]
+      [[0.0 0.0]
+       [right 0.0]
+       [right bottom]
+       [0.0 bottom]])))
 
 (defn render-palette
   [^GL2 gl render-args renderables count]
@@ -1103,7 +1098,7 @@
         [start-tile end-tile] (if (and start-tile end-tile (<= start-tile end-tile))
                                 [start-tile end-tile]
                                 [end-tile (or start-tile end-tile)])]
-    (render-palette-background gl viewport)
+    (render-palette-background gl render-args viewport)
     (.glMatrixMode gl GL2/GL_MODELVIEW)
     (gl/gl-push-matrix gl
       (gl/gl-mult-matrix-4d gl palette-transform)
@@ -1114,7 +1109,6 @@
 (defn render-editor-select-outline
   [^GL2 gl render-args renderables count]
   (let [renderable (first renderables)
-        world-transform (:world-transform renderable)
         user-data (:user-data renderable)
         [sx sy] (:start user-data)
         [ex ey] (:end user-data)
@@ -1124,19 +1118,14 @@
       (let [x0 (* tile-width (min-l sx ex))
             y0 (* tile-height (min-l sy ey))
             x1 (* tile-width (inc (max-l sx ex)))
-            y1 (* tile-height (inc (max-l sy ey)))
-            z 0.0
-            c color]
-        (.glMatrixMode gl GL2/GL_MODELVIEW)
-        (gl/gl-push-matrix gl
-          (gl/gl-mult-matrix-4d gl world-transform)
-          (.glColor3d gl (nth c 0) (nth c 1) (nth c 2))
-          (.glBegin gl GL2/GL_LINE_LOOP)
-          (.glVertex3d gl x0 y0 z)
-          (.glVertex3d gl x1 y0 z)
-          (.glVertex3d gl x1 y1 z)
-          (.glVertex3d gl x0 y1 z)
-          (.glEnd gl))))))
+            y1 (* tile-height (inc (max-l sy ey)))]
+        (render-util/render-color-line-loop!
+          gl render-args ::editor-select-outline
+          color
+          [[x0 y0]
+           [x1 y0]
+           [x1 y1]
+           [x0 y1]])))))
 
 (defn render-editor-select
   [^GL2 gl render-args renderables n]
