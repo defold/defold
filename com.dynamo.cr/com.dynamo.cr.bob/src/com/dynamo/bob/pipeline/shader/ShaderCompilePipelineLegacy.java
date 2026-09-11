@@ -242,11 +242,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             result.data = FileUtils.readFileToByteArray(module.spirvFile);
             return result;
         } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
-<<<<<<< HEAD
-            String compileResult = compileSPIRVToWGSL(module.desc.resourcePath, module.spirvResult.source, this.pipelineName);
-=======
-            String compileResult = compileSPIRVToWGSL(module.desc.resourcePath, shaderType, FileUtils.readFileToByteArray(module.spirvFile), this.pipelineName);
->>>>>>> ead3da6b41 (Remap shader input & outputs between graphics stages in legacy shader pipeline (#13169))
+            String compileResult = compileSPIRVToWGSL(module.desc.resourcePath, FileUtils.readFileToByteArray(module.spirvFile), this.pipelineName);
 
             Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
             result.data = compileResult.getBytes();
