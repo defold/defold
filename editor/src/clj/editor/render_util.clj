@@ -124,6 +124,7 @@
 ;; -----------------------------------------------------------------------------
 
 (def ^:private textured-quad-shader shaders/basic-texture-paged-world-space)
+(def ^:private tone-mapped-textured-quad-shader shaders/basic-texture-paged-tone-mapped-world-space)
 
 (defn- make-textured-quad-vertex-buffer
   [vertex-description renderables]
@@ -164,6 +165,7 @@
   [^GL2 gl render-args renderables _renderable-count]
   (let [first-renderable (first renderables)
         user-data (:user-data first-renderable)
+        textured-quad-shader (:shader user-data)
         gpu-texture (:gpu-texture user-data @texture/white-pixel)
         vertex-description (shaders/vertex-description textured-quad-shader)
         vertex-buffer (make-textured-quad-vertex-buffer vertex-description renderables)
@@ -173,7 +175,7 @@
       (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vertex-buffer)))))
 
 (defn- make-textured-quad-renderable
-  [tags x y width height gpu-texture page-index]
+  [shader tags x y width height gpu-texture page-index]
   {:pre [(graphics.types/renderable-tags? tags)
          (number? x)
          (number? y)
@@ -183,18 +185,18 @@
          (nat-int? page-index)]}
   {:render-fn render-textured-quad
    :tags tags
-   :batch-key gpu-texture
+   :batch-key [shader gpu-texture]
    :passes [pass/transparent]
    :user-data {:x x
                :y y
                :width width
                :height height
                :page-index page-index
+               :shader shader
                :gpu-texture gpu-texture}})
 
-;; SDK api
-(defn make-outlined-textured-quad-scene
-  [tags pose-or-transform width height gpu-texture page-index]
+(defn- make-outlined-textured-quad-scene-impl
+  [shader tags pose-or-transform width height gpu-texture page-index]
   (let [min (Point3d. 0.0 0.0 0.0)
         max (Point3d. (double width) (double height) 0.0)
         aabb (types/->AABB min max)
@@ -213,6 +215,15 @@
                           {:value pose-or-transform})))]
     {:aabb aabb
      :pose pose
-     :renderable (make-textured-quad-renderable tags 0.0 0.0 width height gpu-texture page-index)
+     :renderable (make-textured-quad-renderable shader tags 0.0 0.0 width height gpu-texture page-index)
      :children [{:aabb aabb
                  :renderable (make-aabb-outline-renderable tags)}]}))
+
+;; SDK api
+(defn make-outlined-textured-quad-scene
+  [tags pose-or-transform width height gpu-texture page-index]
+  (make-outlined-textured-quad-scene-impl textured-quad-shader tags pose-or-transform width height gpu-texture page-index))
+
+(defn make-outlined-tone-mapped-textured-quad-scene
+  [tags pose-or-transform width height gpu-texture page-index]
+  (make-outlined-textured-quad-scene-impl tone-mapped-textured-quad-shader tags pose-or-transform width height gpu-texture page-index))
