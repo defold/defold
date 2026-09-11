@@ -1,0 +1,4 @@
+name: "Duplicate Hints"
+resources: "/test01.foo"
+resources: "/test01.foo"
+resources: "/test01.foo"
