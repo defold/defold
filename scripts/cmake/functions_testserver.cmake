@@ -143,7 +143,7 @@ function(defold_register_test_with_server target platform)
   set(_run_target "run_${target}_server")
   if(NOT TARGET ${_run_target})
     add_custom_target(${_run_target}
-      COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
+      COMMAND ${DEFOLD_ANDROID_TEST_ENV} "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
         --workdir "${_RUN_DIR_ABS}"
         --ip "${_SERVER_IP}"
         --port "${DTS_PORT}"
@@ -281,7 +281,7 @@ function(defold_register_tests_with_server group platform)
 
   if(NOT TARGET ${_run_target})
     add_custom_target(${_run_target}
-      COMMAND "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
+      COMMAND ${DEFOLD_ANDROID_TEST_ENV} "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
         --workdir "${_RUN_DIR_ABS}"
         --ip "${_SERVER_IP}"
         --port "${DTS_PORT}"
