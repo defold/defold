@@ -2173,7 +2173,16 @@ bail:
             Pipeline new_pipeline = {};
 
             VkResult res = CreateComputePipeline(vk_device, vk_pipeline_cache, program, &new_pipeline);
-            CHECK_VK_ERROR(res);
+            if (res != VK_SUCCESS || new_pipeline == VK_NULL_HANDLE)
+            {
+                dmLogError("Failed to create Vulkan compute pipeline (result: %d, pipeline hash: %llu, program hash: %llu)",
+                    (int) res, (unsigned long long) pipeline_hash, (unsigned long long) program->m_Hash);
+                if (new_pipeline != VK_NULL_HANDLE)
+                {
+                    vkDestroyPipeline(vk_device, new_pipeline, 0);
+                }
+                return 0;
+            }
 
             if (pipelineCache.Full())
             {
@@ -2221,12 +2230,16 @@ bail:
             vk_scissor.offset.y = 0;
 
             VkResult res = CreateGraphicsPipeline(vk_device, vk_pipeline_cache, vk_scissor, vk_sample_count, pipelineState, program, vertexDeclaration, vertexDeclarationCount, rt, &new_pipeline);
-            if (res == VK_ERROR_INITIALIZATION_FAILED)
+            if (res != VK_SUCCESS || new_pipeline == VK_NULL_HANDLE)
             {
-                dmLogError("Failed to create VkPipeline");
+                dmLogError("Failed to create Vulkan graphics pipeline (result: %d, pipeline hash: %llu, program hash: %llu)",
+                    (int) res, (unsigned long long) pipeline_hash, (unsigned long long) program->m_Hash);
+                if (new_pipeline != VK_NULL_HANDLE)
+                {
+                    vkDestroyPipeline(vk_device, new_pipeline, 0);
+                }
                 return 0;
             }
-            CHECK_VK_ERROR(res);
 
             if (pipelineCache.Full())
             {
@@ -3092,7 +3105,7 @@ bail:
         assert(context->m_DynamicOffsetBufferSize >= num_uniform_buffers);
     }
 
-    static void DrawSetupCompute(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer)
+    static bool DrawSetupCompute(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer)
     {
         VkDevice vk_device   = context->m_LogicalDevice.m_Device;
         VulkanProgram* program_ptr = context->m_CurrentProgram;
@@ -3106,7 +3119,12 @@ bail:
         CHECK_VK_ERROR(res);
 
         Pipeline* pipeline = GetOrCreateComputePipeline(vk_device, context->m_VkPipelineCache, context->m_PipelineCache, program_ptr);
+        if (!pipeline || *pipeline == VK_NULL_HANDLE)
+        {
+            return false;
+        }
         vkCmdBindPipeline(vk_command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, *pipeline);
+        return true;
     }
 
     static bool DrawSetup(VulkanContext* context, VkCommandBuffer vk_command_buffer, ScratchBuffer* scratchBuffer, DeviceBuffer* indexBuffer, Type indexBufferType)
@@ -3193,7 +3211,7 @@ bail:
             pipeline_state_draw, context->m_PipelineCache,
             program_ptr, current_rt, vx_declarations, num_vx_buffers);
 
-        if (!pipeline)
+        if (!pipeline || *pipeline == VK_NULL_HANDLE)
         {
             return false;
         }
@@ -3258,7 +3276,11 @@ bail:
         const uint8_t ix = context->m_CurrentFrameInFlight;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;
-        DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[ix], 0, TYPE_BYTE);
+        if (!DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[ix], 0, TYPE_BYTE))
+        {
+            dmLogError("Failed setup draw state");
+            return;
+        }
         vkCmdDraw(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), first, 0);
     }
 
@@ -3277,7 +3299,11 @@ bail:
 
         const uint8_t ix = context->m_CurrentFrameInFlight;
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[ix];
-        DrawSetupCompute(context, vk_command_buffer, &context->m_MainScratchBuffers[ix]);
+        if (!DrawSetupCompute(context, vk_command_buffer, &context->m_MainScratchBuffers[ix]))
+        {
+            dmLogError("Failed setup compute dispatch state");
+            return;
+        }
         vkCmdDispatch(vk_command_buffer, group_count_x, group_count_y, group_count_z);
     }
 

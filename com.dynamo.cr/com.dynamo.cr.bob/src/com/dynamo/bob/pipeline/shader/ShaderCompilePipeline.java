@@ -311,9 +311,6 @@ public class ShaderCompilePipeline {
             return;
         }
 
-        ShaderModule vertexModule = null;
-        ShaderModule fragmentModule = null;
-
         // Generate SPIR-V for each module
         for (ShaderModule module : this.shaderModules) {
             String baseName = this.pipelineName + "." + ShaderTypeToSpirvStage(module.desc.type);
@@ -338,7 +335,18 @@ public class ShaderCompilePipeline {
             module.spirvContext = ShadercJni.NewShaderContext(ToShadercShaderStageValue(module.desc.type), FileUtils.readFileToByteArray(fileOutSpvOpt));
             module.spirvReflector = new SPIRVReflector(module.spirvContext, module.desc.type);
             module.shaderInfo = ShaderUtil.Common.getShaderInfo(module.desc.source);
+        }
 
+        postProcessGraphicsStages(true);
+    }
+
+    // SPIR-V modules are compiled one stage at a time. Reconcile and validate the
+    // graphics-stage interface before any backend consumes those modules.
+    protected void postProcessGraphicsStages(boolean mergeStageResources) throws IOException, CompileExceptionError {
+        ShaderModule vertexModule = null;
+        ShaderModule fragmentModule = null;
+
+        for (ShaderModule module : this.shaderModules) {
             if (module.desc.type == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX) {
                 vertexModule = module;
             } else if (module.desc.type == ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT) {
@@ -346,7 +354,6 @@ public class ShaderCompilePipeline {
             }
         }
 
-        // Potentially post-fix the modules so they are compatible in runtime
         if (vertexModule != null && fragmentModule != null) {
             ArrayList<Long> mergedResources = new ArrayList<>();
             long compilerVs = 0;
@@ -358,7 +365,9 @@ public class ShaderCompilePipeline {
             } else {
                 compilerFs = remapFragmentInputsToVertexOutputs(vertexModule, fragmentModule);
             }
-            compilerFs = mergeResources(vertexModule, fragmentModule, compilerFs, mergedResources);
+            if (mergeStageResources) {
+                compilerFs = mergeResources(vertexModule, fragmentModule, compilerFs, mergedResources);
+            }
 
             // If we remapped the input/outputs or the resources, we need to re-generate the spir-v
             if (compilerVs != 0 || compilerFs != 0) {
@@ -381,6 +390,8 @@ public class ShaderCompilePipeline {
                     fragmentModule.spirvReflector.removeResourceByNameHash(mergedResource);
                 }
             }
+
+            validateGraphicsStageInterfaces(vertexModule, fragmentModule);
         }
     }
 
@@ -424,6 +435,42 @@ public class ShaderCompilePipeline {
             }
         }
         return compiler;
+    }
+
+    private void validateGraphicsStageInterfaces(ShaderModule vertexModule, ShaderModule fragmentModule) throws CompileExceptionError {
+        HashMap<String, Shaderc.ShaderResource> outputByName = new HashMap<>();
+        for (Shaderc.ShaderResource output : vertexModule.spirvReflector.getOutputs()) {
+            if (!isBuiltInStageIO(output)) {
+                outputByName.put(output.name, output);
+            }
+        }
+
+        for (Shaderc.ShaderResource input : fragmentModule.spirvReflector.getInputs()) {
+            if (isBuiltInStageIO(input)) {
+                continue;
+            }
+
+            Shaderc.ShaderResource output = outputByName.get(input.name);
+            // Preserve support for legacy shaders with fragment-only varyings.
+            // Cross-stage validation applies to interface entries shared by name.
+            if (output == null) {
+                continue;
+            }
+
+            int outputLocation = Byte.toUnsignedInt(output.location);
+            int inputLocation = Byte.toUnsignedInt(input.location);
+            if (outputLocation != inputLocation) {
+                throw new CompileExceptionError(String.format(
+                        "Shader stage location mismatch for '%s': vertex output location %d in '%s', fragment input location %d in '%s'",
+                        input.name, outputLocation, vertexModule.desc.resourcePath, inputLocation, fragmentModule.desc.resourcePath));
+            }
+
+            if (!SPIRVReflector.AreResourceTypesEqual(vertexModule.spirvReflector, fragmentModule.spirvReflector, output, input)) {
+                throw new CompileExceptionError(String.format(
+                        "Shader stage type mismatch for '%s' at location %d between '%s' and '%s'",
+                        input.name, inputLocation, vertexModule.desc.resourcePath, fragmentModule.desc.resourcePath));
+            }
+        }
     }
 
     private void recompileSpirvModule(ShaderModule module, long compiler) throws IOException, CompileExceptionError {
