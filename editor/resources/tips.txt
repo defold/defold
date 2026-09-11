@@ -5,7 +5,7 @@
 
 # News
 
-Did you know? [Defold now supports Nintendo Switch](https://defold.com/manuals/nintendo-switch/)!
+Did you know? [Defold supports Nintendo Switch](https://defold.com/manuals/nintendo-switch/) for approved Nintendo Switch developers!
 The Defold Foundation [development fund](https://defold.com/community-donations/) ensures the long term sustainability of Defold.
 [Corporate partnerships](https://defold.com/corporate-partnerships/) ensure the long term sustainability of Defold.
 
@@ -13,10 +13,10 @@ The Defold Foundation [development fund](https://defold.com/community-donations/
 
 Did you know? There are lots of [great examples with demos](https://britzl.github.io/publicexamples/) made by Björn Ritzl!
 Have you seen our [Youtube channel](https://www.youtube.com/user/defoldvideos/videos)?
-[Follow us](https://twitter.com/defold) on Twitter!
+[Follow us](https://x.com/defold) on X (Twitter)!
 Check out [open source games](https://github.com/benjames-171/defold-games) made by Ben James!
 Don't forget to join our [Discord Server](https://defold.com/discord)!
-Having issues? Write us on [forum](https://forum.defold.com/) or check out the [FAQ](https://www.defold.com/faq/)!
+Having issues? Write to us on the [forum](https://forum.defold.com/) or check out the [FAQ](https://defold.com/faq/faq/)!
 Don't forget to sign up for the [Defold newsletter](https://defold.com/newsletter/) to stay up to date on new releases, extensions, games and more!
 
 # Hidden gems
@@ -24,14 +24,14 @@ Don't forget to sign up for the [Defold newsletter](https://defold.com/newslette
 Did you know? You can type simple math expressions like 640 / 2 in numeric property fields.
 Did you know? You can press Ctrl/Cmd+D to select the word under the cursor. Pressing again will select the next occurrence, and so on.
 Did you know? You can edit files side by side: right-click on editor tab and select Move to Other Tab Pane.
-Hold Alt and Drag to perform box selection in code editor!
+Drag with the middle mouse button to make a rectangular selection in the code editor!
 To move an object along its rotated axis, select Local Space from the Edit menu.
 
 # Tips
 
-To avoid breaking changes in [Library dependencies](https://www.defold.com/manuals/libraries/#_library_url) it is recommended to always depend on a versioned release instead of the latest code from the master branch.
-You can open the [Web Profiler](https://www.defold.com/manuals/profiling/#_the_web_profiler) from the Open Web Profiler menu option in the Debug menu.
-Did you know? You can tweak your game [without stopping it](https://www.defold.com/manuals/hot-reload/) — on any device!
+To avoid unexpected breaking changes in [library dependencies](https://defold.com/manuals/libraries/#library-url), depend on a versioned release instead of a moving branch such as main or master.
+You can open the [Web Profiler](https://defold.com/manuals/profiling/#the-web-profiler) from Debug > Open Web Profiler while a desktop or mobile build with profiler support is running.
+Did you know? You can [hot reload code and resources](https://defold.com/manuals/hot-reload/) without stopping your game, including on connected devices running a debug build!
 
 # Inspirational quotes
 
