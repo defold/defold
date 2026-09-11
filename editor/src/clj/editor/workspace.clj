@@ -23,6 +23,7 @@ ordinary paths."
             [editor.code.preprocessors :as code.preprocessors]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.gltf :as gltf]
             [editor.graph-util :as gu]
             [editor.library :as library]
             [editor.localization :as localization]
@@ -598,23 +599,6 @@ ordinary paths."
   (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)]
     (assoc snapshot-info :map (resource-watch/make-resource-map (:snapshot snapshot-info)))))
 
-(defn- expand-resource-moves
-  "Includes embedded file entries when their containing resource moves."
-  [moved-proj-paths old-map new-map]
-  (into []
-        (mapcat (fn [[source-path target-path :as moved-paths]]
-                  (into [moved-paths]
-                        (comp resource/xform-recursive-resources
-                              (filter #(and (resource/entry-source %)
-                                            (= :file (resource/source-type %))))
-                              (keep (fn [child]
-                                      (let [child-path (resource/proj-path child)
-                                            target-child-path (str target-path (subs child-path (count source-path)))]
-                                        (when (resource/entry-source (get new-map target-child-path))
-                                          [child-path target-child-path])))))
-                        (some-> (get old-map source-path) resource/children))))
-        moved-proj-paths))
-
 (defn update-snapshot-cache! [workspace snapshot-cache]
   (g/transact
     {:undoable false}
@@ -881,7 +865,7 @@ ordinary paths."
                moved-files)
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map (resource-watch/make-resource-map old-snapshot)
-         moved-proj-paths (expand-resource-moves physical-moved-proj-paths old-map new-map)
+         moved-proj-paths (gltf/expand-resource-moves physical-moved-proj-paths old-map new-map)
          changes (resource-watch/diff old-snapshot new-snapshot)]
      (sync-snapshot-errors-notifications! workspace (:errors old-snapshot) (:errors new-snapshot))
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))

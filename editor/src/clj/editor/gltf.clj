@@ -332,6 +332,25 @@
        :status-map @status-map
        :cache @expansions})))
 
+(defn expand-resource-moves
+  "Includes embedded file entries when their containing resource moves."
+  [moved-proj-paths old-map new-map]
+  (into []
+        (mapcat (fn [[source-path target-path :as moved-paths]]
+                  (into [moved-paths]
+                        (comp resource/xform-recursive-resources
+                              (filter #(and (resource/entry-source %)
+                                            (= :file (resource/source-type %))))
+                              (keep (fn [child]
+                                      (let [child-path (resource/proj-path child)
+                                            target-child-path (str target-path (subs child-path (count source-path)))]
+                                        (when (resource/entry-source (get new-map target-child-path))
+                                          [child-path target-child-path])))))
+                        (when-let [source (get old-map source-path)]
+                          (when (= :file (resource/source-type source))
+                            (resource/children source))))))
+        moved-proj-paths))
+
 (defn diagnostics
   "Returns extraction diagnostics by source path for display in the editor."
   [resources]

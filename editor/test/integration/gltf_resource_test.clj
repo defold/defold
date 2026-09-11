@@ -17,6 +17,7 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.asset-browser :as asset-browser]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.gltf :as gltf]
@@ -275,20 +276,35 @@
         (is (string/includes? (slurp (workspace/find-resource workspace material-path)) "name: \"Restored\""))))))
 
 (deftest moving-a-container-moves-its-embedded-references
-  (with-gltf-project :file (gltf-content "Paint")
-    (fn [_project-path workspace _project]
-      (let [changes (atom nil)
-            old-material (workspace/find-resource workspace "/models/robot.gltf/materials/0.material")]
-        (workspace/prepend-resource-listener! workspace 1
-                                              (reify resource/ResourceListener
-                                                (handle-changes [_this diff _render-progress!]
-                                                  (reset! changes diff))))
-        (test-util/move-file! workspace "/models/robot.gltf" "/models/renamed.gltf")
-        (let [moves (into #{} (map #(mapv resource/proj-path %)) (:moved @changes))]
-          (doseq [suffix ["" "/materials/0.material" "/images/0.png" "/meshes/Mesh 0"]]
-            (is (contains? moves [(str "/models/robot.gltf" suffix) (str "/models/renamed.gltf" suffix)]))))
-        (is (not (resource/exists? old-material)))
-        (is (resource/exists? (workspace/find-resource workspace "/models/renamed.gltf/materials/0.material")))))))
+  (doseq [[renamed-resource-path target-source-path] [["/models/robot.gltf" "/models/renamed.gltf"]
+                                                     ["/models" "/renamed/robot.gltf"]]]
+    (testing renamed-resource-path
+      (with-gltf-project :file (gltf-content "Paint")
+        (fn [_project-path workspace project]
+          (let [changes (atom nil)
+                source-path "/models/robot.gltf"
+                source-node (test-util/resource-node project source-path)
+                old-material (workspace/find-resource workspace (str source-path "/materials/0.material"))]
+            (g/node-value source-node :node-outline)
+            (workspace/prepend-resource-listener! workspace 1
+                                                  (reify resource/ResourceListener
+                                                    (handle-changes [_this diff _render-progress!]
+                                                      (reset! changes diff))))
+            (asset-browser/rename [(workspace/find-resource workspace renamed-resource-path)]
+                                  "renamed" test-util/localization)
+            (let [moves (mapv #(mapv resource/proj-path %) (:moved @changes))]
+              (is (= (count moves) (count (set moves))))
+              (doseq [suffix ["" "/materials/0.material" "/images/0.png" "/meshes/Mesh 0"]]
+                (is (contains? (set moves) [(str source-path suffix) (str target-source-path suffix)]))))
+            (is (= source-node (test-util/resource-node project target-source-path)))
+            (is (not (resource/exists? old-material)))
+            (is (resource/exists? (workspace/find-resource workspace (str target-source-path "/materials/0.material"))))
+            (let [links (into []
+                              (comp (mapcat :children) (keep :link))
+                              (:children (g/node-value source-node :node-outline)))]
+              (is (= #{(str target-source-path "/materials/0.material")
+                       (str target-source-path "/images/0.png")}
+                     (proj-paths links))))))))))
 
 (deftest declared-image-selection-does-not-depend-on-file-existence
   (let [source (-> (gltf-content "")
