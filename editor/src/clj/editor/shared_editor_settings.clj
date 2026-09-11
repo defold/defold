@@ -123,7 +123,7 @@
       (report-load-error! shared-editor-settings-file raw-settings-or-exception localization)
       (let [meta-settings (:settings meta-info)
             config-or-exception (try
-                                  (let [settings (settings-core/sanitize-settings meta-settings raw-settings-or-exception)]
+                                  (let [settings (settings-core/sanitize-settings raw-settings-or-exception meta-settings)]
                                     (parse-config-fn settings))
                                   (catch Exception exception
                                     exception))]

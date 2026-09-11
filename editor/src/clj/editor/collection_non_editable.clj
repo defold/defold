@@ -429,7 +429,7 @@
       :label (localization/message "resource.type.collection.non-editable")
       :node-type NonEditableCollectionNode
       :ddf-type GameObject$CollectionDesc
-      :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :non-editable "go"))
+      :dependencies-fn collection-common/collection-dependencies-fn
       :sanitize-fn (partial sanitize-non-editable-collection workspace)
       :pb-encode-fn (partial string-encode-non-editable-collection workspace)
       :load-fn load-non-editable-collection

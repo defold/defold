@@ -57,7 +57,7 @@
               (read-string (slurp resource)))
 
             dependencies-a
-            (fn dependencies-a [source-value _include-editor-dependencies]
+            (fn dependencies-a [_read-opts _owner-resource source-value]
               (keep source-value [:b]))
 
             connect-a

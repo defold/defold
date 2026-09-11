@@ -214,7 +214,7 @@
    (g/valid-node-value resource-node-id :dirty evaluation-context)))
 
 (defn- make-ddf-dependencies-fn-raw [^Class pb-class]
-  (fn ddf-dependencies-fn [source-value _include-editor-dependencies]
+  (fn ddf-dependencies-fn [_read-opts _owner-resource source-value]
     (coll/into->
       (protobuf/resource-field-value-paths pb-class source-value) []
       (map second) ; => proj-paths
@@ -324,6 +324,7 @@
                :textual? true
                :read-fn read-fn
                :write-fn write-fn
+               :dependencies-fn (settings-core/make-settings-dependencies-fn meta-settings)
                :search-fn settings-core/raw-settings-search-fn
                :test-info {:type :settings
                            :meta-settings meta-settings})]

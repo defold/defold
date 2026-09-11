@@ -18,6 +18,8 @@
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
             [support.test-support :refer [with-clean-system]]
@@ -198,22 +200,31 @@
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world project-path)
           project (test-util/setup-project! workspace)
-          resource-nodes (g/node-value project :nodes-by-resource-path)]
+          resource-nodes (g/node-value project :nodes-by-resource-path)
+          basis (g/now)]
       (doseq [[resource-path node-id] resource-nodes
               :when (.startsWith resource-path "/test")]
-        (let [resource (g/node-value node-id :resource)
+        (let [resource (resource-node/resource basis node-id)
               resource-type (resource/resource-type resource)
               dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
-              source-value (g/node-value node-id :source-value)]
+              source-value (g/node-value node-id :source-value)
+              expected-dependencies (expected-dependencies resource-path)
+              expected-editor-dependencies (expected-editor-dependencies resource-path)]
           (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
-          (let [expected-dependencies (expected-dependencies resource-path)
-                expected-editor-dependencies (expected-editor-dependencies resource-path)]
-            (is (some? expected-dependencies) resource-path)
-            (is (some? expected-editor-dependencies) resource-path)
-            (is (= (sort expected-dependencies)
-                   (sort (dependencies-fn source-value false))) resource-path)
-            (is (= (sort (set (concat expected-dependencies expected-editor-dependencies)))
-                   (sort (dependencies-fn source-value true))) resource-path)))))))
+          (is (some? expected-dependencies) resource-path)
+          (is (some? expected-editor-dependencies) resource-path)
+          (is (= (sort expected-dependencies)
+                 (sort (dependencies-fn
+                         (workspace/make-read-opts basis workspace :include-editor-dependencies false)
+                         resource
+                         source-value)))
+              resource-path)
+          (is (= (sort (set (concat expected-dependencies expected-editor-dependencies)))
+                 (sort (dependencies-fn
+                         (workspace/make-read-opts basis workspace :include-editor-dependencies true)
+                         resource
+                         source-value)))
+              resource-path))))))
 
 (deftest load-order-sanity
   (with-clean-system
@@ -256,7 +267,8 @@
     (with-clean-system
       (let [workspace (test-util/setup-workspace! world "test/resources/broken_project")
             project (test-util/setup-project! workspace)
-            resource-nodes (g/node-value project :nodes-by-resource-path)]
+            resource-nodes (g/node-value project :nodes-by-resource-path)
+            basis (g/now)]
         (let [broken-go (resource-nodes "/broken_embedded_components.go")
               broken-collection (resource-nodes "/broken_embedded_gos.collection")]
           (doseq [node-id [broken-go broken-collection]]
@@ -267,5 +279,8 @@
                   source-value (g/node-value node-id :source-value)]
               (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
               (is (= (sort (non-broken-dependencies resource-path))
-                     (sort (dependencies-fn source-value true)))
+                     (sort (dependencies-fn
+                             (workspace/make-read-opts basis workspace :include-editor-dependencies false)
+                             resource
+                             source-value)))
                   resource-path))))))))
