@@ -496,6 +496,25 @@ namespace dmRender
      * A light prototype can be used across many light instances, and must live as long as the lights live.
      * Instance data persists between frames; SubmitLightInstance selects which instances participate in the
      * current frame's light buffer.
+     *
+     * Programs opt in to the engine-owned light UBO by declaring this exact std140 layout:
+     *
+     * struct Light {
+     *     vec4 position;
+     *     vec4 color;
+     *     vec4 direction_range;
+     *     vec4 params;
+     * };
+     * uniform LightBuffer {
+     *     vec4 light_info;
+     *     Light lights[MAX_LIGHT_COUNT];
+     * };
+     *
+     * light_info.xyz contains accumulated ambient color and light_info.w contains the number of
+     * non-ambient lights, clamped to the program's declared array capacity. Light data is in world
+     * space. params contains type, intensity, inner cone angle, and outer cone angle. Cone angles
+     * are in radians and type is 0 for directional, 1 for point, and 2 for spot lights. Entry order
+     * is unspecified. The renderer binds the block automatically for graphics and compute programs.
      */
     HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params);
     void            SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params);
