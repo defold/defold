@@ -22,7 +22,8 @@
             [util.diff :as diff])
   (:import [java.io IOException InputStream Reader Writer]
            [java.nio CharBuffer]
-           [java.util Collections]
+           [java.text BreakIterator]
+           [java.util Collections Locale]
            [java.util.regex MatchResult Pattern]
            [org.apache.commons.io.input ReaderInputStream]))
 
@@ -41,6 +42,36 @@
   (ascent [this] "A rounded double representing the distance from the baseline to the top.")
   (line-height [this] "A rounded double representing the line height.")
   (char-width [this character] "A rounded double representing the width of the specified character."))
+
+(defprotocol ComplexTextMetrics
+  (complex-text-width [this text] "The shaped width of a string containing a complex script.")
+  (complex-text-col->x [this text col] "The visual x position of a logical offset in a complex string.")
+  (complex-text-x->col [this text x] "The logical offset nearest a visual x position in a complex string."))
+
+(defn- complex-script?
+  [^String text]
+  (boolean (re-find #"[\u0600-\u08ff\u0e00-\u0e7f\ufb50-\ufdff\ufe70-\ufeff]" text)))
+
+(defn- complex-string-ranges
+  [^String line]
+  (let [line-length (count line)]
+    (loop [start 0
+           ranges []]
+      (if (>= start line-length)
+        ranges
+        (let [quote (.charAt line start)]
+          (if-not (or (= \" quote) (= \' quote))
+            (recur (inc start) ranges)
+            (let [end (loop [index (inc start)]
+                        (cond
+                          (>= index line-length) line-length
+                          (= \\ (.charAt line index)) (recur (+ index 2))
+                          (= quote (.charAt line index)) (inc index)
+                          :else (recur (inc index))))
+                  string-range (.substring line start end)]
+              (recur end
+                     (cond-> ranges
+                       (complex-script? string-range) (conj [start end]))))))))))
 
 (defmacro clamp [value minimum maximum]
   `(max ~minimum (min ~value ~maximum)))
@@ -562,10 +593,78 @@
   [^LayoutInfo layout ^String text start-index end-index start-x]
   (advance-text-impl (.glyph layout) (.tab-stops layout) text start-index end-index start-x))
 
+(defn- line-width-with-complex-strings
+  ^double [glyph-metrics tab-stops ^String line]
+  (loop [ranges (complex-string-ranges line)
+         index 0
+         x 0.0]
+    (if-some [[start end] (first ranges)]
+      (recur (next ranges)
+             end
+             (+ (advance-text-impl glyph-metrics tab-stops line index start x)
+                (complex-text-width glyph-metrics (.substring line start end))))
+      (advance-text-impl glyph-metrics tab-stops line index (count line) x))))
+
+(defn- line-col->x
+  ^double [glyph-metrics tab-stops ^String line ^long col]
+  (loop [ranges (complex-string-ranges line)
+         index 0
+         x 0.0]
+    (if-some [[start end] (first ranges)]
+      (cond
+        (<= col start)
+        (advance-text-impl glyph-metrics tab-stops line index col x)
+
+        (< col end)
+        (+ (advance-text-impl glyph-metrics tab-stops line index start x)
+           (complex-text-col->x glyph-metrics (.substring line start end) (- col start)))
+
+        :else
+        (recur (next ranges)
+               end
+               (+ (advance-text-impl glyph-metrics tab-stops line index start x)
+                  (complex-text-width glyph-metrics (.substring line start end)))))
+      (advance-text-impl glyph-metrics tab-stops line index col x))))
+
+(defn- line-x->col
+  ^long [glyph-metrics tab-stops ^String line ^double x]
+  (loop [ranges (complex-string-ranges line)
+         index 0
+         start-x 0.0]
+    (if-some [[start end] (first ranges)]
+      (let [complex-start-x (advance-text-impl glyph-metrics tab-stops line index start start-x)
+            complex-end-x (+ complex-start-x (complex-text-width glyph-metrics (.substring line start end)))]
+        (cond
+          (< x complex-start-x)
+          (loop [col index
+                 col-x start-x]
+            (let [next-col (inc col)
+                  next-x (advance-text-impl glyph-metrics tab-stops line col next-col col-x)]
+              (if (or (<= x next-x) (= next-col start))
+                (max 0 (+ col (long (+ 0.5 (/ (- x col-x) (- next-x col-x))))))
+                (recur next-col next-x))))
+
+          (< x complex-end-x)
+          (+ start (complex-text-x->col glyph-metrics (.substring line start end) (- x complex-start-x)))
+
+          :else
+          (recur (next ranges) end complex-end-x)))
+      (loop [col index
+             col-x start-x]
+        (if (>= col (count line))
+          col
+          (let [next-col (inc col)
+                next-x (advance-text-impl glyph-metrics tab-stops line col next-col col-x)]
+            (if (<= x next-x)
+              (max 0 (+ col (long (+ 0.5 (/ (- x col-x) (- next-x col-x))))))
+              (recur next-col next-x))))))))
+
 (defn line-width
   "Returns an accurate line width measurement, taking tab stops into account."
   ^double [glyph-metrics tab-stops line]
-  (advance-text-impl glyph-metrics tab-stops line 0 (count line) 0.0))
+  (if (seq (complex-string-ranges line))
+    (line-width-with-complex-strings glyph-metrics tab-stops line)
+    (advance-text-impl glyph-metrics tab-stops line 0 (count line) 0.0)))
 
 (defn text-width
   "Simple text width measurement. Does not take tab stops into account, so don't feed it strings with tabs.
@@ -758,34 +857,40 @@
   ^double [^LayoutInfo layout ^long col ^String line]
   (+ (.x ^Rect (.canvas layout))
      (.scroll-x layout)
-     ^double (advance-text layout line 0 col 0.0)))
+     ^double (if (seq (complex-string-ranges line))
+               (line-col->x (.glyph layout) (.tab-stops layout) line col)
+               (advance-text layout line 0 col 0.0))))
 
 (defn x->col
   ^long [^LayoutInfo layout ^double x ^String line]
-  (let [line-x (x->doc-x layout x)
+  (if (seq (complex-string-ranges line))
+    (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x))
+    (let [line-x (x->doc-x layout x)
         line-length (count line)]
-    (loop [col 0
-           start-x 0.0]
-      (if (<= line-length col)
-        col
-        (let [next-col (inc col)
-              end-x (double (advance-text layout line col next-col start-x))]
-          (if (<= end-x line-x)
-            (recur next-col end-x)
-            (max 0 (+ col (long (+ 0.5 (/ (- line-x start-x) (- end-x start-x))))))))))))
+      (loop [col 0
+             start-x 0.0]
+        (if (<= line-length col)
+          col
+          (let [next-col (inc col)
+                end-x (double (advance-text layout line col next-col start-x))]
+            (if (<= end-x line-x)
+              (recur next-col end-x)
+              (max 0 (+ col (long (+ 0.5 (/ (- line-x start-x) (- end-x start-x)))))))))))))
 
 (defn x->character-col [^LayoutInfo layout ^double x ^String line]
-  (let [line-x (x->doc-x layout x)
+  (if (seq (complex-string-ranges line))
+    (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x))
+    (let [line-x (x->doc-x layout x)
         line-length (count line)]
-    (loop [col 0
-           start-x 0.0]
-      (if (<= line-length col)
-        nil
-        (let [next-col (inc col)
-              end-x (double (advance-text layout line col next-col start-x))]
-          (if (<= end-x line-x)
-            (recur next-col end-x)
-            (max 0 (+ col (long (/ (- line-x start-x) (- end-x start-x)))))))))))
+      (loop [col 0
+             start-x 0.0]
+        (if (<= line-length col)
+          nil
+          (let [next-col (inc col)
+                end-x (double (advance-text layout line col next-col start-x))]
+            (if (<= end-x line-x)
+              (recur next-col end-x)
+              (max 0 (+ col (long (/ (- line-x start-x) (- end-x start-x))))))))))))
 
 (defn adjust-row
   ^long [lines ^long row]
@@ -1426,6 +1531,42 @@
             new-col (if (= last-row row) (count (lines last-row)) 0)]
         (->Cursor new-row new-col))
       (->Cursor row new-col))))
+
+(defn- previous-grapheme-boundary
+  ^long [^String line ^long col]
+  (let [iterator (BreakIterator/getCharacterInstance Locale/ROOT)]
+    (.setText iterator line)
+    (let [boundary (.preceding iterator col)]
+      (if (= BreakIterator/DONE boundary) 0 boundary))))
+
+(defn- next-grapheme-boundary
+  ^long [^String line ^long col]
+  (let [iterator (BreakIterator/getCharacterInstance Locale/ROOT)]
+    (.setText iterator line)
+    (let [boundary (.following iterator col)]
+      (if (= BreakIterator/DONE boundary) (count line) boundary))))
+
+(defn- cursor-left-grapheme
+  ^Cursor [lines ^Cursor cursor]
+  (let [adjusted (adjust-cursor lines cursor)
+        row (.row adjusted)
+        col (.col adjusted)]
+    (if (zero? col)
+      (let [new-row (max 0 (dec row))]
+        (->Cursor new-row (if (zero? row) 0 (count (lines new-row)))))
+      (->Cursor row (previous-grapheme-boundary (lines row) col)))))
+
+(defn- cursor-right-grapheme
+  ^Cursor [lines ^Cursor cursor]
+  (let [adjusted (adjust-cursor lines cursor)
+        row (.row adjusted)
+        col (.col adjusted)
+        line (lines row)]
+    (if (= col (count line))
+      (let [last-row (dec (count lines))
+            new-row (min (inc row) last-row)]
+        (->Cursor new-row (if (= last-row row) (count (lines last-row)) 0)))
+      (->Cursor row (next-grapheme-boundary line col)))))
 
 (defn- cursor-prev-word
   ^Cursor [lines ^Cursor cursor]
@@ -3157,8 +3298,8 @@
                       :end cursor-line-end
                       :up cursor-up
                       :down cursor-down
-                      :left cursor-left
-                      :right cursor-right
+                      :left cursor-left-grapheme
+                      :right cursor-right-grapheme
                       :prev-word cursor-prev-word
                       :next-word cursor-next-word
                       :line-start cursor-line-start

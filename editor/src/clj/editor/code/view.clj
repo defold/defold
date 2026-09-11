@@ -82,7 +82,7 @@
            [com.sun.javafx.tk Toolkit]
            [com.sun.javafx.util Utils]
            [editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect]
-           [java.util BitSet Collection]
+           [java.util BitSet Collection IdentityHashMap]
            [java.util.regex Pattern]
            [javafx.beans.binding ObjectBinding]
            [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
@@ -95,7 +95,7 @@
            [javafx.scene.input Clipboard DataFormat InputMethodEvent InputMethodRequests KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
            [javafx.scene.layout ColumnConstraints GridPane Pane Priority]
            [javafx.scene.paint Color LinearGradient Paint]
-           [javafx.scene.shape Rectangle]
+           [javafx.scene.shape MoveTo Rectangle]
            [javafx.scene.text Font FontSmoothingType Text TextAlignment]
            [javafx.stage PopupWindow Screen Stage]))
 
@@ -150,31 +150,45 @@
                                    [(mime-type->DataFormat mime-type) representation]))
                             representation-by-mime-type))))
 
-(def ^:private ^:const min-cached-char-width
-  (double (inc Byte/MIN_VALUE)))
-
-(def ^:private ^:const max-cached-char-width
-  (double Byte/MAX_VALUE))
-
 (defn- make-char-width-cache [^FontStrike font-strike]
-  (let [cache (byte-array (inc (int Character/MAX_VALUE)) Byte/MIN_VALUE)]
+  (let [cache (float-array (inc (int Character/MAX_VALUE)) Float/NaN)]
     (fn get-char-width [^Character character]
       (let [ch (unchecked-char character)
             i (unchecked-int ch)
             cached-width (aget cache i)]
-        (if (= cached-width Byte/MIN_VALUE)
-          (let [width (Math/floor (.getCharAdvance font-strike ch))]
-            (when (and (<= min-cached-char-width width)
-                       (<= width max-cached-char-width))
-              (aset cache i (byte width)))
-            width)
-          cached-width)))))
+        (if (Float/isNaN cached-width)
+          (let [width (.getCharAdvance font-strike ch)]
+            (aset cache i width)
+            (double width))
+          (double cached-width))))))
+
+(defn- text-node
+  ^Text [^Font font ^String text]
+  (doto (Text. text)
+    (.setFont font)))
 
 (defonce/record GlyphMetrics [char-width-cache ^double line-height ^double ascent]
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
   (char-width [_this character] (char-width-cache character)))
+
+(defonce ^:private glyph-metrics-fonts (IdentityHashMap.))
+
+(defn- glyph-metrics-font
+  ^Font [glyph-metrics]
+  (locking glyph-metrics-fonts
+    (.get glyph-metrics-fonts glyph-metrics)))
+
+(extend-type GlyphMetrics
+  data/ComplexTextMetrics
+  (complex-text-width [this text]
+    (.getWidth (.getLayoutBounds (text-node (glyph-metrics-font this) text))))
+  (complex-text-col->x [this text col]
+    (let [caret-shape (.caretShape (text-node (glyph-metrics-font this) text) col true)]
+      (.getX ^MoveTo (first caret-shape))))
+  (complex-text-x->col [this text x]
+    (.getInsertionIndex (.hitTest (text-node (glyph-metrics-font this) text) (Point2D. x 0.0)))))
 
 (defn make-glyph-metrics
   ^GlyphMetrics [^Font font ^double line-height-factor]
@@ -185,7 +199,10 @@
                                 FontResource/AA_GREYSCALE)
         line-height (Math/ceil (* (inc (.getLineHeight font-metrics)) line-height-factor))
         ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))]
-    (->GlyphMetrics (make-char-width-cache font-strike) line-height ascent)))
+    (let [glyph-metrics (->GlyphMetrics (make-char-width-cache font-strike) line-height ascent)]
+      (locking glyph-metrics-fonts
+        (.put glyph-metrics-fonts glyph-metrics font))
+      glyph-metrics)))
 
 (def ^:private default-editor-color-scheme
   (let [foreground-color (Color/valueOf "#DDDDDD")
@@ -386,6 +403,14 @@
                     guide-positions' (conj (into [] (take-while #(< ^double % guide-x)) guide-positions) guide-x)]
                 (recur (inc row) guide-positions')))))))))
 
+(defn- complex-script?
+  [^String text]
+  (boolean (re-find #"[\u0600-\u08ff\u0e00-\u0e7f\ufb50-\ufdff\ufe70-\ufeff]" text)))
+
+(defn- shaped-text-width
+  ^double [^GraphicsContext gc ^String text]
+  (.getWidth (.getLayoutBounds (text-node (.getFont gc) text))))
+
 (defn- fill-text!
   "Draws text onto the canvas. In order to support tab stops, we remap the supplied x
   coordinate into document space, then remap back to canvas coordinates when drawing.
@@ -398,24 +423,29 @@
         offset-x (+ visible-start-x (.scroll-x layout))]
     (loop [^long i start-index
            x (- ^double x offset-x)]
-      (if (= ^long end-index i)
+      (cond
+        (= ^long end-index i)
         (+ x offset-x)
-        (let [glyph (.charAt text i)
-              next-i (inc i)
-              next-x (double (data/advance-text layout text i next-i x))
-              draw-start-x (+ x offset-x)
-              draw-end-x (+ next-x offset-x)
-              inside-visible-start? (< visible-start-x draw-end-x)
-              inside-visible-end? (< draw-start-x visible-end-x)]
-          ;; Currently using FontSmoothingType/GRAY results in poor kerning when
-          ;; drawing subsequent characters in a string given to fillText. Here
-          ;; glyphs are drawn individually at whole pixels as a workaround.
-          (when (and inside-visible-start?
-                     inside-visible-end?
-                     (not (Character/isWhitespace glyph)))
-            (.fillText gc (String/valueOf glyph) draw-start-x y))
-          (when inside-visible-end?
-            (recur next-i next-x)))))))
+
+        (<= visible-end-x (+ x offset-x))
+        nil
+
+        :else
+        (let [tab? (= \tab (.charAt text i))
+              seg-end (if tab?
+                        (inc i)
+                        (loop [j (inc i)]
+                          (if (or (= ^long end-index j) (= \tab (.charAt text j)))
+                            j
+                            (recur (inc j)))))
+              segment (.substring text i seg-end)
+              next-x (if (complex-script? segment)
+                       (+ x (shaped-text-width gc segment))
+                       (double (data/advance-text layout text i seg-end x)))]
+          (when (and (not tab?)
+                     (< visible-start-x (+ next-x offset-x)))
+            (.fillText gc segment (+ x offset-x) y))
+          (recur seg-end next-x))))))
 
 (defn- draw-code! [^GraphicsContext gc ^Font font ^LayoutInfo layout color-scheme lines syntax-info indent-type visible-whitespace]
   (let [^Rect canvas-rect (.canvas layout)
