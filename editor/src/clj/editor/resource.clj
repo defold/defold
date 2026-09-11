@@ -438,71 +438,10 @@
         "text/plain"
         "application/octet-stream")))
 
-(defn entry-source
-  "Returns the containing file or ZIP entry for an embedded resource, or nil."
-  [resource]
-  (get-in resource [:entry :source]))
-
-(defn content-source-path
-  "Returns the project path supplying an entry's bytes, or nil for stored content."
-  [resource]
-  (get-in resource [:entry :content :path]))
-
-(defn has-content?
-  "True when a resource can be copied, including every descendant of a folder."
-  [resource]
-  (if (= :folder (source-type resource))
-    (coll/every? has-content? (children resource))
-    (or (nil? (:entry resource))
-        (some? (get-in resource [:entry :content])))))
-
-(defn- entry-input-stream
-  "Opens stored bytes or a byte range of another workspace resource."
-  ^InputStream [resource]
-  (let [content (get-in resource [:entry :content])]
-    (cond
-      (instance? ByteString content)
-      (.newInput ^ByteString content)
-
-      (map? content)
-      (let [{:keys [path offset length]} content
-            resource-map (g/raw-property-value (g/unsafe-basis) (workspace resource) :resource-map)
-            source (or (when (= path (proj-path (entry-source resource)))
-                         (entry-source resource))
-                       (get resource-map path))]
-        (when-not source
-          (throw (FileNotFoundException. path)))
-        (let [stream (io/input-stream source)]
-          (try
-            (.skipNBytes stream (long offset))
-            (if (neg? (long length))
-              stream
-              (BoundedInputStream. stream (long length)))
-            (catch Throwable error
-              (.close stream)
-              (throw error)))))
-
-      :else
-      (throw (IOException. (format "Resource '%s' has no copyable content" (proj-path resource)))))))
-
-(defn- entry-transit-data
-  "Encodes immutable entry bytes for graph serialization."
-  [entry]
-  (cond-> entry
-    (instance? ByteString (:content entry))
-    (update :content #(.toByteArray ^ByteString %))))
-
-(defn- read-entry-transit-data
-  "Restores immutable bytes so deserialized entries retain value equality."
-  [entry]
-  (cond-> entry
-    (bytes? (:content entry))
-    (update :content #(ByteString/copyFrom ^bytes %))))
-
 ;; Note! Used to keep a file here instead of path parts, but on
 ;; Windows (File. "test") equals (File. "Test") which broke
 ;; FileResource equality tests.
-(defonce/record FileResource [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable loaded children entry]
+(defonce/record FileResource [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable loaded children]
   Resource
   (children [this] children)
   (ext [this] ext)
@@ -510,18 +449,17 @@
   (source-type [this] source-type)
   (exists? [this]
     (and (proj-path-exists? (g/unsafe-basis) workspace project-path)
-         (if (symlink? this)
+         (if (path/symlink? this)
            (.exists (io/file this))
            true)))
   (read-only? [this]
-    (or (some? (:entry this))
-        (try
-          (not (.canWrite (io/file this)))
-          (catch SecurityException _
-            true))))
-  (symlink? [this] (and (nil? (:entry this)) (path/symlink? this)))
+    (try
+      (not (.canWrite (io/file this)))
+      (catch SecurityException _
+        true)))
+  (symlink? [this] (path/symlink? this))
   (path [this] (if (= "" project-path) "" (subs project-path 1)))
-  (abs-path [this] (when-not (:entry this) abs-path))
+  (abs-path [this] abs-path)
   (proj-path [this] project-path)
   (resource-name [this] name)
   (workspace [this] workspace)
@@ -535,15 +473,9 @@
   (loaded? [_this] loaded)
 
   io/IOFactory
-  (make-input-stream [this opts]
-    (if (:entry this)
-      (entry-input-stream this)
-      (io/make-input-stream (io/file this) opts)))
+  (make-input-stream  [this opts] (io/make-input-stream (io/file this) opts))
   (make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-  (make-output-stream [this opts]
-    (if (:entry this)
-      (throw (IOException. "Embedded resources are read-only"))
-      (io/make-output-stream (io/file this) opts)))
+  (make-output-stream [this opts] (io/make-output-stream (io/file this) opts))
   (make-writer        [this opts] (io/make-writer (io/make-output-stream this opts) opts))
 
   io/Coercions
@@ -556,11 +488,7 @@
   (content-type [resource] (content-type resource))
 
   http-server/->Data
-  (->data [this]
-    (if (:entry this)
-      (with-open [stream (entry-input-stream this)]
-        (.readAllBytes stream))
-      (path/as-path abs-path))))
+  (->data [_] (path/as-path abs-path)))
 
 (defn make-file-resource [workspace ^String root-path ^File file children editable-proj-path? unloaded-proj-path?]
   {:pre [(g/node-id? workspace)
@@ -573,13 +501,10 @@
         ext (FilenameUtils/getExtension path)
         editable (editable-proj-path? project-path)
         loaded (not (unloaded-proj-path? project-path))]
-    (FileResource. workspace root-path abs-path project-path name ext source-type editable loaded children nil)))
+    (FileResource. workspace root-path abs-path project-path name ext source-type editable loaded children)))
 
-(defn file-resource?
-  "True for whole files and directories on disk, excluding embedded entries."
-  [resource]
-  (and (instance? FileResource resource)
-       (nil? (:entry resource))))
+(defn file-resource? [resource]
+  (instance? FileResource resource))
 
 (defn sort-resource-tree [{:keys [children] :as tree}]
   (let [sorted-children (->> children
@@ -595,17 +520,22 @@
 (core/register-read-handler!
   "file-resource"
   (transit/read-handler
-    (fn [data]
-      (cond-> (map->FileResource data)
-        (:entry data) (update :entry read-entry-transit-data)))))
+    (fn [{:keys [workspace ^String root ^String abs-path ^String project-path ^String name ^String ext source-type editable loaded children]}]
+      (FileResource. workspace root abs-path project-path name ext source-type editable loaded children))))
 
 (core/register-write-handler!
-  FileResource
-  (transit/write-handler
-    (constantly "file-resource")
-    (fn [resource]
-      (cond-> (into {} resource)
-        (:entry resource) (update :entry entry-transit-data)))))
+ FileResource
+ (transit/write-handler
+  (constantly "file-resource")
+  (fn [^FileResource r]
+    {:workspace (:workspace r)
+     :abs-path (:abs-path r)
+     :project-path (:project-path r)
+     :name (:name r)
+     :ext (:ext r)
+     :source-type (:source-type r)
+     :editable (:editable r)
+     :children (:children r)})))
 
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]
   (.write w (format "{:FileResource %s}" (pr-str (proj-path file-resource)))))
@@ -668,16 +598,13 @@
           (proxy-super close)
           (.close zip-file))))))
 
-(defonce/record ZipResource [workspace ^URI zip-uri name path zip-entry children entry]
+(defonce/record ZipResource [workspace ^URI zip-uri name path zip-entry children]
   Resource
   (children [this] children)
-  (ext [this] (or (:ext this) (FilenameUtils/getExtension name)))
+  (ext [this] (FilenameUtils/getExtension name))
   (resource-type [this] (lookup-resource-type (g/unsafe-basis) workspace this))
   (source-type [_this] (if zip-entry :file :folder))
-  (exists? [this]
-    (if (:entry this)
-      (proj-path-exists? (g/unsafe-basis) workspace (proj-path this))
-      (not (nil? zip-entry))))
+  (exists? [this] (not (nil? zip-entry)))
   (read-only? [this] true)
   (symlink? [this] false) ; Note: Zip archives can contain symlinks. The ZipFile class doesn't support them, but the zip FileSystem implementation does.
   (path [this] path)
@@ -695,10 +622,7 @@
   (loaded? [_this] true)
 
   io/IOFactory
-  (make-input-stream [this _opts]
-    (if (:entry this)
-      (entry-input-stream this)
-      (make-zip-resource-input-stream this)))
+  (make-input-stream  [this opts] (make-zip-resource-input-stream this))
   (make-reader        [this opts] (io/make-reader (io/make-input-stream this opts) opts))
   (make-output-stream [this opts] (throw (Exception. "Zip resources are read-only")))
   (make-writer        [this opts] (throw (Exception. "Zip resources are read-only")))
@@ -713,23 +637,21 @@
   (content-type [resource] (content-type resource))
 
   http-server/->Connection
-  (->connection [this]
-    (if (:entry this)
-      (entry-input-stream this)
-      (let [zip-file (ZipFile. (io/file zip-uri))
-            entry (.getEntry zip-file zip-entry)]
-        (reify
-          http-server/ConnectionContentLength
-          (connection-content-length [_]
-            (let [size (.getSize entry)]
-              (when-not (= -1 size) size)))
-          io/IOFactory
-          (make-input-stream [_ opts] (io/make-input-stream (.getInputStream zip-file entry) opts))
-          (make-reader [this opts] (io/make-reader (io/make-input-stream this opts) opts))
-          (make-output-stream [_ _] (throw (Exception. "Zip resources are read-only")))
-          (make-writer [_ _] (throw (Exception. "Zip resources are read-only")))
-          Closeable
-          (close [_] (.close zip-file)))))))
+  (->connection [_]
+    (let [zip-file (ZipFile. (io/file zip-uri))
+          entry (.getEntry zip-file zip-entry)]
+      (reify
+        http-server/ConnectionContentLength
+        (connection-content-length [_]
+          (let [size (.getSize entry)]
+            (when-not (= -1 size) size)))
+        io/IOFactory
+        (make-input-stream [_ opts] (io/make-input-stream (.getInputStream zip-file entry) opts))
+        (make-reader [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+        (make-output-stream [_ _] (throw (Exception. "Zip resources are read-only")))
+        (make-writer [_ _] (throw (Exception. "Zip resources are read-only")))
+        Closeable
+        (close [_] (.close zip-file))))))
 
 (defn zip-resource? [x]
   (instance? ZipResource x))
@@ -737,22 +659,132 @@
 (core/register-record-type! ZipResource)
 
 (core/register-read-handler!
-  "zip-resource"
-  (transit/read-handler
-    (fn [data]
-      (cond-> (map->ZipResource (update data :zip-uri #(URI. ^String %)))
-        (:entry data) (update :entry read-entry-transit-data)))))
+ "zip-resource"
+ (transit/read-handler
+  (fn [{:keys [workspace ^String zip-uri name path zip-entry children]}]
+    (ZipResource. workspace (URI. zip-uri) name path zip-entry children))))
 
 (core/register-write-handler!
-  ZipResource
-  (transit/write-handler
-    (constantly "zip-resource")
-    (fn [resource]
-      (cond-> (into {} (update resource :zip-uri str))
-        (:entry resource) (update :entry entry-transit-data)))))
+ ZipResource
+ (transit/write-handler
+  (constantly "zip-resource")
+  (fn [^ZipResource r]
+    {:workspace (:workspace r)
+     :zip-uri   (.toString ^URI (:zip-uri r))
+     :name      (:name r)
+     :path      (:path r)
+     :zip-entry (:zip-entry r)
+     :children  (:children r)})))
 
 (defmethod print-method ZipResource [zip-resource ^java.io.Writer w]
   (.write w (format "{:ZipResource %s}" (pr-str (proj-path zip-resource)))))
+
+(defn- embedded-input-stream
+  "Opens stored bytes or a byte range of another workspace resource."
+  ^InputStream [{:keys [source content] :as resource}]
+  (cond
+    (instance? ByteString content)
+    (.newInput ^ByteString content)
+
+    (map? content)
+    (let [{:keys [path offset length]} content
+          content-source (if (= path (proj-path source))
+                           source
+                           (get (g/raw-property-value (g/unsafe-basis) (workspace source) :resource-map) path))]
+      (when-not content-source
+        (throw (FileNotFoundException. path)))
+      (let [stream (io/input-stream content-source)]
+        (try
+          (.skipNBytes stream (long offset))
+          (if (neg? (long length))
+            stream
+            (BoundedInputStream. stream (long length)))
+          (catch Throwable error
+            (.close stream)
+            (throw error)))))
+
+    :else
+    (throw (IOException. (format "Resource '%s' has no copyable content" (proj-path resource))))))
+
+(defonce/record EmbeddedResource [source project-path name ext source-type children content data editable loaded]
+  Resource
+  (children [_this] children)
+  (ext [_this] ext)
+  (resource-type [this] (lookup-resource-type (g/unsafe-basis) (workspace source) this))
+  (source-type [_this] source-type)
+  (exists? [_this] (proj-path-exists? (g/unsafe-basis) (workspace source) project-path))
+  (read-only? [_this] true)
+  (symlink? [_this] false)
+  (path [_this] (subs project-path 1))
+  (abs-path [_this] nil)
+  (proj-path [_this] project-path)
+  (resource-name [_this] name)
+  (workspace [_this] (workspace source))
+  (resource-hash [_this] (hash project-path))
+  (openable? [this]
+    (and (= :file source-type)
+         (if (:editor-openable (resource-type this)) loaded true)))
+  (editable? [_this] editable)
+  (loaded? [_this] loaded)
+
+  io/IOFactory
+  (make-input-stream [this _opts] (embedded-input-stream this))
+  (make-reader [this opts] (io/make-reader (io/make-input-stream this opts) opts))
+  (make-output-stream [_this _opts] (throw (IOException. "Embedded resources are read-only")))
+  (make-writer [_this _opts] (throw (IOException. "Embedded resources are read-only")))
+
+  io/Coercions
+  (as-file [_this] (io/as-file source))
+  (as-url [_this] (throw (IllegalArgumentException. "Embedded resources have no URL")))
+
+  path/Coercions
+  (as-path [_this] (path/as-path source))
+
+  http-server/ContentType
+  (content-type [this] (content-type this))
+
+  http-server/->Connection
+  (->connection [this] (embedded-input-stream this)))
+
+(core/register-record-type! EmbeddedResource)
+
+(core/register-read-handler!
+  "embedded-resource"
+  (transit/read-handler
+    (fn [data]
+      (map->EmbeddedResource
+        (cond-> data
+          (bytes? (:content data)) (update :content #(ByteString/copyFrom ^bytes %)))))))
+
+(core/register-write-handler!
+  EmbeddedResource
+  (transit/write-handler
+    (constantly "embedded-resource")
+    (fn [resource]
+      (cond-> (select-keys resource [:source :project-path :name :ext :source-type :children :content :data :editable :loaded])
+        (instance? ByteString (:content resource)) (update :content #(.toByteArray ^ByteString %))))))
+
+(defmethod print-method EmbeddedResource [resource ^java.io.Writer w]
+  (.write w (format "{:EmbeddedResource %s}" (pr-str (proj-path resource)))))
+
+(defn entry-source
+  "Returns the containing file or ZIP entry for an embedded resource, or nil."
+  [resource]
+  (when (instance? EmbeddedResource resource)
+    (:source resource)))
+
+(defn content-source-path
+  "Returns the project path supplying an entry's bytes, or nil for stored content."
+  [resource]
+  (get-in resource [:content :path]))
+
+(defn has-content?
+  "True when a resource can be copied, including every descendant of a folder."
+  [resource]
+  (if (= :folder (source-type resource))
+    (coll/every? has-content? (children resource))
+    (or (not (instance? EmbeddedResource resource))
+        (some? (:content resource)))))
 
 (defn make-resource-entry
   "Creates a read-only entry in a physical file or ZIP entry. Content is ByteString,
@@ -761,20 +793,11 @@
   [source {:keys [path name ext content children data]}]
   {:pre [(or (file-resource? source) (zip-resource? source))
          (= :file (source-type source))
-         (nil? (entry-source source))
          (not (string/starts-with? path "/"))]}
-  (let [entry-path (str (proj-path source) "/" path)
-        filename (FilenameUtils/getName ^String path)
-        ext (or ext (FilenameUtils/getExtension filename))
-        resource (assoc source
-                   :name (or name filename)
-                   :ext ext
-                   :children children
-                   :data data
-                   :entry {:source source :content content})]
-    (if (zip-resource? source)
-      (assoc resource :path (subs entry-path 1) :zip-entry (when-not children (:zip-entry source)))
-      (assoc resource :project-path entry-path :source-type (if children :folder :file)))))
+  (let [filename (FilenameUtils/getName ^String path)]
+    (->EmbeddedResource source (str (proj-path source) "/" path)
+                        (or name filename) (or ext (FilenameUtils/getExtension filename))
+                        (if children :folder :file) children content data (editable? source) (loaded? source))))
 
 (defn- outside-base-path? [base-path ^ZipEntry entry]
   (and (seq base-path) (not (.startsWith (->unix-seps (.getName entry)) (str base-path "/")))))
@@ -809,8 +832,8 @@
 (defn- ->zip-resources [workspace zip-uri path [key val]]
   (let [path' (if (string/blank? path) key (str path "/" key))]
     (if (:path val) ; i.e. we've reached an actual entry with name, path, zip-entry
-      (ZipResource. workspace zip-uri (:name val) (:path val) (:zip-entry val) nil nil)
-      (ZipResource. workspace zip-uri key path' nil (mapv #(->zip-resources workspace zip-uri path' %) val) nil))))
+      (ZipResource. workspace zip-uri (:name val) (:path val) (:zip-entry val) nil)
+      (ZipResource. workspace zip-uri key path' nil (mapv #(->zip-resources workspace zip-uri path' %) val)))))
 
 (defn load-zip-resources
   ([workspace ^File zip-file]

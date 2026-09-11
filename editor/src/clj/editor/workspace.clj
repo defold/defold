@@ -203,8 +203,7 @@ ordinary paths."
   (let [view-types (:view-types (resource/resource-type resource))]
     (cond->> view-types
       (and (coll/any? #(= :code (:id %)) view-types)
-           (or (not (resource/has-content? resource))
-               (text-util/binary? resource)))
+           (text-util/binary? resource))
       (filterv #(not= :code (:id %))))))
 
 (defn- editor-openable-view-type? [view-type]
