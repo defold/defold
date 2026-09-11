@@ -21,6 +21,7 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [support.test-support :refer [with-clean-system]]))
 
 (defn- all-file-resources
@@ -37,9 +38,9 @@
 
 (defn- save-tracked-resources [project]
   (let [basis (g/now)]
-    (->> (g/sources-of basis project :save-data)
-         (map (fn [[resource-node-id]]
-                (resource-node/resource basis resource-node-id)))
+    (->> (g/inputs basis project :save-data)
+         (map (fn [arc]
+                (resource-node/resource basis (gt/source-id arc))))
          (sort-by resource/proj-path)
          (vec))))
 

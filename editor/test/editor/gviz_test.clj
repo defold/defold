@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.gviz :as gviz]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [support.test-support :refer [tx-nodes with-clean-system]]))
 
 (deftest installed []
@@ -51,7 +52,7 @@
           project (test-util/setup-project! workspace)
           node-id (test-util/resource-node project "/logic/main.gui")
           basis (g/now)
-          dot (gviz/subgraph->dot basis :root-id node-id :input-fn (fn [[s sl t tl]]
-                                                                     (when-let [type (g/node-type* basis t)]
-                                                                       ((g/cascade-deletes type) tl))))]
+          dot (gviz/subgraph->dot basis :root-id node-id :input-fn (fn [arc]
+                                                                     (when-let [type (g/node-type* basis (gt/target-id arc))]
+                                                                       ((g/cascade-deletes type) (gt/target-label arc)))))]
       (is (< 1000 (count dot))))))

@@ -439,24 +439,20 @@
           ensure-arcs!
           (fn ensure-arcs! [expected-arcs]
             (let [basis (g/now)]
-              (doseq [source-node-id (coll/into-> expected-arcs [] (map first) (distinct))]
+              (doseq [source-node-id (coll/into-> expected-arcs [] (map gt/source-id) (distinct))]
                 (is (= (coll/into-> expected-arcs []
-                         (keep (fn [[expected-source-node-id _source-label expected-target-node-id expected-target-label]]
-                                 (when (= source-node-id expected-source-node-id)
-                                   [expected-target-node-id expected-target-label]))))
-                       (g/targets basis source-node-id :property-output))))
+                         (filter #(= source-node-id (gt/source-id %))))
+                       (g/outputs basis source-node-id :property-output))))
 
-              (is (= (coll/into-> expected-arcs []
-                       (map (fn [[expected-source-node-id expected-source-label _target-node-id _target-label]]
-                              [expected-source-node-id expected-source-label])))
-                     (g/sources basis target-node-id :array-input)))))]
+              (is (= expected-arcs
+                     (g/inputs basis target-node-id :array-input)))))]
 
       (testing "Before deleting source."
         (ensure-arcs!
-          [[first-source-node-id :property-output target-node-id :array-input]
-           [deleted-source-node-id :property-output target-node-id :array-input]
-           [second-source-node-id :property-output target-node-id :array-input]
-           [deleted-source-node-id :property-output target-node-id :array-input]]))
+          [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc deleted-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc second-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc deleted-source-node-id :property-output target-node-id :array-input)]))
 
       (testing "After deleting source."
         (g/transact
@@ -464,8 +460,8 @@
           (g/delete-node deleted-source-node-id))
 
         (ensure-arcs!
-          [[first-source-node-id :property-output target-node-id :array-input]
-           [second-source-node-id :property-output target-node-id :array-input]]))
+          [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc second-source-node-id :property-output target-node-id :array-input)]))
 
       (testing "After connecting later source."
         (g/transact
@@ -473,19 +469,19 @@
           (g/connect later-source-node-id :property-output target-node-id :array-input))
 
         (ensure-arcs!
-          [[first-source-node-id :property-output target-node-id :array-input]
-           [second-source-node-id :property-output target-node-id :array-input]
-           [later-source-node-id :property-output target-node-id :array-input]]))
+          [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc second-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc later-source-node-id :property-output target-node-id :array-input)]))
 
       (testing "After undoing source deletion."
         (g/undo! ::delete-source)
 
         (ensure-arcs!
-          [[first-source-node-id :property-output target-node-id :array-input]
-           [deleted-source-node-id :property-output target-node-id :array-input]
-           [second-source-node-id :property-output target-node-id :array-input]
-           [deleted-source-node-id :property-output target-node-id :array-input]
-           [later-source-node-id :property-output target-node-id :array-input]])))))
+          [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc deleted-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc second-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc deleted-source-node-id :property-output target-node-id :array-input)
+           (gt/->Arc later-source-node-id :property-output target-node-id :array-input)])))))
 
 (deftest undo-node-deletion-preserves-empty-arc-table-next-pkid-test
   (testing "Source arcs."
@@ -517,9 +513,9 @@
 
         (g/undo! ::disconnect-first-target)
 
-        (is (= [[first-target-node-id :regular-input]
-                [second-target-node-id :regular-input]]
-               (g/targets (g/now) source-node-id :property-output))))))
+        (is (= [(gt/->Arc source-node-id :property-output first-target-node-id :regular-input)
+                (gt/->Arc source-node-id :property-output second-target-node-id :regular-input)]
+               (g/outputs (g/now) source-node-id :property-output))))))
 
   (testing "Target arcs."
     (test-support/with-clean-system
@@ -550,9 +546,9 @@
 
         (g/undo! ::disconnect-first-source)
 
-        (is (= [[first-source-node-id :property-output]
-                [second-source-node-id :property-output]]
-               (g/sources (g/now) target-node-id :array-input)))))))
+        (is (= [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)
+                (gt/->Arc second-source-node-id :property-output target-node-id :array-input)]
+               (g/inputs (g/now) target-node-id :array-input)))))))
 
 (deftest undo-node-deletion-invalidates-restored-source-successors-test
   (test-support/with-clean-system
@@ -700,16 +696,15 @@
             (let [basis (g/now)]
               (is (g/node-by-id basis source-node-id))
               (is (g/node-by-id basis target-node-id))
-              (is (= [[target-node-id :regular-input]]
-                     (g/targets basis source-node-id :property-output)))))
+              (is (= [(gt/->Arc source-node-id :property-output target-node-id :regular-input)]
+                     (g/outputs basis source-node-id :property-output)))))
 
           ensure-only-target-node-exists!
           (fn ensure-only-target-node-exists! []
             (let [basis (g/now)]
               (is (= nil (g/node-by-id basis source-node-id)))
               (is (g/node-by-id basis target-node-id))
-              (is (= []
-                     (g/sources basis target-node-id :regular-input)))))
+              (is (coll/empty? (g/inputs basis target-node-id :regular-input)))))
 
           ensure-no-nodes-exist!
           (fn ensure-no-nodes-exist! []
@@ -722,8 +717,7 @@
             (let [basis (g/now)]
               (is (g/node-by-id basis source-node-id))
               (is (= nil (g/node-by-id basis target-node-id)))
-              (is (= []
-                     (g/targets basis source-node-id :property-output)))))]
+              (is (coll/empty? (g/outputs basis source-node-id :property-output)))))]
 
       (testing "Before deleting source node."
         (ensure-connected!))

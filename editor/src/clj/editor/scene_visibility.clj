@@ -23,6 +23,7 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.settings-popup :as settings-popup]
+            [internal.graph.types :as gt]
             [internal.util :as iutil]
             [schema.core :as s]
             [util.coll :as coll])
@@ -170,10 +171,12 @@
                                                          [scene-resource-node hide-history])))
 
 (defn- find-scene-hide-history-node [scene-visibility scene-resource-node]
-  (some (fn [[scene-hide-history-node]]
-          (when (some-> (g/node-feeding-into scene-hide-history-node :scene-resource-node) (= scene-resource-node))
-            scene-hide-history-node))
-        (g/sources-of scene-visibility :scene-hide-history-datas)))
+  (let [basis (g/now)]
+    (some (fn [arc]
+            (let [scene-hide-history-node (gt/source-id arc)]
+              (when (some-> (g/node-feeding-into basis scene-hide-history-node :scene-resource-node) (= scene-resource-node))
+                scene-hide-history-node)))
+          (g/inputs basis scene-visibility :scene-hide-history-datas))))
 
 (defn- show-outline-name-paths! [scene-visibility outline-name-paths]
   (assert (set? (not-empty outline-name-paths)))

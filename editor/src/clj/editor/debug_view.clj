@@ -963,5 +963,5 @@
   (->> (g/node-value (dev/project) :breakpoints)
        (group-by #(get-in % [:resource :project-path])))
 
-  (g/targets-of (dev/project) :breakpoints)
-  (g/sources-of (dev/project) :breakpoints))
+  (g/outputs (g/now) (dev/project) :breakpoints)
+  (g/inputs (g/now) (dev/project) :breakpoints))

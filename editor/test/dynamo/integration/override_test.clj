@@ -24,6 +24,7 @@
             [internal.util]
             [schema.core :as s]
             [support.test-support :as ts]
+            [util.coll :as coll]
             [util.fn :as fn])
   (:import [javax.vecmath Vector3d]))
 
@@ -264,16 +265,16 @@
                                                                   cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
                                                      (g/connect main :value cache :value)
                                                      (g/override main {})))]
-        (is (= cache-node (ffirst (g/targets-of main :value))))
-        (is (empty? (g/targets-of or-main :value))))))
+        (is (= cache-node (some-> (first (g/outputs (g/now) main :value)) gt/target-id)))
+        (is (coll/empty? (g/outputs (g/now) or-main :value))))))
   (testing "existing override"
     (ts/with-clean-system
       (let [[main cache-node] (ts/tx-nodes (g/make-nodes [main [SubNode :value "test"]
                                                           cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
                                              (g/connect main :value cache :value)))
             [or-cache-node or-main] (ts/tx-nodes (g/override cache-node {}))]
-        (is (= cache-node (ffirst (g/targets-of main :value))))
-        (is (= or-cache-node (ffirst (g/targets-of or-main :value))))))))
+        (is (= cache-node (some-> (first (g/outputs (g/now) main :value)) gt/target-id)))
+        (is (= or-cache-node (some-> (first (g/outputs (g/now) or-main :value)) gt/target-id)))))))
 
 (g/defnode StringInput
   (input value g/Str :cascade-delete))
@@ -288,16 +289,16 @@
                                                                   cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
                                                      (g/connect cache :cached-value main :value)
                                                      (g/override main {:traverse-fn g/never-override-traverse-fn})))]
-        (is (= cache-node (ffirst (g/sources-of main :value))))
-        (is (= cache-node (ffirst (g/sources-of or-main :value)))))))
+        (is (= cache-node (some-> (first (g/inputs (g/now) main :value)) gt/source-id)))
+        (is (= cache-node (some-> (first (g/inputs (g/now) or-main :value)) gt/source-id))))))
   (testing "existing override"
     (ts/with-clean-system
       (let [[main cache-node] (ts/tx-nodes (g/make-nodes [main StringInput
                                                           cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
                                              (g/connect cache :cached-value main :value)))
             [or-main or-cache-node] (ts/tx-nodes (g/override cache-node {}))]
-        (is (= cache-node (ffirst (g/sources-of main :value))))
-        (is (= or-cache-node (ffirst (g/sources-of or-main :value))))))))
+        (is (= cache-node (some-> (first (g/inputs (g/now) main :value)) gt/source-id)))
+        (is (= or-cache-node (some-> (first (g/inputs (g/now) or-main :value)) gt/source-id)))))))
 
 (deftest lonely-override-leaves-cache []
   (ts/with-clean-system
@@ -554,7 +555,7 @@
                        (if current-tree
                          (g/delete-node current-tree)
                          [])
-                       (let [scene (ffirst (g/targets-of basis self :_node-id))
+                       (let [scene (some-> (first (g/outputs basis self :_node-id)) gt/target-id)
                              node-tree (g/node-value scene :node-tree evaluation-context)]
                          (g/override node-tree {}
                                      (fn [evaluation-context id-mapping]
@@ -610,7 +611,7 @@
   (get (g/node-value scene :node-ids) node-id))
 
 (defn- target [n label]
-  (ffirst (g/targets-of n label)))
+  (some-> (first (g/outputs (g/now) n label)) gt/target-id))
 
 (deftest scene-loading
   (ts/with-clean-system
@@ -711,7 +712,7 @@
           [scene] (make-scene! "scene" [[Template {:id "template" :template {:path "sub-scene" :overrides {}}}]])
           [super-scene] (make-scene! "super-scene" [[Template {:id "super-template" :template {:path "scene" :overrides {}}}]])
           template (node-by-id super-scene "super-template/template")
-          or-scene (ffirst (g/sources-of template :template-resource))]
+          or-scene (some-> (first (g/inputs (g/now) template :template-resource)) gt/source-id)]
       (is (= "sub-scene" (:path (g/node-value (g/override-original or-scene) :resource)))))))
 
 ;; Simulated layout problem
@@ -837,14 +838,22 @@
 (defn- conn? [[src src-label tgt tgt-label]]
   (let [basis (g/now)]
     (and (g/connected? basis src src-label tgt tgt-label)
-         (contains? (into #{} (ig/sources basis tgt tgt-label)) [src src-label])
-         (contains? (into #{} (ig/targets basis src src-label)) [tgt tgt-label]))))
+         (coll/any? #(and (= src (gt/source-id %))
+                          (= src-label (gt/source-label %)))
+                    (g/inputs basis tgt tgt-label))
+         (coll/any? #(and (= tgt (gt/target-id %))
+                          (= tgt-label (gt/target-label %)))
+                    (g/outputs basis src src-label)))))
 
 (defn- no-conn? [[src src-label tgt tgt-label]]
   (let [basis (g/now)]
     (and (not (g/connected? basis src src-label tgt tgt-label))
-         (not (contains? (into #{} (ig/sources basis tgt tgt-label)) [src src-label]))
-         (not (contains? (into #{} (ig/targets basis src src-label)) [tgt tgt-label])))))
+         (coll/not-any? #(and (= src (gt/source-id %))
+                              (= src-label (gt/source-label %)))
+                        (g/inputs basis tgt tgt-label))
+         (coll/not-any? #(and (= tgt (gt/target-id %))
+                              (= tgt-label (gt/target-label %)))
+                        (g/outputs basis src src-label)))))
 
 (defn- deps [tgts]
   (ts/graph-dependencies tgts))
@@ -1006,27 +1015,25 @@
 (defn- remove-idx [v ix]
   (into (subvec v 0 ix) (subvec v (inc ix))))
 
-(defn- all-system-nodes []
-  (vec (ig/node-ids (g/now))))
-
 (deftest symmetric-input-output-arcs
   (test-util/with-loaded-project "test/resources/override_project"
-    (let [all-nodes (all-system-nodes)
+    (let [basis (g/now)
+          all-nodes (vec (ig/node-ids basis))
           node-outputs (reduce (fn [result n]
                                  (reduce (fn [result label]
-                                           (assoc-in result [n label] (vec (g/labelled-outputs n label))))
+                                           (assoc-in result [n label] (vec (g/outputs basis n label))))
                                          result
                                          (g/output-labels (g/node-type* n))))
                                {}
                                all-nodes)
           node-inputs (reduce (fn [result n]
                                 (reduce (fn [result label]
-                                          (assoc-in result [n label] (vec (g/labelled-inputs n label))))
+                                          (assoc-in result [n label] (vec (g/inputs basis n label))))
                                         result
                                         (g/input-labels (g/node-type* n))))
                               {}
                               all-nodes)]
-      (testing "outputs and labelled-outputs report the same arcs, and same cardinality of arcs"
+      (testing "outputs and per-label outputs report the same arcs, and same cardinality of arcs"
         (doseq [node all-nodes]
           (let [outputs (g/outputs node)
                 outputs-freqs (frequencies outputs)
@@ -1035,7 +1042,7 @@
                 freq-diff [:all-merged (not-empty (set/difference (set outputs-freqs) (set merged-outputs-freqs)))
                            :merged-all (not-empty (set/difference (set merged-outputs-freqs) (set outputs-freqs)))]]
             (is (= freq-diff [:all-merged nil :merged-all nil])))))
-      (testing "inputs and labelled-inputs report the same arcs, and same cardinality of arcs"
+      (testing "inputs and per-label inputs report the same arcs, and same cardinality of arcs"
         (doseq [node all-nodes]
           (let [inputs (g/inputs node)
                 inputs-freqs (frequencies inputs)
@@ -1050,8 +1057,8 @@
             (loop [outputs (g/outputs node)]
               (when (seq outputs)
                 (let [output (first outputs)
-                      target (nth output 2)
-                      target-label (nth output 3)
+                      target (gt/target-id output)
+                      target-label (gt/target-label output)
                       input-index (first (util/positions #(= output %) (get-in @inputs [target target-label])))]
                   (is (some? input-index) (str "missing input for " output " in:\n" (get-in @inputs [target target-label])))
                   (swap! inputs update-in [target target-label] remove-idx input-index)

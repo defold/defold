@@ -53,6 +53,7 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll]
@@ -1025,10 +1026,10 @@
   (let [parent (core/scope node-id)
         children (vec (g/node-value parent :nodes))
         new-children (vec-move children node-id offset)
-        connections (keep (fn [[source source-label target target-label]]
-                            (when (and (= source node-id)
-                                       (= target parent))
-                              [source-label target-label]))
+        connections (keep (fn [arc]
+                            (when (and (= (gt/source-id arc) node-id)
+                                       (= (gt/target-id arc) parent))
+                              [(gt/source-label arc) (gt/target-label arc)]))
                           (g/outputs node-id))]
     (g/transact
       (concat

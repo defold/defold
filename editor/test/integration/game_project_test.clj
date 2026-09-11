@@ -21,6 +21,7 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [service.log :as log]
             [support.test-support :refer [spit-until-new-mtime with-clean-system]])
   (:import [java.io File]))
@@ -64,17 +65,18 @@
   (settings ["project" "title"]))
 
 (defn- ensure-game-project-connections! [project game-project]
-  (let [script-intelligence (g/valid-node-value project :script-intelligence)]
-    (is (contains? (set (g/targets-of script-intelligence :build-errors))
-                   [game-project :build-errors]))
-    (is (contains? (set (g/sources-of project :display-profiles))
-                   [game-project :display-profiles-data]))
-    (is (contains? (set (g/sources-of project :texture-profiles))
-                   [game-project :texture-profiles-data]))
-    (is (contains? (set (g/sources-of project :use-font-layout))
-                   [game-project :use-font-layout]))
-    (is (contains? (set (g/sources-of project :settings))
-                   [game-project :settings-map]))))
+  (let [basis (g/now)
+        script-intelligence (g/valid-node-value project :script-intelligence)]
+    (is (contains? (set (g/outputs basis script-intelligence :build-errors))
+                   (gt/->Arc script-intelligence :build-errors game-project :build-errors)))
+    (is (contains? (set (g/inputs basis project :display-profiles))
+                   (gt/->Arc game-project :display-profiles-data project :display-profiles)))
+    (is (contains? (set (g/inputs basis project :texture-profiles))
+                   (gt/->Arc game-project :texture-profiles-data project :texture-profiles)))
+    (is (contains? (set (g/inputs basis project :use-font-layout))
+                   (gt/->Arc game-project :use-font-layout project :use-font-layout)))
+    (is (contains? (set (g/inputs basis project :settings))
+                   (gt/->Arc game-project :settings-map project :settings)))))
 
 (deftest load-ok-project
   (with-clean-system

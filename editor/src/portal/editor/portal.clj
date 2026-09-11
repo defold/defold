@@ -205,7 +205,7 @@
 (defn- try-nav-node-id [node-id evaluation-context]
   (when (g/node-id? node-id)
     (let [basis (:basis evaluation-context)
-          node (g/node-by-id-at basis node-id)]
+          node (g/node-by-id basis node-id)]
       (when node
         (let [node-type (g/node-type node)
               node-type-view (viewer node-type evaluation-context)

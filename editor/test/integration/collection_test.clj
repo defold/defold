@@ -158,8 +158,8 @@
               coll-comp (:node-id (test-util/outline coll-id [0 0]))
               go-comp (:node-id (test-util/outline go-id [0]))]
           (is (= [coll-comp] (g/overrides go-comp)))
-          (let [coll-script (ffirst (g/sources-of coll-comp :source-id))
-                go-script (ffirst (g/sources-of go-comp :source-id))]
+          (let [coll-script (some-> (first (g/inputs (g/now) coll-comp :source-id)) gt/source-id)
+                go-script (some-> (first (g/inputs (g/now) go-comp :source-id)) gt/source-id)]
             (is (= [coll-script] (g/overrides go-script)))
             (is (some #{go-script} (g/overrides script-id))))
           (is (= 1.0 (script-prop go-comp "number")))

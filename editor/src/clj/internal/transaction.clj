@@ -225,7 +225,7 @@
 
 (defn- flag-successors-changed
   "Merges successor changes into the context. A node id means every label on
-  the node changed; a [node-id label] pair means only that label changed."
+  the node changed; an arc means only its source label changed."
   [ctx changes]
   (if (:full-invalidation ctx)
     ctx
@@ -236,7 +236,8 @@
             (fn [change]
               (if (gt/node-id? change)
                 (get successors-changed change ::not-found)
-                (let [[node-id label] change
+                (let [node-id (gt/source-id change)
+                      label (gt/source-label change)
                       old-affected-node-labels (get successors-changed node-id ::not-found)]
                   (case old-affected-node-labels
                     nil false ; All node labels are already flagged as changed.
@@ -254,7 +255,8 @@
                 (fn [successors-changed change]
                   (if (gt/node-id? change)
                     (assoc! successors-changed change nil)
-                    (let [[node-id label] change
+                    (let [node-id (gt/source-id change)
+                          label (gt/source-label change)
                           old-affected-node-labels (get successors-changed node-id ::not-found)]
                       (case old-affected-node-labels
                         nil successors-changed ; All node labels are already flagged as changed.
@@ -277,12 +279,12 @@
   nodes and arcs differing between the old-basis and the new-basis."
   [old-basis new-basis node-ids arcs]
   {:pre [(set? node-ids)]}
-  (let [arc-target->sources (coll/reduce-> arcs {}
-                              (fn [arc-target->sources arc]
-                                (update arc-target->sources
+  (let [arc-target->arc-set (coll/reduce-> arcs {}
+                              (fn [arc-target->arc-set arc]
+                                (update arc-target->arc-set
                                         (gt/target arc)
                                         coll/conj-set
-                                        (gt/source arc))))]
+                                        arc)))]
     (coll/into-> (pair old-basis new-basis) :eduction
       (mapcat
         (fn [basis]
@@ -296,26 +298,26 @@
 
               ;; Sources targeting a changed node or any of its overrides must
               ;; account for changes to their effective outgoing arcs.
-              (e/mapcat #(ig/sources basis %) node-and-override-ids)
+              (e/mapcat #(ig/arcs-by-target basis %) node-and-override-ids)
 
               (e/mapcat
-                (fn [[[target-id target-label] sources]]
+                (fn [[[target-id target-label] source-arcs]]
                   ;; The changed-node traversal above already covered every
                   ;; source targeting this node and its overrides.
                   (when-not (contains? node-and-override-id-set target-id)
-                    (let [direct-sources (e/remove
-                                           (fn [[source-id _source-label]]
-                                             ;; A changed source node already
-                                             ;; invalidates all of its labels.
-                                             (contains? node-ids source-id))
-                                           sources)]
+                    (let [direct-source-arcs (e/remove
+                                               (fn [arc]
+                                                 ;; A changed source node already
+                                                 ;; invalidates all of its labels.
+                                                 (contains? node-ids (gt/source-id arc)))
+                                               source-arcs)]
                       (if-not (ig/node-by-id-at basis target-id)
-                        direct-sources
+                        direct-source-arcs
                         (e/concat
-                          direct-sources
-                          (e/mapcat #(ig/sources basis % target-label)
+                          direct-source-arcs
+                          (e/mapcat #(ig/arcs-by-target basis % target-label)
                                     (ig/pre-traverse basis [target-id] ig/get-overrides)))))))
-                arc-target->sources)))))
+                arc-target->arc-set)))))
       (distinct))))
 
 (defn- ctx-add-nodes [ctx nodes introduced-node-id->pkid->override-node-id]
@@ -1509,7 +1511,7 @@
 
 (defn disconnect-sources
   [basis target-id target-label]
-  (for [arc (ig/explicit-inputs basis target-id target-label)]
+  (for [arc (ig/explicit-arcs-by-target basis target-id target-label)]
     (disconnect (gt/source-id arc) (gt/source-label arc) target-id target-label)))
 
 (defonce/type LabelTXS [label]

@@ -137,8 +137,19 @@
 
 (defn- label-tree-node [{:keys [basis] :as ec} node-id label]
   (let [[v e :as v-or-e] (node-value-or-err ec node-id label)
-        sources (g/sources-of basis node-id label)
-        targets (g/targets-of basis node-id label)]
+        inputs (g/inputs basis node-id label)
+        outputs (g/outputs basis node-id label)
+        related-node (fn [relation rel-node-id related-label]
+                       (let [[v e :as v-or-e] (node-value-or-err ec rel-node-id related-label)]
+                         {:value (or e v)
+                          :render (r/horizontal
+                                    (r/raw-string relation {:fill :util})
+                                    (r/stream related-label)
+                                    (r/raw-string " of " {:fill :util})
+                                    (node-id-sf ec rel-node-id)
+                                    (r/raw-string ": " {:fill :util})
+                                    (node-value-or-err->sf v-or-e))
+                          :children (node-children-fn ec rel-node-id)}))]
     (cond->
       {:value (or e v)
        :annotation {::node-id+label [node-id label]}
@@ -146,22 +157,14 @@
                  (r/stream label)
                  r/separator
                  (node-value-or-err->sf v-or-e))}
-      (or (seq sources) (seq targets))
-      (assoc :children #(map (fn [[relation [rel-node-id related-label]]]
-                               (let [[v e :as v-or-e] (node-value-or-err ec rel-node-id related-label)]
-                                 {:value (or e v)
-                                  :render (r/horizontal
-                                            (r/raw-string
-                                              ({:source "<- " :target "-> "} relation)
-                                              {:fill :util})
-                                            (r/stream related-label)
-                                            (r/raw-string " of " {:fill :util})
-                                            (node-id-sf ec rel-node-id)
-                                            (r/raw-string ": " {:fill :util})
-                                            (node-value-or-err->sf v-or-e))
-                                  :children (node-children-fn ec rel-node-id)}))
-                             (concat (map (fn [x] [:source x]) sources)
-                                     (map (fn [x] [:target x]) targets)))))))
+      (or (coll/not-empty inputs) (coll/not-empty outputs))
+      (assoc :children #(concat
+                          (map (fn [arc]
+                                 (related-node "<- " (gt/source-id arc) (gt/source-label arc)))
+                               inputs)
+                          (map (fn [arc]
+                                 (related-node "-> " (gt/target-id arc) (gt/target-label arc)))
+                               outputs))))))
 
 (defn root-tree-node [ec node-id]
   {:value node-id

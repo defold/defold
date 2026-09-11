@@ -87,7 +87,7 @@
         (comp (map gt/source-id)
               (distinct)
               (mapcat source-id->tx-data))
-        (ig/explicit-inputs basis target-id target-label)))
+        (ig/explicit-arcs-by-target basis target-id target-label)))
 
 (defn delete-connected-nodes-tx-data [basis target-id target-label]
   (mapv-source-ids g/delete-node basis target-id target-label))

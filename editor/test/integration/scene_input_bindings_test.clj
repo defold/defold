@@ -27,7 +27,8 @@
             [editor.tile-map-common :as tile-map-common]
             [editor.types :as types]
             [editor.ui :as ui]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt])
   (:import [javafx.scene Group Scene]
            [javafx.scene.control ContextMenu]
            [javax.vecmath Point3d]))
@@ -81,19 +82,21 @@
 
 (defn- tile-map-controller [view]
   (reduce
-    (fn [_ [node-id]]
-      (when (g/node-instance? tile-map/TileMapController node-id)
-        (reduced node-id)))
+    (fn [_ arc]
+      (let [source-node-id (gt/source-id arc)]
+        (when (g/node-instance? tile-map/TileMapController source-node-id)
+          (reduced source-node-id))))
     nil
-    (g/sources-of view :input-handlers)))
+    (g/inputs (g/now) view :input-handlers)))
 
 (defn- camera-controller [view]
   (reduce
-    (fn [_ [node-id]]
-      (when (g/node-instance? camera/CameraController node-id)
-        (reduced node-id)))
+    (fn [_ arc]
+      (let [source-node-id (gt/source-id arc)]
+        (when (g/node-instance? camera/CameraController source-node-id)
+          (reduced source-node-id))))
     nil
-    (g/sources-of view :input-handlers)))
+    (g/inputs (g/now) view :input-handlers)))
 
 (defn- cell-at [layer-node [x y]]
   (tile-map-common/cell-at (g/node-value layer-node :cell-map) [x y]))
@@ -475,7 +478,7 @@
           :action ["Pan"]
           :binding {:button :secondary :modifiers #{}}}])
       (let [[resource-node view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
-            go-node (ffirst (g/sources-of resource-node :child-scenes))
+            go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)
             ;; Showing the context menu is a JavaFX side effect that needs a live
             ;; scene/window we don't have here, so stub it with a ContextMenu that only
             ;; records the show. Queueing and draining the menu both go through the main

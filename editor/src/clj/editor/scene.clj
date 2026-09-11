@@ -65,6 +65,7 @@
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.eduction :as e]
@@ -1396,7 +1397,7 @@
 
 (defn refresh-scene-view! [node-id dt]
   (let [basis (g/now)
-        node (g/node-by-id-at basis node-id)
+        node (g/node-by-id basis node-id)
         image-view (g/raw-property-value* basis node :image-view)]
     (when-not (ui/inside-hidden-tab? image-view)
       (let [drawable (g/raw-property-value* basis node :drawable)
@@ -1745,14 +1746,16 @@
     :command :scene.realign-camera}])
 
 (defn dispatch-input [input-handlers input-state action user-data]
-  (reduce (fn [action [node-id label]]
+  (reduce (fn [action arc]
             (when action
-              ((g/node-value node-id label) node-id input-state action user-data)))
+              (let [node-id (gt/source-id arc)
+                    label (gt/source-label arc)]
+                ((g/node-value node-id label) node-id input-state action user-data))))
           action input-handlers))
 
 (defn input-dispatch-context [view-id]
   (g/with-auto-evaluation-context evaluation-context
-    {:input-handlers (g/sources-of (:basis evaluation-context) view-id :input-handlers)
+    {:input-handlers (g/inputs (:basis evaluation-context) view-id :input-handlers)
      :user-data (g/node-value view-id :selected-tool-renderables evaluation-context)
      :mouse-binding-context (g/node-value view-id :mouse-binding-context evaluation-context)}))
 
@@ -1770,10 +1773,12 @@
 
 (defn update-tick-handlers [view-id input-state dt]
   (g/with-auto-evaluation-context evaluation-context
-    (let [update-tick-handlers (g/sources-of (:basis evaluation-context) view-id :update-tick-handlers)]
-      (reduce (fn [input-state [node-id label]]
+    (let [update-tick-handlers (g/inputs (:basis evaluation-context) view-id :update-tick-handlers)]
+      (reduce (fn [input-state arc]
                 (when input-state
-                  ((g/node-value node-id label evaluation-context) node-id input-state dt)))
+                  (let [node-id (gt/source-id arc)
+                        label (gt/source-label arc)]
+                    ((g/node-value node-id label evaluation-context) node-id input-state dt))))
               input-state
               update-tick-handlers))))
 

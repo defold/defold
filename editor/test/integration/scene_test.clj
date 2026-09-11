@@ -24,6 +24,7 @@
             [editor.system :as system]
             [editor.types :as types]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [editor.types AABB]
@@ -36,14 +37,14 @@
   (testing "Scene generation"
     (let [cases {"/logic/atlas_sprite.collection"
                  (fn [node-id view-id]
-                   (let [go (ffirst (g/sources-of node-id :child-scenes))]
+                   (let [go (some-> (first (g/inputs (g/now) node-id :child-scenes)) gt/source-id)]
                      (is (= (g/node-value view-id :scene-aabb) (geom/coords->aabb [-101 -97 0] [101 97 0])))
                      (g/transact (g/set-property go :position [10 0 0]))
                      (is (= (g/node-value view-id :scene-aabb) (geom/coords->aabb [-91 -97 0] [111 97 0])))))
 
                  "/logic/atlas_sprite.go"
                  (fn [node-id view-id]
-                   (let [component (ffirst (g/sources-of node-id :child-scenes))]
+                   (let [component (some-> (first (g/inputs (g/now) node-id :child-scenes)) gt/source-id)]
                      (is (= (g/node-value view-id :scene-aabb) (geom/coords->aabb [-101 -97] [101 97])))
                      (g/transact (g/set-property component :position [10 0 0]))
                      (is (= (g/node-value view-id :scene-aabb) (geom/coords->aabb [-91 -97] [111 97])))))
@@ -79,7 +80,7 @@
            (test-util/with-loaded-project
              (let [path          "/logic/atlas_sprite.collection"
                    [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-                   go-node       (ffirst (g/sources-of resource-node :child-scenes))]
+                   go-node       (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
                (is (test-util/selected? app-view resource-node))
                ;; Press
                (test-util/mouse-press! view 32 32)
@@ -105,7 +106,7 @@
            (test-util/with-loaded-project
              (let [path          "/logic/two_atlas_sprites.collection"
                    [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-                   go-nodes      (map first (g/sources-of resource-node :child-scenes))]
+                   go-nodes      (map gt/source-id (g/inputs (g/now) resource-node :child-scenes))]
                (is (test-util/selected? app-view resource-node))
                ;; Drag entire screen
                (test-util/mouse-drag! view 0 0 128 128)
@@ -128,7 +129,7 @@
            (test-util/with-loaded-project
              (let [path "/logic/atlas_sprite.collection"
                    [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-                   go-node (ffirst (g/sources-of resource-node :child-scenes))]
+                   go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
                (is (test-util/selected? app-view resource-node))
                ;; Initial selection
                (test-util/mouse-click! view 64 64)
@@ -164,7 +165,7 @@
     (test-util/with-loaded-project
       (let [path "/logic/atlas_sprite.collection"
             [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-            go-node (ffirst (g/sources-of resource-node :child-scenes))]
+            go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
         (test-util/mouse-click! view 64 64)
         (is (test-util/selected? app-view go-node))
         (test-util/set-active-tool! app-view :move)
@@ -183,8 +184,8 @@
     (test-util/with-loaded-project
       (let [path "/logic/atlas_sprite.collection"
             [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-            go-node (ffirst (g/sources-of resource-node :child-scenes))
-            tool-controller (ffirst (g/sources-of view :preview-overrides))
+            go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)
+            tool-controller (some-> (first (g/inputs (g/now) view :preview-overrides)) gt/source-id)
             initial-position (g/node-value go-node :position)
             initial-camera (g/node-value view :camera)]
         (g/transact
@@ -203,7 +204,7 @@
     (test-util/with-loaded-project
       (let [path          "/logic/atlas_sprite.collection"
             [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-            go-node       (ffirst (g/sources-of resource-node :child-scenes))]
+            go-node       (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
         (is (test-util/selected? app-view resource-node))
         ;; Click
         (test-util/mouse-click! view 32 32)
@@ -229,7 +230,7 @@
            (test-util/with-loaded-project
              (let [path          "/collection/empty_go.collection"
                    [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-                   go-node       (ffirst (g/sources-of resource-node :child-scenes))]
+                   go-node       (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)]
                (is (test-util/selected? app-view resource-node))
                ;; Initial selection (empty go's are not selectable in the view)
                (app-view/select! app-view [go-node])
@@ -245,7 +246,7 @@
     (test-util/with-loaded-project
       (let [path "/logic/atlas_sprite.collection"
             [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
-            go-node (ffirst (g/sources-of resource-node :child-scenes))
+            go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)
             original-meta {:version "original"}]
         (app-view/select! app-view [go-node])
         (is (test-util/selected? app-view go-node))

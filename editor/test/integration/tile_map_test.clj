@@ -19,7 +19,8 @@
             [editor.localization :as localization]
             [editor.tile-map :as tile-map]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt]))
 
 (deftest tile-map-outline
   (testing "shows all layers"
@@ -58,7 +59,7 @@
 (deftest tile-map-cell-order-deterministic
   (test-util/with-loaded-project
     (let [tilemap-id (test-util/resource-node project "/tilegrid/with_layers.tilemap")
-          layer-ids (map first (g/sources-of tilemap-id :layer-msgs))
+          layer-ids (map gt/source-id (g/inputs (g/now) tilemap-id :layer-msgs))
           layer-id (some #(when (= "layer1" (g/node-value % :id)) %) layer-ids)]
       (when (is (some? layer-id))
         (let [cell-map (g/node-value layer-id :cell-map)

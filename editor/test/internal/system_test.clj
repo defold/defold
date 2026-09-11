@@ -606,10 +606,10 @@
 
         (is (= 0 (count (ts/undo-stack :undo/global))))
         (is (= "INITIAL VALUE" (g/node-value v-sink :loud)))
-        (is (= [[p-source :source-label v-sink :target-label]]
-               (g/arcs->tuples (sarcs p-source :source-label))))
-        (is (= [[p-source :source-label v-sink :target-label]]
-               (g/arcs->tuples (tarcs v-sink :target-label))))
+        (is (= [(gt/->Arc p-source :source-label v-sink :target-label)]
+               (vec (sarcs p-source :source-label))))
+        (is (= [(gt/->Arc p-source :source-label v-sink :target-label)]
+               (vec (tarcs v-sink :target-label))))
         (is (= #{(gt/endpoint p-source :_declared-properties)
                  (gt/endpoint p-source :source-label)
                  (gt/endpoint p-source :_properties)
@@ -704,8 +704,8 @@
                  (gt/endpoint p-source :_properties)
                  (gt/endpoint v-sink :loud)}
                (set (successors p-source :source-label))))
-        (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (sarcs p-source :source-label))))
-        (is (= [[p-source :source-label v-sink :target-label]] (g/arcs->tuples (tarcs v-sink :target-label))))
+        (is (= [(gt/->Arc p-source :source-label v-sink :target-label)] (vec (sarcs p-source :source-label))))
+        (is (= [(gt/->Arc p-source :source-label v-sink :target-label)] (vec (tarcs v-sink :target-label))))
 
         (is (= "INITIAL VALUE" (g/node-value v-sink :loud)))
 
@@ -717,8 +717,8 @@
                  (gt/endpoint p-source :source-label)
                  (gt/endpoint p-source :_properties)}
                (set (successors p-source :source-label))))
-        (is (= [] (g/arcs->tuples (sarcs p-source :source-label))))
-        (is (= [] (g/arcs->tuples (tarcs v-sink :target-label))))
+        (is (= [] (vec (sarcs p-source :source-label))))
+        (is (= [] (vec (tarcs v-sink :target-label))))
 
         (is (= nil (g/node-value v-sink :loud)))
 

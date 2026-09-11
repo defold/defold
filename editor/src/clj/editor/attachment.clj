@@ -356,7 +356,7 @@
   [child-node-type]
   (fn get-nodes-by-type [node evaluation-context]
     (let [basis (:basis evaluation-context)]
-      (coll/into-> (g/explicit-arcs-by-target basis node :nodes) []
+      (coll/into-> (g/explicit-inputs basis node :nodes) []
         (map gt/source-id)
         (filter #(= child-node-type (g/node-type* basis %)))))))
 
@@ -369,4 +369,4 @@
   (let [basis (:basis evaluation-context)]
     (if (g/override? basis node)
       (g/node-value node :nodes evaluation-context)
-      (mapv gt/source-id (g/explicit-arcs-by-target basis node :nodes)))))
+      (mapv gt/source-id (g/explicit-inputs basis node :nodes)))))

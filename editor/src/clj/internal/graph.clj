@@ -468,12 +468,6 @@
     (assoc-in node-id->label->arc-table node-id+label (apply arc-table-fn arc-table args))
     node-id->label->arc-table))
 
-(defn arcs->tuples [arcs]
-  ;; TODO: Get rid of this and expose Arc instances directly.
-  (mapv (fn [arc]
-          [(gt/source-id arc) (gt/source-label arc) (gt/target-id arc) (gt/target-label arc)])
-        arcs))
-
 (defn arc-endpoints-p [p arc]
   (and (p (gt/source-id arc) (gt/source-label arc))
        (p (gt/target-id arc) (gt/target-label arc))))
@@ -658,30 +652,6 @@
    (node-id->arcs (gt/tarcs basis) target-id))
   ([basis target-id target-label]
    (arc-table-arcs (-> basis gt/tarcs (get target-id) (get target-label)))))
-
-(defn explicit-inputs
-  ([basis node-id]
-   (explicit-arcs-by-target basis node-id))
-  ([basis node-id label]
-   (explicit-arcs-by-target basis node-id label)))
-
-(defn explicit-outputs
-  ([basis node-id]
-   (explicit-arcs-by-source basis node-id))
-  ([basis node-id label]
-   (explicit-arcs-by-source basis node-id label)))
-
-(defn explicit-sources
-  ([basis target-id]
-   (mapv gt/source (explicit-inputs basis target-id)))
-  ([basis target-id target-label]
-   (mapv gt/source (explicit-inputs basis target-id target-label))))
-
-(defn explicit-targets
-  ([basis source-id]
-   (mapv gt/target (explicit-outputs basis source-id)))
-  ([basis source-id target-label]
-   (mapv gt/target (explicit-outputs basis source-id target-label))))
 
 (defn- lift-source-arc
   "Used by arcs-by-source/lift-source-arcs to infer all implicit arcs
@@ -944,18 +914,6 @@
        (or (propagate-source-arcs basis lifted-arcs)
            [])))))
 
-(defn inputs
-  ([basis node-id]
-   (arcs-by-target basis node-id))
-  ([basis node-id label]
-   (arcs-by-target basis node-id label)))
-
-(defn outputs
-  ([basis node-id]
-   (arcs-by-source basis node-id))
-  ([basis node-id label]
-   (arcs-by-source basis node-id label)))
-
 (defn cascade-delete-sources
   "Successors function for use with pre-traverse that produces all the node ids
   that will be deleted along with the original node. Duplicates produced by this
@@ -1101,18 +1059,12 @@
                       (recur next-tasks))))
                 (.keySet all-endpoints)))))))
 
-(defn sources
-  ([basis node-id] (mapv gt/source (inputs basis node-id)))
-  ([basis node-id label] (mapv gt/source (inputs basis node-id label))))
-
-(defn targets
-  ([basis node-id] (mapv gt/target (outputs basis node-id)))
-  ([basis node-id label] (mapv gt/target (outputs basis node-id label))))
-
 (defn connected?
   [basis source-id source-label target-id target-label]
-  (let [targets (targets basis source-id source-label)]
-    (coll/any? #{[target-id target-label]} targets)))
+  (coll/any? (fn [arc]
+               (and (= target-id (gt/target-id arc))
+                    (= target-label (gt/target-label arc))))
+             (arcs-by-source basis source-id source-label)))
 
 (defn make-override [root-id traverse-fn init-props-fn]
   {:root-id root-id

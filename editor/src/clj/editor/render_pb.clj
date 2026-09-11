@@ -23,7 +23,8 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.validation :as validation]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [internal.graph.types :as gt])
   (:import [com.dynamo.render.proto Render$RenderPrototypeDesc Render$RenderPrototypeDesc$RenderResourceDesc]))
 
 (g/defnode NamedRenderResource
@@ -86,8 +87,8 @@
   (condp = path
     [:script] (g/set-property node-id :script value)
     [:named-render-resources] (concat
-                                (for [[named-render-resource-id _] (g/sources-of node-id :named-render-resources)]
-                                  (g/delete-node named-render-resource-id))
+                                (for [arc (g/inputs (g/now) node-id :named-render-resources)]
+                                  (g/delete-node (gt/source-id arc)))
                                 (for [{:keys [name path]} value]
                                   (make-named-render-resource-node node-id name path)))))
 

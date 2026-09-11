@@ -4735,7 +4735,7 @@
   (let [fonts-node (gui-attachment/scene-node->fonts-node basis scene-node)]
     ;; NOTE: we use :names instead of :nodes to get a list of fonts because it
     ;; excludes the internal fallback font
-    (mapv gt/source-id (g/explicit-arcs-by-target basis fonts-node :names))))
+    (mapv gt/source-id (g/explicit-inputs basis fonts-node :names))))
 
 (defn- gui-scene-nodes-getter [scene-node evaluation-context]
   ;; We need to use g/node-value instead of raw props and explicit arcs because
@@ -4793,7 +4793,7 @@
         (when (and (g/node-instance? basis GuiResourceKindNode node-id)
                    (= resource-kind (g/raw-property-value basis node-id :kind)))
           node-id)))
-    (g/explicit-arcs-by-target basis gui-scene-node :nodes)))
+    (g/explicit-inputs basis gui-scene-node :nodes)))
 
 ;; SDK api
 (defn connect-gui-resource-kind-entry [gui-scene-node resource-kind-node entry-node]

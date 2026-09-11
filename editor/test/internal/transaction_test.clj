@@ -18,7 +18,8 @@
             [internal.graph.types :as gt]
             [internal.system :as is]
             [internal.transaction :as it]
-            [support.test-support :as ts]))
+            [support.test-support :as ts]
+            [util.coll :as coll]))
 
 (g/defnk upcase-a [a] (.toUpperCase a))
 
@@ -54,15 +55,17 @@
       (let [[id1 id2] (ts/tx-nodes (g/make-node Resource)
                                    (g/make-node Downstream))
             after                 (:basis (g/transact (it/connect id1 :b id2 :consumer)))]
-        (is (= [id1 :b]        (first (g/sources after id2 :consumer))))
-        (is (= [id2 :consumer] (first (g/targets after id1 :b)))))))
+        (is (= (gt/->Arc id1 :b id2 :consumer)
+               (first (g/inputs after id2 :consumer))))
+        (is (= (gt/->Arc id1 :b id2 :consumer)
+               (first (g/outputs after id1 :b)))))))
   (testing "connections have cardinality"
     (ts/with-clean-system
       (let [[id1 id2] (ts/tx-nodes (g/make-node Resource)
                                    (g/make-node Downstream))]
         (g/transact (g/connect id1 :b id2 :array-consumer))
         (g/transact (g/connect id1 :b id2 :array-consumer))
-        (is (= 2 (count (g/sources-of id2 :array-consumer))))
+        (is (= 2 (count (g/inputs (g/now) id2 :array-consumer))))
         (is (= 2 (count (g/inputs id2)))))))
   (testing "disconnect disconnects all matching"
     (ts/with-clean-system
@@ -71,7 +74,7 @@
         (g/transact (g/connect id1 :b id2 :array-consumer))
         (g/transact (g/connect id1 :b id2 :array-consumer))
         (g/transact (g/disconnect id1 :b id2 :array-consumer))
-        (is (= 0 (count (g/sources-of id2 :array-consumer))))
+        (is (= 0 (count (g/inputs (g/now) id2 :array-consumer))))
         (is (= 0 (count (g/inputs id2)))))))
   (testing "disconnect two singly-connected nodes"
     (ts/with-clean-system
@@ -81,8 +84,8 @@
             tx-result             (g/transact (it/disconnect id1 :b id2 :consumer))
             after                 (:basis tx-result)]
         (is (= :ok (:status tx-result)))
-        (is (= [] (g/sources after id2 :consumer)))
-        (is (= [] (g/targets after id1 :b))))))
+        (is (coll/empty? (g/inputs after id2 :consumer)))
+        (is (coll/empty? (g/outputs after id1 :b))))))
 
   (testing "simple update"
     (ts/with-clean-system
@@ -99,7 +102,7 @@
         (let [tx-result  (g/transact (it/delete-node resource2))
               after      (:basis tx-result)]
           (is (nil?      (g/node-by-id   after resource2)))
-          (is (empty?    (g/targets      after resource1 :b)))
+          (is (coll/empty? (g/outputs after resource1 :b)))
           (is (contains? (:nodes-deleted tx-result) resource2))
           (is (empty?    (:nodes-added   tx-result)))))))
 
@@ -112,7 +115,7 @@
         (is (= :ok (:status tx-result)))
         (is (nil?  node))))))
 
-(deftest disconnect-sources-only-disconnects-explicit-sources
+(deftest disconnect-sources-only-disconnects-explicit-input-arcs
   (ts/with-clean-system
     (let [[implicit-source explicit-source target]
           (ts/tx-nodes (g/make-node Resource)
@@ -121,21 +124,21 @@
       (g/transact (g/connect implicit-source :b target :consumer))
       (let [[override-target] (ts/tx-nodes (g/override target))]
         (let [basis (g/now)]
-          (is (= [[implicit-source :b]]
-                 (g/sources basis override-target :consumer)))
+          (is (= [(gt/->Arc implicit-source :b override-target :consumer)]
+                 (g/inputs basis override-target :consumer)))
           (is (= []
                  (g/tx-data-step-types (it/disconnect-sources basis override-target :consumer)))))
 
         (g/transact (g/connect explicit-source :b override-target :consumer))
         (let [basis (g/now)
               disconnect-tx-data (it/disconnect-sources basis override-target :consumer)]
-          (is (= [[explicit-source :b]]
-                 (g/sources basis override-target :consumer)))
+          (is (= [(gt/->Arc explicit-source :b override-target :consumer)]
+                 (g/inputs basis override-target :consumer)))
           (is (= [:tx-step/disconnect]
                  (g/tx-data-step-types disconnect-tx-data)))
           (g/transact disconnect-tx-data)
-          (is (= [[implicit-source :b]]
-                 (g/sources-of override-target :consumer))))))))
+          (is (= [(gt/->Arc implicit-source :b override-target :consumer)]
+                 (g/inputs (g/now) override-target :consumer))))))))
 
 (g/defnode NamedThing
   (property name g/Str))
@@ -319,22 +322,22 @@
                (set (g/successors (g/now) resource :b))))))))
 
 (deftest flag-successors-changed-test
-  (testing "Merges node ids and node-id+label pairs."
+  (testing "Merges node ids and source arcs."
     (let [ctx {:full-invalidation false
                :successors-changed {1 #{:a}
                                     2 nil
                                     5 #{:e}}}
           result (#'it/flag-successors-changed
                    ctx
-                   [[1 :b]
+                   [(gt/->Arc 1 :b 10 :input)
                     1
-                    [1 :c]
-                    [2 :b]
-                    [3 :c]
+                    (gt/->Arc 1 :c 10 :input)
+                    (gt/->Arc 2 :b 10 :input)
+                    (gt/->Arc 3 :c 10 :input)
                     4
-                    [5 :e]
-                    [6 :f]
-                    [6 :g]])]
+                    (gt/->Arc 5 :e 10 :input)
+                    (gt/->Arc 6 :f 10 :input)
+                    (gt/->Arc 6 :g 10 :input)])]
       (is (= {1 nil
               2 nil
               3 #{:c}
@@ -347,7 +350,8 @@
     (let [ctx {:full-invalidation false
                :successors-changed {1 #{:a}
                                     2 nil}}]
-      (is (identical? ctx (#'it/flag-successors-changed ctx [[1 :a] [2 :b]])))))
+      (is (identical? ctx (#'it/flag-successors-changed ctx [(gt/->Arc 1 :a 10 :input)
+                                                             (gt/->Arc 2 :b 10 :input)])))))
 
   (testing "Does not realize changes during full invalidation."
     (let [ctx {:full-invalidation true
@@ -401,7 +405,7 @@
             basis (g/now)
             changed-arc (gt/->Arc changed-source :b target :consumer)]
 
-        (is (= #{changed-source [affected-source :b]}
+        (is (= #{changed-source (gt/->Arc affected-source :b target :consumer)}
                (set (#'it/successor-changes basis basis #{changed-source} #{changed-arc}))))))))
 
 (g/defnode CachedValueNode

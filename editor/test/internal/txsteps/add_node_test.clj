@@ -474,25 +474,24 @@
 
       (let [basis (g/now)]
         (testing "Entries remain in arc-tables."
-          (is (= [[source-node-id :property-output target-node-id :regular-input]
-                  [source-node-id :property-output target-node-id :array-input]]
-                 (helpers/source-arc-table-tuples basis source-node-id :property-output)))
-          (is (= [[source-node-id :property-output target-node-id :regular-input]]
-                 (helpers/target-arc-table-tuples basis target-node-id :regular-input)))
-          (is (= [[source-node-id :property-output target-node-id :array-input]
-                  [persistent-source-node-id :property-output target-node-id :array-input]]
-                 (helpers/target-arc-table-tuples basis target-node-id :array-input))))
+          (is (= [(gt/->Arc source-node-id :property-output target-node-id :regular-input)
+                  (gt/->Arc source-node-id :property-output target-node-id :array-input)]
+                 (helpers/source-arc-table-arcs basis source-node-id :property-output)))
+          (is (= [(gt/->Arc source-node-id :property-output target-node-id :regular-input)]
+                 (helpers/target-arc-table-arcs basis target-node-id :regular-input)))
+          (is (= [(gt/->Arc source-node-id :property-output target-node-id :array-input)
+                  (gt/->Arc persistent-source-node-id :property-output target-node-id :array-input)]
+                 (helpers/target-arc-table-arcs basis target-node-id :array-input))))
 
         (testing "Dangling connections are excluded from query results."
-          (is (= []
-                 (g/sources basis target-node-id :regular-input)
-                 (g/targets basis source-node-id :property-output)
-                 (g/outputs basis source-node-id)))
-          (is (= [[persistent-source-node-id :property-output]]
-                 (g/sources basis target-node-id :array-input)))
-          (is (= [[target-node-id :array-input]]
-                 (g/targets basis persistent-source-node-id :property-output)))
-          (is (= [[persistent-source-node-id :property-output target-node-id :array-input]]
+          (is (coll/empty? (g/inputs basis target-node-id :regular-input)))
+          (is (coll/empty? (g/outputs basis source-node-id :property-output)))
+          (is (coll/empty? (g/outputs basis source-node-id)))
+          (is (= [(gt/->Arc persistent-source-node-id :property-output target-node-id :array-input)]
+                 (g/inputs basis target-node-id :array-input)))
+          (is (= [(gt/->Arc persistent-source-node-id :property-output target-node-id :array-input)]
+                 (g/outputs basis persistent-source-node-id :property-output)))
+          (is (= [(gt/->Arc persistent-source-node-id :property-output target-node-id :array-input)]
                  (g/inputs basis target-node-id)
                  (g/outputs basis persistent-source-node-id)))
           (is (not (g/connected? basis
@@ -527,7 +526,7 @@
             (set (g/pre-traverse
                    basis [target-node-id]
                    (fn [basis node-id]
-                     (mapv first (g/sources basis node-id))))))
+                     (mapv gt/source-id (g/inputs basis node-id))))))
 
           copy-info
           (fn copy-info [basis root-node-ids]
@@ -692,8 +691,8 @@
             (let [basis (g/now)]
               (is (= :shadowing-source-value
                      (g/node-value override-target-node-id :regular-output)))
-              (is (= [[shadowing-source-node-id :property-output]]
-                     (g/sources basis override-target-node-id :regular-input)))
+              (is (= [(gt/->Arc shadowing-source-node-id :property-output override-target-node-id :regular-input)]
+                     (g/inputs basis override-target-node-id :regular-input)))
               (is (= #{(g/endpoint target-node-id :regular-output)}
                      (set (g/successors basis initial-source-node-id :property-output))))
               (is (= #{(g/endpoint override-target-node-id :regular-output)}
@@ -705,8 +704,8 @@
               (is (nil? (g/node-by-id basis shadowing-source-node-id)))
               (is (= :initial-source-value
                      (g/node-value override-target-node-id :regular-output)))
-              (is (= [[initial-source-node-id :property-output]]
-                     (g/sources basis override-target-node-id :regular-input)))
+              (is (= [(gt/->Arc initial-source-node-id :property-output override-target-node-id :regular-input)]
+                     (g/inputs basis override-target-node-id :regular-input)))
               (is (= #{(g/endpoint target-node-id :regular-output)
                        (g/endpoint override-target-node-id :regular-output)}
                      (set (g/successors basis initial-source-node-id :property-output))))
@@ -752,11 +751,11 @@
           [override-source-node-id]
           (g/overrides source-node-id)
 
-          source-arc-tuple
-          [source-node-id :property-output target-node-id :regular-cascade-delete-input]
+          source-arc
+          (gt/->Arc source-node-id :property-output target-node-id :regular-cascade-delete-input)
 
-          override-arc-tuple
-          [override-source-node-id :property-output override-target-node-id :regular-cascade-delete-input]
+          override-arc
+          (gt/->Arc override-source-node-id :property-output override-target-node-id :regular-cascade-delete-input)
 
           override-successor-endpoint
           (g/endpoint override-target-node-id :regular-cascade-delete-output)
@@ -771,11 +770,11 @@
               (is (= :source-value
                      (g/node-value target-node-id :regular-cascade-delete-output)
                      (g/node-value override-target-node-id :regular-cascade-delete-output)))
-              (is (= [[source-node-id :property-output]]
-                     (g/sources basis target-node-id :regular-cascade-delete-input)))
-              (is (= [[override-source-node-id :property-output]]
-                     (g/sources basis override-target-node-id :regular-cascade-delete-input)))
-              (is (= [override-arc-tuple]
+              (is (= [(gt/->Arc source-node-id :property-output target-node-id :regular-cascade-delete-input)]
+                     (g/inputs basis target-node-id :regular-cascade-delete-input)))
+              (is (= [(gt/->Arc override-source-node-id :property-output override-target-node-id :regular-cascade-delete-input)]
+                     (g/inputs basis override-target-node-id :regular-cascade-delete-input)))
+              (is (= [override-arc]
                      (g/outputs basis override-source-node-id)))
               (is (= #{override-successor-endpoint}
                      (set (g/successors basis override-source-node-id :property-output))))
@@ -790,16 +789,15 @@
               (is (= nil
                      (g/node-value target-node-id :regular-cascade-delete-output)
                      (g/node-value override-target-node-id :regular-cascade-delete-output)))
-              (is (= []
-                     (g/sources basis target-node-id :regular-cascade-delete-input)
-                     (g/sources basis override-target-node-id :regular-cascade-delete-input)
-                     (g/outputs basis override-source-node-id)
-                     (g/override-predecessors fn/constantly-true basis override-target-node-id)))
+              (is (coll/empty? (g/inputs basis target-node-id :regular-cascade-delete-input)))
+              (is (coll/empty? (g/inputs basis override-target-node-id :regular-cascade-delete-input)))
+              (is (coll/empty? (g/outputs basis override-source-node-id)))
+              (is (coll/empty? (g/override-predecessors fn/constantly-true basis override-target-node-id)))
               (is (= #{}
                      (set (g/successors basis override-source-node-id :property-output))))
-              (is (= [source-arc-tuple]
-                     (helpers/source-arc-table-tuples basis source-node-id :property-output)
-                     (helpers/target-arc-table-tuples basis target-node-id :regular-cascade-delete-input)))))]
+              (is (= [source-arc]
+                     (helpers/source-arc-table-arcs basis source-node-id :property-output)
+                     (helpers/target-arc-table-arcs basis target-node-id :regular-cascade-delete-input)))))]
 
       (testing "Before undo."
         (ensure-effective!))

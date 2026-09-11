@@ -45,7 +45,7 @@
 
 (namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order property-statics])
 
-(namespaces/import-vars [internal.graph sources targets connected? dependencies node-by-id-at explicit-arcs-by-source explicit-arcs-by-target node-ids pre-traverse successors])
+(namespaces/import-vars [internal.graph connected? dependencies node-ids pre-traverse successors])
 
 (namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters full-invalidation-since?])
 
@@ -1422,45 +1422,43 @@
 ;; ---------------------------------------------------------------------------
 ;; Interrogating the Graph
 ;; ---------------------------------------------------------------------------
-(defn arcs->tuples
-  [arcs]
-  (ig/arcs->tuples arcs))
-
 (defn inputs
-  "Return the inputs to this node. Returns a collection like
-  [[source-id output target-id input] [source-id output target-id input]...].
+  "Return the input arcs to this node.
 
   If there are no inputs connected, returns an empty collection."
   ([node-id]       (inputs (now) node-id))
-  ([basis node-id] (arcs->tuples (ig/inputs basis node-id))))
-
-(defn labelled-inputs
-  ([node-id label]       (labelled-inputs (now) node-id label))
-  ([basis node-id label] (arcs->tuples (ig/inputs basis node-id label))))
+  ([basis node-id] (ig/arcs-by-target basis node-id))
+  ([basis node-id label] (ig/arcs-by-target basis node-id label)))
 
 (defn outputs
-  "Return the outputs from this node. Returns a collection like
-  [[source-id output target-id input] [source-id output target-id input]...].
+  "Return the output arcs from this node.
 
   If there are no outputs connected, returns an empty collection."
   ([node-id]       (outputs (now) node-id))
-  ([basis node-id] (arcs->tuples (ig/outputs basis node-id))))
-
-(defn labelled-outputs
-  ([node-id label]       (labelled-outputs (now) node-id label))
-  ([basis node-id label] (arcs->tuples (ig/outputs basis node-id label))))
+  ([basis node-id] (ig/arcs-by-source basis node-id))
+  ([basis node-id label] (ig/arcs-by-source basis node-id label)))
 
 (defn explicit-inputs
+  "Return the explicit input arcs to this node as a collection of Arc records,
+  or nil if there are no matching arcs. When a label is supplied, only arcs
+  connected to that input are returned."
   ([node-id]
    (explicit-inputs (now) node-id))
   ([basis node-id]
-   (arcs->tuples (ig/explicit-inputs basis node-id))))
+   (ig/explicit-arcs-by-target basis node-id))
+  ([basis node-id label]
+   (ig/explicit-arcs-by-target basis node-id label)))
 
 (defn explicit-outputs
+  "Return the explicit output arcs from this node as a collection of Arc records,
+  or nil if there are no matching arcs. When a label is supplied, only arcs
+  connected to that output are returned."
   ([node-id]
    (explicit-outputs (now) node-id))
   ([basis node-id]
-   (arcs->tuples (ig/explicit-outputs basis node-id))))
+   (ig/explicit-arcs-by-source basis node-id))
+  ([basis node-id label]
+   (ig/explicit-arcs-by-source basis node-id label)))
 
 (defn node-feeding-into
   "Find the one-and-only node ID that sources this input on this node.
@@ -1469,23 +1467,8 @@
   ([node-id label]
    (node-feeding-into (now) node-id label))
   ([basis node-id label]
-   (ffirst (sources basis node-id label))))
-
-(defn sources-of
-  "Find the [node-id label] pairs for all connections into the given
-  node's input label. The result is a sequence of pairs."
-  ([node-id label]
-   (sources-of (now) node-id label))
-  ([basis node-id label]
-   (ig/sources basis node-id label)))
-
-(defn targets-of
-  "Find the [node-id label] pairs for all connections out of the given
-  node's output label. The result is a sequence of pairs."
-  ([node-id label]
-   (targets-of (now) node-id label))
-  ([basis node-id label]
-   (ig/targets basis node-id label)))
+   (some-> (first (inputs basis node-id label))
+           gt/source-id)))
 
 (defn invalidate-outputs!
   "Invalidate the given outputs and _everything_ that could be
@@ -1582,7 +1565,7 @@
         (keep (fn [^Arc arc]
                 (when (pred basis arc)
                   (.source-id arc))))
-        (ig/inputs basis node-id)))
+        (inputs basis node-id)))
 
 (defn override-predecessors
   "This is an optimized version of the predecessors function above that is used

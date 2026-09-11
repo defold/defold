@@ -23,6 +23,7 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [support.test-support :as test-support]
             [util.coll :as coll]
             [util.fn :as fn]))
@@ -551,10 +552,10 @@
               (is (loaded-proj-path? "/loaded_referencing_unloaded_tilesource.script")))
 
             (testing "Unloaded resource shells have their global connections."
-              (is (contains? (set (g/sources-of project :breakpoints))
-                             [unloaded-lua-node :breakpoints]))
-              (is (contains? (set (g/sources-of script-intelligence :required-module-infos))
-                             [unloaded-lua-node :required-module-info])))
+              (is (contains? (set (g/inputs (g/now) project :breakpoints))
+                             (gt/->Arc unloaded-lua-node :breakpoints project :breakpoints)))
+              (is (contains? (set (g/inputs (g/now) script-intelligence :required-module-infos))
+                             (gt/->Arc unloaded-lua-node :required-module-info script-intelligence :required-module-infos))))
 
             (testing "Editing a script to reference unloaded Lua modules will not load transitive dependencies."
               (let [node-load-info-tx-data-calls

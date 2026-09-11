@@ -57,6 +57,7 @@
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.system :as is]
             [internal.util :as util]
             [lambdaisland.deep-diff2 :as deep-diff]
@@ -662,13 +663,14 @@
    (uncached-save-data-outputs-by-proj-path basis (g/cache) project))
   ([basis cache project]
    (into (sorted-map)
-         (keep (fn [[node-id]]
-                 (when-not (g/defective? basis node-id)
-                   (let [resource (resource-node/resource basis node-id)
+         (keep (fn [arc]
+                 (let [node-id (gt/source-id arc)]
+                   (when-not (g/defective? basis node-id)
+                     (let [resource (resource-node/resource basis node-id)
                          proj-path (resource/proj-path resource)]
-                     (when-some [uncached-save-data-outputs (not-empty (uncached-save-data-outputs basis cache node-id))]
-                       (pair proj-path uncached-save-data-outputs))))))
-         (g/sources-of basis project :save-data))))
+                       (when-some [uncached-save-data-outputs (not-empty (uncached-save-data-outputs basis cache node-id))]
+                         (pair proj-path uncached-save-data-outputs)))))))
+         (g/inputs basis project :save-data))))
 
 (defn- split-keyword-options [forms]
   (let [keyword-options (into {}
@@ -775,7 +777,7 @@
   ([view type x y modifiers click-count button]
    (let [pos [x y 0.0]]
      (g/transact (g/set-property view :tool-picking-rect (scene-selection/calc-picking-rect pos pos))))
-   (let [handlers (g/sources-of view :input-handlers)
+   (let [handlers (g/inputs (g/now) view :input-handlers)
          user-data (g/node-value view :selected-tool-renderables)
          action (-> {:type type :x x :y y :click-count click-count :button button}
                     (assoc :modifiers (set modifiers)))
@@ -1265,14 +1267,15 @@
                        {:target-node-id target-node-id
                         :target-node-type target-node-type
                         :required-target-input target-input})))
-     (mapv (fn [[source-node-id _source-label]]
-             (if (g/node-instance? basis expected-source-node-type source-node-id)
-               source-node-id
-               (throw (ex-info "Source node does not match the expected source node type."
-                               {:source-node-id source-node-id
-                                :source-node-type (g/node-type* basis source-node-id)
-                                :expected-source-node-type expected-source-node-type}))))
-           (g/sources-of basis target-node-id target-input)))))
+     (mapv (fn [arc]
+             (let [source-node-id (gt/source-id arc)]
+               (if (g/node-instance? basis expected-source-node-type source-node-id)
+                 source-node-id
+                 (throw (ex-info "Source node does not match the expected source node type."
+                                 {:source-node-id source-node-id
+                                  :source-node-type (g/node-type* basis source-node-id)
+                                  :expected-source-node-type expected-source-node-type})))))
+           (g/inputs basis target-node-id target-input)))))
 
 (def single util/only-or-throw)
 

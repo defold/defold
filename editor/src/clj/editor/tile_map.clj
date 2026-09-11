@@ -45,6 +45,7 @@
             [editor.tile-source :as tile-source]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto Tile$TileCell Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
            [com.jogamp.opengl GL2]
@@ -1526,7 +1527,7 @@
 
 (defn- scene-view->tool-controller [scene-view]
   ;; TODO Hack, but better than before
-  (let [input-handlers (map first (g/sources-of scene-view :input-handlers))]
+  (let [input-handlers (map gt/source-id (g/inputs (g/now) scene-view :input-handlers))]
     (first (filter (partial g/node-instance? TileMapController) input-handlers))))
 
 (handler/defhandler :scene.select-erase-tool :workbench

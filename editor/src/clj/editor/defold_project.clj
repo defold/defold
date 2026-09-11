@@ -46,6 +46,7 @@
             [editor.texture.engine :as texture.engine]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.java :as java]
             [internal.util :as iutil]
             [schema.core :as s]
@@ -400,9 +401,9 @@
 
         cached-resource-node-id?
         (into #{}
-              (comp (map first)
+              (comp (map gt/source-id)
                     (remove excluded-resource-node-id?))
-              (g/sources-of basis project :save-data))
+              (g/inputs basis project :save-data))
 
         endpoint+cached-value-pairs
         (into []
@@ -1148,10 +1149,10 @@
                           vec)]
     (concat
       (g/set-property project :all-selections all-selections)
-      (for [[node-id label] (g/sources-of basis project :all-selected-node-ids)]
-        (g/disconnect node-id label project :all-selected-node-ids))
-      (for [[node-id label] (g/sources-of basis project :all-selected-node-properties)]
-        (g/disconnect node-id label project :all-selected-node-properties))
+      (for [arc (g/inputs basis project :all-selected-node-ids)]
+        (g/disconnect (gt/source-id arc) (gt/source-label arc) project :all-selected-node-ids))
+      (for [arc (g/inputs basis project :all-selected-node-properties)]
+        (g/disconnect (gt/source-id arc) (gt/source-label arc) project :all-selected-node-properties))
       (for [node-id all-node-ids]
         (concat
           (g/connect node-id :_node-id project :all-selected-node-ids)
@@ -1352,13 +1353,13 @@
         (du/if-metrics
           (doseq [node-id (:invalidate-outputs plan)]
             (du/measuring resource-metrics (resource/proj-path (resource-node/resource basis node-id)) :invalidate-outputs
-              (g/invalidate-outputs! (mapv (fn [[_ src-label]]
-                                             (g/endpoint node-id src-label))
+              (g/invalidate-outputs! (mapv (fn [arc]
+                                             (g/endpoint node-id (gt/source-label arc)))
                                            (g/explicit-outputs basis node-id)))))
           (g/invalidate-outputs! (into []
                                        (mapcat (fn [node-id]
-                                                 (map (fn [[_ src-label]]
-                                                        (g/endpoint node-id src-label))
+                                                 (map (fn [arc]
+                                                        (g/endpoint node-id (gt/source-label arc)))
                                                       (g/explicit-outputs basis node-id))))
                                        (:invalidate-outputs plan))))))
 
@@ -1835,15 +1836,16 @@
   ([basis project]
    (into []
          (mapcat
-           (fn [[node-id]]
-             (when-not (g/defective? basis node-id)
-               (let [node-type (g/node-type* basis node-id)
+           (fn [arc]
+             (let [node-id (gt/source-id arc)]
+               (when-not (g/defective? basis node-id)
+                 (let [node-type (g/node-type* basis node-id)
                      output-cached? (g/cached-outputs node-type)]
-                 (eduction
-                   (filter output-cached?)
-                   (map #(g/endpoint node-id %))
-                   [:save-data :save-value])))))
-         (g/sources-of basis project :save-data))))
+                   (eduction
+                     (filter output-cached?)
+                     (map #(g/endpoint node-id %))
+                     [:save-data :save-value]))))))
+         (g/inputs basis project :save-data))))
 
 (defn clear-cached-save-data! [project]
   (g/invalidate-outputs!

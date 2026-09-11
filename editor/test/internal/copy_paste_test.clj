@@ -131,7 +131,7 @@
           paste-tx-data   (:tx-data paste-data)
           paste-tx-result (g/transact paste-tx-data)
           new-nodes-added (g/tx-nodes-added paste-tx-result)
-          new-root        (g/node-by-id-at (g/now) (first (:root-node-ids paste-data)))]
+          new-root        (g/node-by-id (g/now) (first (:root-node-ids paste-data)))]
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 4 (count (:nodes paste-data))))
       (is (= [:tx-step/add-nodes :tx-step/connect :tx-step/connect :tx-step/connect :tx-step/connect] (g/tx-data-step-types paste-tx-data)))
@@ -152,8 +152,8 @@
             paste-data          (g/paste fragment {})
             paste-tx-data       (:tx-data paste-data)
             paste-tx-result     (g/transact paste-tx-data)
-            new-nodes-added     (map #(g/node-by-id-at (g/now) %) (g/tx-nodes-added paste-tx-result))
-            new-root            (g/node-by-id-at (g/now) (first (:root-node-ids paste-data)))
+            new-nodes-added     (map #(g/node-by-id (g/now) %) (g/tx-nodes-added paste-tx-result))
+            new-root            (g/node-by-id (g/now) (first (:root-node-ids paste-data)))
             [newleaf1 newleaf2] (remove #(= % new-root) new-nodes-added)]
 
         (testing "copy short-circuts cycles"
@@ -217,7 +217,7 @@
 (defn resolve-by-id
   [basis record]
   (if (instance? Standin record)
-    (g/node-by-id-at basis (:original-id record))
+    (g/node-by-id basis (:original-id record))
     (g/default-node-deserializer basis record)))
 
 (deftest deserialization-with-resolver
@@ -227,7 +227,7 @@
           paste-tx-data               (:tx-data paste-data)
           paste-tx-result             (g/transact paste-tx-data)
           new-nodes-added             (g/tx-nodes-added paste-tx-result)
-          new-root                    (g/node-by-id-at (g/now) (first (:root-node-ids paste-data)))
+          new-root                    (g/node-by-id (g/now) (first (:root-node-ids paste-data)))
           new-leaf                    (first (remove #(= % (g/node-id new-root)) (:nodes paste-data)))]
       (is (= 1 (count (:root-node-ids paste-data))))
       (is (= 2 (count new-nodes-added)))

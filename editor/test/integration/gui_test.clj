@@ -32,6 +32,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types]
+            [internal.graph.types :as gt]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.node :as in]
@@ -281,7 +282,7 @@
 (deftest load-gui
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/logic/main.gui")
-          _gui-node (ffirst (g/sources-of node-id :child-outlines))]
+          _gui-node (some-> (first (g/inputs (g/now) node-id :child-outlines)) gt/source-id)]
       (is (some? _gui-node)))))
 
 (deftest custom-gui-extension-registration
@@ -1366,7 +1367,7 @@
           scene (project/get-resource-node project "/gui/reorder.gui")
           id-map (scene-gui-node-map scene)
           layouts (g/node-feeding-into scene :layout-names)
-          [landscape portrait] (map first (g/sources-of layouts :names))]
+          [landscape portrait] (map gt/source-id (g/inputs (g/now) layouts :names))]
 
       ;; sanity
       (is (= "Landscape" (g/node-value landscape :name)))

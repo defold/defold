@@ -380,11 +380,12 @@
                         :cache-retain? project/cache-retain?}
       (let [workspace (test-util/setup-workspace!)
             project (test-util/setup-project! workspace)
+            basis (g/now)
             invalidated-save-data-endpoints-atom (atom #{})
             cacheable-save-data-endpoints (into (sorted-set)
-                                                (comp (map first)
-                                                      (mapcat (partial test-util/cacheable-save-data-endpoints (g/now))))
-                                                (g/sources-of project :save-data))]
+                                                (comp (map gt/source-id)
+                                                      (mapcat (partial test-util/cacheable-save-data-endpoints basis)))
+                                                (g/inputs basis project :save-data))]
         ;; The source-value output will be evicted from the cache for resource
         ;; nodes whose save-data was dirty. This needs to happen, as the
         ;; source-value output should always represent the on-disk state.

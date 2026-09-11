@@ -16,6 +16,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [dynamo.graph :as g]
             [internal.graph :as ig]
+            [internal.graph.types :as gt]
             [internal.txsteps.helpers :as helpers]
             [support.test-support :as test-support]
             [util.coll :as coll]))
@@ -91,20 +92,20 @@
                        first-order-override-indirectly-owned-node-id
                        second-order-override-indirectly-owned-node-id}
                      (into #{} (g/node-ids basis))))
-              (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis indirectly-owned-node-id :property-output)
-                     (helpers/target-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-input)))
-              (is (= [[replacement-indirectly-owned-node-id :property-output replacement-directly-owned-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis replacement-indirectly-owned-node-id :property-output)
-                     (helpers/target-arc-table-tuples basis replacement-directly-owned-node-id :regular-cascade-delete-input)))
-              (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-output)))
-              (is (= [[replacement-directly-owned-node-id :regular-cascade-delete-output replacement-owner-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis replacement-directly-owned-node-id :regular-cascade-delete-output)))
-              (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                     (helpers/target-arc-table-tuples basis owner-node-id :regular-cascade-delete-input)))
-              (is (= [[replacement-directly-owned-node-id :regular-cascade-delete-output replacement-owner-node-id :regular-cascade-delete-input]]
-                     (helpers/target-arc-table-tuples basis replacement-owner-node-id :regular-cascade-delete-input)))))
+              (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)]
+                     (helpers/source-arc-table-arcs basis indirectly-owned-node-id :property-output)
+                     (helpers/target-arc-table-arcs basis directly-owned-node-id :regular-cascade-delete-input)))
+              (is (= [(gt/->Arc replacement-indirectly-owned-node-id :property-output replacement-directly-owned-node-id :regular-cascade-delete-input)]
+                     (helpers/source-arc-table-arcs basis replacement-indirectly-owned-node-id :property-output)
+                     (helpers/target-arc-table-arcs basis replacement-directly-owned-node-id :regular-cascade-delete-input)))
+              (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                     (helpers/source-arc-table-arcs basis directly-owned-node-id :regular-cascade-delete-output)))
+              (is (= [(gt/->Arc replacement-directly-owned-node-id :regular-cascade-delete-output replacement-owner-node-id :regular-cascade-delete-input)]
+                     (helpers/source-arc-table-arcs basis replacement-directly-owned-node-id :regular-cascade-delete-output)))
+              (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                     (helpers/target-arc-table-arcs basis owner-node-id :regular-cascade-delete-input)))
+              (is (= [(gt/->Arc replacement-directly-owned-node-id :regular-cascade-delete-output replacement-owner-node-id :regular-cascade-delete-input)]
+                     (helpers/target-arc-table-arcs basis replacement-owner-node-id :regular-cascade-delete-input)))))
 
           ensure-after!
           (fn ensure-after! []
@@ -146,20 +147,20 @@
                        first-order-override-replacement-indirectly-owned-node-id
                        second-order-override-replacement-indirectly-owned-node-id}
                      (into #{} (g/node-ids basis))))
-              (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis indirectly-owned-node-id :property-output)
-                     (helpers/target-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-input)))
-              (is (= [[replacement-indirectly-owned-node-id :property-output replacement-directly-owned-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis replacement-indirectly-owned-node-id :property-output)
-                     (helpers/target-arc-table-tuples basis replacement-directly-owned-node-id :regular-cascade-delete-input)))
-              (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-output)))
-              (is (= [[replacement-directly-owned-node-id :regular-cascade-delete-output replacement-owner-node-id :regular-cascade-delete-input]]
-                     (helpers/source-arc-table-tuples basis replacement-directly-owned-node-id :regular-cascade-delete-output)))
-              (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                     (helpers/target-arc-table-tuples basis owner-node-id :regular-cascade-delete-input)))
-              (is (= [[replacement-directly-owned-node-id :regular-cascade-delete-output replacement-owner-node-id :regular-cascade-delete-input]]
-                     (helpers/target-arc-table-tuples basis replacement-owner-node-id :regular-cascade-delete-input)))))]
+              (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)]
+                     (helpers/source-arc-table-arcs basis indirectly-owned-node-id :property-output)
+                     (helpers/target-arc-table-arcs basis directly-owned-node-id :regular-cascade-delete-input)))
+              (is (= [(gt/->Arc replacement-indirectly-owned-node-id :property-output replacement-directly-owned-node-id :regular-cascade-delete-input)]
+                     (helpers/source-arc-table-arcs basis replacement-indirectly-owned-node-id :property-output)
+                     (helpers/target-arc-table-arcs basis replacement-directly-owned-node-id :regular-cascade-delete-input)))
+              (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                     (helpers/source-arc-table-arcs basis directly-owned-node-id :regular-cascade-delete-output)))
+              (is (= [(gt/->Arc replacement-directly-owned-node-id :regular-cascade-delete-output replacement-owner-node-id :regular-cascade-delete-input)]
+                     (helpers/source-arc-table-arcs basis replacement-directly-owned-node-id :regular-cascade-delete-output)))
+              (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                     (helpers/target-arc-table-arcs basis owner-node-id :regular-cascade-delete-input)))
+              (is (= [(gt/->Arc replacement-directly-owned-node-id :regular-cascade-delete-output replacement-owner-node-id :regular-cascade-delete-input)]
+                     (helpers/target-arc-table-arcs basis replacement-owner-node-id :regular-cascade-delete-input)))))]
 
       (testing "Before transact."
         (ensure-before!))

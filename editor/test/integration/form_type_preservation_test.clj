@@ -19,6 +19,7 @@
             [editor.types :as t]
             [editor.ui :as ui]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [support.test-support :refer [with-clean-system]]
             [util.fn :as fn])
   (:import [javafx.scene Parent]
@@ -138,7 +139,7 @@
       (test-util/editable-controls)))
 
 (defn- check-text-fields! [resource-node prop-kw new-num-values text-fields-fn]
-  (let [view-node (ffirst (g/targets-of resource-node :form-data))
+  (let [view-node (some-> (first (g/outputs (g/now) resource-node :form-data)) gt/target-id)
         original-value (g/node-value resource-node prop-kw)
 
         check-field!

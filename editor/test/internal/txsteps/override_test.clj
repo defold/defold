@@ -51,24 +51,28 @@
                        (set (g/node-ids basis)))))
 
               (testing "Explicit connections."
-                (is (= [[owner-node-id :regular-cascade-delete-input]] (ig/explicit-targets basis directly-owned-node-id :regular-cascade-delete-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-input]] (ig/explicit-targets basis indirectly-owned-node-id :property-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-output]] (ig/explicit-sources basis owner-node-id :regular-cascade-delete-input)))
-                (is (= [[indirectly-owned-node-id :property-output]] (ig/explicit-sources basis directly-owned-node-id :regular-cascade-delete-input))))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)] (vec (g/explicit-outputs basis directly-owned-node-id :regular-cascade-delete-output))))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)] (vec (g/explicit-outputs basis indirectly-owned-node-id :property-output))))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)] (vec (g/explicit-inputs basis owner-node-id :regular-cascade-delete-input))))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)] (vec (g/explicit-inputs basis directly-owned-node-id :regular-cascade-delete-input)))))
 
               (testing "Implicit connections."
-                (is (= [[owner-node-id :regular-cascade-delete-input]] (g/targets basis directly-owned-node-id :regular-cascade-delete-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-input]] (g/targets basis indirectly-owned-node-id :property-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-output]] (g/sources basis owner-node-id :regular-cascade-delete-input)))
-                (is (= [[indirectly-owned-node-id :property-output]] (g/sources basis directly-owned-node-id :regular-cascade-delete-input))))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                       (g/outputs basis directly-owned-node-id :regular-cascade-delete-output)))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)]
+                       (g/outputs basis indirectly-owned-node-id :property-output)))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                       (g/inputs basis owner-node-id :regular-cascade-delete-input)))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)]
+                       (g/inputs basis directly-owned-node-id :regular-cascade-delete-input))))
 
               (testing "Internal arc tables."
-                (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                       (helpers/source-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-output)
-                       (helpers/target-arc-table-tuples basis owner-node-id :regular-cascade-delete-input)))
-                (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                       (helpers/source-arc-table-tuples basis indirectly-owned-node-id :property-output)
-                       (helpers/target-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-input))))))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                       (helpers/source-arc-table-arcs basis directly-owned-node-id :regular-cascade-delete-output)
+                       (helpers/target-arc-table-arcs basis owner-node-id :regular-cascade-delete-input)))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)]
+                       (helpers/source-arc-table-arcs basis indirectly-owned-node-id :property-output)
+                       (helpers/target-arc-table-arcs basis directly-owned-node-id :regular-cascade-delete-input))))))
 
           ensure-after!
           (fn ensure-after! []
@@ -96,36 +100,44 @@
                        (set (g/node-ids basis)))))
 
               (testing "Explicit connections."
-                (is (= [[owner-node-id :regular-cascade-delete-input]] (ig/explicit-targets basis directly-owned-node-id :regular-cascade-delete-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-input]] (ig/explicit-targets basis indirectly-owned-node-id :property-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-output]] (ig/explicit-sources basis owner-node-id :regular-cascade-delete-input)))
-                (is (= [[indirectly-owned-node-id :property-output]] (ig/explicit-sources basis directly-owned-node-id :regular-cascade-delete-input)))
-                (is (= [] (ig/explicit-targets basis first-order-override-directly-owned-node-id :regular-cascade-delete-output)))
-                (is (= [] (ig/explicit-targets basis first-order-override-indirectly-owned-node-id :property-output)))
-                (is (= [] (ig/explicit-sources basis first-order-override-owner-node-id :regular-cascade-delete-input)))
-                (is (= [] (ig/explicit-sources basis first-order-override-directly-owned-node-id :regular-cascade-delete-input))))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)] (vec (g/explicit-outputs basis directly-owned-node-id :regular-cascade-delete-output))))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)] (vec (g/explicit-outputs basis indirectly-owned-node-id :property-output))))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)] (vec (g/explicit-inputs basis owner-node-id :regular-cascade-delete-input))))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)] (vec (g/explicit-inputs basis directly-owned-node-id :regular-cascade-delete-input))))
+                (is (coll/empty? (g/explicit-outputs basis first-order-override-directly-owned-node-id :regular-cascade-delete-output)))
+                (is (coll/empty? (g/explicit-outputs basis first-order-override-indirectly-owned-node-id :property-output)))
+                (is (coll/empty? (g/explicit-inputs basis first-order-override-owner-node-id :regular-cascade-delete-input)))
+                (is (coll/empty? (g/explicit-inputs basis first-order-override-directly-owned-node-id :regular-cascade-delete-input))))
 
               (testing "Implicit connections."
-                (is (= [[owner-node-id :regular-cascade-delete-input]] (g/targets basis directly-owned-node-id :regular-cascade-delete-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-input]] (g/targets basis indirectly-owned-node-id :property-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-output]] (g/sources basis owner-node-id :regular-cascade-delete-input)))
-                (is (= [[indirectly-owned-node-id :property-output]] (g/sources basis directly-owned-node-id :regular-cascade-delete-input)))
-                (is (= [[first-order-override-owner-node-id :regular-cascade-delete-input]] (g/targets basis first-order-override-directly-owned-node-id :regular-cascade-delete-output)))
-                (is (= [[first-order-override-directly-owned-node-id :regular-cascade-delete-input]] (g/targets basis first-order-override-indirectly-owned-node-id :property-output)))
-                (is (= [[first-order-override-directly-owned-node-id :regular-cascade-delete-output]] (g/sources basis first-order-override-owner-node-id :regular-cascade-delete-input)))
-                (is (= [[first-order-override-indirectly-owned-node-id :property-output]] (g/sources basis first-order-override-directly-owned-node-id :regular-cascade-delete-input))))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                       (g/outputs basis directly-owned-node-id :regular-cascade-delete-output)))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)]
+                       (g/outputs basis indirectly-owned-node-id :property-output)))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                       (g/inputs basis owner-node-id :regular-cascade-delete-input)))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)]
+                       (g/inputs basis directly-owned-node-id :regular-cascade-delete-input)))
+                (is (= [(gt/->Arc first-order-override-directly-owned-node-id :regular-cascade-delete-output first-order-override-owner-node-id :regular-cascade-delete-input)]
+                       (g/outputs basis first-order-override-directly-owned-node-id :regular-cascade-delete-output)))
+                (is (= [(gt/->Arc first-order-override-indirectly-owned-node-id :property-output first-order-override-directly-owned-node-id :regular-cascade-delete-input)]
+                       (g/outputs basis first-order-override-indirectly-owned-node-id :property-output)))
+                (is (= [(gt/->Arc first-order-override-directly-owned-node-id :regular-cascade-delete-output first-order-override-owner-node-id :regular-cascade-delete-input)]
+                       (g/inputs basis first-order-override-owner-node-id :regular-cascade-delete-input)))
+                (is (= [(gt/->Arc first-order-override-indirectly-owned-node-id :property-output first-order-override-directly-owned-node-id :regular-cascade-delete-input)]
+                       (g/inputs basis first-order-override-directly-owned-node-id :regular-cascade-delete-input))))
 
               (testing "Internal arc tables."
-                (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                       (helpers/source-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-output)
-                       (helpers/target-arc-table-tuples basis owner-node-id :regular-cascade-delete-input)))
-                (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                       (helpers/source-arc-table-tuples basis indirectly-owned-node-id :property-output)
-                       (helpers/target-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-input)))
-                (is (coll/empty? (helpers/source-arc-table-tuples basis first-order-override-directly-owned-node-id :regular-cascade-delete-output)))
-                (is (coll/empty? (helpers/target-arc-table-tuples basis first-order-override-owner-node-id :regular-cascade-delete-input)))
-                (is (coll/empty? (helpers/source-arc-table-tuples basis first-order-override-indirectly-owned-node-id :property-output)))
-                (is (coll/empty? (helpers/target-arc-table-tuples basis first-order-override-directly-owned-node-id :regular-cascade-delete-input))))))]
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                       (helpers/source-arc-table-arcs basis directly-owned-node-id :regular-cascade-delete-output)
+                       (helpers/target-arc-table-arcs basis owner-node-id :regular-cascade-delete-input)))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)]
+                       (helpers/source-arc-table-arcs basis indirectly-owned-node-id :property-output)
+                       (helpers/target-arc-table-arcs basis directly-owned-node-id :regular-cascade-delete-input)))
+                (is (coll/empty? (helpers/source-arc-table-arcs basis first-order-override-directly-owned-node-id :regular-cascade-delete-output)))
+                (is (coll/empty? (helpers/target-arc-table-arcs basis first-order-override-owner-node-id :regular-cascade-delete-input)))
+                (is (coll/empty? (helpers/source-arc-table-arcs basis first-order-override-indirectly-owned-node-id :property-output)))
+                (is (coll/empty? (helpers/target-arc-table-arcs basis first-order-override-directly-owned-node-id :regular-cascade-delete-input))))))]
 
       (testing "Before transact."
         (ensure-before!))
@@ -175,24 +187,28 @@
                        (set (g/node-ids basis)))))
 
               (testing "Explicit connections."
-                (is (= [[owner-node-id :regular-cascade-delete-input]] (ig/explicit-targets basis directly-owned-node-id :regular-cascade-delete-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-input]] (ig/explicit-targets basis indirectly-owned-node-id :property-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-output]] (ig/explicit-sources basis owner-node-id :regular-cascade-delete-input)))
-                (is (= [[indirectly-owned-node-id :property-output]] (ig/explicit-sources basis directly-owned-node-id :regular-cascade-delete-input))))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)] (vec (g/explicit-outputs basis directly-owned-node-id :regular-cascade-delete-output))))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)] (vec (g/explicit-outputs basis indirectly-owned-node-id :property-output))))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)] (vec (g/explicit-inputs basis owner-node-id :regular-cascade-delete-input))))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)] (vec (g/explicit-inputs basis directly-owned-node-id :regular-cascade-delete-input)))))
 
               (testing "Implicit connections."
-                (is (= [[owner-node-id :regular-cascade-delete-input]] (g/targets basis directly-owned-node-id :regular-cascade-delete-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-input]] (g/targets basis indirectly-owned-node-id :property-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-output]] (g/sources basis owner-node-id :regular-cascade-delete-input)))
-                (is (= [[indirectly-owned-node-id :property-output]] (g/sources basis directly-owned-node-id :regular-cascade-delete-input))))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                       (g/outputs basis directly-owned-node-id :regular-cascade-delete-output)))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)]
+                       (g/outputs basis indirectly-owned-node-id :property-output)))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                       (g/inputs basis owner-node-id :regular-cascade-delete-input)))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)]
+                       (g/inputs basis directly-owned-node-id :regular-cascade-delete-input))))
 
               (testing "Internal arc tables."
-                (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                       (helpers/source-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-output)
-                       (helpers/target-arc-table-tuples basis owner-node-id :regular-cascade-delete-input)))
-                (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                       (helpers/source-arc-table-tuples basis indirectly-owned-node-id :property-output)
-                       (helpers/target-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-input))))))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                       (helpers/source-arc-table-arcs basis directly-owned-node-id :regular-cascade-delete-output)
+                       (helpers/target-arc-table-arcs basis owner-node-id :regular-cascade-delete-input)))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)]
+                       (helpers/source-arc-table-arcs basis indirectly-owned-node-id :property-output)
+                       (helpers/target-arc-table-arcs basis directly-owned-node-id :regular-cascade-delete-input))))))
 
           ensure-after!
           (fn ensure-after! []
@@ -217,33 +233,41 @@
                        (set (g/node-ids basis)))))
 
               (testing "Explicit connections."
-                (is (= [[owner-node-id :regular-cascade-delete-input]] (ig/explicit-targets basis directly-owned-node-id :regular-cascade-delete-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-input]] (ig/explicit-targets basis indirectly-owned-node-id :property-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-output]] (ig/explicit-sources basis owner-node-id :regular-cascade-delete-input)))
-                (is (= [[indirectly-owned-node-id :property-output]] (ig/explicit-sources basis directly-owned-node-id :regular-cascade-delete-input)))
-                (is (= [] (ig/explicit-targets basis first-order-override-directly-owned-node-id :regular-cascade-delete-output)))
-                (is (= [] (ig/explicit-sources basis first-order-override-owner-node-id :regular-cascade-delete-input)))
-                (is (= [] (ig/explicit-sources basis first-order-override-directly-owned-node-id :regular-cascade-delete-input))))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)] (vec (g/explicit-outputs basis directly-owned-node-id :regular-cascade-delete-output))))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)] (vec (g/explicit-outputs basis indirectly-owned-node-id :property-output))))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)] (vec (g/explicit-inputs basis owner-node-id :regular-cascade-delete-input))))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)] (vec (g/explicit-inputs basis directly-owned-node-id :regular-cascade-delete-input))))
+                (is (coll/empty? (g/explicit-outputs basis first-order-override-directly-owned-node-id :regular-cascade-delete-output)))
+                (is (coll/empty? (g/explicit-inputs basis first-order-override-owner-node-id :regular-cascade-delete-input)))
+                (is (coll/empty? (g/explicit-inputs basis first-order-override-directly-owned-node-id :regular-cascade-delete-input))))
 
               (testing "Implicit connections."
-                (is (= [[owner-node-id :regular-cascade-delete-input]] (g/targets basis directly-owned-node-id :regular-cascade-delete-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-input] [first-order-override-directly-owned-node-id :regular-cascade-delete-input]] (g/targets basis indirectly-owned-node-id :property-output)))
-                (is (= [[directly-owned-node-id :regular-cascade-delete-output]] (g/sources basis owner-node-id :regular-cascade-delete-input)))
-                (is (= [[indirectly-owned-node-id :property-output]] (g/sources basis directly-owned-node-id :regular-cascade-delete-input)))
-                (is (= [[first-order-override-owner-node-id :regular-cascade-delete-input]] (g/targets basis first-order-override-directly-owned-node-id :regular-cascade-delete-output)))
-                (is (= [[first-order-override-directly-owned-node-id :regular-cascade-delete-output]] (g/sources basis first-order-override-owner-node-id :regular-cascade-delete-input)))
-                (is (= [[indirectly-owned-node-id :property-output]] (g/sources basis first-order-override-directly-owned-node-id :regular-cascade-delete-input))))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                       (g/outputs basis directly-owned-node-id :regular-cascade-delete-output)))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)
+                        (gt/->Arc indirectly-owned-node-id :property-output first-order-override-directly-owned-node-id :regular-cascade-delete-input)]
+                       (g/outputs basis indirectly-owned-node-id :property-output)))
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                       (g/inputs basis owner-node-id :regular-cascade-delete-input)))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)]
+                       (g/inputs basis directly-owned-node-id :regular-cascade-delete-input)))
+                (is (= [(gt/->Arc first-order-override-directly-owned-node-id :regular-cascade-delete-output first-order-override-owner-node-id :regular-cascade-delete-input)]
+                       (g/outputs basis first-order-override-directly-owned-node-id :regular-cascade-delete-output)))
+                (is (= [(gt/->Arc first-order-override-directly-owned-node-id :regular-cascade-delete-output first-order-override-owner-node-id :regular-cascade-delete-input)]
+                       (g/inputs basis first-order-override-owner-node-id :regular-cascade-delete-input)))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output first-order-override-directly-owned-node-id :regular-cascade-delete-input)]
+                       (g/inputs basis first-order-override-directly-owned-node-id :regular-cascade-delete-input))))
 
               (testing "Internal arc tables."
-                (is (= [[directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input]]
-                       (helpers/source-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-output)
-                       (helpers/target-arc-table-tuples basis owner-node-id :regular-cascade-delete-input)))
-                (is (= [[indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input]]
-                       (helpers/source-arc-table-tuples basis indirectly-owned-node-id :property-output)
-                       (helpers/target-arc-table-tuples basis directly-owned-node-id :regular-cascade-delete-input)))
-                (is (coll/empty? (helpers/source-arc-table-tuples basis first-order-override-directly-owned-node-id :regular-cascade-delete-output)))
-                (is (coll/empty? (helpers/target-arc-table-tuples basis first-order-override-owner-node-id :regular-cascade-delete-input)))
-                (is (coll/empty? (helpers/target-arc-table-tuples basis first-order-override-directly-owned-node-id :regular-cascade-delete-input))))))]
+                (is (= [(gt/->Arc directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)]
+                       (helpers/source-arc-table-arcs basis directly-owned-node-id :regular-cascade-delete-output)
+                       (helpers/target-arc-table-arcs basis owner-node-id :regular-cascade-delete-input)))
+                (is (= [(gt/->Arc indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)]
+                       (helpers/source-arc-table-arcs basis indirectly-owned-node-id :property-output)
+                       (helpers/target-arc-table-arcs basis directly-owned-node-id :regular-cascade-delete-input)))
+                (is (coll/empty? (helpers/source-arc-table-arcs basis first-order-override-directly-owned-node-id :regular-cascade-delete-output)))
+                (is (coll/empty? (helpers/target-arc-table-arcs basis first-order-override-owner-node-id :regular-cascade-delete-input)))
+                (is (coll/empty? (helpers/target-arc-table-arcs basis first-order-override-directly-owned-node-id :regular-cascade-delete-input))))))]
 
       (testing "Before transact."
         (ensure-before!))

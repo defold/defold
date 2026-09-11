@@ -112,8 +112,8 @@
              (fn [[f arcs-fn key]]
                (g/pre-traverse basis [root-id] (fn [basis node-id]
                                                  (map key (filter f (arcs-fn basis node-id))))))
-             [[input-fn g/inputs first]
-              [output-fn g/outputs (comp last butlast)]]))
+             [[input-fn g/inputs gt/source-id]
+              [output-fn g/outputs gt/target-id]]))
          (keys (gt/nodes basis)))
        (include-overrides basis)))
 
@@ -241,17 +241,17 @@
         edge-frequencies-doubled (frequencies
                                    (eduction
                                      cat
-                                     (filter (fn [[from _ to _]]
-                                               (and (intermediates from)
-                                                    (intermediates to))))
-                                     (remove (fn [[_ from-label _ to-label]]
-                                               (and (= from-label :_node-id)
-                                                    (= to-label :nodes))))
-                                     (map (fn [[from from-label to to-label]]
-                                            [(name (:k (g/node-type* basis from)))
-                                             from-label
-                                             (name (:k (g/node-type* basis to)))
-                                             to-label]))
+                                     (filter (fn [arc]
+                                               (and (intermediates (gt/source-id arc))
+                                                    (intermediates (gt/target-id arc)))))
+                                     (remove (fn [arc]
+                                               (and (= (gt/source-label arc) :_node-id)
+                                                    (= (gt/target-label arc) :nodes))))
+                                     (map (fn [arc]
+                                            [(name (:k (g/node-type* basis (gt/source-id arc))))
+                                             (gt/source-label arc)
+                                             (name (:k (g/node-type* basis (gt/target-id arc))))
+                                             (gt/target-label arc)]))
                                      (vals intermediates)))
         edges (keys edge-frequencies-doubled)
         nodes (reduce

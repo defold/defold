@@ -102,19 +102,21 @@
   0)
 
 (defn project []
-  (ffirst (g/targets-of (workspace) :resource-list)))
+  (some-> (first (g/outputs (g/now) (workspace) :resource-list))
+          gt/target-id))
 
 (defn app-view []
-  (ffirst (g/targets-of (project) :selected-node-ids-by-resource-node)))
+  (some-> (first (g/outputs (g/now) (project) :selected-node-ids-by-resource-node))
+          gt/target-id))
 
 (defn active-resource []
-  (->> (g/node-value (project) :selected-node-ids-by-resource-node)
-       (keep (fn [[resource-node _selected-nodes]]
-               (let [targets (g/targets-of resource-node :node-outline)]
-                 (when (some (fn [[_target-node target-label]]
-                               (= :active-outline target-label)) targets)
-                   resource-node))))
-       first))
+  (let [basis (g/now)]
+    (->> (g/node-value (project) :selected-node-ids-by-resource-node)
+         (keep (fn [[resource-node _selected-nodes]]
+                 (when (coll/any? #(= :active-outline (gt/target-label %))
+                                  (g/outputs basis resource-node :node-outline))
+                   resource-node)))
+         first)))
 
 (defn active-view []
   (some-> (app-view)
@@ -128,13 +130,13 @@
                       {:path-or-resource path-or-resource})))))
 
 (defn selection []
-  (->> (g/node-value (project) :selected-node-ids-by-resource-node)
-       (keep (fn [[resource-node selected-nodes]]
-               (let [targets (g/targets-of resource-node :node-outline)]
-                 (when (some (fn [[_target-node target-label]]
-                               (= :active-outline target-label)) targets)
-                   selected-nodes))))
-       first))
+  (let [basis (g/now)]
+    (->> (g/node-value (project) :selected-node-ids-by-resource-node)
+         (keep (fn [[resource-node selected-nodes]]
+                 (when (coll/any? #(= :active-outline (gt/target-label %))
+                                  (g/outputs basis resource-node :node-outline))
+                   selected-nodes)))
+         first)))
 
 (def sel (comp first selection))
 
@@ -357,9 +359,9 @@
 (def curve-view (partial view-of-type curve-view/CurveView))
 
 (defn console-view []
-  (some-> (view-of-type console/ConsoleNode)
-          (g/targets-of :lines)
-          (ffirst)))
+  (when-let [console-view (view-of-type console/ConsoleNode)]
+    (some-> (first (g/outputs (g/now) console-view :lines))
+            gt/target-id)))
 
 (defn node-values [node-id & labels]
   (g/with-auto-evaluation-context evaluation-context
@@ -851,8 +853,8 @@
            (mapcat
              (fn [node-id]
                (let [connected-outputs (-> #{:_properties :_overridden-properties}
-                                           (into (map second) (g/outputs basis node-id))
-                                           (into (map peek) (g/inputs basis node-id)))]
+                                           (into (map gt/source-label) (g/outputs basis node-id))
+                                           (into (map gt/target-label) (g/inputs basis node-id)))]
                  (->Eduction
                    (map (partial pair (g/node-type* basis node-id)))
                    connected-outputs)))))

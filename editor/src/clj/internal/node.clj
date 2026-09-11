@@ -1353,10 +1353,10 @@
 
 (defn pull-first-input-value
   [node input-label evaluation-context]
-  (let [basis (:basis evaluation-context)
-        [upstream-id output-label] (first (ig/sources basis (gt/node-id node) input-label))]
-    (when-let [upstream-node (and upstream-id (ig/node-by-id-at basis upstream-id))]
-      (gt/produce-value upstream-node output-label evaluation-context))))
+  (let [basis (:basis evaluation-context)]
+    (when-let [arc (first (ig/arcs-by-target basis (gt/node-id node) input-label))]
+      (let [upstream-node (ig/node-by-id-at basis (gt/source-id arc))]
+        (gt/produce-value upstream-node (gt/source-label arc) evaluation-context)))))
 
 (defn pull-first-input-with-substitute
   [sub node input-label evaluation-context]
@@ -1370,10 +1370,10 @@
 (defn pull-input-values
   [node input-label evaluation-context]
   (let [basis (:basis evaluation-context)]
-    (mapv (fn [[upstream-id output-label]]
-            (let [upstream-node (ig/node-by-id-at basis upstream-id)]
-              (gt/produce-value upstream-node output-label evaluation-context)))
-          (ig/sources basis (gt/node-id node) input-label))))
+    (mapv (fn [arc]
+            (let [upstream-node (ig/node-by-id-at basis (gt/source-id arc))]
+              (gt/produce-value upstream-node (gt/source-label arc) evaluation-context)))
+          (ig/arcs-by-target basis (gt/node-id node) input-label))))
 
 (defn pull-input-values-with-substitute
   [sub node input-label evaluation-context]

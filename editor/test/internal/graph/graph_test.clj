@@ -48,23 +48,28 @@
     (is (nil? (ig/node-id->node g id)))
     (is (coll/not-any? #(identical? v %) (ig/node-values g)))))
 
-(defn targets [g n l] (map gt/target (ig/arc-table-arcs (-> g gt/sarcs (get n) (get l)))))
-(defn sources [g n l] (map gt/source (ig/arc-table-arcs (-> g gt/tarcs (get n) (get l)))))
-
 (defn- source-arcs-without-targets
   [g]
-  (for [source                (vec (ig/node-ids g))
-        source-label          (-> (ig/node-id->node g source) g/node-type in/output-labels)
-        [target target-label] (targets g source source-label)
-        :when                 (not (coll/some #(= % [source source-label]) (sources g target target-label)))]
+  (for [source       (vec (ig/node-ids g))
+        source-label (-> (ig/node-id->node g source) g/node-type in/output-labels)
+        arc          (ig/arcs-by-source g source source-label)
+        :let         [target (gt/target-id arc)
+                      target-label (gt/target-label arc)]
+        :when        (not (coll/any? #(and (= source (gt/source-id %))
+                                           (= source-label (gt/source-label %)))
+                                     (ig/arcs-by-target g target target-label)))]
     [source source-label]))
 
 (defn- target-arcs-without-sources
   [g]
-  (for [target                (vec (ig/node-ids g))
-        target-label          (-> (ig/node-id->node g target) g/node-type in/input-labels)
-        [source source-label] (sources g target target-label)
-        :when                 (not (coll/some #(= % [target target-label]) (targets g source source-label)))]
+  (for [target       (vec (ig/node-ids g))
+        target-label (-> (ig/node-id->node g target) g/node-type in/input-labels)
+        arc          (ig/arcs-by-target g target target-label)
+        :let         [source (gt/source-id arc)
+                      source-label (gt/source-label arc)]
+        :when        (not (coll/any? #(and (= target (gt/target-id %))
+                                           (= target-label (gt/target-label %)))
+                                     (ig/arcs-by-source g source source-label)))]
     [target target-label]))
 
 (defn- arcs-are-reflexive?

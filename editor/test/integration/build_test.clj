@@ -26,6 +26,7 @@
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [internal.graph.types :as gt]
             [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
@@ -430,7 +431,7 @@
           (is (contains? content-by-target (:sound sound-desc))))))))
 
 (defn- first-source [node label]
-  (ffirst (g/sources-of node label)))
+  (some-> (first (g/inputs (g/now) node label)) gt/source-id))
 
 (deftest break-merged-targets
   (with-build-results "/merge/merge_embed.collection"

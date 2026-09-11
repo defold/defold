@@ -474,8 +474,8 @@
        resource))))
 
 (defn- disconnect-sources [basis target-node target-label]
-  (for [[source-node source-label] (g/sources-of basis target-node target-label)]
-    (g/disconnect source-node source-label target-node target-label)))
+  (for [arc (g/inputs basis target-node target-label)]
+    (g/disconnect (gt/source-id arc) (gt/source-label arc) target-node target-label)))
 
 (defn- replace-connection [basis source-node source-label target-node target-label]
   (concat
