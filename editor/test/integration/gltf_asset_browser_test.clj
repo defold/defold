@@ -204,11 +204,19 @@
 (deftest metadata-meshes-cannot-be-copied-as-empty-files
   (with-glb-project
     (fn [workspace _project _source-file]
-      (doseq [[path copyable] [["/robot.glb" true]
-                               ["/robot.glb/materials/0.material" true]
-                               ["/robot.glb/meshes" false]
-                               ["/robot.glb/meshes/Mesh 1" false]]]
-        (is (= copyable (asset-browser/copyable-resource? (workspace/find-resource workspace path))))))))
+      (doseq [[paths copyable]
+              [[[] false]
+               [["/robot.glb"] true]
+               [["/robot.glb/materials/0.material"] true]
+               [["/robot.glb/meshes"] false]
+               [["/robot.glb/meshes/Mesh 1"] false]
+               [["/robot.glb" "/robot.glb/materials/0.material"] true]
+               [["/robot.glb/materials/0.material" "/robot.glb/meshes/Mesh 1"] false]]]
+        (let [selection (mapv #(workspace/find-resource workspace %) paths)]
+          (is (= copyable
+                 (test-util/handler-enabled? :edit.copy
+                                             [(handler/->context :asset-browser {:selection selection})]
+                                             {}))))))))
 
 (deftest an-unreferenced-mesh-has-a-read-only-preview
   (with-glb-project
