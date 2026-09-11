@@ -349,7 +349,7 @@ namespace dmGameSystem
                 if (dynamic_attribute_index >= 0)
                 {
                     component_info.m_ValuePtr        = (uint8_t*) &dynamic_info.m_Infos[dynamic_attribute_index].m_Values;
-                    component_info.m_ValueVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+                    component_info.m_ValueVectorType = component_info.m_VectorType;
                     component_info.m_DataType        = dmGraphics::VertexAttribute::TYPE_FLOAT;
                     continue;
                 }
@@ -514,7 +514,52 @@ namespace dmGameSystem
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
-    static dmGameObject::PropertyVar DynamicAttributeValuesToPropertyVar(float* values, uint32_t element_count, uint32_t element_index, bool use_element_index)
+    static bool IsMatrixAttribute(dmGraphics::VertexAttribute::VectorType vector_type)
+    {
+        return vector_type == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2 ||
+               vector_type == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3 ||
+               vector_type == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4;
+    }
+
+    static uint32_t GetMatrixDimension(dmGraphics::VertexAttribute::VectorType vector_type)
+    {
+        switch (vector_type)
+        {
+            case dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2: return 2;
+            case dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3: return 3;
+            case dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4: return 4;
+            default: break;
+        }
+        return 0;
+    }
+
+    static dmVMath::Matrix4 MatrixAttributeValuesToMatrix4(const float* values, dmGraphics::VertexAttribute::VectorType vector_type)
+    {
+        dmVMath::Matrix4 matrix = dmVMath::Matrix4::identity();
+        const uint32_t dimension = GetMatrixDimension(vector_type);
+        for (uint32_t column = 0; column < dimension; ++column)
+        {
+            for (uint32_t row = 0; row < dimension; ++row)
+            {
+                matrix[column][row] = values[column * dimension + row];
+            }
+        }
+        return matrix;
+    }
+
+    static void Matrix4ToMatrixAttributeValues(const float* matrix, dmGraphics::VertexAttribute::VectorType vector_type, float* values)
+    {
+        const uint32_t dimension = GetMatrixDimension(vector_type);
+        for (uint32_t column = 0; column < dimension; ++column)
+        {
+            for (uint32_t row = 0; row < dimension; ++row)
+            {
+                values[column * dimension + row] = matrix[column * 4 + row];
+            }
+        }
+    }
+
+    static dmGameObject::PropertyVar DynamicAttributeValuesToPropertyVar(const float* values, dmGraphics::VertexAttribute::VectorType vector_type, uint32_t element_index, bool use_element_index)
     {
         if (use_element_index)
         {
@@ -522,12 +567,15 @@ namespace dmGameSystem
         }
         else
         {
-            switch(element_count)
+            switch(vector_type)
             {
-                case 1: return dmGameObject::PropertyVar(values[0]);
-                case 2: return dmGameObject::PropertyVar(dmVMath::Vector3(values[0], values[1], 0.0f));
-                case 3: return dmGameObject::PropertyVar(dmVMath::Vector3(values[0], values[1], values[2]));
-                case 4: return dmGameObject::PropertyVar(dmVMath::Vector4(values[0], values[1], values[2], values[3]));
+                case dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR: return dmGameObject::PropertyVar(values[0]);
+                case dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2:   return dmGameObject::PropertyVar(dmVMath::Vector3(values[0], values[1], 0.0f));
+                case dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3:   return dmGameObject::PropertyVar(dmVMath::Vector3(values[0], values[1], values[2]));
+                case dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4:   return dmGameObject::PropertyVar(dmVMath::Vector4(values[0], values[1], values[2], values[3]));
+                case dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2:
+                case dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3:
+                case dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4:   return dmGameObject::PropertyVar(MatrixAttributeValuesToMatrix4(values, vector_type));
             }
         }
 
@@ -563,7 +611,7 @@ namespace dmGameSystem
 
             if (dynamic_info_index >= 0)
             {
-                out_desc.m_Variant = DynamicAttributeValuesToPropertyVar(dynamic_info.m_Infos[dynamic_info_index].m_Values, info.m_Attribute->m_ElementCount, info.m_ElementIndex, info.m_AttributeNameHash != name_hash);
+                out_desc.m_Variant = DynamicAttributeValuesToPropertyVar(dynamic_info.m_Infos[dynamic_info_index].m_Values, info.m_Attribute->m_VectorType, info.m_ElementIndex, info.m_AttributeNameHash != name_hash);
                 return dmGameObject::PROPERTY_RESULT_OK;
             }
         }
@@ -574,16 +622,27 @@ namespace dmGameSystem
 
         // If this callback returns false, e.g a component resource might not have a value override for the attribute,
         // we fallback to the material attribute data instead
-        if (callback(callback_user_data, info.m_AttributeNameHash, &comp_attribute))
+        const bool has_component_attribute = callback(callback_user_data, info.m_AttributeNameHash, &comp_attribute);
+        if (has_component_attribute)
         {
             uint32_t value_byte_size;
             dmGraphics::GetAttributeValues(*comp_attribute, &info.m_ValuePtr, &value_byte_size);
         }
 
-        float values[4];
-        // Use info.m_ValuePtr so we use the component's value when the callback returned true, otherwise the material's default.
-        VertexAttributeInfoToFloats(info.m_Attribute, info.m_ValuePtr, values);
-        out_desc.m_Variant = DynamicAttributeValuesToPropertyVar(values, info.m_Attribute->m_ElementCount, info.m_ElementIndex, info.m_AttributeNameHash != name_hash);
+        float values[16] = {};
+        if (has_component_attribute && IsMatrixAttribute(info.m_Attribute->m_VectorType) && IsMatrixAttribute(comp_attribute->m_VectorType))
+        {
+            float component_values[16] = {};
+            VertexAttributeToFloats(comp_attribute, info.m_ValuePtr, component_values);
+            dmVMath::Matrix4 component_matrix = MatrixAttributeValuesToMatrix4(component_values, comp_attribute->m_VectorType);
+            Matrix4ToMatrixAttributeValues(&component_matrix[0][0], info.m_Attribute->m_VectorType, values);
+        }
+        else
+        {
+            // Use info.m_ValuePtr so we use the component's value when the callback returned true, otherwise the material's default.
+            VertexAttributeInfoToFloats(info.m_Attribute, info.m_ValuePtr, values);
+        }
+        out_desc.m_Variant = DynamicAttributeValuesToPropertyVar(values, info.m_Attribute->m_VectorType, info.m_ElementIndex, info.m_AttributeNameHash != name_hash);
 
         return dmGameObject::PROPERTY_RESULT_OK;
     }
@@ -598,17 +657,22 @@ namespace dmGameSystem
         void*                               callback_user_data,
         const dmGraphics::VertexAttributeInfo** attribute_out)
     {
-        if (var.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER &&
-            var.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR3 &&
-            var.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4)
-        {
-            return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_TYPE;
-        }
-
         dmRender::MaterialProgramAttributeInfo info;
         if (!dmRender::GetMaterialProgramAttributeInfo(material, name_hash, info))
         {
             return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+        }
+
+        const bool set_element = info.m_AttributeNameHash != name_hash;
+        const bool matrix_attribute = IsMatrixAttribute(info.m_Attribute->m_VectorType);
+        if ((matrix_attribute && (set_element || var.m_Type != dmGameObject::PROPERTY_TYPE_MATRIX4)) ||
+            (!matrix_attribute && set_element && var.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER) ||
+            (!matrix_attribute && !set_element &&
+                var.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER &&
+                var.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR3 &&
+                var.m_Type != dmGameObject::PROPERTY_TYPE_VECTOR4))
+        {
+            return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_TYPE;
         }
 
         DynamicAttributeInfo* dynamic_info = 0;
@@ -675,19 +739,30 @@ namespace dmGameSystem
 
             const dmGraphics::VertexAttribute* comp_attribute;
             // The component might have a value override for the attribute
-            if (callback(callback_user_data, info.m_AttributeNameHash, &comp_attribute))
+            const bool has_component_attribute = callback(callback_user_data, info.m_AttributeNameHash, &comp_attribute);
+            if (has_component_attribute)
             {
                 uint32_t value_byte_size;
                 dmGraphics::GetAttributeValues(*comp_attribute, &info.m_ValuePtr, &value_byte_size);
             }
 
             // Then, we need to convert each element of the attribute data to a float, since that is the backing storage for the override.
-            // Use info.m_ValuePtr so we use the component's value when the callback returned true, otherwise the material's default.
-            VertexAttributeInfoToFloats(info.m_Attribute, info.m_ValuePtr, values);
+            if (has_component_attribute && matrix_attribute && IsMatrixAttribute(comp_attribute->m_VectorType))
+            {
+                float component_values[16] = {};
+                VertexAttributeToFloats(comp_attribute, info.m_ValuePtr, component_values);
+                dmVMath::Matrix4 component_matrix = MatrixAttributeValuesToMatrix4(component_values, comp_attribute->m_VectorType);
+                Matrix4ToMatrixAttributeValues(&component_matrix[0][0], info.m_Attribute->m_VectorType, values);
+            }
+            else
+            {
+                // Use info.m_ValuePtr so we use the component's value when the callback returned true, otherwise the material's default.
+                VertexAttributeInfoToFloats(info.m_Attribute, info.m_ValuePtr, values);
+            }
         }
 
         // go.set("#sprite", "attribute_vec.x", 10.0)
-        if (info.m_AttributeNameHash != name_hash)
+        if (set_element)
         {
             values[info.m_ElementIndex] = var.m_Number;
         }
@@ -695,6 +770,11 @@ namespace dmGameSystem
         else if (var.m_Type == dmGameObject::PROPERTY_TYPE_NUMBER)
         {
             values[0] = var.m_Number;
+        }
+        // Matrix attributes use matrix4 properties. Smaller matrices take the top-left portion.
+        else if (matrix_attribute)
+        {
+            Matrix4ToMatrixAttributeValues(var.m_M4, info.m_Attribute->m_VectorType, values);
         }
         // go.set("#sprite", "attribute_vec", vmath.vector4(0.0, 1.0, 2.0, 3.0))
         else
