@@ -2833,11 +2833,11 @@ static void LogFrameBufferError(GLenum status)
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
             break;
         case TEXTURE_FORMAT_DEPTH:
-            gl_type            = GL_FLOAT;
+            // GLES requires an integer upload type for normalized depth storage.
+            gl_type            = GL_UNSIGNED_INT;
             gl_format          = GL_DEPTH_COMPONENT;
             gl_internal_format = GetDepthBufferFormat(context);
         #ifdef __EMSCRIPTEN__
-            gl_type            = GL_UNSIGNED_INT;
             gl_internal_format = context->m_IsGles3Version ? GL_DEPTH_COMPONENT24 : DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16;
         #endif
             break;

@@ -335,6 +335,7 @@ namespace dmRender
 
         dmArray<LightSTD140>                   m_LightBufferScratch;
         dmArray<LightSTD140>                   m_LightBufferUploadScratch;
+        dmArray<uint8_t>                       m_LightBufferSubmitted;
         dmGraphics::HUniformBuffer             m_LightUniformBuffer;
         dmVMath::Vector3                       m_AmbientLight;
 

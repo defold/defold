@@ -401,10 +401,18 @@ namespace dmRender
         UpdateRenderContextMatrices(render_context, render_context->m_View, projection);
     }
 
-    void SetFrameTime(HRenderContext render_context, float time, float dt)
+    void BeginFrame(HRenderContext render_context, float time, float dt)
     {
         render_context->m_Time = time;
         render_context->m_Dt = dt;
+
+        // A frame may contain several render lists, so reset light submissions at
+        // the frame boundary and preserve them across all lists in the frame.
+        if (!render_context->m_LightBufferSubmitted.Empty())
+        {
+            memset(render_context->m_LightBufferSubmitted.Begin(), 0, render_context->m_LightBufferSubmitted.Size());
+        }
+        render_context->m_LightBufferDirtyInfo = 1;
     }
 
     Result AddToRender(HRenderContext context, RenderObject* ro)

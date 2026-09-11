@@ -169,12 +169,6 @@ dialog.clean-build.title = 执行纯净构建？
 dialog.clean-build.header = 确定要执行纯净构建吗？
 dialog.clean-build.button.clean = 纯净构建
 
-# Debugging Not Supported Dialog
-
-dialog.debugging-not-supported.title = 不支持调试
-dialog.debugging-not-supported.header = 此项目无法与调试器一起使用
-dialog.debugging-not-supported.content = 配置为禁用共享脚本状态。\n\n除非特别需要不同的脚本状态，否则建议修改 game.project 中的 script.shared_state 属性。
-
 # Defunload Issues Dialog
 
 dialog.defunload-issues.title = 修订 .defunload 模式
@@ -522,7 +516,6 @@ dialog.bundle.label.platform = 平台
 dialog.bundle.option.platform.x86_64-linux = X64
 dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-bit
-dialog.bundle.option.platform.x86-win32 = 32-bit
 dialog.bundle.option.identity.none = None
 dialog.bundle.label.architectures = 架构
 dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
@@ -1652,10 +1645,6 @@ form.label.project.particle_fx.max_particle_buffer_count = 最大粒子缓冲区
 form.label.project.particle_fx.max_count = 最大数量
 form.label.project.particle_fx.max_emitter_count = 最大发射数量
 
-form.label.project.script = 脚本
-form.help.project.script = 脚本系统设置
-form.label.project.script.shared_state = 共享状态
-
 form.label.project.sound = 音效
 form.help.project.sound = 音效相关设置
 form.label.project.sound.gain = 增益
@@ -1698,8 +1687,11 @@ form.label.project.display.fullscreen = 全屏
 form.label.project.display.display_profiles = 显示配置文件
 form.label.project.display.dynamic_orientation = 动态方向
 form.label.project.display.update_frequency = 更新频率
+form.help.project.display.update_frequency = 期望的游戏循环和渲染频率，以赫兹为单位。`0` 使用可变帧率。在由 Defold 控制应用程序循环的平台上，正值会使用计时器进行帧调度，并暂时禁用呈现垂直同步；将此值设回 `0` 后，会恢复所请求的**交换间隔**。
 form.label.project.display.swap_interval = 交换间隔
+form.help.project.display.swap_interval = 根据显示器刷新率请求呈现。`0` 禁用垂直同步，`1` 在每次刷新时呈现。在 OpenGL 中，较大的值可能会跳过刷新间隔，而 Vulkan 和 Metal 会将任何非零值视为启用垂直同步。在由 Defold 控制应用程序循环的平台上，正值的**更新频率**会暂时将此值覆盖为 `0`。实际行为取决于后端和驱动程序。
 form.label.project.display.vsync = 垂直同步
+form.help.project.display.vsync = **已弃用的兼容性设置。**禁用时，会强制将所请求的**交换间隔**设为 `0`；启用时，行为由**交换间隔**决定，除非正值的**更新频率**启用了计时器帧调度。新项目请使用**交换间隔**。
 form.label.project.display.variable_dt = 可变增量时间
 form.label.project.display.display_device_info = 显示设备信息
 

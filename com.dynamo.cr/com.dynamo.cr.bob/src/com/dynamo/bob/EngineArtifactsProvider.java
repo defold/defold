@@ -84,7 +84,7 @@ public final class EngineArtifactsProvider {
                 if (symbolsFilename != null) {
                     try {
                         String fallbackKey = (p != null) ? p.getOs() : null;
-                        File cached = getOrDownloadArtifact(platformKey, symbolsFilename, fallbackKey, false);
+                        File cached = getOrDownloadArtifact(Bob.ARTIFACTS_URL, platformKey, symbolsFilename, fallbackKey, false);
                         if (cached == null || !cached.exists() || cached.length() == 0) {
                             logger.warning("Symbols not available: %s/%s", platformKey, symbolsFilename);
                             continue;
@@ -118,11 +118,18 @@ public final class EngineArtifactsProvider {
         List<File> binaryFiles = new ArrayList<File>();
         String[] exeSuffixes = platform.getExeSuffixes();
         String defaultDmengineExeName = getDefaultDmengineExeName(variant);
+        OS os = platform.getOsID();
+        // Match the stripped native engines packaged by scripts/copy.sh. Keeping
+        // the same subdirectory in the cache also separates Android symbols.
+        boolean stripped = os == OS.OS_ID_LINUX || os == OS.OS_ID_OSX || os == OS.OS_ID_IOS || os == OS.OS_ID_ANDROID;
         for (String exeSuffix : exeSuffixes) {
             String exeName = platform.getExePrefix() + defaultDmengineExeName + exeSuffix;
-            File file = getOrDownloadArtifact(platform.getPair(), exeName, platform.getOs(), true);
+            String artifactPath = stripped ? "stripped/" + exeName : exeName;
+            File file = getOrDownloadArtifact(artifactsURL, platform.getPair(), artifactPath, platform.getOs(), true);
             if (file == null || !file.exists() || file.length() == 0) {
-                throw new IOException(String.format("%s could not be found locally or downloaded, create an application manifest to build the engine remotely.", exeName));
+                throw new IOException(String.format(
+                        "The %s engine for %s (%s) is not available locally and could not be downloaded. " +
+                        "Check your internet connection and try again.", variant, platform.getPair(), exeName));
             }
             binaryFiles.add(file);
         }
@@ -197,14 +204,14 @@ public final class EngineArtifactsProvider {
         return new File(dir, filename);
     }
 
-    private static File getOrDownloadArtifact(String platformKey, String filename, String fallbackPlatformKey, boolean executable) {
+    private static File getOrDownloadArtifact(String artifactsURL, String platformKey, String filename, String fallbackPlatformKey, boolean executable) {
         File cached = getCacheFile(platformKey, filename);
         try {
             if (cached.exists() && cached.length() > 0) {
                 return cached;
             }
-            URL primary = buildArtifactURL(Bob.ARTIFACTS_URL, platformKey, filename);
-            URL fallback = fallbackPlatformKey != null ? buildArtifactURL(Bob.ARTIFACTS_URL, fallbackPlatformKey, filename) : null;
+            URL primary = buildArtifactURL(artifactsURL, platformKey, filename);
+            URL fallback = fallbackPlatformKey != null ? buildArtifactURL(artifactsURL, fallbackPlatformKey, filename) : null;
             downloadWithFallback(primary, fallback, cached, executable);
             if (executable) {
                 cached.setExecutable(true);

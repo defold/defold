@@ -134,6 +134,7 @@ static const dmhash_t TAG_STRIKE   = dmHashString64("strike");
 static const dmhash_t TAG_UL       = dmHashString64("ul");
 static const dmhash_t TAG_WAVE     = dmHashString64("wave");
 
+static const dmhash_t ATTRIBUTE_ALPHA      = dmHashString64("alpha");
 static const dmhash_t ATTRIBUTE_AMPLITUDE  = dmHashString64("amplitude");
 static const dmhash_t ATTRIBUTE_BL         = dmHashString64("bl");
 static const dmhash_t ATTRIBUTE_BLUR       = dmHashString64("blur");
@@ -235,6 +236,11 @@ static MarkupAttributeType GetAttributeType(dmhash_t name)
     if (name == ATTRIBUTE_AMPLITUDE)
     {
         return MARKUP_ATTRIBUTE_AMPLITUDE;
+    }
+
+    if (name == ATTRIBUTE_ALPHA)
+    {
+        return MARKUP_ATTRIBUTE_ALPHA;
     }
 
     if (name == ATTRIBUTE_BL)
@@ -371,13 +377,13 @@ static bool IsSupportedAttribute(MarkupTagType tag, MarkupAttributeType name)
 
     if (tag == MARKUP_TAG_OUTLINE)
     {
-        return name == MARKUP_ATTRIBUTE_COLOR || name == MARKUP_ATTRIBUTE_SIZE;
+        return name == MARKUP_ATTRIBUTE_COLOR || name == MARKUP_ATTRIBUTE_SIZE || name == MARKUP_ATTRIBUTE_ALPHA;
     }
 
     if (tag == MARKUP_TAG_SHADOW)
     {
         return name == MARKUP_ATTRIBUTE_BLUR || name == MARKUP_ATTRIBUTE_COLOR ||
-               name == MARKUP_ATTRIBUTE_X || name == MARKUP_ATTRIBUTE_Y;
+               name == MARKUP_ATTRIBUTE_X || name == MARKUP_ATTRIBUTE_Y || name == MARKUP_ATTRIBUTE_ALPHA;
     }
 
     if (tag == MARKUP_TAG_GRADIENT)

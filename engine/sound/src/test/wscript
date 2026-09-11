@@ -150,7 +150,7 @@ def build(bld):
     soundlibs = ['SOUND', 'OPUS', 'decoder_wav', 'decoder_ogg', 'decoder_opus']
     exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderOpus"]
 
-    if bld.env.PLATFORM not in ['wasm-web', 'wasm_pthread-web', 'win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']:
+    if bld.env.PLATFORM not in ['wasm-web', 'wasm_pthread-web', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']:
         exported_symbols.append("AudioDecoderTremolo")
         soundlibs.append('TREMOLO')
 
@@ -172,7 +172,7 @@ def build(bld):
                     source = 'test_sound_perf.cpp')
 
     extra_features = []
-    if waflib.Options.options.with_asan and bld.env.PLATFORM in ['win32', 'x86_64-win32']:
+    if waflib.Options.options.with_asan and bld.env.PLATFORM == 'x86_64-win32':
         extra_features = ['skip_test']
         print("Skipping sound test since current version throws an error with ASan")
 

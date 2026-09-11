@@ -389,6 +389,7 @@ static bool HasSameLayoutAttributes(const TextLayout* layout, const TextResolved
     const TextRenderStyle& right_style = layout->m_Styles[right.m_StyleIndex];
 
     return left_style.m_FontSize == right_style.m_FontSize &&
+           left.m_HasObjectStyle == right.m_HasObjectStyle &&
            left.m_DecorationFlags == right.m_DecorationFlags &&
            left.m_UnderlinePattern == right.m_UnderlinePattern &&
            left.m_StrikePattern == right.m_StrikePattern;
@@ -440,12 +441,13 @@ static skb_rect2_t GetGlyphBounds(dmHashTable64<CachedGlyphBounds>& cache,
 static void AddLineDecorations(TextLayout* layout, uint16_t line_index,
                                const skb_layout_line_t& source_line,
                                const skb_layout_run_t* source_runs,
+                               const skb_glyph_t* source_glyphs,
                                const skb_decoration_t* source_decorations,
                                const dmArray<uint32_t>& source_glyph_to_output,
                                float origin_x, uint16_t padding)
 {
     // A duplicate must be on the same physical line.
-    const uint32_t line_decoration_start = layout->m_Decorations.Size();
+    const uint32_t line_decoration_start = layout->m_DecorationSources.Size();
 
     for (int32_t decoration_index = source_line.decorations_range.start; decoration_index < source_line.decorations_range.end; ++decoration_index)
     {
@@ -460,17 +462,30 @@ static void AddLineDecorations(TextLayout* layout, uint16_t line_index,
         uint32_t glyph_start = UINT32_MAX;
         uint32_t glyph_end = 0;
 
-        for (int32_t glyph_index = source_run.glyph_range.start; glyph_index < source_run.glyph_range.end; ++glyph_index)
+        // SkriBidi can merge decorations across runs, but only reports the
+        // first run. Include every run up to the decoration's visual end.
+        const float decoration_end = source.line.x + source.line.length;
+        for (int32_t run_index = source.line.layout_run_idx; run_index < source_line.layout_run_range.end; ++run_index)
         {
-            const uint32_t output_glyph_index = source_glyph_to_output[glyph_index];
-
-            if (output_glyph_index == UINT32_MAX)
+            const skb_layout_run_t& run = source_runs[run_index];
+            for (int32_t glyph_index = run.glyph_range.start; glyph_index < run.glyph_range.end; ++glyph_index)
             {
-                continue;
+                const uint32_t output_glyph_index = source_glyph_to_output[glyph_index];
+
+                if (output_glyph_index == UINT32_MAX)
+                {
+                    continue;
+                }
+
+                glyph_start = glyph_start < output_glyph_index ? glyph_start : output_glyph_index;
+                glyph_end = glyph_end > output_glyph_index + 1 ? glyph_end : output_glyph_index + 1;
             }
 
-            glyph_start = glyph_start < output_glyph_index ? glyph_start : output_glyph_index;
-            glyph_end = glyph_end > output_glyph_index + 1 ? glyph_end : output_glyph_index + 1;
+            const skb_glyph_t& last_glyph = source_glyphs[run.glyph_range.end - 1];
+            if (last_glyph.offset_x + last_glyph.advance_x >= decoration_end - 0.001f)
+            {
+                break;
+            }
         }
 
         const float decoration_x      = source.line.x;
@@ -488,7 +503,9 @@ static void AddLineDecorations(TextLayout* layout, uint16_t line_index,
             decoration_y += source.line.thickness * 0.5f;
         }
 
-        TextDecoration decoration = {};
+        TextDecorationSource decoration_source = {};
+        decoration_source.m_Flag = source.line.position == SKB_DECORATION_LINE_THROUGH ? TEXT_RESOLVED_DECORATION_STRIKE : TEXT_RESOLVED_DECORATION_UNDERLINE;
+        TextDecoration& decoration = decoration_source.m_Decoration;
         decoration.m_X             = decoration_x + decoration_inset;
         decoration.m_Y             = -(decoration_y - source_run.ref_baseline);
         decoration.m_Length        = decoration_length;
@@ -500,11 +517,13 @@ static void AddLineDecorations(TextLayout* layout, uint16_t line_index,
         decoration.m_Pattern       = source.line.style == SKB_DECORATION_STYLE_DASHED ? TEXT_DECORATION_PATTERN_DASHED : TEXT_DECORATION_PATTERN_SOLID;
         bool duplicate = false;
 
-        for (uint32_t i = line_decoration_start; i < layout->m_Decorations.Size(); ++i)
+        for (uint32_t i = line_decoration_start; i < layout->m_DecorationSources.Size(); ++i)
         {
-            const TextDecoration& existing = layout->m_Decorations[i];
+            const TextDecorationSource& existing_source = layout->m_DecorationSources[i];
+            const TextDecoration& existing = existing_source.m_Decoration;
 
-            if (existing.m_LineIndex == decoration.m_LineIndex &&
+            if (existing_source.m_Flag == decoration_source.m_Flag &&
+                existing.m_LineIndex == decoration.m_LineIndex &&
                 existing.m_GlyphStart == decoration.m_GlyphStart &&
                 existing.m_GlyphCount == decoration.m_GlyphCount &&
                 existing.m_Pattern == decoration.m_Pattern &&
@@ -517,13 +536,13 @@ static void AddLineDecorations(TextLayout* layout, uint16_t line_index,
 
         if (!duplicate)
         {
-            layout->m_Decorations.Push(decoration);
-            uint32_t decoration_position = layout->m_Decorations.Size() - 1;
+            layout->m_DecorationSources.Push(decoration_source);
+            uint32_t decoration_position = layout->m_DecorationSources.Size() - 1;
 
             while (decoration_position > line_decoration_start)
             {
-                TextDecoration& previous = layout->m_Decorations[decoration_position - 1];
-                TextDecoration& current = layout->m_Decorations[decoration_position];
+                const TextDecoration& previous = layout->m_DecorationSources[decoration_position - 1].m_Decoration;
+                const TextDecoration& current = layout->m_DecorationSources[decoration_position].m_Decoration;
 
                 if (previous.m_LineIndex != current.m_LineIndex ||
                     previous.m_GlyphStart != current.m_GlyphStart ||
@@ -533,9 +552,9 @@ static void AddLineDecorations(TextLayout* layout, uint16_t line_index,
                     break;
                 }
 
-                TextDecoration swap = previous;
-                previous = current;
-                current = swap;
+                TextDecorationSource swap = layout->m_DecorationSources[decoration_position - 1];
+                layout->m_DecorationSources[decoration_position - 1] = layout->m_DecorationSources[decoration_position];
+                layout->m_DecorationSources[decoration_position] = swap;
                 --decoration_position;
             }
         }
@@ -714,13 +733,13 @@ static bool LayoutText(LayoutContext* ctx,
             run_attributes.m_Attributes[1] = skb_attribute_make_font_size(font_size);
             uint32_t attribute_count = 2;
 
-            if (resolved_span && (resolved_span->m_DecorationFlags & TEXT_RESOLVED_DECORATION_UNDERLINE))
+            if (resolved_span && (resolved_span->m_HasObjectStyle || (resolved_span->m_DecorationFlags & TEXT_RESOLVED_DECORATION_UNDERLINE)))
             {
                 skb_decoration_style_t pattern = resolved_span->m_UnderlinePattern == TEXT_DECORATION_PATTERN_DASHED ? SKB_DECORATION_STYLE_DASHED : SKB_DECORATION_STYLE_SOLID;
                 run_attributes.m_Attributes[attribute_count++] = skb_attribute_make_decoration(SKB_DECORATION_LINE_UNDER, pattern, 0.0f, 0.0f, SKB_PAINT_DECORATION_UNDERLINE);
             }
 
-            if (resolved_span && (resolved_span->m_DecorationFlags & TEXT_RESOLVED_DECORATION_STRIKE))
+            if (resolved_span && (resolved_span->m_HasObjectStyle || (resolved_span->m_DecorationFlags & TEXT_RESOLVED_DECORATION_STRIKE)))
             {
                 skb_decoration_style_t pattern = resolved_span->m_StrikePattern == TEXT_DECORATION_PATTERN_DASHED ? SKB_DECORATION_STYLE_DASHED : SKB_DECORATION_STYLE_SOLID;
                 run_attributes.m_Attributes[attribute_count++] = skb_attribute_make_decoration(SKB_DECORATION_LINE_THROUGH, pattern, 0.0f, 0.0f, SKB_PAINT_DECORATION_STRIKETHROUGH);
@@ -791,7 +810,7 @@ static bool LayoutText(LayoutContext* ctx,
     uint32_t paragraph_index = 0;
     dmHashTable64<CachedGlyphBounds> glyph_bounds_cache;
     glyph_bounds_cache.SetCapacity(64);
-    layout->m_Decorations.SetCapacity(decoration_count);
+    layout->m_DecorationSources.SetCapacity(decoration_count);
     dmArray<uint32_t> source_glyph_to_output;
     source_glyph_to_output.SetCapacity(glyphs_count);
     source_glyph_to_output.SetSize(glyphs_count);
@@ -921,7 +940,7 @@ static bool LayoutText(LayoutContext* ctx,
 
         if (has_decorations)
         {
-            AddLineDecorations(layout, (uint16_t)li, *line, layout_runs, decorations, source_glyph_to_output, 0.0f, settings->m_Padding);
+            AddLineDecorations(layout, (uint16_t)li, *line, layout_runs, glyphs, decorations, source_glyph_to_output, 0.0f, settings->m_Padding);
         }
     }
 
@@ -962,6 +981,7 @@ void TextLayoutSkribidiFree(TextLayout* layout)
     layout->m_Effects.SetCapacity(0);
     layout->m_SpanEffects.SetCapacity(0);
     layout->m_ResolvedSpans.SetCapacity(0);
+    layout->m_DecorationSources.SetCapacity(0);
     layout->m_Decorations.SetCapacity(0);
     layout->m_DecorationGeometry.SetCapacity(0);
     layout->m_DecorationGeometryOffsets.SetCapacity(0);
@@ -990,7 +1010,8 @@ static TextResult TextLayoutSkribidiCreateInternal(HFontCollection     collectio
     layout->m_BaseSpanEffectCount = 0;
     layout->m_BaseResolvedSpanCount = 0;
     layout->m_NumValidGlyphs = 0;
-    layout->m_UseRichText = resolved != 0;
+    layout->m_UseRichText = resolved != 0 || settings->m_UseBaseStyle;
+    layout->m_BaseStyleName = settings->m_UseBaseStyle ? settings->m_BaseStyle : 0;
     layout->m_MaxGlyphWidth = 0.0f;
     layout->m_MaxGlyphHeight = 0.0f;
     layout->m_Width = 0.0f;
@@ -999,9 +1020,9 @@ static TextResult TextLayoutSkribidiCreateInternal(HFontCollection     collectio
     layout->m_ReleaseObject = 0;
     layout->m_ObjectContext = 0;
 
-    if (resolved)
+    if (resolved || settings->m_UseBaseStyle)
     {
-        TextLayoutAdoptResolvedMarkup(layout, resolved, settings);
+        TextLayoutAdoptResolvedMarkup(layout, resolved, settings, num_codepoints);
     }
 
     if (num_codepoints == 0) // empty string

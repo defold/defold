@@ -134,6 +134,8 @@
                                    :leading 1.0,
                                    :font "/builtins/fonts/default.fontc",
                                    :size [128.0 32.0 0.0 0.0],
+                                   :style "default",
+                                   :style-hash (murmur/hash64 "default"),
                                    :tracking 0.0,
                                    :material "/builtins/fonts/label.materialc",
                                    :outline [0.0 0.0 0.0 1.0],
@@ -817,9 +819,6 @@
 
                                ;; Non existent property
                                (check-project-setting built-properties ["project" "doesn't_exist"] nil)
-
-                               ;; Default boolean value
-                               (check-project-setting built-properties ["script" "shared_state"] "0")
 
                                ;; Default number value
                                (check-project-setting built-properties ["display" "width"] "960")
