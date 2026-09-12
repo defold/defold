@@ -24,3 +24,18 @@ if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
   target_link_libraries(test_launcher PRIVATE Threads::Threads dl)
 endif()
 defold_register_test_target(test_launcher ON "${TOOLS_ROOT}")
+
+if(TARGET_PLATFORM MATCHES "macos")
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  set(TOOLS_LAUNCHER_MACOS_TEST_COMMAND
+    "${Python3_EXECUTABLE}" "${TOOLS_LAUNCHER_TEST_ROOT}/test_launcher_macos.py" "$<TARGET_FILE:launcher>")
+  add_custom_target(run_test_launcher_macos
+    COMMAND ${TOOLS_LAUNCHER_MACOS_TEST_COMMAND}
+    DEPENDS launcher
+    USES_TERMINAL
+    VERBATIM)
+  add_dependencies(run_tests run_test_launcher_macos)
+  defold_register_sequential_test_command(test_launcher_macos
+    COMMAND ${TOOLS_LAUNCHER_MACOS_TEST_COMMAND}
+    DEPENDS launcher)
+endif()
