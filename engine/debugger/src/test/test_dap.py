@@ -133,7 +133,9 @@ class DAPTests(unittest.TestCase):
             self.process.stderr.close()
         self.temp.cleanup()
 
-    def start(self, source, second=None):
+    def start(self, source, second=None, late_attach=False):
+        if late_attach and pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
+            self.skipTest("Runtime activation requires the engine extension host")
         self.source = textwrap.dedent(source).lstrip("\n")
         self.path = pathlib.Path(self.temp.name) / "main.lua"
         self.path.write_text(self.source, encoding="utf-8")
@@ -142,7 +144,8 @@ class DAPTests(unittest.TestCase):
             self.second_path = pathlib.Path(self.temp.name) / "second.lua"
             self.second_path.write_text(textwrap.dedent(second).lstrip("\n"), encoding="utf-8")
             paths.append(str(self.second_path))
-        self.process = subprocess.Popen([DEBUGGEE, *paths], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        options = ["--late-attach"] if late_attach else []
+        self.process = subprocess.Popen([DEBUGGEE, *options, *paths], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         lines = queue.Queue()
 
         def read_stdout():
@@ -213,6 +216,127 @@ class DAPTests(unittest.TestCase):
                 self.assertEqual(int(line.split()[1]), expected)
                 return
         self.fail("No completion status")
+
+    # Starts DAP after ordinary Lua execution and a coroutine have already run,
+    # then inspects and edits their preserved locals. Starting the listener must
+    # return immediately and leave hooks/JIT alone until the client attaches.
+    def test_late_attach_preserves_running_state(self):
+        c = self.start('''
+            local count = 0
+            local function tick()
+                count = count + 1
+            end
+            for i = 1, 5 do tick() end
+            local co = coroutine.create(function()
+                local value = 41
+                coroutine.yield()
+                value = value + 1 -- existing-coroutine
+                assert(value == 101)
+            end)
+            assert(coroutine.resume(co))
+            local old_hook = debug.gethook()
+            local old_jit = jit and jit.status()
+            local port = debugger.start()
+            assert(port > 0 and debugger.start(0) == port)
+            assert(debug.gethook() == old_hook)
+            assert(not jit or jit.status() == old_jit)
+            ready = false
+            while not ready do
+                tick()
+                pump()
+            end
+            assert(count > 5)
+            assert(coroutine.resume(co))
+        ''', late_attach=True)
+        c.initialize()
+        c.attach(stopOnEntry=True)
+        self.breakpoints({"line": self.line("existing-coroutine")})
+        c.configured()
+        self.stopped("entry")
+        self.assertEqual(self.evaluate("count > 5")["result"], "true")
+        self.evaluate("ready = true", context="repl")
+        self.resume()
+        self.assertEqual(self.stopped()[0]["line"], self.line("existing-coroutine"))
+        self.assertEqual(self.evaluate("value")["result"], "41")
+        self.evaluate("value = 100", context="repl")
+        self.resume()
+        self.finished()
+
+    # Enables DAP in one of two already initialized contexts, detaches, and
+    # reconnects to the same listener. Both contexts must remain debuggable,
+    # including the second context's uncaught error before stack unwinding.
+    def test_late_attach_contexts_and_reconnect(self):
+        c = self.start('''
+            local port = require('debugger').start()
+            ready = false
+            local count = 0
+            while not ready do
+                count = count + 1
+                pump()
+            end
+            assert(debugger.start() == port)
+        ''', second='''
+            local value = 73
+            assert(debugger.start() > 0)
+            error('late context error')
+        ''', late_attach=True)
+        c.initialize()
+        c.attach(stopOnEntry=True)
+        c.configured()
+        self.stopped("entry")
+        first_thread = self.thread
+        threads = c.request("threads")["threads"]
+        self.assertEqual(len(threads), 2)
+        count = int(self.evaluate("count")["result"])
+        c.request("disconnect")
+        c.event("terminated")
+        c.close()
+        c = self.connect()
+        c.initialize()
+        c.attach(stopOnEntry=True)
+        c.request("setExceptionBreakpoints", {"filters": ["uncaught"]})
+        c.configured()
+        self.stopped("entry")
+        self.assertEqual(self.thread, first_thread)
+        self.assertGreater(int(self.evaluate("count")["result"]), count)
+        self.evaluate("ready = true", context="repl")
+        self.resume()
+        self.stopped("exception")
+        self.assertNotEqual(self.thread, first_thread)
+        self.assertEqual(self.evaluate("value")["result"], "73")
+        info = c.request("exceptionInfo", {"threadId": self.thread})
+        self.assertIn("late context error", info["description"])
+        self.resume()
+        self.finished(expected=2)
+
+    # Rejects invalid port values and an occupied port without installing hooks
+    # or replacing coroutine functions. A later start on the configured free
+    # port must still allow a complete debugging session.
+    def test_late_attach_start_failure_can_retry(self):
+        with socket.socket() as occupied:
+            occupied.bind(("127.0.0.1", 0))
+            occupied.listen(1)
+            port = occupied.getsockname()[1]
+            c = self.start(f'''
+                local old_hook = debug.gethook()
+                local old_create, old_resume, old_wrap = coroutine.create, coroutine.resume, coroutine.wrap
+                for _, value in ipairs({{-1, 65536, 1.5, 'bad', false, 0/0, math.huge}}) do
+                    assert(not pcall(debugger.start, value))
+                end
+                assert(not pcall(debugger.start, {port}))
+                assert(debug.gethook() == old_hook)
+                assert(coroutine.create == old_create and coroutine.resume == old_resume and coroutine.wrap == old_wrap)
+                assert(debugger.start() > 0)
+                ready = false
+                while not ready do pump() end
+            ''', late_attach=True)
+            c.initialize()
+            c.attach(stopOnEntry=True)
+            c.configured()
+            self.stopped("entry")
+            self.evaluate("ready = true", context="repl")
+            self.resume()
+            self.finished()
 
     # Exercises fragmented and coalesced requests, initialization/attach ordering,
     # capability reporting, zero-based positions, and rejection of unsupported
