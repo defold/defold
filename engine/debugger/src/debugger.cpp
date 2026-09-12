@@ -678,9 +678,16 @@ namespace dmDebugger
             ++path;
         while (path[0] == '.' && (path[1] == '/' || path[1] == '\\'))
             path += 2;
-        // DAP clients may lowercase Windows drive letters independently of localRoot.
-        if (path[0] >= 'A' && path[0] <= 'Z' && path[1] == ':')
+        if ((path[0] == '/' || path[0] == '\\') && (path[1] == '/' || path[1] == '\\'))
         {
+            // Keep the UNC server/share prefix; collapsing it changes a
+            // network path into a path on the client's current drive.
+            result.Add("//");
+            path += 2;
+        }
+        else if (path[0] >= 'A' && path[0] <= 'Z' && path[1] == ':')
+        {
+            // DAP clients may lowercase Windows drive letters independently of localRoot.
             char drive = *path++ + ('a' - 'A');
             result.Add(&drive, 1);
         }

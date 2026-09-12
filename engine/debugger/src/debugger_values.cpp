@@ -4,6 +4,7 @@
 #if !defined(DM_RELEASE)
 #include "debugger_private.h"
 #include <dlib/dstrings.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,10 +13,29 @@ namespace dmDebugger
     int StackDepth(lua_State* L)
     {
         lua_Debug ar;
-        int       level = 0;
-        while (lua_getstack(L, level, &ar))
-            ++level;
-        return level;
+        if (!lua_getstack(L, 0, &ar))
+            return 0;
+        // Each lua_getstack walks from the current frame, so probing every
+        // level makes a depth lookup quadratic. Find the first missing level
+        // with exponential bounds and binary search instead. Measure the real
+        // stack: Lua/LuaJIT return hooks are unbalanced after errors/tail calls,
+        // and Lua 5.1's synthetic tail-call frames must still count here.
+        int lower = 0;
+        int upper = 1;
+        while (upper < INT_MAX && lua_getstack(L, upper, &ar))
+        {
+            lower = upper;
+            upper = upper <= INT_MAX / 2 ? upper * 2 : INT_MAX;
+        }
+        while (upper - lower > 1)
+        {
+            int middle = lower + (upper - lower) / 2;
+            if (lua_getstack(L, middle, &ar))
+                lower = middle;
+            else
+                upper = middle;
+        }
+        return upper;
     }
 
     void ClearReferences(Debugger* d)
@@ -486,8 +506,39 @@ namespace dmDebugger
         lua_setfenv(evaluation_L, context - 1);
         // Keep the userdata alive throughout the call and invalidate it afterwards.
         int context_ref = luaL_ref(evaluation_L, LUA_REGISTRYINDEX);
+        int arguments = 0;
+        if (level >= 0)
+        {
+            // LuaJIT exposes varargs as negative locals; Lua 5.1 exposes none.
+            // Older LuaJIT versions can report temporaries here, so check the
+            // name. Copy values with an explicit count to retain trailing nils.
+            int function = lua_gettop(evaluation_L);
+            for (;;)
+            {
+                if (!lua_checkstack(L, 1) || !lua_checkstack(evaluation_L, 1))
+                {
+                    lua_settop(evaluation_L, function - 1);
+                    lua_pushliteral(evaluation_L, "Too many varargs for evaluation");
+                    result = LUA_ERRRUN;
+                    break;
+                }
+                const char* name = lua_getlocal(L, &frame, -arguments - 1);
+                if (!name)
+                    break;
+                if (strcmp(name, "(*vararg)"))
+                {
+                    lua_pop(L, 1);
+                    break;
+                }
+                // Yielded frames use a separate evaluation thread; the
+                // suspended coroutine itself must not be called or resumed.
+                lua_xmove(L, evaluation_L, 1);
+                ++arguments;
+            }
+        }
         d->m_Evaluating = true;
-        result = lua_pcall(evaluation_L, 0, 1, 0);
+        if (!result)
+            result = lua_pcall(evaluation_L, arguments, 1, 0);
         lua_xmove(evaluation_L, L, 1);
         SnapshotEnvironment(L, e, level, environment_ref);
         d->m_Evaluating = false;

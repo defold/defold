@@ -628,6 +628,50 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # LuaJIT evaluations receive the selected frame's varargs, excluding named
+    # parameters and preserving nils. Lua 5.1 has no negative-index local API;
+    # it and global evaluations keep an empty argument list.
+    def test_evaluate_frame_varargs(self):
+        c = self.start('''
+            local function inner(first, ...)
+                local count, values = 0, {}
+                local marker = first -- inspect
+                assert(first == 99 and select('#', ...) == 5)
+                assert(count == (jit and 5 or 0))
+                assert(values[10] == (jit and 30 or nil))
+                return first
+            end
+            local function outer(...)
+                local result = inner(99, 10, nil, 30, nil, nil)
+                assert(select('#', ...) == 3)
+                return result
+            end
+            assert(outer(7, nil, 9) == 99)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        frames = self.stopped()
+        has_varargs = self.evaluate("jit ~= nil")["result"] == "true"
+        for expression, expected in [("select('#', ...)", "5" if has_varargs else "0"),
+                                     ("...", "10" if has_varargs else "nil"),
+                                     ("select(2, ...)", "nil"),
+                                     ("select(3, ...)", "30" if has_varargs else "nil"),
+                                     ("select(5, ...)", "nil")]:
+            self.assertEqual(self.evaluate(expression)["result"], expected)
+        caller = {"frameId": frames[1]["id"], "expression": "select('#', ...)"}
+        self.assertEqual(c.request("evaluate", caller)["result"], "3" if has_varargs else "0")
+        caller["expression"] = "..."
+        self.assertEqual(c.request("evaluate", caller)["result"], "7" if has_varargs else "nil")
+        self.assertEqual(c.request("evaluate", {"expression": "select('#', ...)"})["result"], "0")
+        self.evaluate("count = select('#', ...)", context="repl")
+        assigned = c.request("setExpression", {"frameId": self.frame, "expression": "values[select(1, ...) or 10]",
+                                               "value": "select(3, ...)"})
+        self.assertEqual(assigned["value"], "30" if has_varargs else "nil")
+        self.resume()
+        self.finished()
+
     # Computed targets must run before the RHS, exactly once each. Capture the
     # returned value without reading the destination, even for a metamethod
     # assignment. The generated helper names must not shadow frame bindings.
@@ -1654,6 +1698,34 @@ class DAPTests(unittest.TestCase):
             self.resume()
         self.finished()
 
+    # A UNC localRoot must remain a network path when mapping both relative and
+    # absolute runtime sources. Normalize interior separators and retain case.
+    def test_unc_source_mapping(self):
+        c = self.start(r'''
+            local source = "local n = 1\nn = n + 1\nassert(n == 2)\n"
+            local paths = {"@/main/Relative.script", "@//Server/Share//Game/main/Absolute.script",
+                           [[@\\Server\Share\Game\main\Backslash.script]]}
+            for _, path in ipairs(paths) do
+                local fn = assert(loadstring(source, path))
+                fn()
+            end
+        ''')
+        c.initialize()
+        c.attach(localRoot="\\\\Server\\Share\\Game\\")
+        paths = (r"\\Server\Share\Game\main\Relative.script",
+                 "//Server/Share/Game/main/Absolute.script",
+                 r"\\Server\Share\Game\main\Backslash.script")
+        for path in paths:
+            self.breakpoints({"line": 2}, path=path)
+        c.configured()
+        for path in paths:
+            frame = self.stopped()[0]
+            self.assertEqual(frame["line"], 2)
+            self.assertEqual(frame["source"]["path"], path.replace("\\", "/"))
+            self.assertEqual(self.evaluate("n")["result"], "1")
+            self.resume()
+        self.finished()
+
     # Checks that nil locals shadow globals in a custom function environment,
     # REPL assignments update that environment, and an evaluated closure retains
     # a snapshot of the frame's locals after the program resumes.
@@ -1964,6 +2036,50 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Copy enough varargs to grow the evaluation stack, including interior and
+    # trailing nils, without changing the yielded coroutine's resume arguments.
+    def test_evaluate_varargs_in_yielded_coroutine(self):
+        c = self.start('''
+            local co = coroutine.create(function(first, ...)
+                local seen = 0
+                local resumed = coroutine.yield(select('#', ...))
+                assert(resumed == 'resume-value' and first == 42)
+                assert(select('#', ...) == 80)
+                assert(select(1, ...) == 1 and select(2, ...) == nil)
+                assert(select(79, ...) == 79 and select(80, ...) == nil)
+                assert(seen == (jit and 80 or 0))
+                return first
+            end)
+            local args = {}
+            for i = 1, 79, 2 do args[i] = i end
+            local ok, value = coroutine.resume(co, 42, unpack(args, 1, 80))
+            assert(ok and value == 80)
+            local marker = 0 -- inspect
+            ok, value = coroutine.resume(co, 'resume-value')
+            assert(ok and value == 42)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        main_frame = self.frame
+        has_varargs = self.evaluate("jit ~= nil")["result"] == "true"
+        thread = next(t for t in c.request("threads")["threads"] if "/ coroutine" in t["name"])
+        frames = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"]
+        self.frame = frames[0]["id"]
+        for expression, expected in [("select('#', ...)", "80" if has_varargs else "0"),
+                                     ("...", "1" if has_varargs else "nil"),
+                                     ("select(79, ...)", "79" if has_varargs else "nil"),
+                                     ("select(80, ...)", "nil")]:
+            self.assertEqual(self.evaluate(expression)["result"], expected)
+        c.request("setExpression", {"frameId": self.frame, "expression": "seen", "value": "select('#', ...)"})
+        self.assertEqual(c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"], frames)
+        self.frame = main_frame
+        self.assertEqual(self.evaluate("coroutine.status(co)")["result"], '"suspended"')
+        self.resume()
+        self.finished()
+
     # Checks evaluation of a selected caller's local and step-over through
     # recursive calls, stopping at the return line with the completed result.
     def test_recursive_step_over_and_caller_evaluation(self):
@@ -1988,6 +2104,39 @@ class DAPTests(unittest.TestCase):
         self.assertEqual(self.stopped("step")[0]["line"], self.line("return"))
         self.assertEqual(self.evaluate("value")["result"], "2")
         self.resume()
+        self.finished()
+
+    # Depth lookup must remain exact in deep recursion and after protected error
+    # unwinds, both for stepping and for evaluating a selected caller's locals.
+    def test_step_over_deep_recursion_and_error_unwind(self):
+        c = self.start('''
+            local function visit(n)
+                if n == 0 then return 0 end
+                local value = visit(n - 1) -- recurse
+                if n == 32 then error('unwind') end -- unwind
+                return value + 1 -- return
+            end
+            local caller_value = 123
+            for _, depth in ipairs({31, 32, 33, 63, 64, 65, 127, 128, 129}) do
+                local ok, value = pcall(visit, depth)
+                assert(ok == (depth < 32))
+                if ok then assert(value == depth) end
+            end
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("recurse"), "condition": "n == 1"})
+        c.configured()
+        for depth in (31, 32, 33, 63, 64, 65, 127, 128, 129):
+            frames = self.stopped()
+            self.assertEqual(len(frames), depth + 1)
+            self.assertEqual(self.evaluate("n")["result"], "1")
+            self.assertEqual(self.evaluate("n", frameId=frames[1]["id"])["result"], "2")
+            self.assertEqual(self.evaluate("caller_value", frameId=frames[-1]["id"])["result"], "123")
+            self.resume("next")
+            self.assertEqual(self.stopped("step")[0]["line"], self.line("unwind"))
+            self.assertEqual(self.evaluate("value")["result"], "0")
+            self.resume()
         self.finished()
 
     # Checks large string lengths and escaping of non-UTF-8/NUL bytes, then
