@@ -105,6 +105,10 @@ the frame's bindings after the request completes. Evaluation runs on the stopped
 Lua thread, using a temporary thread for yielded coroutines to preserve their
 suspended state. In either case it reads and writes the selected frame's bindings
 and has the same side effects as executing that Lua code normally.
+On LuaJIT, frame evaluation also receives the function's varargs (`...`),
+including nil arguments. Lua 5.1 does not expose varargs through its debug API,
+so evaluation receives no varargs on that runtime. Global evaluation always
+receives no varargs.
 
 `setExpression` accepts a Lua assignment target and a value expression. It returns
 the assigned value and evaluates the target and value once in normal Lua
