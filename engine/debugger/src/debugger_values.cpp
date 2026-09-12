@@ -1,5 +1,16 @@
 // Copyright 2020-2026 The Defold Foundation
-// Licensed under the Defold License version 1.0. See https://www.defold.com/license
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
 #if !defined(DM_RELEASE)
 #include "debugger_private.h"
@@ -79,22 +90,24 @@ namespace dmDebugger
 
     static Frame* FindFrame(Debugger* d, int id)
     {
+        if (id <= 0)
+            return 0;
         for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
-            if (d->m_Frames[i].m_Id == id)
+            if (d->m_Frames[i].m_Id == (uint32_t)id)
                 return &d->m_Frames[i];
         return 0;
     }
 
-    static int AddReference(Debugger* d, lua_State* L, ReferenceKind kind, int level, int index = 0, const char* evaluate_name = 0)
+    static uint32_t AddReference(Debugger* d, lua_State* L, ReferenceKind kind, int level, int index = 0, const char* evaluate_name = 0)
     {
         for (uint32_t i = 0; i < d->m_References.Size(); ++i)
         {
             Reference& r = d->m_References[i];
             if (r.m_L != L || r.m_Kind != kind || r.m_Level != level)
                 continue;
-            if (kind != REFERENCE_TABLE)
+            if (kind != REFERENCE_VALUE)
                 return r.m_Id;
-            if (kind == REFERENCE_TABLE)
+            if (kind == REFERENCE_VALUE)
             {
                 const void* pointer = lua_topointer(L, index);
                 lua_rawgeti(L, LUA_REGISTRYINDEX, r.m_LuaRef);
@@ -109,13 +122,46 @@ namespace dmDebugger
             }
         }
         Reference r = { d->m_NextId++, L, level, LUA_NOREF, kind, evaluate_name ? strdup(evaluate_name) : 0 };
-        if (kind == REFERENCE_TABLE)
+        if (kind == REFERENCE_VALUE)
         {
             lua_pushvalue(L, index);
             r.m_LuaRef = luaL_ref(L, LUA_REGISTRYINDEX);
         }
         Push(d->m_References, r);
         return r.m_Id;
+    }
+
+    void QuoteLuaString(const char* text, uint32_t size, Buffer& value)
+    {
+        value.Add("\"");
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            unsigned char c = (unsigned char)text[i];
+            if (c == '\\' || c == '"')
+            {
+                value.Add("\\");
+                value.Add(text + i, 1);
+            }
+            else if (c == '\n')
+                value.Add("\\n");
+            else if (c == '\r')
+                value.Add("\\r");
+            else if (c == '\t')
+                value.Add("\\t");
+            else
+            {
+                uint32_t bytes = c >= 32 && c != 127 ? Utf8Bytes(text + i, size - i) : 0;
+                if (bytes)
+                {
+                    value.Add(text + i, bytes);
+                    i += bytes - 1;
+                }
+                else
+                    // Three digits keep an adjacent digit out of the byte escape.
+                    value.Format("\\%03u", (unsigned)c);
+            }
+        }
+        value.Add("\"");
     }
 
     void FormatValue(lua_State* L, int index, Buffer& value)
@@ -135,7 +181,7 @@ namespace dmDebugger
             {
                 size_t      length = 0;
                 const char* text = lua_tolstring(L, index, &length);
-                value.String(text, (uint32_t)length);
+                QuoteLuaString(text, (uint32_t)length, value);
                 break;
             }
             default:
@@ -144,13 +190,13 @@ namespace dmDebugger
         }
     }
 
-    static bool ExpressionMatches(lua_State* L, int level, int index, const char* expression)
+    static bool ExpressionMatches(Debugger* d, lua_State* L, int level, int index, const char* expression)
     {
         if (!expression || !expression[0])
             return false;
         if (index < 0)
             index = lua_gettop(L) + index + 1;
-        bool matches = Inspect(L, level, expression) && lua_rawequal(L, index, -1);
+        bool matches = Inspect(d, L, level, expression) && lua_rawequal(L, index, -1);
         lua_pop(L, 1);
         return matches;
     }
@@ -169,20 +215,22 @@ namespace dmDebugger
             body.Add(",\"type\":");
             body.String(lua_typename(L, lua_type(L, index)));
         }
-        if (!ExpressionMatches(L, level, index, evaluate_name))
+        if (!ExpressionMatches(d, L, level, index, evaluate_name))
             evaluate_name = 0;
         if (variable && evaluate_name)
         {
             body.Add(",\"evaluateName\":");
             body.String(evaluate_name);
         }
-        int reference = lua_istable(L, index) ? AddReference(d, L, REFERENCE_TABLE, level, index, evaluate_name) : 0;
-        body.Format(",\"variablesReference\":%d", reference);
+        bool     expandable = PushValueTable(d, L, index);
+        uint32_t reference = expandable ? AddReference(d, L, REFERENCE_VALUE, level, index, evaluate_name) : 0;
+        body.Format(",\"variablesReference\":%u", reference);
         if (reference && d->m_VariablePaging)
         {
+            int table = lua_gettop(L);
             int named = 0, indexed = 0;
             lua_pushnil(L);
-            while (lua_next(L, index))
+            while (lua_next(L, table))
             {
                 if (lua_type(L, -2) == LUA_TNUMBER)
                     ++indexed;
@@ -192,6 +240,8 @@ namespace dmDebugger
             }
             body.Format(",\"namedVariables\":%d,\"indexedVariables\":%d", named, indexed);
         }
+        if (expandable)
+            lua_pop(L, 1);
     }
 
     struct Evaluation
@@ -586,7 +636,7 @@ namespace dmDebugger
         return ordinal >= start && (!count || ordinal - start < count);
     }
 
-    static void Variables(Debugger* d, const Reference& r, Buffer& body, int start, int count, const char* filter)
+    static bool Variables(Debugger* d, const Reference& r, Buffer& body, int start, int count, const char* filter)
     {
         lua_State* L = r.m_L;
         int        top = lua_gettop(L);
@@ -619,10 +669,20 @@ namespace dmDebugger
                 PushEnvironment(L, r.m_Level);
             else
                 lua_rawgeti(L, LUA_REGISTRYINDEX, r.m_LuaRef);
-            int    table = lua_gettop(L);
             Buffer parent;
-            if (r.m_Kind == REFERENCE_TABLE && ExpressionMatches(L, r.m_Level, table, r.m_EvaluateName))
-                parent.Add(r.m_EvaluateName);
+            if (r.m_Kind == REFERENCE_VALUE)
+            {
+                if (ExpressionMatches(d, L, r.m_Level, -1, r.m_EvaluateName))
+                    parent.Add(r.m_EvaluateName);
+                if (!PushValueTable(d, L, -1))
+                {
+                    lua_settop(L, top);
+                    body.Clear();
+                    body.Add("Value no longer has inspectable members");
+                    return false;
+                }
+            }
+            int table = lua_gettop(L);
             lua_pushnil(L);
             while (lua_next(L, table))
             {
@@ -633,7 +693,7 @@ namespace dmDebugger
                     Buffer name;
                     KeyName(L, -2, r.m_Kind == REFERENCE_GLOBALS, name);
                     Buffer expression;
-                    if (r.m_Kind == REFERENCE_TABLE)
+                    if (r.m_Kind == REFERENCE_VALUE)
                     {
                         if (parent.Size())
                             KeyExpression(L, -2, parent.Data(), expression);
@@ -658,6 +718,7 @@ namespace dmDebugger
         }
         lua_settop(L, top);
         body.Add("]}");
+        return true;
     }
 
     static bool SetVariable(Debugger* d, const Reference& r, const char* name, const char* expression, Buffer& body)
@@ -703,7 +764,15 @@ namespace dmDebugger
             if (r.m_Kind == REFERENCE_GLOBALS)
                 PushEnvironment(L, r.m_Level);
             else
+            {
                 lua_rawgeti(L, LUA_REGISTRYINDEX, r.m_LuaRef);
+                if (!PushValueTable(d, L, -1))
+                {
+                    lua_settop(L, top);
+                    body.Add("Value no longer has inspectable members");
+                    return false;
+                }
+            }
             int table = lua_gettop(L);
             lua_pushnil(L);
             while (lua_next(L, table))
@@ -751,7 +820,7 @@ namespace dmDebugger
             int thread = request.Integer(request.Field(args, "threadId"));
             int start = request.Integer(request.Field(args, "startFrame"), 0);
             int count = request.Integer(request.Field(args, "levels"), 0);
-            if (!FindThread(d, thread) || start < 0 || count < 0)
+            if (thread <= 0 || !FindThread(d, (uint32_t)thread) || start < 0 || count < 0)
                 error = "Invalid thread or stack range";
             else
             {
@@ -760,7 +829,7 @@ namespace dmDebugger
                 for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
                 {
                     Frame& frame = d->m_Frames[i];
-                    if (frame.m_ThreadId != thread)
+                    if (frame.m_ThreadId != (uint32_t)thread)
                         continue;
                     if (!Page(ordinal++, start, count))
                         continue;
@@ -769,7 +838,7 @@ namespace dmDebugger
                         continue;
                     if (emitted++)
                         body.Add(",");
-                    body.Format("{\"id\":%d,\"name\":", frame.m_Id);
+                    body.Format("{\"id\":%u,\"name\":", frame.m_Id);
                     body.String(ar.name ? ar.name : ar.what);
                     body.Format(",\"line\":%d,\"column\":%d", ar.currentline > 0 ? ar.currentline - !d->m_LinesStartAt1 : 0, d->m_ColumnsStartAt1 ? 1 : 0);
                     if (ar.source && ar.source[0] == '@')
@@ -801,7 +870,7 @@ namespace dmDebugger
                 {
                     if (i)
                         body.Add(",");
-                    body.Format("{\"name\":\"%s\",\"variablesReference\":%d,\"expensive\":%s}", names[i], AddReference(d, frame->m_L, (ReferenceKind)i, frame->m_Level), i == 2 ? "true" : "false");
+                    body.Format("{\"name\":\"%s\",\"variablesReference\":%u,\"expensive\":%s}", names[i], AddReference(d, frame->m_L, (ReferenceKind)i, frame->m_Level), i == 2 ? "true" : "false");
                 }
                 body.Add("]}");
             }
@@ -832,7 +901,7 @@ namespace dmDebugger
                 // Watch evaluations can be triggered by an invalidation. Sending
                 // another event for them would cause a client refresh loop.
                 invalidate = assignment || !strcmp(context, "repl");
-                bool ok = hover ? Inspect(L, level, expression) :
+                bool ok = hover ? Inspect(d, L, level, expression) :
                                   Evaluate(d, L, level, value, !assignment && !strcmp(context, "repl"), assignment ? expression : 0);
                 if (ok)
                 {
@@ -850,7 +919,8 @@ namespace dmDebugger
         }
         else if (!strcmp(command, "exceptionInfo"))
         {
-            if (request.Integer(request.Field(args, "threadId")) != d->m_StoppedThread || !d->m_Exception.Size())
+            int thread = request.Integer(request.Field(args, "threadId"));
+            if (thread <= 0 || (uint32_t)thread != d->m_StoppedThread || !d->m_Exception.Size())
                 error = "No exception on this thread";
             else
             {
@@ -866,7 +936,7 @@ namespace dmDebugger
             Reference r = {};
             bool      found = false;
             for (uint32_t i = 0; i < d->m_References.Size(); ++i)
-                if (d->m_References[i].m_Id == id)
+                if (id > 0 && d->m_References[i].m_Id == (uint32_t)id)
                 {
                     r = d->m_References[i];
                     found = true;
@@ -881,8 +951,8 @@ namespace dmDebugger
                 const char* filter = request.String(request.Field(args, "filter"), "");
                 if (start < 0 || count < 0 || (filter[0] && strcmp(filter, "named") && strcmp(filter, "indexed")))
                     error = "Invalid variable range or filter";
-                else
-                    Variables(d, r, body, start, count, filter);
+                else if (!Variables(d, r, body, start, count, filter))
+                    error = body.Data();
             }
             else
             {

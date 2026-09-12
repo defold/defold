@@ -1,6 +1,17 @@
 #!/usr/bin/env python3
 # Copyright 2020-2026 The Defold Foundation
-# Licensed under the Defold License version 1.0. See https://www.defold.com/license
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
+#
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
 
 """Black-box tests: a Python DAP client against the actual C++/Lua TCP server."""
 import argparse
@@ -18,6 +29,9 @@ import unittest
 
 
 DEBUGGEE = None
+ENGINE = None
+ENGINE_CONTENT = None
+ENGINE_SOURCE_ROOT = pathlib.Path(__file__).resolve().parents[3] / "engine/src/test"
 
 
 class Client:
@@ -117,7 +131,7 @@ class Client:
         self.response(self.attach_sequence)
 
 
-class DAPTests(unittest.TestCase):
+class DAPTestCase(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="defold-dap-")
         self.process = None
@@ -131,10 +145,13 @@ class DAPTests(unittest.TestCase):
                 self.process.kill()
             self.process.wait(timeout=5)
             self.process.stdout.close()
-            self.process.stderr.close()
+            if self.process.stderr:
+                self.process.stderr.close()
         self.temp.cleanup()
 
     def start(self, source, second=None, late_attach=False, updates=0, prelude=None, startup_port=None, no_wait=False):
+        if not DEBUGGEE:
+            self.skipTest("Requires a Lua test host")
         if (late_attach or startup_port is not None) and pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
             self.skipTest("Runtime activation requires the engine extension host")
         self.source = textwrap.dedent(source).lstrip("\n")
@@ -145,7 +162,9 @@ class DAPTests(unittest.TestCase):
             self.second_path = pathlib.Path(self.temp.name) / "second.lua"
             self.second_path.write_text(textwrap.dedent(second).lstrip("\n"), encoding="utf-8")
             paths.append(str(self.second_path))
-        options = ["--updates", str(updates)] if updates else []
+        options = []
+        if updates:
+            options.extend(["--updates", str(updates)])
         if prelude is not None:
             self.prelude = textwrap.dedent(prelude).lstrip("\n")
             self.prelude_path = pathlib.Path(self.temp.name) / "prelude.lua"
@@ -157,7 +176,11 @@ class DAPTests(unittest.TestCase):
             options.extend(["--startup-port", str(startup_port)])
         if late_attach:
             options.append("--late-attach")
-        self.process = subprocess.Popen([DEBUGGEE, *options, *paths], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        return self.start_process([DEBUGGEE, *options, *paths])
+
+    def start_process(self, command, merge_output=False):
+        stderr = subprocess.STDOUT if merge_output else subprocess.PIPE
+        self.process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=stderr, text=True)
         lines = queue.Queue()
 
         def read_stdout():
@@ -168,10 +191,13 @@ class DAPTests(unittest.TestCase):
         self.lines = lines
         threading.Thread(target=read_stdout, daemon=True).start()
         deadline = time.monotonic() + 10
+        startup_output = []
         while time.monotonic() < deadline:
             line = lines.get(timeout=10)
             if line is None:
-                self.fail(f"Debuggee exited during startup: {self.process.stderr.read()}")
+                errors = self.process.stderr.read() if self.process.stderr else ""
+                self.fail(f"Debuggee exited during startup: {''.join(startup_output)}{errors}")
+            startup_output.append(line)
             if "Lua DAP debugger listening on 127.0.0.1:" in line:
                 line = "PORT " + line.rsplit(":", 1)[1].strip()
             if line.startswith("PORT "):
@@ -230,6 +256,7 @@ class DAPTests(unittest.TestCase):
                 return
         self.fail("No completion status")
 
+class DAPTests(DAPTestCase):
     # Starts DAP after ordinary Lua execution and a coroutine have already run,
     # then inspects and edits their preserved locals. Starting the listener must
     # return immediately and leave hooks/JIT alone until the client attaches.
@@ -513,7 +540,7 @@ class DAPTests(unittest.TestCase):
     # A bind failure on the first extension initialization must leave its update
     # callback enabled so a later Lua start on a free port can accept a client.
     def test_startup_bind_failure_can_retry(self):
-        if pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
+        if not DEBUGGEE or pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
             self.skipTest("Startup configuration requires the engine extension host")
         with socket.socket() as occupied:
             occupied.bind(("127.0.0.1", 0))
@@ -809,6 +836,40 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Displayed strings must remain valid Lua literals when the client accepts
+    # an edit unchanged. Exercise every byte, adjacent digits, and readable UTF-8
+    # through evaluation, both assignment requests, and a displayed table key.
+    def test_string_values_round_trip_through_edits(self):
+        c = self.start(r'''
+            local parts = {}
+            for byte = 0, 255 do parts[#parts + 1] = string.char(byte) .. "123" end
+            local original = table.concat(parts) .. " héllo 🌍"
+            local text = original
+            local values = {[original] = text}
+            local marker = 1 -- inspect
+            assert(text == original and values[original] == original and marker == 1)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        scopes = self.scopes()
+        text = next(v for v in self.variables(scopes["Locals"]) if v["name"] == "text")
+        literal = text["value"]
+        self.assertIn("héllo 🌍", literal)
+        self.assertEqual(self.evaluate(literal)["result"], literal)
+        c.request("setVariable", {"variablesReference": scopes["Locals"], "name": "text", "value": literal})
+        self.assertEqual(self.evaluate("text == original")["result"], "true")
+        c.request("setExpression", {"frameId": self.frame, "expression": "text", "value": literal})
+        self.assertEqual(self.evaluate("text == original")["result"], "true")
+        reference = self.evaluate("values")["variablesReference"]
+        entry = self.variables(reference)[0]
+        self.assertEqual(self.evaluate(entry["evaluateName"], context="hover")["result"], literal)
+        c.request("setVariable", {"variablesReference": reference, "name": entry["name"], "value": literal})
+        self.resume()
+        self.finished()
+
     # Honors clients that do not support variable types, paging metadata, or
     # invalidated events. Reconnecting without those initialize fields must
     # reset the negotiated options instead of inheriting the previous session.
@@ -956,6 +1017,37 @@ class DAPTests(unittest.TestCase):
         self.stopped()
         self.assertEqual(locations(function, self.line("returned") - 1),
                          [{"line": function}, {"line": self.line("returned") - 1}])
+        self.resume()
+        self.finished()
+
+    # Source observation must not retain closures, skip a replacement function
+    # with the same filename, or report duplicate executable lines.
+    def test_observed_functions_are_weak_and_reloads_are_discovered(self):
+        c = self.start(r'''
+            local weak = setmetatable({}, {__mode = "v"})
+            do
+                local fn = assert(loadstring("local value = 1\nreturn value\n", "@/reload.lua"))
+                weak[1] = fn
+                for i = 1, 10 do assert(fn() == 1) end
+            end
+            collectgarbage("collect")
+            collectgarbage("collect")
+            assert(weak[1] == nil) -- collected
+            local replacement = assert(loadstring("\n\nlocal value = 2\nreturn value\n", "@/reload.lua"))
+            assert(replacement() == 2)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("collected")})
+        self.breakpoints({"line": 4}, path="/reload.lua")
+        c.configured()
+        self.stopped()
+        self.assertEqual(self.evaluate("weak[1]", context="hover")["result"], "nil")
+        self.resume()
+        frames = self.stopped()
+        self.assertEqual((frames[0]["source"]["path"], frames[0]["line"]), ("/reload.lua", 4))
+        locations = c.request("breakpointLocations", {"source": {"path": "/reload.lua"}, "line": 1, "endLine": 4})
+        self.assertEqual(locations["breakpoints"], [{"line": i} for i in range(1, 5)])
         self.resume()
         self.finished()
 
@@ -1437,7 +1529,13 @@ class DAPTests(unittest.TestCase):
         self.assertTrue(changed[0]["verified"])
         c.request("scopes", {"frameId": 999999}, success=False)
         c.request("variables", {"variablesReference": 999999}, success=False)
-        c.request("stackTrace", {"threadId": -1}, success=False)
+        # Invalid signed or oversized wire values must not become valid IDs
+        # when converted to the engine's unsigned identifiers.
+        for invalid in (0, -1, -2147483648, 2147483648, 4294967295, 4294967296 + self.thread):
+            c.request("scopes", {"frameId": invalid}, success=False)
+            c.request("variables", {"variablesReference": invalid}, success=False)
+            c.request("stackTrace", {"threadId": invalid}, success=False)
+            c.request("continue", {"threadId": invalid}, success=False)
         c.request("stackTrace", {"threadId": self.thread, "startFrame": -1}, success=False)
         c.request("pause", {"threadId": self.thread}, success=False)
         self.resume()
@@ -2151,8 +2249,8 @@ class DAPTests(unittest.TestCase):
         self.stopped()
         self.assertEqual(len(self.evaluate("string.rep('x', 50000)")["result"]), 50002)
         binary = self.evaluate("string.char(255, 0, 10)")["result"]
-        self.assertIn("\\u00ff", binary)
-        self.assertIn("\\u0000", binary)
+        self.assertIn("\\255", binary)
+        self.assertIn("\\000", binary)
         self.assertEqual(self.evaluate("pump()")["result"], "nil")
         self.assertEqual(self.evaluate("collectgarbage('collect')")["result"], "0")
         self.assertEqual(self.evaluate("x")["result"], "1")
@@ -2221,9 +2319,126 @@ class DAPTests(unittest.TestCase):
         self.assertEqual(self.process.wait(timeout=5), 0, self.process.stderr.read())
 
 
+class EngineDAPTests(DAPTestCase):
+    # Run the existing headless app against Bob-built engine test content. The
+    # app owns script loading, callbacks, contexts, and instance destruction.
+    def start_engine(self, kind, yielded=False, case="inspect"):
+        if not ENGINE:
+            self.skipTest("Requires dmengine_headless and engine test content")
+        self.path = ENGINE_SOURCE_ROOT / "debugger/inspection.lua"
+        self.source = self.path.read_text(encoding="utf-8")
+        settings = {
+            "resource.uri": str(ENGINE_CONTENT),
+            "bootstrap.main_collection": "/debugger/main.collectionc",
+            "bootstrap.render": "/debugger/default.renderc",
+            "bootstrap.debug_init_script": "",
+            "debugger.enabled": 1,
+            "debugger.port": 0,
+            "debugger.wait": 1,
+            "test.debugger_instance": kind,
+            "test.debugger_yielded": int(yielded),
+            "test.debugger_case": case,
+        }
+        return self.start_process([ENGINE, str(ENGINE_CONTENT / "game.projectc"),
+                                   *[f"--config={key}={value}" for key, value in settings.items()]], merge_output=True)
+
+    def finished(self, expected=0):
+        self.client.event("terminated")
+        code = self.process.wait(timeout=8)
+        output = []
+        while True:
+            line = self.lines.get(timeout=5)
+            if line is None:
+                break
+            output.append(line)
+        self.assertEqual(code, expected, "".join(output))
+
+    def check_instance(self, kind, yielded=False):
+        c = self.start_engine(kind, yielded)
+        c.initialize()
+        c.attach(localRoot=str(ENGINE_SOURCE_ROOT))
+        self.breakpoints({"line": self.line("suspended" if yielded else "inspect")})
+        c.configured()
+        self.stopped()
+        if yielded:
+            coroutine = next(t for t in c.request("threads")["threads"] if " / coroutine " in t["name"])
+            frames = c.request("stackTrace", {"threadId": coroutine["id"]})["stackFrames"]
+            self.frame = frames[0]["id"]
+        scopes = self.scopes()
+        locals_ = {v["name"]: v for v in self.variables(scopes["Locals"])}
+        value = locals_["self"]
+        self.assertEqual(value["type"], "userdata")
+        self.assertEqual(value["evaluateName"], "self")
+        self.assertEqual(value["namedVariables"], 4)
+        reference = value["variablesReference"]
+        self.assertNotEqual(reference, 0)
+        children = {v["name"]: v for v in self.variables(reference)}
+        self.assertEqual(children['["cycle"]']["variablesReference"], reference)
+        self.assertEqual(self.evaluate("self.cycle.score", context="hover")["result"], "41")
+        completions = c.request("completions", {"frameId": self.frame, "text": "self.sc", "column": 8})["targets"]
+        self.assertEqual([v["label"] for v in completions], ["score"])
+        methods = c.request("completions", {"frameId": self.frame, "text": "self:", "column": 6})["targets"]
+        self.assertEqual([v["label"] for v in methods], ["action"])
+        self.assertEqual(locals_["opaque"]["variablesReference"], 0)
+        c.request("evaluate", {"frameId": self.frame, "expression": "opaque.missing", "context": "hover"}, success=False)
+        c.request("setVariable", {"variablesReference": reference, "name": '["score"]', "value": "99"})
+        c.request("setVariable", {"variablesReference": children['["items"]']["variablesReference"], "name": "[1]", "value": '"two"'})
+        c.request("setExpression", {"frameId": self.frame, "expression": "self.label", "value": '"done"'})
+        self.assertEqual(self.evaluate("self.score", context="hover")["result"], "99")
+        self.assertEqual(self.evaluate("calls", context="hover")["result"], "0")
+        self.resume()
+        self.finished()
+
+    def test_game_object_self(self):
+        self.check_instance("go")
+
+    def test_gui_self(self):
+        self.check_instance("gui")
+
+    def test_render_self(self):
+        self.check_instance("render")
+
+    def test_yielded_game_object_self(self):
+        self.check_instance("go", yielded=True)
+
+    def test_yielded_gui_self(self):
+        self.check_instance("gui", yielded=True)
+
+    def test_yielded_render_self(self):
+        self.check_instance("render", yielded=True)
+
+    def test_replaced_instance_getter_is_not_called(self):
+        c = self.start_engine("go", case="getter")
+        c.initialize()
+        c.attach(localRoot=str(ENGINE_SOURCE_ROOT))
+        self.breakpoints({"line": self.line("getter")})
+        c.configured()
+        self.stopped()
+        reference = self.evaluate("self", context="hover")["variablesReference"]
+        self.assertNotEqual(reference, 0)
+        self.evaluate("mt.__get_instance_data_table_ref = replacement", context="repl")
+        self.assertEqual(self.evaluate("self", context="hover")["variablesReference"], 0)
+        c.request("variables", {"variablesReference": reference}, success=False)
+        c.request("setVariable", {"variablesReference": reference, "name": '["score"]', "value": "99"}, success=False)
+        c.request("evaluate", {"frameId": self.frame, "expression": "self.score", "context": "hover"}, success=False)
+        self.assertEqual(c.request("completions", {"frameId": self.frame, "text": "self.", "column": 6})["targets"], [])
+        self.assertEqual(self.evaluate("calls", context="hover")["result"], "0")
+        self.evaluate("mt.__get_instance_data_table_ref = getter", context="repl")
+        self.assertEqual(self.variables(reference)[0]["value"], "41")
+        self.resume()
+        self.finished()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--debuggee", required=True)
+    host = parser.add_mutually_exclusive_group(required=True)
+    host.add_argument("--debuggee")
+    host.add_argument("--engine")
+    parser.add_argument("--engine-content", type=pathlib.Path)
     args, remaining = parser.parse_known_args()
-    DEBUGGEE = str(pathlib.Path(args.debuggee).resolve())
+    if args.engine and not args.engine_content:
+        parser.error("--engine-content is required with --engine")
+    DEBUGGEE = str(pathlib.Path(args.debuggee).resolve()) if args.debuggee else None
+    ENGINE = str(pathlib.Path(args.engine).resolve()) if args.engine else None
+    ENGINE_CONTENT = args.engine_content.resolve() if args.engine_content else None
     unittest.main(argv=[sys.argv[0], *remaining], verbosity=2)

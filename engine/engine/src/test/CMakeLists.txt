@@ -56,6 +56,7 @@ set(ENGINE_TEST_CONTENT_STAMP "${ENGINE_TEST_RUNTIME_ROOT}/.cmake/test_content.s
 set(ENGINE_TEST_CONTENT_SCRIPT "${ENGINE_TEST_ROOT}/build_cmake_test_content.py")
 set(ENGINE_TEST_CONTENT_SETTINGS
   "cross_script_messaging.ini"
+  "debugger.ini"
   "issue-12703.ini"
   "render_script.ini"
   "camera_acquire_input_focus.ini"
@@ -118,6 +119,21 @@ add_dependencies(engine_test_content engine_bob_engine_jar)
 add_dependencies(engine_test_content engine_builtins)
 if(TARGET shaderc_jar)
   add_dependencies(engine_test_content shaderc_jar)
+endif()
+
+if(TARGET debugger AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
+  set(ENGINE_DAP_TEST_COMMAND
+    "${Python3_EXECUTABLE}" "${DEFOLD_HOME}/engine/debugger/src/test/test_dap.py"
+    --engine "$<TARGET_FILE:dmengine_headless>"
+    --engine-content "${ENGINE_TEST_RUNTIME_ROOT}/build/default"
+    EngineDAPTests)
+  add_custom_target(test_debugger_dap_instances
+    COMMAND ${ENGINE_DAP_TEST_COMMAND}
+    DEPENDS dmengine_headless engine_test_content
+    USES_TERMINAL VERBATIM)
+  defold_register_sequential_test_command(test_debugger_dap_instances
+    COMMAND ${ENGINE_DAP_TEST_COMMAND}
+    DEPENDS dmengine_headless engine_test_content)
 endif()
 
 set(ENGINE_TEST_SYMBOLS
