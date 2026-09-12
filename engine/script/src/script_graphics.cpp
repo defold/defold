@@ -430,6 +430,7 @@ namespace dmScript
             // Per-stage binding limits
             PUSH_LIMIT(m_MaxSamplersPerStage,             "max_samplers_per_stage");
             PUSH_LIMIT(m_MaxTexturesPerStage,             "max_textures_per_stage");
+            PUSH_LIMIT(m_MaxStorageBuffersPerStage,       "max_storage_buffers_per_stage");
             PUSH_LIMIT(m_MaxVertexAttributes,             "max_vertex_attributes");
             PUSH_LIMIT(m_MaxVertexBuffers,                "max_vertex_buffers");
 

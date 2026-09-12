@@ -120,6 +120,7 @@ namespace dmGraphics
 
         limits.m_MaxSamplersPerStage             = 16;
         limits.m_MaxTexturesPerStage             = 32;
+        limits.m_MaxStorageBuffersPerStage       = MAX_BINDINGS_PER_SET_COUNT;
         limits.m_MaxVertexAttributes             = 16;
         limits.m_MaxVertexBuffers                = 16;
 
@@ -201,6 +202,7 @@ namespace dmGraphics
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
@@ -454,6 +456,67 @@ namespace dmGraphics
         NullDisableUniformBuffer(_context, uniform_buffer);
         delete[] ubo->m_Buffer;
         delete ubo;
+    }
+
+    static HStorageBuffer NullNewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        NullStorageBuffer* buffer = new NullStorageBuffer();
+        buffer->m_Base.m_Size = size;
+        buffer->m_Base.m_Usage = buffer_usage;
+        buffer->m_Buffer = new uint8_t[size];
+        if (data) memcpy(buffer->m_Buffer, data, size);
+        else memset(buffer->m_Buffer, 0, size);
+        return (HStorageBuffer) buffer;
+    }
+
+    static void NullDisableStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        NullContext* context = (NullContext*) _context;
+        NullStorageBuffer* buffer = (NullStorageBuffer*) storage_buffer;
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+                if (context->m_StorageBuffers[set][binding] == buffer)
+                    context->m_StorageBuffers[set][binding] = 0;
+    }
+
+    static void NullDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        NullStorageBuffer* buffer = (NullStorageBuffer*) storage_buffer;
+        NullDisableStorageBuffer(_context, storage_buffer);
+        delete[] buffer->m_Buffer;
+        delete buffer;
+    }
+
+    static void NullSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        NullStorageBuffer* buffer = (NullStorageBuffer*) storage_buffer;
+        if (size != buffer->m_Base.m_Size)
+        {
+            delete[] buffer->m_Buffer;
+            buffer->m_Buffer = new uint8_t[size];
+            buffer->m_Base.m_Size = size;
+        }
+        buffer->m_Base.m_Usage = buffer_usage;
+        if (data) memcpy(buffer->m_Buffer, data, size);
+        else memset(buffer->m_Buffer, 0, size);
+    }
+
+    static void NullSetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        NullStorageBuffer* buffer = (NullStorageBuffer*) storage_buffer;
+        assert(offset + size <= buffer->m_Base.m_Size);
+        memcpy(buffer->m_Buffer + offset, data, size);
+    }
+
+    static uint32_t NullGetStorageBufferSize(HContext _context, HStorageBuffer storage_buffer)
+    {
+        return ((NullStorageBuffer*) storage_buffer)->m_Base.m_Size;
+    }
+
+    static void NullEnableStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding, uint32_t set)
+    {
+        assert(set < MAX_SET_COUNT && binding < MAX_BINDINGS_PER_SET_COUNT);
+        ((NullContext*) _context)->m_StorageBuffers[set][binding] = (NullStorageBuffer*) storage_buffer;
     }
 
     static HVertexBuffer NullNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)

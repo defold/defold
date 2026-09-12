@@ -138,6 +138,13 @@ namespace dmGraphics
     typedef void (*SetUniformBufferFn)(HContext context, HUniformBuffer uniform_buffer, uint32_t offset, uint32_t size, const void* data);
     typedef void (*EnableUniformBufferFn)(HContext context, HUniformBuffer uniform_buffer, uint32_t binding, uint32_t set);
     typedef void (*DisableUniformBufferFn)(HContext context, HUniformBuffer uniform_buffer);
+    typedef HStorageBuffer (*NewStorageBufferFn)(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
+    typedef void (*DeleteStorageBufferFn)(HContext context, HStorageBuffer storage_buffer);
+    typedef void (*SetStorageBufferDataFn)(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
+    typedef void (*SetStorageBufferSubDataFn)(HContext context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data);
+    typedef uint32_t (*GetStorageBufferSizeFn)(HContext context, HStorageBuffer storage_buffer);
+    typedef void (*EnableStorageBufferFn)(HContext context, HStorageBuffer storage_buffer, uint32_t binding, uint32_t set);
+    typedef void (*DisableStorageBufferFn)(HContext context, HStorageBuffer storage_buffer);
 
     struct GraphicsAdapterFunctionTable
     {
@@ -228,6 +235,13 @@ namespace dmGraphics
         SetUniformBufferFn m_SetUniformBuffer;
         EnableUniformBufferFn m_EnableUniformBuffer;
         DisableUniformBufferFn m_DisableUniformBuffer;
+        NewStorageBufferFn m_NewStorageBuffer;
+        DeleteStorageBufferFn m_DeleteStorageBuffer;
+        SetStorageBufferDataFn m_SetStorageBufferData;
+        SetStorageBufferSubDataFn m_SetStorageBufferSubData;
+        GetStorageBufferSizeFn m_GetStorageBufferSize;
+        EnableStorageBufferFn m_EnableStorageBuffer;
+        DisableStorageBufferFn m_DisableStorageBuffer;
         SetSwapIntervalFn m_SetSwapInterval;
     };
 
@@ -320,7 +334,14 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteUniformBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetUniformBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableUniformBuffer); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableUniformBuffer);
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableUniformBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewStorageBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteStorageBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStorageBufferData); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetStorageBufferSubData); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetStorageBufferSize); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, EnableStorageBuffer); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DisableStorageBuffer);
 }
 
 #endif

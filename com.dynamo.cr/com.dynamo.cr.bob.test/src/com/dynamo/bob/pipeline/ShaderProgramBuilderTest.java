@@ -375,7 +375,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 "{ \n" +
                 "    vec4 member1; \n" +
                 "}; \n" +
-                "buffer Test \n" +
+                "readonly buffer Test \n" +
                 "{ \n" +
                 "    Data my_data_one; \n" +
                 "    Data my_data_two[]; \n" +
@@ -398,6 +398,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             assertEquals(1, r.getStorageBuffersCount());
             ShaderDesc.ResourceBinding binding_test = r.getStorageBuffers(0);
             assertEquals("Test", binding_test.getName());
+            assertTrue(binding_test.getStorageBufferReadOnly());
 
             ShaderDesc.ResourceTypeInfo binding_type = r.getTypes(binding_test.getType().getTypeIndex());
             assertEquals("Test", binding_type.getName());

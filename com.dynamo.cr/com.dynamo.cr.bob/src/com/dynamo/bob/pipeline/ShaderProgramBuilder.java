@@ -402,6 +402,8 @@ public class ShaderProgramBuilder extends Builder {
         resourceBindingBuilder.setSet(res.set);
         resourceBindingBuilder.setBinding(res.binding);
         resourceBindingBuilder.setStageFlags(res.stageFlags);
+        resourceBindingBuilder.setStorageBufferReadOnly(
+                res.type.imageAccessQualifier == Shaderc.ImageAccessQualifier.IMAGE_ACCESS_QUALIFIER_READ_ONLY);
 
         if (res.blockSize != 0) {
             resourceBindingBuilder.setBlockSize(res.blockSize);

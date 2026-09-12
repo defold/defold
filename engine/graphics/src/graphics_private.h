@@ -138,7 +138,6 @@ namespace dmGraphics
     const static uint8_t MAX_VERTEX_BUFFERS            = 3;
     const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 32;
     const static uint8_t MAX_SET_COUNT                 = 4;
-    const static uint8_t MAX_STORAGE_BUFFERS           = 4;
     const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
     const static uint8_t UNUSED_BINDING_OR_SET         = 0xFF;
 
@@ -218,6 +217,7 @@ namespace dmGraphics
         uint16_t                    m_Binding;
         uint16_t                    m_ElementCount;
         uint8_t                     m_StageFlags;
+        uint8_t                     m_StorageBufferReadOnly : 1;
     };
 
     struct ShaderMeta
@@ -341,6 +341,12 @@ namespace dmGraphics
         uint32_t            m_Size;
         uint8_t             m_BoundBinding;
         uint8_t             m_BoundSet;
+    };
+
+    struct StorageBuffer
+    {
+        uint32_t    m_Size;
+        BufferUsage m_Usage;
     };
 
     struct Program

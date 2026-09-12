@@ -114,6 +114,84 @@ namespace dmGraphics
     typedef struct VertexStreamDeclaration* HVertexStreamDeclaration;
 
     /*#
+     * Optional graphics context features. Query these before using APIs that
+     * are not available on every graphics adapter.
+     * @enum
+     * @name ContextFeature
+     * @member CONTEXT_FEATURE_MULTI_TARGET_RENDERING Multiple render targets are supported
+     * @member CONTEXT_FEATURE_TEXTURE_ARRAY Texture arrays are supported
+     * @member CONTEXT_FEATURE_COMPUTE_SHADER Compute shaders are supported
+     * @member CONTEXT_FEATURE_STORAGE_BUFFER Shader storage buffers are supported
+     * @member CONTEXT_FEATURE_VSYNC Vertical synchronization is supported
+     * @member CONTEXT_FEATURE_INSTANCING Instanced drawing is supported
+     * @member CONTEXT_FEATURE_3D_TEXTURES Three-dimensional textures are supported
+     * @member CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES ASTC-compressed texture arrays are supported
+     * @member CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX Min/max blend equations are supported
+     * @member CONTEXT_FEATURE_BC_ARRAY_TEXTURES BC-compressed texture arrays are supported
+     */
+    enum ContextFeature
+    {
+        CONTEXT_FEATURE_MULTI_TARGET_RENDERING = 0,
+        CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
+        CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
+        CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
+        CONTEXT_FEATURE_VSYNC                  = 4,
+        CONTEXT_FEATURE_INSTANCING             = 5,
+        CONTEXT_FEATURE_3D_TEXTURES            = 6,
+        CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES    = 7,
+        CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX = 8,
+        CONTEXT_FEATURE_BC_ARRAY_TEXTURES      = 9,
+        MAX_CONTEXT_FEATURE_COUNT              = 10,
+    };
+
+    /*#
+     * Graphics device limits exposed to native extensions.
+     * @struct
+     * @name GraphicsContextLimits
+     * @member m_MaxUniformBufferRange [type:uint64_t] Maximum uniform buffer range in bytes
+     * @member m_MaxStorageBufferRange [type:uint64_t] Maximum storage buffer range in bytes
+     * @member m_MaxTextureSize2D [type:uint32_t] Maximum two-dimensional texture dimension
+     * @member m_MaxTextureSize3D [type:uint32_t] Maximum three-dimensional texture dimension
+     * @member m_MaxTextureSizeCube [type:uint32_t] Maximum cube texture dimension
+     * @member m_MaxTextureArrayLayers [type:uint32_t] Maximum texture array layer count
+     * @member m_MaxFramebufferWidth [type:uint32_t] Maximum framebuffer width
+     * @member m_MaxFramebufferHeight [type:uint32_t] Maximum framebuffer height
+     * @member m_MaxColorAttachments [type:uint32_t] Maximum color attachment count
+     * @member m_MaxSamplersPerStage [type:uint32_t] Maximum sampler count per shader stage
+     * @member m_MaxTexturesPerStage [type:uint32_t] Maximum sampled texture count per shader stage
+     * @member m_MaxStorageBuffersPerStage [type:uint32_t] Maximum storage buffer count per shader stage
+     * @member m_MaxVertexAttributes [type:uint32_t] Maximum vertex attribute count
+     * @member m_MaxVertexBuffers [type:uint32_t] Maximum vertex buffer count
+     * @member m_MaxComputeWorkgroupSizeX [type:uint32_t] Maximum compute workgroup size in X
+     * @member m_MaxComputeWorkgroupSizeY [type:uint32_t] Maximum compute workgroup size in Y
+     * @member m_MaxComputeWorkgroupSizeZ [type:uint32_t] Maximum compute workgroup size in Z
+     * @member m_MaxComputeWorkgroupInvocations [type:uint32_t] Maximum invocations in one compute workgroup
+     * @member m_MaxComputeSharedMemorySize [type:uint32_t] Maximum compute shared memory size in bytes
+     */
+    struct GraphicsContextLimits
+    {
+        uint64_t m_MaxUniformBufferRange;
+        uint64_t m_MaxStorageBufferRange;
+        uint32_t m_MaxTextureSize2D;
+        uint32_t m_MaxTextureSize3D;
+        uint32_t m_MaxTextureSizeCube;
+        uint32_t m_MaxTextureArrayLayers;
+        uint32_t m_MaxFramebufferWidth;
+        uint32_t m_MaxFramebufferHeight;
+        uint32_t m_MaxColorAttachments;
+        uint32_t m_MaxSamplersPerStage;
+        uint32_t m_MaxTexturesPerStage;
+        uint32_t m_MaxStorageBuffersPerStage;
+        uint32_t m_MaxVertexAttributes;
+        uint32_t m_MaxVertexBuffers;
+        uint32_t m_MaxComputeWorkgroupSizeX;
+        uint32_t m_MaxComputeWorkgroupSizeY;
+        uint32_t m_MaxComputeWorkgroupSizeZ;
+        uint32_t m_MaxComputeWorkgroupInvocations;
+        uint32_t m_MaxComputeSharedMemorySize;
+    };
+
+    /*#
      * Shader program description (from graphics_ddf.h)
      * @struct
      * @name ShaderDesc
@@ -446,6 +524,98 @@ namespace dmGraphics
         BUFFER_ACCESS_WRITE_ONLY = 1,
         BUFFER_ACCESS_READ_WRITE = 2,
     };
+
+    /*#
+     * Create a shader storage buffer.
+     * Storage buffers are available only when
+     * `CONTEXT_FEATURE_STORAGE_BUFFER` is supported. The size must be non-zero,
+     * four-byte aligned, and no larger than `m_MaxStorageBufferRange`.
+     * @name NewStorageBuffer
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param size [type:uint32_t] Buffer size in bytes
+     * @param data [type:const void*] Optional initial data
+     * @param buffer_usage [type:dmGraphics::BufferUsage] CPU update frequency hint
+     * @return buffer [type:dmGraphics::HStorageBuffer] Storage buffer, or 0 when unsupported or invalid
+     */
+    HStorageBuffer NewStorageBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
+
+    /*#
+     * Delete a shader storage buffer.
+     * @name DeleteStorageBuffer
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     */
+    void DeleteStorageBuffer(HContext context, HStorageBuffer storage_buffer);
+
+    /*#
+     * Replace the complete contents and size of a shader storage buffer.
+     * The size follows the same restrictions as `NewStorageBuffer`.
+     * @name SetStorageBufferData
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     * @param size [type:uint32_t] New buffer size in bytes
+     * @param data [type:const void*] Data used to replace the buffer contents
+     * @param buffer_usage [type:dmGraphics::BufferUsage] CPU update frequency hint
+     */
+    void SetStorageBufferData(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
+
+    /*#
+     * Update a byte range in a shader storage buffer.
+     * The offset and size must be four-byte aligned and the range must fit in
+     * the existing buffer.
+     * @name SetStorageBufferSubData
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     * @param offset [type:uint32_t] Destination byte offset
+     * @param size [type:uint32_t] Number of bytes to update
+     * @param data [type:const void*] Source data
+     */
+    void SetStorageBufferSubData(HContext context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data);
+
+    /*#
+     * Return the logical size of a shader storage buffer in bytes.
+     * @name GetStorageBufferSize
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     * @return size [type:uint32_t] Logical buffer size in bytes
+     */
+    uint32_t GetStorageBufferSize(HContext context, HStorageBuffer storage_buffer);
+
+    /*#
+     * Bind a shader storage buffer to a reflected descriptor set and binding.
+     * The set and binding must match the shader declaration.
+     * @name EnableStorageBuffer
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     * @param set [type:uint32_t] Shader descriptor set
+     * @param binding [type:uint32_t] Shader resource binding
+     */
+    void EnableStorageBuffer(HContext context, HStorageBuffer storage_buffer, uint32_t set, uint32_t binding);
+
+    /*#
+     * Remove all bindings of a shader storage buffer from the graphics context.
+     * @name DisableStorageBuffer
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     */
+    void DisableStorageBuffer(HContext context, HStorageBuffer storage_buffer);
+
+    /*#
+     * Return whether an optional graphics feature is available.
+     * @name IsContextFeatureSupported
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param feature [type:dmGraphics::ContextFeature] Feature to query
+     * @return supported [type:bool] Whether the feature is supported
+     */
+    bool IsContextFeatureSupported(HContext context, ContextFeature feature);
+
+    /*#
+     * Copy the current device limits into `limits`.
+     * @name GetGraphicsContextLimits
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param limits [type:dmGraphics::GraphicsContextLimits&] Destination device limits
+     */
+    void GetGraphicsContextLimits(HContext context, GraphicsContextLimits& limits);
 
 
     /*#
