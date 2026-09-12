@@ -422,15 +422,22 @@ namespace dmDebugger
             lua_pop(evaluation_L, 1);
             source.Clear();
             char temporary[40];
+            char capture[40];
             int  suffix = 0;
             do
-                dmSnPrintf(temporary, sizeof(temporary), "__dap_value_%d", suffix++);
-            while (strstr(expression, temporary) || strstr(assignment, temporary));
-            source.Format("local %s = (", temporary);
-            source.Add(expression);
-            source.Add(")\n");
+            {
+                dmSnPrintf(temporary, sizeof(temporary), "__dap_value_%d", suffix);
+                dmSnPrintf(capture, sizeof(capture), "__dap_capture_%d", suffix++);
+            } while (strstr(expression, temporary) || strstr(assignment, temporary) ||
+                     strstr(expression, capture) || strstr(assignment, capture));
+            // Keep the target and RHS in one assignment so Lua evaluates them
+            // in its normal order. Capture the result without reading the target
+            // again, which could call a function or an indexing metamethod twice.
+            source.Format("local %s\nlocal function %s(value) %s = value; return value end\n", temporary, capture, temporary);
             source.Add(assignment);
-            source.Format(" = %s\nreturn %s", temporary, temporary);
+            source.Format(" = %s((", capture);
+            source.Add(expression);
+            source.Format("))\nreturn %s", temporary);
         }
         else
         {

@@ -193,6 +193,126 @@ namespace dmDebugger
         return thread;
     }
 
+    struct ThreadDiscovery
+    {
+        lua_State* m_L;
+        int        m_Seen;
+        int        m_Queue;
+        int        m_Count;
+
+        ThreadDiscovery(lua_State* L)
+            : m_L(L)
+            , m_Count(0)
+        {
+            lua_newtable(L);
+            m_Seen = lua_gettop(L);
+            lua_newtable(L);
+            m_Queue = lua_gettop(L);
+            // Walking the active thread also sees our temporary stack values.
+            // Do not traverse the discovery tables themselves.
+            lua_pushvalue(L, m_Seen);
+            lua_pushboolean(L, true);
+            lua_rawset(L, m_Seen);
+            lua_pushvalue(L, m_Queue);
+            lua_pushboolean(L, true);
+            lua_rawset(L, m_Seen);
+        }
+
+        void Add(int index)
+        {
+            int type = lua_type(m_L, index);
+            if (type != LUA_TTABLE && type != LUA_TFUNCTION && type != LUA_TTHREAD && type != LUA_TUSERDATA)
+                return;
+            if (index < 0 && index > LUA_REGISTRYINDEX)
+                index += lua_gettop(m_L) + 1;
+            lua_pushvalue(m_L, index);
+            lua_rawget(m_L, m_Seen);
+            bool seen = !lua_isnil(m_L, -1);
+            lua_pop(m_L, 1);
+            if (seen)
+                return;
+            lua_pushvalue(m_L, index);
+            lua_pushboolean(m_L, true);
+            lua_rawset(m_L, m_Seen);
+            lua_pushvalue(m_L, index);
+            lua_rawseti(m_L, m_Queue, ++m_Count);
+        }
+
+        void PopFrom(lua_State* L)
+        {
+            lua_xmove(L, m_L, 1);
+            Add(-1);
+            lua_pop(m_L, 1);
+        }
+    };
+
+    static void DiscoverThreads(Debugger* d, lua_State* L)
+    {
+        int             top = lua_gettop(L);
+        ThreadDiscovery discovery(L);
+        discovery.Add(LUA_REGISTRYINDEX);
+        discovery.Add(LUA_GLOBALSINDEX);
+        lua_pushthread(L);
+        discovery.PopFrom(L);
+
+        // Scan reachable Lua objects once at activation. Raw inspection avoids
+        // invoking application code, and a queue handles cycles without growing
+        // the native call stack. The temporary tables pin objects only for this
+        // scan; TrackThread retains discovered coroutines through weak values.
+        for (int i = 1; i <= discovery.m_Count; ++i)
+        {
+            lua_rawgeti(L, discovery.m_Queue, i);
+            int object = lua_gettop(L);
+            int type = lua_type(L, object);
+            if (type == LUA_TTABLE)
+            {
+                lua_pushnil(L);
+                while (lua_next(L, object))
+                {
+                    discovery.Add(-2);
+                    discovery.Add(-1);
+                    lua_pop(L, 1);
+                }
+            }
+            else if (type == LUA_TFUNCTION)
+            {
+                for (int upvalue = 1; lua_getupvalue(L, object, upvalue); ++upvalue)
+                    discovery.PopFrom(L);
+            }
+            else if (type == LUA_TTHREAD)
+            {
+                lua_State* thread = lua_tothread(L, object);
+                if (lua_checkstack(thread, 8))
+                {
+                    TrackThread(d, thread);
+                    int thread_top = thread == L ? top : lua_gettop(thread);
+                    for (int slot = 1; slot <= thread_top; ++slot)
+                    {
+                        lua_pushvalue(thread, slot);
+                        discovery.PopFrom(thread);
+                    }
+                    lua_Debug frame;
+                    for (int level = 0; lua_getstack(thread, level, &frame); ++level)
+                    {
+                        lua_getinfo(thread, "f", &frame);
+                        discovery.PopFrom(thread);
+                        for (int local = 1; lua_getlocal(thread, &frame, local); ++local)
+                            discovery.PopFrom(thread);
+                    }
+                }
+            }
+            if (type == LUA_TFUNCTION || type == LUA_TUSERDATA || type == LUA_TTHREAD)
+            {
+                lua_getfenv(L, object);
+                discovery.PopFrom(L);
+            }
+            if (lua_getmetatable(L, object))
+                discovery.PopFrom(L);
+            lua_pop(L, 1);
+        }
+        lua_settop(L, top);
+    }
+
     static void Track(lua_State* L, lua_State* coroutine)
     {
         Debugger* d = (Debugger*)GetPointer(L, &g_DebuggerKey);
@@ -406,6 +526,7 @@ namespace dmDebugger
             Jit(L, "flush");
         }
         TrackThread(d, L);
+        DiscoverThreads(d, L);
         lua_getglobal(L, "coroutine");
         state->m_CreateRef = state->m_ResumeRef = state->m_WrapRef = LUA_NOREF;
         if (lua_istable(L, -1))

@@ -39,7 +39,7 @@ static int Pump(lua_State*)
     return 0;
 }
 
-static dmScript::HContext Create(dmConfigFile::HConfig config)
+static dmScript::HContext Create(dmConfigFile::HConfig config, const char* prelude = 0)
 {
     dmScript::ContextParams params = {};
     params.m_ConfigFile = config;
@@ -50,6 +50,8 @@ static dmScript::HContext Create(dmConfigFile::HConfig config)
     lua_setglobal(L, "pump");
     g_Params.m_L = L;
     g_Params.m_ConfigFile = config;
+    if (prelude)
+        Check(luaL_dofile(L, prelude) == 0, "Prelude failed before extension initialization");
     dmExtension::Initialize(&g_Params);
     Check(lua_gettop(L) == 0, "Extension initialization changed the Lua stack");
     return context;
@@ -81,6 +83,20 @@ int main(int argc, char** argv)
         argc -= 2;
         argv += 2;
     }
+    const char* prelude = 0;
+    if (argc > 2 && strcmp(argv[1], "--prelude") == 0)
+    {
+        prelude = argv[2];
+        argc -= 2;
+        argv += 2;
+    }
+    const char* startup_port = 0;
+    if (argc > 2 && strcmp(argv[1], "--startup-port") == 0)
+    {
+        startup_port = argv[2];
+        argc -= 2;
+        argv += 2;
+    }
     bool late_attach = argc > 1 && strcmp(argv[1], "--late-attach") == 0;
     if (late_attach)
     {
@@ -96,17 +112,26 @@ int main(int argc, char** argv)
     ExtensionParamsInitialize(&g_Params);
     LuaDebugger();
 
-    // No debugger.enabled setting: initialization must leave the Lua hook free.
-    dmConfigFile::HConfig disabled = Config("[project]\ntitle=DAP test\n");
-    dmScript::HContext    context = Create(disabled);
-    Check(lua_gethook(dmScript::GetLuaState(context)) == 0, "Disabled debugger installed a hook");
-    Destroy(context);
-    dmConfigFile::Delete(disabled);
+    if (!startup_port)
+    {
+        // No debugger.enabled setting: initialization must leave the Lua hook free.
+        dmConfigFile::HConfig disabled = Config("[project]\ntitle=DAP test\n");
+        dmScript::HContext    context = Create(disabled);
+        Check(lua_gethook(dmScript::GetLuaState(context)) == 0, "Disabled debugger installed a hook");
+        Destroy(context);
+        dmConfigFile::Delete(disabled);
+    }
 
-    dmConfigFile::HConfig config = Config(late_attach ? "[debugger]\nport=0\n" : "[debugger]\nenabled=1\nport=0\nwait=1\n");
+    // A failed startup must be the first initialization: a preceding successful
+    // initialization would mask an extension whose update callback stays disabled.
+    char startup_config[128];
+    if (startup_port)
+        snprintf(startup_config, sizeof(startup_config), "[debugger]\nenabled=1\nport=%s\nwait=1\n", startup_port);
+    dmConfigFile::HConfig config = Config(startup_port ? startup_config : late_attach ? "[debugger]\nport=0\n" :
+                                                                                        "[debugger]\nenabled=1\nport=0\nwait=1\n");
     dmScript::HContext    contexts[2];
     for (int i = 1; i < argc; ++i)
-        contexts[i - 1] = Create(config);
+        contexts[i - 1] = Create(config, prelude);
     int result = 0;
     for (int i = 1; i < argc; ++i)
     {

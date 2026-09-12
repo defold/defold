@@ -104,13 +104,14 @@ namespace dmDebugger
             if (port < 0 || port > 65535)
             {
                 dmLogError("Invalid debugger.port: %d", port);
-                return dmExtension::RESULT_INIT_ERROR;
             }
-            if (!Start(port))
+            else if (!Start(port))
             {
                 dmLogError("Unable to start Lua DAP debugger on port %d", port);
-                return dmExtension::RESULT_INIT_ERROR;
             }
+            // The Lua module and lifecycle callbacks are initialized even when
+            // the listener cannot start. Keep UpdateExtension enabled so a later
+            // debugger.start() can retry and service the new listener.
         }
         if (g_Debugger && g_States.Size() == 1 && ConfigFileGetInt(params->m_ConfigFile, "debugger.wait", 0))
             WaitForClient(g_Debugger);
