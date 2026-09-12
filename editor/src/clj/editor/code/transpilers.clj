@@ -198,8 +198,7 @@
                         (let [^ILuaTranspiler transpiler (java/invoke-no-arg-constructor transpiler-plugin-class)
                               build-file-proj-path (.getBuildFileResourcePath transpiler)
                               source-ext (.getSourceExt transpiler)]
-                          (when (or (not (string? build-file-proj-path))
-                                    (not (string/starts-with? build-file-proj-path "/")))
+                          (when-not (resource/proj-path? build-file-proj-path)
                             (throw (Exception. (str "Invalid build file resource path: " build-file-proj-path))))
                           (when (or (not (string? source-ext))
                                     (string/starts-with? source-ext "."))

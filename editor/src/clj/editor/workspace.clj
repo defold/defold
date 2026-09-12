@@ -500,8 +500,7 @@ ordinary paths."
   ^String [^File project-directory ^String base-proj-path ^String proj-path-or-relative-path]
   (if (absolute-proj-path? proj-path-or-relative-path)
     proj-path-or-relative-path
-    (if-not (and (string? base-proj-path)
-                 (string/starts-with? base-proj-path "/"))
+    (if-not (resource/proj-path? base-proj-path)
       (throw (IllegalArgumentException. (str "base-proj-path is not a proj-path: " (pr-str base-proj-path))))
       (let [project-directory-path (path/of project-directory)
             base-file-path (path/of project-directory-path (subs base-proj-path 1))
@@ -1136,7 +1135,7 @@ ordinary paths."
 
 (defn- make-editable-proj-path-predicate [non-editable-directory-proj-paths]
   {:pre [(vector? non-editable-directory-proj-paths)
-         (every? string? non-editable-directory-proj-paths)]}
+         (coll/every? resource/proj-path? non-editable-directory-proj-paths)]}
   (fn editable-proj-path? [proj-path]
     (not-any? (fn [non-editable-directory-proj-path]
                 ;; A proj-path is considered non-editable if it matches or is

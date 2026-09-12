@@ -329,7 +329,7 @@
 
 (defn set-non-editable-directories! [project-path non-editable-directory-proj-paths]
   {:pre [(seqable? non-editable-directory-proj-paths)
-         (every? string? non-editable-directory-proj-paths)]}
+         (coll/every? resource/proj-path? non-editable-directory-proj-paths)]}
   (test-support/spit-until-new-mtime
     (shared-editor-settings/shared-editor-settings-file project-path)
     (shared-editor-settings/map->save-data-content
