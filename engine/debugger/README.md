@@ -20,6 +20,27 @@ The debugger listens on `127.0.0.1`. It is disabled by default. The default port
 scripts. Without that setting the engine starts immediately and can be attached
 to later. A disconnect while waiting releases the engine.
 
+To enable DAP in a native debug engine that was started without
+`debugger.enabled=1`, execute this Lua code in the running project:
+
+```lua
+local port = debugger.start()
+```
+
+The code can be sent through the engine's existing `run_script` service, the same
+mechanism the editor uses to start MobDebug when attaching. No restart or startup
+flag is required. `debugger.start([port])` returns the listening port immediately;
+it does not wait for a client or pause the project. An omitted port uses
+`debugger.port` (8172 by default); pass 0 to select an available port. Repeated
+calls return the existing listener's port. Invalid ports or a bind failure raise
+a Lua error and allow retrying with another port.
+
+Runtime activation registers all live script contexts, so scripts that have
+already initialized retain their state and can be debugged after attachment.
+Until activation, the extension leaves Lua hooks, coroutine functions, and JIT
+settings alone and opens no DAP socket. The `debugger` Lua module is available
+only in native debug and headless engines.
+
 A DAP client connects directly over TCP using UTF-8 JSON and `Content-Length`
 framing. Send `initialize`, then `attach`, configure breakpoints after the
 `initialized` event, and send `configurationDone`. The `attach` response follows
@@ -115,6 +136,9 @@ debuggee, recursion and coroutines, stale references, reconnects, malformed
 messages, Unicode/binary/large values, and preservation of Lua stacks. The host
 also checks restored hooks after detach. A separate compiled-artifact check
 ensures `DM_RELEASE` contains neither debugger code nor extension registration.
+The engine host additionally tests runtime activation after scripts and
+coroutines have run, activation across existing contexts, reconnecting, and
+retrying failed starts.
 
 To run individual wire tests:
 

@@ -70,9 +70,16 @@ static dmConfigFile::HConfig Config(const char* text)
 
 // Checks that debugging is disabled by default, then runs DAP-controlled scripts
 // through the real extension lifecycle and dmScript::PCall. Initialization and
-// execution in each script context must preserve its Lua stack height.
+// execution in each script context must preserve its Lua stack height. With
+// --late-attach, scripts run without enabling or waiting for the debugger.
 int main(int argc, char** argv)
 {
+    bool late_attach = argc > 1 && strcmp(argv[1], "--late-attach") == 0;
+    if (late_attach)
+    {
+        --argc;
+        ++argv;
+    }
     if (argc < 2 || argc > 3)
         return 1;
     dmSocket::Initialize();
@@ -89,10 +96,10 @@ int main(int argc, char** argv)
     Destroy(context);
     dmConfigFile::Delete(disabled);
 
-    dmConfigFile::HConfig enabled = Config("[debugger]\nenabled=1\nport=0\nwait=1\n");
+    dmConfigFile::HConfig config = Config(late_attach ? "[debugger]\nport=0\n" : "[debugger]\nenabled=1\nport=0\nwait=1\n");
     dmScript::HContext    contexts[2];
     for (int i = 1; i < argc; ++i)
-        contexts[i - 1] = Create(enabled);
+        contexts[i - 1] = Create(config);
     int result = 0;
     for (int i = 1; i < argc; ++i)
     {
@@ -113,7 +120,7 @@ int main(int argc, char** argv)
     }
     for (int i = 1; i < argc; ++i)
         Destroy(contexts[i - 1]);
-    dmConfigFile::Delete(enabled);
+    dmConfigFile::Delete(config);
     ExtensionParamsFinalize(&g_Params);
     dmLog::LogFinalize();
     dmSocket::Finalize();
