@@ -30,7 +30,8 @@
             [internal.graph.types :as gt]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
-            [util.digest :as digest]))
+            [util.digest :as digest]
+            [util.fn :as fn]))
 
 (set! *warn-on-reflection* true)
 
@@ -213,15 +214,40 @@
   ([resource-node-id evaluation-context]
    (g/valid-node-value resource-node-id :dirty evaluation-context)))
 
-(defn- make-ddf-dependencies-fn-raw [^Class pb-class]
-  (fn ddf-dependencies-fn [_read-opts _owner-resource source-value]
+(defn- make-pb-class-dependencies-fn-raw [^Class pb-class]
+  {:pre [(protobuf/pb-class? pb-class)]}
+  (fn pb-class-dependencies-fn [_read-opts _owner-resource pb-map]
     (coll/into->
-      (protobuf/resource-field-value-paths pb-class source-value) []
+      (protobuf/resource-field-value-paths pb-class pb-map) []
       (map second) ; => proj-paths
       (remove coll/empty?)
       (distinct))))
 
-(def make-ddf-dependencies-fn (memoize make-ddf-dependencies-fn-raw))
+(def make-pb-class-dependencies-fn (fn/memoize make-pb-class-dependencies-fn-raw))
+
+(defn make-ddf-dependencies-fn
+  ([^Class pb-class]
+   (make-ddf-dependencies-fn pb-class []))
+  ([^Class pb-class editor-dependencies]
+   {:pre [(vector? editor-dependencies)
+          (coll/every? resource/proj-path? editor-dependencies)]}
+   (let [has-editor-dependencies (not (coll/empty? editor-dependencies))
+         pb-class-dependencies-fn (make-pb-class-dependencies-fn pb-class)]
+     (fn ddf-dependencies-fn [read-opts owner-resource pb-map]
+       {:pre [(map? pb-map)]} ; pb-class instance in map format.
+       (let [pb-class-dependencies (pb-class-dependencies-fn read-opts owner-resource pb-map)]
+         (cond
+           (or (not has-editor-dependencies)
+               (not (:include-editor-dependencies read-opts)))
+           pb-class-dependencies
+
+           (coll/empty? pb-class-dependencies)
+           editor-dependencies
+
+           :else
+           (coll/into-> [pb-class-dependencies editor-dependencies] []
+             cat
+             (distinct))))))))
 
 (defn owner-resource-node-id
   ([node-id]
@@ -288,7 +314,7 @@
                :path (path-fn pb-map path)))
            (coll/search-with-path pb-map init-path match-fn)))))
 
-(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn search-fn pb-encode-fn icon view-types tags tag-opts label built-pb-class] :as args}]
+(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn editor-dependencies sanitize-fn search-fn pb-encode-fn icon view-types tags tag-opts label built-pb-class] :as args}]
   {:pre [(protobuf/pb-class? ddf-type)
          (or (nil? built-pb-class) (protobuf/pb-class? built-pb-class))]}
   (let [read-defaults (boolean read-defaults)
@@ -300,17 +326,20 @@
         write-fn (cond-> (partial protobuf/map->str ddf-type)
                          (some? pb-encode-fn) (comp pb-encode-fn))
         search-fn (or search-fn default-ddf-resource-search-fn)
+        editor-dependencies (or editor-dependencies [])
+        dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type editor-dependencies))
+        built-pb-class (or built-pb-class ddf-type)
         args (-> args
-                 (dissoc :read-defaults :pb-encode-fn)
+                 (dissoc :editor-dependencies :read-defaults :pb-encode-fn)
                  (assoc :textual? true
-                        :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
+                        :dependencies-fn dependencies-fn
                         :read-fn read-fn
                         :write-fn write-fn
                         :search-fn search-fn
                         :test-info {:type :ddf
                                     :ddf-type ddf-type
                                     :read-defaults read-defaults
-                                    :built-pb-class (or built-pb-class ddf-type)}))]
+                                    :built-pb-class built-pb-class}))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 
 (defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn meta-settings icon view-types tags tag-opts label] :as args}]
