@@ -568,6 +568,77 @@ TEST(Shaderc, TestHLSLSimple)
     free(data);
 }
 
+static bool BufferContains(const uint8_t* data, uint32_t data_size, const char* text)
+{
+    const uint32_t text_size = (uint32_t) strlen(text);
+    if (text_size > data_size)
+        return false;
+    for (uint32_t i = 0; i <= data_size - text_size; ++i)
+        if (memcmp(data + i, text, text_size) == 0)
+            return true;
+    return false;
+}
+
+static void TestHLSLStorageBufferType(const char* path, const char* expected_type, const char* expected_register)
+{
+    uint32_t data_size;
+    void* data = ReadFile(path, &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::ShaderCompilerSPVC* compiler = dmShaderc::NewShaderCompilerSPVC(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
+
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version    = 51;
+    options.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::CompileSPVC(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_NE((void*) 0, result->m_Data.Begin());
+    ASSERT_TRUE(BufferContains(result->m_Data.Begin(), result->m_Data.Size(), expected_type));
+    ASSERT_TRUE(BufferContains(result->m_Data.Begin(), result->m_Data.Size(), expected_register));
+
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompilerSPVC(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
+}
+
+TEST(Shaderc, TestHLSLStorageBuffersUseByteAddressResources)
+{
+    TestHLSLStorageBufferType("./build/src/test/data/ssbo.spv", "RWByteAddressBuffer", "register(u0, space0)");
+    TestHLSLStorageBufferType("./build/src/test/data/ssbo_readonly.spv", "ByteAddressBuffer", "register(t3, space2)");
+}
+
+#if defined(_WIN32)
+TEST(Shaderc, TestHLSLStorageBufferResourceMapping)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/ssbo_readonly.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_HLSL);
+
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version    = 51;
+    options.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_STREQ("", result->m_LastError);
+    ASSERT_EQ(1, result->m_HLSLResourceMappings.Size());
+    ASSERT_EQ(2, result->m_HLSLResourceMappings[0].m_ShaderResourceSet);
+    ASSERT_EQ(3, result->m_HLSLResourceMappings[0].m_ShaderResourceBinding);
+    ASSERT_GT(result->m_HLSLRootSignature.Size(), 0u);
+
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
+}
+#endif
+
 TEST(Shaderc, TestMetal)
 {
     uint32_t data_size;

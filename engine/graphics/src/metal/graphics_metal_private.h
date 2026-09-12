@@ -94,6 +94,12 @@ namespace dmGraphics
         MetalDeviceBuffer m_DeviceBuffer;
     };
 
+    struct MetalStorageBuffer
+    {
+        StorageBuffer     m_Base;
+        MetalDeviceBuffer m_DeviceBuffer;
+    };
+
     struct MetalConstantScratchBuffer
     {
         MetalDeviceBuffer m_DeviceBuffer;
@@ -329,7 +335,7 @@ namespace dmGraphics
         MetalDeviceBuffer*                 m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         uint32_t                           m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
-        MetalStorageBufferBinding          m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
+        MetalStorageBufferBinding          m_CurrentStorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         MetalUniformBuffer*                m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         MetalProgram*                      m_CurrentProgram;
         MetalPipeline*                     m_CurrentPipeline;

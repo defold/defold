@@ -1463,6 +1463,7 @@ namespace dmGraphics
 
         limits.m_MaxSamplersPerStage            = vk_limits.maxPerStageDescriptorSamplers;
         limits.m_MaxTexturesPerStage            = vk_limits.maxPerStageDescriptorSampledImages;
+        limits.m_MaxStorageBuffersPerStage      = vk_limits.maxPerStageDescriptorStorageBuffers;
         limits.m_MaxVertexAttributes            = vk_limits.maxVertexInputAttributes;
         limits.m_MaxVertexBuffers               = vk_limits.maxVertexInputBindings;
 
@@ -2366,6 +2367,67 @@ bail:
         delete ubo;
     }
 
+    static HStorageBuffer VulkanNewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        if (data)
+            DeviceBufferUploadHelper(context, data, size, 0, buffer);
+        else
+        {
+            VkResult result = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+                size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, buffer);
+            CHECK_VK_ERROR(result);
+        }
+        return (HStorageBuffer) buffer;
+    }
+
+    static void VulkanDisableStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+                if (context->m_CurrentStorageBuffers[set][binding].m_Buffer == storage_buffer)
+                    context->m_CurrentStorageBuffers[set][binding] = StorageBufferBinding();
+    }
+
+    static void VulkanDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        DeviceBuffer* buffer = (DeviceBuffer*) storage_buffer;
+        VulkanDisableStorageBuffer(_context, storage_buffer);
+        if (!buffer->m_Destroyed)
+            DestroyResourceDeferred(context, buffer);
+        delete buffer;
+    }
+
+    static void VulkanSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        DeviceBuffer* buffer = (DeviceBuffer*) storage_buffer;
+        SetDeviceBuffer(context, buffer, size, 0, data);
+    }
+
+    static void VulkanSetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        DeviceBuffer* buffer = (DeviceBuffer*) storage_buffer;
+        assert(offset + size <= buffer->m_Base.m_Size);
+        DeviceBufferUploadHelper((VulkanContext*) _context, data, size, offset, buffer);
+    }
+
+    static uint32_t VulkanGetStorageBufferSize(HContext _context, HStorageBuffer storage_buffer)
+    {
+        return ((DeviceBuffer*) storage_buffer)->m_Base.m_Size;
+    }
+
+    static void VulkanEnableStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding, uint32_t set)
+    {
+        assert(set < MAX_SET_COUNT && binding < MAX_BINDINGS_PER_SET_COUNT);
+        VulkanContext* context = (VulkanContext*) _context;
+        context->m_CurrentStorageBuffers[set][binding].m_Buffer = storage_buffer;
+        context->m_CurrentStorageBuffers[set][binding].m_BufferOffset = 0;
+    }
+
     static HVertexBuffer VulkanNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VulkanContext* context = (VulkanContext*)_context;
@@ -2832,9 +2894,10 @@ bail:
                     break;
                 case BINDING_FAMILY_STORAGE_BUFFER:
                 {
-                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
+                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[res->m_Set][res->m_Binding];
 
                     DeviceBuffer* ssbo_buffer = (DeviceBuffer*) binding.m_Buffer;
+                    assert(ssbo_buffer && "A reflected storage buffer must be bound before drawing or dispatching");
                     TouchResource(context, ssbo_buffer);
                     UpdateUniformBufferDescriptor(context,
                         ssbo_buffer->m_Handle.m_Buffer,
@@ -2965,7 +3028,7 @@ bail:
 
                 case BINDING_FAMILY_STORAGE_BUFFER:
                 {
-                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
+                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[res->m_Set][res->m_Binding];
                     DeviceBuffer* ssbo_buffer = (DeviceBuffer*) binding.m_Buffer;
                     VkBuffer vk_buffer = ssbo_buffer ? ssbo_buffer->m_Handle.m_Buffer : VK_NULL_HANDLE;
                     dmHashUpdateBuffer64(&hash_state, &vk_buffer, sizeof(vk_buffer));

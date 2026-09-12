@@ -541,6 +541,9 @@ namespace dmGraphics
             limits.m_MaxComputeWorkgroupSizeZ       = D3D12_CS_THREAD_GROUP_MAX_Z;
             limits.m_MaxComputeWorkgroupInvocations = D3D12_CS_THREAD_GROUP_MAX_THREADS_PER_GROUP;
             limits.m_MaxComputeSharedMemorySize     = D3D12_CS_TGSM_REGISTER_COUNT * sizeof(uint32_t); // 32 KiB
+            // Eight writable UAV slots are guaranteed at the minimum D3D12 feature level.
+            // Read-only storage buffers use SRVs, but the public limit must cover both access modes.
+            limits.m_MaxStorageBuffersPerStage      = 8;
 
             // CBV bind range is always 64 KiB (hardware-fixed).
             limits.m_MaxUniformBufferRange = (uint64_t) D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 16; // 64 KiB
@@ -895,6 +898,58 @@ namespace dmGraphics
         else
         {
             context->m_CommandList->SetComputeRootDescriptorTable(texture_index, handle_texture);
+        }
+    }
+
+    void DX12ScratchBuffer::AllocateStorageBuffer(DX12Context* context, DX12PipelineType pipeline_type, DX12StorageBuffer* buffer, bool read_only, uint32_t buffer_index)
+    {
+        BlockSizedPool& descriptor_pool = m_MemoryPools[0];
+        assert(descriptor_pool.m_DescriptorCursor < DESCRIPTORS_PER_POOL);
+
+        const uint32_t descriptor_size = context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        const uint32_t descriptor_index = descriptor_pool.m_DescriptorCursor++;
+        CD3DX12_CPU_DESCRIPTOR_HANDLE cpu_handle(
+            descriptor_pool.m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+            descriptor_index,
+            descriptor_size);
+
+        if (read_only)
+        {
+            D3D12_SHADER_RESOURCE_VIEW_DESC view_desc = {};
+            view_desc.Format                          = DXGI_FORMAT_R32_TYPELESS;
+            view_desc.ViewDimension                   = D3D12_SRV_DIMENSION_BUFFER;
+            view_desc.Shader4ComponentMapping         = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            view_desc.Buffer.FirstElement             = 0;
+            view_desc.Buffer.NumElements              = buffer->m_BaseStorageBuffer.m_Size / sizeof(uint32_t);
+            view_desc.Buffer.StructureByteStride      = 0;
+            view_desc.Buffer.Flags                    = D3D12_BUFFER_SRV_FLAG_RAW;
+            context->m_Device->CreateShaderResourceView(buffer->m_DeviceBuffer.m_Resource, &view_desc, cpu_handle);
+        }
+        else
+        {
+            D3D12_UNORDERED_ACCESS_VIEW_DESC view_desc = {};
+            view_desc.Format                           = DXGI_FORMAT_R32_TYPELESS;
+            view_desc.ViewDimension                    = D3D12_UAV_DIMENSION_BUFFER;
+            view_desc.Buffer.FirstElement              = 0;
+            view_desc.Buffer.NumElements               = buffer->m_BaseStorageBuffer.m_Size / sizeof(uint32_t);
+            view_desc.Buffer.StructureByteStride       = 0;
+            view_desc.Buffer.CounterOffsetInBytes      = 0;
+            view_desc.Buffer.Flags                     = D3D12_BUFFER_UAV_FLAG_RAW;
+            context->m_Device->CreateUnorderedAccessView(buffer->m_DeviceBuffer.m_Resource, 0, &view_desc, cpu_handle);
+        }
+
+        CD3DX12_GPU_DESCRIPTOR_HANDLE gpu_handle(
+            descriptor_pool.m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart(),
+            descriptor_index,
+            descriptor_size);
+
+        if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
+        {
+            context->m_CommandList->SetGraphicsRootDescriptorTable(buffer_index, gpu_handle);
+        }
+        else
+        {
+            context->m_CommandList->SetComputeRootDescriptorTable(buffer_index, gpu_handle);
         }
     }
 
@@ -1676,7 +1731,7 @@ namespace dmGraphics
         }
     }
 
-    static void CreateDeviceBuffer(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t size)
+    static void CreateDeviceBuffer(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t size, D3D12_RESOURCE_FLAGS resource_flags = D3D12_RESOURCE_FLAG_NONE)
     {
         assert(device_buffer->m_Resource == 0x0);
 
@@ -1687,7 +1742,7 @@ namespace dmGraphics
         HRESULT hr = context->m_Device->CreateCommittedResource(
             &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), // a default heap
             D3D12_HEAP_FLAG_NONE,                              // no flags
-            &CD3DX12_RESOURCE_DESC::Buffer(size),              // resource description for a buffer
+            &CD3DX12_RESOURCE_DESC::Buffer(size, resource_flags), // resource description for a buffer
             D3D12_RESOURCE_STATE_COPY_DEST,                    // we will start this heap in the copy destination state since we will copy data from the upload heap to this heap
             NULL,                                              // optimized clear value must be null for this type of resource. used for render targets and depth/stencil buffers
             DM_IID_PPV_ARGS(&device_buffer->m_Resource));
@@ -1699,7 +1754,7 @@ namespace dmGraphics
         device_buffer->m_Capacity      = size;
     }
 
-    static void DeviceBufferUploadRangeHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t offset, uint32_t data_size, uint32_t buffer_size, const void* data, D3D12_RESOURCE_STATES state_before_copy)
+    static void DeviceBufferUploadRangeHelper(DX12Context* context, DX12DeviceBuffer* device_buffer, uint32_t offset, uint32_t data_size, uint32_t buffer_size, const void* data, D3D12_RESOURCE_STATES state_before_copy, D3D12_RESOURCE_STATES state_after_copy)
     {
         if (data_size == 0)
         {
@@ -1784,7 +1839,10 @@ namespace dmGraphics
             cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, state_before_copy, D3D12_RESOURCE_STATE_COPY_DEST));
         }
         cmd_list->CopyBufferRegion(device_buffer->m_Resource, offset, upload_heap, upload_offset, data_size);
-        cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, DM_DX12_RESOURCE_STATE_BUFFER_READ));
+        if (state_after_copy != D3D12_RESOURCE_STATE_COPY_DEST)
+        {
+            cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, state_after_copy));
+        }
 
         if (context->m_FrameBegun)
         {
@@ -1832,7 +1890,7 @@ namespace dmGraphics
             state_before_copy = D3D12_RESOURCE_STATE_COPY_DEST;
         }
 
-        DeviceBufferUploadRangeHelper(context, device_buffer, 0, data_size, device_buffer->m_Capacity, data, state_before_copy);
+        DeviceBufferUploadRangeHelper(context, device_buffer, 0, data_size, device_buffer->m_Capacity, data, state_before_copy, DM_DX12_RESOURCE_STATE_BUFFER_READ);
         device_buffer->m_DataSize = data_size;
         device_buffer->m_Base.m_Size = data_size;
     }
@@ -1844,7 +1902,7 @@ namespace dmGraphics
             return;
         }
 
-        DeviceBufferUploadRangeHelper(context, device_buffer, offset, data_size, device_buffer->m_Base.m_Size, data, DM_DX12_RESOURCE_STATE_BUFFER_READ);
+        DeviceBufferUploadRangeHelper(context, device_buffer, offset, data_size, device_buffer->m_Base.m_Size, data, DM_DX12_RESOURCE_STATE_BUFFER_READ, DM_DX12_RESOURCE_STATE_BUFFER_READ);
     }
 
     static void CreateConstantBuffer(DX12Context* context, DX12DeviceBuffer* buffer, uint32_t size)
@@ -1931,6 +1989,101 @@ namespace dmGraphics
         DestroyResourceDeferred(context->m_FrameResources[context->m_CurrentFrameIndex], &ubo->m_DeviceBuffer);
 
         delete ubo;
+    }
+
+    static void DX12UploadStorageBuffer(DX12Context* context, DX12StorageBuffer* buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        DeviceBufferUploadRangeHelper(context,
+            &buffer->m_DeviceBuffer,
+            offset,
+            size,
+            buffer->m_DeviceBuffer.m_Capacity,
+            data,
+            buffer->m_ResourceState,
+            D3D12_RESOURCE_STATE_COMMON);
+        buffer->m_ResourceState = D3D12_RESOURCE_STATE_COMMON;
+    }
+
+    static HStorageBuffer DX12NewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        DX12StorageBuffer* buffer = new DX12StorageBuffer();
+        memset(buffer, 0, sizeof(DX12StorageBuffer));
+
+        buffer->m_BaseStorageBuffer.m_Size  = size;
+        buffer->m_BaseStorageBuffer.m_Usage = buffer_usage;
+        CreateDeviceBuffer(context, &buffer->m_DeviceBuffer, size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+        buffer->m_DeviceBuffer.m_Base.m_Size = size;
+        buffer->m_DeviceBuffer.m_DataSize    = size;
+        buffer->m_ResourceState = D3D12_RESOURCE_STATE_COPY_DEST;
+        DX12UploadStorageBuffer(context, buffer, 0, size, data);
+
+        return (HStorageBuffer) buffer;
+    }
+
+    static void DX12DisableStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        DX12StorageBuffer* buffer = (DX12StorageBuffer*) storage_buffer;
+
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+        {
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_CurrentStorageBuffers[set][binding] == buffer)
+                {
+                    context->m_CurrentStorageBuffers[set][binding] = 0;
+                }
+            }
+        }
+    }
+
+    static void DX12DeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        DX12StorageBuffer* buffer = (DX12StorageBuffer*) storage_buffer;
+
+        DX12DisableStorageBuffer(_context, storage_buffer);
+        DestroyResourceDeferred(context->m_FrameResources[context->m_CurrentFrameIndex], &buffer->m_DeviceBuffer);
+        delete buffer;
+    }
+
+    static void DX12SetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        DX12Context* context = (DX12Context*) _context;
+        DX12StorageBuffer* buffer = (DX12StorageBuffer*) storage_buffer;
+
+        if (buffer->m_DeviceBuffer.m_Resource == 0 || buffer->m_DeviceBuffer.m_Capacity < size)
+        {
+            DestroyResourceDeferred(context->m_FrameResources[context->m_CurrentFrameIndex], &buffer->m_DeviceBuffer);
+            CreateDeviceBuffer(context, &buffer->m_DeviceBuffer, size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+            buffer->m_ResourceState = D3D12_RESOURCE_STATE_COPY_DEST;
+        }
+
+        buffer->m_BaseStorageBuffer.m_Size  = size;
+        buffer->m_BaseStorageBuffer.m_Usage = buffer_usage;
+        buffer->m_DeviceBuffer.m_Base.m_Size = size;
+        buffer->m_DeviceBuffer.m_DataSize    = size;
+        DX12UploadStorageBuffer(context, buffer, 0, size, data);
+    }
+
+    static void DX12SetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        DX12StorageBuffer* buffer = (DX12StorageBuffer*) storage_buffer;
+        assert(offset + size <= buffer->m_BaseStorageBuffer.m_Size);
+        DX12UploadStorageBuffer((DX12Context*) _context, buffer, offset, size, data);
+    }
+
+    static uint32_t DX12GetStorageBufferSize(HContext, HStorageBuffer storage_buffer)
+    {
+        return ((DX12StorageBuffer*) storage_buffer)->m_BaseStorageBuffer.m_Size;
+    }
+
+    static void DX12EnableStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding, uint32_t set)
+    {
+        assert(set < MAX_SET_COUNT && binding < MAX_BINDINGS_PER_SET_COUNT);
+        DX12Context* context = (DX12Context*) _context;
+        context->m_CurrentStorageBuffers[set][binding] = (DX12StorageBuffer*) storage_buffer;
     }
 
     static HVertexBuffer DX12NewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2869,7 +3022,32 @@ namespace dmGraphics
                 } break;
                 case BINDING_FAMILY_STORAGE_BUFFER:
                 {
-                    assert(0);
+                    DX12StorageBuffer* buffer = context->m_CurrentStorageBuffers[dx12_res.m_Set][dx12_res.m_Binding];
+                    if (!buffer || !buffer->m_DeviceBuffer.m_Resource)
+                    {
+                        dmLogWarning("No storage buffer is bound at set %u, binding %u.", dx12_res.m_Set, dx12_res.m_Binding);
+                        break;
+                    }
+
+                    const bool read_only = pgm_res.m_Res->m_StorageBufferReadOnly != 0;
+                    const D3D12_RESOURCE_STATES target_state = read_only
+                        ? (D3D12_RESOURCE_STATES) (D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+                        : D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+
+                    if (buffer->m_ResourceState != target_state)
+                    {
+                        context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
+                            buffer->m_DeviceBuffer.m_Resource,
+                            buffer->m_ResourceState,
+                            target_state));
+                        buffer->m_ResourceState = target_state;
+                    }
+                    else if (!read_only)
+                    {
+                        context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::UAV(buffer->m_DeviceBuffer.m_Resource));
+                    }
+
+                    frame_resources.m_ScratchBuffer.AllocateStorageBuffer(context, pipeline_type, buffer, read_only, i);
                 } break;
                 case BINDING_FAMILY_UNIFORM_BUFFER:
                 {

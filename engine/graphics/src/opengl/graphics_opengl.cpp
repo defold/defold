@@ -2062,6 +2062,13 @@ static void LogFrameBufferError(GLenum status)
                 limits.m_MaxStorageBufferRange = (uint64_t)(uint32_t) OpenGLGetInteger(GL_MAX_SHADER_STORAGE_BLOCK_SIZE);
             }
         #endif
+
+        #ifdef GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS
+            if (context->m_StorageBufferSupport)
+            {
+                limits.m_MaxStorageBuffersPerStage = (uint32_t) OpenGLGetInteger(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS);
+            }
+        #endif
         }
 
         if (context->m_MultiTargetRenderingSupport)      SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
@@ -2369,6 +2376,119 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLDisableUniformBuffer(_context, uniform_buffer);
         delete ubo;
+    }
+
+    static HStorageBuffer OpenGLNewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+    #if defined(GL_SHADER_STORAGE_BUFFER)
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLStorageBuffer* storage_buffer = new OpenGLStorageBuffer();
+        storage_buffer->m_BaseStorageBuffer.m_Size = size;
+        storage_buffer->m_BaseStorageBuffer.m_Usage = buffer_usage;
+
+        GLuint handle = 0;
+        glGenBuffersARB(1, &handle);
+        storage_buffer->m_Id = AddNewGLHandle(context, handle);
+
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, handle);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, size, data, GetOpenGLBufferUsage(buffer_usage));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        CHECK_GL_ERROR;
+        return (HStorageBuffer) storage_buffer;
+    #else
+        (void) _context;
+        (void) size;
+        (void) data;
+        (void) buffer_usage;
+        return 0;
+    #endif
+    }
+
+    static void OpenGLDisableStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+        {
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_CurrentStorageBuffers[set][binding] == buffer)
+                {
+                    context->m_CurrentStorageBuffers[set][binding] = 0;
+                }
+            }
+        }
+    }
+
+    static void OpenGLDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        if (!storage_buffer)
+        {
+            return;
+        }
+
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
+        OpenGLDisableStorageBuffer(_context, storage_buffer);
+
+        GLuint handle = GetGLHandle(context, buffer->m_Id);
+        glDeleteBuffersARB(1, &handle);
+        CleanupGLHandle(context, buffer->m_Id);
+        delete buffer;
+    }
+
+    static void OpenGLSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+    #if defined(GL_SHADER_STORAGE_BUFFER)
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
+        buffer->m_BaseStorageBuffer.m_Size = size;
+        buffer->m_BaseStorageBuffer.m_Usage = buffer_usage;
+
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, GetGLHandle(context, buffer->m_Id));
+        glBufferData(GL_SHADER_STORAGE_BUFFER, size, data, GetOpenGLBufferUsage(buffer_usage));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        CHECK_GL_ERROR;
+    #else
+        (void) _context;
+        (void) storage_buffer;
+        (void) size;
+        (void) data;
+        (void) buffer_usage;
+    #endif
+    }
+
+    static void OpenGLSetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+    #if defined(GL_SHADER_STORAGE_BUFFER)
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
+        assert(offset + size <= buffer->m_BaseStorageBuffer.m_Size);
+
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, GetGLHandle(context, buffer->m_Id));
+        glBufferSubDataARB(GL_SHADER_STORAGE_BUFFER, offset, size, data);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        CHECK_GL_ERROR;
+    #else
+        (void) _context;
+        (void) storage_buffer;
+        (void) offset;
+        (void) size;
+        (void) data;
+    #endif
+    }
+
+    static uint32_t OpenGLGetStorageBufferSize(HContext, HStorageBuffer storage_buffer)
+    {
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
+        return buffer ? buffer->m_BaseStorageBuffer.m_Size : 0;
+    }
+
+    static void OpenGLEnableStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding, uint32_t set)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+        assert(set < MAX_SET_COUNT && binding < MAX_BINDINGS_PER_SET_COUNT);
+        context->m_CurrentStorageBuffers[set][binding] = (OpenGLStorageBuffer*) storage_buffer;
     }
 
     static HVertexBuffer OpenGLNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -3007,6 +3127,19 @@ static void LogFrameBufferError(GLenum status)
                 }
             }
         }
+
+    #if defined(GL_SHADER_STORAGE_BUFFER)
+        if (context->m_StorageBufferSupport)
+        {
+            for (uint32_t i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers.Size(); ++i)
+            {
+                const ShaderResourceBinding& resource = program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers[i];
+                OpenGLStorageBuffer* buffer = context->m_CurrentStorageBuffers[resource.m_Set][resource.m_Binding];
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, resource.m_Binding, buffer ? GetGLHandle(context, buffer->m_Id) : 0);
+                CHECK_GL_ERROR;
+            }
+        }
+    #endif
 
     #if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
         glEnable(GL_TEXTURE_2D);

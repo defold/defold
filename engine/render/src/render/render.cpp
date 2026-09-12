@@ -194,7 +194,7 @@ namespace dmRender
 
         SetupContextEventCallback(context, &OnContextEvent);
 
-        context->m_LightUniformBuffer = 0;
+        context->m_LightBufferVersion = 1;
         SetLightBufferCount(context, 0);
 
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
@@ -412,7 +412,7 @@ namespace dmRender
         {
             memset(render_context->m_LightBufferSubmitted.Begin(), 0, render_context->m_LightBufferSubmitted.Size());
         }
-        render_context->m_LightBufferDirtyInfo = 1;
+        InvalidateLightBuffer(render_context);
     }
 
     Result AddToRender(HRenderContext context, RenderObject* ro)
