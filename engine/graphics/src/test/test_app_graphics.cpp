@@ -292,6 +292,190 @@ struct DepthTextureTest : ClearBackbufferTest
     }
 };
 
+// Run with "opengl cubemap-face-order". Each face has a distinct color so GPU
+// readback detects face swaps in both full uploads and subupdates (issue #11566).
+struct CubemapFaceOrderTest : ITest
+{
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HRenderTarget      m_RenderTarget;
+    dmGraphics::HUniformLocation   m_SampleParams;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_OPENGL ||
+            !dmGraphics::IsTextureFormatSupported(context, dmGraphics::TEXTURE_FORMAT_RGB_BC1))
+        {
+            dmLogError("Cubemap face order test requires OpenGL with BC1 texture support");
+            engine->m_Failed = true;
+            return;
+        }
+
+        const char* vertex_source =
+            "#version 330\n"
+            "in vec2 position;\n"
+            "void main() { gl_Position = vec4(position, 0.0, 1.0); }\n";
+        const char* fragment_source =
+            "#version 330\n"
+            "uniform samplerCube cubemap;\n"
+            "uniform vec4 sample_params;\n"
+            "out vec4 color;\n"
+            "void main() { color = textureLod(cubemap, sample_params.xyz, sample_params.w); }\n";
+        dmGraphics::ShaderDesc shader_desc = {};
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+            (uint8_t*) vertex_source, strlen(vertex_source));
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+            (uint8_t*) fragment_source, strlen(fragment_source));
+        AddShaderResource(&shader_desc, "position", dmGraphics::ShaderDesc::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        AddShaderResource(&shader_desc, "cubemap", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER_CUBE, 0, 0, BINDING_TYPE_TEXTURE, dmGraphics::SHADER_STAGE_FLAG_FRAGMENT);
+        char error_buffer[1024] = {};
+        m_Program = dmGraphics::NewProgram(context, &shader_desc, error_buffer, sizeof(error_buffer));
+        DeleteShaderDesc(&shader_desc);
+        if (!m_Program)
+        {
+            dmLogError("Failed to create cubemap test program: %s", error_buffer);
+            engine->m_Failed = true;
+            return;
+        }
+        m_SampleParams = GetUniformLocation(m_Program, "sample_params");
+
+        const float vertices[] = { -1.0f, -1.0f, 3.0f, -1.0f, -1.0f, 3.0f };
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(context, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(context);
+        dmGraphics::AddVertexStream(streams, "position", 2, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(context, streams);
+        dmGraphics::DeleteVertexStreamDeclaration(streams);
+
+        dmGraphics::RenderTargetCreationParams target_params = {};
+        target_params.m_ColorBufferCreationParams[0].m_Width = 1;
+        target_params.m_ColorBufferCreationParams[0].m_Height = 1;
+        target_params.m_ColorBufferParams[0].m_Width = 1;
+        target_params.m_ColorBufferParams[0].m_Height = 1;
+        target_params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+        m_RenderTarget = dmGraphics::NewRenderTarget(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_params);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        // +X, -X, +Y, -Y, +Z, -Z. BC1 endpoint colors are exact in RGB565.
+        const uint8_t colors[6][4] = {
+            {255, 0, 0, 255}, {0, 255, 0, 255}, {0, 0, 255, 255},
+            {255, 255, 0, 255}, {255, 0, 255, 255}, {0, 255, 255, 255}
+        };
+        const float directions[6][3] = {
+            {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}
+        };
+
+        dmGraphics::SetRenderTarget(context, m_RenderTarget, 0);
+        dmGraphics::SetViewport(context, 0, 0, 1, 1);
+        dmGraphics::EnableProgram(context, m_Program);
+        dmGraphics::SetSampler(context, GetUniformLocation(m_Program, "cubemap"), 0);
+        dmGraphics::EnableVertexBuffer(context, m_VertexBuffer, 0);
+        dmGraphics::EnableVertexDeclaration(context, m_VertexDeclaration, 0, 0, m_Program);
+
+        for (uint32_t compressed = 0; compressed < 2; ++compressed)
+        {
+            dmGraphics::TextureCreationParams creation_params;
+            creation_params.m_Type = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+            creation_params.m_Width = 4;
+            creation_params.m_Height = 4;
+            creation_params.m_MipMapCount = 3;
+            dmGraphics::HTexture texture = dmGraphics::NewTexture(context, creation_params);
+
+            for (uint32_t subupdate = 0; subupdate < 2; ++subupdate)
+            {
+                for (uint32_t mip = 0; mip < 3; ++mip)
+                {
+                    dmGraphics::TextureParams params;
+                    params.m_Width = 4 >> mip;
+                    params.m_Height = 4 >> mip;
+                    params.m_MipMap = mip;
+                    params.m_LayerCount = 6;
+                    params.m_Format = compressed ? dmGraphics::TEXTURE_FORMAT_RGB_BC1 : dmGraphics::TEXTURE_FORMAT_RGBA;
+                    params.m_DataSize = compressed ? 8 : params.m_Width * params.m_Height * 4;
+                    params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
+                    params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+                    params.m_SubUpdate = subupdate;
+                    uint8_t data[6 * 4 * 4 * 4] = {};
+                    for (uint32_t face = 0; face < 6; ++face)
+                    {
+                        const uint8_t* color = colors[(face + mip + subupdate) % 6];
+                        uint8_t* face_data = data + face * params.m_DataSize;
+                        if (compressed)
+                        {
+                            // One BC1 block: RGB565 endpoint 0, all pixel indices 0.
+                            uint16_t rgb565 = ((color[0] >> 3) << 11) | ((color[1] >> 2) << 5) | (color[2] >> 3);
+                            face_data[0] = rgb565 & 0xff;
+                            face_data[1] = rgb565 >> 8;
+                        }
+                        else
+                        {
+                            for (uint32_t pixel = 0; pixel < params.m_Width * params.m_Height; ++pixel)
+                            {
+                                memcpy(face_data + pixel * 4, color, 4);
+                            }
+                        }
+                    }
+                    params.m_Data = data;
+                    dmGraphics::SetTexture(context, texture, params);
+                }
+
+                dmGraphics::EnableTexture(context, 0, 0, texture);
+                for (uint32_t mip = 0; mip < 3; ++mip)
+                {
+                    for (uint32_t face = 0; face < 6; ++face)
+                    {
+                        dmVMath::Vector4 sample_params(directions[face][0], directions[face][1], directions[face][2], (float) mip);
+                        dmGraphics::SetConstantV4(context, &sample_params, 1, m_SampleParams);
+                        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+                        uint8_t pixel[4] = {};
+                        dmGraphics::ReadPixels(context, 0, 0, 1, 1, pixel, sizeof(pixel));
+                        const uint8_t* expected = colors[(face + mip + subupdate) % 6];
+                        // OpenGL ReadPixels returns BGRA.
+                        if (pixel[0] != expected[2] || pixel[1] != expected[1] || pixel[2] != expected[0] || pixel[3] != expected[3])
+                        {
+                            dmLogError("Cubemap face %u, mip %u, compressed %u, subupdate %u: expected RGBA %u,%u,%u,%u, got %u,%u,%u,%u",
+                                face, mip, compressed, subupdate, expected[0], expected[1], expected[2], expected[3], pixel[2], pixel[1], pixel[0], pixel[3]);
+                            engine->m_Failed = true;
+                        }
+                    }
+                }
+                dmGraphics::DisableTexture(context, 0, texture);
+            }
+            dmGraphics::DeleteTexture(context, texture);
+        }
+        dmGraphics::DisableVertexDeclaration(context, m_VertexDeclaration);
+        dmGraphics::DisableVertexBuffer(context, m_VertexBuffer);
+        dmGraphics::DisableProgram(context);
+        dmGraphics::SetRenderTarget(context, 0, 0);
+        engine->m_Running = 0;
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        if (m_RenderTarget)
+        {
+            dmGraphics::DeleteRenderTarget(context, m_RenderTarget);
+        }
+        if (m_VertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(m_VertexDeclaration);
+        }
+        if (m_VertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(m_VertexBuffer);
+        }
+        if (m_Program)
+        {
+            dmGraphics::DeleteProgram(context, m_Program);
+        }
+    }
+};
+
 struct MslArgumentBuffersTest : ITest
 {
     dmGraphics::HProgram           m_Program;
@@ -1390,6 +1574,11 @@ static void* EngineCreate(int argc, char** argv)
     {
         dmLogInfo("test_app_graphics: running DepthTextureTest");
         engine->m_Test = new DepthTextureTest();
+    }
+    else if (HasArgument("cubemap-face-order"))
+    {
+        dmLogInfo("test_app_graphics: running CubemapFaceOrderTest");
+        engine->m_Test = new CubemapFaceOrderTest();
     }
     else if (HasArgument("issue-12878"))
     {
