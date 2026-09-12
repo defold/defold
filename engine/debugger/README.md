@@ -69,33 +69,74 @@ unchanged; connect with a client that supports DAP TCP servers.
 | --- | --- |
 | `initialize`, `attach`, `configurationDone`, `disconnect` | Attach to a running engine, optionally stop on entry, detach and resume, reconnect. |
 | `setBreakpoints` | Replace all breakpoints for one source; ordinary, conditional, hit-count, and log breakpoints. |
+| `breakpointLocations` | Return sorted, known executable lines within a source range. |
 | `setExceptionBreakpoints`, `exceptionInfo` | `uncaught` errors crossing `dmScript::PCall`, inspected before unwinding. An empty filter list disables exception stops. |
 | `threads` | Independent Lua contexts and live coroutines, with stable IDs and start/exit events. |
 | `pause`, `continue`, `next`, `stepIn`, `stepOut` | Pause all Lua execution; continue and step by source line. Stepping follows coroutine entry and return to its resumer. |
 | `stackTrace`, `scopes`, `variables` | Lua frames, locals, upvalues, function globals, and nested tables. Stack and variable paging, named/indexed filters, and cyclic tables are supported. |
-| `evaluate`, `setVariable` | Evaluate in the selected frame and edit existing local, upvalue, global, or table entries. |
+| `evaluate`, `setVariable`, `setExpression` | Evaluate in the selected frame or global scope and edit variables or assign to Lua expressions. |
+| `completions` | Suggest visible identifiers and direct table members without executing Lua. |
 
 Breakpoints are initially pending until their executable lines are observed in a
 loaded Lua function. A `breakpoint` event reports verification. Pending
 breakpoints can be set before a script or module loads. `hitCondition` is a
-positive integer: stop on that exact visit. Conditions are Lua expressions.
+positive integer: stop on that exact matching visit. Conditions are Lua expressions;
+when combined with a hit count, only visits where the condition is true count.
 Logpoints interpolate `{expression}` and use `{{` and `}}` for literal braces;
 they emit DAP `output` events without stopping. Errors in a condition or logpoint
 expression are reported as output and leave program execution running.
 
+`breakpointLocations` uses debug information from observed calls and frames at a
+stop. Unknown sources and functions return no locations until their executable
+lines are known. It does not parse source files or guess locations. Locations are
+line-based, and a column range must include the first column of a reported line.
+
 Locals shadow upvalues and globals, including when the local is `nil`. Evaluation
-uses the selected function's environment. `context: "repl"` also accepts Lua
+with a `frameId` uses the selected function's environment. Without `frameId`,
+evaluation and expression assignment use the stopped Lua thread's global
+environment. `context: "repl"` also accepts Lua
 statements and assignments. Functions created by evaluation retain a snapshot of
 the frame's bindings after the request completes. Evaluation runs on the stopped
 Lua thread, using a temporary thread for yielded coroutines to preserve their
 suspended state. In either case it reads and writes the selected frame's bindings
 and has the same side effects as executing that Lua code normally.
 
+`setExpression` accepts a Lua assignment target and a value expression. It returns
+the assigned value and evaluates the target and value once. It also works on a
+yielded coroutine without resuming that coroutine.
+
+Hover evaluation is restricted to identifiers and direct table paths such as
+`player.health`, `items[1].name`, and `settings["display mode"]`. String, numeric,
+and boolean literal keys are supported. Hovers read locals, upvalues, and raw
+table entries without running Lua. Calls, arithmetic, and lookups requiring
+`__index` are rejected. An ordinary missing key returns `nil`; a local containing
+`nil` still shadows any global with the same name.
+
+`completions` suggests identifiers in the selected frame, or globals if `frameId`
+is omitted. Dot notation completes table fields, and colon notation completes
+function-valued members. Direct paths with literal keys can identify nested
+tables. Completion does not execute calls or metamethods. Results are sorted,
+limited to 256 matching names, and use UTF-16 columns and the negotiated position
+bases, including for multiline input. Only keys that are valid Lua identifiers
+are offered as completion names.
+
 Table entry names preserve key types: `["name"]`, `[1]`, and `[false]` are
 different keys. Pass the displayed name back to `setVariable`. Inspection avoids
 calling user metamethods. Other Lua types, including userdata and functions, are
 displayed with their type and identity. Frame and variable references become
 invalid on resume; old IDs are rejected even at a later stop.
+
+Variable types and table child counts are returned when the client declares
+`supportsVariableType` and `supportsVariablePaging`, respectively. Stack paging
+is advertised through `supportsDelayedStackTraceLoading`. Source descriptors
+include file names. Variables expose `evaluateName` only when a direct path
+identifies the binding; shadowed bindings and paths whose parent was reassigned
+omit it. Binary string keys use Lua-compatible decimal escapes in these paths.
+
+Clients declaring `supportsInvalidatedEvent` receive variable invalidations after
+REPL evaluation and assignment attempts, including evaluations that change
+state before returning an error. Hovers, watches, other evaluation contexts, and
+completions do not invalidate views, preventing repeated watch refreshes.
 
 All Lua contexts belong to one engine thread and stop together. A pause takes
 effect at the next Lua hook; it cannot interrupt a blocking native function.
@@ -139,6 +180,9 @@ ensures `DM_RELEASE` contains neither debugger code nor extension registration.
 The engine host additionally tests runtime activation after scripts and
 coroutines have run, activation across existing contexts, reconnecting, and
 retrying failed starts.
+The suite also checks combined conditions/hit counts, global evaluation,
+expression assignment, inspection without side effects, metadata negotiation,
+completion positions, known breakpoint locations, and invalidation events.
 
 To run individual wire tests:
 
@@ -148,6 +192,9 @@ python3 engine/debugger/src/test/test_dap.py --debuggee <path-to-dap_debuggee> D
 
 The engine script suite additionally checks that the generic `ScriptExtension`
 error callback sees the original error value and live locals before unwinding.
+
+See [ROADMAP.md](ROADMAP.md) for features requiring broader engine, editor, or
+Lua runtime integration.
 
 ## Embedding
 

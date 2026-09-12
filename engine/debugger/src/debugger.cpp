@@ -42,6 +42,9 @@ namespace dmDebugger
         , m_ClosePending(false)
         , m_LinesStartAt1(true)
         , m_ColumnsStartAt1(true)
+        , m_VariableType(false)
+        , m_VariablePaging(false)
+        , m_InvalidatedEvent(false)
     {
     }
 
@@ -734,6 +737,47 @@ namespace dmDebugger
         Respond(d, seq, "setBreakpoints", &body);
     }
 
+    static int CompareLines(const void* a, const void* b)
+    {
+        int left = *(const int*)a, right = *(const int*)b;
+        return (left > right) - (left < right);
+    }
+
+    static void BreakpointLocations(Debugger* d, const Json& json, int seq, int args)
+    {
+        const char* source = json.String(json.Field(json.Field(args, "source"), "path"));
+        int         first = json.Integer(json.Field(args, "line"));
+        int         last = json.Integer(json.Field(args, "endLine"), first);
+        int         column = json.Integer(json.Field(args, "column"), d->m_ColumnsStartAt1 ? 1 : 0);
+        int         end_column = json.Integer(json.Field(args, "endColumn"), 2147483647);
+        if (!source || !source[0] || first < (d->m_LinesStartAt1 ? 1 : 0) || last < first ||
+            column < (d->m_ColumnsStartAt1 ? 1 : 0) || end_column < (d->m_ColumnsStartAt1 ? 1 : 0) ||
+            (first == last && end_column < column))
+        {
+            Respond(d, seq, "breakpointLocations", 0, "Invalid source or breakpoint range");
+            return;
+        }
+        Buffer path;
+        RuntimePath(d, source, path);
+        dmArray<int> lines;
+        for (uint32_t i = 0; i < d->m_Sources.Size(); ++i)
+            if (!strcmp(d->m_Sources[i]->m_Path, path.Data()))
+                for (uint32_t j = 0; j < d->m_Sources[i]->m_Lines.Size(); ++j)
+                {
+                    int line = d->m_Sources[i]->m_Lines[j] - !d->m_LinesStartAt1;
+                    if (line >= first && line <= last && (line != first || column == (d->m_ColumnsStartAt1 ? 1 : 0)))
+                        Push(lines, line);
+                }
+        if (lines.Size() > 1)
+            qsort(lines.Begin(), lines.Size(), sizeof(int), CompareLines);
+        Buffer body;
+        body.Add("{\"breakpoints\":[");
+        for (uint32_t i = 0; i < lines.Size(); ++i)
+            body.Format("%s{\"line\":%d}", i ? "," : "", lines[i]);
+        body.Add("]}");
+        Respond(d, seq, "breakpointLocations", &body);
+    }
+
     static void Resume(Debugger* d, Step step, int thread)
     {
         Thread* t = FindThread(d, thread);
@@ -778,12 +822,18 @@ namespace dmDebugger
             }
             d->m_LinesStartAt1 = json.Boolean(json.Field(args, "linesStartAt1"), true);
             d->m_ColumnsStartAt1 = json.Boolean(json.Field(args, "columnsStartAt1"), true);
+            d->m_VariableType = json.Boolean(json.Field(args, "supportsVariableType"));
+            d->m_VariablePaging = json.Boolean(json.Field(args, "supportsVariablePaging"));
+            d->m_InvalidatedEvent = json.Boolean(json.Field(args, "supportsInvalidatedEvent"));
             d->m_Initialized = true;
             Buffer body;
             body.Add(
             "{\"supportsConfigurationDoneRequest\":true,\"supportsConditionalBreakpoints\":true,"
             "\"supportsHitConditionalBreakpoints\":true,\"supportsLogPoints\":true,\"supportsEvaluateForHovers\":true,"
             "\"supportsSetVariable\":true,\"supportsExceptionInfoRequest\":true,"
+            "\"supportsDelayedStackTraceLoading\":true,\"supportsSetExpression\":true,"
+            "\"supportsCompletionsRequest\":true,\"completionTriggerCharacters\":[\".\",\":\"],"
+            "\"supportsBreakpointLocationsRequest\":true,"
             "\"exceptionBreakpointFilters\":[{\"filter\":\"uncaught\",\"label\":\"Uncaught Lua errors\",\"default\":false}]}");
             Respond(d, seq, command, &body);
             return;
@@ -848,6 +898,11 @@ namespace dmDebugger
         if (!strcmp(command, "setBreakpoints"))
         {
             SetBreakpoints(d, json, seq, args);
+            return;
+        }
+        if (!strcmp(command, "breakpointLocations"))
+        {
+            BreakpointLocations(d, json, seq, args);
             return;
         }
         if (!strcmp(command, "setExceptionBreakpoints"))
@@ -1080,6 +1135,15 @@ namespace dmDebugger
         d->m_Step = STEP_NONE;
         d->m_StoppedThread = thread->m_Id;
         CaptureFrames(d);
+        // A late attachment can stop inside functions whose call hooks were
+        // never observed. Their debug information still supplies executable lines.
+        for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
+        {
+            Frame&    frame = d->m_Frames[i];
+            lua_Debug ar;
+            if (lua_getstack(frame.m_L, frame.m_Level, &ar) && lua_getinfo(frame.m_L, "S", &ar))
+                ObserveSource(d, frame.m_L, &ar);
+        }
         Buffer body;
         body.Format("{\"reason\":\"%s\",\"threadId\":%d,\"allThreadsStopped\":true", reason, thread->m_Id);
         if (breakpoint)
@@ -1260,10 +1324,6 @@ namespace dmDebugger
             if (ar->currentline != bp->m_Line || strcmp(path.Data(), bp->m_Path))
                 continue;
             VerifyBreakpoint(d, bp);
-            if (bp->m_Hits != 0xffffffff)
-                ++bp->m_Hits;
-            if (bp->m_HitTarget && bp->m_Hits != bp->m_HitTarget)
-                continue;
             if (bp->m_Condition[0])
             {
                 bool ok = Evaluate(d, L, 0, bp->m_Condition, false);
@@ -1274,6 +1334,10 @@ namespace dmDebugger
                 if (!hit)
                     continue;
             }
+            if (bp->m_Hits != 0xffffffff)
+                ++bp->m_Hits;
+            if (bp->m_HitTarget && bp->m_Hits != bp->m_HitTarget)
+                continue;
             if (bp->m_LogPoint)
             {
                 Logpoint(d, L, bp->m_LogMessage);

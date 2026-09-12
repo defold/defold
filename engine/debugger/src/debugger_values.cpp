@@ -4,6 +4,7 @@
 #if !defined(DM_RELEASE)
 #include "debugger_private.h"
 #include <dlib/dstrings.h>
+#include <stdlib.h>
 #include <string.h>
 
 namespace dmDebugger
@@ -24,6 +25,7 @@ namespace dmDebugger
             Reference& r = d->m_References[i];
             if (r.m_LuaRef != LUA_NOREF)
                 luaL_unref(r.m_L, LUA_REGISTRYINDEX, r.m_LuaRef);
+            free(r.m_EvaluateName);
         }
         d->m_References.SetSize(0);
         for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
@@ -62,7 +64,7 @@ namespace dmDebugger
         return 0;
     }
 
-    static int AddReference(Debugger* d, lua_State* L, ReferenceKind kind, int level, int index = 0)
+    static int AddReference(Debugger* d, lua_State* L, ReferenceKind kind, int level, int index = 0, const char* evaluate_name = 0)
     {
         for (uint32_t i = 0; i < d->m_References.Size(); ++i)
         {
@@ -78,10 +80,14 @@ namespace dmDebugger
                 bool same = lua_topointer(L, -1) == pointer;
                 lua_pop(L, 1);
                 if (same)
+                {
+                    if (!r.m_EvaluateName && evaluate_name)
+                        r.m_EvaluateName = strdup(evaluate_name);
                     return r.m_Id;
+                }
             }
         }
-        Reference r = { d->m_NextId++, L, level, LUA_NOREF, kind };
+        Reference r = { d->m_NextId++, L, level, LUA_NOREF, kind, evaluate_name ? strdup(evaluate_name) : 0 };
         if (kind == REFERENCE_TABLE)
         {
             lua_pushvalue(L, index);
@@ -117,17 +123,54 @@ namespace dmDebugger
         }
     }
 
-    static void ValueBody(Debugger* d, lua_State* L, int level, int index, Buffer& body, const char* value_key)
+    static bool ExpressionMatches(lua_State* L, int level, int index, const char* expression)
     {
+        if (!expression || !expression[0])
+            return false;
+        if (index < 0)
+            index = lua_gettop(L) + index + 1;
+        bool matches = Inspect(L, level, expression) && lua_rawequal(L, index, -1);
+        lua_pop(L, 1);
+        return matches;
+    }
+
+    static void ValueBody(Debugger* d, lua_State* L, int level, int index, Buffer& body, const char* value_key, const char* evaluate_name = 0, bool variable = false)
+    {
+        if (index < 0)
+            index = lua_gettop(L) + index + 1;
         Buffer value;
         FormatValue(L, index, value);
         body.String(value_key);
         body.Add(":");
         body.String(value.Data(), value.Size());
-        body.Add(",\"type\":");
-        body.String(lua_typename(L, lua_type(L, index)));
-        int reference = lua_istable(L, index) ? AddReference(d, L, REFERENCE_TABLE, level, index) : 0;
+        if (d->m_VariableType)
+        {
+            body.Add(",\"type\":");
+            body.String(lua_typename(L, lua_type(L, index)));
+        }
+        if (!ExpressionMatches(L, level, index, evaluate_name))
+            evaluate_name = 0;
+        if (variable && evaluate_name)
+        {
+            body.Add(",\"evaluateName\":");
+            body.String(evaluate_name);
+        }
+        int reference = lua_istable(L, index) ? AddReference(d, L, REFERENCE_TABLE, level, index, evaluate_name) : 0;
         body.Format(",\"variablesReference\":%d", reference);
+        if (reference && d->m_VariablePaging)
+        {
+            int named = 0, indexed = 0;
+            lua_pushnil(L);
+            while (lua_next(L, index))
+            {
+                if (lua_type(L, -2) == LUA_TNUMBER)
+                    ++indexed;
+                else
+                    ++named;
+                lua_pop(L, 1);
+            }
+            body.Format(",\"namedVariables\":%d,\"indexedVariables\":%d", named, indexed);
+        }
     }
 
     struct Evaluation
@@ -137,10 +180,11 @@ namespace dmDebugger
         int        m_EnvironmentRef;
         int        m_Depth;
         bool       m_Active;
+        bool       m_Global;
     };
 
     // Search backwards so inner locals shadow outer locals, even when nil.
-    static int LocalIndex(lua_State* L, lua_Debug* ar, const char* name)
+    int LocalIndex(lua_State* L, lua_Debug* ar, const char* name)
     {
         int result = 0;
         for (int i = 1;; ++i)
@@ -155,7 +199,7 @@ namespace dmDebugger
         return result;
     }
 
-    static int UpvalueIndex(lua_State* L, int function, const char* name)
+    int UpvalueIndex(lua_State* L, int function, const char* name)
     {
         for (int i = 1;; ++i)
         {
@@ -170,11 +214,31 @@ namespace dmDebugger
         return 0;
     }
 
+    void PushEnvironment(lua_State* L, int level)
+    {
+        lua_Debug ar;
+        if (level >= 0 && lua_getstack(L, level, &ar))
+        {
+            lua_getinfo(L, "f", &ar);
+            lua_getfenv(L, -1);
+            lua_remove(L, -2);
+        }
+        else
+            lua_pushvalue(L, LUA_GLOBALSINDEX);
+    }
+
     static int EvaluationIndex(lua_State* L)
     {
         Evaluation* e = (Evaluation*)lua_touserdata(L, lua_upvalueindex(1));
         if (!e->m_Active)
             return luaL_error(L, "Evaluation frame is no longer active");
+        if (e->m_Global)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, e->m_EnvironmentRef);
+            lua_pushvalue(L, 2);
+            lua_gettable(L, -2);
+            return 1;
+        }
         const char* name = lua_type(L, 2) == LUA_TSTRING ? lua_tostring(L, 2) : 0;
         lua_Debug   frame;
         if (!lua_getstack(e->m_L, StackDepth(e->m_L) - e->m_Depth, &frame))
@@ -204,6 +268,14 @@ namespace dmDebugger
         Evaluation* e = (Evaluation*)lua_touserdata(L, lua_upvalueindex(1));
         if (!e->m_Active)
             return luaL_error(L, "Evaluation frame is no longer active");
+        if (e->m_Global)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, e->m_EnvironmentRef);
+            lua_pushvalue(L, 2);
+            lua_pushvalue(L, 3);
+            lua_settable(L, -3);
+            return 0;
+        }
         const char* name = lua_type(L, 2) == LUA_TSTRING ? lua_tostring(L, 2) : 0;
         lua_Debug   frame;
         if (!lua_getstack(e->m_L, StackDepth(e->m_L) - e->m_Depth, &frame))
@@ -276,26 +348,29 @@ namespace dmDebugger
         int names = lua_gettop(L);
         lua_newtable(L);
         int values = lua_gettop(L);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, e->m_FunctionRef);
-        int function = lua_gettop(L);
-        for (int i = 1;; ++i)
+        if (!e->m_Global)
         {
-            const char* name = lua_getupvalue(L, function, i);
-            if (!name)
-                break;
-            SnapshotValue(L, names, values, name);
-        }
-        lua_Debug frame;
-        lua_getstack(L, level, &frame);
-        for (int i = 1;; ++i)
-        {
-            const char* name = lua_getlocal(L, &frame, i);
-            if (!name)
-                break;
-            if (name[0] != '(')
+            lua_rawgeti(L, LUA_REGISTRYINDEX, e->m_FunctionRef);
+            int function = lua_gettop(L);
+            for (int i = 1;; ++i)
+            {
+                const char* name = lua_getupvalue(L, function, i);
+                if (!name)
+                    break;
                 SnapshotValue(L, names, values, name);
-            else
-                lua_pop(L, 1);
+            }
+            lua_Debug frame;
+            lua_getstack(L, level, &frame);
+            for (int i = 1;; ++i)
+            {
+                const char* name = lua_getlocal(L, &frame, i);
+                if (!name)
+                    break;
+                if (name[0] != '(')
+                    SnapshotValue(L, names, values, name);
+                else
+                    lua_pop(L, 1);
+            }
         }
         lua_rawgeti(L, LUA_REGISTRYINDEX, environment);
         lua_newtable(L);
@@ -313,10 +388,10 @@ namespace dmDebugger
         lua_settop(L, top);
     }
 
-    bool Evaluate(Debugger* d, lua_State* L, int level, const char* expression, bool repl)
+    bool Evaluate(Debugger* d, lua_State* L, int level, const char* expression, bool repl, const char* assignment)
     {
         lua_Debug frame;
-        if (!lua_getstack(L, level, &frame))
+        if (level >= 0 && !lua_getstack(L, level, &frame))
         {
             lua_pushliteral(L, "Invalid frame");
             return false;
@@ -332,8 +407,36 @@ namespace dmDebugger
             thread_ref = luaL_ref(L, LUA_REGISTRYINDEX);
         }
         Buffer source;
-        source.Add("return ");
-        source.Add(expression);
+        if (assignment)
+        {
+            // Check the target as an expression before placing it on the left
+            // of an assignment. Compilation does not execute the target.
+            source.Add("return ");
+            source.Add(assignment);
+            if (luaL_loadbuffer(evaluation_L, source.Data(), source.Size(), "=(DAP assignment)"))
+            {
+                lua_xmove(evaluation_L, L, 1);
+                luaL_unref(L, LUA_REGISTRYINDEX, thread_ref);
+                return false;
+            }
+            lua_pop(evaluation_L, 1);
+            source.Clear();
+            char temporary[40];
+            int  suffix = 0;
+            do
+                dmSnPrintf(temporary, sizeof(temporary), "__dap_value_%d", suffix++);
+            while (strstr(expression, temporary) || strstr(assignment, temporary));
+            source.Format("local %s = (", temporary);
+            source.Add(expression);
+            source.Add(")\n");
+            source.Add(assignment);
+            source.Format(" = %s\nreturn %s", temporary, temporary);
+        }
+        else
+        {
+            source.Add("return ");
+            source.Add(expression);
+        }
         int result = luaL_loadbuffer(evaluation_L, source.Data(), source.Size(), "=(DAP evaluation)");
         if (result && repl)
         {
@@ -349,13 +452,18 @@ namespace dmDebugger
 
         Evaluation* e = (Evaluation*)lua_newuserdata(evaluation_L, sizeof(Evaluation));
         e->m_L = L;
-        e->m_Depth = StackDepth(L) - level;
+        e->m_Depth = level >= 0 ? StackDepth(L) - level : 0;
         e->m_Active = true;
+        e->m_Global = level < 0;
         int context = lua_gettop(evaluation_L);
-        lua_getinfo(L, "f", &frame);
-        lua_getfenv(L, -1);
+        PushEnvironment(L, level);
         e->m_EnvironmentRef = luaL_ref(L, LUA_REGISTRYINDEX);
-        e->m_FunctionRef = luaL_ref(L, LUA_REGISTRYINDEX);
+        e->m_FunctionRef = LUA_NOREF;
+        if (level >= 0)
+        {
+            lua_getinfo(L, "f", &frame);
+            e->m_FunctionRef = luaL_ref(L, LUA_REGISTRYINDEX);
+        }
         lua_newtable(evaluation_L);
         lua_newtable(evaluation_L);
         lua_pushvalue(evaluation_L, context);
@@ -403,14 +511,14 @@ namespace dmDebugger
         }
     }
 
-    static void Variable(Debugger* d, lua_State* L, int level, const char* name, Buffer& body, int* count)
+    static void Variable(Debugger* d, lua_State* L, int level, const char* name, Buffer& body, int* count, const char* evaluate_name)
     {
         if ((*count)++)
             body.Add(",");
         body.Add("{\"name\":");
         body.String(name);
         body.Add(",");
-        ValueBody(d, L, level, -1, body, "value");
+        ValueBody(d, L, level, -1, body, "value", evaluate_name, true);
         body.Add("}");
     }
 
@@ -439,21 +547,23 @@ namespace dmDebugger
                 if (!name)
                     break;
                 if (name[0] != '(' && (r.m_Kind != REFERENCE_LOCALS || LocalIndex(L, &ar, name) == i) && Page(ordinal++, start, count))
-                    Variable(d, L, r.m_Level, name, body, &emitted);
+                {
+                    bool visible = r.m_Kind == REFERENCE_LOCALS || LocalIndex(L, &ar, name) == 0;
+                    Variable(d, L, r.m_Level, name, body, &emitted, visible && IsIdentifier(name) ? name : 0);
+                }
                 lua_pop(L, 1);
             }
         }
         else
         {
             if (r.m_Kind == REFERENCE_GLOBALS)
-            {
-                lua_getstack(L, r.m_Level, &ar);
-                lua_getinfo(L, "f", &ar);
-                lua_getfenv(L, -1);
-            }
+                PushEnvironment(L, r.m_Level);
             else
                 lua_rawgeti(L, LUA_REGISTRYINDEX, r.m_LuaRef);
-            int table = lua_gettop(L);
+            int    table = lua_gettop(L);
+            Buffer parent;
+            if (r.m_Kind == REFERENCE_TABLE && ExpressionMatches(L, r.m_Level, table, r.m_EvaluateName))
+                parent.Add(r.m_EvaluateName);
             lua_pushnil(L);
             while (lua_next(L, table))
             {
@@ -463,7 +573,26 @@ namespace dmDebugger
                 {
                     Buffer name;
                     KeyName(L, -2, r.m_Kind == REFERENCE_GLOBALS, name);
-                    Variable(d, L, r.m_Level, name.Data(), body, &emitted);
+                    Buffer expression;
+                    if (r.m_Kind == REFERENCE_TABLE)
+                    {
+                        if (parent.Size())
+                            KeyExpression(L, -2, parent.Data(), expression);
+                    }
+                    else
+                    {
+                        bool shadowed = false;
+                        if (lua_type(L, -2) == LUA_TSTRING && r.m_Level >= 0 && lua_getstack(L, r.m_Level, &ar))
+                        {
+                            shadowed = LocalIndex(L, &ar, name.Data()) != 0;
+                            lua_getinfo(L, "f", &ar);
+                            shadowed |= UpvalueIndex(L, lua_gettop(L), name.Data()) != 0;
+                            lua_pop(L, 1);
+                        }
+                        if (!shadowed)
+                            KeyExpression(L, -2, "", expression);
+                    }
+                    Variable(d, L, r.m_Level, name.Data(), body, &emitted, expression.Data());
                 }
                 lua_pop(L, 1);
             }
@@ -513,11 +642,7 @@ namespace dmDebugger
         else
         {
             if (r.m_Kind == REFERENCE_GLOBALS)
-            {
-                lua_getstack(L, r.m_Level, &ar);
-                lua_getinfo(L, "f", &ar);
-                lua_getfenv(L, -1);
-            }
+                PushEnvironment(L, r.m_Level);
             else
                 lua_rawgeti(L, LUA_REGISTRYINDEX, r.m_LuaRef);
             int table = lua_gettop(L);
@@ -551,7 +676,8 @@ namespace dmDebugger
     bool ValueRequest(Debugger* d, const Json& request, const char* command, int seq, int args)
     {
         if (strcmp(command, "stackTrace") && strcmp(command, "scopes") && strcmp(command, "variables") &&
-            strcmp(command, "evaluate") && strcmp(command, "setVariable") && strcmp(command, "exceptionInfo"))
+            strcmp(command, "evaluate") && strcmp(command, "setVariable") && strcmp(command, "exceptionInfo") &&
+            strcmp(command, "setExpression") && strcmp(command, "completions"))
             return false;
         if (!d->m_Paused)
         {
@@ -560,6 +686,7 @@ namespace dmDebugger
         }
         Buffer      body;
         const char* error = 0;
+        bool        invalidate = false;
         if (!strcmp(command, "stackTrace"))
         {
             int thread = request.Integer(request.Field(args, "threadId"));
@@ -592,6 +719,9 @@ namespace dmDebugger
                         ClientPath(d, ar.source, path);
                         body.Add(",\"source\":{\"path\":");
                         body.String(path.Data());
+                        body.Add(",\"name\":");
+                        const char* name = strrchr(path.Data(), '/');
+                        body.String(name ? name + 1 : path.Data());
                         body.Add(",\"sourceReference\":0}");
                     }
                     body.Add("}");
@@ -617,26 +747,38 @@ namespace dmDebugger
                 body.Add("]}");
             }
         }
-        else if (!strcmp(command, "evaluate"))
+        else if (!strcmp(command, "evaluate") || !strcmp(command, "setExpression") || !strcmp(command, "completions"))
         {
-            Frame* frame = FindFrame(d, request.Integer(request.Field(args, "frameId")));
-            if (request.Field(args, "frameId") < 0)
-                for (uint32_t i = 0; i < d->m_Frames.Size(); ++i)
-                    if (d->m_Frames[i].m_ThreadId == d->m_StoppedThread)
-                    {
-                        frame = &d->m_Frames[i];
-                        break;
-                    }
+            Frame*      frame = FindFrame(d, request.Integer(request.Field(args, "frameId")));
+            Thread*     thread = FindThread(d, d->m_StoppedThread);
+            bool        global = request.Field(args, "frameId") < 0;
+            lua_State*  L = global ? (thread ? GetThread(thread) : 0) : (frame ? frame->m_L : 0);
+            int         level = global ? -1 : (frame ? frame->m_Level : -1);
+            bool        assignment = !strcmp(command, "setExpression");
             const char* expression = request.String(request.Field(args, "expression"));
-            if (!frame || !expression)
+            const char* value = assignment ? request.String(request.Field(args, "value")) : expression;
+            if (!L)
+                error = "Invalid frameId";
+            else if (!strcmp(command, "completions"))
+            {
+                if (!Completions(d, L, level, request, args, body))
+                    error = body.Data();
+            }
+            else if (!expression || !value)
                 error = "Invalid frameId or expression";
             else
             {
-                lua_State* L = frame->m_L;
-                if (Evaluate(d, L, frame->m_Level, expression, !strcmp(request.String(request.Field(args, "context"), ""), "repl")))
+                const char* context = request.String(request.Field(args, "context"), "");
+                bool        hover = !assignment && !strcmp(context, "hover");
+                // Watch evaluations can be triggered by an invalidation. Sending
+                // another event for them would cause a client refresh loop.
+                invalidate = assignment || !strcmp(context, "repl");
+                bool ok = hover ? Inspect(L, level, expression) :
+                                  Evaluate(d, L, level, value, !assignment && !strcmp(context, "repl"), assignment ? expression : 0);
+                if (ok)
                 {
                     body.Add("{");
-                    ValueBody(d, L, frame->m_Level, -1, body, "result");
+                    ValueBody(d, L, level, -1, body, assignment ? "value" : "result", expression);
                     body.Add("}");
                 }
                 else
@@ -689,11 +831,21 @@ namespace dmDebugger
                 const char* value = request.String(request.Field(args, "value"));
                 if (!name || !value)
                     error = "Missing variable name or value";
-                else if (!SetVariable(d, r, name, value, body))
-                    error = body.Data();
+                else
+                {
+                    invalidate = true;
+                    if (!SetVariable(d, r, name, value, body))
+                        error = body.Data();
+                }
             }
         }
         Respond(d, seq, command, error ? 0 : &body, error);
+        if (invalidate && d->m_InvalidatedEvent)
+        {
+            Buffer invalidated;
+            invalidated.Add("{\"areas\":[\"variables\"]}");
+            Event(d, "invalidated", &invalidated);
+        }
         return true;
     }
 } // namespace dmDebugger
