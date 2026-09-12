@@ -78,9 +78,9 @@ unchanged; connect with a client that supports DAP TCP servers.
 | `setExceptionBreakpoints`, `exceptionInfo` | `uncaught` errors crossing `dmScript::PCall`, inspected before unwinding. An empty filter list disables exception stops. |
 | `threads` | Independent Lua contexts and live coroutines, with stable IDs and start/exit events. |
 | `pause`, `continue`, `next`, `stepIn`, `stepOut` | Pause all Lua execution; continue and step by source line. Stepping follows coroutine entry and return to its resumer. |
-| `stackTrace`, `scopes`, `variables` | Lua frames, locals, upvalues, function globals, and nested tables. Stack and variable paging, named/indexed filters, and cyclic tables are supported. |
+| `stackTrace`, `scopes`, `variables` | Lua frames, locals, upvalues, function globals, nested tables, and script-instance `self` fields. Stack and variable paging, named/indexed filters, and cyclic values are supported. |
 | `evaluate`, `setVariable`, `setExpression` | Evaluate in the selected frame or global scope and edit variables or assign to Lua expressions. |
-| `completions` | Suggest visible identifiers and direct table members without executing Lua. |
+| `completions` | Suggest visible identifiers and direct table or `self` members without executing application Lua. |
 
 Breakpoints are initially pending until their executable lines are observed in a
 loaded Lua function. A `breakpoint` event reports verification. Pending
@@ -95,6 +95,9 @@ expression are reported as output and leave program execution running.
 stop. Unknown sources and functions return no locations until their executable
 lines are known. It does not parse source files or guess locations. Locations are
 line-based, and a column range must include the first column of a reported line.
+Executable lines are collected once per observed function during an attachment.
+The function cache uses weak keys, allowing closures to be collected and newly
+loaded functions to be discovered without rescanning every call.
 
 Locals shadow upvalues and globals, including when the local is `nil`. Evaluation
 with a `frameId` uses the selected function's environment. Without `frameId`,
@@ -132,9 +135,16 @@ are offered as completion names.
 
 Table entry names preserve key types: `["name"]`, `[1]`, and `[false]` are
 different keys. Pass the displayed name back to `setVariable`. Inspection avoids
-calling user metamethods. Other Lua types, including userdata and functions, are
-displayed with their type and identity. Frame and variable references become
-invalid on resume; old IDs are rejected even at a later stop.
+calling user metamethods. Like MobDebug's Defold serializer, the engine adapter
+expands game-object, GUI, and render script instances using their backing data
+tables. Their `self` fields support expansion, hover, completion, and editing,
+including in suspended coroutines. Other userdata and functions are displayed
+with their type and identity. Frame and variable references become invalid on
+resume; old IDs are rejected even at a later stop.
+
+Displayed strings and string keys are editable Lua literals. Readable UTF-8 is
+preserved; binary bytes use three-digit decimal escapes supported by both Lua
+5.1 and LuaJIT. Accepting an unchanged string edit preserves its original bytes.
 
 Variable types and table child counts are returned when the client declares
 `supportsVariableType` and `supportsVariablePaging`, respectively. Stack paging
@@ -175,12 +185,14 @@ After configuring the repository with CMake and `BUILD_TESTS=ON`, run:
 ```sh
 cmake --build <build-directory> --target test_debugger_dap test_debugger_dap_lua test_debugger_release
 cmake --build <build-directory> --target test_debugger_dap_engine
+cmake --build <build-directory> --target test_debugger_dap_instances
 ```
 
-The engine integration target is available when `script` and `extension` are
-configured. All targets are also registered with the repository's `run_tests`
-sequence. Waf runs the native LuaJIT DAP suite when building the debugger module
-with tests enabled.
+The extension integration target is available when `script` and `extension` are
+configured. The script-instance target is part of the full native engine build;
+it runs `dmengine_headless` with the existing `engine_test_content` target's
+compiled project. All targets are also registered with the repository's
+`run_tests` sequence.
 
 `src/test/test_dap.py` uses Python's standard library and a real TCP connection.
 The same suite exercises the standalone C++ host with LuaJIT, the bundled Lua
@@ -200,11 +212,17 @@ Coroutine regressions cover discovery on attachment and reconnection, stepping
 through original coroutine APIs, nested resumes, and collection during a step.
 Tail-call inspection checks scopes, evaluation, and local assignment on both
 runtimes.
+The headless app loads the project fixtures in `engine/engine/src/test/debugger`
+through the normal resource and component lifecycle. The DAP client checks `self`
+expansion, cyclic fields, completions, and edits in game-object, GUI, and render
+callbacks and suspended coroutines. It also checks that application getters and
+metamethods are not called during inspection.
 
 To run individual wire tests:
 
 ```sh
 python3 engine/debugger/src/test/test_dap.py --debuggee <path-to-dap_debuggee> DAPTests.test_variables_evaluate_and_mutation
+python3 engine/debugger/src/test/test_dap.py --engine <path-to-dmengine_headless> --engine-content engine/engine/build/src/test/build/default EngineDAPTests
 ```
 
 The engine script suite additionally checks that the generic `ScriptExtension`
@@ -222,3 +240,9 @@ remove each state before `lua_close`. For a host using raw `lua_pcall`, invoke
 `OnError` from its protected-call error handler while the original error is still
 at stack index 1. The engine extension performs these steps automatically and
 uses per-script finalization so every non-shared Lua context is removed.
+
+Hosts can optionally register a `SetUserdataTableResolver` callback for userdata
+backed by a Lua table. It must push the backing table on success, preserve the
+stack on failure, and avoid executing application code or raising errors. The
+callback can receive a yielded coroutine. The engine extension installs the
+adapter for Defold's three script-instance types automatically.

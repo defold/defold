@@ -1,5 +1,16 @@
 // Copyright 2020-2026 The Defold Foundation
-// Licensed under the Defold License version 1.0. See https://www.defold.com/license
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
 #if !defined(DM_RELEASE)
 #include "debugger_private.h"
@@ -19,8 +30,9 @@ namespace dmDebugger
     Debugger::Debugger()
         : m_Listener(dmSocket::INVALID_SOCKET_HANDLE)
         , m_Client(dmSocket::INVALID_SOCKET_HANDLE)
-        , m_Port(0)
+        , m_UserdataTableResolver(0)
         , m_LocalRoot(0)
+        , m_CloseDeadline(0)
         , m_Sequence(1)
         , m_NextId(1)
         , m_AttachSeq(0)
@@ -28,8 +40,8 @@ namespace dmDebugger
         , m_StepThread(0)
         , m_StepDepth(0)
         , m_Connections(0)
-        , m_CloseDeadline(0)
         , m_Step(STEP_NONE)
+        , m_Port(0)
         , m_StepNativeTailCall(false)
         , m_Initialized(false)
         , m_Attached(false)
@@ -67,6 +79,16 @@ namespace dmDebugger
         return value;
     }
 
+    static int NewWeakTable(lua_State* L, const char* mode)
+    {
+        lua_newtable(L);
+        lua_newtable(L);
+        lua_pushstring(L, mode);
+        lua_setfield(L, -2, "__mode");
+        lua_setmetatable(L, -2);
+        return luaL_ref(L, LUA_REGISTRYINDEX);
+    }
+
     void Queue(Debugger* d, Buffer& message)
     {
         if (!message.m_Valid || message.Size() > MAX_MESSAGE_SIZE)
@@ -79,10 +101,10 @@ namespace dmDebugger
         if (!d->m_Output.m_Valid)
             d->m_ClosePending = true;
     }
-    void Respond(Debugger* d, int seq, const char* command, const Buffer* body, const char* error)
+    void Respond(Debugger* d, uint32_t seq, const char* command, const Buffer* body, const char* error)
     {
         Buffer message;
-        message.Format("{\"seq\":%d,\"type\":\"response\",\"request_seq\":%d,\"command\":", d->m_Sequence++, seq);
+        message.Format("{\"seq\":%u,\"type\":\"response\",\"request_seq\":%u,\"command\":", d->m_Sequence++, seq);
         message.String(command);
         message.Add(error ? ",\"success\":false,\"message\":" : ",\"success\":true");
         if (error)
@@ -100,7 +122,7 @@ namespace dmDebugger
     void Event(Debugger* d, const char* event, const Buffer* body)
     {
         Buffer message;
-        message.Format("{\"seq\":%d,\"type\":\"event\",\"event\":", d->m_Sequence++);
+        message.Format("{\"seq\":%u,\"type\":\"event\",\"event\":", d->m_Sequence++);
         message.String(event);
         if (body)
         {
@@ -130,7 +152,7 @@ namespace dmDebugger
         lua_pop(L, 2);
         return result;
     }
-    Thread* FindThread(Debugger* d, int id, bool include_exited)
+    Thread* FindThread(Debugger* d, uint32_t id, bool include_exited)
     {
         for (uint32_t i = 0; i < d->m_Threads.Size(); ++i)
             if (d->m_Threads[i]->m_Id == id && (include_exited || (!d->m_Threads[i]->m_Exited && GetThread(d->m_Threads[i]))))
@@ -164,7 +186,7 @@ namespace dmDebugger
         if (!d->m_Attached)
             return;
         Buffer body;
-        body.Format("{\"reason\":\"%s\",\"threadId\":%d}", reason, thread->m_Id);
+        body.Format("{\"reason\":\"%s\",\"threadId\":%u}", reason, thread->m_Id);
         Event(d, "thread", &body);
     }
 
@@ -478,6 +500,10 @@ namespace dmDebugger
             State* state = d->m_States[i];
             if (enable)
             {
+                // Source mapping can change on reattachment. Function keys stay
+                // weak so observing a closure never extends its lifetime.
+                luaL_unref(state->m_L, LUA_REGISTRYINDEX, state->m_ObservedFunctionsRef);
+                state->m_ObservedFunctionsRef = NewWeakTable(state->m_L, "k");
                 // Cached coroutine APIs can bypass our wrappers while detached.
                 // Discover their suspended threads before installing Lua 5.1's
                 // per-thread hooks, including on subsequent attachments.
@@ -517,12 +543,8 @@ namespace dmDebugger
         memset(state, 0, sizeof(*state));
         state->m_L = L;
         state->m_Name = strdup(name);
-        lua_newtable(L);
-        lua_newtable(L);
-        lua_pushliteral(L, "v");
-        lua_setfield(L, -2, "__mode");
-        lua_setmetatable(L, -2);
-        state->m_ThreadsRef = luaL_ref(L, LUA_REGISTRYINDEX);
+        state->m_ThreadsRef = NewWeakTable(L, "v");
+        state->m_ObservedFunctionsRef = NewWeakTable(L, "k");
         SetPointer(L, &g_DebuggerKey, d);
         SetPointer(L, &g_StateKey, state);
         Push(d->m_States, state);
@@ -586,6 +608,7 @@ namespace dmDebugger
         }
         lua_pop(L, 1);
         luaL_unref(L, LUA_REGISTRYINDEX, state->m_ThreadsRef);
+        luaL_unref(L, LUA_REGISTRYINDEX, state->m_ObservedFunctionsRef);
         SetPointer(L, &g_DebuggerKey, 0);
         SetPointer(L, &g_StateKey, 0);
         for (uint32_t i = 0; i < d->m_States.Size(); ++i)
@@ -649,6 +672,10 @@ namespace dmDebugger
     uint16_t GetPort(HDebugger d)
     {
         return d->m_Port;
+    }
+    void SetUserdataTableResolver(HDebugger d, UserdataTableResolver resolver)
+    {
+        d->m_UserdataTableResolver = resolver;
     }
     void Delete(HDebugger d)
     {
@@ -731,16 +758,30 @@ namespace dmDebugger
         path.Add(normalized.Data());
     }
 
+    static int CompareLines(const void* a, const void* b)
+    {
+        int left = *(const int*)a, right = *(const int*)b;
+        return (left > right) - (left < right);
+    }
+
     static bool HasLine(Source* source, int line)
     {
-        for (uint32_t i = 0; i < source->m_Lines.Size(); ++i)
-            if (source->m_Lines[i] == line)
+        uint32_t first = 0, last = source->m_Lines.Size();
+        while (first < last)
+        {
+            uint32_t middle = first + (last - first) / 2;
+            if (source->m_Lines[middle] == line)
                 return true;
+            if (source->m_Lines[middle] < line)
+                first = middle + 1;
+            else
+                last = middle;
+        }
         return false;
     }
     static void BreakpointBody(Debugger* d, Breakpoint* bp, Buffer& body)
     {
-        body.Format("{\"id\":%d,\"verified\":%s,\"line\":%d", bp->m_Id, bp->m_Verified ? "true" : "false", bp->m_Line - !d->m_LinesStartAt1);
+        body.Format("{\"id\":%u,\"verified\":%s,\"line\":%d", bp->m_Id, bp->m_Verified ? "true" : "false", bp->m_Line - !d->m_LinesStartAt1);
         if (!bp->m_Verified)
             body.Add(",\"message\":\"Pending an executable Lua line\"");
         body.Add("}");
@@ -760,6 +801,21 @@ namespace dmDebugger
     {
         if (!ar->source || ar->source[0] != '@' || !strcmp(ar->what, "C"))
             return;
+        State* state = (State*)GetPointer(L, &g_StateKey);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, state->m_ObservedFunctionsRef);
+        lua_getinfo(L, "f", ar);
+        lua_pushvalue(L, -1);
+        lua_rawget(L, -3);
+        bool observed = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+        if (observed)
+        {
+            lua_pop(L, 2);
+            return;
+        }
+        lua_pushboolean(L, true);
+        lua_rawset(L, -3);
+        lua_pop(L, 1);
         Buffer path;
         RuntimePath(d, ar->source, path);
         Source* source = 0;
@@ -782,12 +838,20 @@ namespace dmDebugger
             while (lua_next(L, -2))
             {
                 int line = (int)lua_tointeger(L, -2);
-                if (!HasLine(source, line))
-                    Push(source->m_Lines, line);
+                Push(source->m_Lines, line);
                 lua_pop(L, 1);
             }
         }
         lua_pop(L, 1);
+        if (source->m_Lines.Size() > 1)
+        {
+            qsort(source->m_Lines.Begin(), source->m_Lines.Size(), sizeof(int), CompareLines);
+            uint32_t count = 0;
+            for (uint32_t i = 0; i < source->m_Lines.Size(); ++i)
+                if (!count || source->m_Lines[i] != source->m_Lines[count - 1])
+                    source->m_Lines[count++] = source->m_Lines[i];
+            source->m_Lines.SetSize(count);
+        }
         for (uint32_t i = 0; i < d->m_Breakpoints.Size(); ++i)
         {
             Breakpoint* bp = d->m_Breakpoints[i];
@@ -873,12 +937,6 @@ namespace dmDebugger
         Respond(d, seq, "setBreakpoints", &body);
     }
 
-    static int CompareLines(const void* a, const void* b)
-    {
-        int left = *(const int*)a, right = *(const int*)b;
-        return (left > right) - (left < right);
-    }
-
     static void BreakpointLocations(Debugger* d, const Json& json, int seq, int args)
     {
         const char* source = json.String(json.Field(json.Field(args, "source"), "path"));
@@ -914,7 +972,7 @@ namespace dmDebugger
         Respond(d, seq, "breakpointLocations", &body);
     }
 
-    static void Resume(Debugger* d, Step step, int thread)
+    static void Resume(Debugger* d, Step step, uint32_t thread)
     {
         Thread* t = FindThread(d, thread);
         d->m_Step = step;
@@ -926,7 +984,7 @@ namespace dmDebugger
         d->m_Exception.Clear();
         ClearReferences(d);
         Buffer body;
-        body.Format("{\"threadId\":%d,\"allThreadsContinued\":true}", thread);
+        body.Format("{\"threadId\":%u,\"allThreadsContinued\":true}", thread);
         Event(d, "continued", &body);
     }
 
@@ -1076,11 +1134,11 @@ namespace dmDebugger
                     continue;
                 if (count++)
                     body.Add(",");
-                body.Format("{\"id\":%d,\"name\":", thread->m_Id);
+                body.Format("{\"id\":%u,\"name\":", thread->m_Id);
                 Buffer name;
                 name.Add(thread->m_State->m_Name);
                 if (!thread->m_Main)
-                    name.Format(" / coroutine %d", thread->m_Id);
+                    name.Format(" / coroutine %u", thread->m_Id);
                 body.String(name.Data());
                 body.Add("}");
             }
@@ -1093,7 +1151,7 @@ namespace dmDebugger
         if (!strcmp(command, "pause") || !strcmp(command, "continue") || !strcmp(command, "next") || !strcmp(command, "stepIn") || !strcmp(command, "stepOut"))
         {
             int id = json.Integer(json.Field(args, "threadId"));
-            if (!d->m_Configured || !FindThread(d, id))
+            if (!d->m_Configured || id <= 0 || !FindThread(d, (uint32_t)id))
             {
                 Respond(d, seq, command, 0, "Invalid thread or session not configured");
                 return;
@@ -1115,7 +1173,7 @@ namespace dmDebugger
                     Respond(d, seq, command, 0, "Lua is running");
                     return;
                 }
-                if (strcmp(command, "continue") && id != d->m_StoppedThread)
+                if (strcmp(command, "continue") && (uint32_t)id != d->m_StoppedThread)
                 {
                     Respond(d, seq, command, 0, "Step the stopped thread");
                     return;
@@ -1263,7 +1321,7 @@ namespace dmDebugger
         }
     }
 
-    static void Stop(Debugger* d, lua_State* L, const char* reason, int breakpoint = 0)
+    static void Stop(Debugger* d, lua_State* L, const char* reason, uint32_t breakpoint = 0)
     {
         Thread* thread = TrackThread(d, L);
         if (!thread)
@@ -1284,9 +1342,9 @@ namespace dmDebugger
                 ObserveSource(d, frame.m_L, &ar);
         }
         Buffer body;
-        body.Format("{\"reason\":\"%s\",\"threadId\":%d,\"allThreadsStopped\":true", reason, thread->m_Id);
+        body.Format("{\"reason\":\"%s\",\"threadId\":%u,\"allThreadsStopped\":true", reason, thread->m_Id);
         if (breakpoint)
-            body.Format(",\"hitBreakpointIds\":[%d]", breakpoint);
+            body.Format(",\"hitBreakpointIds\":[%u]", breakpoint);
         if (d->m_Exception.Size())
         {
             body.Add(",\"text\":");

@@ -1,5 +1,16 @@
 // Copyright 2020-2026 The Defold Foundation
-// Licensed under the Defold License version 1.0. See https://www.defold.com/license
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
 #if !defined(DM_RELEASE)
 #include "debugger_private.h"
@@ -64,21 +75,7 @@ namespace dmDebugger
         expression.Add("[");
         if (key)
         {
-            // Lua 5.1 uses decimal byte escapes, not JSON's Unicode escapes.
-            expression.Add("\"");
-            for (size_t i = 0; i < length; ++i)
-            {
-                unsigned char c = (unsigned char)key[i];
-                if (c < 32 || c >= 127)
-                    expression.Format("\\%03u", (unsigned)c);
-                else
-                {
-                    if (c == '\\' || c == '"')
-                        expression.Add("\\");
-                    expression.Add(key + i, 1);
-                }
-            }
-            expression.Add("\"");
+            QuoteLuaString(key, (uint32_t)length, expression);
         }
         else if (type == LUA_TNUMBER)
             expression.Format("%.17g", (double)lua_tonumber(L, index));
@@ -203,18 +200,36 @@ namespace dmDebugger
         return exists;
     }
 
-    static bool RawIndex(lua_State* L)
+    bool PushValueTable(Debugger* d, lua_State* L, int index)
     {
-        if (!lua_istable(L, -2))
+        if (lua_istable(L, index))
+        {
+            lua_pushvalue(L, index);
+            return true;
+        }
+        if (lua_type(L, index) != LUA_TUSERDATA || !d->m_UserdataTableResolver)
             return false;
+        bool evaluating = d->m_Evaluating;
+        d->m_Evaluating = true;
+        bool found = d->m_UserdataTableResolver(L, index);
+        d->m_Evaluating = evaluating;
+        return found;
+    }
+
+    static bool RawIndex(Debugger* d, lua_State* L)
+    {
+        if (!PushValueTable(d, L, -2))
+            return false;
+        lua_insert(L, -2);
         lua_rawget(L, -2);
         if (lua_isnil(L, -1) && HasIndexMetamethod(L, -2))
             return false;
         lua_remove(L, -2);
+        lua_remove(L, -2);
         return true;
     }
 
-    static bool RootValue(lua_State* L, int level, const char* name)
+    static bool RootValue(Debugger* d, lua_State* L, int level, const char* name)
     {
         lua_Debug frame;
         if (level >= 0)
@@ -239,15 +254,15 @@ namespace dmDebugger
         }
         PushEnvironment(L, level);
         lua_pushstring(L, name);
-        return RawIndex(L);
+        return RawIndex(d, L);
     }
 
-    bool Inspect(lua_State* L, int level, const char* expression)
+    bool Inspect(Debugger* d, lua_State* L, int level, const char* expression)
     {
         int         top = lua_gettop(L);
         const char* p = expression;
         Buffer      root;
-        bool        ok = ReadIdentifier(p, root) && RootValue(L, level, root.Data());
+        bool        ok = ReadIdentifier(p, root) && RootValue(d, L, level, root.Data());
         while (ok)
         {
             SkipSpace(p);
@@ -277,7 +292,7 @@ namespace dmDebugger
             else
                 ok = false;
             if (ok)
-                ok = RawIndex(L);
+                ok = RawIndex(d, L);
         }
         lua_settop(L, top);
         lua_pushliteral(L, "Inspection supports identifiers and direct table paths; calls, expressions, and metamethods are not evaluated");
@@ -408,7 +423,7 @@ namespace dmDebugger
             }
             Buffer target;
             target.Add(begin, (uint32_t)(end - begin));
-            table = Inspect(L, level, target.Data()) && lua_istable(L, -1);
+            table = Inspect(d, L, level, target.Data()) && PushValueTable(d, L, -1);
         }
         else
         {
