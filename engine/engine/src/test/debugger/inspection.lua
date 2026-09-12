@@ -56,16 +56,46 @@ local function replaced_getter(self)
     assert(calls == 0 and self.score == 41 and marker == 1)
 end
 
+-- Issue #7750 needs a real engine reboot, not just a DAP disconnect/reconnect.
+-- Keep updating while detached so the client can attach to each fresh runtime.
+local function reboot(self)
+    self.score = 41
+    local generation = sys.get_config_int("test.debugger_generation", 0)
+    local port = debugger.start()
+    timer.delay(0.01, true, function()
+        local score = self.score -- reboot-inspect
+        if self.action then
+            assert(score == 99)
+            if self.action == "reboot" then
+                -- Reboot replaces argv; the engine requires the project last.
+                sys.reboot("--config=test.debugger_generation=" .. (generation + 1),
+                    "--config=debugger.port=" .. port,
+                    sys.get_config_string("test.debugger_project"))
+            else
+                sys.exit(0)
+            end
+        end
+    end)
+end
+
 function M.run(self, kind)
     if sys.get_config_string("test.debugger_instance") ~= kind then
         return
     end
-    local test = sys.get_config_string("test.debugger_case") == "getter" and replaced_getter or inspect
+    local case = sys.get_config_string("test.debugger_case")
+    local test = inspect
+    if case == "getter" then
+        test = replaced_getter
+    elseif case == "reboot" then
+        test = reboot
+    end
     local ok, message = pcall(test, self)
     if not ok then
         print(message)
     end
-    sys.exit(ok and 0 or 1)
+    if not ok or case ~= "reboot" then
+        sys.exit(ok and 0 or 1)
+    end
 end
 
 return M
