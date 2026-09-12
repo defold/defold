@@ -109,50 +109,7 @@ bool TextLayoutResolveMarkup(HFontCollection, HMarkup, TextLayoutSettings*, Reso
     return false;
 }
 
-bool TextLayoutCompileStyleFragment(const char*, uint32_t, TextRenderStyle*, dmArray<TextEffect>*, MarkupError*)
-{
-    return false;
-}
-
-void TextLayoutGetGlyphRenderData(HTextLayout, const TextGlyph&, const float base_color[4], TextGlyphRenderData* data)
-{
-    for (uint32_t channel = 0; channel < 4; ++channel)
-    {
-        data->m_FaceColors.m_BottomLeft[channel] = base_color[channel];
-        data->m_FaceColors.m_BottomRight[channel] = base_color[channel];
-        data->m_FaceColors.m_TopLeft[channel] = base_color[channel];
-        data->m_FaceColors.m_TopRight[channel] = base_color[channel];
-        data->m_OutlineColor[channel] = 1.0f;
-        data->m_ShadowColor[channel] = 1.0f;
-    }
-
-    data->m_OffsetX = 0.0f;
-    data->m_OffsetY = 0.0f;
-    data->m_OutlineWidth = 0.0f;
-    data->m_ShadowX = 0.0f;
-    data->m_ShadowY = 0.0f;
-    data->m_ShadowBlur = 0.0f;
-    data->m_StyleFlags = 0;
-}
-
-void TextLayoutGetGlyphFaceColors(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphFaceColors* colors)
-{
-    TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(layout, glyph, base_color, &data);
-    *colors = data.m_FaceColors;
-}
-
-bool TextLayoutHasMarkupOutline(HTextLayout)
-{
-    return false;
-}
-
-float TextLayoutGetMaxMarkupOutlineWidth(HTextLayout)
-{
-    return 0.0f;
-}
-
-bool TextLayoutHasMarkupShadow(HTextLayout)
+bool TextLayoutCompileStyleFragment(const char*, uint32_t, TextRenderStyle*, dmArray<TextEffect>*, TextNamedStyleDecoration*, MarkupError*)
 {
     return false;
 }

@@ -10,7 +10,7 @@ set(TARGET_PLATFORM "${HOST_PLATFORM}" CACHE STRING "Defold desktop target platf
 set(PROTOBUF_BUILD_JOBS 8 CACHE STRING "Parallel jobs used for the nested Protobuf builds")
 set(PROTOBUF_PACKAGE_DIR "${CMAKE_CURRENT_LIST_DIR}/package" CACHE PATH "Directory for generated package archives")
 
-if(NOT TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|win32|x86_64-win32)$")
+if(NOT TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")
   message(FATAL_ERROR
     "Protobuf is packaged for Defold desktop targets only; got TARGET_PLATFORM=${TARGET_PLATFORM}")
 endif()

@@ -1095,6 +1095,17 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
             write_mask |= WGPUColorWriteMask_Blue;
         if (context->m_CurrentPipelineState.m_WriteColorMask & DM_GRAPHICS_STATE_WRITE_A)
             write_mask |= WGPUColorWriteMask_Alpha;
+
+        // A WebGL context created with alpha:false has no destination alpha
+        // channel. WebGPU surfaces are always RGBA, and alphaMode:"opaque"
+        // only controls how the browser presents that channel. Keep the
+        // backing alpha untouched on opaque HTML5 surfaces as well, both for
+        // WebGL parity and for browsers that do not yet honor opaque canvas
+        // compositing consistently (for example, Mozilla bug 2007510).
+        // Off-screen targets must retain the color mask requested by the
+        // application.
+        if (context->m_OpaqueSurface && context->m_CurrentRenderPass.m_Target == context->m_MainRenderTarget)
+            write_mask &= ~WGPUColorWriteMask_Alpha;
 #if defined(DM_GRAPHICS_WEBGPU2)
         WGPUBlendState blend_state  = WGPU_BLEND_STATE_INIT;
 #else
@@ -1146,6 +1157,17 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
         surface_conf.width                    = width;
         surface_conf.height                   = height;
         surface_conf.presentMode              = WGPUPresentMode_Fifo;
+#if defined(__EMSCRIPTEN__)
+        // Match the WebGL canvas policy controlled by
+        // html5.transparent_graphics_context. Explicitly selecting opaque is
+        // important because framebuffer alpha must not affect page compositing
+        // when transparency is disabled. WebGL uses premultiplied alpha when a
+        // transparent context is requested, so use the same mode here.
+        context->m_OpaqueSurface = dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_ALPHA_BITS) == 0;
+        surface_conf.alphaMode = context->m_OpaqueSurface
+            ? WGPUCompositeAlphaMode_Opaque
+            : WGPUCompositeAlphaMode_Premultiplied;
+#endif
         wgpuSurfaceConfigure(context->m_Surface, &surface_conf);
     }
 
@@ -1258,7 +1280,7 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)userdata;
-    if (device)
+    if (status == WGPURequestDeviceStatus_Success && device)
     {
         context->m_Device = device;
 #if !defined(DM_GRAPHICS_WEBGPU2)
@@ -1266,6 +1288,8 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
 #endif
         wgpuDeviceGetLimits(context->m_Device, &context->m_DeviceLimits);
         context->m_Queue = wgpuDeviceGetQueue(context->m_Device);
+
+        bool surface_initialized = false;
         {
 #if defined(DM_GRAPHICS_WEBGPU2)
             WGPUSurfaceDescriptor surface_desc = WGPU_SURFACE_DESCRIPTOR_INIT;
@@ -1284,27 +1308,48 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
 #endif
             context->m_Surface = wgpuInstanceCreateSurface(context->m_Instance, &surface_desc);
         }
+
+        if (!context->m_Surface)
+        {
+            dmLogError("WebGPU: Unable to create surface");
+        }
 #if defined(DM_GRAPHICS_WEBGPU2)
+        else
         {
             WGPUSurfaceCapabilities capabilities = WGPU_SURFACE_CAPABILITIES_INIT;
-            wgpuSurfaceGetCapabilities(context->m_Surface, context->m_Adapter, &capabilities);
-            assert(capabilities.formatCount > 0);
-            context->m_Format = capabilities.formats[0];
+            const WGPUStatus capabilities_status = wgpuSurfaceGetCapabilities(context->m_Surface, context->m_Adapter, &capabilities);
+            if (capabilities_status == WGPUStatus_Success && capabilities.formatCount > 0 && capabilities.formats)
+            {
+                context->m_Format = capabilities.formats[0];
+                surface_initialized = context->m_Format != WGPUTextureFormat_Undefined;
+            }
             wgpuSurfaceCapabilitiesFreeMembers(capabilities);
+            if (!surface_initialized)
+                dmLogError("WebGPU: Unable to query a supported surface format");
         }
 #else
-        context->m_Format = wgpuSurfaceGetPreferredFormat(context->m_Surface, context->m_Adapter);
+        else
+        {
+            context->m_Format = wgpuSurfaceGetPreferredFormat(context->m_Surface, context->m_Adapter);
+            surface_initialized = context->m_Format != WGPUTextureFormat_Undefined;
+            if (!surface_initialized)
+                dmLogError("WebGPU: Unable to query a supported surface format");
+        }
 #endif
-        WebGPUConfigure(context, context->m_OriginalWidth, context->m_OriginalHeight);
 
-        dmLogInfo("WebGPU: Created device");
+        if (surface_initialized)
+        {
+            WebGPUConfigure(context, context->m_OriginalWidth, context->m_OriginalHeight);
+            dmLogInfo("WebGPU: Created device");
+        }
     }
     else
     {
 #if defined(DM_GRAPHICS_WEBGPU2)
-        dmLogError("WebGPU: Unable to create device %s", message.data ? message.data : "unknown");
+        dmLogError("WebGPU: Unable to create device (%d): %.*s", (int)status,
+                   message.data ? (int)message.length : 7, message.data ? message.data : "unknown");
 #else
-        dmLogError("WebGPU: Unable to create device %s", message);
+        dmLogError("WebGPU: Unable to create device (%d): %s", (int)status, message ? message : "unknown");
 #endif
     }
     context->m_InitComplete = true;
@@ -1318,7 +1363,7 @@ static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPU
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)userdata;
-    if (adapter)
+    if (status == WGPURequestAdapterStatus_Success && adapter)
     {
         context->m_Adapter = adapter;
         wgpuAdapterGetLimits(context->m_Adapter, &context->m_AdapterLimits);
@@ -1339,6 +1384,8 @@ static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPU
         descriptor.requiredFeatures = features;
         if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionBC))
             features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionBC;
+        if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionETC2))
+            features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionETC2;
         if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionASTC))
             features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionASTC;
         if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_Float32Filterable))
@@ -1364,9 +1411,10 @@ static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPU
     else
     {
 #if defined(DM_GRAPHICS_WEBGPU2)
-        dmLogError("WebGPU: Unable to create adapter %s", message.data);
+        dmLogError("WebGPU: Unable to create adapter (%d): %.*s", (int)status,
+                   message.data ? (int)message.length : 7, message.data ? message.data : "unknown");
 #else
-        dmLogError("WebGPU: Unable to create adapter %s", message);
+        dmLogError("WebGPU: Unable to create adapter (%d): %s", (int)status, message ? message : "unknown");
 #endif
         context->m_InitComplete = true;
     }
@@ -1402,6 +1450,11 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     dmLogInfo("WebGPU v%d", webgpu_version);
 
     context->m_Instance = wgpuCreateInstance(nullptr);
+    if (!context->m_Instance)
+    {
+        dmLogError("WebGPU: Unable to create instance");
+        return false;
+    }
 
 #if defined(DM_GRAPHICS_WEBGPU2)
     WGPURequestAdapterCallbackInfo requestAdapterCallbackInfo = WGPU_REQUEST_ADAPTER_CALLBACK_INFO_INIT;
@@ -1425,6 +1478,14 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
         emscripten_sleep(100);
 #endif
 #endif
+
+    // Every asynchronous initialization stage may fail independently. Do not
+    // initialize backend state unless the adapter, device, queue, and complete
+    // presentation path are all valid.
+    if (!context->m_Adapter || !context->m_Device || !context->m_Queue ||
+        !context->m_Surface || context->m_Format == WGPUTextureFormat_Undefined)
+        return false;
+
     context->m_SamplerCache.SetCapacity(32, 64);
     context->m_BindGroupCache.SetCapacity(32, 64);
     context->m_RenderPipelineCache.SetCapacity(32, 64);
@@ -1884,6 +1945,9 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, uint32_t cl
         }
 
         const bool explicit_clear = clear_flags != 0;
+        const bool initialize_opaque_surface = i == 0 &&
+            context->m_InitializeOpaqueSurface &&
+            context->m_CurrentRenderPass.m_Target == context->m_MainRenderTarget;
         if (explicit_clear && (clear_flags & color_buffer_type))
         {
             colorAttachments[i].loadOp       = WGPULoadOp_Clear;
@@ -1891,6 +1955,19 @@ static WGPURenderPassEncoder RenderPassBegin(WebGPUContext* context, uint32_t cl
             colorAttachments[i].clearValue.g = clear_color[1];
             colorAttachments[i].clearValue.b = clear_color[2];
             colorAttachments[i].clearValue.a = clear_color[3];
+        }
+        else if (initialize_opaque_surface)
+        {
+            // WebGL alpha:false exposes an RGB default framebuffer, so its
+            // destination alpha behaves as one. Initialize the newly acquired
+            // WebGPU surface accordingly before render pipelines mask alpha
+            // writes. This also covers scripts that omit a color clear or only
+            // clear depth/stencil at the start of the frame.
+            colorAttachments[i].loadOp       = WGPULoadOp_Clear;
+            colorAttachments[i].clearValue.r = 0.0;
+            colorAttachments[i].clearValue.g = 0.0;
+            colorAttachments[i].clearValue.b = 0.0;
+            colorAttachments[i].clearValue.a = 1.0;
         }
         else if (explicit_clear)
         {
@@ -1996,6 +2073,8 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, uint32_t clear_flags, 
 
         context->m_CurrentRenderPass.m_Target = context->m_CurrentRenderTarget;
         context->m_CurrentRenderPass.m_Encoder = RenderPassBegin(context, clear_flags, clear_color, clear_depth, clear_stencil);
+        if (context->m_CurrentRenderPass.m_Target == context->m_MainRenderTarget)
+            context->m_InitializeOpaqueSurface = 0;
         context->m_ApplyRenderTargetLoadOps = 0;
 
         context->m_CurrentRenderPass.m_Target->m_Scissor[0] = 0;
@@ -2027,7 +2106,12 @@ static void WebGPUClear(HContext _context, uint32_t flags, uint8_t red, uint8_t 
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
     WebGPUEndRenderPass(context);
-    const float clear_color[] = { red / 255.0f, green / 255.0f, blue / 255.0f, alpha / 255.0f };
+    // WebGL alpha:false behaves as an RGB default framebuffer. Initialize the
+    // otherwise real WebGPU surface alpha channel to opaque before suppressing
+    // alpha writes in render pipelines (see the color-target setup above).
+    const bool clear_opaque_surface = context->m_OpaqueSurface && context->m_CurrentRenderTarget == context->m_MainRenderTarget;
+    const uint8_t effective_alpha = clear_opaque_surface ? 255 : alpha;
+    const float clear_color[] = { red / 255.0f, green / 255.0f, blue / 255.0f, effective_alpha / 255.0f };
     WebGPUBeginRenderPass(context, flags, (flags & (dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_COLOR1_BIT | dmGraphics::BUFFER_TYPE_COLOR2_BIT | dmGraphics::BUFFER_TYPE_COLOR3_BIT)) ? clear_color : 0,
                           (flags & dmGraphics::BUFFER_TYPE_DEPTH_BIT) ? &depth : 0,
                           (flags & dmGraphics::BUFFER_TYPE_STENCIL_BIT) ? &stencil : 0);
@@ -2049,6 +2133,11 @@ static void WebGPUBeginFrame(HContext _context)
         WGPUSurfaceTexture surfaceColorTexture = {};
 #endif
         wgpuSurfaceGetCurrentTexture(context->m_Surface, &surfaceColorTexture);
+        // Each acquired canvas texture begins a new presentation frame. Opaque
+        // HTML5 surfaces need alpha initialized before the first main-target
+        // pass; alphaMode:opaque only affects presentation, not destination-
+        // alpha operations performed while rendering.
+        context->m_InitializeOpaqueSurface = context->m_OpaqueSurface;
 
         WGPUTexture     currentColorTexture = surfaceColorTexture.texture;
         const uint32_t  currentWidth = wgpuTextureGetWidth(currentColorTexture),
@@ -2200,6 +2289,7 @@ static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size
 {
     TRACE_CALL;
     assert(size);
+    const size_t write_alignment = 4;
     if (!buffer->m_Buffer) // create it
     {
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -2208,16 +2298,45 @@ static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size
         WGPUBufferDescriptor desc = {};
 #endif
         desc.usage                = buffer->m_Usage;
-        desc.size                 = size;
+        // Keep the engine-facing size exact, but leave room for padding when
+        // the data ends mid-word. queue.writeBuffer() requires four-byte writes.
+        desc.size                 = DM_ALIGN(size, write_alignment);
         buffer->m_Buffer          = wgpuDeviceCreateBuffer(context->m_Device, &desc);
-        buffer->m_Used = buffer->m_Base.m_Size = desc.size;
+        buffer->m_Used = buffer->m_Base.m_Size = size;
     }
     else if (buffer->m_LastRenderPass && buffer->m_LastRenderPass > context->m_LastSubmittedRenderPass) // flush pipeline
     {
         //dmLogWarning("Deoptimization: Forcing pipeline flush due to buffer write");
         WebGPUSubmitCommandEncoder(context);
     }
-    wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, size);
+
+    if (!data)
+        return;
+
+    if (offset % write_alignment)
+    {
+        dmLogError("WebGPU buffer write offset must be a multiple of four (offset: %zu).", offset);
+        return;
+    }
+
+    const size_t aligned_size = size & ~(write_alignment - 1);
+    // Padding is only safe at the logical end of the buffer. An interior
+    // partial-word update would overwrite bytes outside the requested range.
+    if (aligned_size != size && offset + size != buffer->m_Used)
+    {
+        dmLogError("WebGPU buffer sub-data writes must end on a four-byte boundary.");
+        return;
+    }
+
+    if (aligned_size)
+        wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, aligned_size);
+
+    if (aligned_size != size)
+    {
+        uint32_t tail = 0;
+        memcpy(&tail, (const uint8_t*)data + aligned_size, size - aligned_size);
+        wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset + aligned_size, &tail, sizeof(tail));
+    }
 }
 
 static HUniformBuffer WebGPUNewUniformBuffer(HContext _context, UniformBufferLayout layout, uint32_t size)

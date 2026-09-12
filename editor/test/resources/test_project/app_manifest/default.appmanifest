@@ -36,14 +36,6 @@ platforms:
             libs: []
             linkFlags: []
 
-    x86-win32:
-        context:
-            excludeLibs: []
-            excludeSymbols: []
-            symbols: []
-            libs: []
-            linkFlags: []
-
     x86_64-win32:
         context:
             excludeLibs: []
@@ -108,4 +100,3 @@ platforms:
             libs: []
             frameworks: []
             linkFlags: []
-

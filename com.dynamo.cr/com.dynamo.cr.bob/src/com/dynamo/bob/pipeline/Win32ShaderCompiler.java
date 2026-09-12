@@ -22,7 +22,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.bundle.BundlerParams;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 
-@BundlerParams(platforms = {"x86_64-win32", "x86-win32"})
+@BundlerParams(platforms = {"x86_64-win32"})
 public class Win32ShaderCompiler implements IShaderCompiler {
 
     public int getPriority() {
@@ -30,7 +30,7 @@ public class Win32ShaderCompiler implements IShaderCompiler {
     }
 
     private static boolean isWin32Target(Platform platform) {
-        return platform == Platform.X86Win32 || platform == Platform.X86_64Win32;
+        return platform == Platform.X86_64Win32;
     }
 
     public boolean configure(Platform platform, ShaderCompilePipeline.Options options) {

@@ -537,8 +537,9 @@ static bool ApplyStyleNode(HMarkup markup, const MarkupStyleNode& node, float ba
     {
         const MarkupAttribute* size = FindAttribute(markup, node, MARKUP_ATTRIBUTE_SIZE);
         const MarkupAttribute* color = FindAttribute(markup, node, MARKUP_ATTRIBUTE_COLOR);
+        const MarkupAttribute* alpha = FindAttribute(markup, node, MARKUP_ATTRIBUTE_ALPHA);
 
-        if (!size && !color)
+        if (!size && !color && !alpha)
         {
             return false;
         }
@@ -558,6 +559,11 @@ static bool ApplyStyleNode(HMarkup markup, const MarkupStyleNode& node, float ba
             return false;
         }
 
+        if (alpha && (!ParseFloat(source, alpha->m_Value, &style->m_OutlineAlpha) || style->m_OutlineAlpha < 0.0f))
+        {
+            return false;
+        }
+
         if (size)
         {
             style->m_Flags |= TEXT_RENDER_STYLE_OUTLINE_WIDTH;
@@ -567,6 +573,11 @@ static bool ApplyStyleNode(HMarkup markup, const MarkupStyleNode& node, float ba
         {
             style->m_Flags |= TEXT_RENDER_STYLE_OUTLINE_COLOR;
         }
+
+        if (alpha)
+        {
+            style->m_Flags |= TEXT_RENDER_STYLE_OUTLINE_ALPHA;
+        }
     }
     else if (node.m_Type == MARKUP_TAG_SHADOW)
     {
@@ -574,8 +585,9 @@ static bool ApplyStyleNode(HMarkup markup, const MarkupStyleNode& node, float ba
         const MarkupAttribute* x = FindAttribute(markup, node, MARKUP_ATTRIBUTE_X);
         const MarkupAttribute* y = FindAttribute(markup, node, MARKUP_ATTRIBUTE_Y);
         const MarkupAttribute* blur = FindAttribute(markup, node, MARKUP_ATTRIBUTE_BLUR);
+        const MarkupAttribute* alpha = FindAttribute(markup, node, MARKUP_ATTRIBUTE_ALPHA);
 
-        if (!color && !x && !y && !blur)
+        if (!color && !x && !y && !blur && !alpha)
         {
             return false;
         }
@@ -605,6 +617,11 @@ static bool ApplyStyleNode(HMarkup markup, const MarkupStyleNode& node, float ba
             return false;
         }
 
+        if (alpha && (!ParseFloat(source, alpha->m_Value, &style->m_ShadowAlpha) || style->m_ShadowAlpha < 0.0f))
+        {
+            return false;
+        }
+
         if (color)
         {
             style->m_Flags |= TEXT_RENDER_STYLE_SHADOW_COLOR;
@@ -623,6 +640,11 @@ static bool ApplyStyleNode(HMarkup markup, const MarkupStyleNode& node, float ba
         if (blur)
         {
             style->m_Flags |= TEXT_RENDER_STYLE_SHADOW_BLUR;
+        }
+
+        if (alpha)
+        {
+            style->m_Flags |= TEXT_RENDER_STYLE_SHADOW_ALPHA;
         }
     }
 
@@ -781,291 +803,6 @@ static bool CreateEffect(HMarkup markup, const MarkupStyleNode& node, uint32_t t
     return false;
 }
 
-static float MirroredWrap(float value)
-{
-    value = value - floorf(value * 0.5f) * 2.0f;
-
-    return value <= 1.0f ? value : 2.0f - value;
-}
-
-static float Clamp01(float value)
-{
-    if (value < 0.0f)
-    {
-        return 0.0f;
-    }
-
-    if (value > 1.0f)
-    {
-        return 1.0f;
-    }
-
-    return value;
-}
-
-static void MultiplyGradient(float color[4], const TextGradientEffect& gradient, float x, float y)
-{
-    for (uint32_t i = 0; i < 4; ++i)
-    {
-        const float bottom = gradient.m_BottomLeft[i] + (gradient.m_BottomRight[i] - gradient.m_BottomLeft[i]) * x;
-        const float top = gradient.m_TopLeft[i] + (gradient.m_TopRight[i] - gradient.m_TopLeft[i]) * x;
-        color[i] *= bottom + (top - bottom) * y;
-    }
-}
-
-static uint32_t MixHash(uint32_t value)
-{
-    value ^= value >> 16;
-    value *= 0x7feb352dU;
-    value ^= value >> 15;
-    value *= 0x846ca68bU;
-
-    return value ^ (value >> 16);
-}
-
-static float ShakeAngle(uint32_t effect_index, uint32_t glyph_key, uint32_t tick)
-{
-    const uint32_t hash = MixHash(glyph_key ^ MixHash(effect_index + 0x9e3779b9U) ^ MixHash(tick));
-
-    return (hash & 0x00ffffffU) * (6.28318530717958647692f / 16777216.0f);
-}
-
-// Initializes render data from the glyph's static style before applying effects.
-static void InitializeGlyphRenderData(const TextRenderStyle* style, const float base_color[4], TextGlyphRenderData* data)
-{
-    TextGlyphFaceColors* colors = &data->m_FaceColors;
-    data->m_OffsetX = 0.0f;
-    data->m_OffsetY = 0.0f;
-    data->m_OutlineWidth = style ? style->m_OutlineWidth : 0.0f;
-    data->m_ShadowX = style ? style->m_ShadowX : 0.0f;
-    data->m_ShadowY = style ? style->m_ShadowY : 0.0f;
-    data->m_ShadowBlur = style ? style->m_ShadowBlur : 0.0f;
-    data->m_StyleFlags = style ? style->m_Flags : 0;
-
-    for (uint32_t channel = 0; channel < 4; ++channel)
-    {
-        float value = base_color[channel];
-
-        if (style && (style->m_Flags & TEXT_RENDER_STYLE_FACE_COLOR))
-        {
-            value *= style->m_FaceColor[channel];
-        }
-
-        colors->m_BottomLeft[channel] = value;
-        colors->m_BottomRight[channel] = value;
-        colors->m_TopLeft[channel] = value;
-        colors->m_TopRight[channel] = value;
-        data->m_OutlineColor[channel] = style && (style->m_Flags & TEXT_RENDER_STYLE_OUTLINE_COLOR) ? style->m_OutlineColor[channel] : 1.0f;
-        data->m_ShadowColor[channel] = style && (style->m_Flags & TEXT_RENDER_STYLE_SHADOW_COLOR) ? style->m_ShadowColor[channel] : 1.0f;
-    }
-
-    if ((data->m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) && data->m_OutlineWidth <= 0.0f)
-    {
-        data->m_OutlineColor[3] = 0.0f;
-    }
-}
-
-// Applies one color sample uniformly to all four glyph corners.
-static void MultiplyFaceColors(TextGlyphFaceColors* colors, const float sample[4])
-{
-    for (uint32_t channel = 0; channel < 4; ++channel)
-    {
-        colors->m_BottomLeft[channel] *= sample[channel];
-        colors->m_BottomRight[channel] *= sample[channel];
-        colors->m_TopLeft[channel] *= sample[channel];
-        colors->m_TopRight[channel] *= sample[channel];
-    }
-}
-
-// Applies a gradient using its fit mode to choose span, glyph, or corner samples.
-static void ApplyGradientEffect(const TextLayout* layout, const TextGlyph& glyph, const TextEffect& effect, TextGlyphFaceColors* colors)
-{
-    const TextGradientEffect& gradient = effect.m_Gradient;
-    const float animation_t = (float)(layout->m_ElapsedTime * gradient.m_Hz * 2.0);
-
-    if (gradient.m_Fit == TEXT_EFFECT_FIT_SPAN)
-    {
-        const float first_glyph_center = 0.5f / effect.m_TextLength;
-        float       sample_x;
-
-        if (gradient.m_Mode == TEXT_GRADIENT_MODE_HORIZONTAL)
-        {
-            sample_x = MirroredWrap(fabsf(animation_t));
-
-            if (gradient.m_Hz < 0.0f)
-            {
-                sample_x = 1.0f - sample_x;
-            }
-        }
-        else
-        {
-            sample_x = MirroredWrap(first_glyph_center + animation_t);
-        }
-
-        const float sample_y = MirroredWrap(0.5f + animation_t);
-        float       sample[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-        MultiplyGradient(sample, gradient, sample_x, sample_y);
-        MultiplyFaceColors(colors, sample);
-
-        return;
-    }
-
-    if (gradient.m_Fit == TEXT_EFFECT_FIT_GLYPH && gradient.m_Mode == TEXT_GRADIENT_MODE_HORIZONTAL)
-    {
-        const float glyph_center = ((float)((int64_t)glyph.m_Cluster - effect.m_TextOffset) + 0.5f) / effect.m_TextLength;
-        const float sample_x = MirroredWrap(glyph_center + animation_t);
-        float       sample[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-        MultiplyGradient(sample, gradient, sample_x, 0.5f);
-        MultiplyFaceColors(colors, sample);
-
-        return;
-    }
-
-    const bool  fit_text = gradient.m_Fit == TEXT_EFFECT_FIT_TEXT;
-    const float left_u = fit_text ? Clamp01((float)((int64_t)glyph.m_Cluster - effect.m_TextOffset) / effect.m_TextLength) : 0.0f;
-    const float right_u = fit_text ? Clamp01((float)((int64_t)glyph.m_Cluster + 1 - effect.m_TextOffset) / effect.m_TextLength) : 1.0f;
-    const float left_t = MirroredWrap(left_u + animation_t);
-    const float right_t = MirroredWrap(right_u + animation_t);
-    const float bottom_t = MirroredWrap(animation_t);
-    const float top_t = MirroredWrap(1.0f + animation_t);
-    MultiplyGradient(colors->m_BottomLeft, gradient, left_t, bottom_t);
-    MultiplyGradient(colors->m_BottomRight, gradient, right_t, bottom_t);
-    MultiplyGradient(colors->m_TopLeft, gradient, left_t, top_t);
-    MultiplyGradient(colors->m_TopRight, gradient, right_t, top_t);
-}
-
-// Interpolates deterministic shake samples so motion remains continuous.
-static void ApplyShakeEffect(const TextLayout* layout, const TextGlyph& glyph, const TextEffect& effect, uint32_t effect_index, TextGlyphRenderData* data)
-{
-    const double   tick_time = layout->m_ElapsedTime * effect.m_Shake.m_Hz;
-    const double   tick_floor = floor(tick_time);
-    const uint32_t tick = (uint32_t)tick_floor;
-    const float    t = (float)(tick_time - tick_floor);
-    const uint32_t glyph_key = effect.m_Shake.m_Fit == TEXT_EFFECT_FIT_SPAN ? effect.m_TextOffset : glyph.m_Cluster;
-    const float    current_angle = ShakeAngle(effect_index, glyph_key, tick);
-    const float    next_angle = ShakeAngle(effect_index, glyph_key, tick + 1);
-    const float    current_x = sinf(current_angle);
-    const float    current_y = cosf(current_angle);
-    data->m_OffsetX += (current_x + (sinf(next_angle) - current_x) * t) * effect.m_Shake.m_Amplitude;
-    data->m_OffsetY += (current_y + (cosf(next_angle) - current_y) * t) * effect.m_Shake.m_Amplitude;
-}
-
-// Applies a sinusoidal vertical offset using either one span phase or per-glyph phases.
-static void ApplyWaveEffect(const TextLayout* layout, const TextGlyph& glyph, const TextEffect& effect, TextGlyphRenderData* data)
-{
-    const float position = effect.m_Wave.m_Fit == TEXT_EFFECT_FIT_SPAN ? 0.0f :
-                           (float)((int64_t)glyph.m_Cluster - effect.m_TextOffset);
-    const double cycles = layout->m_ElapsedTime * effect.m_Wave.m_Hz;
-    const float  t = (float)(cycles - floor(cycles));
-    const float  phase = 6.28318530717958647692f * (t + position / effect.m_Wave.m_Wavelength);
-    data->m_OffsetY += sinf(phase) * effect.m_Wave.m_Amplitude;
-}
-
-void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data)
-{
-    TextLayout* internal = (TextLayout*)layout;
-    const TextRenderStyle* style = glyph.m_StyleIndex < internal->m_Styles.Size() ? &internal->m_Styles[glyph.m_StyleIndex] : 0;
-    InitializeGlyphRenderData(style, base_color, data);
-
-    if (glyph.m_MarkupSpanIndex >= internal->m_ResolvedSpans.Size())
-    {
-        return;
-    }
-
-    const TextResolvedSpan& span = internal->m_ResolvedSpans[glyph.m_MarkupSpanIndex];
-
-    for (uint32_t i = 0; i < span.m_EffectCount; ++i)
-    {
-        const uint32_t    effect_index = internal->m_SpanEffects[span.m_EffectIndex + i];
-        const TextEffect& effect = internal->m_Effects[effect_index];
-
-        if (effect.m_Type == TEXT_EFFECT_GRADIENT)
-        {
-            if (effect.m_TextLength != 0)
-            {
-                ApplyGradientEffect(internal, glyph, effect, &data->m_FaceColors);
-            }
-
-            continue;
-        }
-
-        if (effect.m_Type == TEXT_EFFECT_SHAKE)
-        {
-            if (effect.m_Shake.m_Amplitude > 0.0f)
-            {
-                ApplyShakeEffect(internal, glyph, effect, effect_index, data);
-            }
-
-            continue;
-        }
-
-        if (effect.m_Type == TEXT_EFFECT_WAVE && effect.m_Wave.m_Amplitude != 0.0f)
-        {
-            ApplyWaveEffect(internal, glyph, effect, data);
-        }
-    }
-}
-
-bool TextLayoutHasMarkupOutline(HTextLayout layout)
-{
-    TextLayout* internal = (TextLayout*)layout;
-    const uint32_t outline_flags = TEXT_RENDER_STYLE_OUTLINE_COLOR | TEXT_RENDER_STYLE_OUTLINE_WIDTH;
-
-    for (uint32_t i = 0; i < internal->m_Styles.Size(); ++i)
-    {
-        const TextRenderStyle& style = internal->m_Styles[i];
-
-        if ((style.m_Flags & outline_flags) != 0 &&
-            ((style.m_Flags & TEXT_RENDER_STYLE_OUTLINE_WIDTH) == 0 || style.m_OutlineWidth > 0.0f))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-float TextLayoutGetMaxMarkupOutlineWidth(HTextLayout layout)
-{
-    TextLayout* internal = (TextLayout*)layout;
-    float       width = 0.0f;
-
-    for (uint32_t i = 0; i < internal->m_Styles.Size(); ++i)
-    {
-        const TextRenderStyle& style = internal->m_Styles[i];
-
-        if (style.m_Flags & TEXT_RENDER_STYLE_OUTLINE_WIDTH)
-        {
-            width = fmaxf(width, style.m_OutlineWidth);
-        }
-    }
-
-    return width;
-}
-
-bool TextLayoutHasMarkupShadow(HTextLayout layout)
-{
-    TextLayout* internal = (TextLayout*)layout;
-    const uint32_t shadow_flags = TEXT_RENDER_STYLE_SHADOW_COLOR | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_Y | TEXT_RENDER_STYLE_SHADOW_BLUR;
-
-    for (uint32_t i = 0; i < internal->m_Styles.Size(); ++i)
-    {
-        if (internal->m_Styles[i].m_Flags & shadow_flags)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-void TextLayoutGetGlyphFaceColors(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphFaceColors* colors)
-{
-    TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(layout, glyph, base_color, &data);
-    *colors = data.m_FaceColors;
-}
-
 static bool IsEffectNode(const MarkupStyleNode& node)
 {
     return node.m_Type == MARKUP_TAG_GRADIENT || node.m_Type == MARKUP_TAG_WAVE || node.m_Type == MARKUP_TAG_SHAKE;
@@ -1124,42 +861,13 @@ static bool ParseDecorationNode(HMarkup markup, const MarkupStyleNode& node, uin
     return false;
 }
 
-static dmhash_t GetObjectDefaultStyle(HMarkup markup, const MarkupStyleNode& node)
+bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_length, TextRenderStyle* style, dmArray<TextEffect>* effects, TextNamedStyleDecoration* decoration, MarkupError* error)
 {
-    static const char STYLE_ATTRIBUTE[] = "style";
-
-    const dmhash_t         tag = GetObjectTag(node);
-    const char*            source = MarkupGetSource(markup);
-    const MarkupAttribute* attributes = MarkupGetAttributes(markup);
-    const MarkupAttribute* style = 0;
-
-    if (!tag)
+    if (decoration)
     {
-        return 0;
+        memset(decoration, 0, sizeof(*decoration));
     }
 
-    for (uint32_t i = 0; i < node.m_AttributeCount; ++i)
-    {
-        const MarkupAttribute& attribute = attributes[node.m_AttributeIndex + i];
-
-        if (attribute.m_Name.m_Length == sizeof(STYLE_ATTRIBUTE) - 1 &&
-            memcmp(source + attribute.m_Name.m_Offset, STYLE_ATTRIBUTE, sizeof(STYLE_ATTRIBUTE) - 1) == 0)
-        {
-            style = &attribute;
-            break;
-        }
-    }
-
-    if (!style || style->m_Value.m_Length == 0)
-    {
-        return tag;
-    }
-
-    return dmHashBuffer64(source + style->m_Value.m_Offset, style->m_Value.m_Length);
-}
-
-bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_length, TextRenderStyle* style, dmArray<TextEffect>* effects, MarkupError* error)
-{
     HMarkup markup = 0;
 
     if (MarkupCreateStyleFragment(definition, definition_length, &markup, error) != MARKUP_RESULT_OK)
@@ -1196,6 +904,30 @@ bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_
 
             EnsurePushCapacity(*effects);
             effects->Push(effect);
+        }
+        else if (decoration && IsDecorationNode(nodes[i]))
+        {
+            uint8_t pattern;
+            if (!ParseDecorationNode(markup, nodes[i], &pattern))
+            {
+                if (error)
+                {
+                    error->m_ByteOffset = nodes[i].m_Tag.m_Offset - 1;
+                    error->m_Type = MARKUP_ERROR_INVALID_TAG;
+                }
+                valid = false;
+                break;
+            }
+            if (nodes[i].m_Type == MARKUP_TAG_UNDERLINE)
+            {
+                decoration->m_Flags |= TEXT_RESOLVED_DECORATION_UNDERLINE;
+                decoration->m_UnderlinePattern = pattern;
+            }
+            else
+            {
+                decoration->m_Flags |= TEXT_RESOLVED_DECORATION_STRIKE;
+                decoration->m_StrikePattern = pattern;
+            }
         }
         else if (IsStyleNode(nodes[i]))
         {
@@ -1237,8 +969,10 @@ struct ResolvedMarkupNodeState
     uint16_t        m_EffectNode;
     uint16_t        m_EffectCount;
     uint8_t         m_DecorationFlags;
+    uint8_t         m_InlineDecorationFlags;
     uint8_t         m_UnderlinePattern;
     uint8_t         m_StrikePattern;
+    uint8_t         m_HasObjectStyle;
     uint8_t         m_Invalid;
 };
 
@@ -1307,6 +1041,13 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
     root.m_EffectNode = MARKUP_INVALID_INDEX;
     root.m_UnderlinePattern = TEXT_DECORATION_PATTERN_SOLID;
     root.m_StrikePattern = TEXT_DECORATION_PATTERN_SOLID;
+    const TextNamedStyleDecoration* base_decoration = settings->m_UseBaseStyle ? FontCollectionGetNamedStyleDecoration(collection, settings->m_BaseStyle) : 0;
+    if (base_decoration)
+    {
+        root.m_DecorationFlags = base_decoration->m_Flags;
+        root.m_UnderlinePattern = base_decoration->m_UnderlinePattern;
+        root.m_StrikePattern = base_decoration->m_StrikePattern;
+    }
     node_states[0] = root;
 
     for (uint32_t i = 1; i < node_count; ++i)
@@ -1376,34 +1117,20 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
             else if (nodes[i].m_Type == MARKUP_TAG_UNDERLINE)
             {
                 state.m_DecorationFlags |= TEXT_RESOLVED_DECORATION_UNDERLINE;
+                state.m_InlineDecorationFlags |= TEXT_RESOLVED_DECORATION_UNDERLINE;
                 state.m_UnderlinePattern = pattern;
             }
             else
             {
                 state.m_DecorationFlags |= TEXT_RESOLVED_DECORATION_STRIKE;
+                state.m_InlineDecorationFlags |= TEXT_RESOLVED_DECORATION_STRIKE;
                 state.m_StrikePattern = pattern;
             }
         }
 
         if (!state.m_Invalid)
         {
-            const dmhash_t                  object_style = GetObjectDefaultStyle(markup, nodes[i]);
-            const TextNamedStyleDecoration* decoration = FontCollectionGetNamedStyleDecoration(collection, object_style);
-
-            if (decoration)
-            {
-                state.m_DecorationFlags |= decoration->m_Flags;
-
-                if (decoration->m_Flags & TEXT_RESOLVED_DECORATION_UNDERLINE)
-                {
-                    state.m_UnderlinePattern = decoration->m_UnderlinePattern;
-                }
-
-                if (decoration->m_Flags & TEXT_RESOLVED_DECORATION_STRIKE)
-                {
-                    state.m_StrikePattern = decoration->m_StrikePattern;
-                }
-            }
+            state.m_HasObjectStyle |= GetObjectTag(nodes[i]) != 0;
         }
 
         node_states[i] = state;
@@ -1450,7 +1177,7 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
         }
 
         TextResolvedSpan resolved_span = { spans[i].m_TextOffset, spans[i].m_TextLength, style_index, effect_index, state.m_EffectCount,
-                                           state.m_DecorationFlags, state.m_UnderlinePattern, state.m_StrikePattern };
+                                           state.m_DecorationFlags, state.m_InlineDecorationFlags, state.m_UnderlinePattern, state.m_StrikePattern, state.m_HasObjectStyle };
         EnsurePushCapacity(resolved->m_Spans);
         resolved->m_Spans.Push(resolved_span);
     }

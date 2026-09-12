@@ -254,7 +254,8 @@
      "font"
      {:font "/builtins/fonts/vera_mo_bd.ttf"
       :material "/builtins/fonts/font.material"
-      :size 10}
+      :size 10
+      :styles {:name "style_name"}}
 
      "go"
      {:components {:id "component_id"

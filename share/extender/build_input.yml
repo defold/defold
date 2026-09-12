@@ -465,9 +465,13 @@ platforms:
     context:
         libPaths:   ["{{dynamo_home}}/lib/arm64-android", "{{dynamo_home}}/ext/lib/arm64-android"]
         defines:    ["DM_PLATFORM_ANDROID", "__aarch64__"]
+        # App manifests can exclude this library and select c++_shared for HWASan.
+        libs:       ["c++_static"]
+
+    allowedFlags: ["-shared-libsan", "-nostdlib\\+\\+"]
 
     compileCmd: '{{env.NDK_CXX}} -c -O2 -g -gdwarf-2 -fpic -ffunction-sections -fdata-sections -fstack-protector -march=armv8-a -fomit-frame-pointer -fno-strict-aliasing -funwind-tables -isysroot={{env.SYSROOT}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
-    linkCmd: '{{env.NDK_CXX}} -fuse-ld={{env.NDK_LD}} -O2 -g -isysroot={{env.SYSROOT}} -static-libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--gc-sections -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group -lc++_static {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,max-page-size=16384 -Wl,-z,now -shared'
+    linkCmd: '{{env.NDK_CXX}} -fuse-ld={{env.NDK_LD}} -O2 -g -isysroot={{env.SYSROOT}} -static-libstdc++ {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{{.}}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--gc-sections -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic {{#ext.dynamicLibs}}-l{{{.}}} {{/ext.dynamicLibs}} {{#dynamicLibs}}-l{{{.}}} {{/dynamicLibs}} -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,max-page-size=16384 -Wl,-z,now -shared'
 
   x86_64-android:
     env:
@@ -565,7 +569,7 @@ platforms:
         defines:        ["DM_HAVE_PLATFORM_COMPUTE_SUPPORT", "DM_HAVE_OPENGL_COMPUTE_SUPPORT"]
         systemIncludes: ["{{env.CLANG_HOME}}/include", "{{env.MSVC_DIR}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/ucrt", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/winrt", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/um", "{{env.SDK_DIR}}/Include/{{env.SDK_VERSION}}/shared"]
         engineLibs:     ["debugger", "engine","engine_service","dmbedtls","zip","profile","profilerext","profiler_remotery","record","gameobject","ddf","font","font_richtext","font_render","resource","gamesys","gamesys_gui","gamesys_particle","gamesys_model","gamesys_rig","script_box2d_defold","script_bullet3d","graphics","graphics_transcoder_basisu","basis_transcoder","physics","libBulletDynamics","libBulletCollision","platform","libLinearMath","libbox2d_defold","render","script","libluajit-5.1","extension","hid","input","particle","rig","dlib", "image", "libglfw3","gui","crashext","liveupdate","sound","vpx", "decoder_wav", "decoder_ogg"]
-        libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "bcrypt", "Psapi", "Gdi32", "ole32"]
+        libs:           ["OpenGL32", "delayimp", "User32", "shell32", "winmm", "Xinput9_1_0", "dinput8", "dxguid", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "bcrypt", "Psapi", "Gdi32", "ole32"]
         symbols:        ["LuaDebugger", "GraphicsAdapterOpenGL", "ProfilerRemotery", "ScriptComputeExt"]
 
     exePrefix:      ''
@@ -594,16 +598,6 @@ platforms:
         cxxLinkShFlags: ["-target", "x86_64-pc-win32-msvc", "-m64", "-O2", "-g", "-fuse-ld=lld", "-Wl,/safeseh:no"]
 
     windresCmd:     'windres -i {{dynamo_home}}/lib/x86_64-win32/engine.rc -O coff -o {{tgt}}'
-
-  x86-win32:
-    context:
-        libPaths:   ["{{dynamo_home}}/lib/win32", "{{dynamo_home}}/lib/x86-win32","{{dynamo_home}}/ext/lib/win32","{{env.MSVC_DIR}}/lib/x86", "{{env.MSVC_DIR}}/atlmfc/lib/x86", "{{env.SDK_DIR}}/Lib/{{env.SDK_VERSION}}/ucrt/x86", "{{env.SDK_DIR}}/Lib/{{env.SDK_VERSION}}/um/x86"]
-        defines:        ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE_32", "_CRT_SECURE_NO_WARNINGS", "_CRT_USE_BUILTIN_OFFSETOF", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32", "NOMINMAX"]
-        flags:          ["-target", "i386-pc-win32-msvc", "-m32", "-O2", "-g", "-gcodeview", "-Wall", "-Werror=format", "-fvisibility=hidden", "-nostdinc++", "-fno-exceptions"]
-        linkFlags:      ["-target", "i386-pc-win32-msvc", "-m32", "-O2", "-g", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
-        cxxLinkShFlags: ["-target", "i386-pc-win32-msvc", "-m32", "-O2", "-g", "-fuse-ld=lld", "-Wl,/safeseh:no"]
-
-    windresCmd:     'windres -i {{dynamo_home}}/lib/win32/engine.rc -O coff --target=pe-i386 -o {{tgt}}'
 
   linux:
     context:

@@ -255,7 +255,7 @@
 
         session2-content-hashes-by-path
         (with-clean-system
-          (g/make-graph!) ; This causes all node ids to differ from session1.
+          (g/take-node-ids world 1) ; This causes all node ids to differ from session1.
           (let [workspace (test-util/setup-workspace! world project-path)
                 project (test-util/setup-project! workspace)]
             (build-target-content-hashes-by-path project)))]

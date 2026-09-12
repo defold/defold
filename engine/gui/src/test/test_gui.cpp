@@ -114,7 +114,13 @@ dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(dmGui::HTextureSour
     out_data->m_TexCoords = &uv_quad[0];
     out_data->m_State.m_End = 1;
     out_data->m_State.m_FPS = 30;
-    if (animation == dmHashString64("ta_backward"))
+    if (animation == dmHashString64("ta_large_frame_index"))
+    {
+        out_data->m_State.m_Start = 11231;
+        out_data->m_State.m_End = 11232;
+        out_data->m_State.m_Playback = dmGui::PLAYBACK_NONE;
+    }
+    else if (animation == dmHashString64("ta_backward"))
         out_data->m_State.m_Playback = dmGui::PLAYBACK_ONCE_BACKWARD;
     else if (animation == dmHashString64("ta_loop_backward"))
         out_data->m_State.m_Playback = dmGui::PLAYBACK_LOOP_BACKWARD;
@@ -569,6 +575,28 @@ TEST_F(dmGuiTest, FlipbookAnim)
 
     fb_id = dmGui::GetNodeFlipbookAnimId(m_Scene, node);
     ASSERT_EQ(0U, dmGui::GetNodeFlipbookAnimId(m_Scene, node));
+}
+
+TEST_F(dmGuiTest, FlipbookAnimLargeFrameIndex)
+{
+    int texture;
+    dmGui::Result result = dmGui::AddTexture(m_Scene, dmHashString64("texture"), (dmGui::HTextureSource) &texture, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, 1, 1);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(1, 1, 0), dmGui::NODE_TYPE_BOX, 0);
+    ASSERT_NE((dmGui::HNode) 0, node);
+
+    result = dmGui::SetNodeTexture(m_Scene, node, "texture");
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    result = dmGui::PlayNodeFlipbookAnim(m_Scene, node, "ta_large_frame_index", 0.0f, 1.0f, 0x0);
+    ASSERT_EQ(dmGui::RESULT_OK, result);
+
+    dmGui::TextureSetAnimDesc* anim_desc = dmGui::GetNodeTextureSet(m_Scene, node);
+    ASSERT_NE((dmGui::TextureSetAnimDesc*) 0, anim_desc);
+    ASSERT_EQ(11231U, anim_desc->m_State.m_Start);
+    ASSERT_EQ(11232U, anim_desc->m_State.m_End);
+    ASSERT_EQ(11231, dmGui::GetNodeAnimationFrame(m_Scene, node));
 }
 
 TEST_F(dmGuiTest, TextureFontLayer)

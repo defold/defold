@@ -173,12 +173,6 @@ dialog.clean-build.title = Executar Construção Limpa de Projeto?
 dialog.clean-build.header = Tem certeza que deseja executar uma construção de projeto limpa?
 dialog.clean-build.button.clean = Compilação Limpa
 
-# Debugging Not Supported Dialog
-
-dialog.debugging-not-supported.title = Depuração Não Suportada
-dialog.debugging-not-supported.header = Este projeto não pode ser usado com o depurador
-dialog.debugging-not-supported.content = Está configurado para desabilitar o compartilhamento de estado de scripts.\n\nSe você não precisa de estados de script diferentes, considere mudar a propriedade script.share_state no game.project.
-
 # Defunload Issues Dialog
 
 dialog.defunload-issues.title = Revise Padrões .defunload
@@ -547,7 +541,6 @@ dialog.bundle.label.platform = Plataforma
 dialog.bundle.option.platform.x86_64-linux = X64
 dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-bit
-dialog.bundle.option.platform.x86-win32 = 32-bit
 dialog.bundle.option.identity.none = Nenhum
 dialog.bundle.label.architectures = Arquiteturas
 dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
@@ -1744,10 +1737,6 @@ form.label.project.particle_fx.max_particle_buffer_count = Máximo de Partícula
 form.label.project.particle_fx.max_count = Contagem Máxima
 form.label.project.particle_fx.max_emitter_count = Máximo de Emissores
 
-form.label.project.script = Script
-form.help.project.script = Configurações de script
-form.label.project.script.shared_state = Estado Compartilhado
-
 form.label.project.sound = Som
 form.help.project.sound = Configurações de Som
 form.label.project.sound.gain = Ganho
@@ -1790,8 +1779,11 @@ form.label.project.display.fullscreen = Tela Cheia
 form.label.project.display.display_profiles = Perfis de Exibição
 form.label.project.display.dynamic_orientation = Orientação Dinâmica
 form.label.project.display.update_frequency = Frequência da Atualização
+form.help.project.display.update_frequency = Frequência desejada do loop do jogo e da renderização, em hertz. `0` usa uma taxa de quadros variável. Nas plataformas em que o Defold controla o loop do aplicativo, um valor positivo usa cadenciamento por temporizador e desativa temporariamente o VSync da apresentação; o **Intervalo de Troca** solicitado é restaurado quando este valor volta a `0`.
 form.label.project.display.swap_interval = Intervalo de Troca
+form.help.project.display.swap_interval = Solicita a apresentação em relação à taxa de atualização da tela. `0` desativa a sincronização vertical e `1` apresenta a cada atualização. Valores maiores podem pular intervalos no OpenGL, enquanto Vulkan e Metal tratam qualquer valor diferente de zero como sincronização vertical ativada. Nas plataformas em que o Defold controla o loop do aplicativo, uma **Frequência da Atualização** positiva substitui temporariamente este valor por `0`. O comportamento real depende do backend e do driver.
 form.label.project.display.vsync = Vsync
+form.help.project.display.vsync = **Configuração de compatibilidade obsoleta.** Quando desativada, força o **Intervalo de Troca** solicitado para `0`; quando ativada, o **Intervalo de Troca** determina o comportamento, a menos que uma **Frequência da Atualização** positiva habilite o cadenciamento por temporizador. Use o **Intervalo de Troca** em novos projetos.
 form.label.project.display.variable_dt = DT Variável
 form.label.project.display.display_device_info = Exibir Informações do Dispositivo
 

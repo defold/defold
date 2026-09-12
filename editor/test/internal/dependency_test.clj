@@ -33,15 +33,6 @@
   (input string-input g/Str)
   (output out-from-input g/Str (g/fnk [string-input] string-input)))
 
-(deftest dependencies-from-deleted-graph
-  (ts/with-clean-system
-    (let [graph-id (g/make-graph!)
-          [node-id] (ts/tx-nodes (g/make-node graph-id SingleOutput))
-          endpoint (gt/endpoint node-id :out-from-inline)]
-      (g/delete-graph! graph-id)
-      (is (= #{endpoint}
-             (ts/graph-dependencies [endpoint]))))))
-
 (deftest single-connection
   (testing "results include inputs"
     (ts/with-clean-system

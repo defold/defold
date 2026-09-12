@@ -167,21 +167,6 @@
           (is (g/connected? (g/now) (g/node-id newleaf1) :produces-value (g/node-id newleaf2) :consumes-value))
           (is (g/connected? (g/now) (g/node-id newleaf2) :produces-value (g/node-id newleaf1) :consumes-value)))))))
 
-(deftest cross-graph-copy
-  (ts/with-clean-system
-    (let [g1                  (g/make-graph!)
-          g2                  (g/make-graph!)
-          [node1 node2 node3] (ts/tx-nodes (g/make-node g1 ConsumerNode)
-                                           (g/make-node g1 ConsumeAndProduceNode)
-                                           (g/make-node g2 ProducerNode))]
-      (g/transact
-       [(g/connect node2 :produces-value node1 :consumes-value)
-        (g/connect node3 :produces-value node2 :consumes-value)])
-      (let [fragment            (g/copy [node1] {:traverse? fn/constantly-true})
-            fragment-nodes      (:nodes fragment)]
-        (is (= 1 (count (:arcs fragment))))
-        (is (= 2 (count fragment-nodes)))))))
-
 (g/defnode FunctionPropertyNode
   (property a-function g/Any))
 

@@ -24,6 +24,17 @@
 namespace dmEngine
 {
 
+    bool UseEngineFramePacing()
+    {
+        // UIApplicationMain and the browser schedule frames externally on iOS
+        // and Emscripten, so sleeping inside Step() would block their event loops.
+#if defined(DM_PLATFORM_IOS) || defined(__EMSCRIPTEN__)
+        return false;
+#else
+        return true;
+#endif
+    }
+
 #if defined(DM_PLATFORM_IOS)
 
     int RunLoop(const RunLoopParams* params)
