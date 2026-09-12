@@ -39,6 +39,7 @@
 #endif
 
 #ifdef __MACH__
+#include <signal.h>
 #include <sys/sysctl.h>
 #endif
 
@@ -361,6 +362,11 @@ int Launch(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+#if defined(__MACH__)
+    // The updater may close our output pipes while exiting. Failed startup
+    // log writes must not terminate the launcher before it starts the JVM.
+    signal(SIGPIPE, SIG_IGN);
+#endif
     dmLogInfo("Launcher version %s", DEFOLD_SHA1);
     int ret = Launch(argc, argv);
     while (ret == 17) {

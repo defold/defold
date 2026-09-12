@@ -46,6 +46,7 @@ class LauncherTest(unittest.TestCase):
             }, stream)
         java = self.directory / "Java Stub"
         java.write_text('''#!/bin/sh
+printf '%s' "$$" > "$LAUNCHER_TEST_PID_FILE"
 printf 'pid=%s\n' "$$"
 printf 'arg=%s\n' "$@"
 printf 'launcher=%s\n' "$CFProcessPath"
@@ -58,21 +59,30 @@ exit "${LAUNCHER_TEST_EXIT_CODE:-0}"
             "jar = editor.jar\n"
             "main = EditorMain\n")
 
-    def launch(self, *args, exit_code=0):
-        env = dict(os.environ, LAUNCHER_TEST_EXIT_CODE=str(exit_code))
+    def launch(self, *args, exit_code=0, closed_output=False):
+        env = dict(os.environ, LAUNCHER_TEST_EXIT_CODE=str(exit_code),
+                   LAUNCHER_TEST_PID_FILE=str(self.directory / "java.pid"))
         # A separate process group also lets a failed regression clean up a
         # child left behind by the old fork-and-wait implementation.
         with subprocess.Popen([str(self.launcher), *args], env=env,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               text=True, start_new_session=True) as process:
             try:
-                output, _ = process.communicate(timeout=15)
+                if closed_output:
+                    process.stdout.close()
+                    process.wait(timeout=15)
+                    output = ""
+                else:
+                    output, _ = process.communicate(timeout=15)
             except subprocess.TimeoutExpired:
                 os.killpg(process.pid, signal.SIGKILL)
-                process.communicate()
+                process.wait()
                 self.fail("Launcher did not exit within 15 seconds")
             return process.pid, process.returncode, output
 
+    # The Java stub must inherit the launcher PID, proving no waiting parent
+    # remains. Also verify startup logging, classpath/main arguments, a project
+    # path containing spaces, and CFProcessPath survive the handoff.
     def test_replaces_launcher_and_preserves_arguments(self):
         pid, code, output = self.launch("--project=path with spaces/game.project")
         self.assertEqual(0, code, output)
@@ -82,16 +92,28 @@ exit "${LAUNCHER_TEST_EXIT_CODE:-0}"
         self.assertIn("arg=EditorMain\narg=--project=path with spaces/game.project\n", output)
         self.assertIn(f"launcher={self.launcher}\n", output)
 
+    # Pass through both an ordinary failure code (7) and the legacy restart code
+    # (17) unchanged, without relaunching the executable when it exits with 17.
     def test_preserves_exit_status(self):
         for exit_code in (7, 17):
             with self.subTest(exit_code=exit_code):
                 _, code, output = self.launch(exit_code=exit_code)
                 self.assertEqual(exit_code, code, output)
 
+    # A nonexistent configured Java executable must produce a launch failure
+    # diagnostic and exit with status 127.
     def test_missing_java_exits_with_error(self):
         _, code, output = self.launch(f"--config=launcher.java={self.directory}/missing-java")
         self.assertEqual(127, code, output)
         self.assertIn("Failed to launch application:", output)
+
+    # Simulate the old editor closing the new launcher's output pipe on restart.
+    # Logging must not kill the launcher with SIGPIPE; the PID file verifies
+    # that the Java stub starts in the original process despite the closed pipe.
+    def test_restart_survives_closed_output_pipe(self):
+        pid, code, _ = self.launch(closed_output=True)
+        self.assertEqual(0, code)
+        self.assertEqual(str(pid), (self.directory / "java.pid").read_text())
 
 
 if __name__ == "__main__":
