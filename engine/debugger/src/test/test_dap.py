@@ -15,6 +15,7 @@
 
 """Black-box tests: a Python DAP client against the actual C++/Lua TCP server."""
 import argparse
+import configparser
 import json
 import pathlib
 import queue
@@ -190,10 +191,16 @@ class DAPTestCase(unittest.TestCase):
 
         self.lines = lines
         threading.Thread(target=read_stdout, daemon=True).start()
+        return self.wait_for_port()
+
+    def wait_for_port(self):
         deadline = time.monotonic() + 10
         startup_output = []
         while time.monotonic() < deadline:
-            line = lines.get(timeout=10)
+            try:
+                line = self.lines.get(timeout=max(0, deadline - time.monotonic()))
+            except queue.Empty:
+                break
             if line is None:
                 errors = self.process.stderr.read() if self.process.stderr else ""
                 self.fail(f"Debuggee exited during startup: {''.join(startup_output)}{errors}")
@@ -203,7 +210,7 @@ class DAPTestCase(unittest.TestCase):
             if line.startswith("PORT "):
                 self.port = int(line.split()[1])
                 return self.connect()
-        self.fail("Debuggee did not start")
+        self.fail(f"Debuggee did not start: {''.join(startup_output)}")
 
     def connect(self):
         client = Client(self.port)
@@ -2322,7 +2329,7 @@ class DAPTests(DAPTestCase):
 class EngineDAPTests(DAPTestCase):
     # Run the existing headless app against Bob-built engine test content. The
     # app owns script loading, callbacks, contexts, and instance destruction.
-    def start_engine(self, kind, yielded=False, case="inspect"):
+    def start_engine(self, kind, yielded=False, case="inspect", shared_state=False):
         if not ENGINE:
             self.skipTest("Requires dmengine_headless and engine test content")
         self.path = ENGINE_SOURCE_ROOT / "debugger/inspection.lua"
@@ -2332,15 +2339,28 @@ class EngineDAPTests(DAPTestCase):
             "bootstrap.main_collection": "/debugger/main.collectionc",
             "bootstrap.render": "/debugger/default.renderc",
             "bootstrap.debug_init_script": "",
-            "debugger.enabled": 1,
+            "debugger.enabled": int(case != "reboot"),
             "debugger.port": 0,
-            "debugger.wait": 1,
+            "debugger.wait": int(case != "reboot"),
+            "script.shared_state": int(shared_state),
             "test.debugger_instance": kind,
             "test.debugger_yielded": int(yielded),
             "test.debugger_case": case,
         }
-        return self.start_process([ENGINE, str(ENGINE_CONTENT / "game.projectc"),
-                                   *[f"--config={key}={value}" for key, value in settings.items()]], merge_output=True)
+        # sys.reboot accepts only six arguments. Keep the fixture settings in a
+        # project file so a reboot can reuse them and override just the phase/port.
+        project = pathlib.Path(self.temp.name) / "game.projectc"
+        settings["test.debugger_project"] = str(project)
+        config = configparser.ConfigParser(interpolation=None)
+        config.read(ENGINE_CONTENT / "game.projectc", encoding="utf-8")
+        for key, value in settings.items():
+            section, option = key.split(".", 1)
+            if not config.has_section(section):
+                config.add_section(section)
+            config.set(section, option, str(value))
+        with project.open("w", encoding="utf-8") as stream:
+            config.write(stream)
+        return self.start_process([ENGINE, str(project)], merge_output=True)
 
     def finished(self, expected=0):
         self.client.event("terminated")
@@ -2406,6 +2426,48 @@ class EngineDAPTests(DAPTestCase):
 
     def test_yielded_render_self(self):
         self.check_instance("render", yielded=True)
+
+    # Regression for https://github.com/defold/defold/issues/7750: reboot the
+    # actual app while attached, then attach to its new Lua contexts in the same
+    # process. Reusing the port also checks that the old listener was released.
+    def check_reattach_after_reboot(self, shared_state):
+        c = self.start_engine("go", case="reboot", shared_state=shared_state)
+        port = self.port
+        for generation in range(3):
+            self.assertIsNone(self.process.poll())
+            c.initialize()
+            c.attach(localRoot=str(ENGINE_SOURCE_ROOT))
+            self.breakpoints({"line": self.line("reboot-inspect")})
+            c.configured()
+            self.stopped()
+            self.assertEqual(self.evaluate("generation")["result"], str(generation))
+            self.assertEqual(self.evaluate("self.score", context="hover")["result"], "41")
+            reference = self.evaluate("self", context="hover")["variablesReference"]
+            self.assertNotEqual(reference, 0)
+            children = {v["name"]: v for v in self.variables(reference)}
+            self.assertEqual(children['["score"]']["value"], "41")
+            c.request("setVariable", {"variablesReference": reference, "name": '["score"]', "value": "99"})
+            action = "'reboot'" if generation < 2 else "'exit'"
+            c.request("setExpression", {"frameId": self.frame, "expression": "self.action", "value": action})
+            self.breakpoints()
+            self.resume("next")
+            self.stopped("step")
+            self.assertEqual(self.evaluate("self.score", context="hover")["result"], "99")
+            self.resume()
+            if generation < 2:
+                c.event("terminated")
+                with self.assertRaises((EOFError, ConnectionResetError)):
+                    c.receive()
+                c.close()
+                c = self.wait_for_port()
+                self.assertEqual(self.port, port)
+        self.finished()
+
+    def test_reattach_after_sys_reboot(self):
+        self.check_reattach_after_reboot(shared_state=False)
+
+    def test_reattach_after_sys_reboot_with_shared_state(self):
+        self.check_reattach_after_reboot(shared_state=True)
 
     def test_replaced_instance_getter_is_not_called(self):
         c = self.start_engine("go", case="getter")
