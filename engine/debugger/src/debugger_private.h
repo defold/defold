@@ -89,6 +89,7 @@ namespace dmDebugger
         int           m_Level;
         int           m_LuaRef;
         ReferenceKind m_Kind;
+        char*         m_EvaluateName;
     };
     enum Step
     {
@@ -134,6 +135,9 @@ namespace dmDebugger
         bool                 m_ClosePending;
         bool                 m_LinesStartAt1;
         bool                 m_ColumnsStartAt1;
+        bool                 m_VariableType;
+        bool                 m_VariablePaging;
+        bool                 m_InvalidatedEvent;
         Debugger();
     };
 
@@ -157,7 +161,16 @@ namespace dmDebugger
     void       FormatValue(lua_State* L, int index, Buffer& value);
     void       Output(Debugger* d, const char* text);
     // Evaluation leaves exactly one result (or error string) on the stack.
-    bool Evaluate(Debugger* d, lua_State* L, int level, const char* expression, bool repl);
+    // A negative level selects the Lua thread's global environment.
+    bool Evaluate(Debugger* d, lua_State* L, int level, const char* expression, bool repl, const char* assignment = 0);
+    int  LocalIndex(lua_State* L, lua_Debug* ar, const char* name);
+    int  UpvalueIndex(lua_State* L, int function, const char* name);
+    void PushEnvironment(lua_State* L, int level);
+    bool IsIdentifier(const char* name);
+    void KeyExpression(lua_State* L, int index, const char* parent, Buffer& expression);
+    // Inspection leaves exactly one value or error string and never executes Lua.
+    bool Inspect(lua_State* L, int level, const char* expression);
+    bool Completions(Debugger* d, lua_State* L, int level, const Json& request, int args, Buffer& body);
     bool ValueRequest(Debugger* d, const Json& request, const char* command, int seq, int args);
 } // namespace dmDebugger
 #endif

@@ -105,7 +105,8 @@ class Client:
         return self.wait(lambda m: m["type"] == "event" and m["event"] == name).get("body", {})
 
     def initialize(self, **arguments):
-        return self.request("initialize", {"adapterID": "defold", "pathFormat": "path", **arguments})
+        return self.request("initialize", {"adapterID": "defold", "pathFormat": "path",
+                                           "supportsVariableType": True, "supportsVariablePaging": True, **arguments})
 
     def attach(self, **arguments):
         self.attach_sequence = self.send("attach", arguments)
@@ -337,6 +338,380 @@ class DAPTests(unittest.TestCase):
             self.evaluate("ready = true", context="repl")
             self.resume()
             self.finished()
+
+    # Counts only visits whose Lua condition is true, for both stopping
+    # breakpoints and logpoints. Conditions still execute once on every visit,
+    # including after the configured hit has passed.
+    def test_combined_conditions_count_matching_hits(self):
+        c = self.start('''
+            checks = 0
+            local total = 0
+            for i = 1, 6 do
+                total = total + i -- counted
+                total = total + 0 -- logged
+            end
+            assert(total == 21 and checks == 6)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("counted"), "hitCondition": "2",
+                          "condition": "(function() checks = checks + 1; return i % 2 == 0 end)()"},
+                         {"line": self.line("logged"), "condition": "i % 2 == 0",
+                          "hitCondition": "2", "logMessage": "matching hit at {i}"})
+        c.configured()
+        self.stopped()
+        self.assertEqual(self.evaluate("i")["result"], "4")
+        self.assertEqual(self.evaluate("checks")["result"], "4")
+        self.resume()
+        self.assertEqual(c.event("output")["output"], "matching hit at 4\n")
+        self.finished()
+
+    # Uses global scope when frameId is omitted and the selected lexical scope
+    # otherwise. Assignments must preserve nil bindings, update upvalues, return
+    # their value, and evaluate a computed target and RHS only once.
+    def test_global_evaluation_and_set_expression(self):
+        c = self.start('''
+            shadow = 10
+            local shadow = 20
+            local up = 5
+            local function run()
+                local absent = nil
+                local __dap_value_0 = 8
+                local target = {slot = 1}
+                local target_calls, value_calls = 0, 0
+                local function destination()
+                    target_calls = target_calls + 1
+                    return target
+                end
+                local function replacement()
+                    value_calls = value_calls + 1
+                    return 42
+                end
+                local marker = up -- inspect
+                assert(shadow == 22 and _G.shadow == 11 and up == 9)
+                assert(absent == false and __dap_value_0 == 9)
+                assert(target.slot == 42 and target_calls == 1 and value_calls == 1)
+                assert(persisted() == 11 and marker == 9)
+            end
+            run()
+        ''')
+        capabilities = c.initialize()
+        self.assertTrue(capabilities["supportsSetExpression"])
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        self.assertEqual(c.request("evaluate", {"expression": "shadow"})["result"], "10")
+        self.assertEqual(self.evaluate("shadow")["result"], "20")
+        self.assertEqual(c.request("setExpression", {"expression": "shadow", "value": "shadow + 1"})["value"], "11")
+        for target, value, expected in [
+                ("shadow", "shadow + 2", "22"), ("up", "9", "9"), ("absent", "false", "false"),
+                ("__dap_value_0", "__dap_value_0 + 1", "9"),
+                ("destination().slot", "replacement()", "42")]:
+            result = c.request("setExpression", {"frameId": self.frame, "expression": target, "value": value})
+            self.assertEqual(result["value"], expected)
+        c.request("setExpression", {"expression": "persisted", "value": "function() return shadow end"})
+        self.assertEqual(self.evaluate("persisted()")["result"], "11")
+        c.request("setExpression", {"frameId": self.frame, "expression": "1 + 2", "value": "3"}, success=False)
+        c.request("setExpression", {"frameId": self.frame, "expression": "1 + 2", "value": "replacement()", "context": "repl"}, success=False)
+        c.request("setExpression", {"frameId": 999999, "expression": "shadow", "value": "0"}, success=False)
+        self.resume()
+        self.finished()
+
+    # Reads simple hover paths directly, including nil shadowing and literal
+    # table keys. Calls, arithmetic, and missing keys requiring __index must fail
+    # without executing Lua or changing the program's mutation counter.
+    def test_hover_paths_never_execute_lua(self):
+        c = self.start(r'''
+            shadow = "global"
+            hover_calls = 0
+            local up = 3
+            local function run()
+                local shadow = nil
+                local obj = setmetatable({
+                    value = 7,
+                    nested = {[1] = {name = "leaf"}, [false] = 8, ["a.b"] = 9, ["\255\000"] = 10}
+                }, {__index = function() hover_calls = hover_calls + 1; return 99 end})
+                local marker = up -- inspect
+                assert(hover_calls == 0 and marker == 3)
+            end
+            run()
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        for expression, expected in [
+                ("obj.value", "7"), ("obj.nested[1].name", '"leaf"'), ("obj.nested[false]", "8"),
+                ('obj.nested["a.b"]', "9"), (r'obj.nested["\255\000"]', "10"),
+                ("obj.nested.missing", "nil"), ("shadow", "nil"), ("up", "3")]:
+            self.assertEqual(self.evaluate(expression, context="hover")["result"], expected)
+        self.assertEqual(c.request("evaluate", {"expression": "shadow", "context": "hover"})["result"], '"global"')
+        for expression in ["obj.missing", "obj.value + 1", "math.abs(-1)", "obj[hover_calls + 1]",
+                           "obj[", "obj.", 'obj["', 'obj["trailing' + "\\",
+                           "(function() hover_calls = hover_calls + 1; return hover_calls end)()"]:
+            c.request("evaluate", {"frameId": self.frame, "expression": expression, "context": "hover"}, success=False)
+        self.assertEqual(self.evaluate("hover_calls", context="hover")["result"], "0")
+        self.resume()
+        self.finished()
+
+    # Provides source names, table child counts, and evaluatable paths for
+    # representable keys. Hidden bindings and table references whose parent has
+    # been reassigned must not expose paths that refer to a different variable.
+    def test_variable_metadata_and_evaluate_names(self):
+        c = self.start(r'''
+            same = 5
+            local same = 5
+            local up = 9
+            local function run()
+                local same = same
+                local up = up
+                local key = function() end
+                local t = {[1] = "one", [2] = "two", ["a.b"] = "dot",
+                           [false] = "bool", ["\255\000"] = "binary", [key] = "function"}
+                t.self = t
+                local marker = up -- inspect
+                assert(marker == 9 and same == 5)
+            end
+            run()
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        frames = self.stopped()
+        self.assertEqual(frames[0]["source"]["name"], "main.lua")
+        scopes = self.scopes()
+        locals_ = {v["name"]: v for v in self.variables(scopes["Locals"])}
+        upvalues = {v["name"]: v for v in self.variables(scopes["Upvalues"])}
+        globals_ = {v["name"]: v for v in self.variables(scopes["Globals"])}
+        self.assertEqual(locals_["same"]["evaluateName"], "same")
+        self.assertNotIn("evaluateName", upvalues["same"])
+        self.assertNotIn("evaluateName", upvalues["up"])
+        self.assertNotIn("evaluateName", globals_["same"])
+        table = locals_["t"]
+        self.assertEqual((table["namedVariables"], table["indexedVariables"]), (5, 2))
+        reference = table["variablesReference"]
+        children = self.variables(reference)
+        self.assertEqual(len(children), 7)
+        for child in children:
+            if child["name"].startswith("[function:"):
+                self.assertNotIn("evaluateName", child)
+            else:
+                self.assertEqual(self.evaluate(child["evaluateName"])["result"], child["value"])
+        self.assertEqual(next(v for v in children if v["name"] == '["self"]')["variablesReference"], reference)
+        c.request("setExpression", {"frameId": self.frame, "expression": "t", "value": '{["a.b"] = "dot"}'})
+        for child in self.variables(reference):
+            self.assertNotIn("evaluateName", child)
+        self.resume()
+        self.finished()
+
+    # Honors clients that do not support variable types, paging metadata, or
+    # invalidated events. Reconnecting without those initialize fields must
+    # reset the negotiated options instead of inheriting the previous session.
+    def test_client_metadata_negotiation_and_reconnect(self):
+        c = self.start('''
+            finish = false
+            local t = {value = 1}
+            while not finish do pump() end
+        ''')
+        capabilities = c.initialize(supportsInvalidatedEvent=True)
+        self.assertTrue(capabilities["supportsDelayedStackTraceLoading"])
+        c.attach(stopOnEntry=True)
+        c.configured()
+        self.stopped("entry")
+        self.assertIn("type", self.evaluate("{}", context="repl"))
+        c.event("invalidated")
+        c.request("disconnect")
+        c.event("terminated")
+        c.close()
+        c = self.connect()
+        c.request("initialize", {"adapterID": "defold"})
+        c.attach(stopOnEntry=True)
+        c.configured()
+        self.stopped("entry")
+        value = self.evaluate("{one=1, [1]=2}")
+        for field in ("type", "namedVariables", "indexedVariables"):
+            self.assertNotIn(field, value)
+        for child in self.variables(value["variablesReference"]):
+            self.assertNotIn("type", child)
+        c.request("threads")
+        self.assertFalse(any(m.get("event") == "invalidated" for m in c.pending))
+        self.evaluate("finish = true", context="repl")
+        self.resume()
+        self.finished()
+
+    # Completes lexical bindings and direct table members without evaluating
+    # expressions or metamethods. Nil locals shadow globals, method completion
+    # filters functions, and replacing a word also replaces its trailing suffix.
+    def test_basic_completions_preserve_state(self):
+        c = self.start('''
+            pre_global = 1
+            pre_nil = {global_only = true}
+            completion_calls = 0
+            local pre_up = 2
+            local function run()
+                local pre_local, pre_nil = 3, nil
+                local obj = setmetatable({alpha = 1, alpine = function() end, beta = 2},
+                    {__index = function() completion_calls = completion_calls + 1; return {} end})
+                local nested = {["x y"] = obj}
+                local function make_obj() completion_calls = completion_calls + 1; return obj end
+                local marker = pre_up -- inspect
+                assert(marker == 2 and completion_calls == 0)
+            end
+            run()
+        ''')
+        capabilities = c.initialize()
+        self.assertTrue(capabilities["supportsCompletionsRequest"])
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+
+        def complete(text, column=None, frame=True):
+            args = {"text": text, "column": column or len(text) + 1}
+            if frame:
+                args["frameId"] = self.frame
+            return c.request("completions", args)["targets"]
+
+        self.assertEqual([v["label"] for v in complete("pre_")], ["pre_global", "pre_local", "pre_nil", "pre_up"])
+        self.assertEqual([v["label"] for v in complete("pre_", frame=False)], ["pre_global", "pre_nil"])
+        values = complete("obj.alZZ", column=7)
+        self.assertEqual([v["label"] for v in values], ["alpha", "alpine"])
+        self.assertTrue(all((v["start"], v["length"]) == (5, 4) for v in values))
+        self.assertEqual([v["type"] for v in values], ["field", "function"])
+        self.assertEqual([v["label"] for v in complete("obj:")], ["alpine"])
+        self.assertEqual([v["label"] for v in complete('nested["x y"].al')], ["alpha", "alpine"])
+        for text in ("pre_nil.", "obj.missing.", "make_obj()."):
+            self.assertEqual(complete(text), [])
+        self.assertEqual(self.evaluate("completion_calls", context="hover")["result"], "0")
+        self.resume()
+        self.finished()
+
+    # Uses UTF-16 columns and negotiated zero-based positions for multiline
+    # completion input, including a supplementary Unicode character. Invalid
+    # lines and positions inside a surrogate pair must return request errors.
+    def test_completion_positions_use_utf16_and_client_bases(self):
+        c = self.start("local obj = {alpha = 1}\nlocal marker = 0 -- inspect\n")
+        c.initialize(linesStartAt1=False, columnsStartAt1=False)
+        c.attach()
+        self.breakpoints({"line": self.line("inspect") - 1})
+        c.configured()
+        self.stopped()
+        prefix = 'print("🦊"); obj.'
+        column = len((prefix + "al").encode("utf-16-le")) // 2
+        values = c.request("completions", {"frameId": self.frame, "text": "ignored\n" + prefix + "alZZ",
+                                         "line": 1, "column": column})["targets"]
+        self.assertEqual([v["label"] for v in values], ["alpha"])
+        self.assertEqual((values[0]["start"], values[0]["length"]), (column - 2, 4))
+        for args in [{"text": "🦊", "column": 1}, {"text": "obj.", "column": -1},
+                     {"text": "obj.", "column": -2147483648}, {"text": "obj.", "column": 0, "line": -2147483648},
+                     {"text": "obj.", "column": 5}, {"text": "obj.", "column": 4, "line": 1}]:
+            c.request("completions", {"frameId": self.frame, **args}, success=False)
+        self.resume()
+        self.finished()
+
+    # Reports sorted executable lines from observed functions, maps source paths
+    # and zero-based positions, and leaves unknown code empty. Entering a function
+    # makes its previously unknown lines available without guessing locations.
+    def test_breakpoint_locations_for_known_code(self):
+        c = self.start('''
+            -- non-executable heading
+            local value = 1 -- first
+            local function run()
+                value = value + 1 -- function
+                return value -- returned
+            end
+            local result = run() -- call
+            assert(result == 2) -- finish
+        ''')
+        capabilities = c.initialize(linesStartAt1=False, columnsStartAt1=False)
+        self.assertTrue(capabilities["supportsBreakpointLocationsRequest"])
+        c.attach(localRoot=self.temp.name, stopOnEntry=True)
+
+        def locations(first, last=None, **extra):
+            return c.request("breakpointLocations", {"source": {"path": str(self.path)}, "line": first,
+                                                     **({"endLine": last} if last is not None else {}), **extra})["breakpoints"]
+
+        first = self.line("first") - 1
+        function = self.line("function") - 1
+        finish = self.line("finish") - 1
+        self.assertEqual(locations(first, finish), [])
+        c.configured()
+        self.stopped("entry")
+        self.assertEqual(locations(first), [{"line": first}])
+        known = [v["line"] for v in locations(0, finish)]
+        self.assertEqual(known, sorted(set(known)))
+        self.assertNotIn(0, known)
+        self.assertNotIn(function, known)
+        self.assertEqual(locations(first, column=1), [])
+        c.request("breakpointLocations", {"source": {"path": str(self.path)}, "line": -1}, success=False)
+        c.request("breakpointLocations", {"source": {"path": str(self.path)}, "line": first, "endLine": 0}, success=False)
+        self.assertEqual(c.request("breakpointLocations", {"source": {"path": "/unknown.lua"}, "line": 0})["breakpoints"], [])
+        self.breakpoints({"line": function})
+        self.resume()
+        self.stopped()
+        self.assertEqual(locations(function, self.line("returned") - 1),
+                         [{"line": function}, {"line": self.line("returned") - 1}])
+        self.resume()
+        self.finished()
+
+    # Sends negotiated variable invalidations after assignments and REPL
+    # evaluation, even when an error follows a mutation. Hover, watch, and
+    # completion requests must not trigger another round of client refreshes.
+    def test_invalidated_events_after_edits(self):
+        c = self.start("local value = 1\nlocal t = {value=2}\nvalue = value + 1 -- inspect\n")
+        c.initialize(supportsInvalidatedEvent=True)
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        scopes = self.scopes()
+        c.request("setVariable", {"variablesReference": scopes["Locals"], "name": "value", "value": "3"})
+        self.assertEqual(c.event("invalidated"), {"areas": ["variables"]})
+        c.request("setExpression", {"frameId": self.frame, "expression": "t.value", "value": "8"})
+        self.assertEqual(c.event("invalidated"), {"areas": ["variables"]})
+        c.request("evaluate", {"frameId": self.frame, "expression": "t.value=9; error('after write')", "context": "repl"}, success=False)
+        self.assertEqual(c.event("invalidated"), {"areas": ["variables"]})
+        self.assertEqual(self.evaluate("t.value", context="hover")["result"], "9")
+        self.assertEqual(self.evaluate("t.value", context="watch")["result"], "9")
+        self.assertEqual(self.evaluate("t.value")["result"], "9")
+        c.request("completions", {"frameId": self.frame, "text": "t.", "column": 3})
+        c.request("threads")
+        self.assertFalse(any(m.get("event") == "invalidated" for m in c.pending))
+        self.resume()
+        self.finished()
+
+    # Assigns and inspects a yielded coroutine without resuming or corrupting it.
+    # Successful and failing assignments must preserve its status and locals,
+    # and execution must later continue with the edited value.
+    def test_set_expression_on_yielded_coroutine(self):
+        c = self.start('''
+            local co = coroutine.create(function()
+                local value = 2
+                coroutine.yield()
+                value = value + 1
+                assert(value == 11)
+            end)
+            assert(coroutine.resume(co))
+            local marker = 0 -- inspect
+            assert(coroutine.resume(co))
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        other = next(t["id"] for t in c.request("threads")["threads"] if t["id"] != self.thread)
+        frame = c.request("stackTrace", {"threadId": other})["stackFrames"][0]["id"]
+        self.assertEqual(c.request("setExpression", {"frameId": frame, "expression": "value", "value": "value + 8"})["value"], "10")
+        c.request("setExpression", {"frameId": frame, "expression": "value", "value": "error('bad value')"}, success=False)
+        self.assertEqual(c.request("evaluate", {"frameId": frame, "expression": "value", "context": "hover"})["result"], "10")
+        self.assertEqual(c.request("completions", {"frameId": frame, "text": "val", "column": 4})["targets"][0]["label"], "value")
+        self.assertEqual(self.evaluate("coroutine.status(co)")["result"], '"suspended"')
+        self.resume()
+        self.finished()
 
     # Exercises fragmented and coalesced requests, initialization/attach ordering,
     # capability reporting, zero-based positions, and rejection of unsupported

@@ -17,7 +17,7 @@ defold_register_sequential_test_command(test_debugger_dap
 # Exercise the same wire tests against the bundled Lua 5.1 implementation too.
 # The regular debugger target links LuaJIT on desktop platforms.
 if(TARGET lua)
-  defold_add_executable(dap_debuggee_lua test_debugger.cpp ../dap.cpp ../debugger.cpp ../debugger_values.cpp)
+  defold_add_executable(dap_debuggee_lua test_debugger.cpp ../dap.cpp ../debugger.cpp ../debugger_values.cpp ../debugger_inspect.cpp)
   target_include_directories(dap_debuggee_lua PRIVATE ..)
   target_link_libraries(dap_debuggee_lua PRIVATE lua)
   defold_target_link_libraries(dap_debuggee_lua "${TARGET_PLATFORM}" dlib profile_null)
@@ -31,7 +31,7 @@ if(TARGET lua)
     DEPENDS dap_debuggee_lua)
 endif()
 
-defold_add_library(debugger_release_check STATIC ../dap.cpp ../debugger.cpp ../debugger_values.cpp ../debugger_extension.cpp)
+defold_add_library(debugger_release_check STATIC ../dap.cpp ../debugger.cpp ../debugger_values.cpp ../debugger_inspect.cpp ../debugger_extension.cpp)
 target_compile_definitions(debugger_release_check PRIVATE DM_RELEASE=1)
 set_target_properties(debugger_release_check PROPERTIES EXCLUDE_FROM_ALL TRUE)
 add_dependencies(build_tests debugger_release_check)
