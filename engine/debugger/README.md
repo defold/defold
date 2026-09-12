@@ -40,6 +40,8 @@ reason and continues; `debugger.start(0)` can retry on an available port.
 Runtime activation registers all live script contexts and discovers existing
 coroutines through reachable Lua references, including frame locals and function
 upvalues. Already suspended coroutines can be inspected without resuming them.
+Each attachment repeats discovery, including after a disconnect, to find
+coroutines created through cached original coroutine functions while detached.
 Until activation, the extension leaves Lua hooks, coroutine functions, and JIT
 settings alone and opens no DAP socket. The `debugger` Lua module is available
 only in native debug and headless engines.
@@ -148,6 +150,9 @@ LuaJIT compilation is disabled while attached, and the prior JIT enablement and
 debug hooks are restored on detach. Coroutines are held weakly while running and
 pinned during stack inspection, so the debugger does not retain completed
 coroutines indefinitely.
+Stepping also follows returns and yields through cached `coroutine.resume`
+functions and `coroutine.wrap` closures created before activation. Stack traces
+omit Lua 5.1's synthetic tail-call frames, which have no inspectable function.
 
 The server handles fragmented/coalesced frames and partial writes. Messages are
 limited to 1 MiB, headers to 4 KiB, and queues to 4 MiB. Invalid framing or JSON
@@ -187,6 +192,10 @@ retrying failed starts.
 The suite also checks combined conditions/hit counts, global evaluation,
 expression assignment, inspection without side effects, metadata negotiation,
 completion positions, known breakpoint locations, and invalidation events.
+Coroutine regressions cover discovery on attachment and reconnection, stepping
+through original coroutine APIs, nested resumes, and collection during a step.
+Tail-call inspection checks scopes, evaluation, and local assignment on both
+runtimes.
 
 To run individual wire tests:
 

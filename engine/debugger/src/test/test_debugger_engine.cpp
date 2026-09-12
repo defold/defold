@@ -90,6 +90,12 @@ int main(int argc, char** argv)
         argc -= 2;
         argv += 2;
     }
+    bool no_wait = argc > 1 && strcmp(argv[1], "--no-wait") == 0;
+    if (no_wait)
+    {
+        --argc;
+        ++argv;
+    }
     const char* startup_port = 0;
     if (argc > 2 && strcmp(argv[1], "--startup-port") == 0)
     {
@@ -125,10 +131,8 @@ int main(int argc, char** argv)
     // A failed startup must be the first initialization: a preceding successful
     // initialization would mask an extension whose update callback stays disabled.
     char startup_config[128];
-    if (startup_port)
-        snprintf(startup_config, sizeof(startup_config), "[debugger]\nenabled=1\nport=%s\nwait=1\n", startup_port);
-    dmConfigFile::HConfig config = Config(startup_port ? startup_config : late_attach ? "[debugger]\nport=0\n" :
-                                                                                        "[debugger]\nenabled=1\nport=0\nwait=1\n");
+    snprintf(startup_config, sizeof(startup_config), "[debugger]\nenabled=1\nport=%s\nwait=%d\n", startup_port ? startup_port : "0", !no_wait);
+    dmConfigFile::HConfig config = Config(late_attach ? "[debugger]\nport=0\n" : startup_config);
     dmScript::HContext    contexts[2];
     for (int i = 1; i < argc; ++i)
         contexts[i - 1] = Create(config, prelude);

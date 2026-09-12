@@ -134,7 +134,7 @@ class DAPTests(unittest.TestCase):
             self.process.stderr.close()
         self.temp.cleanup()
 
-    def start(self, source, second=None, late_attach=False, updates=0, prelude=None, startup_port=None):
+    def start(self, source, second=None, late_attach=False, updates=0, prelude=None, startup_port=None, no_wait=False):
         if (late_attach or startup_port is not None) and pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
             self.skipTest("Runtime activation requires the engine extension host")
         self.source = textwrap.dedent(source).lstrip("\n")
@@ -147,9 +147,12 @@ class DAPTests(unittest.TestCase):
             paths.append(str(self.second_path))
         options = ["--updates", str(updates)] if updates else []
         if prelude is not None:
-            prelude_path = pathlib.Path(self.temp.name) / "prelude.lua"
-            prelude_path.write_text(textwrap.dedent(prelude).lstrip("\n"), encoding="utf-8")
-            options.extend(["--prelude", str(prelude_path)])
+            self.prelude = textwrap.dedent(prelude).lstrip("\n")
+            self.prelude_path = pathlib.Path(self.temp.name) / "prelude.lua"
+            self.prelude_path.write_text(self.prelude, encoding="utf-8")
+            options.extend(["--prelude", str(self.prelude_path)])
+        if no_wait:
+            options.append("--no-wait")
         if startup_port is not None:
             options.extend(["--startup-port", str(startup_port)])
         if late_attach:
@@ -182,9 +185,10 @@ class DAPTests(unittest.TestCase):
         self.client = client
         return client
 
-    def line(self, marker):
-        matches = [i for i, line in enumerate(self.source.splitlines(), 1) if f"-- {marker}" in line]
-        self.assertEqual(len(matches), 1, (marker, self.source))
+    def line(self, marker, source=None):
+        source = self.source if source is None else source
+        matches = [i for i, line in enumerate(source.splitlines(), 1) if f"-- {marker}" in line]
+        self.assertEqual(len(matches), 1, (marker, source))
         return matches[0]
 
     def breakpoints(self, *breakpoints, path=None):
@@ -274,6 +278,77 @@ class DAPTests(unittest.TestCase):
         self.evaluate("value = 100", context="repl")
         self.resume()
         self.finished()
+
+    # Cached coroutine APIs create suspended threads after registration, before
+    # a client attaches. Both initial attachment and reconnection must discover
+    # them, expose their locals, and install hooks without resuming them.
+    def test_attach_discovers_coroutines_created_while_detached(self):
+        c = self.start('''
+            for round = 1, 2 do
+                pending_batch = make_pending(round * 10)
+                ready = false
+                while not ready do pump() end
+                finish_pending(pending_batch)
+                pending_batch = nil
+                collectgarbage('collect')
+            end
+        ''', no_wait=True, prelude='''
+            local create, resume, wrap = coroutine.create, coroutine.resume, coroutine.wrap
+            function make_pending(seed)
+                local function worker(id)
+                    local pending = seed + id
+                    coroutine.yield()
+                    assert(pending == seed + id + 100) -- resumed
+                end
+                local co = create(function() worker(1) end)
+                local wrapped = wrap(function() worker(2) end)
+                assert(resume(co))
+                wrapped()
+                return {co = co, wrapped = wrapped}
+            end
+            function finish_pending(batch)
+                assert(resume(batch.co))
+                batch.wrapped()
+            end
+        ''')
+        previous = set()
+        for round in (1, 2):
+            c.initialize()
+            c.attach(stopOnEntry=True)
+            self.breakpoints({"line": self.line("resumed", self.prelude)}, path=self.prelude_path)
+            c.configured()
+            self.stopped("entry")
+            coroutines = [t["id"] for t in c.request("threads")["threads"] if t["id"] != self.thread]
+            self.assertEqual(len(coroutines), 2)
+            self.assertTrue(previous.isdisjoint(coroutines))
+            previous.update(coroutines)
+            values = set()
+            for thread in coroutines:
+                frame = c.request("stackTrace", {"threadId": thread})["stackFrames"][0]["id"]
+                scopes = c.request("scopes", {"frameId": frame})["scopes"]
+                locals_ref = next(s["variablesReference"] for s in scopes if s["name"] == "Locals")
+                value = next(v for v in self.variables(locals_ref) if v["name"] == "pending")
+                values.add(int(value["value"]))
+                c.request("setVariable", {"variablesReference": locals_ref, "name": "pending",
+                                          "value": str(int(value["value"]) + 100)})
+            self.assertEqual(values, {round * 10 + 1, round * 10 + 2})
+            self.assertEqual(self.evaluate("coroutine.status(pending_batch.co)")["result"], '"suspended"')
+            self.evaluate("ready = true", context="repl")
+            if round == 1:
+                c.request("disconnect")
+                c.event("terminated")
+                c.close()
+                c = self.connect()
+            else:
+                # Reconnection must install per-thread Lua 5.1 hooks too.
+                self.resume()
+                stopped = set()
+                for _ in coroutines:
+                    self.assertEqual(self.stopped()[0]["line"], self.line("resumed", self.prelude))
+                    stopped.add(self.thread)
+                    self.resume()
+                self.assertEqual(stopped, set(coroutines))
+                self.finished()
 
     # Discovers coroutines created before registration through table keys,
     # function upvalues, registry entries, userdata environments, wrapped
@@ -1023,6 +1098,43 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Lua 5.1 includes synthetic frames for eliminated tail calls. Only real
+    # Lua frames should be exposed, with their original levels still locating
+    # the correct locals, upvalues, and function environments.
+    def test_tail_call_frames_are_inspectable(self):
+        c = self.start('''
+            local caller = 11
+            local function leaf(value)
+                local detail = value
+                detail = detail + 1 -- inspect
+                return detail
+            end
+            local function tail(n)
+                if n == 0 then return leaf(42) end
+                return tail(n - 1)
+            end
+            local result = tail(3)
+            assert(result == 101 and caller == 11)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        frames = self.stopped()
+        self.assertEqual(len(frames), 2)
+        for frame in frames:
+            self.assertGreater(frame["line"], 0)
+            self.assertEqual(frame["source"]["path"], str(self.path))
+            self.frame = frame["id"]
+            for reference in self.scopes().values():
+                self.variables(reference, count=2)
+        self.assertEqual(self.evaluate("caller")["result"], "11")
+        self.frame = frames[0]["id"]
+        self.assertEqual(self.evaluate("detail")["result"], "42")
+        c.request("setVariable", {"variablesReference": self.scopes()["Locals"], "name": "detail", "value": "100"})
+        self.resume()
+        self.finished()
+
     # Checks that stepping over Lua, recursive, and native tail calls completes
     # the invocation and stops on the caller's next source line.
     def test_step_over_tail_calls(self):
@@ -1639,6 +1751,135 @@ class DAPTests(unittest.TestCase):
                     c.wait(lambda m: m.get("event") == "thread" and
                            m["body"]["reason"] == "exited" and m["body"]["threadId"] == coroutine)
                     self.resume()
+        self.finished()
+
+    # Pre-existing wrap closures and cached resume functions bypass the debugger
+    # wrappers. Step-out must follow their yields, and every step command must
+    # follow completion back to the resumer and report the coroutine's exit.
+    def test_steps_return_through_original_coroutine_functions(self):
+        c = self.start('''
+            for i = 1, 3 do
+                local ok, value = original_resume(created[i])
+                assert(ok and value == 3) -- created-yield
+                ok, value = original_resume(created[i])
+                assert(ok and value == 4) -- created-return
+            end
+            for i = 1, 3 do
+                local value = wrapped[i]()
+                assert(value == 3) -- wrapped-yield
+                value = wrapped[i]()
+                assert(value == 4) -- wrapped-return
+            end
+        ''', prelude='''
+            original_resume = coroutine.resume
+            local function worker()
+                local value = 3
+                coroutine.yield(value) -- yield
+                return value + 1 -- return
+            end
+            created, wrapped = {}, {}
+            for i = 1, 3 do
+                created[i] = coroutine.create(worker)
+                wrapped[i] = coroutine.wrap(worker)
+            end
+        ''')
+        c.initialize()
+        c.attach()
+        main = c.request("threads")["threads"][0]["id"]
+        self.breakpoints(*({"line": self.line(marker, self.prelude)} for marker in ("yield", "return")),
+                         path=self.prelude_path)
+        c.configured()
+        for kind in ("created", "wrapped"):
+            for command in ("next", "stepIn", "stepOut"):
+                with self.subTest(kind=kind, command=command):
+                    self.assertEqual(self.stopped()[0]["line"], self.line("yield", self.prelude))
+                    coroutine = self.thread
+                    self.assertNotEqual(coroutine, main)
+                    self.resume("stepOut")
+                    self.assertEqual(self.stopped("step")[0]["line"], self.line(kind + "-yield"))
+                    self.assertEqual(self.thread, main)
+                    self.resume()
+                    self.assertEqual(self.stopped()[0]["line"], self.line("return", self.prelude))
+                    self.assertEqual(self.thread, coroutine)
+                    self.resume(command)
+                    self.assertEqual(self.stopped("step")[0]["line"], self.line(kind + "-return"))
+                    self.assertEqual(self.thread, main)
+                    c.wait(lambda m: m.get("event") == "thread" and m["body"]["reason"] == "exited"
+                           and m["body"]["threadId"] == coroutine)
+                    self.resume()
+        self.finished()
+
+    # A coroutine awaiting a nested resume has live frames and status 0. Stepping
+    # out of it must ignore its child's lines and return to its own resumer only
+    # after the parent yields, even when both resumes use cached original APIs.
+    def test_step_out_skips_nested_coroutines(self):
+        c = self.start('''
+            local ok, value = original_resume(parent)
+            assert(ok and value == 4) -- yielded
+            ok, value = original_resume(parent)
+            assert(ok and value == 5)
+        ''', prelude='''
+            original_resume = coroutine.resume
+            local child = coroutine.create(function()
+                local value = 3
+                return value
+            end)
+            parent = coroutine.create(function()
+                local marker = 1 -- inspect
+                local ok, value = original_resume(child)
+                assert(ok and value == 3)
+                marker = marker + value
+                coroutine.yield(marker)
+                return marker + 1
+            end)
+        ''')
+        c.initialize()
+        c.attach()
+        main = c.request("threads")["threads"][0]["id"]
+        self.breakpoints({"line": self.line("inspect", self.prelude)}, path=self.prelude_path)
+        c.configured()
+        self.stopped()
+        self.assertNotEqual(self.thread, main)
+        self.resume("stepOut")
+        self.assertEqual(self.stopped("step")[0]["line"], self.line("yielded"))
+        self.assertEqual(self.thread, main)
+        self.resume()
+        self.finished()
+
+    # Lua 5.1 can collect a completed coroutine and pump the debugger before
+    # another line hook fires. Retain the step's metadata without retaining the
+    # Lua thread so that step-out still stops on the resumer's next source line.
+    def test_step_out_survives_coroutine_collection(self):
+        c = self.start('''
+            local co = create_worker()
+            weak = setmetatable({co}, {__mode = 'v'})
+            local ok, value = original_resume(co); co = nil; collectgarbage('collect'); pump()
+            assert(ok and value == 3) -- returned
+            assert(weak[1] == nil)
+        ''', prelude='''
+            original_resume = coroutine.resume
+            local create = coroutine.create
+            function create_worker()
+                return create(function()
+                    local value = 3
+                    return value -- return
+                end)
+            end
+        ''')
+        c.initialize()
+        c.attach()
+        main = c.request("threads")["threads"][0]["id"]
+        self.breakpoints({"line": self.line("return", self.prelude)}, path=self.prelude_path)
+        c.configured()
+        self.stopped()
+        coroutine = self.thread
+        self.resume("stepOut")
+        self.assertEqual(self.stopped("step")[0]["line"], self.line("returned"))
+        self.assertEqual(self.thread, main)
+        self.assertEqual(self.evaluate("weak[1]")["result"], "nil")
+        c.wait(lambda m: m.get("event") == "thread" and m["body"]["reason"] == "exited"
+               and m["body"]["threadId"] == coroutine)
+        self.resume()
         self.finished()
 
     # Checks wrapped-coroutine arguments and yield/return values, including nils,

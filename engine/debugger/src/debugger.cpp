@@ -130,10 +130,10 @@ namespace dmDebugger
         lua_pop(L, 2);
         return result;
     }
-    Thread* FindThread(Debugger* d, int id)
+    Thread* FindThread(Debugger* d, int id, bool include_exited)
     {
         for (uint32_t i = 0; i < d->m_Threads.Size(); ++i)
-            if (d->m_Threads[i]->m_Id == id && !d->m_Threads[i]->m_Exited && GetThread(d->m_Threads[i]))
+            if (d->m_Threads[i]->m_Id == id && (include_exited || (!d->m_Threads[i]->m_Exited && GetThread(d->m_Threads[i]))))
                 return d->m_Threads[i];
         return 0;
     }
@@ -255,10 +255,10 @@ namespace dmDebugger
         lua_pushthread(L);
         discovery.PopFrom(L);
 
-        // Scan reachable Lua objects once at activation. Raw inspection avoids
-        // invoking application code, and a queue handles cycles without growing
-        // the native call stack. The temporary tables pin objects only for this
-        // scan; TrackThread retains discovered coroutines through weak values.
+        // Scan reachable Lua objects at activation and attachment. Raw inspection
+        // avoids invoking application code, and a queue handles cycles without
+        // growing the native call stack. The temporary tables pin objects only
+        // for this scan; TrackThread retains coroutines through weak values.
         for (int i = 1; i <= discovery.m_Count; ++i)
         {
             lua_rawgeti(L, discovery.m_Queue, i);
@@ -332,15 +332,9 @@ namespace dmDebugger
         lua_Debug ar;
         return lua_gettop(L) == 0 && !lua_getstack(L, 0, &ar);
     }
-    static void CoroutineReturned(lua_State* L, lua_State* coroutine)
+    static void CoroutineReturned(Debugger* d, lua_State* L, Thread* thread)
     {
-        Debugger* d = (Debugger*)GetPointer(L, &g_DebuggerKey);
-        if (!d || d->m_Evaluating || !coroutine)
-            return;
-        Thread* thread = TrackThread(d, coroutine);
-        if (!thread)
-            return;
-        if (HasEnded(thread, coroutine) && !thread->m_Exited)
+        if (HasEnded(thread, GetThread(thread)) && !thread->m_Exited)
         {
             thread->m_Exited = true;
             ThreadEvent(d, thread, "exited");
@@ -352,6 +346,15 @@ namespace dmDebugger
             d->m_StepThread = parent->m_Id;
             d->m_StepDepth = StackDepth(L);
         }
+    }
+    static void CoroutineReturned(lua_State* L, lua_State* coroutine)
+    {
+        Debugger* d = (Debugger*)GetPointer(L, &g_DebuggerKey);
+        if (!d || d->m_Evaluating || !coroutine)
+            return;
+        Thread* thread = TrackThread(d, coroutine);
+        if (thread)
+            CoroutineReturned(d, L, thread);
     }
     static int CoroutineCreate(lua_State* L)
     {
@@ -475,6 +478,10 @@ namespace dmDebugger
             State* state = d->m_States[i];
             if (enable)
             {
+                // Cached coroutine APIs can bypass our wrappers while detached.
+                // Discover their suspended threads before installing Lua 5.1's
+                // per-thread hooks, including on subsequent attachments.
+                DiscoverThreads(d, state->m_L);
                 state->m_JitEnabled = JitEnabled(state->m_L, &state->m_JitAvailable);
                 Jit(state->m_L, "off");
                 Jit(state->m_L, "flush");
@@ -1153,7 +1160,9 @@ namespace dmDebugger
                 thread->m_Exited = true;
                 ThreadEvent(d, thread, "exited");
             }
-            if (L)
+            // Keep only the metadata of a collected step target until a Lua
+            // line can transfer the step to its resumer. The coroutine stays weak.
+            if (L || (d->m_Step != STEP_NONE && d->m_StepThread == thread->m_Id))
             {
                 ++i;
                 continue;
@@ -1425,6 +1434,21 @@ namespace dmDebugger
             return;
         }
         Thread* thread = TrackThread(d, L);
+        if (ar->event == LUA_HOOKLINE && d->m_Step != STEP_NONE && thread->m_Id != d->m_StepThread)
+        {
+            Thread* stepped = FindThread(d, d->m_StepThread, true);
+            if (stepped && !stepped->m_Main && stepped->m_State == thread->m_State)
+            {
+                // Original resume functions and pre-existing wrap closures do
+                // not call our wrappers. Check the actual coroutine state at
+                // the next line instead of relying on balanced return hooks.
+                // A coroutine awaiting a nested resume still has status 0 and
+                // live frames, so stepping out does not follow its child.
+                lua_State* coroutine = GetThread(stepped);
+                if (HasEnded(stepped, coroutine) || lua_status(coroutine) == LUA_YIELD)
+                    CoroutineReturned(d, L, stepped);
+            }
+        }
         lua_getinfo(L, "nSl", ar);
         if (ar->event == LUA_HOOKCALL)
         {

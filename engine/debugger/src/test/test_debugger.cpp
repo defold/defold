@@ -120,6 +120,12 @@ int main(int argc, char** argv)
         argc -= 2;
         argv += 2;
     }
+    bool no_wait = argc > 1 && strcmp(argv[1], "--no-wait") == 0;
+    if (no_wait)
+    {
+        --argc;
+        ++argv;
+    }
     if (argc < 2)
         return 1;
     Check(dmSocket::Initialize() == dmSocket::RESULT_OK, "Socket initialization failed");
@@ -129,7 +135,8 @@ int main(int argc, char** argv)
     lua_State* second = argc > 2 ? Create("second", prelude) : 0;
     printf("PORT %u\n", dmDebugger::GetPort(g_Debugger));
     fflush(stdout);
-    dmDebugger::WaitForClient(g_Debugger);
+    if (!no_wait)
+        dmDebugger::WaitForClient(g_Debugger);
     int result = Run(first, argv[1]);
     if (second)
         result |= Run(second, argv[2]);
