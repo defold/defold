@@ -134,7 +134,7 @@ class DAPTests(unittest.TestCase):
             self.process.stderr.close()
         self.temp.cleanup()
 
-    def start(self, source, second=None, late_attach=False):
+    def start(self, source, second=None, late_attach=False, updates=0):
         if late_attach and pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
             self.skipTest("Runtime activation requires the engine extension host")
         self.source = textwrap.dedent(source).lstrip("\n")
@@ -145,7 +145,9 @@ class DAPTests(unittest.TestCase):
             self.second_path = pathlib.Path(self.temp.name) / "second.lua"
             self.second_path.write_text(textwrap.dedent(second).lstrip("\n"), encoding="utf-8")
             paths.append(str(self.second_path))
-        options = ["--late-attach"] if late_attach else []
+        options = ["--updates", str(updates)] if updates else []
+        if late_attach:
+            options.append("--late-attach")
         self.process = subprocess.Popen([DEBUGGEE, *options, *paths], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         lines = queue.Queue()
 
@@ -876,6 +878,52 @@ class DAPTests(unittest.TestCase):
             self.breakpoints(*remaining)
             self.resume("next")
             self.assertEqual(self.stopped("step")[0]["line"], self.line("after_" + marker))
+            self.resume()
+        self.finished()
+
+    # Steps over the final line of separate C-invoked engine callbacks, including
+    # ordinary returns, recursive Lua tail calls, and native tail calls that may
+    # invoke Lua. Each next must finish the current callback and stop at the first
+    # line of the following callback.
+    def test_step_over_across_engine_callbacks(self):
+        c = self.start('''
+            local calls, completed = 0, 0
+            local function tail(n)
+                if n > 0 then return tail(n - 1) end
+                completed = completed + 1
+                return completed
+            end
+            function update()
+                calls = calls + 1 -- callback-entry
+                assert(completed <= 2)
+                if calls == 1 then
+                    return calls -- ordinary-return
+                elseif calls == 2 then
+                    return tail(2) -- lua-tail-return
+                elseif calls == 3 then
+                    return pcall(tail, 2) -- protected-tail-return
+                end
+                return math.abs(-calls) -- native-tail-return
+            end
+        ''', updates=5)
+        c.initialize()
+        c.attach()
+        remaining = [self.line(marker) for marker in
+                     ("ordinary-return", "lua-tail-return", "protected-tail-return", "native-tail-return")]
+        self.breakpoints(*({"line": line} for line in remaining))
+        c.configured()
+        for calls, completed in enumerate((0, 1, 2, 2), 1):
+            self.assertEqual(self.stopped()[0]["line"], remaining.pop(0))
+            self.assertEqual(self.evaluate("calls")["result"], str(calls))
+            thread = self.thread
+            self.breakpoints(*({"line": line} for line in remaining))
+            self.resume("next")
+            frames = self.stopped("step")
+            self.assertEqual(self.thread, thread)
+            self.assertEqual(len(frames), 1)
+            self.assertEqual(frames[0]["line"], self.line("callback-entry"))
+            self.assertEqual(self.evaluate("calls")["result"], str(calls))
+            self.assertEqual(self.evaluate("completed")["result"], str(completed))
             self.resume()
         self.finished()
 

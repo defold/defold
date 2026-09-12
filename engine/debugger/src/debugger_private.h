@@ -123,6 +123,7 @@ namespace dmDebugger
         uint32_t             m_Connections;
         uint64_t             m_CloseDeadline;
         Step                 m_Step;
+        bool                 m_StepNativeTailCall;
         bool                 m_Initialized;
         bool                 m_Attached;
         bool                 m_Configured;
