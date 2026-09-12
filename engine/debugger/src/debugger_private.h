@@ -16,20 +16,23 @@ extern "C"
 namespace dmDebugger
 {
     struct State;
+    struct CallSite
+    {
+        int m_Depth;
+        int m_Line;
+    };
+
     struct Thread
     {
-        State*   m_State;
-        int      m_Id;
-        lua_Hook m_OldHook;
-        int      m_OldMask;
-        int      m_OldCount;
-        bool     m_Hooked;
-        bool     m_Main;
-        bool     m_Exited;
-        char*    m_SkipSource;
-        int      m_SkipLine;
-        int      m_SkipDepth;
-        bool     m_SkipCall;
+        State*            m_State;
+        int               m_Id;
+        lua_Hook          m_OldHook;
+        int               m_OldMask;
+        int               m_OldCount;
+        bool              m_Hooked;
+        bool              m_Main;
+        bool              m_Exited;
+        dmArray<CallSite> m_CallSites;
     };
 
     struct State

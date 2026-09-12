@@ -53,6 +53,8 @@ static int CheckResumeDepth(lua_State* L)
     return 0;
 }
 
+// Checks that a wrapped coroutine's C-call depth exceeds its resumer's depth,
+// preserving Lua 5.1's bookkeeping for nested native calls.
 static void CheckWrappedResumeDepth(lua_State* L)
 {
     // Check the depth invariant with a single resume, without approaching the
@@ -96,6 +98,9 @@ static int Run(lua_State* L, const char* path)
     return result;
 }
 
+// Runs the DAP suite in one or two independent Lua states and checks that setup,
+// script execution, and teardown preserve the Lua stack. Deleting the debugger
+// must restore the previous hooks and allow subsequent Lua execution.
 int main(int argc, char** argv)
 {
     if (argc < 2)

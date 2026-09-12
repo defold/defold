@@ -68,6 +68,9 @@ static dmConfigFile::HConfig Config(const char* text)
     return config;
 }
 
+// Checks that debugging is disabled by default, then runs DAP-controlled scripts
+// through the real extension lifecycle and dmScript::PCall. Initialization and
+// execution in each script context must preserve its Lua stack height.
 int main(int argc, char** argv)
 {
     if (argc < 2 || argc > 3)

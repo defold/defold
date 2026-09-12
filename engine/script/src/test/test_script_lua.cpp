@@ -451,6 +451,9 @@ static void InspectErrorBeforeUnwind(dmScript::HContext context, lua_State* L)
     }
 }
 
+// Checks that the extension error callback ignores caught pcall errors and sees
+// the original error table and live detail local before an uncaught error unwinds.
+// The protected call must also leave the Lua stack at its original height.
 TEST_F(ScriptTestLua, ScriptExtensionErrorBeforeUnwind)
 {
     static dmScript::ScriptExtension extension = {};

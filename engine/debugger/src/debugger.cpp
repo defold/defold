@@ -173,7 +173,6 @@ namespace dmDebugger
             if (d->m_Threads[i]->m_State == state && GetThread(d->m_Threads[i]) == L)
                 return d->m_Threads[i];
         Thread* thread = new Thread();
-        memset(thread, 0, sizeof(*thread));
         thread->m_State = state;
         thread->m_Id = d->m_NextId++;
         thread->m_Main = state->m_L == L;
@@ -435,7 +434,6 @@ namespace dmDebugger
                 lua_sethook(T, thread->m_OldHook, thread->m_OldMask, thread->m_OldCount);
             if (!thread->m_Exited)
                 ThreadEvent(d, thread, "exited");
-            free(thread->m_SkipSource);
             delete thread;
             d->m_Threads.EraseSwap(i);
         }
@@ -482,10 +480,7 @@ namespace dmDebugger
         d->m_Client = dmSocket::INVALID_SOCKET_HANDLE;
         SetHooks(d, false);
         for (uint32_t i = 0; i < d->m_Threads.Size(); ++i)
-        {
-            free(d->m_Threads[i]->m_SkipSource);
-            d->m_Threads[i]->m_SkipSource = 0;
-        }
+            d->m_Threads[i]->m_CallSites.SetSize(0);
         ClearReferences(d);
         d->m_Input.Clear();
         d->m_Output.Clear();
@@ -551,6 +546,12 @@ namespace dmDebugger
             ++path;
         while (path[0] == '.' && (path[1] == '/' || path[1] == '\\'))
             path += 2;
+        // DAP clients may lowercase Windows drive letters independently of localRoot.
+        if (path[0] >= 'A' && path[0] <= 'Z' && path[1] == ':')
+        {
+            char drive = *path++ + ('a' - 'A');
+            result.Add(&drive, 1);
+        }
         for (; *path; ++path)
         {
             char c = *path == '\\' ? '/' : *path;
@@ -739,16 +740,6 @@ namespace dmDebugger
         d->m_Step = step;
         d->m_StepThread = thread;
         d->m_StepDepth = t ? StackDepth(GetThread(t)) : 0;
-        lua_Debug ar;
-        if (t && t->m_State->m_JitAvailable && lua_getstack(GetThread(t), 0, &ar))
-        {
-            lua_getinfo(GetThread(t), "Sl", &ar);
-            free(t->m_SkipSource);
-            t->m_SkipSource = strdup(ar.source ? ar.source : "");
-            t->m_SkipLine = ar.currentline;
-            t->m_SkipDepth = d->m_StepDepth;
-            t->m_SkipCall = false;
-        }
         d->m_Paused = false;
         d->m_PauseRequested = false;
         d->m_Exception.Clear();
@@ -989,7 +980,6 @@ namespace dmDebugger
                 ++i;
                 continue;
             }
-            free(thread->m_SkipSource);
             delete thread;
             d->m_Threads.EraseSwap(i);
         }
@@ -1179,6 +1169,49 @@ namespace dmDebugger
         Output(d, text.Data());
     }
 
+    static void RecordCallSite(Thread* thread, lua_State* L, int depth)
+    {
+        if (!thread->m_State->m_JitAvailable)
+            return;
+        dmArray<CallSite>& sites = thread->m_CallSites;
+        // A new invocation can replace a frame through a tail call or after an
+        // exception. Keep only the callers that are still awaiting a return.
+        while (sites.Size() && sites.Back().m_Depth >= depth - 1)
+            sites.Pop();
+        lua_Debug caller;
+        if (lua_getstack(L, 1, &caller))
+        {
+            lua_getinfo(L, "l", &caller);
+            if (caller.currentline > 0)
+            {
+                CallSite site = { depth - 1, caller.currentline };
+                Push(sites, site);
+            }
+        }
+    }
+
+    static bool SkipCallReturn(Thread* thread, lua_State* L, int line)
+    {
+        dmArray<CallSite>& sites = thread->m_CallSites;
+        while (sites.Size())
+        {
+            CallSite  site = sites.Back();
+            lua_Debug frame;
+            // Probe the saved depth directly instead of measuring the whole
+            // stack. A deeper stack means the callee is still executing.
+            if (lua_getstack(L, site.m_Depth, &frame))
+                return false;
+            sites.Pop();
+            if (lua_getstack(L, site.m_Depth - 1, &frame))
+            {
+                // LuaJIT emits a line event on return to the call site. Consume
+                // it once; later visits can be real loop iterations.
+                return site.m_Line == line;
+            }
+        }
+        return false;
+    }
+
     static void Hook(lua_State* L, lua_Debug* ar)
     {
         Debugger* d = (Debugger*)GetPointer(L, &g_DebuggerKey);
@@ -1194,31 +1227,21 @@ namespace dmDebugger
         lua_getinfo(L, "nSl", ar);
         if (ar->event == LUA_HOOKCALL)
         {
+            int depth = StackDepth(L);
             if (d->m_Step == STEP_OVER && d->m_StepThread == thread->m_Id)
             {
-                int depth = StackDepth(L);
                 // LuaJIT replaces the caller's frame on a tail call. Keep
                 // stepping over the new invocation until its caller resumes.
                 if (depth <= d->m_StepDepth)
                     d->m_StepDepth = depth - 1;
             }
-            if (thread->m_SkipSource)
-            {
-                int depth = StackDepth(L);
-                if (depth == thread->m_SkipDepth + 1)
-                    thread->m_SkipCall = true;
-                else if (depth <= thread->m_SkipDepth)
-                {
-                    // A new invocation (including a tail call) can hit the same line.
-                    free(thread->m_SkipSource);
-                    thread->m_SkipSource = 0;
-                }
-            }
+            RecordCallSite(thread, L, depth);
             ObserveSource(d, L, ar);
             return;
         }
         if (!d->m_Configured)
             return;
+        bool skip_line = ar->event == LUA_HOOKLINE && SkipCallReturn(thread, L, ar->currentline);
         if (ar->event == LUA_HOOKLINE || ar->event == LUA_HOOKCOUNT)
         {
             if (d->m_PauseRequested || d->m_StopOnEntry)
@@ -1227,25 +1250,8 @@ namespace dmDebugger
                 return;
             }
         }
-        if (ar->event != LUA_HOOKLINE)
+        if (ar->event != LUA_HOOKLINE || skip_line)
             return;
-        if (thread->m_SkipSource)
-        {
-            int depth = StackDepth(L);
-            // LuaJIT emits a duplicate line event when a call returns. Consume
-            // only that event; another visit without a call is a loop iteration.
-            if (thread->m_SkipCall && depth == thread->m_SkipDepth && ar->currentline == thread->m_SkipLine &&
-                !strcmp(ar->source ? ar->source : "", thread->m_SkipSource))
-            {
-                thread->m_SkipCall = false;
-                return;
-            }
-            if (depth <= thread->m_SkipDepth)
-            {
-                free(thread->m_SkipSource);
-                thread->m_SkipSource = 0;
-            }
-        }
         Buffer path;
         RuntimePath(d, ar->source ? ar->source : "", path);
         for (uint32_t i = 0; i < d->m_Breakpoints.Size(); ++i)

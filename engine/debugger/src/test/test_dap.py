@@ -214,6 +214,9 @@ class DAPTests(unittest.TestCase):
                 return
         self.fail("No completion status")
 
+    # Exercises fragmented and coalesced requests, initialization/attach ordering,
+    # capability reporting, zero-based positions, and rejection of unsupported
+    # requests and arguments without losing the session.
     def test_initialization_framing_and_protocol_errors(self):
         c = self.start("local n = 1\nn = n + 1\n")
         c.request("threads", success=False)
@@ -240,6 +243,9 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks scope contents, nil/Unicode values, typed and cyclic table entries,
+    # variable filtering/paging, and evaluation errors. The resumed Lua program
+    # verifies edits to locals, upvalues, globals, and table entries.
     def test_variables_evaluate_and_mutation(self):
         c = self.start('''
             g = 11
@@ -298,6 +304,8 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks the exact source lines reached by step-in, step-over, and step-out
+    # through nested calls, plus stack paging and the total frame count.
     def test_step_in_over_out_and_stack_paging(self):
         c = self.start('''
             local function leaf(x)
@@ -333,6 +341,8 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks that stepping over Lua, recursive, and native tail calls completes
+    # the invocation and stops on the caller's next source line.
     def test_step_over_tail_calls(self):
         c = self.start('''
             local function leaf()
@@ -370,6 +380,8 @@ class DAPTests(unittest.TestCase):
             self.resume()
         self.finished()
 
+    # Checks that step-in enters a tail-called function and step-out returns to
+    # the source line following the original caller's invocation.
     def test_step_in_and_out_of_tail_call(self):
         c = self.start('''
             local function leaf()
@@ -394,6 +406,9 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks repeated breakpoint hits on real iterations of single-line loops
+    # containing arithmetic, native calls, or Lua calls. Local values distinguish
+    # successive iterations from duplicate hooks at the same source line.
     def test_breakpoints_repeat_on_one_line_loops(self):
         c = self.start('''
             local function add(a, b) return a + b end
@@ -424,6 +439,8 @@ class DAPTests(unittest.TestCase):
                 self.resume()
         self.finished()
 
+    # Checks that step-over revisits the same source line for the next loop
+    # iteration, with the accumulated value advancing from 1 to 3.
     def test_step_over_revisits_one_line_loop(self):
         c = self.start("local n = 0\nfor i = 1, 3 do n = n + i end -- loop\nassert(n == 6)\n")
         c.initialize()
@@ -439,6 +456,9 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks that table references evaluate assignments in their originating
+    # frame when caller and callee have different locals named x. Covers nested
+    # and cyclic tables and references returned by evaluate and setVariable.
     def test_table_assignments_use_the_originating_frame(self):
         c = self.start('''
             local function inner(t)
@@ -478,6 +498,9 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks stopping on the second hit and on a true Lua condition, plus one
+    # log message per iteration with expression interpolation and escaped braces.
+    # The final sum confirms that debugger operations preserve loop execution.
     def test_conditional_hit_breakpoints_and_logpoints(self):
         c = self.start('''
             local sum = 0
@@ -507,6 +530,9 @@ class DAPTests(unittest.TestCase):
         self.assertEqual(outputs[-1], "i=5 sum=15 {done}\n")
         self.finished()
 
+    # Checks replacement/removal of a source's breakpoints and verification once
+    # its lines are known. Invalid breakpoint data, IDs, stack ranges, and a pause
+    # request while already stopped must return unsuccessful responses.
     def test_breakpoint_replacement_and_invalid_arguments(self):
         c = self.start('''
             local n = 0 -- first
@@ -536,6 +562,96 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks that native calls, nested Lua calls, and multiple calls on one line
+    # emit exactly one log message per source-line visit across loop iterations.
+    def test_logpoints_ignore_call_return_events(self):
+        c = self.start('''
+            local function identity(n)
+                n = math.abs(n) -- nested
+                return n
+            end
+            local n = -1
+            for i = 1, 3 do
+                n = math.abs(n) -- native
+                n = identity(n) -- lua
+                n = math.abs(n) + math.abs(0) -- multiple
+            end
+            assert(n == 1)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("native"), "logMessage": "native {i}"},
+                         {"line": self.line("lua"), "logMessage": "lua {i}"},
+                         {"line": self.line("nested"), "logMessage": "nested {n}"},
+                         {"line": self.line("multiple"), "logMessage": "multiple {i}"})
+        c.configured()
+        self.finished()
+        outputs = [event["body"]["output"] for event in c.pending if event.get("event") == "output"]
+        expected = [output for i in range(1, 4)
+                    for output in (f"native {i}\n", f"lua {i}\n", "nested 1\n", f"multiple {i}\n")]
+        self.assertEqual(outputs, expected)
+
+    # Checks that call-return hooks neither advance hit counts nor reevaluate
+    # false conditions: second-hit breakpoints stop in iteration 2, and the
+    # condition executes exactly once in each of the three iterations.
+    def test_breakpoint_hits_ignore_call_return_events(self):
+        c = self.start('''
+            local function identity(n)
+                return n
+            end
+            checks = 0
+            local n = -1
+            for i = 1, 3 do
+                n = math.abs(n) -- native
+                n = identity(n) -- lua
+                n = math.abs(n) + math.abs(0) -- multiple
+                n = math.abs(n) -- conditional
+            end
+            assert(n == 1 and checks == 3)
+        ''')
+        c.initialize()
+        c.attach()
+        markers = ("native", "lua", "multiple")
+        self.breakpoints(*({"line": self.line(marker), "hitCondition": "2"} for marker in markers),
+                         {"line": self.line("conditional"),
+                          "condition": "(function() checks = checks + 1; return false end)()"})
+        c.configured()
+        for marker in markers:
+            self.assertEqual(self.stopped()[0]["line"], self.line(marker))
+            self.assertEqual(self.evaluate("i")["result"], "2")
+            self.resume()
+        self.finished()
+
+    # Checks that continuing with a suspended coroutine selected resumes the
+    # stopped main thread to the next breakpoint without stopping again on the
+    # native call's return hook.
+    def test_continue_other_thread_ignores_call_return_event(self):
+        c = self.start('''
+            local co = coroutine.create(function()
+                local n = 9
+                coroutine.yield(n)
+                return n
+            end)
+            assert(coroutine.resume(co))
+            local n = 1
+            n = math.abs(n) -- stop
+            assert(n == 1) -- after
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("stop")}, {"line": self.line("after")})
+        c.configured()
+        self.stopped()
+        other = next(t["id"] for t in c.request("threads")["threads"] if t["id"] != self.thread)
+        self.assertTrue(c.request("continue", {"threadId": other})["allThreadsContinued"])
+        c.event("continued")
+        self.assertEqual(self.stopped()[0]["line"], self.line("after"))
+        self.resume()
+        self.finished()
+
+    # Checks pause/continue and disconnect/reconnect, including rejection of
+    # frame and variable IDs from an earlier stop and successful evaluation
+    # after attaching a new client to the same running program.
     def test_pause_stale_references_disconnect_and_reconnect(self):
         c = self.start('''
             finish = false
@@ -573,6 +689,8 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks that closing the TCP connection while Lua is stopped releases the
+    # pause and lets the debuggee process exit without another client request.
     def test_abrupt_disconnect_resumes_lua(self):
         c = self.start('''
             local n = 1 -- stop
@@ -585,6 +703,9 @@ class DAPTests(unittest.TestCase):
         c.close()
         self.assertEqual(self.process.wait(timeout=5), 0, self.process.stderr.read())
 
+    # Checks that caught pcall errors are ignored and an uncaught error stops
+    # before unwinding, with its message and live local available for inspection.
+    # Continuing then propagates the original Lua error to the host.
     def test_uncaught_error_stack_and_exception_info(self):
         c = self.start('''
             local caught = pcall(function() error('caught') end)
@@ -609,6 +730,9 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished(expected=2)
 
+    # Checks distinct thread identities for independent Lua states, breakpoint
+    # hits and frame evaluation in created/wrapped coroutines and the second
+    # state, and preservation of coroutine yield/return results.
     def test_coroutines_and_multiple_lua_states(self):
         c = self.start('''
             local function worker(value)
@@ -647,6 +771,8 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks breakpoint matching with localRoot and zero-based line numbering,
+    # including the source path and line returned in the stopped stack frame.
     def test_local_root_mapping_and_zero_based_breakpoints(self):
         c = self.start("local value = 1\nvalue = value + 1 -- stop\nassert(value == 2)\n")
         c.initialize(linesStartAt1=False)
@@ -660,6 +786,37 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks drive-letter normalization for relative and absolute Lua sources,
+    # mixed path separators, and differently cased client/root drives. Returned
+    # source paths must preserve the casing of the remaining path components.
+    def test_windows_drive_case_in_source_mapping(self):
+        c = self.start('''
+            local source = "local n = 1\\nn = n + 1\\nassert(n == 2)\\n"
+            local paths = {"@main/Relative.script", "@C:/Projects/Game/main/Upper.script",
+                           "@c:/Projects/Game/main/lower.script"}
+            for _, path in ipairs(paths) do
+                local fn = assert(loadstring(source, path))
+                fn()
+            end
+        ''')
+        c.initialize()
+        c.attach(localRoot="C:\\Projects\\Game\\")
+        paths = ("c:\\Projects\\Game\\main\\Relative.script",
+                 "c:/Projects/Game/main/Upper.script", "C:/Projects/Game/main/lower.script")
+        for path in paths:
+            self.breakpoints({"line": 2}, path=path)
+        c.configured()
+        for path in paths:
+            frame = self.stopped()[0]
+            self.assertEqual(frame["line"], 2)
+            self.assertEqual(frame["source"]["path"], "c" + path[1:].replace("\\", "/"))
+            self.assertEqual(self.evaluate("n")["result"], "1")
+            self.resume()
+        self.finished()
+
+    # Checks that nil locals shadow globals in a custom function environment,
+    # REPL assignments update that environment, and an evaluated closure retains
+    # a snapshot of the frame's locals after the program resumes.
     def test_nil_shadowing_frame_environments_and_escaping_closures(self):
         c = self.start('''
             local function inner()
@@ -683,6 +840,8 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks step-in through coroutine.resume, step-out through yield back to the
+    # resumer, and an exit event plus removal from threads when the coroutine ends.
     def test_coroutine_stepping_and_exit_events(self):
         c = self.start('''
             local co = coroutine.create(function()
@@ -716,6 +875,9 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks next, stepIn, and stepOut on a coroutine's final return: execution
+    # stops on the resumer's next line and reports the completed thread's exit.
+    # Exercises both coroutine.resume and coroutine.wrap.
     def test_steps_return_from_completed_coroutines(self):
         c = self.start('''
             local function worker()
@@ -751,6 +913,9 @@ class DAPTests(unittest.TestCase):
                     self.resume()
         self.finished()
 
+    # Checks wrapped-coroutine arguments and yield/return values, including nils,
+    # across debugger detach, plus dead-coroutine errors and preservation of the
+    # identity of a non-string error object.
     def test_coroutine_wrap_results_and_errors_after_detach(self):
         c = self.start('''
             local function pack(...) return {n=select('#', ...), ...} end
@@ -778,6 +943,9 @@ class DAPTests(unittest.TestCase):
         c.request("disconnect")
         self.finished()
 
+    # Checks inspection and mutation of a yielded coroutine's bindings and tables
+    # while preserving its suspended status, frames, thread list, and resume value.
+    # Also checks evaluation errors and escaped closures surviving garbage collection.
     def test_evaluate_and_mutate_a_yielded_coroutine(self):
         c = self.start('''
             local up = 7
@@ -827,6 +995,8 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks evaluation of a selected caller's local and step-over through
+    # recursive calls, stopping at the return line with the completed result.
     def test_recursive_step_over_and_caller_evaluation(self):
         c = self.start('''
             local function factorial(n)
@@ -851,6 +1021,9 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks large string lengths and escaping of non-UTF-8/NUL bytes, then
+    # evaluates a debugger pump and garbage collection without losing access
+    # to the stopped frame's original local value.
     def test_large_binary_values_and_reentrant_update(self):
         c = self.start("local x = 1\nx = x + 1 -- inspect\nassert(x == 2)\n")
         c.initialize()
@@ -868,6 +1041,8 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks that failed logpoint and condition expressions emit diagnostics
+    # while Lua continues and completes its expected variable updates.
     def test_logpoint_and_condition_errors_preserve_execution(self):
         c = self.start("local x = 1\nx = x + 1 -- log\nx = x + 1 -- condition\nassert(x == 3)\n")
         c.initialize()
@@ -879,6 +1054,9 @@ class DAPTests(unittest.TestCase):
         self.assertIn("missing", c.event("output")["output"])
         self.finished()
 
+    # Checks that invalid or duplicate length headers, malformed JSON, and invalid
+    # UTF-8 close the connection. Each failure permits reconnecting, and a final
+    # valid session can still pause, modify, and finish the original Lua program.
     def test_malformed_json_and_headers(self):
         bad_messages = [b"Content-Length: -1\r\n\r\n", b"Content-Length: 2\r\nContent-Length: 2\r\n\r\n{}",
                         b"Content-Length: 4\r\n\r\n{bad", b"Content-Length: 2\r\n\r\n\xff\xff"]
@@ -900,6 +1078,8 @@ class DAPTests(unittest.TestCase):
         self.resume()
         self.finished()
 
+    # Checks rejection of a non-string logMessage, a newline from an empty
+    # logpoint, and interpolation of a table expression containing a quoted brace.
     def test_empty_logpoints_and_nested_expressions(self):
         c = self.start("local x = 1\nx = x + 1 -- empty\nx = x + 1 -- nested\nassert(x == 3)\n")
         c.initialize()
@@ -913,6 +1093,8 @@ class DAPTests(unittest.TestCase):
         self.assertEqual(c.event("output")["output"], "nested=}\n")
         self.finished()
 
+    # Checks that an oversized Content-Length closes an uninitialized session
+    # and releases the host waiting for a client so its Lua script can run.
     def test_malformed_transport_closes_session(self):
         c = self.start("local value = 1\nassert(value == 1)\n")
         c.socket.sendall(b"Content-Length: 99999999999999999999\r\n\r\n")
