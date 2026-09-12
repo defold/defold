@@ -153,7 +153,7 @@ namespace dmDebugger
     void       Respond(Debugger* d, int seq, const char* command, const Buffer* body = 0, const char* error = 0);
     void       Event(Debugger* d, const char* event, const Buffer* body = 0);
     lua_State* GetThread(Thread* thread);
-    Thread*    FindThread(Debugger* d, int id);
+    Thread*    FindThread(Debugger* d, int id, bool include_exited = false);
     Thread*    TrackThread(Debugger* d, lua_State* L);
     void       ClearReferences(Debugger* d);
     void       CaptureFrames(Debugger* d);

@@ -46,8 +46,9 @@ namespace dmDebugger
             for (int level = 0; lua_getstack(L, level, &ar); ++level)
             {
                 lua_getinfo(L, "S", &ar);
-                // C error handlers/debugger callbacks do not have Lua locals.
-                if (!strcmp(ar.what, "C"))
+                // C callbacks and Lua 5.1's eliminated tail-call placeholders
+                // have no inspectable Lua function or environment.
+                if (strcmp(ar.what, "Lua") && strcmp(ar.what, "main"))
                     continue;
                 lua_pushthread(L);
                 Frame frame = { d->m_NextId++, L, level, thread->m_Id, luaL_ref(L, LUA_REGISTRYINDEX) };
