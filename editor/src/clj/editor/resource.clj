@@ -33,7 +33,7 @@
             [util.text-util :as text-util])
   (:import [clojure.lang PersistentHashMap]
            [com.defold.editor Editor]
-           [java.io Closeable File FilterInputStream IOException InputStream]
+           [java.io Closeable File FilterInputStream InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
            [java.util.zip ZipEntry ZipFile]
@@ -190,11 +190,12 @@
        (or (.isFile value)
            (not (.exists value)))))
 
-(s/def ::proj-path-pattern
-  (s/and string?
-         #(string/starts-with? % "/")
-         #(not (string/ends-with? % "/"))))
+(defn proj-path? [value]
+  (and (string? value)
+       (string/starts-with? value "/")
+       (not (string/ends-with? value "/"))))
 
+(s/def ::proj-path-pattern proj-path?)
 (s/def ::proj-path-patterns (s/every ::proj-path-pattern :kind vector?))
 (s/def ::proj-path-pred ifn?)
 (s/def ::project-directory project-directory?)

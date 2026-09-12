@@ -51,7 +51,7 @@
 
 (defn- make-missing-file-error-info
   [proj-path]
-  {:pre [(string? proj-path)]}
+  {:pre [(resource/proj-path? proj-path)]}
   {:error-type :missing-file-error
    :proj-path proj-path})
 
@@ -67,7 +67,7 @@
 
 (defn- make-broken-symlink-error-info
   [proj-path target-path]
-  {:pre [(string? proj-path)
+  {:pre [(resource/proj-path? proj-path)
          (path/path? target-path)]}
   {:error-type :broken-symlink-error
    :proj-path proj-path
@@ -89,7 +89,7 @@
 
 (defn- setup-symlink-test-project!
   [graph-id project-path game-object-proj-path]
-  {:pre [(string? game-object-proj-path)]}
+  {:pre [(resource/proj-path? game-object-proj-path)]}
   (let [workspace (test-util/setup-workspace! graph-id project-path)]
     (test-util/write-file-resource! workspace
       "/main/main.collection"

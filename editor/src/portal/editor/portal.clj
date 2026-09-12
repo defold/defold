@@ -64,9 +64,7 @@
           (gt/target-id)))
 
 (defn- proj-path-node-id [^String proj-path evaluation-context]
-  (when (and (string? proj-path)
-             (< 1 (.length proj-path))
-             (= \/ (.charAt proj-path 0)))
+  (when (resource/proj-path? proj-path)
     (let [basis (:basis evaluation-context)
           project (project basis)]
       (project/get-resource-node project proj-path evaluation-context))))
