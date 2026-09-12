@@ -74,6 +74,13 @@ static dmConfigFile::HConfig Config(const char* text)
 // --late-attach, scripts run without enabling or waiting for the debugger.
 int main(int argc, char** argv)
 {
+    int updates = 0;
+    if (argc > 2 && strcmp(argv[1], "--updates") == 0)
+    {
+        updates = atoi(argv[2]);
+        argc -= 2;
+        argv += 2;
+    }
     bool late_attach = argc > 1 && strcmp(argv[1], "--late-attach") == 0;
     if (late_attach)
     {
@@ -112,6 +119,14 @@ int main(int argc, char** argv)
             lua_pop(L, 1);
         result |= status;
         Check(lua_gettop(L) == 0, "DAP corrupted the engine Lua stack");
+        // Separate protected calls mirror engine update callbacks on this context.
+        for (int frame = 0; frame < updates; ++frame)
+        {
+            lua_getglobal(L, "update");
+            Check(dmScript::PCall(L, 0, 0) == 0, "Update callback failed");
+            Check(lua_gettop(L) == 0, "DAP corrupted the callback Lua stack");
+            dmExtension::Update(&g_Params);
+        }
     }
     for (int i = 0; i < 50; ++i)
     {

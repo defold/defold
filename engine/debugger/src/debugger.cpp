@@ -30,6 +30,7 @@ namespace dmDebugger
         , m_Connections(0)
         , m_CloseDeadline(0)
         , m_Step(STEP_NONE)
+        , m_StepNativeTailCall(false)
         , m_Initialized(false)
         , m_Attached(false)
         , m_Configured(false)
@@ -155,7 +156,7 @@ namespace dmDebugger
             thread->m_OldCount = main->m_OldCount;
         }
         thread->m_Hooked = true;
-        lua_sethook(L, Hook, LUA_MASKLINE | LUA_MASKCALL | LUA_MASKCOUNT, 1000);
+        lua_sethook(L, Hook, LUA_MASKLINE | LUA_MASKCALL | LUA_MASKRET | LUA_MASKCOUNT, 1000);
     }
 
     static void ThreadEvent(Debugger* d, Thread* thread, const char* reason)
@@ -782,6 +783,7 @@ namespace dmDebugger
     {
         Thread* t = FindThread(d, thread);
         d->m_Step = step;
+        d->m_StepNativeTailCall = false;
         d->m_StepThread = thread;
         d->m_StepDepth = t ? StackDepth(GetThread(t)) : 0;
         d->m_Paused = false;
@@ -1287,6 +1289,20 @@ namespace dmDebugger
             Update(d);
         if (!d->m_Attached)
             return;
+        if (ar->event == LUA_HOOKRET || ar->event == LUA_HOOKTAILRET)
+        {
+            if (d->m_Step == STEP_OVER)
+            {
+                Thread*   thread = TrackThread(d, L);
+                lua_Debug caller;
+                // Once a callback actually returns to the engine, step into the
+                // next callback instead of mistaking it for a tail call. Lua 5.1
+                // reports the final return of a tail-call chain separately.
+                if (d->m_StepThread == thread->m_Id && !lua_getstack(L, 1, &caller))
+                    d->m_Step = STEP_IN;
+            }
+            return;
+        }
         Thread* thread = TrackThread(d, L);
         lua_getinfo(L, "nSl", ar);
         if (ar->event == LUA_HOOKCALL)
@@ -1294,10 +1310,18 @@ namespace dmDebugger
             int depth = StackDepth(L);
             if (d->m_Step == STEP_OVER && d->m_StepThread == thread->m_Id)
             {
+                // LuaJIT omits return hooks for fast native tail calls. A later
+                // call at the root depth means that native invocation has ended;
+                // Lua callbacks invoked inside it still have a deeper stack.
+                if (depth == 1 && d->m_StepNativeTailCall)
+                    d->m_Step = STEP_IN;
                 // LuaJIT replaces the caller's frame on a tail call. Keep
                 // stepping over the new invocation until its caller resumes.
-                if (depth <= d->m_StepDepth)
+                else if (depth <= d->m_StepDepth)
+                {
                     d->m_StepDepth = depth - 1;
+                    d->m_StepNativeTailCall = depth == 1 && !strcmp(ar->what, "C");
+                }
             }
             RecordCallSite(thread, L, depth);
             ObserveSource(d, L, ar);

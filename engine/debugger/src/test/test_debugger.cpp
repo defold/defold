@@ -8,6 +8,7 @@
 #include <dlib/time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 extern "C"
 {
 #include <lua/lua.h>
@@ -103,6 +104,13 @@ static int Run(lua_State* L, const char* path)
 // must restore the previous hooks and allow subsequent Lua execution.
 int main(int argc, char** argv)
 {
+    int updates = 0;
+    if (argc > 2 && strcmp(argv[1], "--updates") == 0)
+    {
+        updates = atoi(argv[2]);
+        argc -= 2;
+        argv += 2;
+    }
     if (argc < 2)
         return 1;
     Check(dmSocket::Initialize() == dmSocket::RESULT_OK, "Socket initialization failed");
@@ -116,6 +124,14 @@ int main(int argc, char** argv)
     int result = Run(first, argv[1]);
     if (second)
         result |= Run(second, argv[2]);
+    // Invoke separate callbacks from C, as the engine does between frames.
+    for (int i = 0; i < updates; ++i)
+    {
+        lua_getglobal(first, "update");
+        Check(lua_pcall(first, 0, 0, 0) == 0, "Update callback failed");
+        Check(lua_gettop(first) == 0, "Debugger corrupted the callback Lua stack");
+        dmDebugger::Update(g_Debugger);
+    }
     // Let the client receive final responses before the host shuts down.
     for (int i = 0; i < 50; ++i)
     {
