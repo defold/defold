@@ -34,9 +34,12 @@ it does not wait for a client or pause the project. An omitted port uses
 `debugger.port` (8172 by default); pass 0 to select an available port. Repeated
 calls return the existing listener's port. Invalid ports or a bind failure raise
 a Lua error and allow retrying with another port.
+If the configured listener fails during engine startup, the engine logs the
+reason and continues; `debugger.start(0)` can retry on an available port.
 
-Runtime activation registers all live script contexts, so scripts that have
-already initialized retain their state and can be debugged after attachment.
+Runtime activation registers all live script contexts and discovers existing
+coroutines through reachable Lua references, including frame locals and function
+upvalues. Already suspended coroutines can be inspected without resuming them.
 Until activation, the extension leaves Lua hooks, coroutine functions, and JIT
 settings alone and opens no DAP socket. The `debugger` Lua module is available
 only in native debug and headless engines.
@@ -102,7 +105,8 @@ suspended state. In either case it reads and writes the selected frame's binding
 and has the same side effects as executing that Lua code normally.
 
 `setExpression` accepts a Lua assignment target and a value expression. It returns
-the assigned value and evaluates the target and value once. It also works on a
+the assigned value and evaluates the target and value once in normal Lua
+assignment order. It also works on a
 yielded coroutine without resuming that coroutine.
 
 Hover evaluation is restricted to identifiers and direct table paths such as

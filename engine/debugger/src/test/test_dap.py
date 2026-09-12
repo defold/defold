@@ -134,8 +134,8 @@ class DAPTests(unittest.TestCase):
             self.process.stderr.close()
         self.temp.cleanup()
 
-    def start(self, source, second=None, late_attach=False, updates=0):
-        if late_attach and pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
+    def start(self, source, second=None, late_attach=False, updates=0, prelude=None, startup_port=None):
+        if (late_attach or startup_port is not None) and pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
             self.skipTest("Runtime activation requires the engine extension host")
         self.source = textwrap.dedent(source).lstrip("\n")
         self.path = pathlib.Path(self.temp.name) / "main.lua"
@@ -146,6 +146,12 @@ class DAPTests(unittest.TestCase):
             self.second_path.write_text(textwrap.dedent(second).lstrip("\n"), encoding="utf-8")
             paths.append(str(self.second_path))
         options = ["--updates", str(updates)] if updates else []
+        if prelude is not None:
+            prelude_path = pathlib.Path(self.temp.name) / "prelude.lua"
+            prelude_path.write_text(textwrap.dedent(prelude).lstrip("\n"), encoding="utf-8")
+            options.extend(["--prelude", str(prelude_path)])
+        if startup_port is not None:
+            options.extend(["--startup-port", str(startup_port)])
         if late_attach:
             options.append("--late-attach")
         self.process = subprocess.Popen([DEBUGGEE, *options, *paths], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -257,11 +263,99 @@ class DAPTests(unittest.TestCase):
         c.configured()
         self.stopped("entry")
         self.assertEqual(self.evaluate("count > 5")["result"], "true")
+        coroutine = next(t for t in c.request("threads")["threads"] if t["id"] != self.thread)
+        frame = c.request("stackTrace", {"threadId": coroutine["id"]})["stackFrames"][0]["id"]
+        self.assertEqual(c.request("evaluate", {"frameId": frame, "expression": "value"})["result"], "41")
+        c.request("setExpression", {"frameId": frame, "expression": "value", "value": "81"})
         self.evaluate("ready = true", context="repl")
         self.resume()
         self.assertEqual(self.stopped()[0]["line"], self.line("existing-coroutine"))
-        self.assertEqual(self.evaluate("value")["result"], "41")
+        self.assertEqual(self.evaluate("value")["result"], "81")
         self.evaluate("value = 100", context="repl")
+        self.resume()
+        self.finished()
+
+    # Discovers coroutines created before registration through table keys,
+    # function upvalues, registry entries, userdata environments, wrapped
+    # functions, and another suspended thread's locals. Inspection and edits
+    # must not resume them or keep them alive after their owners release them.
+    def test_preexisting_coroutine_discovery_and_collection(self):
+        c = self.start('''
+            local function finish()
+                for co in pairs(existing.by_key) do assert(coroutine.resume(co)) end
+                existing.finish_hidden()
+                local registry = debug.getregistry()
+                assert(coroutine.resume(registry.dap_pending))
+                registry.dap_pending = nil
+                assert(coroutine.resume(existing.parent))
+                existing.wrapped()
+                assert(coroutine.resume(debug.getfenv(existing.proxy).thread))
+            end
+            local marker = 0 -- inspect
+            finish()
+            existing = nil
+            collectgarbage('collect')
+            collectgarbage('collect')
+            assert(next(existing_weak) == nil)
+            marker = 1 -- collected
+        ''', prelude='''
+            existing = setmetatable({}, {__index = function() error('Unexpected inspection side effect') end})
+            existing_weak = setmetatable({}, {__mode = 'v'})
+            local function make(id)
+                local co = coroutine.create(function()
+                    local pending = id
+                    coroutine.yield()
+                    assert(pending == id + 100)
+                end)
+                assert(coroutine.resume(co))
+                existing_weak[id] = co
+                return co
+            end
+            existing.by_key = {[make(1)] = true}
+            local hidden = make(2)
+            existing.finish_hidden = function()
+                assert(coroutine.resume(hidden))
+                hidden = nil
+            end
+            debug.getregistry().dap_pending = make(3)
+            existing.parent = coroutine.create(function()
+                local child = make(4)
+                coroutine.yield()
+                assert(coroutine.resume(child))
+            end)
+            assert(coroutine.resume(existing.parent))
+            existing.wrapped = coroutine.wrap(function()
+                local pending = 5
+                coroutine.yield()
+                assert(pending == 105)
+            end)
+            existing.wrapped()
+            existing.proxy = newproxy(true)
+            debug.setfenv(existing.proxy, {thread = make(6)})
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")}, {"line": self.line("collected")})
+        c.configured()
+        self.stopped()
+        threads = c.request("threads")["threads"]
+        self.assertEqual(len(threads), 8)
+        inspected = set()
+        for thread in threads:
+            if thread["id"] == self.thread:
+                continue
+            frame = c.request("stackTrace", {"threadId": thread["id"]})["stackFrames"][0]["id"]
+            scopes = c.request("scopes", {"frameId": frame})["scopes"]
+            locals_ref = next(s["variablesReference"] for s in scopes if s["name"] == "Locals")
+            pending = next((v for v in self.variables(locals_ref) if v["name"] == "pending"), None)
+            if pending:
+                value = int(pending["value"])
+                inspected.add(value)
+                c.request("setVariable", {"variablesReference": locals_ref, "name": "pending", "value": str(value + 100)})
+        self.assertEqual(inspected, set(range(1, 7)))
+        self.resume()
+        self.assertEqual(self.stopped()[0]["line"], self.line("collected"))
+        self.assertEqual([t["id"] for t in c.request("threads")["threads"]], [self.thread])
         self.resume()
         self.finished()
 
@@ -341,6 +435,45 @@ class DAPTests(unittest.TestCase):
             self.resume()
             self.finished()
 
+    # A bind failure on the first extension initialization must leave its update
+    # callback enabled so a later Lua start on a free port can accept a client.
+    def test_startup_bind_failure_can_retry(self):
+        if pathlib.Path(DEBUGGEE).stem != "dap_debuggee_engine":
+            self.skipTest("Startup configuration requires the engine extension host")
+        with socket.socket() as occupied:
+            occupied.bind(("127.0.0.1", 0))
+            occupied.listen(1)
+            c = self.start('''
+                assert(debug.gethook() == nil)
+                assert(debugger.start(0) > 0)
+                ready = false
+                while not ready do pump() end
+            ''', startup_port=occupied.getsockname()[1])
+            c.initialize()
+            c.attach(stopOnEntry=True)
+            c.configured()
+            self.stopped("entry")
+            self.evaluate("ready = true", context="repl")
+            self.resume()
+            self.finished()
+
+    # Invalid startup settings must also permit runtime activation with a valid
+    # port, without blocking startup on debugger.wait when no listener exists.
+    def test_invalid_startup_port_can_retry(self):
+        c = self.start('''
+            assert(debug.gethook() == nil)
+            assert(debugger.start(0) > 0)
+            ready = false
+            while not ready do pump() end
+        ''', startup_port=-1)
+        c.initialize()
+        c.attach(stopOnEntry=True)
+        c.configured()
+        self.stopped("entry")
+        self.evaluate("ready = true", context="repl")
+        self.resume()
+        self.finished()
+
     # Counts only visits whose Lua condition is true, for both stopping
     # breakpoints and logpoints. Conditions still execute once on every visit,
     # including after the configured hit has passed.
@@ -417,6 +550,54 @@ class DAPTests(unittest.TestCase):
         c.request("setExpression", {"frameId": self.frame, "expression": "1 + 2", "value": "3"}, success=False)
         c.request("setExpression", {"frameId": self.frame, "expression": "1 + 2", "value": "replacement()", "context": "repl"}, success=False)
         c.request("setExpression", {"frameId": 999999, "expression": "shadow", "value": "0"}, success=False)
+        self.resume()
+        self.finished()
+
+    # Computed targets must run before the RHS, exactly once each. Capture the
+    # returned value without reading the destination, even for a metamethod
+    # assignment. The generated helper names must not shadow frame bindings.
+    def test_set_expression_preserves_assignment_order(self):
+        c = self.start('''
+            local first, second = {}, {}
+            local current = first
+            local order = ''
+            local __dap_value_0, __dap_capture_0 = 4, 5
+            local function destination()
+                order = order .. 'target;'
+                return current
+            end
+            local function key()
+                order = order .. 'key;'
+                return 'value'
+            end
+            local function replacement()
+                order = order .. 'value;'
+                current = second
+                return __dap_value_0 + __dap_capture_0
+            end
+            local assigned, writes = nil, 0
+            local proxy = setmetatable({}, {
+                __newindex = function(_, _, value) assigned = value; writes = writes + 1 end,
+                __index = function() error('Assignment target was read again') end
+            })
+            local marker = 0 -- inspect
+            assert(first.value == 9 and second.value == nil)
+            assert(first.helper == 9)
+            assert(order == 'target;key;value;')
+            assert(assigned == false and writes == 1)
+        ''')
+        c.initialize()
+        c.attach()
+        self.breakpoints({"line": self.line("inspect")})
+        c.configured()
+        self.stopped()
+        assigned = c.request("setExpression", {"frameId": self.frame, "expression": "destination()[key()]",
+                                                "value": "replacement()"})
+        self.assertEqual(assigned["value"], "9")
+        self.assertEqual(c.request("setExpression", {"frameId": self.frame, "expression": "first.helper",
+                                                     "value": "__dap_value_0 + __dap_capture_0"})["value"], "9")
+        self.assertEqual(c.request("setExpression", {"frameId": self.frame, "expression": "proxy.value", "value": "false"})["value"], "false")
+        self.assertEqual(self.evaluate("order")["result"], '"target;key;value;"')
         self.resume()
         self.finished()
 

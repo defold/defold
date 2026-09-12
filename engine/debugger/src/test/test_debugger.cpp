@@ -67,7 +67,7 @@ static void CheckWrappedResumeDepth(lua_State* L)
 }
 #endif
 
-static lua_State* Create(const char* name)
+static lua_State* Create(const char* name, const char* prelude)
 {
     lua_State* L = luaL_newstate();
     Check(L != 0, "luaL_newstate failed");
@@ -75,6 +75,8 @@ static lua_State* Create(const char* name)
     lua_pushcfunction(L, Pump);
     lua_setglobal(L, "pump");
     lua_sethook(L, OldHook, LUA_MASKCOUNT, 100);
+    if (prelude)
+        Check(luaL_dofile(L, prelude) == 0, "Prelude failed before debugger registration");
     dmDebugger::AddLuaState(g_Debugger, L, name);
 #if defined(DM_LUA_USE_LUA51)
     CheckWrappedResumeDepth(L);
@@ -111,13 +113,20 @@ int main(int argc, char** argv)
         argc -= 2;
         argv += 2;
     }
+    const char* prelude = 0;
+    if (argc > 2 && strcmp(argv[1], "--prelude") == 0)
+    {
+        prelude = argv[2];
+        argc -= 2;
+        argv += 2;
+    }
     if (argc < 2)
         return 1;
     Check(dmSocket::Initialize() == dmSocket::RESULT_OK, "Socket initialization failed");
     g_Debugger = dmDebugger::New(0);
     Check(g_Debugger != 0, "Debugger listener failed");
-    lua_State* first = Create("main");
-    lua_State* second = argc > 2 ? Create("second") : 0;
+    lua_State* first = Create("main", prelude);
+    lua_State* second = argc > 2 ? Create("second", prelude) : 0;
     printf("PORT %u\n", dmDebugger::GetPort(g_Debugger));
     fflush(stdout);
     dmDebugger::WaitForClient(g_Debugger);
