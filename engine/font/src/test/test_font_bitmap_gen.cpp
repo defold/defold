@@ -223,10 +223,26 @@ static void CreateImageBank(ImageBank& bank, HFont source, const FontGlyphGenPar
             int id, x, y, w, h, ox, oy, advance;
             if (sscanf(line, "char id=%d x=%d y=%d width=%d height=%d xoffset=%d yoffset=%d xadvance=%d", &id, &x, &y, &w, &h, &ox, &oy, &advance) != 8)
                 continue;
+            // Validate the atlas rectangle before converting dimensions to unsigned byte sizes.
+            ASSERT_GE(x, 0);
+            ASSERT_GE(y, 0);
+            ASSERT_GE(w, 0);
+            ASSERT_GE(h, 0);
+            ASSERT_LE(x, width);
+            ASSERT_LE(y, height);
+            ASSERT_LE(w, width - x);
+            ASSERT_LE(h, height - y);
+            const size_t row_bytes = (size_t)w * 4;
+            const size_t glyph_bytes = row_bytes * (size_t)h;
+            ASSERT_LE(glyph_bytes, (size_t)UINT32_MAX);
             FontGlyph glyph = {};
-            glyph.m_Bitmap.m_Data = (uint8_t*)malloc(w * h * 4);
-            for (int row = 0; row < h; ++row)
-                memcpy(glyph.m_Bitmap.m_Data + row * w * 4, bank.m_Atlas + ((y + row) * width + x) * 4, w * 4);
+            if (glyph_bytes > 0)
+            {
+                glyph.m_Bitmap.m_Data = (uint8_t*)malloc(glyph_bytes);
+                ASSERT_NE((uint8_t*)0, glyph.m_Bitmap.m_Data);
+                for (int row = 0; row < h; ++row)
+                    memcpy(glyph.m_Bitmap.m_Data + (size_t)row * row_bytes, bank.m_Atlas + ((size_t)(y + row) * width + x) * 4, row_bytes);
+            }
             FontGlyphBankGlyph entry = {};
             entry.m_Codepoint = id;
             entry.m_Width = w;
@@ -235,7 +251,7 @@ static void CreateImageBank(ImageBank& bank, HFont source, const FontGlyphGenPar
             entry.m_Ascent = 40 - oy;
             entry.m_Descent = h - entry.m_Ascent;
             entry.m_Data = glyph.m_Bitmap.m_Data;
-            entry.m_DataSize = w * h * 4;
+            entry.m_DataSize = (uint32_t)glyph_bytes;
             bank.m_Glyphs.Push(glyph);
             bank.m_Entries.Push(entry);
         }
