@@ -654,6 +654,8 @@ def build_reports(images, output, binaries, generation_results):
             case=dict(case,id=configuration+'-'+name,full_layout=full,rich_text=rich,background=[0,0,0],
                 scenario=configuration,options_description=f"{case['source']} · {'multi' if case['multi'] else 'single'} layer · {configuration} · {case['scenario']} · outline {case['outline']} px",
                 reproduce_command=command)
+            if case['change']:
+                case['options_description'] += ' · short text/half outline → full text/full outline; shared atlas and GPU resources'
             if name.endswith('_named_style'):
                 case['options_description'] += ' · named style requests 2 px'
                 if 'bitmap' in case['source']:

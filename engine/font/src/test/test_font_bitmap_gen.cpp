@@ -313,6 +313,35 @@ static bool ResolveImageGlyph(void* context, const TextGlyph& glyph, FontLayoutC
     return false;
 }
 
+// Render and finish readback without destroying resources, so transition cases
+// can draw both states through the same atlas, buffer and render target.
+static void CaptureFontImage(dmGraphics::HRenderTarget target, dmGraphics::HTexture texture,
+                             dmGraphics::HVertexBuffer buffer, dmGraphics::HProgram program,
+                             uint32_t vertex_count, uint32_t width, uint32_t height, dmArray<uint8_t>& pixels)
+{
+    dmGraphics::BeginFrame(g_ImageContext);
+    dmGraphics::SetRenderTarget(g_ImageContext, target, 0);
+    dmGraphics::SetViewport(g_ImageContext, 0, 0, width, height);
+    dmGraphics::Clear(g_ImageContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1, 0);
+    dmGraphics::EnableState(g_ImageContext, dmGraphics::STATE_BLEND);
+    dmGraphics::SetBlendFunc(g_ImageContext, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+    dmGraphics::EnableProgram(g_ImageContext, program);
+    dmVMath::Matrix4 projection = dmVMath::Matrix4::orthographic(0, width, 0, height, -1, 1);
+    dmGraphics::SetConstantM4(g_ImageContext, (dmVMath::Vector4*)&projection, 1, dmGraphics::FindUniformLocation(program, "view_proj"));
+    dmGraphics::EnableTexture(g_ImageContext, 0, 0, texture);
+    dmGraphics::EnableVertexBuffer(g_ImageContext, buffer, 0);
+    dmGraphics::EnableVertexDeclaration(g_ImageContext, g_ImageDeclaration, 0, 0, program);
+    dmGraphics::Draw(g_ImageContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertex_count, 1);
+    pixels.SetCapacity(width * height * 4);
+    pixels.SetSize(pixels.Capacity());
+    dmGraphics::ReadPixels(g_ImageContext, 0, 0, width, height, pixels.Begin(), pixels.Size());
+    dmGraphics::DisableVertexDeclaration(g_ImageContext, g_ImageDeclaration);
+    dmGraphics::DisableVertexBuffer(g_ImageContext, buffer);
+    dmGraphics::DisableTexture(g_ImageContext, 0, texture);
+    dmGraphics::SetRenderTarget(g_ImageContext, 0, 0);
+    dmGraphics::Flip(g_ImageContext);
+}
+
 static void TestFontImage(const FontImageCase& c)
 {
     InitializeFontImages();
@@ -377,12 +406,6 @@ static void TestFontImage(const FontImageCase& c)
     settings.m_BaseStyle = strstr(c.m_Name, "named_style") ? dmHashString64("notice") : default_style;
     dmArray<uint32_t> codepoints;
     HTextLayout       layout = 0;
-    if (c.m_Change)
-    {
-        TextToCodePoints("OLD", codepoints);
-        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, codepoints.Begin(), codepoints.Size(), &settings, &layout));
-        TextLayoutRelease(layout);
-    }
     if (c.m_Markup)
     {
         HMarkup markup = 0;
@@ -570,28 +593,67 @@ static void TestFontImage(const FontImageCase& c)
     dmGraphics::HVertexBuffer buffer = dmGraphics::NewVertexBuffer(g_ImageContext, vertices.Size() * sizeof(FontGlyphVertex), vertices.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
     dmGraphics::HProgram      program = g_ImagePrograms[fnt ? 2 : bitmap ? 1 :
                                                                            0];
-    dmGraphics::BeginFrame(g_ImageContext);
-    dmGraphics::SetRenderTarget(g_ImageContext, target, 0);
-    dmGraphics::SetViewport(g_ImageContext, 0, 0, width, height);
-    dmGraphics::Clear(g_ImageContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1, 0);
-    dmGraphics::EnableState(g_ImageContext, dmGraphics::STATE_BLEND);
-    dmGraphics::SetBlendFunc(g_ImageContext, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
-    dmGraphics::EnableProgram(g_ImageContext, program);
-    dmVMath::Matrix4 projection = dmVMath::Matrix4::orthographic(0, width, 0, height, -1, 1);
-    dmGraphics::SetConstantM4(g_ImageContext, (dmVMath::Vector4*)&projection, 1, dmGraphics::FindUniformLocation(program, "view_proj"));
-    dmGraphics::EnableTexture(g_ImageContext, 0, 0, texture);
-    dmGraphics::EnableVertexBuffer(g_ImageContext, buffer, 0);
-    dmGraphics::EnableVertexDeclaration(g_ImageContext, g_ImageDeclaration, 0, 0, program);
-    dmGraphics::Draw(g_ImageContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, vertices.Size(), 1);
+    dmArray<uint8_t> previous_pixels;
+    if (c.m_Change)
+    {
+        const uint64_t expected_vertices = dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex));
+        TextRenderStyle previous_style = base;
+        previous_style.m_OutlineAlpha = 0.5f;
+        FontCollectionSetNamedStyle(collection, default_style, previous_style, 0, 0);
+        TextLayoutUpdate(layout, 0.0f);
+
+        // Text is immutable in the font library: replace the layout while retaining
+        // cached glyphs and GPU resources. These letters are already in the atlas.
+        TextToCodePoints("ABCDEFG", codepoints);
+        HTextLayout previous_layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, codepoints.Begin(), codepoints.Size(), &settings, &previous_layout));
+        FontLayoutVertexConfig previous_config = config;
+        previous_config.m_Layout = previous_layout;
+        FontLayoutVertexMetrics previous_metrics;
+        ASSERT_TRUE(FontGetLayoutVertexMetrics(previous_config, &previous_metrics));
+        ASSERT_LT(previous_metrics.m_VertexCount, metrics.m_VertexCount);
+        dmArray<FontGlyphVertex> previous_vertices;
+        previous_vertices.SetCapacity(previous_metrics.m_VertexCount);
+        previous_vertices.SetSize(previous_metrics.m_VertexCount);
+        ASSERT_EQ(previous_metrics.m_VertexCount, FontCreateLayoutVertices(previous_config, previous_metrics, previous_vertices.Begin(), previous_vertices.Size()));
+        bool previous_outline = false;
+        for (uint32_t i = 0; i < previous_vertices.Size(); ++i)
+        {
+            previous_vertices[i].m_Position[0] += geometry.m_OriginX;
+            previous_vertices[i].m_Position[1] += height - geometry.m_OriginTop;
+            previous_outline |= previous_vertices[i].m_OutlineColor[3] == 127;
+        }
+        ASSERT_TRUE(previous_outline);
+        dmGraphics::SetVertexBufferData(buffer, previous_vertices.Size() * sizeof(FontGlyphVertex), previous_vertices.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        CaptureFontImage(target, texture, buffer, program, previous_vertices.Size(), width, height, previous_pixels);
+        bool previous_visible = false;
+        for (uint32_t i = 0; i < previous_pixels.Size(); i += 4)
+            previous_visible |= previous_pixels[i] || previous_pixels[i + 1] || previous_pixels[i + 2];
+        ASSERT_TRUE(previous_visible);
+        TextLayoutRelease(previous_layout);
+
+        // Refresh the retained final layout after changing its named style back.
+        // Its regenerated vertices must match a fresh layout, not retain half alpha.
+        FontCollectionSetNamedStyle(collection, default_style, base, 0, 0);
+        TextLayoutUpdate(layout, 0.0f);
+        ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+        ASSERT_EQ(vertices.Size(), metrics.m_VertexCount);
+        ASSERT_EQ(metrics.m_VertexCount, FontCreateLayoutVertices(config, metrics, vertices.Begin(), vertices.Size()));
+        for (uint32_t i = 0; i < vertices.Size(); ++i)
+        {
+            vertices[i].m_Position[0] += geometry.m_OriginX;
+            vertices[i].m_Position[1] += height - geometry.m_OriginTop;
+        }
+        ASSERT_EQ(expected_vertices, dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex)));
+        dmGraphics::SetVertexBufferData(buffer, vertices.Size() * sizeof(FontGlyphVertex), vertices.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+    }
     dmArray<uint8_t> pixels;
-    pixels.SetCapacity(width * height * 4);
-    pixels.SetSize(pixels.Capacity());
-    dmGraphics::ReadPixels(g_ImageContext, 0, 0, width, height, pixels.Begin(), pixels.Size());
-    dmGraphics::DisableVertexDeclaration(g_ImageContext, g_ImageDeclaration);
-    dmGraphics::DisableVertexBuffer(g_ImageContext, buffer);
-    dmGraphics::DisableTexture(g_ImageContext, 0, texture);
-    dmGraphics::SetRenderTarget(g_ImageContext, 0, 0);
-    dmGraphics::Flip(g_ImageContext);
+    CaptureFontImage(target, texture, buffer, program, vertices.Size(), width, height, pixels);
+    if (c.m_Change)
+    {
+        ASSERT_EQ(previous_pixels.Size(), pixels.Size());
+        ASSERT_NE(0, memcmp(previous_pixels.Begin(), pixels.Begin(), pixels.Size()));
+    }
     dmGraphics::DeleteVertexBuffer(buffer);
     dmGraphics::DeleteTexture(g_ImageContext, texture);
     dmGraphics::DeleteRenderTarget(g_ImageContext, target);
