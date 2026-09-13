@@ -19,6 +19,8 @@
 #include "../../../../graphics/src/null/graphics_null_private.h"
 #include "../../../../particle/src/particle_private.h"
 #include "../../../../render/src/render/render_private.h"
+#include "../../../../render/src/render/font/font_renderer_api.h"
+#include "../../../../render/src/render/font/default/font_default_vertex.h"
 #include "../../../../render/src/render/font/fontmap_private.h"
 #include "../../../../resource/src/resource_private.h"
 #include "../../../../gui/src/gui_private.h"
@@ -3510,7 +3512,7 @@ TEST_F(GuiResourceTest, ScriptSetFonts)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-TEST_F(FontTest, GlyphBankTest)
+TEST_F(FontTest, TrueTypeFontsUseRuntimeGeneration)
 {
     const char path_font_1[] = "/font/glyph_bank_test_1.fontc";
     const char path_font_2[] = "/font/glyph_bank_test_2.fontc";
@@ -3528,23 +3530,10 @@ TEST_F(FontTest, GlyphBankTest)
     dmRender::HFontMap font_map_2 = dmGameSystem::ResFontGetHandle(font_2);
     ASSERT_NE((void*)0, font_map_2);
 
-    HFontCollection font_collection1 = dmRender::GetFontCollection(font_map_1);
-    HFontCollection font_collection2 = dmRender::GetFontCollection(font_map_2);
-    HFont hfont_1 = FontCollectionGetFont(font_collection1, 0);
-    HFont hfont_2 = FontCollectionGetFont(font_collection2, 0);
-
-    FontResult r;
-    FontGlyph* glyph_1 = 0;
-    r = GetGlyph(font_map_1, hfont_1, 'A', &glyph_1);
-    ASSERT_EQ(FONT_RESULT_OK, r);
-    ASSERT_NE((FontGlyph*)0, glyph_1);
-
-    FontGlyph* glyph_2 = 0;
-    r = GetGlyph(font_map_2, hfont_2, 'A', &glyph_2);
-    ASSERT_EQ(FONT_RESULT_OK, r);
-    ASSERT_NE((FontGlyph*)0, glyph_2);
-
-    ASSERT_NE(glyph_1->m_Bitmap.m_Data, glyph_2->m_Bitmap.m_Data);
+    // Font effects differ in render parameters; both TTF resources retain the
+    // source font and generate their vector glyph data on demand.
+    ASSERT_TRUE(font_1->m_IsDynamic);
+    ASSERT_TRUE(font_2->m_IsDynamic);
 
     dmResource::Release(m_Factory, font_1);
     dmResource::Release(m_Factory, font_2);
@@ -3554,8 +3543,10 @@ TEST_F(FontTest, GlyphBankRecreateKeepsFontHandle)
 {
     dmGameSystem::FontResource* font_1;
     dmGameSystem::FontResource* font_2;
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/glyph_bank_test_1.fontc", (void**)&font_1));
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/glyph_bank_test_2.fontc", (void**)&font_2));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/static_glyph_bank_test_1.fontc", (void**)&font_1));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/static_glyph_bank_test_2.fontc", (void**)&font_2));
+    ASSERT_NE((dmGameSystem::GlyphBankResource*)0, font_1->m_GlyphBankResource);
+    ASSERT_NE((dmGameSystem::GlyphBankResource*)0, font_2->m_GlyphBankResource);
 
     HFont    hfont_1 = dmGameSystem::GetFont(font_1->m_GlyphBankResource);
     HFont    hfont_2 = dmGameSystem::GetFont(font_2->m_GlyphBankResource);
@@ -3903,6 +3894,242 @@ TEST_F(FontTest, PrewarmTextRejectsCallbackAfterScriptInstanceReuse)
 
     dmResource::Release(m_Factory, font);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(FontTest, VectorFontPrewarmPreservesOutline)
+{
+    const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
+    dmGameSystem::FontResource* font = 0;
+    DynamicFontJobCallbackState callback_state = {0, -1, {0}};
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font, (void**) &font));
+    ASSERT_NE((void*)0, font);
+
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    font_map->m_IsVector = 1;
+    font_map->m_Size = 32.0f;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, "Lorem ipsum", DynamicFontJobCallback, &callback_state));
+    ASSERT_EQ(32.0f, dmRender::GetFontMapSize(font_map));
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, "dolor", DynamicFontJobCallback, &callback_state));
+    ASSERT_EQ(32.0f, dmRender::GetFontMapSize(font_map));
+    ASSERT_TRUE(WaitForDynamicFontJobCallbacks(m_JobContext, &callback_state, 2));
+    ASSERT_EQ(1, callback_state.m_Result);
+
+    HFontCollection font_collection = dmRender::GetFontCollection(font_map);
+    HFont hfont = FontCollectionGetFont(font_collection, 0);
+    FontGlyph* glyph = 0;
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, 'L', &glyph));
+    ASSERT_NE((FontGlyph*)0, glyph);
+    ASSERT_GT(glyph->m_Outline.m_CommandCount, 0u);
+    ASSERT_EQ((const uint8_t*)0, glyph->m_Bitmap.m_Data);
+
+    dmResource::Release(m_Factory, font);
+}
+
+TEST_F(FontTest, VectorFontPrewarmWithoutEffectsUsesCurveReferenceSize)
+{
+    const char path_font[] = "/font/dynamic_vector.fontc";
+    dmGameSystem::FontResource* font = 0;
+    DynamicFontJobCallbackState callback_state = {0, -1, {0}};
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font, (void**) &font));
+    ASSERT_NE((void*)0, font);
+
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    ASSERT_TRUE(dmRender::GetFontMapIsVector(font_map));
+    ASSERT_EQ(16.0f, dmRender::GetFontMapSize(font_map));
+    ASSERT_TRUE(font->m_PrewarmDone);
+    HFontCollection font_collection = dmRender::GetFontCollection(font_map);
+    HFont hfont = FontCollectionGetFont(font_collection, 0);
+    uint64_t prewarm_key = dmRender::MakeGlyphIndexKey(hfont, FontGetGlyphIndex(hfont, 'P'));
+    FontGlyph** prewarmed_glyph = font_map->m_Glyphs.Get(prewarm_key);
+    ASSERT_NE((FontGlyph**)0, prewarmed_glyph);
+    ASSERT_GT((*prewarmed_glyph)->m_Outline.m_CommandCount, 0u);
+    ASSERT_EQ((const uint8_t*)0, (*prewarmed_glyph)->m_Bitmap.m_Data);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, "Curve only", DynamicFontJobCallback, &callback_state));
+    ASSERT_EQ(16.0f, dmRender::GetFontMapSize(font_map));
+    ASSERT_TRUE(WaitForDynamicFontJobCallbacks(m_JobContext, &callback_state, 1));
+    ASSERT_EQ(1, callback_state.m_Result);
+
+    FontGlyph* glyph = 0;
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, 'C', &glyph));
+    ASSERT_NE((FontGlyph*)0, glyph);
+    ASSERT_GT(glyph->m_Outline.m_CommandCount, 0u);
+    ASSERT_EQ((const uint8_t*)0, glyph->m_Bitmap.m_Data);
+
+    dmResource::Release(m_Factory, font);
+}
+
+TEST_F(FontTest, VectorFontBitmapPrewarmUsesFontResourceSize)
+{
+    const char path_font[] = "/font/dynamic_vector_outline.fontc";
+    dmGameSystem::FontResource* font = 0;
+    DynamicFontJobCallbackState callback_state = {0, -1, {0}};
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font, (void**) &font));
+    ASSERT_NE((void*)0, font);
+
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    ASSERT_TRUE(dmRender::GetFontMapIsVector(font_map));
+    ASSERT_EQ(32.0f, dmRender::GetFontMapSize(font_map));
+    ASSERT_TRUE(font->m_PrewarmDone);
+    ASSERT_EQ((dmGameSystem::MaterialResource*)0, font->m_SdfMaterialResource);
+    ASSERT_TRUE(font_map->m_VectorBitmapEffects);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, "Bitmap outline", DynamicFontJobCallback, &callback_state));
+    ASSERT_EQ(32.0f, dmRender::GetFontMapSize(font_map));
+    ASSERT_TRUE(WaitForDynamicFontJobCallbacks(m_JobContext, &callback_state, 1));
+    ASSERT_EQ(1, callback_state.m_Result);
+
+    HFontCollection font_collection = dmRender::GetFontCollection(font_map);
+    HFont hfont = FontCollectionGetFont(font_collection, 0);
+    ASSERT_TRUE(font->m_PrewarmDone);
+    uint64_t prewarm_key = dmRender::MakeGlyphIndexKey(hfont, FontGetGlyphIndex(hfont, 'P'));
+    FontGlyph** prewarmed_glyph = font_map->m_Glyphs.Get(prewarm_key);
+    ASSERT_NE((FontGlyph**)0, prewarmed_glyph);
+    ASSERT_GT((*prewarmed_glyph)->m_Outline.m_CommandCount, 0u);
+    ASSERT_NE((const uint8_t*)0, (*prewarmed_glyph)->m_Bitmap.m_Data);
+    FontGlyph* glyph = 0;
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, 'S', &glyph));
+    ASSERT_NE((FontGlyph*)0, glyph);
+    ASSERT_GT(glyph->m_Outline.m_CommandCount, 0u);
+    ASSERT_NE((const uint8_t*)0, glyph->m_Bitmap.m_Data);
+
+    dmResource::Release(m_Factory, font);
+}
+
+TEST_F(FontTest, StaticVectorEffectsUseBakedBitmapsWithoutSourceFont)
+{
+    const char* paths[] = { "/font/static_vector_outline.fontc", "/font/static_vector_shadow.fontc" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
+    {
+        dmGameSystem::FontResource* font = 0;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, paths[i], (void**)&font));
+        ASSERT_FALSE(font->m_IsDynamic);
+        ASSERT_EQ((dmGameSystem::TTFResource*)0, font->m_TTFResource);
+        ASSERT_EQ((dmGameSystem::MaterialResource*)0, font->m_SdfMaterialResource);
+        ASSERT_EQ((dmRender::HMaterial)0, dmGameSystem::ResFontGetShadowMaterial(font));
+        dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+        ASSERT_FALSE(font_map->m_ShadowSdf);
+        ASSERT_TRUE(font_map->m_VectorBitmapEffects);
+        ASSERT_TRUE(dmRender::GetFontMapIsVector(font_map));
+
+        HFont hfont = FontCollectionGetFont(dmRender::GetFontCollection(font_map), 0);
+        FontGlyph* glyph = 0;
+        ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, 'A', &glyph));
+        ASSERT_GT(glyph->m_Vector.m_CurveCount, 0u);
+        ASSERT_NE((const uint8_t*)0, glyph->m_Bitmap.m_Data);
+        ASSERT_EQ(3u, glyph->m_Bitmap.m_Channels);
+        const uint64_t key = dmRender::MakeGlyphIndexKey(hfont, FontGetGlyphIndex(hfont, 'A'));
+        dmRender::CacheGlyph* cached = dmRender::AddGlyphToCache(font_map, 1, key, glyph, 0);
+        ASSERT_NE((dmRender::CacheGlyph*)0, cached);
+        ASSERT_TRUE(cached->m_VectorSdfCached);
+
+        // The null backend records the exact last upload, including distinct
+        // bitmap channels after glyph-bank decompression.
+        dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)m_GraphicsContext;
+        dmGraphics::NullTexture* bitmap = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(
+            graphics->m_BaseContext.m_AssetHandleContainer, font_map->m_VectorSdfTexture);
+        ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGB, bitmap->m_Base.m_Format);
+        const uint8_t* pixels = (const uint8_t*)bitmap->m_Data;
+        uint32_t outline_pixels = 0;
+        uint32_t shadow_pixels = 0;
+        for (uint32_t p = 0; p < (uint32_t)glyph->m_Bitmap.m_Width * glyph->m_Bitmap.m_Height; ++p)
+        {
+            outline_pixels += pixels[p * 3 + 1] > pixels[p * 3];
+            shadow_pixels += pixels[p * 3 + 1] == 0 && pixels[p * 3 + 2] > 0;
+        }
+        ASSERT_GT(outline_pixels, 0u);
+        if (i == 1)
+            ASSERT_GT(shadow_pixels, 0u);
+
+        dmRender::TextEntry entry = {};
+        entry.m_Transform = Matrix4::identity();
+        entry.m_FaceColor = 0xffffffff;
+        entry.m_OutlineColor = 0xffffffff;
+        entry.m_ShadowColor = 0xffffffff;
+        entry.m_Width = 512.0f;
+        entry.m_Leading = 1.0f;
+        entry.m_Align = dmRender::TEXT_ALIGN_LEFT;
+        entry.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+        dmRender::FontDefaultVertex vertices[18];
+        dmRender::HFontRenderBackend backend = m_RenderContext->m_TextContext.m_FontRenderBackend;
+        const uint32_t count = i == 0 ? 12 : 18;
+        ASSERT_EQ(count, dmRender::CreateFontVertexData(backend, font_map, 1, "A", entry,
+            1.0f, 1.0f, 1.0f, (uint8_t*)vertices, DM_ARRAY_SIZE(vertices)));
+        for (uint32_t v = 0; v < count; ++v)
+        {
+            const float mode = v < count - 12 ? 2.0f : v < count - 6 ? 1.0f : 0.0f;
+            ASSERT_EQ(mode, vertices[v].m_VectorTexcoord[3]);
+            ASSERT_EQ(255u, vertices[v].m_VectorColor[3]);
+            if (mode > 0.0f)
+            {
+                ASSERT_GE(vertices[v].m_VectorTexcoord[0], 0.0f);
+                ASSERT_LE(vertices[v].m_VectorTexcoord[0], 1.0f);
+                ASSERT_GE(vertices[v].m_VectorTexcoord[1], 0.0f);
+                ASSERT_LE(vertices[v].m_VectorTexcoord[1], 1.0f);
+            }
+        }
+        ASSERT_EQ(cached, dmRender::GetFromCache(font_map, key, 2));
+        dmResource::Release(m_Factory, font);
+    }
+}
+
+TEST_F(FontTest, ScriptPrewarmStaticFontReportsGlyphGeneration)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    scriptlibcontext.m_JobContext      = m_JobContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/valid_font.fontc", (void**)&font));
+
+    lua_State* L = scriptlibcontext.m_LuaState;
+    ASSERT_NE(0, luaL_dostring(L, "font.prewarm_text('/font/valid_font.fontc', 'Static')"));
+
+    const char* error = lua_tostring(L, -1);
+    ASSERT_NE((const char*)0, error);
+    ASSERT_NE((const char*)0,
+              strstr(error, "font.prewarm_text() cannot be used with static font /font/valid_font.fontc"));
+    ASSERT_NE((const char*)0, strstr(error, "'Glyph Generation' property to 'Dynamic'"));
+    lua_pop(L, 1);
+
+    dmResource::Release(m_Factory, font);
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+}
+
+TEST_F(FontTest, ScriptPrewarmVectorEffectsBeforeRendering)
+{
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+    scriptlibcontext.m_JobContext      = m_JobContext;
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dynamic_vector_outline.fontc", (void**)&font));
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    ASSERT_TRUE(dmRender::GetFontMapIsVector(font_map));
+    ASSERT_EQ((dmGameSystem::MaterialResource*)0, font->m_SdfMaterialResource);
+    ASSERT_TRUE(font_map->m_VectorBitmapEffects);
+
+    lua_State* L = scriptlibcontext.m_LuaState;
+    const char* request = "font.prewarm_text('/font/dynamic_vector_outline.fontc', 'Vector')";
+    ASSERT_EQ(0, luaL_dostring(L, request));
+    ASSERT_EQ(32.0f, dmRender::GetFontMapSize(font_map));
+
+    dmResource::Release(m_Factory, font);
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 // Reloading a dynamic font with pending work must cancel the old jobs and

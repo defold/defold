@@ -86,6 +86,7 @@ namespace dmGameSystem
 
         float                       m_Leading;
         float                       m_Tracking;
+        float                       m_FontSize;
 
         const char*                 m_Text;
         HTextLayout                 m_TextLayout;
@@ -122,6 +123,7 @@ namespace dmGameSystem
     static const dmhash_t LABEL_PROP_TRACKING = dmHashString64("tracking");
     static const dmhash_t LABEL_PROP_LINE_BREAK = dmHashString64("line_break");
     static const dmhash_t LABEL_PROP_TEXT = dmHashString64("text");
+    static const dmhash_t LABEL_PROP_FONT_SIZE = dmHashString64("font_size");
 
     static void        InvalidateTextLayout(LabelComponent* component);
     static HTextLayout GetOrCreateTextLayout(LabelComponent* component);
@@ -239,7 +241,7 @@ namespace dmGameSystem
         settings.m_LineBreak = component->m_LineBreak;
         settings.m_Leading = component->m_Leading;
         settings.m_Tracking = component->m_Tracking;
-        settings.m_Size = dmRender::GetFontMapSize(font_map);
+        settings.m_Size = dmRender::GetFontMapIsVector(font_map) ? component->m_FontSize : dmRender::GetFontMapSize(font_map);
         settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
         settings.m_Padding = dmRender::GetFontMapPadding(font_map);
         settings.m_ResolveObject = ResolveLabelLayoutObject;
@@ -377,6 +379,7 @@ namespace dmGameSystem
         label_component->m_TextLayoutDirty = 1;
         label_component->m_Leading = label_desc->m_Leading;
         label_component->m_Tracking = label_desc->m_Tracking;
+        label_component->m_FontSize = label_desc->m_FontSize > 0.0f ? label_desc->m_FontSize : 16.0f;
         label_component->m_LineBreak = label_desc->m_LineBreak;
     }
 
@@ -539,6 +542,8 @@ namespace dmGameSystem
         params.m_LineBreak = component->m_LineBreak;
         params.m_Leading = component->m_Leading;
         params.m_Tracking = component->m_Tracking;
+        dmRender::HFontMap font_map = GetFontMap(component, component->m_Resource);
+        params.m_FontSize = dmRender::GetFontMapIsVector(font_map) ? component->m_FontSize : dmRender::GetFontMapSize(font_map);
         params.m_Width = component->m_Size.getX();
         params.m_Height = component->m_Size.getY();
         // Disable stencil
@@ -657,7 +662,13 @@ namespace dmGameSystem
             }
 
             LabelResource* resource = component->m_Resource;
-            dmRender::DrawText(render_context, GetFontMap(component, resource), GetMaterial(component, resource), component->m_MixedHash, text_params);
+            FontResource* font_resource = GetFontResource(component, resource);
+            dmRender::DrawText(render_context,
+                               dmGameSystem::ResFontGetHandle(font_resource),
+                               GetMaterial(component, resource),
+                               dmGameSystem::ResFontGetShadowMaterial(font_resource),
+                               component->m_MixedHash,
+                               text_params);
         }
 
         dmRender::FlushTexts(render_context, dmRender::RENDER_ORDER_WORLD, false);
@@ -727,7 +738,9 @@ namespace dmGameSystem
         hit_test.m_Y = local.getY();
         hit_test.m_Width = params.m_Width;
         hit_test.m_Height = params.m_Height;
-        hit_test.m_FontSize = dmRender::GetFontMapSize(font_map);
+        hit_test.m_FontSize = dmRender::GetFontMapIsVector(font_map)
+            ? component->m_FontSize
+            : dmRender::GetFontMapSize(font_map);
         hit_test.m_MonospacePadding = dmRender::GetFontMapMonospaced(font_map) ? dmRender::GetFontMapPadding(font_map) : 0.0f;
         hit_test.m_Align = params.m_Align;
         hit_test.m_VAlign = params.m_VAlign;
@@ -959,6 +972,14 @@ namespace dmGameSystem
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_Text);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
+        else if (get_property == LABEL_PROP_FONT_SIZE)
+        {
+            dmRender::HFontMap font_map = GetFontMap(component, component->m_Resource);
+            if (!dmRender::GetFontMapIsVector(font_map))
+                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_FontSize);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
         int32_t value_index = 0;
         GetPropertyOptionsIndex(params.m_Options, 0, &value_index);
         return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, value_index, out_value, false, CompLabelGetConstantCallback, component);
@@ -1044,6 +1065,20 @@ namespace dmGameSystem
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             }
             SetLabelText(component, params.m_Value.m_Text);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (set_property == LABEL_PROP_FONT_SIZE)
+        {
+            dmRender::HFontMap font_map = GetFontMap(component, component->m_Resource);
+            if (!dmRender::GetFontMapIsVector(font_map))
+                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            if (params.m_Value.m_Number <= 0.0)
+                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+            component->m_FontSize = params.m_Value.m_Number;
+            InvalidateTextLayout(component);
+            component->m_ReHash = 1;
             return dmGameObject::PROPERTY_RESULT_OK;
         }
 

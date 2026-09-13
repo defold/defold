@@ -61,7 +61,7 @@ import com.google.protobuf.TextFormat;
 import org.apache.commons.io.FilenameUtils;
 
 @ProtoParams(srcClass = SceneDesc.class, messageClass = SceneDesc.class)
-@BuilderParams(name="Gui", inExts=".gui", outExt=".guic")
+@BuilderParams(name="Gui", inExts=".gui", outExt=".guic", paramsForSignature={"font-rich-text"})
 public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
     private static void quatToEuler(Quat4d quat, Tuple3d euler) {
@@ -924,11 +924,51 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
+    private void collectFontSettings(SceneDesc.Builder scene, Map<String, com.dynamo.render.proto.Font.FontDesc> settings) throws IOException {
+        for (FontDesc font : scene.getFontsList()) {
+            String compiledPath = ResourceUtil.minifyPathAndReplaceExt(font.getFont(), ".font", ".fontc");
+            if (!settings.containsKey(compiledPath))
+                settings.put(compiledPath, FontBuilder.readFontDesc(this.project, font.getFont()));
+        }
+    }
+
+    private void validateTextNodeEffects(IResource input, NodeDesc node,
+            Map<String, com.dynamo.render.proto.Font.FontDesc> fonts) throws CompileExceptionError {
+        if (node.getType() != Type.TYPE_TEXT)
+            return;
+        com.dynamo.render.proto.Font.FontDesc font = fonts.get(node.getFont());
+        if (font == null)
+            return; // Missing font names are reported by validateNodeResources.
+        try {
+            FontBuilder.validateTextEffects(input, font, node.getText(), this.project.option("font-rich-text", "true").equals("true"),
+                node.getOutline().getX() != 0.0f || node.getOutline().getY() != 0.0f ||
+                    node.getOutline().getZ() != 0.0f || node.getOutlineAlpha() != 1.0f,
+                node.getShadow().getX() != 0.0f || node.getShadow().getY() != 0.0f ||
+                    node.getShadow().getZ() != 0.0f || node.getShadowAlpha() != 1.0f);
+        } catch (CompileExceptionError e) {
+            throw new CompileExceptionError(input, 0, "GUI node '" + node.getId() + "': " + e.getMessage());
+        }
+    }
+
     @Override()
     protected SceneDesc.Builder transform(Task task, IResource input, SceneDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
+        Map<String, com.dynamo.render.proto.Font.FontDesc> settings = new HashMap<>();
+        collectFontSettings(messageBuilder, settings);
         HashMap<String, SceneDesc.Builder> sceneResourceCache = new HashMap<String, SceneDesc.Builder>(32);
         MergeOriginalValuesIntoLayouts(messageBuilder);
-        return transformScene(this, input.getPath(), messageBuilder, new SceneBuilderIO(this.project), sceneResourceCache, true);
+        SceneDesc.Builder transformed = transformScene(this, input.getPath(), messageBuilder, new SceneBuilderIO(this.project), sceneResourceCache, true);
+        for (SceneDesc.Builder template : sceneResourceCache.values())
+            collectFontSettings(template, settings);
+        Map<String, com.dynamo.render.proto.Font.FontDesc> fonts = new HashMap<>();
+        for (FontDesc font : transformed.getFontsList())
+            fonts.put(font.getName(), settings.get(font.getFont()));
+        for (NodeDesc node : transformed.getNodesList())
+            validateTextNodeEffects(input, node, fonts);
+        for (LayoutDesc layout : transformed.getLayoutsList()) {
+            for (NodeDesc node : layout.getNodesList())
+                validateTextNodeEffects(input, node, fonts);
+        }
+        return transformed;
     }
 
 }

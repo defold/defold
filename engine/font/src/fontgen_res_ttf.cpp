@@ -10,7 +10,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "res_ttf.h"
+#include <dmsdk/gamesys/resources/res_ttf.h>
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/font/font.h>
 #include <dmsdk/resource/resource.h>

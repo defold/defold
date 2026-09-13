@@ -559,7 +559,8 @@ public class Bob {
                 opt(null, "debug-output-wgsl", ONE, "Force build WGSL shaders"),
                 opt(null, "debug-output-hlsl", ONE, "Force build HLSL shaders"),
                 opt(null, "debug-output-msl", ONE, "Force build Metal shaders"),
-                opt(null, "debug-output-glsl", ONE, "Force build GLSL shaders")
+                opt(null, "debug-output-glsl", ONE, "Force build GLSL shaders"),
+                opt(null, "exclude-gles-sm100", ONE, "Don't compile shaders for OpenGL ES 2.0 / WebGL 1.0")
         );
     }
 

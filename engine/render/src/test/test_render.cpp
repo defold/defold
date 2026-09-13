@@ -41,7 +41,9 @@
 #include "render/render_private.h"
 #include "render/font/fontmap.h"
 #include "render/font/fontmap_private.h"
+#include "render/font/font_renderer_api.h"
 #include "render/font/font_renderer_private.h"
+#include "render/font/default/font_default_vertex.h"
 
 #include <font/font_glyphbank.h>
 
@@ -67,6 +69,34 @@ static void AssertMatrixUniformData(const dmVMath::Matrix4& expected, const floa
     for (uint32_t i = 0; i < 16; ++i)
     {
         ASSERT_NEAR(expected_values[i], actual[i], EPSILON);
+    }
+}
+
+static void AssertDefaultFontVerticesMatch(const FontGlyphVertex* packed_vertices, const dmRender::FontDefaultVertex* backend_vertices, uint32_t vertex_count)
+{
+    const float recip_255 = 1.0f / 255.0f;
+    for (uint32_t i = 0; i < vertex_count; ++i)
+    {
+        for (uint32_t component = 0; component < 3; ++component)
+        {
+            ASSERT_EQ(packed_vertices[i].m_Position[component], backend_vertices[i].m_Position[component]);
+            ASSERT_EQ(packed_vertices[i].m_LayerMasks[component], backend_vertices[i].m_LayerMasks[component]);
+        }
+        ASSERT_EQ(1.0f, backend_vertices[i].m_Position[3]);
+        ASSERT_NEAR(FontUnpackGlyphUV(packed_vertices[i].m_UV[0]), backend_vertices[i].m_UV[0], EPSILON);
+        ASSERT_NEAR(FontUnpackGlyphUV(packed_vertices[i].m_UV[1]), backend_vertices[i].m_UV[1], EPSILON);
+
+        for (uint32_t component = 0; component < 4; ++component)
+        {
+            ASSERT_NEAR(packed_vertices[i].m_FaceColor[component] * recip_255, backend_vertices[i].m_FaceColor[component], EPSILON);
+            ASSERT_NEAR(packed_vertices[i].m_OutlineColor[component] * recip_255, backend_vertices[i].m_OutlineColor[component], EPSILON);
+            ASSERT_NEAR(packed_vertices[i].m_ShadowColor[component] * recip_255, backend_vertices[i].m_ShadowColor[component], EPSILON);
+            ASSERT_EQ(packed_vertices[i].m_SdfParams[component], backend_vertices[i].m_SdfParams[component]);
+            ASSERT_EQ(0.0f, backend_vertices[i].m_VectorTexcoord[component]);
+            ASSERT_EQ(0.0f, backend_vertices[i].m_VectorEffectParams[component]);
+            ASSERT_EQ(0.0f, backend_vertices[i].m_VectorBanding[component]);
+            ASSERT_EQ(0u, backend_vertices[i].m_VectorColor[component]);
+        }
     }
 }
 
@@ -137,7 +167,7 @@ static HTextLayout CreateTextLayout(dmRender::HFontMap font_map, const char* tex
 static uint32_t QueueTextAndCopyVertices(dmRender::HRenderContext render_context, dmRender::HFontMap font_map, const dmRender::DrawTextParams& params, dmArray<uint8_t>& out_vertices, HTextLayout* out_layout, float* out_radius_sq)
 {
     dmRender::RenderListBegin(render_context);
-    dmRender::DrawText(render_context, font_map, 0, 0, params);
+    dmRender::DrawText(render_context, font_map, 0, 0, 0, params);
 
     dmRender::TextContext& text_context = render_context->m_TextContext;
     if (out_layout)
@@ -160,7 +190,7 @@ static uint32_t QueueTextAndCopyVertices(dmRender::HRenderContext render_context
     out_vertices.SetSize(byte_count);
     if (byte_count > 0)
     {
-        memcpy(out_vertices.Begin(), text_context.m_ClientBuffer.Begin(), byte_count);
+        memcpy(out_vertices.Begin(), text_context.m_ClientBuffer, byte_count);
     }
 
     return vertex_count;
@@ -1935,6 +1965,25 @@ TEST_F(dmRenderTest, GetTextMetricsWithNullPreparedLayout)
     ASSERT_EQ(0u, metrics.m_LineCount);
 }
 
+TEST_F(dmRenderTest, DrawTextStoresFaceAndShadowMaterials)
+{
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+
+    dmRender::HMaterial material = (dmRender::HMaterial)(uintptr_t)1;
+    dmRender::HMaterial shadow_material = (dmRender::HMaterial)(uintptr_t)2;
+    dmRender::DrawTextParams params;
+    params.m_Text = "Shadow";
+    params.m_FontSize = 24.0f;
+    dmRender::DrawText(m_Context, m_SystemFontMap, material, shadow_material, 0, params);
+
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
+    ASSERT_EQ(material, m_Context->m_TextContext.m_TextEntries[0].m_Material);
+    ASSERT_EQ(shadow_material, m_Context->m_TextContext.m_TextEntries[0].m_ShadowMaterial);
+    ASSERT_EQ(24.0f, m_Context->m_TextContext.m_TextEntries[0].m_FontSize);
+
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+}
+
 TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLayout)
 {
     const char* text = "Hello World Bonanza";
@@ -2013,6 +2062,14 @@ TEST_F(dmRenderTest, MarkupOutlineLayerOnlyCoversSpan)
     FontGlyphVertex vertices[18];
     memset(vertices, 0, sizeof(vertices));
     ASSERT_EQ(DM_ARRAY_SIZE(vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices)));
+
+    dmRender::FontDefaultVertex backend_vertices[18];
+    memset(backend_vertices, 0xff, sizeof(backend_vertices));
+    dmRender::HFontRenderBackend backend = m_Context->m_TextContext.m_FontRenderBackend;
+    ASSERT_EQ(sizeof(dmRender::FontDefaultVertex), dmRender::GetFontVertexSize(backend));
+    ASSERT_EQ(DM_ARRAY_SIZE(backend_vertices), dmRender::CreateFontVertexData(backend, m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, (uint8_t*)backend_vertices, DM_ARRAY_SIZE(backend_vertices)));
+
+    AssertDefaultFontVerticesMatch(vertices, backend_vertices, DM_ARRAY_SIZE(vertices));
 
     for (uint32_t i = 0; i < 6; ++i)
     {
@@ -2320,7 +2377,7 @@ TEST_F(dmRenderTest, DrawTextPreservesNodeShadowAlpha)
     params.m_ShadowColor = Vector4(0.0f, 0.0f, 0.0f, 0.5f);
 
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
-    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, params);
+    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, 0, params);
     ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
     const Vector4 queued_shadow_color = dmGraphics::UnpackRGBA(m_Context->m_TextContext.m_TextEntries[0].m_ShadowColor);
     ASSERT_NEAR(0.5f, queued_shadow_color.getW(), 1.0f / 255.0f);
@@ -2351,14 +2408,14 @@ TEST_F(dmRenderTest, DrawTextOnlyAppliesBaseOutlineAlphaToLegacyText)
     params.m_OutlineColor = Vector4(1.0f, 1.0f, 1.0f, 0.5f);
 
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
-    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, params);
+    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, 0, params);
     ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
     Vector4 queued_outline_color = dmGraphics::UnpackRGBA(m_Context->m_TextContext.m_TextEntries[0].m_OutlineColor);
     ASSERT_NEAR(0.5f, queued_outline_color.getW(), 1.0f / 255.0f);
 
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
     params.m_TextLayout = 0;
-    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, params);
+    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, 0, params);
     ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
     queued_outline_color = dmGraphics::UnpackRGBA(m_Context->m_TextContext.m_TextEntries[0].m_OutlineColor);
     ASSERT_EQ(0.0f, queued_outline_color.getW());
@@ -2414,6 +2471,126 @@ TEST_F(dmRenderTest, MarkupShadowUsesFontBlurWhenOmitted)
 
     TextLayoutRelease(layout);
     MarkupDestroy(markup);
+}
+
+TEST_F(dmRenderTest, VectorFontReferenceSizeIsIndependentOfDrawSize)
+{
+    const float old_size = m_SystemFontMap->m_Size;
+    const uint8_t old_is_vector = m_SystemFontMap->m_IsVector;
+    m_SystemFontMap->m_Size = 24.0f;
+    m_SystemFontMap->m_IsVector = 1;
+
+    dmRender::DrawTextParams params;
+    params.m_Text = "A";
+    params.m_FontSize = 48.0f;
+    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, 0, params);
+    ASSERT_EQ(24.0f, dmRender::GetFontMapSize(m_SystemFontMap));
+
+    m_SystemFontMap->m_Size = old_size;
+    m_SystemFontMap->m_IsVector = old_is_vector;
+}
+
+TEST_F(dmRenderTest, SlugFontCachesNumericBandsAndRestoresLegacyMaterial)
+{
+    dmGraphics::NullContext* context = (dmGraphics::NullContext*)m_GraphicsContext;
+    const uint64_t formats = context->m_BaseContext.m_TextureFormatSupport;
+    context->m_BaseContext.m_TextureFormatSupport |= (1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F) | (1ULL << dmGraphics::TEXTURE_FORMAT_R32UI);
+    const char* shader_src = "uniform sampler2D curve_texture; uniform utexture2D band_texture;";
+    dmGraphics::ShaderDescBuilder builder;
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
+    builder.AddTexture("curve_texture", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    builder.AddTexture("band_texture", 1, dmGraphics::ShaderDesc::SHADER_TYPE_UTEXTURE2D);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
+    const char* samplers[] = { "curve_texture", "band_texture" };
+    for (uint32_t i = 0; i < 2; ++i)
+        ASSERT_TRUE(dmRender::SetMaterialSampler(material, dmHashString64(samplers[i]), i,
+            dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+            dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+    dmRender::HMaterial old = dmRender::GetFontMapMaterial(m_SystemFontMap);
+    context->m_BaseContext.m_TextureFormatSupport &= ~(1ULL << dmGraphics::TEXTURE_FORMAT_R32UI);
+    ASSERT_FALSE(dmRender::SetFontMapMaterial(m_SystemFontMap, material));
+    ASSERT_EQ(old, dmRender::GetFontMapMaterial(m_SystemFontMap));
+    ASSERT_FALSE(m_SystemFontMap->m_VectorSlug);
+    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << dmGraphics::TEXTURE_FORMAT_R32UI;
+    ASSERT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, material));
+    ASSERT_TRUE(m_SystemFontMap->m_VectorSlug);
+    ASSERT_NE((FontVectorSlugData*)0, m_SystemFontMap->m_SlugData);
+    ASSERT_NE((dmGraphics::HTexture)0, m_SystemFontMap->m_VectorBandTexture);
+    const float curve[] = { 0,0, .5f,1, 1,0, 0,0 };
+    FontGlyph glyph = {};
+    glyph.m_Vector.m_Data = (const uint8_t*)curve;
+    glyph.m_Vector.m_DataSize = sizeof(curve);
+    glyph.m_Vector.m_CurveCount = 1;
+    dmRender::CacheGlyph* cached = dmRender::AddGlyphToCache(m_SystemFontMap, 1, 65, &glyph, 0);
+    ASSERT_NE((dmRender::CacheGlyph*)0, cached);
+    ASSERT_EQ(1u, cached->m_VectorCurveCount);
+    ASSERT_EQ(8u, cached->m_VectorStripeCount);
+    ASSERT_EQ(&glyph, cached->m_Glyph);
+    ASSERT_GT(cached->m_VectorBanding[0], 0.0f);
+    FontVectorSlugData* data = m_SystemFontMap->m_SlugData;
+    dmGraphics::NullTexture* bands = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(
+        context->m_BaseContext.m_AssetHandleContainer, m_SystemFontMap->m_VectorBandTexture);
+    ASSERT_EQ(0, memcmp(data->m_Bands.Begin(), bands->m_Data, data->m_Bands.Size() * sizeof(uint32_t)));
+    uint32_t used = data->m_Curves.Size();
+    ASSERT_EQ(cached, dmRender::GetFromCache(m_SystemFontMap, 65, 2));
+    ASSERT_EQ(used, data->m_Curves.Size());
+    // An invalid prebaked glyph cannot reset the valid glyph's cache entry.
+    glyph.m_Vector.m_DataSize -= 1;
+    ASSERT_EQ((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(m_SystemFontMap, 2, 66, &glyph, 0));
+    ASSERT_EQ(cached, dmRender::GetFromCache(m_SystemFontMap, 65, 2));
+    ASSERT_EQ(used, data->m_Curves.Size());
+    // Atlas pressure must not invalidate vertices from this frame.
+    glyph.m_Vector.m_DataSize += 1;
+    uint32_t band_size = data->m_Bands.Size();
+    uint32_t curve_count = data->m_CurveCount;
+    uint32_t max_texels = data->m_MaxTexels;
+    data->m_MaxTexels = band_size;
+    ASSERT_EQ((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(m_SystemFontMap, 2, 67, &glyph, 0));
+    ASSERT_TRUE(m_SystemFontMap->m_SlugResetPending);
+    ASSERT_EQ(used, data->m_Curves.Size());
+    ASSERT_EQ(band_size, data->m_Bands.Size());
+    ASSERT_EQ(curve_count, data->m_CurveCount);
+    ASSERT_EQ(cached, dmRender::GetFromCache(m_SystemFontMap, 65, 2));
+    ASSERT_EQ(0, memcmp(data->m_Bands.Begin(), bands->m_Data, band_size * sizeof(uint32_t)));
+    data->m_MaxTexels = max_texels;
+    ASSERT_EQ((dmRender::CacheGlyph*)0, dmRender::GetFromCache(m_SystemFontMap, 65, 3));
+    ASSERT_FALSE(m_SystemFontMap->m_SlugResetPending);
+    ASSERT_EQ(0u, data->m_Curves.Size());
+    ASSERT_NE((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(m_SystemFontMap, 3, 67, &glyph, 0));
+    // Exercise the production layout-to-vertex bridge with prebaked curves.
+    m_GlyphBank->m_Glyphs[65].m_VectorData = (const uint8_t*)curve;
+    m_GlyphBank->m_Glyphs[65].m_VectorDataSize = sizeof(curve);
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    m_SystemFontMap->m_OutlineWidth = 0.0f;
+    dmRender::TextEntry te = {};
+    te.m_Transform = Matrix4::identity();
+    te.m_FaceColor = COLOR_WHITE_RGBA;
+    te.m_Width = 128.0f;
+    te.m_Leading = 1.0f;
+    te.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+    dmRender::FontDefaultVertex vertices[6];
+    dmRender::HFontRenderBackend backend = m_Context->m_TextContext.m_FontRenderBackend;
+    ASSERT_EQ(6u, dmRender::CreateFontVertexData(backend, m_SystemFontMap, 4, "A", te,
+        1.0f, 1.0f, 1.0f, (uint8_t*)vertices, 6));
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        ASSERT_EQ(1.0f, vertices[i].m_VectorTexcoord[2]);
+        ASSERT_EQ(8.0f, vertices[i].m_VectorEffectParams[0]);
+        ASSERT_EQ(8.0f, vertices[i].m_VectorEffectParams[1]);
+        ASSERT_EQ(0.0f, vertices[i].m_VectorEffectParams[2]);
+        ASSERT_EQ(0.0f, vertices[i].m_VectorEffectParams[3]);
+        ASSERT_EQ(255u, vertices[i].m_VectorColor[3]);
+    }
+    ASSERT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, old));
+    ASSERT_FALSE(m_SystemFontMap->m_VectorSlug);
+    ASSERT_EQ((FontVectorSlugData*)0, m_SystemFontMap->m_SlugData);
+    ASSERT_EQ((dmGraphics::HTexture)0, m_SystemFontMap->m_VectorBandTexture);
+    context->m_BaseContext.m_TextureFormatSupport = formats;
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
 TEST_F(dmRenderTest, MarkupShadowBlurClampsToBakedCapacity)
@@ -2631,7 +2808,7 @@ TEST_F(dmRenderTest, MarkupDecorationInheritsOutlineAndShadowLayers)
     te.m_Transform = Matrix4::identity();
     te.m_FaceColor = COLOR_WHITE_RGBA;
     te.m_OutlineColor = COLOR_WHITE_RGBA;
-    te.m_ShadowColor = COLOR_WHITE_RGBA;
+    te.m_ShadowColor = dmGraphics::PackRGBA(Vector4(1.0f, 1.0f, 1.0f, 0.5f));
     te.m_Width = settings.m_Width;
     te.m_Leading = settings.m_Leading;
     te.m_Align = dmRender::TEXT_ALIGN_LEFT;
@@ -2646,10 +2823,18 @@ TEST_F(dmRenderTest, MarkupDecorationInheritsOutlineAndShadowLayers)
     memset(vertices, 0, sizeof(vertices));
     const uint32_t vertex_count = dmRender::CreateFontVertexData(m_SystemFontMap, 0, "A", te, 1.0f, 1.0f, 1.0f,
                                                                  vertices, DM_ARRAY_SIZE(vertices));
+
+    dmRender::FontDefaultVertex backend_vertices[36];
+    memset(backend_vertices, 0xff, sizeof(backend_vertices));
+    dmRender::HFontRenderBackend backend = m_Context->m_TextContext.m_FontRenderBackend;
+    const uint32_t backend_vertex_count = dmRender::CreateFontVertexData(backend, m_SystemFontMap, 0, "A", te, 1.0f, 1.0f, 1.0f,
+                                                                         (uint8_t*)backend_vertices, DM_ARRAY_SIZE(backend_vertices));
     m_SystemFontMap->m_LayerMask = old_layer_mask;
     m_SystemFontMap->m_IsSdf = old_is_sdf;
 
     ASSERT_EQ(DM_ARRAY_SIZE(vertices), vertex_count);
+    ASSERT_EQ(vertex_count, backend_vertex_count);
+    AssertDefaultFontVerticesMatch(vertices, backend_vertices, vertex_count);
     const FontGlyphVertex& shadow = vertices[6];
     const FontGlyphVertex& outline = vertices[18];
     const FontGlyphVertex& face = vertices[30];
@@ -2668,6 +2853,7 @@ TEST_F(dmRenderTest, MarkupDecorationInheritsOutlineAndShadowLayers)
     ASSERT_NEAR(face.m_Position[1] - 2.0f, outline.m_Position[1], 0.0001f);
     ASSERT_EQ(255u, outline.m_OutlineColor[1]);
     ASSERT_EQ(255u, shadow.m_ShadowColor[0]);
+    ASSERT_EQ(127u, shadow.m_ShadowColor[3]);
 
     TextLayoutRelease(layout);
     MarkupDestroy(markup);
@@ -3015,7 +3201,7 @@ TEST_F(dmRenderTest, DrawTextPreparedTextLayoutRetainedUntilClear)
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
 
     dmRender::RenderListBegin(m_Context);
-    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, params);
+    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, 0, params);
     ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
     ASSERT_EQ(layout, m_Context->m_TextContext.m_TextEntries[0].m_TextLayout);
     ASSERT_EQ(3u, layout->m_RefCount);
@@ -3040,26 +3226,50 @@ TEST_F(dmRenderTest, DrawTextPreparedTextLayoutRetainedUntilClear)
 TEST_F(dmRenderTest, FontVertexDeclaration)
 {
     ASSERT_NE((dmGraphics::HVertexDeclaration)0, m_Context->m_TextContext.m_VertexDecl);
-    ASSERT_EQ(sizeof(FontGlyphVertex), dmGraphics::GetVertexDeclarationStride(m_Context->m_TextContext.m_VertexDecl));
+    ASSERT_EQ(sizeof(dmRender::FontDefaultVertex), dmGraphics::GetVertexDeclarationStride(m_Context->m_TextContext.m_VertexDecl));
 
     dmGraphics::VertexDeclaration* declaration = (dmGraphics::VertexDeclaration*)m_Context->m_TextContext.m_VertexDecl;
-    ASSERT_EQ(7u, declaration->m_StreamCount);
-    ASSERT_EQ(2u, declaration->m_Streams[1].m_Size);
-    ASSERT_EQ(dmGraphics::TYPE_UNSIGNED_SHORT, declaration->m_Streams[1].m_Type);
-    ASSERT_TRUE(declaration->m_Streams[1].m_Normalize);
-    for (uint32_t i = 2; i <= 4; ++i)
+    ASSERT_EQ(11u, declaration->m_StreamCount);
+    for (uint32_t i = 0; i <= 3; ++i)
     {
         ASSERT_EQ(4u, declaration->m_Streams[i].m_Size);
-        ASSERT_EQ(dmGraphics::TYPE_UNSIGNED_BYTE, declaration->m_Streams[i].m_Type);
+        ASSERT_EQ(dmGraphics::TYPE_FLOAT, declaration->m_Streams[i].m_Type);
+        ASSERT_FALSE(declaration->m_Streams[i].m_Normalize);
+    }
+
+    ASSERT_EQ(4u, declaration->m_Streams[4].m_Size);
+    ASSERT_EQ(dmGraphics::TYPE_UNSIGNED_BYTE, declaration->m_Streams[4].m_Type);
+    ASSERT_TRUE(declaration->m_Streams[4].m_Normalize);
+
+    ASSERT_EQ(2u, declaration->m_Streams[5].m_Size);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT, declaration->m_Streams[5].m_Type);
+    ASSERT_FALSE(declaration->m_Streams[5].m_Normalize);
+
+    for (uint32_t i = 6; i <= 8; ++i)
+    {
+        ASSERT_EQ(4u, declaration->m_Streams[i].m_Size);
+        ASSERT_EQ(dmGraphics::TYPE_FLOAT, declaration->m_Streams[i].m_Type);
         ASSERT_TRUE(declaration->m_Streams[i].m_Normalize);
     }
 
-    ASSERT_EQ(offsetof(FontGlyphVertex, m_UV), declaration->m_Streams[1].m_Offset);
-    ASSERT_EQ(offsetof(FontGlyphVertex, m_FaceColor), declaration->m_Streams[2].m_Offset);
-    ASSERT_EQ(offsetof(FontGlyphVertex, m_OutlineColor), declaration->m_Streams[3].m_Offset);
-    ASSERT_EQ(offsetof(FontGlyphVertex, m_ShadowColor), declaration->m_Streams[4].m_Offset);
-    ASSERT_EQ(offsetof(FontGlyphVertex, m_SdfParams), declaration->m_Streams[5].m_Offset);
-    ASSERT_EQ(offsetof(FontGlyphVertex, m_LayerMasks), declaration->m_Streams[6].m_Offset);
+    ASSERT_EQ(4u, declaration->m_Streams[9].m_Size);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT, declaration->m_Streams[9].m_Type);
+    ASSERT_FALSE(declaration->m_Streams[9].m_Normalize);
+    ASSERT_EQ(3u, declaration->m_Streams[10].m_Size);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT, declaration->m_Streams[10].m_Type);
+    ASSERT_FALSE(declaration->m_Streams[10].m_Normalize);
+
+    ASSERT_EQ(offsetof(dmRender::FontDefaultVertex, m_Position), declaration->m_Streams[0].m_Offset);
+    ASSERT_EQ(offsetof(dmRender::FontDefaultVertex, m_VectorTexcoord), declaration->m_Streams[1].m_Offset);
+    ASSERT_EQ(offsetof(dmRender::FontDefaultVertex, m_VectorEffectParams), declaration->m_Streams[2].m_Offset);
+    ASSERT_EQ(offsetof(dmRender::FontDefaultVertex, m_VectorBanding), declaration->m_Streams[3].m_Offset);
+    ASSERT_EQ(offsetof(dmRender::FontDefaultVertex, m_VectorColor), declaration->m_Streams[4].m_Offset);
+    ASSERT_EQ(offsetof(dmRender::FontDefaultVertex, m_UV), declaration->m_Streams[5].m_Offset);
+    ASSERT_EQ(offsetof(dmRender::FontDefaultVertex, m_FaceColor), declaration->m_Streams[6].m_Offset);
+    ASSERT_EQ(offsetof(dmRender::FontDefaultVertex, m_OutlineColor), declaration->m_Streams[7].m_Offset);
+    ASSERT_EQ(offsetof(dmRender::FontDefaultVertex, m_ShadowColor), declaration->m_Streams[8].m_Offset);
+    ASSERT_EQ(offsetof(dmRender::FontDefaultVertex, m_SdfParams), declaration->m_Streams[9].m_Offset);
+    ASSERT_EQ(offsetof(dmRender::FontDefaultVertex, m_LayerMasks), declaration->m_Streams[10].m_Offset);
 }
 
 // TEST_F(dmRenderTest, GetTextMetricsMeasureTrailingSpace)

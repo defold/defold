@@ -13,29 +13,24 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dmsdk/dlib/dstrings.h>
+#include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/jobsystem.h>
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/dlib/math.h>
 #include <dmsdk/dlib/time.h>
 #include <dmsdk/dlib/utf8.h>
-#include <dmsdk/script/script.h>
-#include <dmsdk/gamesys/resources/res_font.h>
-#include <dmsdk/gamesys/resources/res_ttf.h>
 #include <dmsdk/font/text_layout.h>
 #include <dmsdk/extension/extension.h>
 
 #include <dlib/jobsystem.h>
 #include <dlib/set.h>
 #include <font/internal/glyph_gen.h>
-#include <resource/resource.h>
 
 #include "fontgen.h"
 
 //#define FONTGEN_DEBUG
 
-namespace dmGameSystem
-{
 struct FontJobStatus
 {
     uint64_t    m_TimeStart;        // Time started
@@ -50,7 +45,7 @@ struct FontJobStatus
     }
 };
 
-struct JobItem
+struct FontGenJobItem
 {
     // input
     HFont           m_Font;         // The actual font to use
@@ -72,28 +67,22 @@ struct JobItem
 
 struct Context
 {
-    HResourceFactory            m_ResourceFactory;
-    HJobContext                 m_Jobs;
     uint8_t                     m_StbttDefaultSdfPadding;
     uint8_t                     m_StbttDefaultSdfEdge;
 };
 
 struct FontGenJobData
 {
-    dmArray<JobItem>        m_Items;
+    dmArray<FontGenJobItem> m_Items;
     FontJobStatus           m_Status;
-    dmGameSystem::FontInfo  m_FontInfo; // Metrics for the FontResource
+    FontGenParams           m_Params;
 
-    FontResource*           m_FontResource; // Handle to the .fontc resource
-
-    HJobContext                         m_Jobs;
-    dmGameSystem::FPrewarmTextCallback  m_Callback;     // Only set for the last item in the queue
-    void*                               m_CallbackCtx;  // Only set for the last item in the queue
+    HJobContext             m_Jobs;
 };
 
-Context* g_FontExtContext = 0;
+static Context g_FontGenContext = { 3, 191 };
 
-static void ReleaseJobItem(JobItem* item)
+static void ReleaseJobItem(FontGenJobItem* item)
 {
     // If it's still set, it wasn't successfully transferred to the .fontc resource
     if (item->m_Glyph)
@@ -105,17 +94,18 @@ static void ReleaseJobItem(JobItem* item)
     }
 }
 
-FontGenJobData* FontGenCreateJobData(FontResource* font, uint32_t num_glyphs)
+FontGenJobData* FontGenCreateJobData(const FontGenParams* params, uint32_t num_glyphs)
 {
+    if (!params || !params->m_Jobs)
+        return 0;
+
     FontGenJobData* jobdata = new FontGenJobData;
     memset(jobdata, 0, sizeof(*jobdata));
 
     jobdata->m_Items.SetCapacity(num_glyphs);
     jobdata->m_Items.SetSize(jobdata->m_Items.Capacity());
 
-    jobdata->m_FontResource = font;
-
-    dmGameSystem::ResFontGetInfo(jobdata->m_FontResource, &jobdata->m_FontInfo);
+    jobdata->m_Params = *params;
     return jobdata;
 }
 
@@ -126,6 +116,9 @@ FontGenJobData* FontGenCreateJobData(FontResource* font, uint32_t num_glyphs)
 //                             Once all have been cancelled, they can be cleared, as it happens before the next JobSystemUpdate()
 void FontGenDestroyJobData(FontGenJobData* jobdata)
 {
+    if (!jobdata)
+        return;
+
     uint32_t size = jobdata->m_Items.Size();
     for (uint32_t i = 0; i < size; ++i)
     {
@@ -134,11 +127,9 @@ void FontGenDestroyJobData(FontGenJobData* jobdata)
     delete jobdata;
 }
 
-static void FontGenJobDataSetup(FontGenJobData* jobdata, uint32_t num_glyphs, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx)
+static void FontGenJobDataSetup(FontGenJobData* jobdata)
 {
-    jobdata->m_Callback = cbk;
-    jobdata->m_CallbackCtx = cbk_ctx;
-    jobdata->m_Jobs = g_FontExtContext->m_Jobs;
+    jobdata->m_Jobs = jobdata->m_Params.m_Jobs;
 
 #if defined(FONTGEN_DEBUG)
     jobdata->m_Status.m_TimeStart = dmTime::GetMonotonicTime();
@@ -150,9 +141,7 @@ static void FontGenJobDataSetup(FontGenJobData* jobdata, uint32_t num_glyphs, dm
 static int JobGenerateGlyph(HJobContext job_thread, HJob hjob, void* context, void* data)
 {
     FontGenJobData* jobdata = (FontGenJobData*)context;
-    JobItem* item = (JobItem*)data;
-    (void)jobdata;
-
+    FontGenJobItem* item = (FontGenJobItem*)data;
     uint32_t glyph_index = item->m_GlyphIndex;
 
 #if defined(FONTGEN_DEBUG)
@@ -164,19 +153,45 @@ static int JobGenerateGlyph(HJobContext job_thread, HJob hjob, void* context, vo
 
     HFont font = item->m_Font;
 
-    FontGlyphGenParams params;
-    params.m_Scale         = item->m_Scale;
-    params.m_SdfPadding    = item->m_StbttSdfPadding;
-    params.m_SdfEdgeValue  = item->m_StbttEdgeValue;
-    params.m_OutlineWidth  = item->m_OutlineWidth;
-    params.m_ShadowBlur    = item->m_ShadowBlur;
-
     FontGlyph* glyph = item->m_Glyph;
-    FontResult fr = FontGenerateGlyph(font, glyph_index, &params, glyph);
-    if (FONT_RESULT_NOT_SUPPORTED == fr)
+    FontResult fr;
+    if (jobdata->m_Params.m_IsVector)
     {
-        dmLogError("Glyph index %u not found in font '%s'", glyph_index, FontGetPath(font));
-        return 1;
+        FontGlyphOptions options;
+        options.m_Scale = item->m_Scale;
+        options.m_GenerateImage = jobdata->m_Params.m_GenerateImage != 0;
+        options.m_GenerateOutline = true;
+        options.m_StbttSDFPadding = item->m_StbttSdfPadding;
+        options.m_StbttSDFOnEdgeValue = item->m_StbttEdgeValue;
+        if (jobdata->m_Params.m_BitmapEffects)
+        {
+            FontGlyphGenParams params;
+            params.m_Scale = item->m_Scale;
+            params.m_SdfPadding = item->m_StbttSdfPadding;
+            params.m_SdfEdgeValue = item->m_StbttEdgeValue;
+            params.m_OutlineWidth = item->m_OutlineWidth;
+            params.m_ShadowBlur = item->m_ShadowBlur;
+            params.m_HasOutline = jobdata->m_Params.m_HasOutline != 0;
+            params.m_HasShadow = jobdata->m_Params.m_HasShadow != 0;
+            fr = FontGenerateVectorGlyph(font, glyph_index, &params, glyph);
+        }
+        else
+            fr = FontGetGlyphByIndex(font, glyph_index, &options, glyph);
+    }
+    else
+    {
+        FontGlyphGenParams params;
+        params.m_Scale = item->m_Scale;
+        params.m_SdfPadding = item->m_StbttSdfPadding;
+        params.m_SdfEdgeValue = item->m_StbttEdgeValue;
+        params.m_OutlineWidth = item->m_OutlineWidth;
+        params.m_ShadowBlur = item->m_ShadowBlur;
+        fr = FontGenerateGlyph(font, glyph_index, &params, glyph);
+    }
+    if (FONT_RESULT_OK != fr)
+    {
+        dmLogError("Failed to generate glyph index %u for font '%s'. Result: %d", glyph_index, FontGetPath(font), fr);
+        return 0;
     }
 
 // TODO: Protect this using an atomic
@@ -193,7 +208,7 @@ static void SetFailedStatus(FontGenJobData* jobdata, const char* msg)
 {
     FontJobStatus* status = &jobdata->m_Status;
     status->m_Failures++;
-    if (status->m_Error[0] != 0)
+    if (status->m_Error[0] == 0)
     {
         dmSnPrintf(status->m_Error, sizeof(status->m_Error), "FONTGEN: %s", msg);
     }
@@ -204,9 +219,9 @@ static void SetFailedStatus(FontGenJobData* jobdata, const char* msg)
 static void InvokeCallback(FontGenJobData* jobdata)
 {
     FontJobStatus* status = &jobdata->m_Status;
-    if (jobdata->m_Callback)
+    if (jobdata->m_Params.m_Complete)
     {
-        jobdata->m_Callback(jobdata->m_CallbackCtx, status->m_Failures == 0, status->m_Error);
+        jobdata->m_Params.m_Complete(jobdata->m_Params.m_UserContext, status->m_Failures == 0, status->m_Error);
     }
 }
 
@@ -259,7 +274,7 @@ static void JobPostProcessGlyph(HJobContext job_thread, HJob job, JobSystemStatu
     }
 
     FontGenJobData* jobdata = (FontGenJobData*)context;
-    JobItem* item = (JobItem*)data;
+    FontGenJobItem* item = (FontGenJobItem*)data;
 
 #if defined(FONTGEN_DEBUG)
     uint64_t tstart = dmTime::GetMonotonicTime();
@@ -282,17 +297,18 @@ static void JobPostProcessGlyph(HJobContext job_thread, HJob job, JobSystemStatu
         return;
     }
 
-    // The font system takes ownership of the image data
     HFont font = item->m_Font;
-    dmResource::Result r = dmGameSystem::ResFontAddGlyph(jobdata->m_FontResource, font, item->m_Glyph);
-    if (dmResource::RESULT_OK != r)
+    FontResult r = jobdata->m_Params.m_AddGlyph
+        ? jobdata->m_Params.m_AddGlyph(jobdata->m_Params.m_UserContext, font, item->m_Glyph)
+        : FONT_RESULT_ERROR;
+    if (FONT_RESULT_OK != r)
     {
         char msg[256];
         dmSnPrintf(msg, sizeof(msg), "Failed to add glyph index %u for font '%s'. Result: %d", glyph_index, FontGetPath(item->m_Font), r);
         SetFailedStatus(jobdata, msg);
     }
 
-    if (dmResource::RESULT_OK == r)
+    if (FONT_RESULT_OK == r)
     {
         item->m_Glyph = 0; // It was successfully transferred to the .fontc resource (and then the HFontMap)
     }
@@ -320,7 +336,7 @@ static HJob CreateSentinelJob(FontGenJobData* jobdata)
 }
 
 static void GenerateGlyphJobByIndex(FontGenJobData* jobdata,
-                                    JobItem* item,
+                                    FontGenJobItem* item,
                                     HFont font,
                                     uint32_t glyph_index,
                                     float scale, float stbtt_padding, int stbtt_edge,
@@ -353,37 +369,33 @@ static void GenerateGlyphJobByIndex(FontGenJobData* jobdata,
 static bool GenerateGlyphByIndex(FontGenJobData* jobdata, HFont font, uint32_t jobindex,
                                 uint32_t glyph_index, float scale, HJob job_sentinel)
 {
-    const dmGameSystem::FontInfo* font_info = &jobdata->m_FontInfo;
-
-    bool is_sdf = dmRenderDDF::TYPE_DISTANCE_FIELD == font_info->m_OutputFormat;
+    const FontGenParams* params = &jobdata->m_Params;
+    bool is_sdf = params->m_IsSdf != 0;
     if (!is_sdf)
     {
         dmLogError("Only SDF fonts are supported");
         return false;
     }
 
-    Context* ctx = g_FontExtContext;
-    int stbtt_edge = ctx->m_StbttDefaultSdfEdge;
-    float stbtt_padding = ctx->m_StbttDefaultSdfPadding + font_info->m_OutlineWidth;
+    int stbtt_edge = g_FontGenContext.m_StbttDefaultSdfEdge;
+    float stbtt_padding = g_FontGenContext.m_StbttDefaultSdfPadding + params->m_OutlineWidth;
 
     // See Fontc.java. If we have shadow blur, we need 3 channels
-    bool has_shadow = font_info->m_ShadowBlur > 0.0f;
-    stbtt_padding += has_shadow ? font_info->m_ShadowBlur : 0.0f;
+    bool has_shadow = params->m_ShadowBlur > 0.0f;
+    stbtt_padding += has_shadow ? params->m_ShadowBlur : 0.0f;
 
-    JobItem* item = &jobdata->m_Items[jobindex];
+    FontGenJobItem* item = &jobdata->m_Items[jobindex];
 
     GenerateGlyphJobByIndex(jobdata, item, font, glyph_index, scale, stbtt_padding, stbtt_edge, is_sdf,
-                    font_info->m_OutlineWidth, has_shadow ? font_info->m_ShadowBlur : 0.0f, job_sentinel);
+                    params->m_OutlineWidth, has_shadow ? params->m_ShadowBlur : 0.0f, job_sentinel);
     return true;
 }
 
 
 static HJob GenerateGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t num_glyphs)
 {
-    dmGameSystem::FontInfo& font_info = jobdata->m_FontInfo;
-
     // TODO: Support bitmap fonts
-    bool is_sdf = dmRenderDDF::TYPE_DISTANCE_FIELD == font_info.m_OutputFormat;
+    bool is_sdf = jobdata->m_Params.m_IsSdf != 0;
     if (!is_sdf)
     {
         dmLogError("Only SDF fonts are supported");
@@ -391,8 +403,6 @@ static HJob GenerateGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t 
     }
 
     HJob job_sentinel = CreateSentinelJob(jobdata);
-
-    FontResource* fontresource = jobdata->m_FontResource;
 
     // Given the prewarm text, it may be that there are a lot of duplicated glyph indices
     // So we only want to push requests for the unique ones
@@ -412,21 +422,23 @@ static HJob GenerateGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t 
             continue;
         }
 
+        HFont font = glyph->m_Font;
         uint32_t glyph_index = glyph->m_GlyphIndex;
+        dmhash_t glyph_key = ((dmhash_t)FontGetPathHash(font) << 32) | glyph_index;
 
         // test and/or add at the same time
-        if (!unique.Add(glyph_index))
+        if (!unique.Add(glyph_key))
             continue;
 
-        HFont font = glyph->m_Font;
         float scale = prev_scale;
 
-        if (ResFontIsGlyphIndexCached(fontresource, font, glyph_index))
+        if (jobdata->m_Params.m_IsGlyphCached &&
+            jobdata->m_Params.m_IsGlyphCached(jobdata->m_Params.m_UserContext, font, glyph_index))
             continue;
 
         if (prev_font != font)
         {
-            scale = FontGetScaleFromSize(font, font_info.m_Size);
+            scale = FontGetScaleFromSize(font, jobdata->m_Params.m_Size);
             prev_scale = scale;
             prev_font = font;
         }
@@ -441,60 +453,61 @@ static HJob GenerateGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t 
 
 dmExtension::Result FontGenInitialize(dmExtension::Params* params)
 {
-    g_FontExtContext = new Context;
-    g_FontExtContext->m_ResourceFactory = params->m_ResourceFactory;
-
     // 3 is arbitrary but resembles the output from our old generator
-    g_FontExtContext->m_StbttDefaultSdfPadding = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.stbtt_sdf_base_padding", 3);
-    g_FontExtContext->m_StbttDefaultSdfEdge = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.stbtt_sdf_edge_value", 191);
-
-    HContextRegistry context_registry = ExtensionParamsGetContextRegistry((ExtensionParams*)params);
-    g_FontExtContext->m_Jobs = (HJobContext) ContextRegistryGet(context_registry, JOB_SYSTEM_CONTEXT_NAME);
+    g_FontGenContext.m_StbttDefaultSdfPadding = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.stbtt_sdf_base_padding", 3);
+    g_FontGenContext.m_StbttDefaultSdfEdge = dmConfigFile::GetInt(params->m_ConfigFile, "fontgen.stbtt_sdf_edge_value", 191);
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result FontGenFinalize(dmExtension::Params* params)
+bool FontGenIsSupported()
 {
-    delete g_FontExtContext;
-    g_FontExtContext = 0;
+    return true;
+}
+
+dmExtension::Result FontGenFinalize(dmExtension::Params*)
+{
+    g_FontGenContext.m_StbttDefaultSdfPadding = 3;
+    g_FontGenContext.m_StbttDefaultSdfEdge = 191;
     return dmExtension::RESULT_OK;
 }
 
-void FontGenFlushFinishedJobs(uint64_t timeout)
+void FontGenFlushFinishedJobs(HJobContext jobs, uint64_t timeout)
 {
-    JobSystemUpdate(g_FontExtContext->m_Jobs, timeout);
+    JobSystemUpdate(jobs, timeout);
 }
 
 float FontGenGetBasePadding()
 {
-    return g_FontExtContext->m_StbttDefaultSdfPadding;
+    return g_FontGenContext.m_StbttDefaultSdfPadding;
 }
 
 float FontGenGetEdgeValue()
 {
-    return g_FontExtContext->m_StbttDefaultSdfEdge;
+    return g_FontGenContext.m_StbttDefaultSdfEdge;
 }
 
 // Resource api
 
 // Called on cache misses by res_font.cpp
-HJob FontGenAddGlyphByIndex(FontGenJobData* jobdata, HFont font, uint32_t glyph_index, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx)
+HJob FontGenAddGlyphByIndex(FontGenJobData* jobdata, HFont font, uint32_t glyph_index)
 {
-    FontGenJobDataSetup(jobdata, 1, cbk, cbk_ctx);
+    if (!jobdata)
+        return 0;
+    FontGenJobDataSetup(jobdata);
 
 // TODO: Don't create a sentinel job for a single job!
     HJob job_sentinel = CreateSentinelJob(jobdata);
 
-    float scale = FontGetScaleFromSize(font, jobdata->m_FontInfo.m_Size);
+    float scale = FontGetScaleFromSize(font, jobdata->m_Params.m_Size);
     GenerateGlyphByIndex(jobdata, font, 0, glyph_index, scale, job_sentinel);
     return job_sentinel;
 }
 
 // Called to prewarm text by res_font.cpp
-HJob FontGenAddGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t num_glyphs, dmGameSystem::FPrewarmTextCallback cbk, void* cbk_ctx)
+HJob FontGenAddGlyphs(FontGenJobData* jobdata, TextGlyph* glyphs, uint32_t num_glyphs)
 {
-    FontGenJobDataSetup(jobdata, num_glyphs, cbk, cbk_ctx);
+    if (!jobdata)
+        return 0;
+    FontGenJobDataSetup(jobdata);
     return GenerateGlyphs(jobdata, glyphs, num_glyphs);
 }
-
-} // namespace

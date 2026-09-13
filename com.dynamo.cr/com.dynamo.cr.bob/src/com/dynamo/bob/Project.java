@@ -1666,6 +1666,13 @@ public class Project implements AutoCloseable {
             platformsSettings.add(ExtenderUtil.getPlatformSettings(this, arch));
         }
         this.setOption(ShaderCompilers.SHADER_ADAPTERS_OPTION, getShaderAdaptersOption(currentPlatform, platformsSettings));
+        boolean richText = true;
+        for (Map<String, Object> settings : platformsSettings) {
+            Map<?, ?> context = (Map<?, ?>)settings.get("context");
+            if (context != null && context.get("excludeLibs") instanceof List<?> excluded && excluded.contains("font_richtext"))
+                richText = false;
+        }
+        this.setOption("font-rich-text", Boolean.toString(richText));
 
         for(GameProjectBuildOption option:options) {
             this.setOption(option.outputOption, option.getValue(this));

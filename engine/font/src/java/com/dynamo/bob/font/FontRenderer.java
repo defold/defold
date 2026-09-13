@@ -122,6 +122,7 @@ public final class FontRenderer implements AutoCloseable {
         public boolean hasOutline;
         public boolean hasShadow;
         public boolean useTextShaping;
+        public boolean vector;
     }
 
     /** One prebaked glyph and its byte range in a {@link GlyphBank}. */
@@ -313,15 +314,17 @@ public final class FontRenderer implements AutoCloseable {
         public final int width;
         public final int height;
         public final int channels;
+        public final int componentSize;
         public final ByteBuffer pixels;
 
-        private Texture(MemorySegment values) {
+        private Texture(MemorySegment values, boolean vector) {
             atlasVersion = FontcTexture.m_AtlasVersion(values);
             x = FontcTexture.m_X(values);
             y = FontcTexture.m_Y(values);
             width = FontcTexture.m_Width(values);
             height = FontcTexture.m_Height(values);
             channels = FontcTexture.m_Channels(values);
+            componentSize = vector ? Float.BYTES : Byte.BYTES;
             int pixelCount = FontcTexture.m_PixelCount(values);
             pixels = pixelCount == 0 ? null : copyNativeBytes(FontcTexture.m_Pixels(values), pixelCount);
         }
@@ -349,8 +352,13 @@ public final class FontRenderer implements AutoCloseable {
         public final float ascent;
         public final float descent;
         public final ByteBuffer pixels;
+        public final ByteBuffer vectorData;
+        public final float outlineWidth;
+        public final float outlineLeftBearing;
+        public final float outlineAscent;
+        public final float outlineDescent;
 
-        private GeneratedGlyph(MemorySegment values) {
+        private GeneratedGlyph(MemorySegment values, boolean vector) {
             glyphIndex = FontcGlyph.m_GlyphIndex(values);
             width = FontcGlyph.m_Width(values);
             height = FontcGlyph.m_Height(values);
@@ -359,7 +367,26 @@ public final class FontRenderer implements AutoCloseable {
             leftBearing = FontcGlyph.m_LeftBearing(values);
             ascent = FontcGlyph.m_Ascent(values);
             descent = FontcGlyph.m_Descent(values);
-            pixels = copyNativeBytes(FontcGlyph.m_Pixels(values), FontcGlyph.m_PixelCount(values));
+            ByteBuffer payload = copyNativeBytes(FontcGlyph.m_Pixels(values), FontcGlyph.m_PixelCount(values));
+            if (vector && payload.remaining() >= Integer.BYTES + Float.BYTES * 4) {
+                int vectorDataSize = payload.getInt();
+                if (vectorDataSize < 0 || vectorDataSize > payload.remaining() - Float.BYTES * 4)
+                    throw new IllegalStateException("Invalid native vector glyph data size");
+                outlineWidth = payload.getFloat();
+                outlineLeftBearing = payload.getFloat();
+                outlineAscent = payload.getFloat();
+                outlineDescent = payload.getFloat();
+                vectorData = payload.slice(payload.position(), vectorDataSize).order(ByteOrder.nativeOrder());
+                payload.position(payload.position() + vectorDataSize);
+                pixels = payload.slice().order(ByteOrder.nativeOrder());
+            } else {
+                pixels = payload;
+                vectorData = null;
+                outlineWidth = 0.0f;
+                outlineLeftBearing = 0.0f;
+                outlineAscent = 0.0f;
+                outlineDescent = 0.0f;
+            }
         }
     }
 
@@ -421,6 +448,7 @@ public final class FontRenderer implements AutoCloseable {
     private final State state;
     private final Cleaner.Cleanable cleanable;
     private long atlasVersion;
+    private final boolean vector;
 
     /**
      * Creates a native renderer and its glyph atlas from the supplied font data.
@@ -443,6 +471,7 @@ public final class FontRenderer implements AutoCloseable {
                 (params.layerMask & LAYER_FACE) == 0)
             throw new IllegalArgumentException("Invalid native font renderer parameters");
 
+        vector = params.vector;
         MemorySegment handle;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment nativeParams = FontcParams.allocate(arena);
@@ -480,6 +509,7 @@ public final class FontRenderer implements AutoCloseable {
                 (params.layerMask & LAYER_FACE) == 0)
             throw new IllegalArgumentException("Invalid native glyph-bank renderer parameters");
 
+        vector = false;
         MemorySegment handle;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment nativeGlyphs = FontcGlyphBankGlyph.allocateArray(glyphBank.glyphs.length, arena);
@@ -666,7 +696,7 @@ public final class FontRenderer implements AutoCloseable {
             int status = FontcGenerateGlyph(requireHandle(), codepoint, result);
             checkResult(status, "Native glyph generation failed");
             try {
-                return new GeneratedGlyph(result);
+                return new GeneratedGlyph(result, vector);
             } finally {
                 FontcFreeGlyph(result);
             }
@@ -830,7 +860,7 @@ public final class FontRenderer implements AutoCloseable {
             int status = FontcGenerateTexture(requireHandle(), knownAtlasVersion, texture);
             checkResult(status, "Native font texture generation failed");
             try {
-                Texture result = new Texture(texture);
+                Texture result = new Texture(texture, vector);
                 atlasVersion = result.atlasVersion;
                 return result;
             } finally {
@@ -918,7 +948,7 @@ public final class FontRenderer implements AutoCloseable {
         FontcParams.m_ShadowX(values, params.shadowX);
         FontcParams.m_ShadowY(values, params.shadowY);
         FontcParams.m_LayerMask(values, params.layerMask);
-        FontcParams.m_OutputBitmap(values, flag(params.outputBitmap));
+        FontcParams.m_OutputBitmap(values, params.vector ? 2 : flag(params.outputBitmap));
         FontcParams.m_Antialias(values, flag(params.antialias));
         FontcParams.m_HasOutline(values, flag(params.hasOutline));
         FontcParams.m_HasShadow(values, flag(params.hasShadow));

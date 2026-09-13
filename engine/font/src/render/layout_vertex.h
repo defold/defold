@@ -66,6 +66,8 @@ struct FontLayoutVertexConfig
     bool                   m_RenderDecorations;
     bool                   m_RenderObjectOutlines;
     bool                   m_ResolveGlyphsForMetrics;
+    // Curve previews render SDF effects in a separate pass.
+    bool                   m_FaceOnly;
 };
 
 struct FontLayoutVertexMetrics

@@ -38,7 +38,7 @@ def build(bld):
         source = http_proto_source,
         target = 'gamesys_http_proto')
 
-    sources = bld.path.ant_glob(['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp', 'fontgen/*.cpp'])
+    sources = bld.path.ant_glob(['*.cpp', 'resources/**/*.cpp', 'components/**/*.cpp', 'scripts/*.cpp'])
     sources = remove_from_node_list(sources, 'comp_model.cpp')
     sources = remove_from_node_list(sources, 'comp_model_pbr.cpp')
     sources = remove_from_node_list(sources, 'comp_model_null.cpp')
@@ -121,6 +121,5 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/gamesys', 'gamesys.h')
     bld.install_files('${PREFIX}/include/gamesys/components', 'components/comp_gui.h')
-    bld.install_files('${PREFIX}/include/gamesys/fontgen', 'fontgen/fontgen.h')
     for x in proto_files:
         bld.install_files('${PREFIX}/share/proto/gamesys', x)

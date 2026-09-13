@@ -191,6 +191,7 @@ public class ShaderCompilePipeline {
     protected static void generateWGSL(String resourcePath, String pathFileInSpv, String pathFileOutWGSL) throws IOException, CompileExceptionError {
         Result result = Exec.execResult(tintExe,
             "--format", "wgsl",
+            "--allow-non-uniform-derivatives", "true",
             "-o", pathFileOutWGSL,
             pathFileInSpv);
         checkResult(resourcePath, result);

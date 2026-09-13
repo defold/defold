@@ -46,6 +46,7 @@ def configure(conf):
     conf.env['STLIB_DLIB'] = ['dlib', 'image', 'zip', 'dmbedtls']
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_RESOURCE'] = 'resource'
+    conf.env['STLIB_FONT_GEN'] = 'font_gen_null' if 'font_gen' in waflib.Options.options.disable_features else 'font_gen'
     conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env['STLIB_SCRIPT'] = 'script'

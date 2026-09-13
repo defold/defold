@@ -37,6 +37,8 @@ extern "C" {
  */
 typedef struct ContextRegistry* HContextRegistry;
 
+#define CONTEXT_REGISTRY_CONTEXT_NAME "context_registry"
+
 /*#
  * Sets a context in the context registry using a specified name.
  * @name ContextRegistrySet

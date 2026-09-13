@@ -53,6 +53,7 @@ message LabelDesc
     optional string         text        = 11;
     required string         font        = 12 [(resource)=true];
     required string         material    = 13 [(resource)=true];
+    optional float          font_size   = 14 [default = 16.0];
 }
 
 

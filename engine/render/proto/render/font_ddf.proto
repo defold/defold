@@ -21,11 +21,18 @@ enum FontRenderMode
 }
 
 // Source format only
+enum VectorFontMode
+{
+    VECTOR_FONT_MODE_SDF    = 0 [(displayName) = "SDF"];
+    VECTOR_FONT_MODE_VECTOR = 1 [(displayName) = "Vector"];
+}
+
+// Source format only
 message FontDesc
 {
     required string font = 1 [(resource)=true];
     required string material = 2 [(resource)=true];
-    required uint32 size = 3;
+    optional uint32 size = 3 [default = 0];
     optional uint32 antialias = 4 [default = 1];
     optional float alpha = 5 [default = 1.0];
     optional float outline_alpha = 6 [default = 0.0];
@@ -42,6 +49,11 @@ message FontDesc
     optional uint32 cache_height = 16 [default = 0];
     optional FontRenderMode render_mode = 17 [default = MODE_SINGLE_LAYER];
     optional string characters = 18 [default = ""];
+    // Material used for vector-font outlines and shadows rendered from a runtime SDF texture.
+    optional string sdf_material = 19 [default = "", (resource)=true];
+    optional VectorFontMode vector_font_mode = 20 [default = VECTOR_FONT_MODE_SDF];
+    // Glyph Generation: false bakes selected glyphs; true generates glyphs dynamically from the source font.
+    optional bool runtime = 21 [default = false];
 }
 
 // Used at runtime.
@@ -76,4 +88,8 @@ message FontMap
     optional float sdf_outline    = 21 [default = 0.0];
     optional float sdf_shadow     = 22 [default = 0.0];
     optional uint32 padding       = 23 [default = 0];
+    reserved 24;
+    optional string sdf_material = 25 [default = "", (resource)=true];
+    // Vector effects are RGB bitmap channels, baked by Bob or by CPU glyph jobs.
+    optional bool vector_bitmap_effects = 26 [default = false];
 }

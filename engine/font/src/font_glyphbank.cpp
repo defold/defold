@@ -115,6 +115,23 @@ static FontResult GlyphBankGetGlyph(HFont hfont, uint32_t glyph_index, const Fon
     output->m_LeftBearing = glyph.m_LeftBearing;
     output->m_Ascent = glyph.m_Ascent;
     output->m_Descent = glyph.m_Descent;
+    output->m_Outline.m_Width = glyph.m_OutlineWidth;
+    output->m_Outline.m_Height = glyph.m_OutlineAscent + glyph.m_OutlineDescent;
+    output->m_Outline.m_LeftBearing = glyph.m_OutlineLeftBearing;
+    output->m_Outline.m_Ascent = glyph.m_OutlineAscent;
+    output->m_Outline.m_Descent = glyph.m_OutlineDescent;
+    output->m_Vector.m_Data = glyph.m_VectorData;
+    output->m_Vector.m_DataSize = glyph.m_VectorDataSize;
+    output->m_Vector.m_CurveCount = glyph.m_VectorDataSize / (sizeof(float) * 8);
+
+    if (output->m_Vector.m_CurveCount != 0 && !options->m_GenerateImage)
+    {
+        output->m_Width = glyph.m_OutlineWidth;
+        output->m_Height = glyph.m_OutlineAscent + glyph.m_OutlineDescent;
+        output->m_LeftBearing = glyph.m_OutlineLeftBearing;
+        output->m_Ascent = glyph.m_OutlineAscent;
+        output->m_Descent = glyph.m_OutlineDescent;
+    }
 
     if (options->m_GenerateImage && glyph.m_DataSize != 0)
     {

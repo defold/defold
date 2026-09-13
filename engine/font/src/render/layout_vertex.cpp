@@ -106,6 +106,9 @@ static bool HasMarkupShadow(const TextRenderStyle* style)
 
 static uint8_t GetGlyphLayerMask(const FontLayoutVertexConfig& config, const TextGlyph& glyph)
 {
+    if (config.m_FaceOnly)
+        return FONT_RENDER_LAYER_FACE;
+
     const TextRenderStyle* style = GetGlyphStyle(config.m_Layout, glyph);
     uint8_t                mask = FONT_RENDER_LAYER_FACE;
     const bool             use_rich_text = config.m_Layout->m_UseRichText;

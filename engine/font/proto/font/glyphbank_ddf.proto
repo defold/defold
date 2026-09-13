@@ -10,6 +10,7 @@ enum FontTextureFormat
 {
     TYPE_BITMAP          = 0 [(displayName) = "Bitmap"];
     TYPE_DISTANCE_FIELD  = 1 [(displayName) = "Distance Field"];
+    TYPE_VECTOR          = 2 [(displayName) = "Vector"];
 }
 
 // Used at runtime
@@ -29,6 +30,12 @@ message GlyphBank
         optional int32  y                 = 8 [default = 0]; // only used in editor preview
         optional uint64 glyph_data_offset = 9; // WHY 64 bits???
         optional uint64 glyph_data_size   = 10; // 32 bits should suffice?
+        optional uint64 vector_data_offset = 11;
+        optional uint64 vector_data_size   = 12;
+        optional float  outline_width      = 13 [default = 0.0];
+        optional float  outline_left_bearing = 14 [default = 0.0];
+        optional float  outline_ascent     = 15 [default = 0.0];
+        optional float  outline_descent    = 16 [default = 0.0];
     }
 
     repeated Glyph             glyphs                = 1;
@@ -58,4 +65,6 @@ message GlyphBank
 
     optional uint32            padding               = 19 [default = 0];
     optional bool              is_monospaced         = 20 [default = false];
+    optional bool vector_bitmap_effects = 22 [default = false];
+    optional bytes             vector_data           = 21; // normalized quadratic curves, eight float32 values per curve
 }

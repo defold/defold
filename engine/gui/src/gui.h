@@ -994,6 +994,8 @@ namespace dmGui
     float GetNodeTextLeading(HScene scene, HNode node);
     void SetNodeTextTracking(HScene scene, HNode node, float tracking);
     float GetNodeTextTracking(HScene scene, HNode node);
+    void SetNodeFontSize(HScene scene, HNode node, float font_size);
+    float GetNodeFontSize(HScene scene, HNode node);
 
     HTextureSource GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);

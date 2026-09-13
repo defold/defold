@@ -2804,6 +2804,7 @@ namespace dmGui
         node->m_Node.m_AdjustMode = 0;
         node->m_Node.m_SizeMode = SIZE_MODE_MANUAL;
         node->m_Node.m_LineBreak = 0;
+        node->m_Node.m_FontSize = 16.0f;
         node->m_Node.m_Enabled = 1;
         node->m_Node.m_IsVisible = 1;
         node->m_Node.m_DirtyLocal = 1;
@@ -3525,6 +3526,18 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         return n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].getY();
+    }
+
+    void SetNodeFontSize(HScene scene, HNode node, float font_size)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_FontSize = font_size;
+    }
+
+    float GetNodeFontSize(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_FontSize;
     }
 
     void* GetNodeMaterial(HScene scene, HNode node)

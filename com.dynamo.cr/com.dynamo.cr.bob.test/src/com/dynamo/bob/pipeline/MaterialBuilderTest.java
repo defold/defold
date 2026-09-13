@@ -86,6 +86,56 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testVectorCurveSamplerSelectsGles100Compatibility() throws Exception {
+        getProject().setOption("platform", "wasm-web");
+
+        String vertexShader = "void main() { gl_Position = vec4(0.0); }\n";
+        String fragmentShader = """
+                uniform sampler2D %s;
+                void main() {
+                    gl_FragColor = texture2D(%s, vec2(0.5));
+                }
+                """;
+
+        addFile("/vector.vp", vertexShader);
+        addFile("/vector-native.fp", String.format(fragmentShader, "curve_texture", "curve_texture"));
+        List<com.google.protobuf.Message> nativeOutputs = build("/vector-native.material", """
+                name: "vector-native"
+                vertex_program: "/vector.vp"
+                fragment_program: "/vector-native.fp"
+                samplers {
+                  name: "curve_texture"
+                  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+                  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+                  filter_min: FILTER_MODE_MIN_NEAREST
+                  filter_mag: FILTER_MODE_MAG_NEAREST
+                }
+                """);
+        Graphics.ShaderDesc nativeShader = getMessage(nativeOutputs, Graphics.ShaderDesc.class);
+        assertNotNull(nativeShader);
+        assertFalse(nativeShader.getShadersList().stream().anyMatch(
+                shader -> shader.getLanguage() == Graphics.ShaderDesc.Language.LANGUAGE_GLES_SM100));
+
+        addFile("/vector-compat.fp", String.format(fragmentShader, "curve_texture_packed", "curve_texture_packed"));
+        List<com.google.protobuf.Message> compatOutputs = build("/vector-compat.material", """
+                name: "vector-compat"
+                vertex_program: "/vector.vp"
+                fragment_program: "/vector-compat.fp"
+                samplers {
+                  name: "curve_texture_packed"
+                  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+                  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+                  filter_min: FILTER_MODE_MIN_NEAREST
+                  filter_mag: FILTER_MODE_MAG_NEAREST
+                }
+                """);
+        Graphics.ShaderDesc compatShader = getMessage(compatOutputs, Graphics.ShaderDesc.class);
+        assertNotNull(compatShader);
+        assertTrue(compatShader.getShadersList().stream().anyMatch(
+                shader -> shader.getLanguage() == Graphics.ShaderDesc.Language.LANGUAGE_GLES_SM100));
+    }
+
+    @Test
     public void testMigrateVertexAttributes() throws Exception {
         addFile("/test_migrate_vx_attributes.material", "");
 

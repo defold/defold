@@ -325,13 +325,19 @@ public class ProtoBuilders {
     }
 
     @ProtoParams(srcClass = LabelDesc.class, messageClass = LabelDesc.class)
-    @BuilderParams(name="LabelDesc", inExts=".label", outExt=".labelc")
+    @BuilderParams(name="LabelDesc", inExts=".label", outExt=".labelc", paramsForSignature={"font-rich-text"})
     public static class LabelDescBuilder extends ProtoBuilder<LabelDesc.Builder> {
         @Override
         protected LabelDesc.Builder transform(Task task, IResource resource, LabelDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "material", messageBuilder.getMaterial());
             BuilderUtil.checkResource(this.project, resource, "font", messageBuilder.getFont());
+            FontBuilder.validateTextEffects(resource, FontBuilder.readFontDesc(this.project, messageBuilder.getFont()),
+                messageBuilder.getText(), this.project.option("font-rich-text", "true").equals("true"),
+                messageBuilder.getOutline().getX() != 0.0f || messageBuilder.getOutline().getY() != 0.0f ||
+                    messageBuilder.getOutline().getZ() != 0.0f || messageBuilder.getOutline().getW() != 1.0f,
+                messageBuilder.getShadow().getX() != 0.0f || messageBuilder.getShadow().getY() != 0.0f ||
+                    messageBuilder.getShadow().getZ() != 0.0f || messageBuilder.getShadow().getW() != 1.0f);
             messageBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getMaterial(), "material", "materialc"));
             messageBuilder.setFont(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getFont(), "font", "fontc"));
             return messageBuilder;

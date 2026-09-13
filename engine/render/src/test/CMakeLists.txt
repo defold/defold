@@ -32,7 +32,8 @@ function(render_configure_test target)
     extension
     resource
     script
-    render)
+    render
+    render_font_default)
   defold_target_link_socket(${target} "${TARGET_PLATFORM}" PRIVATE)
   defold_target_link_app(${target} "${TARGET_PLATFORM}" SCOPE PRIVATE)
   defold_target_link_glfw(${target} "${TARGET_PLATFORM}" PRIVATE)
