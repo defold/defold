@@ -195,6 +195,8 @@ struct TextLayout
     dmArray<TextLine>                  m_Lines;
     dmArray<TextParagraph>             m_Paragraphs;
     dmArray<TextRenderStyle>           m_Styles;
+    // Properties authored above the base style, indexed alongside m_Styles.
+    dmArray<uint32_t>                  m_StyleOverrideFlags;
     dmArray<TextEffect>                m_Effects;
     dmArray<uint16_t>                  m_SpanEffects;
     dmArray<TextResolvedSpan>          m_ResolvedSpans;

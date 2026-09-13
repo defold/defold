@@ -405,19 +405,40 @@ public class FontRendererTest {
 
     @Test
     public void testMarkupShadowAlphaDoesNotDependOnBaseShadowAlpha() throws Exception {
-        try (FontRenderer renderer = createRenderer(32.0f)) {
-            FontRenderer.Properties properties = properties(100.0f, 1.0f, 0);
-            properties.shadowColor = new float[] {1.0f, 1.0f, 1.0f, 0.5f};
-            properties.baseShadowAlpha = 0.0f;
-            renderer.setProperties(properties);
-            renderer.setMarkup("<shadow x=1 color=#00000080>A</shadow>");
-            renderer.beginBatch();
-            renderer.generateTexture(0);
+        // Explicit markup can supply shadow opacity even when the font's base shadow is invisible.
+        // The font's layer mask still controls whether that shadow gets an independently offset quad.
+        byte[] fontBytes;
+        try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {
+            assertNotNull(input);
+            fontBytes = input.readAllBytes();
+        }
+        for (int layerMask : new int[] {FontRenderer.LAYER_FACE, FontRenderer.LAYER_FACE | FontRenderer.LAYER_SHADOW}) {
+            FontRenderer.Params params = new FontRenderer.Params();
+            params.size = 32.0f;
+            params.cacheWidth = 512;
+            params.cacheHeight = 512;
+            params.layerMask = layerMask;
+            try (FontRenderer renderer = new FontRenderer("NotoSans-Regular.ttf", fontBytes, params)) {
+                FontRenderer.Properties properties = properties(100.0f, 1.0f, 0);
+                properties.shadowColor = new float[] {1.0f, 1.0f, 1.0f, 0.5f};
+                properties.baseShadowAlpha = 0.0f;
+                renderer.setProperties(properties);
+                renderer.setMarkup("<shadow x=1 color=#00000080>A</shadow>");
+                renderer.beginBatch();
+                renderer.generateTexture(0);
 
-            TestVertices vertices = getVertices(renderer, IDENTITY);
-            assertEquals(12, vertices.vertexCount);
-            assertEquals(64, Byte.toUnsignedInt(vertices.vertices.get(VERTEX_SHADOW_COLOR_OFFSET + 3)));
-            assertEquals(1.875f, vertices.vertices.getFloat(VERTEX_SDF_SHADOW_OFFSET), 0.0f);
+                TestVertices vertices = getVertices(renderer, IDENTITY);
+                boolean singleLayer = layerMask == FontRenderer.LAYER_FACE;
+                assertEquals(singleLayer ? 6 : 12, vertices.vertexCount);
+                // Component alpha 0.5 times markup alpha 128/255 packs to 64, regardless of base alpha.
+                assertEquals(64, Byte.toUnsignedInt(vertices.vertices.get(VERTEX_SHADOW_COLOR_OFFSET + 3)));
+                // 1.5 + 0.5 * 0.75 selects crisp face coverage instead of a baked shadow channel.
+                assertEquals(1.875f, vertices.vertices.getFloat(VERTEX_SDF_SHADOW_OFFSET), 0.0f);
+                if (!singleLayer) {
+                    // The shadow quad precedes the face quad and is shifted one pixel to the right.
+                    assertEquals(vertices.vertices.getFloat(6 * VERTEX_STRIDE) + 1.0f, vertices.vertices.getFloat(0), 0.0f);
+                }
+            }
         }
     }
 

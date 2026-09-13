@@ -368,7 +368,12 @@ static bool GenerateGlyphByIndex(FontGenJobData* jobdata, HFont font, uint32_t j
 
     // See Fontc.java. If we have shadow blur, we need 3 channels
     bool has_shadow = font_info->m_ShadowBlur > 0.0f;
-    stbtt_padding += has_shadow ? font_info->m_ShadowBlur : 0.0f;
+    // Preserve 1.13.1 single-layer coverage: only multi-layer glyphs include
+    // blur padding. The font map's shader spread still includes the blur.
+    if (dmRenderDDF::MODE_MULTI_LAYER == font_info->m_RenderMode)
+    {
+        stbtt_padding += has_shadow ? font_info->m_ShadowBlur : 0.0f;
+    }
 
     JobItem* item = &jobdata->m_Items[jobindex];
 
