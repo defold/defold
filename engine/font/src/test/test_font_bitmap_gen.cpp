@@ -106,6 +106,12 @@ static void InitializeFontImages()
 {
     if (g_ImageContext)
         return;
+#if defined(__linux__)
+    // Mesa's optimized 8-bit AoS filtering rounds differently across CPU
+    // architectures, which SDF smoothstep amplifies. Use float sampling for
+    // reproducible image tests, including manual --case runs.
+    ASSERT_EQ(0, setenv("GALLIVM_PERF", "no_aos_sampling", 1));
+#endif
     TestMainPlatformInit();
     dmExportedSymbols();
     ASSERT_TRUE(dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL));

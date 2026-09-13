@@ -106,3 +106,9 @@ Rebuild a standalone report from existing results, from `engine/font`:
 python3 src/test/make_report.py --results build/font-render-report/results.json \
   --output build/font-render-report
 ```
+
+On Linux, the image generator sets `GALLIVM_PERF=no_aos_sampling` before
+initializing graphics. This selects Mesa's floating-point texture filtering
+instead of its optimized 8-bit AoS path, whose rounding differences across CPUs
+are amplified by SDF edge smoothing. It applies to manual captures as well as
+CMake runs and leaves the engine's production rendering configuration unchanged.
