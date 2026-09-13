@@ -1,0 +1,73 @@
+{
+  "revision": "17192895df5b63415611a19868057509019e333d",
+  "worktree_dirty": true,
+  "reference_variant": "User-approved current working renderer baseline",
+  "case": {
+    "source": "fnt",
+    "multi": true,
+    "scenario": "default",
+    "text": "ABCDEFGabcdefg 0123456789",
+    "size": 40,
+    "outline": 4,
+    "outline_alpha": 1,
+    "threshold": 98,
+    "face_alpha": 1,
+    "shadow_alpha": 0,
+    "shadow_blur": 0,
+    "shadow_x": 0,
+    "shadow_y": 0,
+    "markup": false,
+    "change": false,
+    "id": "fnt_multi_default"
+  },
+  "configuration": "full-rich",
+  "backend": "opengl",
+  "driver": "Not recorded by this generator",
+  "png_sha256": "cf8a397ff323d18142b4ef07bc800c9418e772b4a09f844190cb468525bbf9e1",
+  "threshold": 98,
+  "dimensions": [
+    640,
+    100
+  ],
+  "capture_geometry": {
+    "width": 640,
+    "height": 100,
+    "origin_x": 20,
+    "origin_top": 20,
+    "layout_width": 3000
+  },
+  "capture_geometry_sha256": "d367f531190a735f1e839433b9da6572b04280442e38758729e40c8379488786",
+  "capture_metadata": {
+    "backend": "opengl",
+    "source": "render-target",
+    "glyphs": 25,
+    "lines": 1,
+    "vertices": 144,
+    "layers": 1,
+    "width": 640,
+    "height": 100,
+    "origin_x": 20,
+    "origin_top": 20,
+    "layout_width": 3000,
+    "font_ascent": 31,
+    "font_descent": 9,
+    "outline_data": false
+  },
+  "binary": {
+    "path": "/Users/mathiaswesterdahl/work/defold/engine/font/build/arm64-macos/src/test/test_font_bitmap_gen_skribidi",
+    "sha256": "7bbfb1e53c27030b12007e0dbc05ddf59706f24f79af376ca6b6982bf50c50a4"
+  },
+  "font_hashes": {},
+  "command": [
+    "/Users/mathiaswesterdahl/work/defold/engine/font/build/arm64-macos/src/test/test_font_bitmap_gen_skribidi",
+    "--case",
+    "fnt_multi_default",
+    "--output",
+    "/Users/mathiaswesterdahl/work/defold/engine/font/build/font-test-images"
+  ],
+  "normalization": "Fixed off-screen target; no resampling or foreground cropping",
+  "provenance": "../provenance.json",
+  "verified": true,
+  "verification": "Fresh complete matrix reproduced the accepted current image exactly at the 98% threshold.",
+  "repeat_likeness_percent": 100.0
+}

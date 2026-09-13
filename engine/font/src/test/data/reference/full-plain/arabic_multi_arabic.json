@@ -1,0 +1,76 @@
+{
+  "revision": "17192895df5b63415611a19868057509019e333d",
+  "worktree_dirty": true,
+  "reference_variant": "User-approved current working renderer baseline",
+  "case": {
+    "source": "arabic",
+    "multi": true,
+    "scenario": "arabic",
+    "text": "هناك حقيقة مثبتة منذ زمن طويل وهي أن المحتوى المقروء لصفحة ما سيلهي القارئ عن التركيز على الشكل الخارجي للنص أو شكل توضع الفقرات في الصفحة التي يقرأها. ولذلك يتم استخدام طريقة لوريم إيبسوم لأنها تعطي توزيعاَ طبيعياَ -إلى حد ما- للأحرف عوضاً عن استخدام \"هنا يوجد محتوى نصي، هنا يوجد محتوى نصي\" فتجعلها تبدو (أي الأحرف) وكأنها نص مقروء. العديد من برامح النشر المكتبي وبرامح تحرير صفحات الويب تستخدم لوريم إيبسوم بشكل إفتراضي كنموذج عن النص، وإذا قمت بإدخال \"lorem ipsum\" في أي محرك بحث ستظهر العديد من المواقع الحديثة العهد في نتائج البحث. على مدى السنين ظهرت نسخ جديدة ومختلفة من نص لوريم إيبسوم، أحياناً عن طريق الصدفة، وأحياناً عن عمد كإدخال بعض العبارات الفكاهية إليها.",
+    "size": 40,
+    "outline": 4,
+    "outline_alpha": 1,
+    "threshold": 98,
+    "face_alpha": 1,
+    "shadow_alpha": 0,
+    "shadow_blur": 0,
+    "shadow_x": 0,
+    "shadow_y": 0,
+    "markup": false,
+    "change": false,
+    "id": "arabic_multi_arabic"
+  },
+  "configuration": "full-plain",
+  "backend": "opengl",
+  "driver": "Not recorded by this generator",
+  "png_sha256": "bf4487bbe27ace02d3caf8d4e66bd03b817772ef1ed4b91320de360c5bcc5378",
+  "threshold": 98,
+  "dimensions": [
+    640,
+    1820
+  ],
+  "capture_geometry": {
+    "width": 640,
+    "height": 1820,
+    "origin_x": 20,
+    "origin_top": 20,
+    "layout_width": 600
+  },
+  "capture_geometry_sha256": "d367f531190a735f1e839433b9da6572b04280442e38758729e40c8379488786",
+  "capture_metadata": {
+    "backend": "opengl",
+    "source": "render-target",
+    "glyphs": 884,
+    "lines": 21,
+    "vertices": 13806,
+    "layers": 3,
+    "width": 640,
+    "height": 1820,
+    "origin_x": 20,
+    "origin_top": 20,
+    "layout_width": 600,
+    "font_ascent": 54.9599991,
+    "font_descent": -29.5199986,
+    "outline_data": true
+  },
+  "binary": {
+    "path": "/Users/mathiaswesterdahl/work/defold/engine/font/build/arm64-macos/src/test/test_font_bitmap_gen_skribidi_plain",
+    "sha256": "fe0716d620c9af757d91c157f0a336a93be90eb6a6e0bbb49d72e0058ad040cd"
+  },
+  "font_hashes": {
+    "engine/font/src/test/data/NotoSansArabic-Regular.ttf": "7babaf48a110fb38a89339cec00b96df455424a5ff06065d4eea1e40d7efafe1",
+    "engine/font/src/test/data/NotoSans-Regular.ttf": "fe8c022f48d8dd29f17b744d16f9346f4357e16f7d4f7be58b000ae7c291b614"
+  },
+  "command": [
+    "/Users/mathiaswesterdahl/work/defold/engine/font/build/arm64-macos/src/test/test_font_bitmap_gen_skribidi_plain",
+    "--case",
+    "arabic_multi_arabic",
+    "--output",
+    "/Users/mathiaswesterdahl/work/defold/engine/font/build/font-test-images"
+  ],
+  "normalization": "Fixed off-screen target; no resampling or foreground cropping",
+  "provenance": "../provenance.json",
+  "verified": true,
+  "verification": "Fresh complete matrix reproduced the accepted current image exactly at the 98% threshold.",
+  "repeat_likeness_percent": 100.0
+}

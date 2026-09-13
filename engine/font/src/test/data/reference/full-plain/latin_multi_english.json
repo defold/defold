@@ -1,0 +1,75 @@
+{
+  "revision": "17192895df5b63415611a19868057509019e333d",
+  "worktree_dirty": true,
+  "reference_variant": "User-approved current working renderer baseline",
+  "case": {
+    "source": "latin",
+    "multi": true,
+    "scenario": "english",
+    "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+    "size": 40,
+    "outline": 4,
+    "outline_alpha": 1,
+    "threshold": 98,
+    "face_alpha": 1,
+    "shadow_alpha": 0,
+    "shadow_blur": 0,
+    "shadow_x": 0,
+    "shadow_y": 0,
+    "markup": false,
+    "change": false,
+    "id": "latin_multi_english"
+  },
+  "configuration": "full-plain",
+  "backend": "opengl",
+  "driver": "Not recorded by this generator",
+  "png_sha256": "adac04c1591a573f696e235613d78f8d6b2abe6b1d72e5846b11e5092c5139d2",
+  "threshold": 98,
+  "dimensions": [
+    640,
+    920
+  ],
+  "capture_geometry": {
+    "width": 640,
+    "height": 920,
+    "origin_x": 20,
+    "origin_top": 20,
+    "layout_width": 600
+  },
+  "capture_geometry_sha256": "d367f531190a735f1e839433b9da6572b04280442e38758729e40c8379488786",
+  "capture_metadata": {
+    "backend": "opengl",
+    "source": "render-target",
+    "glyphs": 443,
+    "lines": 16,
+    "vertices": 6750,
+    "layers": 3,
+    "width": 640,
+    "height": 920,
+    "origin_x": 20,
+    "origin_top": 20,
+    "layout_width": 600,
+    "font_ascent": 42.7599983,
+    "font_descent": -11.7199993,
+    "outline_data": true
+  },
+  "binary": {
+    "path": "/Users/mathiaswesterdahl/work/defold/engine/font/build/arm64-macos/src/test/test_font_bitmap_gen_skribidi_plain",
+    "sha256": "fe0716d620c9af757d91c157f0a336a93be90eb6a6e0bbb49d72e0058ad040cd"
+  },
+  "font_hashes": {
+    "engine/font/src/test/data/NotoSans-Regular.ttf": "fe8c022f48d8dd29f17b744d16f9346f4357e16f7d4f7be58b000ae7c291b614"
+  },
+  "command": [
+    "/Users/mathiaswesterdahl/work/defold/engine/font/build/arm64-macos/src/test/test_font_bitmap_gen_skribidi_plain",
+    "--case",
+    "latin_multi_english",
+    "--output",
+    "/Users/mathiaswesterdahl/work/defold/engine/font/build/font-test-images"
+  ],
+  "normalization": "Fixed off-screen target; no resampling or foreground cropping",
+  "provenance": "../provenance.json",
+  "verified": true,
+  "verification": "Fresh complete matrix reproduced the accepted current image exactly at the 98% threshold.",
+  "repeat_likeness_percent": 100.0
+}

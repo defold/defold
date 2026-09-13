@@ -1,0 +1,11 @@
+--- a/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/font/Fontc.java
++++ b/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/font/Fontc.java
+@@ -315,7 +315,7 @@
+         }
+ 
+         if (fontDesc.getOutlineWidth() > 0.0f) {
+-            outlineStroke = new BasicStroke(fontDesc.getOutlineWidth() * 2.0f);
++            outlineStroke = new BasicStroke(fontDesc.getOutlineWidth() * 2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+         }
+ 
+         font = Font.createFont(Font.TRUETYPE_FONT, fontStream);
