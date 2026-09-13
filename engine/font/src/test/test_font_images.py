@@ -259,6 +259,20 @@ class ReportTest(unittest.TestCase):
         rebuilt = report.build_report(document["results"], self.root / "rebuilt", document["metadata"])
         self.assertEqual(summary, rebuilt)
 
+    def test_webp_embedding_preserves_pixels_and_source(self):
+        # Include transparent and partially transparent pixels: lossless must
+        # preserve every channel, not only the visible composited result.
+        image = Image.new("RGBA", (2, 2))
+        image.putdata([(17, 31, 63, 0), (4, 128, 255, 127), (255, 0, 1, 255), (0, 0, 0, 255)])
+        image.save(self.actual)
+        original_bytes = self.actual.read_bytes()
+        page = report._image_html("Actual", self.actual.name, self.root)
+        encoded = re.search(r"data:image/webp;base64,([A-Za-z0-9+/=]+)", page).group(1)
+        with Image.open(io.BytesIO(base64.b64decode(encoded))) as decoded:
+            self.assertEqual("WEBP", decoded.format)
+            self.assertEqual(image.tobytes(), decoded.convert("RGBA").tobytes())
+        self.assertEqual(original_bytes, self.actual.read_bytes())
+
     def test_html_is_standalone_after_removing_report_directory(self):
         # Exercise the shared report and its executable-specific report. Neither
         # may depend on sibling PNGs, case pages, logs or JSON after sharing.
@@ -300,9 +314,9 @@ class ReportTest(unittest.TestCase):
             self.assertTrue(all(link.startswith(("data:", "#")) for link in parser.links))
             self.assertEqual(3, len(parser.images))
             for image in parser.images:
-                self.assertTrue(image.startswith("data:image/png;base64,"))
-                with Image.open(io.BytesIO(base64.b64decode(image.split(",", 1)[1]))) as png:
-                    self.assertEqual("PNG", png.format)
+                self.assertTrue(image.startswith("data:image/webp;base64,"))
+                with Image.open(io.BytesIO(base64.b64decode(image.split(",", 1)[1]))) as webp:
+                    self.assertEqual("WEBP", webp.format)
             self.assertIn("capture complete\n&lt;unsafe&gt;", page)
             self.assertIn("test_font_bitmap_gen --case example", page)
             self.assertIn('download="data-glyphs.json"', page)
@@ -546,7 +560,7 @@ class LikenessPrerequisiteTest(unittest.TestCase):
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
             report.likeness.check_tools()
-        self.assertIn("PNG read/write, RGB RMSE and difference probes passed", output.getvalue())
+        self.assertIn("PNG read/write, RGB RMSE, difference and lossless WebP probes passed", output.getvalue())
 
 
 if __name__ == "__main__":

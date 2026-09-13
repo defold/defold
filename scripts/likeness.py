@@ -66,7 +66,7 @@ def compare(actual, reference, difference_path, background=(0, 0, 0), region=Non
 
 
 def check_tools():
-    """Verify PNG handling and comparison without requiring a graphics device."""
+    """Verify PNG comparison and lossless WebP reports without a graphics device."""
     if Image is None:
         raise ValueError('Pillow is required for image tests. Run ./scripts/build.py install_ext and ./scripts/build.py shell (interpreter: %s)' % sys.executable)
     import PIL
@@ -82,7 +82,18 @@ def check_tools():
         with Image.open(diff) as difference:
             if difference.convert('RGB').getpixel((0, 0)) != (255, 255, 255):
                 raise ValueError("Difference PNG round-trip failed")
-    print("Pillow %s: %s (PNG read/write, RGB RMSE and difference probes passed)" % (PIL.__version__, PIL.__file__))
+        # HTML reports use lossless WebP, including RGB values of transparent pixels.
+        original = Image.new("RGBA", (2, 2))
+        original.putdata([(17, 31, 63, 0), (4, 128, 255, 127), (255, 0, 1, 255), (0, 0, 0, 255)])
+        webp = Path(temporary) / "probe.webp"
+        try:
+            original.save(webp, format="WEBP", lossless=True, exact=True)
+            with Image.open(webp) as decoded:
+                if decoded.convert("RGBA").tobytes() != original.tobytes():
+                    raise ValueError("Lossless WebP round-trip changed pixels")
+        except (OSError, KeyError) as error:
+            raise ValueError("Pillow with lossless WebP support is required for HTML reports. Run ./scripts/build.py install_ext") from error
+    print("Pillow %s: %s (PNG read/write, RGB RMSE, difference and lossless WebP probes passed)" % (PIL.__version__, PIL.__file__))
 
 
 if __name__ == "__main__":

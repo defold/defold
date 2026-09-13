@@ -25,12 +25,14 @@ import argparse
 import base64
 import hashlib
 import html
+import io
 import json
 import math
 import re
 import shutil
 import sys
 from collections import defaultdict
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote
 from collections import Counter
@@ -333,12 +335,22 @@ def _case_anchor(result: dict) -> str:
     return "case-" + hashlib.sha256(result["id"].encode("utf8")).hexdigest()[:16]
 
 
+@lru_cache(maxsize=128)
+def _webp_data_url(png_bytes: bytes) -> str:
+    # Cache by contents so repeated captures across case/configuration pages
+    # share conversion work. Keep transparent RGB values intact as well.
+    with Image.open(io.BytesIO(png_bytes)) as image:
+        output = io.BytesIO()
+        image.save(output, format="WEBP", lossless=True, method=4, exact=True)
+    return _data_url(output.getvalue(), "image/webp")
+
+
 def _image_html(label: str, path: str | None, root: Path | None = None) -> str:
     if not path:
         return f'<figure><div class="missing">No {_escape(label.lower())} image</div><figcaption>{_escape(label)}</figcaption></figure>'
     if root is not None:
-        # Inline PNG bytes so copying index.html alone retains every image.
-        source = _data_url((root / path).read_bytes(), "image/png")
+        # Embed lossless WebP; the comparison captures and references remain PNGs.
+        source = _webp_data_url((root / path).read_bytes())
         return f'<figure><img loading="lazy" src="{source}" alt="{_escape(label)}"><figcaption>{_escape(label)}</figcaption></figure>'
     href = quote(path, safe="/.-_")
     return f'<figure><a href="{href}"><img loading="lazy" src="{href}" alt="{_escape(label)}"></a><figcaption>{_escape(label)}</figcaption></figure>'
