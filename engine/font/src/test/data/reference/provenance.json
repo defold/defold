@@ -64,7 +64,6 @@
     "engine/font/src/render/layout_vertex.cpp": "f6edc17a5ac33485b04be6e1f786cb378468f36641e6d6236389c28d6b759ae4",
     "engine/font/src/render/layout_vertex.h": "d0173ca30c1d5add1993c967de1c7284f1bac2e7530a391a793c7eb94d344459",
     "engine/font/src/test/benchmark_text_layout.cpp": "acbf0320e7262b17c6576f42af80ac623146efbfbfea20eaece131e982dcaca4",
-    "engine/font/src/test/data/NotoColorEmoji-Regular.ttf": "7fb39738ab18f10612d6f4595e2e8e47a0afdf34738460442d99cd0c344a4d90",
     "engine/font/src/test/data/NotoSans-Regular.ttf": "fe8c022f48d8dd29f17b744d16f9346f4357e16f7d4f7be58b000ae7c291b614",
     "engine/font/src/test/data/NotoSansArabic-Regular.ttf": "7babaf48a110fb38a89339cec00b96df455424a5ff06065d4eea1e40d7efafe1",
     "engine/font/src/test/data/SourceCodePro-Regular.otf": "9f9664e2edf6f045c11e774f9bd0be6993971f2544a39061a5ce478b96b051f8",
