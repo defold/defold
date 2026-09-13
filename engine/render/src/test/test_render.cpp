@@ -1987,6 +1987,9 @@ TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLay
 
 TEST_F(dmRenderTest, MarkupOutlineLayerOnlyCoversSpan)
 {
+    // Separate effect quads require a multi-layer font; markup does not change its layer mode.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+
     const char source[] = "<outline size=1>A</outline>B";
     const char text[] = "AB";
     HMarkup markup = 0;
@@ -2020,6 +2023,20 @@ TEST_F(dmRenderTest, MarkupOutlineLayerOnlyCoversSpan)
         ASSERT_EQ(1.0f, vertices[i].m_LayerMasks[1]);
         ASSERT_EQ(0u, vertices[12 + i].m_OutlineColor[3]);
         ASSERT_EQ(0.0f, vertices[12 + i].m_LayerMasks[1]);
+    }
+
+    // The same markup on a single-layer font stays at one combined quad per glyph.
+    // Only the tagged glyph receives outline alpha; channel masks alone do not hide it.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    FontGlyphVertex single_vertices[12];
+    memset(single_vertices, 0, sizeof(single_vertices));
+    ASSERT_EQ(DM_ARRAY_SIZE(single_vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, single_vertices, DM_ARRAY_SIZE(single_vertices)));
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        ASSERT_EQ(255u, single_vertices[i].m_OutlineColor[3]);
+        ASSERT_EQ(0u, single_vertices[6 + i].m_OutlineColor[3]);
+        ASSERT_EQ(1.0f, single_vertices[i].m_LayerMasks[1]);
+        ASSERT_EQ(1.0f, single_vertices[6 + i].m_LayerMasks[1]);
     }
 
     TextLayoutRelease(layout);
@@ -2096,8 +2113,9 @@ TEST_F(dmRenderTest, MarkupWithoutEffectTagsSuppressesBaseEffects)
     ASSERT_EQ(0u, rich_vertices[0].m_OutlineColor[3]);
     ASSERT_EQ(0u, rich_vertices[0].m_ShadowColor[3]);
     ASSERT_EQ(1.0f, rich_vertices[0].m_LayerMasks[0]);
-    ASSERT_EQ(0.0f, rich_vertices[0].m_LayerMasks[1]);
-    ASSERT_EQ(0.0f, rich_vertices[0].m_LayerMasks[2]);
+    // Single-layer compositing keeps all channels enabled; zero alpha suppresses the effects.
+    ASSERT_EQ(1.0f, rich_vertices[0].m_LayerMasks[1]);
+    ASSERT_EQ(1.0f, rich_vertices[0].m_LayerMasks[2]);
 
     TextLayoutRelease(legacy_layout);
     TextLayoutRelease(rich_layout);
@@ -2144,6 +2162,9 @@ TEST_F(dmRenderTest, MarkupOutlineColorOverridesBaseOutlineColor)
 
 TEST_F(dmRenderTest, MarkupOutlineSizeZeroDisablesAndOversizeClamps)
 {
+    // Separate effect quads require a multi-layer font; markup does not change its layer mode.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+
     const char zero_source[] = "<outline size=0>A</outline>";
     const char oversize_source[] = "<outline size=8>A</outline>";
     HMarkup zero_markup = 0;
@@ -2201,6 +2222,9 @@ TEST_F(dmRenderTest, MarkupOutlineSizeZeroDisablesAndOversizeClamps)
 
 TEST_F(dmRenderTest, MarkupCrispShadowOnlyCoversSpan)
 {
+    // Separate effect quads require a multi-layer font; markup does not change its layer mode.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+
     const char source[] = "<shadow x=0 y=0 blur=0 color=#FFFFFFFF>A</shadow>B";
     const char text[] = "AB";
     HMarkup markup = 0;
@@ -2252,6 +2276,9 @@ TEST_F(dmRenderTest, MarkupCrispShadowOnlyCoversSpan)
 
 TEST_F(dmRenderTest, MarkupBitmapShadowDoesNotRevealUntaggedOutline)
 {
+    // Separate effect quads require a multi-layer font; markup does not change its layer mode.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+
     const char source[] = "<shadow blur=2>A</shadow>";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
@@ -2371,6 +2398,9 @@ TEST_F(dmRenderTest, DrawTextOnlyAppliesBaseOutlineAlphaToLegacyText)
 
 TEST_F(dmRenderTest, MarkupShadowUsesFontBlurWhenOmitted)
 {
+    // Separate effect quads require a multi-layer font; markup does not change its layer mode.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+
     const char source[] = "<shadow x=1>A</shadow>";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
@@ -2640,7 +2670,8 @@ TEST_F(dmRenderTest, MarkupDecorationInheritsOutlineAndShadowLayers)
 
     const uint8_t old_layer_mask = m_SystemFontMap->m_LayerMask;
     const bool    old_is_sdf = m_SystemFontMap->m_IsSdf;
-    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    // These assertions inspect separate shadow/outline quads.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
     m_SystemFontMap->m_IsSdf = true;
     FontGlyphVertex vertices[36];
     memset(vertices, 0, sizeof(vertices));
