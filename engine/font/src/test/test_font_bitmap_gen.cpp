@@ -23,6 +23,7 @@
 #include "../font_private.h"
 #include "../util.h"
 #include <dlib/log.h>
+#include <dlib/hash.h>
 #include <dlib/sys.h>
 #include <dlib/dstrings.h>
 #include <dlib/utf8.h>
@@ -617,7 +618,13 @@ static void TestFontImage(const FontImageCase& c)
     dmSnPrintf(filename, sizeof(filename), "%s/%s.json", directory, c.m_Name);
     FILE* data = fopen(filename, "wb");
     ASSERT_NE((FILE*)0, data);
-    fprintf(data, "{\"backend\":\"opengl\",\"source\":\"render-target\",\"glyphs\":%u,\"lines\":%u,\"vertices\":%u,\"layers\":%u,\"width\":%u,\"height\":%u,\"origin_x\":%u,\"origin_top\":%u,\"layout_width\":%u,\"font_ascent\":%.9g,\"font_descent\":%.9g,\"outline_data\":%s}\n", TextLayoutGetGlyphCount(layout), TextLayoutGetLineCount(layout), metrics.m_VertexCount, metrics.m_LayerCount, width, height, geometry.m_OriginX, geometry.m_OriginTop, geometry.m_LayoutWidth, FontGetAscent(font, FontGetScaleFromSize(font, c.m_Size)), FontGetDescent(font, FontGetScaleFromSize(font, c.m_Size)), outline_data ? "true" : "false");
+    fprintf(data, "{\"backend\":\"opengl\",\"source\":\"render-target\",\"glyphs\":%u,\"lines\":%u,\"vertices\":%u,\"layers\":%u,\"width\":%u,\"height\":%u,\"origin_x\":%u,\"origin_top\":%u,\"layout_width\":%u,\"font_ascent\":%.9g,\"font_descent\":%.9g,\"outline_data\":%s,", TextLayoutGetGlyphCount(layout), TextLayoutGetLineCount(layout), metrics.m_VertexCount, metrics.m_LayerCount, width, height, geometry.m_OriginX, geometry.m_OriginTop, geometry.m_LayoutWidth, FontGetAscent(font, FontGetScaleFromSize(font, c.m_Size)), FontGetDescent(font, FontGetScaleFromSize(font, c.m_Size)), outline_data ? "true" : "false");
+    // Fingerprint the exact CPU data sent to GL to distinguish glyph-generation
+    // differences from backend sampling differences across CI hosts.
+    fprintf(data, "\"atlas_width\":%u,\"atlas_height\":%u,\"atlas_hash\":\"%016llx\",\"vertex_hash\":\"%016llx\"}\n",
+            atlas_width, atlas_height,
+            (unsigned long long)dmHashBuffer64(atlas.Begin(), atlas.Size()),
+            (unsigned long long)dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex)));
     ASSERT_EQ(0, fclose(data));
     ++g_TestImagesWritten;
     for (uint32_t i = 0; i < glyphs.Size(); ++i)
