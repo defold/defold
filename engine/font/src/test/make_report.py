@@ -78,7 +78,7 @@ def cases(full, rich):
                     mixed=f'ABCD<color=#ff8080>EFGab</color>cdefG 0123456789').items():
                     add(source,multi,name,text=text,markup=True)
     if full:
-        lorem=json.loads((DATA/'lorem.json').read_text())
+        lorem=json.loads((DATA/'lorem.json').read_text(encoding="utf-8"))
         for language in ('english','arabic'):
             for multi in (False,True):add('arabic' if language=='arabic' else 'latin',multi,language,text=lorem[language])
     return result
@@ -86,7 +86,7 @@ def cases(full, rich):
 
 def generate_cases(output):
     """Emit the C++ cases used by all four native test configurations."""
-    geometry = json.loads((DATA / "capture_geometry.json").read_text())
+    geometry = json.loads((DATA / "capture_geometry.json").read_text(encoding="utf-8"))
     lines=[]
     for name, values in geometry.items():
         fields = ", ".join(str(values[key]) for key in ("width", "height", "origin_x", "origin_top", "layout_width"))
@@ -101,7 +101,7 @@ def generate_cases(output):
             values += [str(c[k]).lower() for k in ('multi','markup','change')]
             lines.append('TEST(FontImages_'+c['id']+', Render)\n{\n    const FontImageCase c = { '+', '.join(values)+' };\n    TestFontImage(c);\n}\n')
         lines.append('#endif')
-    output.parent.mkdir(parents=True,exist_ok=True); output.write_text('\n'.join(lines)+'\n')
+    output.parent.mkdir(parents=True,exist_ok=True); output.write_text('\n'.join(lines)+'\n', encoding="utf-8")
 
 
 def _json_value(value):
@@ -644,8 +644,8 @@ def build_reports(images, output, binaries, generation_results):
             if data.exists(): result['extra_artifacts']={'glyph_vertex_data':str(data.resolve())}
             if generation_results:
                 status=images/(configuration+'.exit-code'); log=images/(configuration+'.log')
-                result['logs']=log.read_text(errors='replace') if log.exists() else 'No generation log'
-                if not status.exists() or status.read_text().strip()!='0':
+                result['logs']=log.read_text(errors='replace', encoding="utf-8") if log.exists() else 'No generation log'
+                if not status.exists() or status.read_text(encoding="utf-8").strip()!='0':
                     result['status']='error';result['reason']='Native assertions/generation failed; '+result['reason']
             if result['status'] in ('fail', 'error'):print(f"{case['id']}: {result['reason']}\nReproduce: {command}")
             results.append(result)
@@ -689,7 +689,7 @@ def main():
         generate_cases(args.generate_cases)
         return 0
     if args.results:
-        document = json.loads(args.results.read_text())
+        document = json.loads(args.results.read_text(encoding="utf-8"))
         for result in document['results']:
             result['artifact_root'] = str(args.results.resolve().parent)
         summary = build_report(document['results'], args.output.resolve(), document.get('metadata', {}))
@@ -698,7 +698,7 @@ def main():
     if not args.images:
         parser.error('--images or --results is required')
     summary=build_reports(args.images.resolve(),args.output.resolve(),dict(x.split('=',1) for x in args.executable),args.generation_results)
-    document = json.loads((args.output/'results.json').read_text())
+    document = json.loads((args.output/'results.json').read_text(encoding="utf-8"))
     print_summary(summary, document['results'])
     print(args.output.resolve()/'index.html')
     return 0 if summary['status'] in ('pass', 'skipped') else 1

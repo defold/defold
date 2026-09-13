@@ -56,6 +56,26 @@ class ReportTest(unittest.TestCase):
     def compare(self, **overrides):
         return report.compare_case(self.actual, self.expected, {**self.case, **overrides}, self.root / "comparison")
 
+    def test_case_generation_with_windows_default_encoding(self):
+        # Simulate Windows-1252 defaults on any host. Both the Arabic fixture
+        # read and generated C++ write must explicitly choose UTF-8.
+        read_text = Path.read_text
+        write_text = Path.write_text
+
+        def windows_read(path, *args, **kwargs):
+            kwargs.setdefault("encoding", "cp1252")
+            return read_text(path, *args, **kwargs)
+
+        def windows_write(path, *args, **kwargs):
+            kwargs.setdefault("encoding", "cp1252")
+            return write_text(path, *args, **kwargs)
+
+        generated = self.root / "font_image_cases.inc"
+        with mock.patch.object(Path, "read_text", windows_read), mock.patch.object(Path, "write_text", windows_write):
+            report.generate_cases(generated)
+        arabic = json.loads((report.DATA / "lorem.json").read_text(encoding="utf-8"))["arabic"]
+        self.assertIn(json.dumps(arabic, ensure_ascii=False), generated.read_text(encoding="utf-8"))
+
     def test_identical_and_reference_never_changes(self):
         # Comparing or reporting may copy a verified PNG, but must not rewrite it.
         self.image(self.actual)
@@ -165,7 +185,7 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(1, summary["skipped"])
         self.assertEqual(0, summary["failed"])
         self.assertEqual(0, summary["passed"])
-        self.assertIn("SKIPPED", (destination / "index.html").read_text())
+        self.assertIn("SKIPPED", (destination / "index.html").read_text(encoding="utf-8"))
         self.actual.write_bytes(b"not a PNG")
         self.assertEqual("error", self.compare()["status"])
 
@@ -226,14 +246,14 @@ class ReportTest(unittest.TestCase):
         destination = self.root / "report"
         summary = report.build_report([passed, crashed], destination, {"expected_cases": [passed["id"], "crashed", "missing"]})
         self.assertEqual({"expected": 3, "completed": 2, "passed": 1, "failed": 2, "skipped": 0, "errors": 2, "status": "fail", "report_errors": []}, summary)
-        document = json.loads((destination / "results.json").read_text())
+        document = json.loads((destination / "results.json").read_text(encoding="utf-8"))
         self.assertEqual(3, len(document["results"]))
         for result in document["results"]:
             self.assertTrue((destination / result["report_path"]).is_file())
             for path in result["paths"].values():
                 self.assertFalse(Path(path).is_absolute())
                 self.assertTrue((destination / path).is_file())
-        page = (destination / "index.html").read_text()
+        page = (destination / "index.html").read_text(encoding="utf-8")
         self.assertIn("crashed", page)
         self.assertIn("missing", page)
         rebuilt = report.build_report(document["results"], self.root / "rebuilt", document["metadata"])
@@ -248,7 +268,7 @@ class ReportTest(unittest.TestCase):
         result["configuration"].update(full_layout=False, rich_text=True,
                                        reproduce_command="test_font_bitmap_gen --case example")
         attachment = self.root / "glyphs.json"
-        attachment.write_text('{"glyphs": 23}')
+        attachment.write_text('{"glyphs": 23}', encoding="utf-8")
         result["extra_artifacts"] = {"glyphs": str(attachment)}
         destination = self.root / "standalone"
         report.build_report([result], destination, {
@@ -274,7 +294,7 @@ class ReportTest(unittest.TestCase):
                     self.images.append(values["src"])
 
         for shared in shared_pages:
-            page = shared.read_text()
+            page = shared.read_text(encoding="utf-8")
             parser = Links()
             parser.feed(page)
             self.assertTrue(all(link.startswith(("data:", "#")) for link in parser.links))
@@ -297,7 +317,7 @@ class ReportTest(unittest.TestCase):
         results.append(dict(id='skipped', status='skipped', likeness_percent=None))
         destination = self.root / 'lowest'
         report.build_report(results, destination, {})
-        page = (destination / 'index.html').read_text()
+        page = (destination / 'index.html').read_text(encoding="utf-8")
         section = page.split('<h2>Lowest likeness scores</h2><ol>')[1].split('</ol>')[0]
         entries = re.findall(r'<a href="#([^"]+)">([^<]+)</a> — <strong>([^<]+)</strong>', section)
         self.assertEqual(['a', 'b', 'e', 'f', 'c'], [entry[1] for entry in entries])
@@ -332,11 +352,11 @@ class ReportTest(unittest.TestCase):
         summary = report.build_report(results, destination, metadata)
         self.assertEqual(3, summary["passed"])
         self.assertEqual(1, summary["failed"])
-        document = json.loads((destination / "results.json").read_text())
+        document = json.loads((destination / "results.json").read_text(encoding="utf-8"))
         self.assertEqual(4, len(document["metadata"]["executable_reports"]))
         for item in document["metadata"]["executable_reports"]:
             child = destination / Path(item["path"]).parent
-            data = json.loads((child / "results.json").read_text())
+            data = json.loads((child / "results.json").read_text(encoding="utf-8"))
             self.assertEqual(1, data["summary"]["expected"])
             self.assertEqual(1, len(data["results"]))
             for path in data["results"][0]["paths"].values():
@@ -356,7 +376,7 @@ class ReportTest(unittest.TestCase):
                  for full in (False, True) for rich in (False, True)]
         destination = self.root / "stable-partitions"
         report.build_report([], destination, {"source": "stable", "expected_cases": cases})
-        document = json.loads((destination / "results.json").read_text())
+        document = json.loads((destination / "results.json").read_text(encoding="utf-8"))
         children = document["metadata"]["executable_reports"]
         self.assertEqual(["layout0-rich0", "layout1-rich0"], [item["configuration"] for item in children])
         self.assertTrue(all(item["summary"]["expected"] == 2 for item in children))
@@ -372,7 +392,7 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(1, summary["passed"])
         self.assertEqual("fail", summary["status"])
         self.assertIn("adapter fallback", summary["report_errors"][0])
-        self.assertIn("adapter fallback", (destination / "index.html").read_text())
+        self.assertIn("adapter fallback", (destination / "index.html").read_text(encoding="utf-8"))
 
     def test_report_escapes_text_and_case_paths(self):
         # Case IDs and logs appear in HTML; use escaped text and generated paths.
@@ -380,10 +400,10 @@ class ReportTest(unittest.TestCase):
         result = {"id": case_id, "status": "error", "reason": "<b>not HTML</b>", "logs": "<script>bad()</script>"}
         destination = self.root / "escaped"
         report.build_report([result], destination, {})
-        page = (destination / "index.html").read_text()
+        page = (destination / "index.html").read_text(encoding="utf-8")
         self.assertNotIn("<script>", page)
         self.assertIn("&lt;script&gt;", page)
-        paths = json.loads((destination / "results.json").read_text())["results"][0]["paths"]
+        paths = json.loads((destination / "results.json").read_text(encoding="utf-8"))["results"][0]["paths"]
         self.assertTrue((destination / paths["log"]).resolve().is_relative_to(destination.resolve()))
 
     def test_candidate_reports_do_not_require_accepted_reference(self):
@@ -391,12 +411,12 @@ class ReportTest(unittest.TestCase):
         # its gallery must never describe that image as a verified comparison.
         self.image(self.actual)
         metadata = self.root / "capture.json"
-        metadata.write_text('{"backend": "metal"}')
+        metadata.write_text('{"backend": "metal"}', encoding="utf-8")
         candidate = {"id": "candidate", "status": "pass", "candidate": "candidate.png", "paths": {"actual": str(self.actual)}, "extra_artifacts": {"capture": str(metadata)}}
         destination = self.root / "candidates"
         self.assertEqual("pass", report.build_report([candidate], destination, {})["status"])
-        self.assertIn("REFERENCE CANDIDATE", (destination / "index.html").read_text())
-        document = json.loads((destination / "results.json").read_text())
+        self.assertIn("REFERENCE CANDIDATE", (destination / "index.html").read_text(encoding="utf-8"))
+        document = json.loads((destination / "results.json").read_text(encoding="utf-8"))
         retained = document["results"][0]["extra_artifacts"]["capture"]
         self.assertTrue((destination / retained).is_file())
         self.assertEqual("pass", report.build_report(document["results"], self.root / "rebuilt-candidates", {})["status"])
@@ -471,7 +491,7 @@ class FontImageReportTest(unittest.TestCase):
                 self.assertEqual(3,summary['passed'])
                 self.assertIn('Reproduce:',output.getvalue())
                 page=root/'report/cases'/('legacy-rich-'+case['id'])/'index.html'
-                self.assertIn('--case '+case['id'],page.read_text())
+                self.assertIn('--case '+case['id'],page.read_text(encoding="utf-8"))
                 self.assertTrue((page.parent/'actual.png').exists())
                 self.assertTrue((page.parent/'difference.png').exists())
 
