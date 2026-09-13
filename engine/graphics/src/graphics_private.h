@@ -183,6 +183,13 @@ namespace dmGraphics
         SHADER_STAGE_FLAG_COMPUTE  = 0x4,
     };
 
+    enum ShaderResourceAccess
+    {
+        SHADER_RESOURCE_ACCESS_NONE  = 0,
+        SHADER_RESOURCE_ACCESS_READ  = 1,
+        SHADER_RESOURCE_ACCESS_WRITE = 2,
+    };
+
     struct VertexStream
     {
         dmhash_t m_NameHash;
@@ -217,7 +224,7 @@ namespace dmGraphics
         uint16_t                    m_Binding;
         uint16_t                    m_ElementCount;
         uint8_t                     m_StageFlags;
-        uint8_t                     m_StorageBufferReadOnly : 1;
+        uint8_t                     m_AccessFlags;
     };
 
     struct ShaderMeta

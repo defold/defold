@@ -46,6 +46,26 @@ namespace dmShaderc
         SetResourceStageFlagsForResource(context->m_Reflection.m_Textures, name_hash, stage_flags);
     }
 
+    static void SetResourceAccessFlagsForResource(dmArray<ShaderResource>& resources, uint64_t name_hash, uint8_t access_flags)
+    {
+        for (int i = 0; i < resources.Size(); ++i)
+        {
+            if (resources[i].m_NameHash == name_hash)
+            {
+                resources[i].m_AccessFlags = access_flags;
+            }
+        }
+    }
+
+    void SetResourceAccessFlags(HShaderContext context, uint64_t name_hash, uint8_t access_flags)
+    {
+        SetResourceAccessFlagsForResource(context->m_Reflection.m_Inputs, name_hash, access_flags);
+        SetResourceAccessFlagsForResource(context->m_Reflection.m_Outputs, name_hash, access_flags);
+        SetResourceAccessFlagsForResource(context->m_Reflection.m_UniformBuffers, name_hash, access_flags);
+        SetResourceAccessFlagsForResource(context->m_Reflection.m_StorageBuffers, name_hash, access_flags);
+        SetResourceAccessFlagsForResource(context->m_Reflection.m_Textures, name_hash, access_flags);
+    }
+
     HShaderCompiler NewShaderCompiler(HShaderContext context, ShaderLanguage language)
     {
         if (language == SHADER_LANGUAGE_SPIRV)

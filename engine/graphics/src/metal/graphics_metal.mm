@@ -3243,9 +3243,14 @@ namespace dmGraphics
                     MetalStorageBuffer* buffer = (MetalStorageBuffer*) binding.m_Buffer;
                     assert(buffer);
                     arg_encoder->setBuffer(buffer->m_DeviceBuffer.m_Buffer, binding.m_BufferOffset, (NSUInteger) msl_index);
-                    MTL::ResourceUsage usage = res->m_StorageBufferReadOnly
-                        ? MTL::ResourceUsageRead
-                        : (MTL::ResourceUsage)(MTL::ResourceUsageRead | MTL::ResourceUsageWrite);
+                    uint8_t access_flags = res->m_AccessFlags;
+                    if (access_flags == SHADER_RESOURCE_ACCESS_NONE)
+                        access_flags = SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE;
+                    MTL::ResourceUsage usage = (MTL::ResourceUsage) 0;
+                    if (access_flags & SHADER_RESOURCE_ACCESS_READ)
+                        usage = (MTL::ResourceUsage)(usage | MTL::ResourceUsageRead);
+                    if (access_flags & SHADER_RESOURCE_ACCESS_WRITE)
+                        usage = (MTL::ResourceUsage)(usage | MTL::ResourceUsageWrite);
                     if (is_compute)
                         UseResourceCached(context, cenc, buffer->m_DeviceBuffer.m_Buffer, usage);
                     else

@@ -3157,7 +3157,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     }
                     break;
                 case BINDING_FAMILY_STORAGE_BUFFER: {
-                    binding.buffer.type = res.m_StorageBufferReadOnly
+                    binding.buffer.type = res.m_AccessFlags == SHADER_RESOURCE_ACCESS_READ
                         ? WGPUBufferBindingType_ReadOnlyStorage
                         : WGPUBufferBindingType_Storage;
 

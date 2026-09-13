@@ -1959,6 +1959,16 @@ static void LogFrameBufferError(GLenum status)
         context->m_ComputeSupport &= glMemoryBarrier    != 0;
         context->m_ComputeSupport &= glBindImageTexture != 0;
 
+    #if defined(GL_SHADER_STORAGE_BUFFER)
+        #if defined(GL_ES_VERSION_3_0) || defined(GL_ES_VERSION_2_0)
+            const bool storage_buffer_version_supported = version_major > 3 || (version_major == 3 && version_minor >= 1);
+        #else
+            const bool storage_buffer_version_supported = version_major > 4 || (version_major == 4 && version_minor >= 3);
+        #endif
+
+        context->m_StorageBufferSupport = storage_buffer_version_supported && glBindBufferBase != 0 && glMemoryBarrier != 0;
+    #endif
+
         #undef COMPUTE_VERSION_NEEDED
     #endif
 
@@ -2054,7 +2064,7 @@ static void LogFrameBufferError(GLenum status)
         #endif
 
         #ifdef GL_MAX_SHADER_STORAGE_BLOCK_SIZE
-            if (context->m_ComputeSupport)
+            if (context->m_StorageBufferSupport)
             {
                 // GL_MAX_SHADER_STORAGE_BLOCK_SIZE is reported as a signed GLint64
                 // in spec — but glGetIntegerv truncates. Drivers commonly clamp
@@ -3302,7 +3312,9 @@ static void LogFrameBufferError(GLenum status)
             glDispatchCompute(group_count_x, group_count_y, group_count_z);
             CHECK_GL_ERROR;
 
-            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS | DMGRAPHICS_BARRIER_BIT_TEXTURE_FETCH);
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS |
+                            DMGRAPHICS_BARRIER_BIT_TEXTURE_FETCH |
+                            DMGRAPHICS_BARRIER_BIT_SHADER_STORAGE);
             CHECK_GL_ERROR;
         }
     #endif

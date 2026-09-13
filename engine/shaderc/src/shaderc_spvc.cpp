@@ -206,11 +206,71 @@ namespace dmShaderc
         return type_index;
     }
 
-    static void SetReflectionResourceForType(ShaderStage stage, ShaderReflection& reflection, spvc_compiler compiler, spvc_resources resources, spvc_resource_type type, dmArray<ShaderResource>& resources_out)
+    static uint8_t GetStorageBufferAccessFlags(spvc_compiler compiler, const spvc_reflected_resource& reflected_resource, spvc_type type)
+    {
+        bool can_read = !spvc_compiler_has_decoration(compiler, reflected_resource.id, SpvDecorationNonReadable) &&
+                        !spvc_compiler_has_decoration(compiler, reflected_resource.base_type_id, SpvDecorationNonReadable);
+        bool can_write = !spvc_compiler_has_decoration(compiler, reflected_resource.id, SpvDecorationNonWritable) &&
+                         !spvc_compiler_has_decoration(compiler, reflected_resource.base_type_id, SpvDecorationNonWritable);
+
+        const unsigned member_count = spvc_type_get_num_member_types(type);
+        if (member_count > 0)
+        {
+            bool has_readable_member = false;
+            bool has_writable_member = false;
+            for (unsigned member_index = 0; member_index < member_count; ++member_index)
+            {
+                has_readable_member |= !spvc_compiler_has_member_decoration(compiler, reflected_resource.base_type_id, member_index, SpvDecorationNonReadable);
+                has_writable_member |= !spvc_compiler_has_member_decoration(compiler, reflected_resource.base_type_id, member_index, SpvDecorationNonWritable);
+            }
+            can_read &= has_readable_member;
+            can_write &= has_writable_member;
+        }
+
+        uint8_t access_flags = SHADER_RESOURCE_ACCESS_NONE;
+        if (can_read)
+            access_flags |= SHADER_RESOURCE_ACCESS_READ;
+        if (can_write)
+            access_flags |= SHADER_RESOURCE_ACCESS_WRITE;
+        return access_flags;
+    }
+
+    static uint8_t GetShaderResourceAccessFlags(spvc_compiler compiler, spvc_resource_type resource_type, const spvc_reflected_resource& reflected_resource, spvc_type type)
+    {
+        switch (resource_type)
+        {
+        case SPVC_RESOURCE_TYPE_STAGE_INPUT:
+        case SPVC_RESOURCE_TYPE_UNIFORM_BUFFER:
+        case SPVC_RESOURCE_TYPE_SAMPLED_IMAGE:
+        case SPVC_RESOURCE_TYPE_SEPARATE_IMAGE:
+        case SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS:
+            return SHADER_RESOURCE_ACCESS_READ;
+        case SPVC_RESOURCE_TYPE_STAGE_OUTPUT:
+            return SHADER_RESOURCE_ACCESS_WRITE;
+        case SPVC_RESOURCE_TYPE_STORAGE_BUFFER:
+            return GetStorageBufferAccessFlags(compiler, reflected_resource, type);
+        case SPVC_RESOURCE_TYPE_STORAGE_IMAGE:
+            switch (spvc_type_get_image_access_qualifier(type))
+            {
+            case SpvAccessQualifierReadOnly:
+                return SHADER_RESOURCE_ACCESS_READ;
+            case SpvAccessQualifierWriteOnly:
+                return SHADER_RESOURCE_ACCESS_WRITE;
+            case SpvAccessQualifierReadWrite:
+            case SpvAccessQualifierMax:
+            default:
+                return SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE;
+            }
+        default:
+            return SHADER_RESOURCE_ACCESS_NONE;
+        }
+    }
+
+    static void SetReflectionResourceForType(ShaderStage stage, ShaderReflection& reflection, spvc_compiler compiler, spvc_resources resources, spvc_resource_type resource_type, dmArray<ShaderResource>& resources_out)
     {
         const spvc_reflected_resource *list = NULL;
         size_t count = 0;
-        spvc_resources_get_resource_list_for_type(resources, type, &list, &count);
+        spvc_resources_get_resource_list_for_type(resources, resource_type, &list, &count);
 
         if (count == 0)
             return;
@@ -240,6 +300,7 @@ namespace dmShaderc
             resource.m_Binding          = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationBinding);
             resource.m_Location         = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationLocation);
             resource.m_StageFlags       = (int) stage;
+            resource.m_AccessFlags      = GetShaderResourceAccessFlags(compiler, resource_type, list[i], type);
 
             resource.m_Type.m_ArraySize = 1;
             unsigned num_array_dimensions = spvc_type_get_num_array_dimensions(type);

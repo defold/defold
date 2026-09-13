@@ -398,10 +398,60 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             assertEquals(1, r.getStorageBuffersCount());
             ShaderDesc.ResourceBinding binding_test = r.getStorageBuffers(0);
             assertEquals("Test", binding_test.getName());
-            assertTrue(binding_test.getStorageBufferReadOnly());
+            assertEquals(Shaderc.ShaderResourceAccess.SHADER_RESOURCE_ACCESS_READ.getValue(), binding_test.getResourceAccessFlags());
 
             ShaderDesc.ResourceTypeInfo binding_type = r.getTypes(binding_test.getType().getTypeIndex());
             assertEquals("Test", binding_type.getName());
+        }
+
+        {
+            String fs_src =
+                "#version 430 \n" +
+                "struct Data \n" +
+                "{ \n" +
+                "    vec4 member1; \n" +
+                "}; \n" +
+                "buffer Test \n" +
+                "{ \n" +
+                "    Data my_data_one; \n" +
+                "    Data my_data_two[]; \n" +
+                "}; \n" +
+                "out vec4 color_out; \n" +
+                "void main() \n" +
+                "{ \n" +
+                "    my_data_one.member1 = vec4(1.0); \n" +
+                "    color_out = my_data_one.member1 + my_data_two[0].member1; \n" +
+                "} \n";
+
+            ShaderDesc shaderDesc = addAndBuildShaderDesc("/reflection_writable_ssbo.fp", fs_src, "/reflection_writable_ssbo.shbundle");
+
+            ShaderDesc.ShaderReflection r = shaderDesc.getReflection();
+            assertEquals(1, r.getStorageBuffersCount());
+            assertEquals(Shaderc.ShaderResourceAccess.SHADER_RESOURCE_ACCESS_READ.getValue() |
+                         Shaderc.ShaderResourceAccess.SHADER_RESOURCE_ACCESS_WRITE.getValue(),
+                         r.getStorageBuffers(0).getResourceAccessFlags());
+        }
+
+        {
+            String fs_src =
+                "#version 430 \n" +
+                "writeonly buffer Test \n" +
+                "{ \n" +
+                "    vec4 value; \n" +
+                "}; \n" +
+                "out vec4 color_out; \n" +
+                "void main() \n" +
+                "{ \n" +
+                "    value = vec4(1.0); \n" +
+                "    color_out = vec4(1.0); \n" +
+                "} \n";
+
+            ShaderDesc shaderDesc = addAndBuildShaderDesc("/reflection_writeonly_ssbo.fp", fs_src, "/reflection_writeonly_ssbo.shbundle");
+
+            ShaderDesc.ShaderReflection r = shaderDesc.getReflection();
+            assertEquals(1, r.getStorageBuffersCount());
+            assertEquals(Shaderc.ShaderResourceAccess.SHADER_RESOURCE_ACCESS_WRITE.getValue(),
+                         r.getStorageBuffers(0).getResourceAccessFlags());
         }
 
         // Shared shader for split/non-split sampler tests:
@@ -1167,6 +1217,13 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         Shaderc.ShaderReflection reflection = ShadercJni.GetReflection(ctx);
 
         assertEquals("FragColor", reflection.outputs[0].name);
+        assertEquals(Shaderc.ShaderResourceAccess.SHADER_RESOURCE_ACCESS_WRITE.getValue(), reflection.outputs[0].accessFlags);
+
+        int readWrite = Shaderc.ShaderResourceAccess.SHADER_RESOURCE_ACCESS_READ.getValue() |
+                        Shaderc.ShaderResourceAccess.SHADER_RESOURCE_ACCESS_WRITE.getValue();
+        ShadercJni.SetResourceAccessFlags(ctx, reflection.outputs[0].nameHash, readWrite);
+        reflection = ShadercJni.GetReflection(ctx);
+        assertEquals(readWrite, reflection.outputs[0].accessFlags);
 
         ShadercJni.DeleteShaderContext(ctx);
     }

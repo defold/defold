@@ -3029,7 +3029,7 @@ namespace dmGraphics
                         break;
                     }
 
-                    const bool read_only = pgm_res.m_Res->m_StorageBufferReadOnly != 0;
+                    const bool read_only = pgm_res.m_Res->m_AccessFlags == SHADER_RESOURCE_ACCESS_READ;
                     const D3D12_RESOURCE_STATES target_state = read_only
                         ? (D3D12_RESOURCE_STATES) (D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
                         : D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
