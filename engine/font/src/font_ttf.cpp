@@ -231,7 +231,7 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
     // Bitmap coverage is sampled on the rasterizer's pixel grid. Preserve its
     // exact origin instead of centering the padded image around outline metrics.
     // This changes image placement only; text advances remain floating point.
-    if (options->m_UseBitmapMetrics && glyph->m_Bitmap.m_Data)
+    if (glyph->m_Bitmap.m_Data)
     {
         glyph->m_Width = glyph->m_Bitmap.m_Width;
         glyph->m_Height = glyph->m_Bitmap.m_Height;

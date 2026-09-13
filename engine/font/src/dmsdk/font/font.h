@@ -244,8 +244,7 @@ uint32_t FontGetGlyphIndex(HFont font, uint32_t codepoint);
  * @struct
  * @name FontGlyphOptions
  * @member m_Scale [type: float] The font scale
- * @member m_GenerateImage [type: bool] If true, generates an SDF image, and fills out the glyph.m_Bitmap structure.
- * @member m_UseBitmapMetrics [type: bool] With image generation, use the raster image bounds and origin for glyph dimensions and left bearing. Advances remain unchanged.
+ * @member m_GenerateImage [type: bool] If true, generates an SDF image and uses its sampled bounds and origin for glyph dimensions and left bearing. Advances remain unchanged.
  * @member m_StbttSDFPadding [type: int] The SDF padding value (valid for FONT_TYPE_TTF and FONT_TYPE_OTF fonts)
  * @member m_StbttSDFOnEdgeValue [type: int] Where the edge value is located (valid for FONT_TYPE_TTF and FONT_TYPE_OTF fonts)
  */
@@ -253,7 +252,6 @@ struct FontGlyphOptions
 {
     float m_Scale; // Point to Size scale
     bool  m_GenerateImage;
-    bool  m_UseBitmapMetrics;
 
     // stbtt options (see stbtt_GetGlyphSDF)
     float m_StbttSDFPadding;
@@ -262,7 +260,6 @@ struct FontGlyphOptions
     FontGlyphOptions()
     : m_Scale(1.0f)
     , m_GenerateImage(false)
-    , m_UseBitmapMetrics(false)
     , m_StbttSDFPadding(3)
     , m_StbttSDFOnEdgeValue(190)
     {

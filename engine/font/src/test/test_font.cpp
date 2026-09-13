@@ -613,6 +613,28 @@ TEST_F(FontTest, BitmapGlyphUsesRasterOriginWithoutRoundingAdvance)
     ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(font, FontGetGlyphIndex(font, 'A'), &params, &sdf));
     ASSERT_EQ(bitmap.m_LeftBearing, sdf.m_LeftBearing);
     ASSERT_EQ(bitmap.m_Advance, sdf.m_Advance);
+
+    // The public API selects sampled metrics automatically when it generates
+    // an image. Metrics-only queries keep the fractional font bearing.
+    FontGlyphOptions options;
+    options.m_Scale = params.m_Scale;
+    options.m_StbttSDFPadding = params.m_SdfPadding;
+    FontGlyph metrics;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyph(font, 'A', &options, &metrics));
+    ASSERT_EQ((uint8_t*)0, metrics.m_Bitmap.m_Data);
+    ASSERT_NEAR(1.04f, metrics.m_LeftBearing, 0.0001f);
+    ASSERT_EQ(sdf.m_Advance, metrics.m_Advance);
+
+    options.m_GenerateImage = true;
+    FontGlyph image;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyph(font, 'A', &options, &image));
+    ASSERT_NE((uint8_t*)0, image.m_Bitmap.m_Data);
+    ASSERT_EQ((float)image.m_Bitmap.m_Width, image.m_Width);
+    ASSERT_EQ((float)image.m_Bitmap.m_Height, image.m_Height);
+    ASSERT_EQ(sdf.m_LeftBearing, image.m_LeftBearing);
+    ASSERT_EQ(metrics.m_Advance, image.m_Advance);
+    FontFreeGlyph(font, &image);
+    FontFreeGlyph(font, &metrics);
     FontFreeGlyph(font, &sdf);
     FontFreeGlyph(font, &bitmap);
     FontDestroy(font);

@@ -129,9 +129,6 @@ FontResult FontGenerateGlyph(HFont font, uint32_t glyph_index, const FontGlyphGe
     FontGlyphOptions options;
     options.m_Scale = params->m_Scale;
     options.m_GenerateImage = true;
-    // Both bitmap and SDF images use their sampled origin. Centering by image
-    // width would move a glyph when its bounds or transparent padding change.
-    options.m_UseBitmapMetrics = true;
     options.m_StbttSDFPadding = params->m_SdfPadding;
     options.m_StbttSDFOnEdgeValue = params->m_SdfEdgeValue;
 
