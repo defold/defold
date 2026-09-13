@@ -259,6 +259,36 @@ class ReportTest(unittest.TestCase):
         rebuilt = report.build_report(document["results"], self.root / "rebuilt", document["metadata"])
         self.assertEqual(summary, rebuilt)
 
+    def test_corrupt_images_still_produce_complete_reports(self):
+        # Exercise comparison through final HTML, including executable reports.
+        # Keep the original corrupt bytes downloadable after sharing the HTML.
+        for broken_key in ("actual", "reference"):
+            with self.subTest(broken_key=broken_key):
+                self.image(self.actual)
+                self.image(self.expected)
+                good = self.compare()
+                good["configuration"].update(full_layout=False, rich_text=True)
+                broken = self.actual if broken_key == "actual" else self.expected
+                broken.write_bytes(b"not a PNG")
+                case = {**self.case, "id": "corrupt", "full_layout": False, "rich_text": True}
+                bad = report.compare_case(self.actual, self.expected, case, self.root / "bad")
+                destination = self.root / ("report-" + broken_key)
+                summary = report.build_report([bad, good], destination, {
+                    "source": "current", "expected_cases": [bad["configuration"], good["configuration"]]})
+                self.assertEqual("fail", summary["status"])
+                self.assertEqual(1, summary["passed"])
+                self.assertEqual(1, summary["errors"])
+                document = json.loads((destination / "results.json").read_text(encoding="utf-8"))
+                retained = destination / document["results"][0]["paths"][broken_key]
+                self.assertEqual(b"not a PNG", retained.read_bytes())
+                for path in (destination / "index.html", destination / "executables/layout0-rich1/index.html"):
+                    page = path.read_text(encoding="utf-8")
+                    self.assertIn("Cannot preview " + broken_key, page)
+                    self.assertIn('download="' + broken_key + '.png"', page)
+                    self.assertIn(base64.b64encode(b"not a PNG").decode("ascii"), page)
+                    self.assertIn("PASS", page)
+                self.assertTrue((destination / "summary.md").is_file())
+
     def test_webp_embedding_preserves_pixels_and_source(self):
         # Include transparent and partially transparent pixels: lossless must
         # preserve every channel, not only the visible composited result.

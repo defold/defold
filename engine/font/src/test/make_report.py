@@ -350,7 +350,17 @@ def _image_html(label: str, path: str | None, root: Path | None = None) -> str:
         return f'<figure><div class="missing">No {_escape(label.lower())} image</div><figcaption>{_escape(label)}</figcaption></figure>'
     if root is not None:
         # Embed lossless WebP; the comparison captures and references remain PNGs.
-        source = _webp_data_url((root / path).read_bytes())
+        contents = None
+        try:
+            contents = (root / path).read_bytes()
+            source = _webp_data_url(contents)
+        except (OSError, ValueError, Image.DecompressionBombError) as error:
+            # Comparison retains corrupt captures as evidence. A preview failure
+            # must not prevent the remaining cases or the report from finishing.
+            download = ""
+            if contents is not None:
+                download = f'<a download="{_escape(Path(path).name)}" href="{_data_url(contents, "application/octet-stream")}">Download original file</a>'
+            return f'<figure><div class="error">Cannot preview {_escape(label.lower())}: {_escape(error)}</div>{download}<figcaption>{_escape(label)}</figcaption></figure>'
         return f'<figure><img loading="lazy" src="{source}" alt="{_escape(label)}"><figcaption>{_escape(label)}</figcaption></figure>'
     href = quote(path, safe="/.-_")
     return f'<figure><a href="{href}"><img loading="lazy" src="{href}" alt="{_escape(label)}"></a><figcaption>{_escape(label)}</figcaption></figure>'
