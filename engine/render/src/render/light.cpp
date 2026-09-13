@@ -28,7 +28,7 @@ namespace dmRender
     static void CommitLightInfo(HRenderContext render_context);
     static void FillLightInstanceSTD140(const LightPrototype* prototype, dmVMath::Point3 position, dmVMath::Vector3 world_direction, float scale, LightSTD140* out_light);
     static bool LightSTD140Equals(const LightSTD140& a, const LightSTD140& b);
-    static LightUniformBuffer* EnsureLightUniformBuffer(HRenderContext render_context, uint16_t capacity);
+    static LightUniformBuffer* EnsureLightUniformBuffer(HRenderContext render_context);
 
     DM_STATIC_ASSERT(sizeof(LightSTD140) == LIGHT_BUFFER_LIGHT_STRIDE, Invalid_LightSTD140_Size);
     DM_STATIC_ASSERT(offsetof(LightSTD140, m_Position) == 0, Invalid_LightSTD140_Position_Offset);
@@ -322,12 +322,12 @@ namespace dmRender
         return dmGraphics::GetUniformBufferLayout(0, light_types, DM_ARRAY_SIZE(light_types));
     }
 
-    static LightUniformBuffer* GenerateUniformBuffer(HRenderContext render_context, uint16_t capacity)
+    static LightUniformBuffer* GenerateUniformBuffer(HRenderContext render_context)
     {
         uint32_t buffer_size = 0;
         uint32_t info_offset = 0;
         uint32_t data_offset = 0;
-        dmGraphics::UniformBufferLayout layout = GetLightBufferLayout(capacity, &buffer_size, &info_offset, &data_offset);
+        dmGraphics::UniformBufferLayout layout = GetLightBufferLayout(render_context->m_MaxLightCount, &buffer_size, &info_offset, &data_offset);
         dmGraphics::HUniformBuffer buffer = dmGraphics::NewUniformBuffer(render_context->m_GraphicsContext, layout, buffer_size);
         if (!buffer)
         {
@@ -337,17 +337,10 @@ namespace dmRender
         assert(info_offset == render_context->m_LightBufferInfoWriteStart);
         assert(data_offset == render_context->m_LightBufferDataWriteStart);
 
-        if (render_context->m_LightUniformBuffers.Full())
-        {
-            render_context->m_LightUniformBuffers.OffsetCapacity(4);
-        }
-
-        LightUniformBuffer light_buffer;
-        light_buffer.m_Buffer   = buffer;
-        light_buffer.m_Version  = 0;
-        light_buffer.m_Capacity = capacity;
-        render_context->m_LightUniformBuffers.Push(light_buffer);
-        return &render_context->m_LightUniformBuffers.Back();
+        LightUniformBuffer* light_buffer = &render_context->m_LightUniformBuffer;
+        light_buffer->m_Buffer  = buffer;
+        light_buffer->m_Version = 0;
+        return light_buffer;
     }
 
     static inline void FillLightInstanceSTD140(const LightPrototype* prototype, dmVMath::Point3 position, dmVMath::Vector3 world_direction, float scale, LightSTD140* out_light)
@@ -429,10 +422,7 @@ namespace dmRender
         if (render_context->m_LightBufferVersion == 0)
         {
             render_context->m_LightBufferVersion = 1;
-            for (uint32_t i = 0; i < render_context->m_LightUniformBuffers.Size(); ++i)
-            {
-                render_context->m_LightUniformBuffers[i].m_Version = 0;
-            }
+            render_context->m_LightUniformBuffer.m_Version = 0;
         }
     }
 
@@ -475,21 +465,20 @@ namespace dmRender
     static void WriteLightInstanceData(HRenderContext render_context, LightUniformBuffer* light_buffer)
     {
         uint32_t active_light_count = CompactLightBufferScratch(render_context);
-        uint32_t upload_light_count = dmMath::Min(active_light_count, (uint32_t) light_buffer->m_Capacity);
 
-        dmVMath::Vector4 info(render_context->m_AmbientLight, (float) upload_light_count);
+        dmVMath::Vector4 info(render_context->m_AmbientLight, (float) active_light_count);
         dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext,
                                      light_buffer->m_Buffer,
                                      render_context->m_LightBufferInfoWriteStart,
                                      sizeof(info),
                                      &info);
 
-        // Write compacted light data from the scratch buffer. The shader loops
-        // over [0..light_info.w). Both the count and upload are clamped to this
-        // program's declared array capacity.
-        if (upload_light_count > 0)
+        // The project-sized buffer contains every active light. Programs with
+        // a smaller trailing lights[] array must clamp light_info.w before
+        // indexing it.
+        if (active_light_count > 0)
         {
-            uint32_t write_size = upload_light_count * sizeof(LightSTD140);
+            uint32_t write_size = active_light_count * sizeof(LightSTD140);
             dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext,
                                          light_buffer->m_Buffer,
                                          render_context->m_LightBufferDataWriteStart,
@@ -500,17 +489,14 @@ namespace dmRender
         light_buffer->m_Version = render_context->m_LightBufferVersion;
     }
 
-    static LightUniformBuffer* EnsureLightUniformBuffer(HRenderContext render_context, uint16_t capacity)
+    static LightUniformBuffer* EnsureLightUniformBuffer(HRenderContext render_context)
     {
-        for (uint32_t i = 0; i < render_context->m_LightUniformBuffers.Size(); ++i)
+        if (render_context->m_LightUniformBuffer.m_Buffer)
         {
-            if (render_context->m_LightUniformBuffers[i].m_Capacity == capacity)
-            {
-                return &render_context->m_LightUniformBuffers[i];
-            }
+            return &render_context->m_LightUniformBuffer;
         }
 
-        return GenerateUniformBuffer(render_context, capacity);
+        return GenerateUniformBuffer(render_context);
     }
 
     void SetLightBufferCount(HRenderContext render_context, uint32_t max_lights)
@@ -518,11 +504,12 @@ namespace dmRender
         assert(render_context);
         assert(render_context->m_RenderLightsIndices.Size() == 0);
 
-        for (uint32_t i = 0; i < render_context->m_LightUniformBuffers.Size(); ++i)
+        if (render_context->m_LightUniformBuffer.m_Buffer)
         {
-            dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffers[i].m_Buffer);
+            dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer.m_Buffer);
         }
-        render_context->m_LightUniformBuffers.SetSize(0);
+        render_context->m_LightUniformBuffer.m_Buffer  = 0;
+        render_context->m_LightUniformBuffer.m_Version = 0;
 
         if (max_lights > UINT16_MAX)
         {
@@ -574,11 +561,12 @@ namespace dmRender
 
     void FinalizeLightData(HRenderContext render_context)
     {
-        for (uint32_t i = 0; i < render_context->m_LightUniformBuffers.Size(); ++i)
+        if (render_context->m_LightUniformBuffer.m_Buffer)
         {
-            dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffers[i].m_Buffer);
+            dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer.m_Buffer);
         }
-        render_context->m_LightUniformBuffers.SetSize(0);
+        render_context->m_LightUniformBuffer.m_Buffer  = 0;
+        render_context->m_LightUniformBuffer.m_Version = 0;
 
         uint32_t prototype_capacity = render_context->m_LightPrototypes.Capacity();
         for (uint32_t i = 0; i < prototype_capacity; ++i)
@@ -684,9 +672,9 @@ namespace dmRender
         }
     }
 
-    static void ApplyLightBufferForBinding(HRenderContext render_context, uint16_t light_buffer_set, uint16_t light_buffer_binding, uint16_t light_buffer_capacity)
+    static void ApplyLightBufferForBinding(HRenderContext render_context, uint16_t light_buffer_set, uint16_t light_buffer_binding)
     {
-        LightUniformBuffer* light_buffer = EnsureLightUniformBuffer(render_context, light_buffer_capacity);
+        LightUniformBuffer* light_buffer = EnsureLightUniformBuffer(render_context);
         if (!light_buffer)
         {
             return;
@@ -705,9 +693,9 @@ namespace dmRender
 
     static inline void UnbindLightBuffer(HRenderContext render_context)
     {
-        for (uint32_t i = 0; i < render_context->m_LightUniformBuffers.Size(); ++i)
+        if (render_context->m_LightUniformBuffer.m_Buffer)
         {
-            dmGraphics::DisableUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffers[i].m_Buffer);
+            dmGraphics::DisableUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer.m_Buffer);
         }
     }
 
@@ -718,7 +706,7 @@ namespace dmRender
             UnbindLightBuffer(render_context);
             return;
         }
-        ApplyLightBufferForBinding(render_context, material->m_LightBufferSet, material->m_LightBufferBinding, material->m_LightBufferCapacity);
+        ApplyLightBufferForBinding(render_context, material->m_LightBufferSet, material->m_LightBufferBinding);
     }
 
     void ApplyComputeProgramLightBuffers(HRenderContext render_context, HComputeProgram compute_program)
@@ -728,6 +716,6 @@ namespace dmRender
             UnbindLightBuffer(render_context);
             return;
         }
-        ApplyLightBufferForBinding(render_context, compute_program->m_LightBufferSet, compute_program->m_LightBufferBinding, compute_program->m_LightBufferCapacity);
+        ApplyLightBufferForBinding(render_context, compute_program->m_LightBufferSet, compute_program->m_LightBufferBinding);
     }
 }

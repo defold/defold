@@ -314,7 +314,6 @@ namespace dmRender
     {
         dmGraphics::HUniformBuffer m_Buffer;
         uint32_t                   m_Version;
-        uint16_t                   m_Capacity;
     };
 
     struct RenderContext
@@ -349,7 +348,7 @@ namespace dmRender
         dmArray<LightSTD140>                   m_LightBufferScratch;
         dmArray<LightSTD140>                   m_LightBufferUploadScratch;
         dmArray<uint8_t>                       m_LightBufferSubmitted;
-        dmArray<LightUniformBuffer>            m_LightUniformBuffers;
+        LightUniformBuffer                     m_LightUniformBuffer;
         dmVMath::Vector3                       m_AmbientLight;
 
         HFontMap                    m_SystemFontMap;

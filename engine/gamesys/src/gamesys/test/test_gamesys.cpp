@@ -10497,7 +10497,7 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUbo)
     dmGraphics::NullUniformBuffer* ubo = null_context->m_UniformBuffers[material->m_LightBufferSet][material->m_LightBufferBinding];
     ASSERT_NE((void*)0, ubo);
     ASSERT_NE((void*)0, ubo->m_Buffer);
-    ASSERT_EQ(dmRender::LIGHT_BUFFER_HEADER_SIZE + material->m_LightBufferCapacity * dmRender::LIGHT_BUFFER_LIGHT_STRIDE, ubo->m_BufferSize);
+    ASSERT_EQ(dmRender::LIGHT_BUFFER_HEADER_SIZE + render_ctx->m_MaxLightCount * dmRender::LIGHT_BUFFER_LIGHT_STRIDE, ubo->m_BufferSize);
 
     Vector4 light_info_written;
     memcpy(&light_info_written, ubo->m_Buffer + render_ctx->m_LightBufferInfoWriteStart, sizeof(light_info_written));
@@ -10519,18 +10519,22 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUbo)
     dmRender::ApplyMaterialProgramLightBuffers(m_RenderContext, small_material);
     dmGraphics::NullUniformBuffer* small_ubo = null_context->m_UniformBuffers[small_material->m_LightBufferSet][small_material->m_LightBufferBinding];
     ASSERT_NE((void*)0, small_ubo);
-    ASSERT_NE(ubo, small_ubo);
-    ASSERT_EQ(dmRender::LIGHT_BUFFER_HEADER_SIZE + small_material->m_LightBufferCapacity * dmRender::LIGHT_BUFFER_LIGHT_STRIDE, small_ubo->m_BufferSize);
+    ASSERT_EQ(ubo, small_ubo);
+    ASSERT_EQ(dmRender::LIGHT_BUFFER_HEADER_SIZE + render_ctx->m_MaxLightCount * dmRender::LIGHT_BUFFER_LIGHT_STRIDE, small_ubo->m_BufferSize);
     memcpy(&light_info_written, small_ubo->m_Buffer + render_ctx->m_LightBufferInfoWriteStart, sizeof(light_info_written));
-    ASSERT_VEC4(Vector4(0.5f, 1.0f, 1.5f, 4.0f), light_info_written);
-
-    const uint32_t small_light_data_bytes = 4u * (uint32_t) sizeof(dmRender::LightSTD140);
-    ASSERT_EQ(0, memcmp(small_ubo->m_Buffer + light_data_offset, render_ctx->m_LightBufferUploadScratch.Begin(), small_light_data_bytes));
-
-    // Uploading a smaller-capacity program must not change the light count in
-    // the buffer already used by a larger-capacity draw in this command buffer.
-    memcpy(&light_info_written, ubo->m_Buffer + render_ctx->m_LightBufferInfoWriteStart, sizeof(light_info_written));
     ASSERT_VEC4(Vector4(0.5f, 1.0f, 1.5f, 10.0f), light_info_written);
+
+    // Programs with a smaller declaration share the project-sized buffer and
+    // clamp light_info.w to their own MAX_LIGHTS before indexing lights[].
+    ASSERT_EQ(0, memcmp(small_ubo->m_Buffer + light_data_offset, render_ctx->m_LightBufferUploadScratch.Begin(), light_data_bytes));
+
+    // Exercise adapter validation: a project-sized buffer is compatible with a
+    // shader whose trailing lights[] declaration is smaller.
+    dmGraphics::EnableProgram(m_GraphicsContext, small_material->m_Program);
+    dmGraphics::Draw(m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
+    ASSERT_TRUE(small_ubo->m_UsedInDraw);
+    ASSERT_EQ(small_ubo, null_context->m_UniformBuffers[small_material->m_LightBufferSet][small_material->m_LightBufferBinding]);
+    dmGraphics::DisableProgram(m_GraphicsContext);
 
     dmGameSystem::MaterialResource* unlit_material_res = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/valid.materialc", (void**) &unlit_material_res));
@@ -10682,7 +10686,7 @@ TEST_F(MaterialResourceTest, TestLightBufferWriteIntoUboCompute)
     ASSERT_NE((void*)0, ubo);
     ASSERT_NE((void*)0, ubo->m_Buffer);
     ASSERT_EQ(ubo, null_context->m_UniformBuffers[compute_program->m_LightBufferSet][compute_program->m_LightBufferBinding]);
-    ASSERT_EQ(dmRender::LIGHT_BUFFER_HEADER_SIZE + compute_program->m_LightBufferCapacity * dmRender::LIGHT_BUFFER_LIGHT_STRIDE, ubo->m_BufferSize);
+    ASSERT_EQ(dmRender::LIGHT_BUFFER_HEADER_SIZE + render_ctx->m_MaxLightCount * dmRender::LIGHT_BUFFER_LIGHT_STRIDE, ubo->m_BufferSize);
 
     Vector4 light_info_written;
     memcpy(&light_info_written, ubo->m_Buffer + render_ctx->m_LightBufferInfoWriteStart, sizeof(light_info_written));
