@@ -4,7 +4,7 @@ These 344 backend-independent reference images represent the user-approved curre
 
 Single-line tests use `ABCDEFGabcdefg 0123456789`. Full-layout English and Arabic paragraphs retain their frozen Lorem ipsum fixtures.
 
-`provenance.json` records the checkout revision, dirty-worktree input hashes, executable identities, capture geometry, PNG hashes and repeat verification. Per-image JSON records the case options and reproduction command. Captures use fixed off-screen targets without resampling or foreground cropping. The current generators use OpenGL; the adapter's driver identity is not recorded by this generator.
+`provenance.json` records the checkout revision, dirty-worktree input hashes, executable identities, capture geometry, PNG hashes and repeat verification. Generated reports include the case options and reproduction command; capture diagnostics are written to the build output. Captures use fixed off-screen targets without resampling or foreground cropping. The current generators use OpenGL; the adapter's driver identity is not recorded by this generator.
 
 The previous patched-1.13.1 reference provenance is retained in `history/pre-current-reset-provenance.json`. Files under `patches/` document that historical generation process; they are not required to generate the current baseline.
 
