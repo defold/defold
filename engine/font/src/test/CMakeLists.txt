@@ -82,14 +82,18 @@ if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
   add_custom_target(generate_font_test_images COMMAND ${_font_image_command}
     DEPENDS run_test_font_images_python test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain
     USES_TERMINAL COMMENT "Rendering the font-library image matrix")
-  if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
-    if(NOT TARGET run_tests)
-      add_custom_target(run_tests)
+  # Keep the manual target available on every desktop. GitHub CI runs the
+  # automatic screenshot comparisons only on native Linux engine builds.
+  if(NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$")
+    if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+      if(NOT TARGET run_tests)
+        add_custom_target(run_tests)
+      endif()
+      add_dependencies(run_tests generate_font_test_images)
     endif()
-    add_dependencies(run_tests generate_font_test_images)
+    defold_register_sequential_test_command(font_images COMMAND ${_font_image_command}
+      DEPENDS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
   endif()
-  defold_register_sequential_test_command(font_images COMMAND ${_font_image_command}
-    DEPENDS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
 endif()
 
 defold_add_executable(test_markup "${FONT_TEST_ROOT}/test_markup.cpp")
