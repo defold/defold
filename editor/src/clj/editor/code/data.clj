@@ -46,7 +46,8 @@
 (defonce/protocol ComplexTextMetrics
   (complex-text-width [this text] "The shaped width of a string containing a complex script.")
   (complex-text-col->x [this text col] "The visual x position of a logical offset in a complex string.")
-  (complex-text-x->col [this text x] "The logical offset nearest a visual x position in a complex string."))
+  (complex-text-x->col [this text x] "The logical offset nearest a visual x position in a complex string.")
+  (complex-text-x->character-col [this text x] "The logical offset of the character at a visual x position in a complex string."))
 
 (defn- complex-script?
   [^String text]
@@ -606,10 +607,11 @@
       (advance-text-impl glyph-metrics tab-stops line index (count line) x))))
 
 (defn- line-col->x
-  ^double [glyph-metrics tab-stops ^String line ^long col ranges]
-  (loop [range-index 0
-         index 0
-         x 0.0]
+  ^double [glyph-metrics tab-stops ^String line ^long col]
+  (let [ranges (complex-string-ranges line)]
+    (loop [range-index 0
+           index 0
+           x 0.0]
       (if-let [[start end] (get ranges range-index)]
         (cond
           (<= col start)
@@ -624,39 +626,72 @@
                  end
                  (+ (advance-text-impl glyph-metrics tab-stops line index start x)
                     (complex-text-width glyph-metrics (.substring line start end)))))
-      (advance-text-impl glyph-metrics tab-stops line index col x))))
+        (advance-text-impl glyph-metrics tab-stops line index col x)))))
 
 (defn- line-x->col
-  ^long [glyph-metrics tab-stops ^String line ^double x ranges]
-  (loop [range-index 0
+  ^long [glyph-metrics tab-stops ^String line ^double x]
+  (loop [ranges (complex-string-ranges line)
          index 0
          start-x 0.0]
-      (if-let [[start end] (get ranges range-index)]
-        (let [complex-start-x (advance-text-impl glyph-metrics tab-stops line index start start-x)
-              complex-end-x (+ complex-start-x (complex-text-width glyph-metrics (.substring line start end)))]
-          (cond
-            (< x complex-start-x)
-            (loop [col index
-                   col-x start-x]
-              (let [next-col (inc col)
-                    next-x (advance-text-impl glyph-metrics tab-stops line col next-col col-x)]
-                (if (or (<= x next-x) (= next-col start))
-                  (max 0 (+ col (long (+ 0.5 (/ (- x col-x) (- next-x col-x))))))
-                  (recur next-col next-x))))
-
-            (< x complex-end-x)
-            (+ start (complex-text-x->col glyph-metrics (.substring line start end) (- x complex-start-x)))
-
-            :else
-            (recur (inc range-index) end complex-end-x)))
-        (loop [col index
-               col-x start-x]
-          (if (>= col (count line))
-            col
+    (if-let [[start end] (get ranges 0)]
+      (let [complex-start-x (advance-text-impl glyph-metrics tab-stops line index start start-x)
+            complex-end-x (+ complex-start-x (complex-text-width glyph-metrics (.substring line start end)))]
+        (cond
+          (< x complex-start-x)
+          (loop [col index
+                 col-x start-x]
             (let [next-col (inc col)
                   next-x (advance-text-impl glyph-metrics tab-stops line col next-col col-x)]
-              (if (<= x next-x)
+              (if (or (<= x next-x) (= next-col start))
                 (max 0 (+ col (long (+ 0.5 (/ (- x col-x) (- next-x col-x))))))
+                (recur next-col next-x))))
+
+          (< x complex-end-x)
+          (+ start (complex-text-x->col glyph-metrics (.substring line start end) (- x complex-start-x)))
+
+          :else
+          (recur (subvec ranges 1) end complex-end-x)))
+      (loop [col index
+             col-x start-x]
+        (if (>= col (count line))
+          col
+          (let [next-col (inc col)
+                next-x (advance-text-impl glyph-metrics tab-stops line col next-col col-x)]
+            (if (<= x next-x)
+              (max 0 (+ col (long (+ 0.5 (/ (- x col-x) (- next-x col-x))))))
+              (recur next-col next-x))))))))
+
+(defn- line-x->character-col
+  ^long [glyph-metrics tab-stops ^String line ^double x]
+  (loop [ranges (complex-string-ranges line)
+         index 0
+         start-x 0.0]
+    (if-let [[start end] (get ranges 0)]
+      (let [complex-start-x (advance-text-impl glyph-metrics tab-stops line index start start-x)
+            complex-end-x (+ complex-start-x (complex-text-width glyph-metrics (.substring line start end)))]
+        (cond
+          (< x complex-start-x)
+          (loop [col index
+                 col-x start-x]
+            (let [next-col (inc col)
+                  next-x (advance-text-impl glyph-metrics tab-stops line col next-col col-x)]
+              (if (or (<= x next-x) (= next-col start))
+                (max 0 (+ col (long (/ (- x col-x) (- next-x col-x)))))
+                (recur next-col next-x))))
+
+          (< x complex-end-x)
+          (+ start (complex-text-x->character-col glyph-metrics (.substring line start end) (- x complex-start-x)))
+
+          :else
+          (recur (subvec ranges 1) end complex-end-x)))
+      (loop [col index
+             col-x start-x]
+        (if (>= col (count line))
+          nil
+          (let [next-col (inc col)
+                next-x (advance-text-impl glyph-metrics tab-stops line col next-col col-x)]
+            (if (<= x next-x)
+              (max 0 (+ col (long (/ (- x col-x) (- next-x col-x)))))
               (recur next-col next-x))))))))
 
 (defn line-width
@@ -860,14 +895,14 @@
     (+ (.x ^Rect (.canvas layout))
        (.scroll-x layout)
        ^double (if (pos? (count ranges))
-                 (line-col->x (.glyph layout) (.tab-stops layout) line col ranges)
+                 (line-col->x (.glyph layout) (.tab-stops layout) line col)
                  (advance-text layout line 0 col 0.0)))))
 
 (defn x->col
   ^long [^LayoutInfo layout ^double x ^String line]
   (let [ranges (complex-string-ranges line)]
     (if (pos? (count ranges))
-      (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x) ranges)
+      (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x))
       (let [line-x (x->doc-x layout x)
             line-length (count line)]
       (loop [col 0
@@ -883,7 +918,7 @@
 (defn x->character-col [^LayoutInfo layout ^double x ^String line]
   (let [ranges (complex-string-ranges line)]
     (if (pos? (count ranges))
-      (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x) ranges)
+      (line-x->character-col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x))
       (let [line-x (x->doc-x layout x)
             line-length (count line)]
       (loop [col 0

@@ -20,7 +20,8 @@
             [clojure.test.check.properties :as prop]
             [editor.code.data :as data :refer [->Cursor ->CursorRange ->Rect]]
             [editor.code.lang.json :as json]
-            [editor.code.script :as script])
+            [editor.code.script :as script]
+            [util.defonce :as defonce])
   (:import (java.io IOException)
            (java.nio CharBuffer)))
 
@@ -51,6 +52,17 @@
   (line-height [_this] line-height)
   (char-width [_this _character] char-width))
 
+(defonce/record ComplexGlyphMetrics [^double line-height ^double char-width ^double ascent]
+  data/GlyphMetrics
+  (ascent [_this] ascent)
+  (line-height [_this] line-height)
+  (char-width [_this _character] char-width)
+  data/ComplexTextMetrics
+  (complex-text-width [_this _text] 100.0)
+  (complex-text-col->x [_this _text _col] 0.0)
+  (complex-text-x->col [_this _text _x] 4)
+  (complex-text-x->character-col [_this _text _x] 3))
+
 (defn layout-info
   ([] (layout-info nil))
   ([lines] (layout-info lines (->GlyphMetrics 14.0 9.0 6.0)))
@@ -59,6 +71,13 @@
 
 (defn- word-boundary-before-index? [line index]
   (#'data/word-boundary-before-index? line index))
+
+(deftest complex-text-character-hover-test
+  (let [line "\"ไทย\""
+        layout (layout-info [line] (->ComplexGlyphMetrics 14.0 9.0 6.0))
+        x (+ (.x (.canvas layout)) 50.0)]
+    (is (= 4 (data/x->col layout x line)))
+    (is (= 3 (data/x->character-col layout x line)))))
 
 (deftest word-boundary-before-index-test
   (is (true? (word-boundary-before-index? "word" 0)))

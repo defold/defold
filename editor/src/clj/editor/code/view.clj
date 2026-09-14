@@ -82,7 +82,7 @@
            [com.sun.javafx.tk Toolkit]
            [com.sun.javafx.util Utils]
            [editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect]
-           [java.util BitSet Collection IdentityHashMap]
+           [java.util BitSet Collection]
            [java.util.regex Pattern]
            [javafx.beans.binding ObjectBinding]
            [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
@@ -167,28 +167,23 @@
   (doto (Text. text)
     (.setFont font)))
 
-(defonce/record GlyphMetrics [char-width-cache ^double line-height ^double ascent]
+(defonce/record GlyphMetrics [^Font font char-width-cache ^double line-height ^double ascent]
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
   (char-width [_this character] (char-width-cache character)))
 
-(defonce ^:private glyph-metrics-fonts (IdentityHashMap.))
-
-(defn- glyph-metrics-font
-  ^Font [glyph-metrics]
-  (locking glyph-metrics-fonts
-    (.get glyph-metrics-fonts glyph-metrics)))
-
 (extend-type GlyphMetrics
   data/ComplexTextMetrics
   (complex-text-width [this text]
-    (.getWidth (.getLayoutBounds (text-node (glyph-metrics-font this) text))))
+    (.getWidth (.getLayoutBounds (text-node (.font this) text))))
   (complex-text-col->x [this text col]
-    (let [caret-shape (.caretShape (text-node (glyph-metrics-font this) text) col true)]
+    (let [caret-shape (.caretShape (text-node (.font this) text) col true)]
       (.getX ^MoveTo (first caret-shape))))
   (complex-text-x->col [this text x]
-    (.getInsertionIndex (.hitTest (text-node (glyph-metrics-font this) text) (Point2D. x 0.0)))))
+    (.getInsertionIndex (.hitTest (text-node (.font this) text) (Point2D. x 0.0))))
+  (complex-text-x->character-col [this text x]
+    (.getCharIndex (.hitTest (text-node (.font this) text) (Point2D. x 0.0)))))
 
 (defn make-glyph-metrics
   ^GlyphMetrics [^Font font ^double line-height-factor]
@@ -198,11 +193,8 @@
                                 BaseTransform/IDENTITY_TRANSFORM
                                 FontResource/AA_GREYSCALE)
         line-height (Math/ceil (* (inc (.getLineHeight font-metrics)) line-height-factor))
-        ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))
-        glyph-metrics (->GlyphMetrics (make-char-width-cache font-strike) line-height ascent)]
-    (locking glyph-metrics-fonts
-      (.put glyph-metrics-fonts glyph-metrics font))
-    glyph-metrics))
+        ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))]
+    (->GlyphMetrics font (make-char-width-cache font-strike) line-height ascent)))
 
 (def ^:private default-editor-color-scheme
   (let [foreground-color (Color/valueOf "#DDDDDD")
