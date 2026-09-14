@@ -14,6 +14,7 @@
 
 (ns integration.save-data-test
   (:require [clojure.java.io :as io]
+            [clojure.pprint :as pprint]
             [clojure.set :as set]
             [clojure.spec.alpha :as s]
             [clojure.string :as string]
@@ -1780,4 +1781,5 @@
                                      :source (label-info source-id source-label)
                                      :target (label-info target-id target-label)})))))))))))]
 
-      (is (= [] connection-rule-violations)))))
+      (when-not (is (= 0 (count connection-rule-violations)))
+        (coll/run!-> connection-rule-violations pprint/pprint)))))
