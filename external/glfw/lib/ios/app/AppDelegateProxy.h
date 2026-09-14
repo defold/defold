@@ -14,12 +14,12 @@
 
 #import <UIKit/UIKit.h>
 
-@interface AppDelegateProxy: NSObject
+@interface AppDelegateProxy: NSObject <UIApplicationDelegate>
 
 // due to bootstrap issues, we need to invoke the delegates via this class method for now
 + (BOOL) application:(UIApplication *)application willFinishLaunchingWithOptions:(NSDictionary *)launchOptions;
 
-- (BOOL)application:(UIApplication *)application willFinishLaunchingWithOptions:(NSDictionary *)launchOptions;
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions;
+- (BOOL)application:(UIApplication *)application openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options;
 
 @end

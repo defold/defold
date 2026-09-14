@@ -88,9 +88,9 @@
       value)))
 
 (defn- setup-symlink-test-project!
-  [graph-id project-path game-object-proj-path]
+  [project-path game-object-proj-path]
   {:pre [(string? game-object-proj-path)]}
-  (let [workspace (test-util/setup-workspace! graph-id project-path)]
+  (let [workspace (test-util/setup-workspace! project-path)]
     (test-util/write-file-resource! workspace
       "/main/main.collection"
       {:name "main"
@@ -146,7 +146,7 @@
         (path/create-symlink! referencing-directory referenced-directory)
 
         (test-support/with-clean-system
-          (let [[workspace project] (setup-symlink-test-project! world referencing-project-path "/stateful_directory/referenced.go")]
+          (let [[workspace project] (setup-symlink-test-project! referencing-project-path "/stateful_directory/referenced.go")]
 
             (testing "Before breaking symlink."
               (check-stateless-directory-symlink-valid! project referencing-directory))
@@ -158,7 +158,7 @@
             (testing "After breaking symlink."
               (check-stateless-directory-symlink-broken! project referencing-directory))
 
-            (lsp/await (lsp/get-node-lsp project))))))))
+            (lsp/await (lsp/get-lsp))))))))
 
 (deftest stateless-directory-broken-symlink-test
   (let [referencing-project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
@@ -178,7 +178,7 @@
         (path/move! referenced-directory referenced-directory-renamed)
 
         (test-support/with-clean-system
-          (let [[workspace project] (setup-symlink-test-project! world referencing-project-path "/stateful_directory/referenced.go")]
+          (let [[workspace project] (setup-symlink-test-project! referencing-project-path "/stateful_directory/referenced.go")]
 
             (testing "Before fixing symlink."
               (check-stateless-directory-symlink-broken! project referencing-directory))
@@ -190,7 +190,7 @@
             (testing "After fixing symlink."
               (check-stateless-directory-symlink-valid! project referencing-directory))
 
-            (lsp/await (lsp/get-node-lsp project))))))))
+            (lsp/await (lsp/get-lsp))))))))
 
 (defn- check-stateful-directory-symlink-valid! [project referencing-directory]
   (testing "Symlink appears as directory."
@@ -237,7 +237,7 @@
         (path/create-symlink! referencing-directory referenced-directory)
 
         (test-support/with-clean-system
-          (let [[workspace project] (setup-symlink-test-project! world referencing-project-path "/stateful_directory/referenced.go")]
+          (let [[workspace project] (setup-symlink-test-project! referencing-project-path "/stateful_directory/referenced.go")]
 
             (testing "Before breaking symlink."
               (check-stateful-directory-symlink-valid! project referencing-directory))
@@ -249,7 +249,7 @@
             (testing "After breaking symlink."
               (check-stateful-directory-symlink-broken! project referencing-directory))
 
-            (lsp/await (lsp/get-node-lsp project))))))))
+            (lsp/await (lsp/get-lsp))))))))
 
 (deftest stateful-directory-broken-symlink-test
   (let [referencing-project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
@@ -269,7 +269,7 @@
         (path/move! referenced-directory referenced-directory-renamed)
 
         (test-support/with-clean-system
-          (let [[workspace project] (setup-symlink-test-project! world referencing-project-path "/stateful_directory/referenced.go")]
+          (let [[workspace project] (setup-symlink-test-project! referencing-project-path "/stateful_directory/referenced.go")]
 
             (testing "Before fixing symlink."
               (check-stateful-directory-symlink-broken! project referencing-directory))
@@ -281,7 +281,7 @@
             (testing "After fixing symlink."
               (check-stateful-directory-symlink-valid! project referencing-directory))
 
-            (lsp/await (lsp/get-node-lsp project))))))))
+            (lsp/await (lsp/get-lsp))))))))
 
 (defn- create-file-symlinks! [referencing-directory referenced-directory]
   (coll/reduce-> (path/tree-walker referenced-directory) {}
@@ -357,7 +357,7 @@
               referenced-files (vals referencing-file->referenced-file)]
 
           (test-support/with-clean-system
-            (let [[workspace project] (setup-symlink-test-project! world referencing-project-path "/stateful_files/referenced.go")]
+            (let [[workspace project] (setup-symlink-test-project! referencing-project-path "/stateful_files/referenced.go")]
 
               (testing "Before breaking symlinks."
                 (check-stateless-file-symlinks-valid! project referencing-files))
@@ -369,7 +369,7 @@
               (testing "After breaking symlinks."
                 (check-stateless-file-symlinks-broken! project referencing-files referenced-project-path))
 
-              (lsp/await (lsp/get-node-lsp project)))))))))
+              (lsp/await (lsp/get-lsp)))))))))
 
 (deftest stateless-file-broken-symlink-test
   (let [referencing-project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
@@ -390,7 +390,7 @@
               referenced-file->renamed-file (rename-referenced-files! referenced-files)]
 
           (test-support/with-clean-system
-            (let [[workspace project] (setup-symlink-test-project! world referencing-project-path "/stateful_files/referenced.go")]
+            (let [[workspace project] (setup-symlink-test-project! referencing-project-path "/stateful_files/referenced.go")]
 
               (testing "Before fixing symlinks."
                 (check-stateless-file-symlinks-broken! project referencing-files referenced-project-path))
@@ -403,7 +403,7 @@
               (testing "After fixing symlinks."
                 (check-stateless-file-symlinks-valid! project referencing-files))
 
-              (lsp/await (lsp/get-node-lsp project)))))))))
+              (lsp/await (lsp/get-lsp)))))))))
 
 (defn- check-stateful-file-symlinks-valid! [project referencing-files]
   (testing "Symlinks appear as files of their respective resource-type."
@@ -462,7 +462,7 @@
               referenced-files (vals referencing-file->referenced-file)]
 
           (test-support/with-clean-system
-            (let [[workspace project] (setup-symlink-test-project! world referencing-project-path "/stateful_files/referenced.go")]
+            (let [[workspace project] (setup-symlink-test-project! referencing-project-path "/stateful_files/referenced.go")]
 
               (testing "Before breaking symlinks."
                 (check-stateful-file-symlinks-valid! project referencing-files))
@@ -474,7 +474,7 @@
               (testing "After breaking symlinks."
                 (check-stateful-file-symlinks-broken! project referencing-files referenced-project-path))
 
-              (lsp/await (lsp/get-node-lsp project)))))))))
+              (lsp/await (lsp/get-lsp)))))))))
 
 (deftest stateful-file-broken-symlink-test
   (let [referencing-project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
@@ -495,7 +495,7 @@
               referenced-file->renamed-file (rename-referenced-files! referenced-files)]
 
           (test-support/with-clean-system
-            (let [[workspace project] (setup-symlink-test-project! world referencing-project-path "/stateful_files/referenced.go")]
+            (let [[workspace project] (setup-symlink-test-project! referencing-project-path "/stateful_files/referenced.go")]
 
               (testing "Before fixing symlinks."
                 (check-stateful-file-symlinks-broken! project referencing-files referenced-project-path))
@@ -508,4 +508,4 @@
               (testing "After fixing symlinks."
                 (check-stateful-file-symlinks-valid! project referencing-files))
 
-              (lsp/await (lsp/get-node-lsp project)))))))))
+              (lsp/await (lsp/get-lsp)))))))))

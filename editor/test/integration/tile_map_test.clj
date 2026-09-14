@@ -21,7 +21,8 @@
             [editor.tile-map :as tile-map]
             [editor.tile-map-common :as tile-map-common]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt])
   (:import [java.nio ByteBuffer]))
 
 (defn- vertex-buffer->vertices
@@ -105,7 +106,6 @@
           vertices (vertex-buffer->vertices vbuf 7)]
       (is (= 24 (count vertices)))
       (is (every? quad-triangles? (partition 6 vertices))))))
-
 (deftest tile-map-outline
   (testing "shows all layers"
     (test-util/with-loaded-project
@@ -143,7 +143,7 @@
 (deftest tile-map-cell-order-deterministic
   (test-util/with-loaded-project
     (let [tilemap-id (test-util/resource-node project "/tilegrid/with_layers.tilemap")
-          layer-ids (map first (g/sources-of tilemap-id :layer-msgs))
+          layer-ids (map gt/source-id (g/inputs (g/now) tilemap-id :layer-msgs))
           layer-id (some #(when (= "layer1" (g/node-value % :id)) %) layer-ids)]
       (when (is (some? layer-id))
         (let [cell-map (g/node-value layer-id :cell-map)

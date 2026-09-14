@@ -1196,8 +1196,7 @@
 (defn- handle-rename-key-pressed [view-node text rename-cursor-range swap-state ^KeyEvent e]
   (when (= KeyCode/ENTER (.getCode e))
     (.consume e)
-    (g/let-ec [resource-node (g/node-value view-node :resource-node evaluation-context)
-               lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)]
+    (g/let-ec [lsp (lsp/get-lsp (:basis evaluation-context))]
       (swap-state assoc :done true)
       (lsp/rename
         lsp
@@ -1676,8 +1675,7 @@
       (when-let [completion (get-property view-node :completions-selection evaluation-context)]
         (when-let [index (::index (meta completion))]
           (when-not (::resolved (meta completion))
-            (let [resource-node (get-property view-node :resource-node evaluation-context)
-                  lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)]
+            (let [lsp (lsp/get-lsp (:basis evaluation-context))]
               (lsp/resolve-completion!
                 lsp completion
                 (fn [resolved-completion]
@@ -1766,7 +1764,7 @@
                   ;; we have no choices, either refresh everything or only LSP
                   (let [resource-node (get-property view-node :resource-node evaluation-context)
                         resource (g/node-value resource-node :resource evaluation-context)
-                        lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
+                        lsp (lsp/get-lsp (:basis evaluation-context))
                         context (cond
                                   typed
                                   {:trigger-kind :trigger-character
@@ -2762,7 +2760,7 @@
             x (.getX event)
             y (.getY event)
             resource-node (get-property view-node :resource-node evaluation-context)
-            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)]
+            lsp (lsp/get-lsp (:basis evaluation-context))]
         (-> (data/mouse-moved (get-property view-node :lines evaluation-context)
                               (get-property view-node :cursor-ranges evaluation-context)
                               (get-property view-node :visible-regions evaluation-context)
@@ -2950,7 +2948,7 @@
   (run [view-node]
     (g/with-auto-evaluation-context evaluation-context
       (let [resource-node (get-property view-node :resource-node)
-            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
+            lsp (lsp/get-lsp (:basis evaluation-context))
             resource (g/node-value resource-node :resource)
             cursor (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))]
         (lsp/prepare-rename
@@ -3127,7 +3125,7 @@
                        (when (g/node-instance? basis CodeEditorView view-node)
                          (let [resource-node (get-property view-node :resource-node evaluation-context)
                                resource (g/node-value resource-node :resource evaluation-context)
-                               lsp (lsp/get-node-lsp basis resource-node)]
+                               lsp (lsp/get-lsp basis)]
                            (when (and (resource/file-resource? resource)
                                       (true? (g/node-value resource-node :dirty evaluation-context))
                                       (lsp/has-language-servers-running-for-resource? lsp resource))
@@ -3158,7 +3156,7 @@
       (resource/file-resource? (g/node-value resource-node :resource evaluation-context))))
   (run [view-node]
     (g/let-ec [resource-node (get-property view-node :resource-node evaluation-context)
-               lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
+               lsp (lsp/get-lsp (:basis evaluation-context))
                resource (g/node-value resource-node :resource evaluation-context)
                indent-type (get-property view-node :indent-type evaluation-context)
                lines (get-property view-node :lines evaluation-context)
@@ -3177,7 +3175,7 @@
   (run [view-node user-data open-resource-fn]
     (let [resource-node (get-property view-node :resource-node)
           resource (g/node-value resource-node :resource)
-          lsp (lsp/get-node-lsp resource-node)]
+          lsp (lsp/get-lsp)]
       (if (lsp/has-language-servers-running-for-resource? lsp resource)
         (lsp/goto-definition!
           lsp
@@ -3200,7 +3198,7 @@
       (resource/file-resource? resource)))
   (run [view-node user-data open-resource-fn]
     (let [resource-node (get-property view-node :resource-node)
-          lsp (lsp/get-node-lsp resource-node)
+          lsp (lsp/get-lsp)
           resource (g/node-value resource-node :resource)]
       (if (lsp/has-language-servers-running-for-resource? lsp resource)
         (lsp/find-references!
@@ -3230,7 +3228,7 @@
   (run [view-node]
     (g/with-auto-evaluation-context evaluation-context
       (let [resource-node (get-property view-node :resource-node evaluation-context)
-            lsp (lsp/get-node-lsp (:basis evaluation-context) resource-node)
+            lsp (lsp/get-lsp (:basis evaluation-context))
             resource (g/node-value resource-node :resource evaluation-context)
             localization (get-property view-node :localization evaluation-context)]
         (if-not (lsp/has-language-servers-running-for-resource? lsp resource)
@@ -4343,7 +4341,7 @@
       (ui/timer-stop! timer)
       (reset! state nil))))
 
-(defn- make-view! [graph parent resource-node opts]
+(defn- make-view! [parent resource-node opts]
   (let [{:keys [^Tab tab app-view grammar open-resource-fn project prefs localization]} opts
         basis (g/now)
         resource-node-type (g/node-type* basis resource-node)
@@ -4352,12 +4350,12 @@
         canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))
         undo-grouping-info (pair :navigation (gensym))
-        lsp (lsp/get-node-lsp basis resource-node)
+        lsp (lsp/get-lsp basis)
         view-node (first
                     (g/tx-nodes-added
                       (g/transact
                         {:undoable false}
-                        (g/make-nodes graph
+                        (g/make-nodes
                           [view [CodeEditorView
                                  :canvas canvas
                                  :color-scheme code-color-scheme

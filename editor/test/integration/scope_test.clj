@@ -13,52 +13,50 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.scope-test
-  (:require [clojure.test :refer :all]
-            [clojure.set]
+  (:require [clojure.set]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.progress :as progress]
             [integration.test-util :as test-util]
             [internal.graph :as ig]
+            [internal.graph.types :as gt]
             [support.test-support :refer [with-clean-system]]))
 
 (defn node-count [graph]
-  (count (:nodes graph)))
+  (count (gt/nodes graph)))
 
 (deftest project-disposes-owned-nodes
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          project-graph-id (g/node-id->graph-id workspace)
-          workspace-node-ids (set (ig/node-ids (g/graph project-graph-id)))
-          extensions (extensions/make project-graph-id)
-          project-id (project/make-project project-graph-id workspace extensions)]
+    (let [workspace (test-util/setup-workspace!)
+          workspace-node-ids (set (ig/node-ids (g/now)))
+          extensions (extensions/make)
+          project-id (project/make-project workspace extensions)]
       (project/load-project! project-id)
-      (is (= project-graph-id (g/node-id->graph-id project-id)))
-      (is (< (count workspace-node-ids) (node-count (g/graph project-graph-id))))
+      (is (< (count workspace-node-ids) (node-count (g/now))))
       (g/delete-node! project-id)
       (is (= workspace-node-ids
-             (set (ig/node-ids (g/graph project-graph-id))))))))
+             (set (ig/node-ids (g/now))))))))
 
 (defn check-disposes-nodes
   [resource-type-name inline-resource]
   (test-util/with-loaded-project
-    (let [graph-id (g/node-id->graph-id project)
-          old-count (node-count (g/graph graph-id))
-          old-node-ids (set (ig/node-ids (g/graph graph-id)))
+    (let [old-count (node-count (g/now))
+          old-node-ids (set (ig/node-ids (g/now)))
           old-basis (g/now)
           mem-resource (project/make-embedded-resource project :editable resource-type-name inline-resource)
-          node-id+resource-pairs (project/make-node-id+resource-pairs graph-id [mem-resource])
+          node-id+resource-pairs (project/make-node-id+resource-pairs [mem-resource])
           node-load-infos (project/read-nodes node-id+resource-pairs)
           prelude-tx-data (project/make-resource-nodes-tx-data project node-id+resource-pairs)
           migrated-resource-node-ids (project/load-nodes! project prelude-tx-data node-load-infos progress/null-render-progress! nil nil)]
       (project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
       (let [new-resource-node (project/get-resource-node project mem-resource)
-            new-count (node-count (g/graph graph-id))]
+            new-count (node-count (g/now))]
         (is (> new-count old-count))
         (g/delete-node! new-resource-node)
-        (let [final-count (node-count (g/graph graph-id))
-              final-node-ids (set (ig/node-ids (g/graph graph-id)))
+        (let [final-count (node-count (g/now))
+              final-node-ids (set (ig/node-ids (g/now)))
               new (clojure.set/difference final-node-ids old-node-ids)
               remainders (clojure.set/difference old-node-ids final-node-ids)]
           (is (= old-count final-count))

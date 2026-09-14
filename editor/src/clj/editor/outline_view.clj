@@ -754,7 +754,7 @@
       (when-not editing-id
         (.consume event)
         (ui/run-command (.getSource event) :file.open-selected))
-      
+
       ;; The key-down `F2` event is consumed by javafx, even though the built-in editing
       ;; that uses it is set to false, so `:edit.rename :outline` handler will not work
       ;; for `F2`. Since the shortcut is customizable, we need to check if it exists.
@@ -792,7 +792,7 @@
       (ui/context! :outline {:outline-view outline-view} (->SelectionProvider tree-view) {} {Long :node-id
                                                                                              resource/Resource :link}))))
 
-(defn make-outline-view [graph project app-view localization]
+(defn make-outline-view [project app-view localization]
   (let [tree-view (doto (ExtendedTreeView.)
                     (.setId "outline")
                     (.setPrefWidth 269.0)
@@ -801,9 +801,9 @@
                        (g/tx-nodes-added
                          (g/transact
                            {:undoable false}
-                           (g/make-nodes graph [outline-view [OutlineView
-                                                              :tree-view tree-view
-                                                              :localization localization]]
+                           (g/make-nodes [outline-view [OutlineView
+                                                        :tree-view tree-view
+                                                        :localization localization]]
                              (g/connect app-view :_node-id outline-view :app-view)))))]
     (setup-tree-view project tree-view outline-view app-view localization)
     outline-view))

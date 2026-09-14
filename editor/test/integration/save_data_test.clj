@@ -26,6 +26,7 @@
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [internal.system :as is]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
@@ -1664,10 +1665,9 @@
             (g/delete-nodes resource-node-ids))
           (let [leaked-node-frequencies
                 (->> @g/*the-system*
-                     (is/graphs)
+                     (is/basis)
+                     gt/nodes
                      (eduction
-                       (map val)
-                       (mapcat :nodes)
                        (map val)
                        (map g/node-type)
                        (map :k)
