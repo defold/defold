@@ -310,13 +310,6 @@ namespace dmRender
         LIGHT_BUFFER_LIGHT_STRIDE = 64,
     };
 
-    struct LightUniformBuffer
-    {
-        dmGraphics::HUniformBuffer m_Buffer;
-        uint32_t                   m_Version;
-        uint16_t                   m_Capacity;
-    };
-
     struct RenderContext
     {
         DebugRenderer               m_DebugRenderer;
@@ -349,7 +342,7 @@ namespace dmRender
         dmArray<LightSTD140>                   m_LightBufferScratch;
         dmArray<LightSTD140>                   m_LightBufferUploadScratch;
         dmArray<uint8_t>                       m_LightBufferSubmitted;
-        dmArray<LightUniformBuffer>            m_LightUniformBuffers;
+        dmGraphics::HUniformBuffer              m_LightUniformBuffer;
         dmVMath::Vector3                       m_AmbientLight;
 
         HFontMap                    m_SystemFontMap;
@@ -367,8 +360,8 @@ namespace dmRender
 
         uint32_t                    m_LightBufferInfoWriteStart;
         uint32_t                    m_LightBufferDataWriteStart;
-        uint32_t                    m_LightBufferVersion;
         uint16_t                    m_MaxLightCount;
+        uint16_t                    m_LightBufferDirty             : 1;
         uint16_t                    m_OutOfResources                : 1;
         uint16_t                    m_StencilBufferCleared          : 1;
         uint16_t                    m_MultiBufferingRequired        : 1;

@@ -511,10 +511,15 @@ namespace dmRender
      * };
      *
      * light_info.xyz contains accumulated ambient color and light_info.w contains the number of
-     * non-ambient lights, clamped to the program's declared array capacity. Light data is in world
-     * space. params contains type, intensity, inner cone angle, and outer cone angle. Cone angles
-     * are in radians and type is 0 for directional, 1 for point, and 2 for spot lights. Entry order
-     * is unspecified. The renderer binds the block automatically for graphics and compute programs.
+     * non-ambient lights in the engine-owned buffer. Programs must clamp this count to their
+     * declared array capacity before indexing lights, for example:
+     *
+     * int light_count = min(int(light_info.w), MAX_LIGHT_COUNT);
+     *
+     * Light data is in world space. params contains type, intensity, inner cone angle, and outer
+     * cone angle. Cone angles are in radians and type is 0 for directional, 1 for point, and 2 for
+     * spot lights. Entry order is unspecified. The renderer binds the block automatically for
+     * graphics and compute programs.
      */
     HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params);
     void            SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params);
