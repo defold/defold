@@ -485,6 +485,30 @@ namespace dmShaderc
         }
     }
 
+    static void SetCombinedSamplerNamesGLSL(HShaderContext context, ShaderCompilerSPVC* compiler)
+    {
+        dmArray<CombinedSampler> combined_samplers;
+        GetCombinedSamplerMapSPIRV(context, compiler, combined_samplers);
+
+        dmArray<char> combined_name;
+        const char* prefix = "SPIRV_Cross_Combined";
+        for (uint32_t i = 0; i < combined_samplers.Size(); ++i)
+        {
+            const CombinedSampler& sampler = combined_samplers[i];
+            const char* image_name         = sampler.m_ImageName;
+            const char* sampler_name       = sampler.m_SamplerName;
+            if (!image_name || !image_name[0] || !sampler_name || !sampler_name[0])
+                continue;
+
+            const size_t combined_name_size = strlen(prefix) + strlen(image_name) + strlen(sampler_name) + 1;
+            if (combined_name.Capacity() < combined_name_size)
+                combined_name.SetCapacity(combined_name_size);
+            combined_name.SetSize(combined_name_size);
+            dmSnPrintf(combined_name.Begin(), combined_name_size, "%s%s%s", prefix, image_name, sampler_name);
+            spvc_compiler_set_name(compiler->m_SPVCCompiler, sampler.m_CombinedId, combined_name.Begin());
+        }
+    }
+
     #define MAX_BINDINGS 128
     bool GetFirstFreeBindingIndex(HShaderContext context, uint32_t* binding)
     {
@@ -655,6 +679,13 @@ namespace dmShaderc
 
         spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, context->m_ExecutionModel);
         spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
+
+        // SPIRV-Cross may leave synthetic combined samplers with an ID-based
+        // name (for example, `_194`) after texture/sampler splitting. Give the
+        // generated resource its canonical SPIRV-Cross name so Bob can map it
+        // back to the reflected texture name in GLSL variants.
+        if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_GLSL)
+            SetCombinedSamplerNamesGLSL(context, compiler);
 
         if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_GLSL)
         {

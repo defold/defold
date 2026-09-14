@@ -580,11 +580,23 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "{\n" +
             "   color_out = texture(texture_sampler, var_texcoord0.xy);\n" +
             "}\n";
+        ShaderDesc webShaderDesc = compileShaderWithCompiler(
+            getProject().getShaderCompiler(Platform.WasmWeb), shaderAdapters, "manifest_webgpu_sampler", samplerSource);
         checkOnlyExpectedLanguages(
-            compileShaderWithCompiler(getProject().getShaderCompiler(Platform.WasmWeb), shaderAdapters, "manifest_webgpu_sampler", samplerSource),
+            webShaderDesc,
             ShaderDesc.Language.LANGUAGE_GLES_SM300,
             ShaderDesc.Language.LANGUAGE_GLES_SM100,
             ShaderDesc.Language.LANGUAGE_WGSL);
+
+        // WGSL requires separate texture/sampler resources, but including that
+        // variant must not rename the combined sampler used by WebGL fallback.
+        for (ShaderDesc.Language language : List.of(
+                ShaderDesc.Language.LANGUAGE_GLES_SM300,
+                ShaderDesc.Language.LANGUAGE_GLES_SM100)) {
+            String glslSource = getShaderByLanguage(webShaderDesc, language).getSource().toStringUtf8();
+            assertTrue("WebGL sampler name must match shared reflection for " + language,
+                glslSource.contains("sampler2D texture_sampler"));
+        }
 
         shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
             platformSettings("excludeSymbols", List.of("GraphicsAdapterVulkan"))));
