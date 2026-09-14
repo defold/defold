@@ -3110,7 +3110,10 @@ namespace dmGraphics
                     if (bound_ubo)
                     {
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
-                        if (bound_ubo->m_BaseUniformBuffer.m_Layout != *pgm_layout)
+                        if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout,
+                                                             bound_ubo->m_BaseUniformBuffer.m_Size,
+                                                             *pgm_layout,
+                                                             res->m_BindingInfo.m_BlockSize))
                         {
                             dmLogWarning("Uniform buffer with hash %u has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%u)",
                                 bound_ubo->m_BaseUniformBuffer.m_Layout,
