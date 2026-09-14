@@ -1391,20 +1391,20 @@
 
 (defn- focused-tab-pane
   ^TabPane [^Stage main-stage]
-  (when-some [focused-node (some-> main-stage .getScene focus-owner)]
+  (when-let [focused-node (some-> main-stage .getScene focus-owner)]
     (closest-node-of-type TabPane focused-node)))
 
 (handler/defhandler :window.tab.select-next :global
   (active? [^Stage main-stage] (some? (focused-tab-pane main-stage)))
   (enabled? [^Stage main-stage]
-    (pos? (.size (.getTabs (focused-tab-pane main-stage)))))
+    (< 1 (.size (.getTabs (focused-tab-pane main-stage)))))
   (run [^Stage main-stage]
     (select-adjacent-tab! (focused-tab-pane main-stage) 1)))
 
 (handler/defhandler :window.tab.select-previous :global
   (active? [^Stage main-stage] (some? (focused-tab-pane main-stage)))
   (enabled? [^Stage main-stage]
-    (pos? (.size (.getTabs (focused-tab-pane main-stage)))))
+    (< 1 (.size (.getTabs (focused-tab-pane main-stage)))))
   (run [^Stage main-stage]
     (select-adjacent-tab! (focused-tab-pane main-stage) -1)))
 
