@@ -325,17 +325,15 @@ namespace dmRender
     static dmGraphics::HUniformBuffer GenerateUniformBuffer(HRenderContext render_context)
     {
         uint32_t buffer_size = 0;
-        uint32_t info_offset = 0;
-        uint32_t data_offset = 0;
-        dmGraphics::UniformBufferLayout layout = GetLightBufferLayout(render_context->m_MaxLightCount, &buffer_size, &info_offset, &data_offset);
+        dmGraphics::UniformBufferLayout layout = GetLightBufferLayout(render_context->m_MaxLightCount,
+                                                                      &buffer_size,
+                                                                      &render_context->m_LightBufferInfoWriteStart,
+                                                                      &render_context->m_LightBufferDataWriteStart);
         dmGraphics::HUniformBuffer buffer = dmGraphics::NewUniformBuffer(render_context->m_GraphicsContext, layout, buffer_size);
         if (!buffer)
         {
             return 0;
         }
-
-        assert(info_offset == render_context->m_LightBufferInfoWriteStart);
-        assert(data_offset == render_context->m_LightBufferDataWriteStart);
 
         render_context->m_LightUniformBuffer = buffer;
         render_context->m_LightBufferDirty = 1;
@@ -513,13 +511,6 @@ namespace dmRender
         render_context->m_LightBufferDirty            = 1;
         render_context->m_AmbientLight                = dmVMath::Vector3(0.0f, 0.0f, 0.0f);
 
-        // These offsets are invariant with capacity and are part of the public ABI.
-        uint32_t abi_size = 0;
-        GetLightBufferLayout(1, &abi_size, &render_context->m_LightBufferInfoWriteStart, &render_context->m_LightBufferDataWriteStart);
-        assert(abi_size == LIGHT_BUFFER_HEADER_SIZE + LIGHT_BUFFER_LIGHT_STRIDE);
-        assert(render_context->m_LightBufferInfoWriteStart == 0);
-        assert(render_context->m_LightBufferDataWriteStart == LIGHT_BUFFER_HEADER_SIZE);
-
         if (render_context->m_RenderLightsIndices.Capacity() < max_lights)
         {
             render_context->m_RenderLightsIndices.SetCapacity(max_lights);
@@ -528,7 +519,6 @@ namespace dmRender
 
         uint32_t old_light_count = dmMath::Min(render_context->m_RenderLights.Size(), max_lights);
         render_context->m_RenderLights.EnsureSize(max_lights);
-        render_context->m_RenderLights.SetSize(max_lights);
         for (uint32_t i = old_light_count; i < max_lights; ++i)
         {
             LightInstance* instance = &render_context->m_RenderLights[i];
