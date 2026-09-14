@@ -1943,7 +1943,7 @@ Transaction: set override node property
   text: custom text
   can reset: true
 Transaction: reset override node property
-  text: <text>
+  text: -text-
   can reset: false
 Transaction: set override position and layout position properties
   position = {10, 10, 10}, can reset = true
