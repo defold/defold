@@ -50,8 +50,13 @@ extern "C" _Unwind_Reason_Code __real__Unwind_RaiseException(_Unwind_Exception* 
 
 extern "C" _Unwind_Reason_Code __wrap__Unwind_RaiseException(_Unwind_Exception* exception_object)
 {
-    // LuaJIT's internal errors bypass the lua_error/luaL_error wrappers.
-    // Clear ASAN stack metadata before the unwinder discards those C/C++ frames.
+    // LuaJIT's internal argument errors (e.g. luaL_checktype) bypass our
+    // lua_error/luaL_error wrappers and reach _Unwind_RaiseException.
+    // With NDK 27, static libunwind.a supplies a local, hidden symbol, so
+    // ASAN's runtime interceptor cannot intercept this call. Restore the
+    // __asan_handle_no_return() call that the interceptor normally makes
+    // before unwinding. Otherwise, discarded stack redzones remain poisoned
+    // and can cause false ASAN reports when the stack is reused.
     __asan_handle_no_return();
     return __real__Unwind_RaiseException(exception_object);
 }

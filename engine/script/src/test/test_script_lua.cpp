@@ -17,6 +17,7 @@
 #include "test_script_private.h"
 
 #include <testmain/testmain.h>
+#include <dlib/dalloca.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 
@@ -24,7 +25,6 @@
 #include <setjmp.h>
 
 #if defined(DM_SANITIZE_ADDRESS) && defined(ANDROID)
-#include <alloca.h>
 #include <sanitizer/asan_interface.h>
 #endif
 
@@ -432,7 +432,6 @@ TEST_F(ScriptTestLua, TestErrorHandler) {
     ASSERT_EQ(top, lua_gettop(L));
 }
 
-#if defined(DM_SANITIZE_ADDRESS) && defined(ANDROID)
 struct LuaErrorStackRange
 {
     uintptr_t m_Begin;
@@ -444,8 +443,8 @@ static int CheckArgumentWithStackBuffers(lua_State* L)
     LuaErrorStackRange* range = (LuaErrorStackRange*)lua_touserdata(L, lua_upvalueindex(1));
     // Dynamic allocations stay on the real stack even with ASAN's fake stack enabled.
     size_t size = 256 + lua_gettop(L) % 2;
-    char* first = (char*)alloca(size);
-    char* second = (char*)alloca(size);
+    char* first = (char*)dmAlloca(size);
+    char* second = (char*)dmAlloca(size);
     memset(first, 0, size);
     memset(second, 0, size);
     range->m_Begin = (uintptr_t)first < (uintptr_t)second ? (uintptr_t)first : (uintptr_t)second;
@@ -464,13 +463,19 @@ TEST_F(ScriptTestLua, TestArgumentErrorClearsAsanStack)
     lua_pushcclosure(L, CheckArgumentWithStackBuffers, 1);
     lua_pushboolean(L, 1);
     int result = lua_pcall(L, 1, 0, 0);
-    // Inspect only sanitizer metadata, never the discarded stack objects themselves.
+#if defined(DM_SANITIZE_ADDRESS) && defined(ANDROID)
+    // Verify the stack cleanup provided by our Android unwind wrapper.
+    // ASAN automatically poisons the redzones between the stack buffers.
+    // Check that unwinding cleared them by reading only sanitizer metadata;
+    // the query leaves poisoning unchanged and never accesses discarded objects.
     void* poisoned = __asan_region_is_poisoned((void*)range.m_Begin, range.m_End - range.m_Begin);
+#endif
     lua_pop(L, 1);
     ASSERT_EQ(LUA_ERRRUN, result);
+#if defined(DM_SANITIZE_ADDRESS) && defined(ANDROID)
     ASSERT_EQ((void*)0, poisoned);
-}
 #endif
+}
 
 TEST_F(ScriptTestLua, TestStackCheck) {
 
