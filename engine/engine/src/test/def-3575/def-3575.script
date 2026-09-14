@@ -12,6 +12,87 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
+local function assert_near(expected, actual, name)
+    assert(math.abs(expected - actual) < 0.0001,
+        string.format("%s: expected %g, got %g", name, expected, actual))
+end
+
+local function assert_metrics(expected, actual)
+    for _, name in ipairs({ "width", "height", "max_ascent", "max_descent" }) do
+        assert_near(expected[name], actual[name], name)
+    end
+end
+
+local function test_default_options(font)
+    local plain = resource.get_text_metrics(font, "Hello World")
+    assert_metrics(plain, resource.get_text_metrics(font, "Hello World", {}))
+    assert_metrics(plain, resource.get_text_metrics(font, "Hello World", {
+        width = 1,
+        line_break = false,
+        leading = 1,
+        tracking = 0,
+    }))
+end
+
+local function test_wrapping_and_leading(font)
+    local word = resource.get_text_metrics(font, "Hello")
+    local options = { width = word.width + 1, line_break = true }
+    local wrapped = resource.get_text_metrics(font, "Hello Hello", options)
+    assert_near(word.width, wrapped.width, "wrapped width")
+    assert_near(word.height * 2, wrapped.height, "wrapped height")
+
+    options.leading = 2
+    local spaced = resource.get_text_metrics(font, "Hello Hello", options)
+    assert_near(wrapped.width, spaced.width, "leading preserves width")
+    assert_near(word.height * 3, spaced.height, "leading increases line spacing")
+end
+
+local function test_tracking(font)
+    local plain = resource.get_text_metrics(font, "Hello World")
+    local tracked = resource.get_text_metrics(font, "Hello World", { tracking = 0.5 })
+    assert(tracked.width > plain.width, "tracking must increase width")
+    assert_near(plain.height, tracked.height, "tracking preserves height")
+    assert_near(plain.max_ascent, tracked.max_ascent, "tracking preserves ascent")
+    assert_near(plain.max_descent, tracked.max_descent, "tracking preserves descent")
+end
+
+local function test_color_markup(font)
+    local text = "Hello World"
+    local markup = "Hello <color=#ff0000>World</color>"
+    assert_metrics(resource.get_text_metrics(font, text), resource.get_text_metrics(font, markup))
+
+    local word = resource.get_text_metrics(font, "Hello")
+    local options = { width = word.width + 1, line_break = true }
+    assert_metrics(resource.get_text_metrics(font, text, options), resource.get_text_metrics(font, markup, options))
+end
+
+local function test_size_markup(font)
+    local plain = resource.get_text_metrics(font, "Hello")
+    local larger = resource.get_text_metrics(font, "<size=28>Hello</size>")
+    assert_near(plain.height * 2, larger.height, "size markup doubles height from the base font size of 14")
+    assert(larger.width > plain.width, "size markup must increase width")
+
+    local base_size = resource.get_text_metrics(font, "<size=14>Hello</size>")
+    assert_metrics(plain, base_size)
+end
+
+local function test_invalid_markup(font)
+    local malformed = resource.get_text_metrics(font, "<color=#ff0000>Hello</size>")
+    local literal = resource.get_text_metrics(font, "&lt;color=#ff0000&gt;Hello&lt;/size&gt;")
+    assert_metrics(literal, malformed)
+
+    -- Invalid tag values are ignored when the markup syntax is otherwise valid.
+    local plain = resource.get_text_metrics(font, "Hello")
+    assert_metrics(plain, resource.get_text_metrics(font, "<size=0>Hello</size>"))
+end
+
+local function test_empty_text(font)
+    local plain = resource.get_text_metrics(font, "")
+    assert_near(0, plain.width, "empty width")
+    assert_near(0, plain.height, "empty height")
+    assert_metrics(plain, resource.get_text_metrics(font, "<color=#ff0000></color>"))
+end
+
 function init(self)
     local label_str = ""
 
@@ -76,7 +157,27 @@ function update(self, dt)
         return test_label_metrics("label_distance_field", metrics_valid)
     end
 
-    local success = test_label_bitmap() and test_label_df()
+    local success = test_label_bitmap()
+    success = test_label_df() and success
+
+    local tests = {
+        { "default options", test_default_options },
+        { "wrapping and leading", test_wrapping_and_leading },
+        { "tracking", test_tracking },
+        { "color markup", test_color_markup },
+        { "size markup", test_size_markup },
+        { "invalid markup", test_invalid_markup },
+        { "empty text", test_empty_text },
+    }
+    for _, label_name in ipairs({ "label_bitmap", "label_distance_field" }) do
+        local font = go.get("#" .. label_name, "font")
+        for _, test in ipairs(tests) do
+            -- Run every case and exit on failure instead of leaving the engine running after a Lua error.
+            local ok, err = pcall(test[2], font)
+            print(string.format("resource.get_text_metrics %s / %s: %s", label_name, test[1], ok and "PASS" or err))
+            success = ok and success
+        end
+    end
 
     if success then
         msg.post("@system:", "exit", { code = 0 })

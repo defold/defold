@@ -3347,7 +3347,8 @@ static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metr
 
 /*#  gets the text metrics for a font
  *
- * Gets the text metrics from a font
+ * Gets the text metrics from a font. Rich text markup is measured using its
+ * visible text and font sizes. If markup cannot be parsed, the text is measured literally.
  *
  * @name resource.get_text_metrics
  * @param url [type:hash] the font to get the (unscaled) metrics from
@@ -3397,12 +3398,34 @@ static int GetTextMetrics(lua_State* L)
     settings.m_LineBreak = line_break;
     settings.m_Leading = leading;
     settings.m_Tracking = tracking;
+    settings.m_Size = dmRender::GetFontMapSize(font_map);
     // legacy options for glyph bank fonts
     settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
     settings.m_Padding = dmRender::GetFontMapPadding(font_map);
 
-    dmRender::TextMetrics metrics;
-    dmRender::GetTextMetrics(font_map, text, &settings, &metrics);
+    HMarkup markup = 0;
+    HTextLayout layout = 0;
+    TextResult result = TEXT_RESULT_ERROR;
+    if (MarkupCreate(text, len, &markup, 0) == MARKUP_RESULT_OK)
+    {
+        result = TextLayoutCreateMarkup(dmRender::GetFontCollection(font_map), markup, &settings, &layout);
+    }
+    MarkupDestroy(markup);
+
+    dmRender::TextMetrics metrics = {};
+    if (result == TEXT_RESULT_OK)
+    {
+        dmRender::GetTextMetrics(font_map, layout, &metrics);
+    }
+    else
+    {
+        // Match label and GUI fallback when parsing or resolving markup fails.
+        dmRender::GetTextMetrics(font_map, text, &settings, &metrics);
+    }
+    if (layout)
+    {
+        TextLayoutRelease(layout);
+    }
     PushTextMetricsTable(L, &metrics);
     return 1;
 }
