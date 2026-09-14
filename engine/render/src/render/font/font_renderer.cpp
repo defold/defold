@@ -36,7 +36,7 @@
 #include <dmsdk/font/text_layout.h>
 #include <font_render.h>
 #include <font/render/glyph_vertex.h>
-#include <layout_vertex.h>
+#include <font/render/layout_vertex.h>
 #include <font/text_layout.h>
 
 DM_PROPERTY_EXTERN(rmtp_Render);

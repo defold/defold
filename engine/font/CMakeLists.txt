@@ -35,7 +35,8 @@ set(FONT_RENDER_PUBLIC_HEADERS
 set(FONT_INTERNAL_HEADERS
   "${FONT_RENDER_SRC_DIR}/glyph_gen.h")
 set(FONT_RENDER_VERTEX_HEADERS
-  "${FONT_RENDER_SRC_DIR}/glyph_vertex.h")
+  "${FONT_RENDER_SRC_DIR}/glyph_vertex.h"
+  "${FONT_RENDER_SRC_DIR}/layout_vertex.h")
 set(FONT_DEPENDENCIES dlib)
 set(FONT_RENDER_DEPENDENCIES
   dlib
