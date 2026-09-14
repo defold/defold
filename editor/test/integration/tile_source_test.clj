@@ -95,7 +95,7 @@
 
 (deftest sprite-trim-mode-image-io-error
   (test-support/with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/image_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/image_project")
           project (test-util/setup-project! workspace)
           tile-source (project/get-resource-node project "/main/main.tilesource")
           image-file (io/as-file (g/node-value tile-source :image))

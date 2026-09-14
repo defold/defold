@@ -21,6 +21,7 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [service.log :as log]
             [support.test-support :refer [spit-until-new-mtime with-clean-system]])
   (:import [java.io File]))
@@ -35,14 +36,14 @@
                                                 (.getAbsolutePath))))
    (fs/copy-directory! (io/file project-path) (io/file *project-path*))))
 
-(defn- load-test-project [ws-graph]
-  (let [workspace (test-util/setup-workspace! ws-graph *project-path*)
+(defn- load-test-project []
+  (let [workspace (test-util/setup-workspace! *project-path*)
         project (test-util/setup-project! workspace)]
     [workspace project]))
 
-(defn- setup [ws-graph]
+(defn- setup []
   (create-test-project)
-  (load-test-project ws-graph))
+  (load-test-project))
 
 (defn- file-in-project ^File [^String name] (io/file (io/file *project-path*) name))
 
@@ -64,21 +65,22 @@
   (settings ["project" "title"]))
 
 (defn- ensure-game-project-connections! [project game-project]
-  (let [script-intelligence (g/valid-node-value project :script-intelligence)]
-    (is (contains? (set (g/targets-of script-intelligence :build-errors))
-                   [game-project :build-errors]))
-    (is (contains? (set (g/sources-of project :display-profiles))
-                   [game-project :display-profiles-data]))
-    (is (contains? (set (g/sources-of project :texture-profiles))
-                   [game-project :texture-profiles-data]))
-    (is (contains? (set (g/sources-of project :use-font-layout))
-                   [game-project :use-font-layout]))
-    (is (contains? (set (g/sources-of project :settings))
-                   [game-project :settings-map]))))
+  (let [basis (g/now)
+        script-intelligence (g/valid-node-value project :script-intelligence)]
+    (is (contains? (set (g/outputs basis script-intelligence :build-errors))
+                   (gt/->Arc script-intelligence :build-errors game-project :build-errors)))
+    (is (contains? (set (g/inputs basis project :display-profiles))
+                   (gt/->Arc game-project :display-profiles-data project :display-profiles)))
+    (is (contains? (set (g/inputs basis project :texture-profiles))
+                   (gt/->Arc game-project :texture-profiles-data project :texture-profiles)))
+    (is (contains? (set (g/inputs basis project :use-font-layout))
+                   (gt/->Arc game-project :use-font-layout project :use-font-layout)))
+    (is (contains? (set (g/inputs basis project :settings))
+                   (gt/->Arc game-project :settings-map project :settings)))))
 
 (deftest load-ok-project
   (with-clean-system
-    (let [[_workspace project] (setup world)]
+    (let [[_workspace project] (setup)]
       (testing "Settings loaded"
         (let [settings (g/node-value project :settings)
               game-project (project/get-resource-node project "/game.project")]
@@ -94,7 +96,7 @@
                     "missing_component.go"          ; references "/non-existent.script"
                     "missing_go.collection"]]       ; references "/non-existent.go"
         (copy-file path (str "duplicate_" path)))
-      (let [project (second (log/without-logging (load-test-project world)))
+      (let [project (second (log/without-logging (load-test-project)))
             num-nodes-by-proj-path (frequencies (map resource/proj-path (test-util/project-node-resources project)))]
         (is (= 1 (num-nodes-by-proj-path "/non-existent.collection")))
         (is (= 1 (num-nodes-by-proj-path "/non-existent.script")))
@@ -104,7 +106,7 @@
   (with-clean-system
     (create-test-project)
     (write-file "game.project" "bad content")
-    (let [[workspace project] (log/without-logging (load-test-project world))
+    (let [[workspace project] (log/without-logging (load-test-project))
           game-project (project/get-resource-node project "/game.project")]
       (testing "Defaults if can't load"
         (let [settings (g/node-value project :settings)]
@@ -117,7 +119,7 @@
 
 (deftest break-ok-project
   (with-clean-system
-    (let [[workspace project] (setup world)]
+    (let [[workspace project] (setup)]
       (copy-file "game.project" "game.project.backup")
       (testing "Settings loaded"
         (let [settings (g/node-value project :settings)]

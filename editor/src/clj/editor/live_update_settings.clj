@@ -100,14 +100,13 @@
     (settings-core/load-meta-properties rdr)))
 
 (defn- load-live-update-settings [project self resource source-value]
-  (let [graph-id (g/node-id->graph-id self)]
-    (concat
-      (g/make-nodes graph-id [settings-node settings/SettingsNode]
-        (g/connect settings-node :_node-id self :nodes)
-        (g/connect settings-node :settings-map self :settings-map)
-        (g/connect settings-node :save-value self :save-value)
-        (g/connect settings-node :form-data self :form-data)
-        (settings/load-settings-node project self settings-node resource source-value basic-meta-info nil)))))
+  (concat
+    (g/make-nodes [settings-node settings/SettingsNode]
+      (g/connect settings-node :_node-id self :nodes)
+      (g/connect settings-node :settings-map self :settings-map)
+      (g/connect settings-node :save-value self :save-value)
+      (g/connect settings-node :form-data self :form-data)
+      (settings/load-settings-node project self settings-node resource source-value basic-meta-info nil))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-settings-resource-type workspace

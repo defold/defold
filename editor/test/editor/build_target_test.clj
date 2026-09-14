@@ -255,8 +255,8 @@
 
         session2-content-hashes-by-path
         (with-clean-system
-          (g/take-node-ids world 1) ; This causes all node ids to differ from session1.
-          (let [workspace (test-util/setup-workspace! world project-path)
+          (g/take-node-ids 1) ; This causes all node ids to differ from session1.
+          (let [workspace (test-util/setup-workspace! project-path)
                 project (test-util/setup-project! workspace)]
             (build-target-content-hashes-by-path project)))]
 
@@ -277,14 +277,14 @@
       (let [rev1-content-hashes-by-path
             (with-clean-system
               (system/set-defold-engine-sha1! "1111111111111111111111111111111111111111")
-              (let [workspace (test-util/setup-workspace! world project-path)
+              (let [workspace (test-util/setup-workspace! project-path)
                     project (test-util/setup-project! workspace)]
                 (build-target-content-hashes-by-path project)))
 
             rev2-content-hashes-by-path
             (with-clean-system
               (system/set-defold-engine-sha1! "2222222222222222222222222222222222222222")
-              (let [workspace (test-util/setup-workspace! world project-path)
+              (let [workspace (test-util/setup-workspace! project-path)
                     project (test-util/setup-project! workspace)]
                 (build-target-content-hashes-by-path project)))]
 

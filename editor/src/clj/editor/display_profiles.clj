@@ -62,11 +62,10 @@
                                (assoc pb-msg :node-id _node-id))))
 
 (defn- add-profile [node-id name qualifiers]
-  (g/make-nodes (g/node-id->graph-id node-id)
-    [profile [ProfileNode
-              :name name
-              :qualifiers (mapv #(update % :device-models text-util/join-comma-separated-string)
-                                qualifiers)]]
+  (g/make-nodes [profile [ProfileNode
+                          :name name
+                          :qualifiers (mapv #(update % :device-models text-util/join-comma-separated-string)
+                                            qualifiers)]]
     (for [[from to] [[:_node-id :nodes]
                      [:pb-msg :profile-msgs]
                      [:form-values :profile-form-values]

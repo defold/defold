@@ -50,7 +50,7 @@
                 view-opts (assoc ((:id view-type) (:view-opts resource-type))
                             :app-view app-view
                             :project project)
-                preview (make-preview-fn world resource-node view-opts 128 128)]
+                preview (make-preview-fn resource-node view-opts 128 128)]
             (try
               (let [image (g/node-value preview :frame)]
                 (is (some? image)))
@@ -106,7 +106,7 @@
 
 (deftest paste
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world)
+    (let [workspace (test-util/setup-scratch-workspace!)
           root-dir (workspace/project-directory workspace)
           make-file (partial io/file root-dir)
           make-dir-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :folder})))
@@ -135,13 +135,13 @@
           true [writable-dir-1 read-only-dir-1] false))
       (testing "paste!"
         (are [target-resource src-files expected]
-            (let [alerted (atom false)
-                  message (atom "")]
-              (with-redefs [dialogs/make-info-dialog (fn [_localization props]
-                                                       (reset! alerted true)
-                                                       (reset! message (:content props)))]
-                (asset-browser/paste! workspace target-resource src-files (constantly nil) test-util/localization)
-                (= expected (not (or @alerted (= "dialog.asset-paste-reserved.content" (:k @message)))))))
+          (let [alerted (atom false)
+                message (atom "")]
+            (with-redefs [dialogs/make-info-dialog (fn [_localization props]
+                                                     (reset! alerted true)
+                                                     (reset! message (:content props)))]
+              (asset-browser/paste! workspace target-resource src-files (constantly nil) test-util/localization)
+              (= expected (not (or @alerted (= "dialog.asset-paste-reserved.content" (:k @message)))))))
 
           root-resource [(make-file "car/car.script")] true
 
@@ -168,10 +168,10 @@
           [fixed-1] false))
       (testing "validate-rename"
         (are [parent-path new-name expected] (= expected (nil? (asset-browser/validate-new-resource-name root-dir parent-path new-name)))
-          
+
           "" "fine" true
           "" "game.project" true
-          
+
           "" "builtins" false
           "" "build" false
           "" ".internal" false
@@ -206,7 +206,6 @@
           [writable-file-resource writable-dir-resource] true
           [fixed-file-resource] false
           [fs-builtins-resource] true))))) ; this should never appear in the asset browser, but if we decide it should - it will be deletable
-
 
 (deftest new-folder
   (test-util/with-loaded-project
@@ -243,7 +242,7 @@
 
 (deftest drop-move
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world)
+    (let [workspace (test-util/setup-scratch-workspace!)
           root-dir (workspace/project-directory workspace)
           make-file (partial io/file root-dir)
           resource-map (g/raw-property-value (g/now) workspace :resource-map)]

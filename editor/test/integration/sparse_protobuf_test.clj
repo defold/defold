@@ -701,7 +701,7 @@
       (test-util/set-non-editable-directories! project-path [(str "/" (name :non-editable))])
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
 
           ;; Add dependencies to all sanctioned extensions to game.project.
           (test-util/set-libraries! workspace test-util/sanctioned-extension-urls)
@@ -756,4 +756,4 @@
                                   written-read-text (write-fn read-value)]
                               (test-util/check-value-equivalence! read-value save-value read-text)
                               (test-util/check-text-equivalence! written-read-text save-text read-text)))))))))
-              (lsp/await (lsp/get-node-lsp project)))))))))
+              (lsp/await (lsp/get-lsp)))))))))

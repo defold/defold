@@ -49,7 +49,7 @@ namespace basisu
 #ifdef _MSC_VER
             sprintf_s(buf, sizeof(buf), "vector: realloc() failed allocating %u bytes", (uint32_t)desired_size);
 #else
-            sprintf(buf, "vector: realloc() failed allocating %u bytes", (uint32_t)desired_size);
+            snprintf(buf, sizeof(buf), "vector: realloc() failed allocating %u bytes", (uint32_t)desired_size);
 #endif
             fprintf(stderr, "%s", buf);
             abort();
@@ -78,7 +78,7 @@ namespace basisu
 #ifdef _MSC_VER
             sprintf_s(buf, sizeof(buf), "vector: malloc() failed allocating %u bytes", (uint32_t)desired_size);
 #else
-            sprintf(buf, "vector: malloc() failed allocating %u bytes", (uint32_t)desired_size);
+            snprintf(buf, sizeof(buf), "vector: malloc() failed allocating %u bytes", (uint32_t)desired_size);
 #endif
             fprintf(stderr, "%s", buf);
             abort();

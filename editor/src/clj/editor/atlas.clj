@@ -53,6 +53,7 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll]
@@ -317,8 +318,8 @@
                                                               :icon image-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
 
-                                                             (resource/resource? maybe-image-resource)
-                                                             (assoc :link maybe-image-resource :outline-show-link? true))))
+                                                       (resource/resource? maybe-image-resource)
+                                                       (assoc :link maybe-image-resource :outline-show-link? true))))
   (output ddf-message g/Any (g/fnk [maybe-image-resource order sprite-trim-mode pivot-x pivot-y]
                               (-> (protobuf/make-map-without-defaults AtlasProto$AtlasImage
                                     :image (resource/resource->proj-path maybe-image-resource)
@@ -799,7 +800,6 @@
   (output atlas-images-variants [Image] :cached (g/fnk [animation-images]
                                                   (into [] (distinct) (flatten animation-images))))
 
-
   (output layout-data-generator g/Any          produce-layout-data-generator)
   (output texture-set-data g/Any               :cached produce-texture-set-data)
   (output layout-data      g/Any               :cached (g/fnk [layout-data-generator] (texture-util/call-generator layout-data-generator)))
@@ -870,17 +870,15 @@
 
 (defn- make-image-nodes
   [attach-fn parent image-msgs]
-  (let [graph-id (g/node-id->graph-id parent)]
-    (for [image-msg image-msgs]
-      (g/make-nodes
-        graph-id
-        [atlas-image AtlasImage]
-        (gu/set-properties-from-pb-map atlas-image AtlasProto$AtlasImage image-msg
-          image :image
-          sprite-trim-mode :sprite-trim-mode
-          pivot-x :pivot-x
-          pivot-y :pivot-y)
-        (attach-fn parent atlas-image)))))
+  (for [image-msg image-msgs]
+    (g/make-nodes
+      [atlas-image AtlasImage]
+      (gu/set-properties-from-pb-map atlas-image AtlasProto$AtlasImage image-msg
+        image :image
+        sprite-trim-mode :sprite-trim-mode
+        pivot-x :pivot-x
+        pivot-y :pivot-y)
+      (attach-fn parent atlas-image))))
 
 (def ^:private make-image-nodes-in-atlas (partial make-image-nodes attach-image-to-atlas))
 (def ^:private make-image-nodes-in-animation (partial make-image-nodes attach-image-to-animation))
@@ -904,13 +902,10 @@
 
 (defn- make-atlas-animation [atlas-node atlas-animation]
   {:pre [(map? atlas-animation)]} ; AtlasProto$AtlasAnimation in map format.
-  (let [graph-id (g/node-id->graph-id atlas-node)
-        project (project/get-project atlas-node)
+  (let [project (project/get-project)
         workspace (project/workspace project)
         image-msgs (resolve-image-msgs workspace (:images atlas-animation) false)]
-    (g/make-nodes
-      graph-id
-      [animation-node AtlasAnimation]
+    (g/make-nodes [animation-node AtlasAnimation]
       (gu/set-properties-from-pb-map animation-node AtlasProto$AtlasAnimation atlas-animation
         id :id
         flip-horizontal (protobuf/int->boolean :flip-horizontal)
@@ -1030,10 +1025,10 @@
   (let [parent (core/scope node-id)
         children (vec (g/node-value parent :nodes))
         new-children (vec-move children node-id offset)
-        connections (keep (fn [[source source-label target target-label]]
-                            (when (and (= source node-id)
-                                       (= target parent))
-                              [source-label target-label]))
+        connections (keep (fn [arc]
+                            (when (and (= (gt/source-id arc) node-id)
+                                       (= (gt/target-id arc) parent))
+                              [(gt/source-label arc) (gt/target-label arc)]))
                           (g/outputs node-id))]
     (g/transact
       (concat
