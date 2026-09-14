@@ -137,7 +137,10 @@
         (prop-resource-error _node-id :vertex-program vertex-program vertex-program-message "vp")
         (prop-resource-error _node-id :fragment-program fragment-program fragment-program-message "fp")
         (mapcat #(attribute-info->error-values % _node-id :attributes) attribute-infos))
-      (let [shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count exclude-gles-sm100 glsl-es-default-precision-float glsl-es-default-precision-int)
+      (let [exclude-gles-sm100 (or exclude-gles-sm100
+                                   ;; Match Bob: numeric curve textures require texelFetch.
+                                   (coll/any? #(= "curve_texture" (:name %)) (:samplers base-pb-msg)))
+            shader-desc-build-target (shader-compilation/make-shader-build-target _node-id [vertex-shader-source-info fragment-shader-source-info] max-page-count exclude-gles-sm100 glsl-es-default-precision-float glsl-es-default-precision-int)
             build-target-samplers (build-target-samplers (:samplers base-pb-msg) max-page-count)
             build-target-attributes (build-target-attributes attribute-infos)
             build-target-pbr-params (build-target-pbr-params (:shader-reflection shader-desc-build-target))
