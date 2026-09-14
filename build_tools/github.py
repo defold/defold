@@ -48,19 +48,21 @@ def _create_headers(headers, token):
 
 # use GraphQL API
 def query(query, token, headers = None, variables = None):
-    import requests
+    # GraphQL callers such as the PR release notes check need no pip packages.
+    import json
+    from urllib.request import Request, urlopen
     try:
-        url = URL_GRAPHQL_API
         if query.strip().startswith("query"):
-            json = { 'query': query, "variables": variables }
+            payload = { 'query': query, "variables": variables }
         elif query.strip().startswith("mutation"):
-            json = { 'query': query, "variables": variables }
+            payload = { 'query': query, "variables": variables }
         else:
-            json = { 'query': "query " + query, "variables": variables }
+            payload = { 'query': "query " + query, "variables": variables }
         headers = _create_headers(headers, token)
-        response = requests.post(url, json = json, headers = headers)
-        response.raise_for_status()
-        return response.json()
+        headers.setdefault("Content-Type", "application/json")
+        request = Request(URL_GRAPHQL_API, data = json.dumps(payload).encode("utf-8"), headers = headers)
+        with urlopen(request, timeout = 30) as response:
+            return json.load(response)
     except Exception as err:
         print(err)
         return None

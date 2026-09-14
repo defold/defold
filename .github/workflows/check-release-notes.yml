@@ -1,0 +1,46 @@
+name: PR - Release notes
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, labeled, unlabeled, ready_for_review, converted_to_draft]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+concurrency:
+  group: release-notes-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check-release-notes:
+    name: Release notes
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    steps:
+      - name: Download release notes scripts
+        # gh and Python are preinstalled. Fetch only these files at the trusted
+        # workflow commit; no checkout, git history, actions or packages to install.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p scripts build_tools
+          download_pids=()
+          for source_file in scripts/check_release_notes.py scripts/releasenotes_github_projectv2.py build_tools/github.py; do
+            gh api -H 'Accept: application/vnd.github.raw+json' \
+              "repos/${GITHUB_REPOSITORY}/contents/${source_file}?ref=${GITHUB_SHA}" > "$source_file" &
+            download_pids+=("$!")
+          done
+          for download_pid in "${download_pids[@]}"; do
+            wait "$download_pid"
+          done
+      - name: Check release notes
+        env:
+          # Same project access as the generator. The fallback can still read skip labels.
+          GITHUB_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python3 scripts/check_release_notes.py --pull-request "$PR_NUMBER" --repository "${GITHUB_REPOSITORY#*/}" --comment
