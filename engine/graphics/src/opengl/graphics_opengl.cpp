@@ -3253,7 +3253,7 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLStorageBufferBarrier(OpenGLContext* context)
     {
-    #if defined(GL_SHADER_STORAGE_BUFFER)
+    #if defined(GL_SHADER_STORAGE_BUFFER) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
         if (context->m_StorageBufferSupport && context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
         {
             glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_STORAGE);
