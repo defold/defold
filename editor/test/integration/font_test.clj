@@ -13,22 +13,27 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.font-test
-  (:require [clojure.string :as s]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as s]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.code.data :as code.data]
             [editor.defold-project :as project]
             [editor.font :as font]
             [editor.form :as form]
-            [editor.game-project :as game-project]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.coll :as coll])
   (:import [ch.qos.logback.classic Logger]
            [ch.qos.logback.core.read ListAppender]
            [com.dynamo.bob.font FontRenderer$GlyphBank FontRenderer$Params FontRenderer$Properties]
-           [com.dynamo.render.proto Font$FontDesc]
+           [com.dynamo.font.proto GlyphBankProto$GlyphBank]
+           [com.dynamo.render.proto Font$FontDesc Font$FontMap]
+           [com.google.protobuf ByteString]
+           [java.nio.file Files]
            [javax.vecmath Matrix4d]
            [org.slf4j LoggerFactory]))
 
@@ -262,8 +267,8 @@
         [(g/set-property font-node :all-chars false)
          (g/set-property font-node :characters "A")])
       (let [font-map (g/node-value font-node :font-map)
-            restricted-layout (font/layout-text font-map "A B" false 0 0 1)
-            expected-layout (font/layout-text font-map "A" false 0 0 1)]
+            restricted-layout (font/layout-text font-map "A B" false 0 0 1 nil)
+            expected-layout (font/layout-text font-map "A" false 0 0 1 nil)]
         (is (= "A B" (:text restricted-layout)))
         (is (= "A" (:native-text restricted-layout)))
         (is (= (:width expected-layout) (:width restricted-layout)))
@@ -276,8 +281,8 @@
         [(g/set-property font-node :all-chars false)
          (g/set-property font-node :characters "A")])
       (let [font-map (g/node-value font-node :font-map)
-            markup-layout (font/layout-text font-map "<color=#FF0000>A</color>B" false 0 0 1)
-            invalid-layout (font/layout-text font-map "<color=#FF0000>A</size>B" false 0 0 1)]
+            markup-layout (font/layout-text font-map "<color=#FF0000>A</color>B" false 0 0 1 nil)
+            invalid-layout (font/layout-text font-map "<color=#FF0000>A</size>B" false 0 0 1 nil)]
         (is (= "<color=#FF0000>A</color>" (:native-text markup-layout)))
         (is (true? (:use-rich-text markup-layout)))
         (is (= "A" (:native-text invalid-layout)))
@@ -292,7 +297,7 @@
          (g/set-property font-node :characters "A&")])
       (let [font-map (g/node-value font-node :font-map)
             text "<link id='A>B'>A&amp;B</link>"
-            text-layout (font/layout-text font-map text false 0 0 1)]
+            text-layout (font/layout-text font-map text false 0 0 1 nil)]
         (is (= "<link id='A>B'>A&amp;</link>" (:native-text text-layout)))
         (is (true? (:use-rich-text text-layout)))))))
 
@@ -305,7 +310,7 @@
          (g/set-property font-node :cache-width 64)])
       (let [font-map (g/node-value font-node :font-map)
             preview-text (g/node-value font-node :preview-text)
-            text-layout (font/layout-text font-map preview-text true (:cache-width font-map) 0 1)]
+            text-layout (font/layout-text font-map preview-text true (:cache-width font-map) 0 1 nil)]
         (is (s/includes? preview-text "\n"))
         (is (= preview-text (:native-text text-layout)))
         (is (< 1 (:line-count text-layout)))))))
@@ -314,8 +319,8 @@
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/editor1/test.font")
           font-map (g/node-value font-node :font-map)
-          markup-layout (font/layout-text font-map "<color=#ff0000>red</color>" false 0 0 1)
-          plain-layout (font/layout-text font-map "<>" false 0 0 1)]
+          markup-layout (font/layout-text font-map "<color=#ff0000>red</color>" false 0 0 1 nil)
+          plain-layout (font/layout-text font-map "<>" false 0 0 1 nil)]
       (is (true? (:use-rich-text markup-layout)))
       (is (= "<>" (:native-text plain-layout)))
       (is (= "&lt;&gt;" (:native-markup plain-layout)))
@@ -347,7 +352,7 @@
       (testing "static fonts continue using legacy layout"
         (is (false? (font-map-uses-text-shaping? font-node))))
       (testing "runtime-generated fonts use text shaping"
-        (game-project/set-setting! game-project ["font" "runtime_generation"] true)
+        (prop! font-node :runtime true)
         (is (true? (font-map-uses-text-shaping? font-node)))))))
 
 (deftest app-manifest-rich-text-selection
@@ -368,16 +373,16 @@
       (testing "rich text can be disabled in an app manifest"
         (is (false? (font-map-uses-rich-text? font-node)))))))
 
-(deftest bitmap-font-uses-native-rich-text-preview
+(deftest scalable-font-uses-native-rich-text-preview
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/editor1/test.font")]
       (g/transact {:undoable false}
         (g/set-property font-node :output-format :type-bitmap))
       (let [^FontRenderer$Params render-params (get-in (g/node-value font-node :font-map)
                                                        [:native-renderer-spec :render-params])]
-        (is (= :defold (g/node-value font-node :type)))
+        (is (= :distance-field (g/node-value font-node :type)))
         (is (true? (font-map-uses-rich-text? font-node)))
-        (is (true? (.-outputBitmap render-params))))
+        (is (false? (.-outputBitmap render-params))))
       (let [error (font/markup-error font-node
                                      :text
                                      (g/node-value font-node :font-map)
@@ -475,18 +480,18 @@
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/fonts/score.font")
           font-map (dissoc (g/node-value node-id :font-map) :native-renderer-spec)
-          {hello-width :width :keys [lines]} (font/layout-text font-map "hello" false 0 0 0)]
+          {hello-width :width :keys [lines]} (font/layout-text font-map "hello" false 0 0 0 nil)]
       (is (= ["hello"] lines))
       (testing "If the line is too long and does not have spaces, we don't wrap"
-        (is (= ["hellohello"] (:lines (font/layout-text font-map "hellohello" true hello-width 0 0)))))
+        (is (= ["hellohello"] (:lines (font/layout-text font-map "hellohello" true hello-width 0 0 nil)))))
       (testing "If the line is too long and has spaces, we wrap"
-        (is (= ["hello" "hello"] (:lines (font/layout-text font-map "hello hello" true hello-width 0 0)))))
+        (is (= ["hello" "hello"] (:lines (font/layout-text font-map "hello hello" true hello-width 0 0 nil)))))
       (testing "The whitespace at the beginning and end of lines is trimmed"
-        (is (= ["hello" "hello"] (:lines (font/layout-text font-map "  \u200B  hello    \u200Bhello    " true hello-width 0 0)))))
+        (is (= ["hello" "hello"] (:lines (font/layout-text font-map "  \u200B  hello    \u200Bhello    " true hello-width 0 0 nil)))))
       (testing "Tailing empty lines are trimmed"
-        (is (= ["hello" "hello"] (:lines (font/layout-text font-map "hello hello\n \n   \n\n  \n  \n " true hello-width 0 0)))))
+        (is (= ["hello" "hello"] (:lines (font/layout-text font-map "hello hello\n \n   \n\n  \n  \n " true hello-width 0 0 nil)))))
       (testing "We always split on \r?\n"
-        (is (= ["hello" "hello" "hello"] (:lines (font/layout-text font-map "hello\r\nhello\nhello" true hello-width 0 0))))))))
+        (is (= ["hello" "hello" "hello"] (:lines (font/layout-text font-map "hello\r\nhello\nhello" true hello-width 0 0 nil))))))))
 
 (deftest preview-text
   (test-util/with-loaded-project
@@ -496,7 +501,7 @@
           no-break (s/replace pre-text "\n" "")
           [w h] (font/measure font-map pre-text true (:cache-width font-map) 0 1)
           [ew eh] (font/measure font-map no-break true (:cache-width font-map) 0 1)
-          text-layout (font/layout-text font-map pre-text false 0 0.125 1)]
+          text-layout (font/layout-text font-map pre-text false 0 0.125 1 nil)]
       (is (.contains pre-text "\n"))
       (is (not (.contains no-break "\n")))
       (is (< w ew))
@@ -569,3 +574,283 @@
                                              :material
                                              [:renderable :user-data :shader]
                                              [:renderable :user-data :texture]))))
+
+(deftest native-shadow-blur-does-not-depend-on-face-alpha
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :alpha 0.0)
+         (g/set-property font-node :shadow-alpha 1.0)
+         (g/set-property font-node :shadow-blur 4.0)])
+      (let [^FontRenderer$Params render-params (get-in (g/node-value font-node :font-map)
+                                                       [:native-renderer-spec :render-params])]
+        (is (= 4.0 (double (.-shadowBlur render-params))))
+        (is (true? (.-hasShadow render-params)))))))
+
+(deftest native-preview-disables-zero-offset-shadow
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :shadow-alpha 1.0)
+         (g/set-property font-node :shadow-blur 0.0)
+         (g/set-property font-node :shadow-x 0.0)
+         (g/set-property font-node :shadow-y 0.0)])
+      (let [font-map (g/node-value font-node :font-map)
+            ^FontRenderer$Params render-params (get-in font-map [:native-renderer-spec :render-params])]
+        (is (zero? (bit-and 4 (:layer-mask font-map))))
+        (is (false? (.-hasShadow render-params)))))))
+
+(deftest glyph-generation-survives-save-and-reopen
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/fonts/vector_implicit_dynamic.font")
+          {:keys [read-fn write-fn]} (resource/resource-type (g/node-value font-node :resource))]
+      (doseq [mode [:vector-font-mode-vector :vector-font-mode-sdf]
+              runtime [false true]]
+        (g/transact {:undoable false}
+          [(g/set-property font-node :vector-font-mode mode)
+           (g/set-property font-node :runtime runtime)])
+        (let [saved (g/node-value font-node :save-value)
+              reopened (read-fn (java.io.StringReader. (write-fn saved)))]
+          (is (= runtime (:runtime saved)))
+          (is (= runtime (:runtime reopened))))))))
+
+(deftest vector-to-sdf-font-size
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")
+          vector-material (workspace/find-resource workspace "/builtins/fonts/font-vector.material")
+          sdf-material (workspace/find-resource workspace "/builtins/fonts/font-df.material")]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :material vector-material)
+         (g/set-property font-node :vector-font-mode :vector-font-mode-vector)
+         (g/set-property font-node :size 0)])
+      (properties/set-values! (get-in (properties/coalesce [(g/node-value font-node :_properties)])
+                                      [:properties :vector-font-mode])
+                              [:vector-font-mode-sdf])
+      (is (= 15 (g/node-value font-node :size)))
+      (is (= "Size" (test-util/localization (get-in (g/node-value font-node :_properties) [:properties :size :label]))))
+      (is (= sdf-material (g/node-value font-node :material)))
+
+      (g/transact {:undoable false}
+        [(g/set-property font-node :material vector-material)
+         (g/set-property font-node :vector-font-mode :vector-font-mode-vector)
+         (g/set-property font-node :size 27)])
+      (properties/set-values! (get-in (properties/coalesce [(g/node-value font-node :_properties)])
+                                      [:properties :vector-font-mode])
+                              [:vector-font-mode-sdf])
+      (is (= 27 (g/node-value font-node :size)))
+      (is (= sdf-material (g/node-value font-node :material)))
+      (g/transact {:undoable false}
+        [(g/set-property font-node :outline-alpha 0.0)
+         (g/set-property font-node :shadow-alpha 0.0)])
+      (let [node-properties (:properties (g/node-value font-node :_properties))]
+        (is (properties/visible? (:size node-properties)))
+        (is (false? (get-in node-properties [:size :read-only?])))
+        (is (not (contains? node-properties :sdf-material)))))))
+
+(deftest vector-glyph-generation-property
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")
+          vector-material (workspace/find-resource workspace "/builtins/fonts/font-vector.material")
+          effective-font-desc (ns-resolve 'editor.font 'effective-font-desc)]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :material vector-material)
+         (g/set-property font-node :vector-font-mode :vector-font-mode-vector)
+         (g/set-property font-node :runtime false)])
+      (let [node-properties (get-in (g/node-value font-node :_properties) [:properties])]
+        (is (true? (get-in node-properties [:runtime :visible])))
+        (is (= {:type :choicebox
+                :options [[false "Static"]
+                          [true "Dynamic"]]}
+               (select-keys (get-in node-properties [:runtime :edit-type]) [:type :options])))
+        (is (false? (get-in node-properties [:runtime :value])))
+        (is (true? (get-in node-properties [:all-chars :visible]))))
+      (let [save-value (g/node-value font-node :save-value)
+            effective-value (effective-font-desc (g/node-value font-node :font)
+                                                 (protobuf/inject-defaults Font$FontDesc save-value))
+            build-targets (g/node-value font-node :build-targets)
+            built-font-map (coll/some #(let [pb-map (get-in % [:user-data :pb-map])]
+                                         (when (:glyph-bank pb-map)
+                                           pb-map))
+                                      build-targets)]
+        (is (false? (:runtime save-value)))
+        (is (= 20 (:size effective-value)))
+        (is (some? built-font-map))
+        (is (not (contains? built-font-map :characters))))
+
+      (prop! font-node :runtime true)
+      (let [save-value (g/node-value font-node :save-value)
+            effective-value (effective-font-desc (g/node-value font-node :font)
+                                                 (protobuf/inject-defaults Font$FontDesc save-value))]
+        (is (true? (:runtime save-value)))
+        (is (= 20 (:size effective-value))))
+      (is (false? (get-in (g/node-value font-node :_properties)
+                          [:properties :all-chars :visible]))))))
+
+(deftest vector-font-effect-size-defaults-to-15
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/fonts/vector_implicit_dynamic.font")]
+      (is (= 15 (g/node-value font-node :size)))
+      (let [node-properties (:properties (g/node-value font-node :_properties))]
+        (doseq [property [:size]]
+          (is (properties/visible? (get node-properties property)))
+          (is (true? (get-in node-properties [property :read-only?])))))
+      (is (not (contains? (g/node-value font-node :save-value) :size)))
+      (is (= 16 (:size (g/node-value font-node :font-map))))
+      (doseq [runtime [false true]
+              [outline-width shadow-blur shadow-x] [[1.0 0 0.0] [0.0 2 0.0] [0.0 0 2.0]]]
+        (g/transact {:undoable false}
+          [(g/set-property font-node :runtime runtime)
+           (g/set-property font-node :outline-alpha 1.0)
+           (g/set-property font-node :outline-width outline-width)
+           (g/set-property font-node :shadow-alpha 1.0)
+           (g/set-property font-node :shadow-blur shadow-blur)
+           (g/set-property font-node :shadow-x shadow-x)])
+        (let [size-property (get-in (g/node-value font-node :_properties) [:properties :size])]
+          (is (properties/visible? size-property))
+          (is (false? (:read-only? size-property)))
+          (is (= "Outline/Shadow Bitmap Size" (test-util/localization (:label size-property))))
+          (is (= 15 (:value size-property))))
+        (is (= 15 (:size (g/node-value font-node :save-value))))
+        (is (= 15 (:size (g/node-value font-node :font-map))))
+        (is (not (g/error? (g/node-value font-node :build-targets))))))))
+
+(deftest font-size-defaults-on-initial-load
+  (let [font-descs (atom {})]
+    (doseq [vector [false true]
+            runtime [false true]
+            [effect effect-properties] [[:face {}]
+                                        [:outline {:outline-alpha 1.0 :outline-width 2.0}]
+                                        [:shadow-blur {:shadow-alpha 1.0 :shadow-blur 2}]
+                                        [:shadow-x {:shadow-alpha 1.0 :shadow-x 2.0}]
+                                        [:shadow-y {:shadow-alpha 1.0 :shadow-y 2.0}]]
+            size [nil 37]]
+      (swap! font-descs assoc
+             (str "/" vector "-" runtime "-" (name effect) "-" size ".font")
+             (cond-> (merge {:font "/builtins/fonts/vera_mo_bd.ttf"
+                             :material (if vector
+                                         "/builtins/fonts/font-vector.material"
+                                         "/builtins/fonts/font-df.material")
+                             :vector-font-mode (if vector :vector-font-mode-vector :vector-font-mode-sdf)
+                             :output-format :type-distance-field
+                             :runtime runtime
+                             :characters "A"}
+                            effect-properties)
+               size (assoc :size size))))
+    (test-util/with-temp-project-content @font-descs
+      (doseq [[proj-path font-desc] @font-descs]
+        (testing proj-path
+          ;; Check the initially cached save-value before any property edit can
+          ;; invalidate it and hide a mismatch with the displayed default.
+          (let [font-node (test-util/resource-node project proj-path)
+                expected-size (or (:size font-desc) 15)
+                vector (= :vector-font-mode-vector (:vector-font-mode font-desc))
+                effects (or (:outline-alpha font-desc) (:shadow-alpha font-desc))
+                expected-build-size (if (and vector (not effects)) 16 expected-size)
+                initial-save-value (g/node-value font-node :save-value)
+                font-map (g/node-value font-node :font-map)
+                build-targets (g/node-value font-node :build-targets)]
+            (is (= expected-size (g/node-value font-node :size)))
+            (is (= (:runtime font-desc) (g/node-value font-node :runtime)))
+            (is (= (:runtime font-desc) (:runtime initial-save-value)))
+            (when (or (not vector) effects)
+              (is (= expected-size (:size initial-save-value))))
+            (is (not (g/error? font-map)))
+            (is (= expected-build-size (:size font-map)))
+            (is (not (g/error? build-targets)))
+            (is (= expected-build-size (get-in build-targets [0 :user-data :pb-map :size])))
+            (prop! font-node :characters "B")
+            (when (or (not vector) effects)
+              (is (= (:size initial-save-value) (:size (g/node-value font-node :save-value)))))
+            (is (= expected-build-size (:size (g/node-value font-node :font-map))))))))))
+
+(deftest vector-font-effect-size-is-owned-by-the-resource
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")
+          vector-material (workspace/find-resource workspace "/builtins/fonts/font-vector.material")]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :material vector-material)
+         (g/set-property font-node :vector-font-mode :vector-font-mode-vector)
+         (g/set-property font-node :size 37)
+         (g/set-property font-node :all-chars false)
+         (g/set-property font-node :characters "A")])
+      (doseq [runtime [false true]
+              [outline-alpha outline-width shadow-alpha shadow-blur shadow-x shadow-y effects-enabled]
+              [[0.0 0.0 0.0 0 0.0 0.0 false]
+               [0.0 2.0 0.0 0 0.0 0.0 false]
+               [0.0 0.0 0.0 3 2.0 0.0 false]
+               [1.0 0.0 1.0 0 0.0 0.0 false]
+               [1.0 2.0 0.0 0 0.0 0.0 true]
+               [0.0 0.0 1.0 3 0.0 0.0 true]
+               [0.0 0.0 1.0 0 2.0 0.0 true]
+               [0.0 0.0 1.0 0 0.0 2.0 true]
+               [0.0 2.0 0.0 3 2.0 2.0 false]]]
+        (g/transact {:undoable false}
+          [(g/set-property font-node :runtime runtime)
+           (g/set-property font-node :outline-alpha outline-alpha)
+           (g/set-property font-node :outline-width outline-width)
+           (g/set-property font-node :shadow-alpha shadow-alpha)
+           (g/set-property font-node :shadow-blur shadow-blur)
+           (g/set-property font-node :shadow-x shadow-x)
+           (g/set-property font-node :shadow-y shadow-y)])
+        (let [node-properties (:properties (g/node-value font-node :_properties))]
+          (doseq [property [:size]]
+            (is (properties/visible? (get node-properties property)))
+            (is (= (not effects-enabled) (get-in node-properties [property :read-only?]))))
+          (is (= 37 (get-in node-properties [:size :value]))))
+        (is (= effects-enabled (contains? (g/node-value font-node :save-value) :size)))
+        (let [font-map (g/node-value font-node :font-map)
+              expected-size (if effects-enabled 37 16)]
+          (is (= expected-size (:size font-map)))
+          (let [^FontRenderer$Params params (-> font-map :native-renderer-spec :render-params)]
+            (is (= (float expected-size) (.-size params)))
+            (is (= effects-enabled (or (.-hasOutline params) (.-hasShadow params))))))
+        (test-util/with-prop [font-node :size 0]
+          (is (= effects-enabled (boolean (g/error-fatal? (get-in (g/node-value font-node :_properties) [:properties :size :error])))))
+          (is (= effects-enabled (boolean (g/error-fatal? (g/node-value font-node :build-targets))))))))))
+
+(deftest vector-font-without-glyph-generation-defaults-to-dynamic
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/fonts/vector_implicit_dynamic.font")
+          build-targets (g/node-value font-node :build-targets)
+          built-font-map (coll/some #(let [pb-map (get-in % [:user-data :pb-map])]
+                                       (when (:font pb-map)
+                                         pb-map))
+                                    build-targets)]
+      (is (true? (g/node-value font-node :runtime)))
+      (is (true? (:runtime (g/node-value font-node :save-value))))
+      (is (= "/fonts/vera_mo_bd.ttf" (some-> (:font built-font-map) resource/proj-path)))
+      (is (= "Vector prewarm" (:characters built-font-map)))
+      (is (nil? (coll/some #(get-in % [:user-data :pb-map :glyph-bank]) build-targets))))))
+
+(deftest vector-build-preserves-glyph-generation
+  (test-util/with-temp-project-content
+    {"/vector.font" {:font "/builtins/fonts/vera_mo_bd.ttf"
+                     :material "/builtins/fonts/font-vector.material"
+                     :vector-font-mode :vector-font-mode-vector
+                     :runtime false
+                     :outline-alpha 1.0
+                     :outline-width 2.0
+                     :shadow-alpha 1.0
+                     :shadow-blur 2
+                     :characters "A"}}
+    (let [font-node (test-util/resource-node project "/vector.font")]
+      (doseq [runtime [false true]]
+        (prop! font-node :runtime runtime)
+        (with-open [_ (test-util/build! font-node)]
+          (let [font-map (protobuf/bytes->map-with-defaults Font$FontMap (test-util/node-build-output font-node))]
+            (is (= 15 (:size font-map)))
+            (is (true? (:vector-bitmap-effects font-map)))
+            (is (= "" (:sdf-material font-map)))
+            (if runtime
+              (do
+                (is (= "/builtins/fonts/vera_mo_bd.ttf" (:font font-map)))
+                (is (= "A" (:characters font-map)))
+                (is (= "" (:glyph-bank font-map))))
+              (let [glyph-bank (protobuf/bytes->map-with-defaults GlyphBankProto$GlyphBank
+                                                                  (Files/readAllBytes (.toPath (io/file (workspace/build-path workspace) (subs (:glyph-bank font-map) 1)))))]
+                (is (= "" (:font font-map)))
+                (is (= "" (:characters font-map)))
+                (is (= :type-vector (:image-format glyph-bank)))
+                (is (true? (:vector-bitmap-effects glyph-bank)))
+                (is (pos? (.size ^ByteString (:vector-data glyph-bank))))
+                (is (pos? (.size ^ByteString (:glyph-data glyph-bank))))))))))))

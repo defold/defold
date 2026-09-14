@@ -271,6 +271,7 @@ nodes {
   enabled: false
   visible: false
   material: "first_material"
+  font_size: 24.0
 }
 nodes {
   position {
@@ -684,10 +685,12 @@ nodes {
   overridden_fields: 45
   overridden_fields: 46
   overridden_fields: 47
+  overridden_fields: 51
   template_node_child: true
   text_leading: 1.11
   text_tracking: 0.11
   material: "second_material"
+  font_size: 36.0
 }
 nodes {
   position {
@@ -1073,9 +1076,11 @@ layouts {
     overridden_fields: 45
     overridden_fields: 46
     overridden_fields: 47
+    overridden_fields: 51
     text_leading: 1.11
     text_tracking: 0.11
     material: "second_material"
+    font_size: 36.0
   }
   nodes {
     position {
@@ -1508,10 +1513,12 @@ layouts {
     overridden_fields: 45
     overridden_fields: 46
     overridden_fields: 47
+    overridden_fields: 51
     template_node_child: true
     text_leading: 1.11
     text_tracking: 0.11
     material: "second_material"
+    font_size: 36.0
   }
   nodes {
     position {
@@ -1672,7 +1679,9 @@ layouts {
     id: "template/text"
     parent: "template/parent"
     overridden_fields: 8
+    overridden_fields: 51
     template_node_child: true
+    font_size: 36.0
   }
 }
 adjust_reference: ADJUST_REFERENCE_PARENT

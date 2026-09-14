@@ -245,3 +245,62 @@
           (verify-referenced-component "/scale_migration/referenced_unscaled_label.go" [0] [2.0 3.0 4.0] false)
           (verify-referenced-component "/scale_migration/referenced_unscaled_label.collection" [0 0] [2.0 3.0 4.0] false)
           (verify-referenced-component "/scale_migration/referenced_unscaled_label_child.collection" [0 0 0] [2.0 3.0 4.0] false))))))
+
+(deftest label-effect-controls-follow-font-support
+  (test-util/with-loaded-project
+    (let [font-node (project/get-resource-node project "/editor1/test.font")
+          label-node (project/get-resource-node project "/label/test.label")
+          original-outline (g/node-value label-node :outline)
+          original-shadow (g/node-value label-node :shadow)]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :all-chars false)
+         (g/set-property font-node :characters "A")
+         (g/set-property font-node :size 20)
+         (g/set-property label-node :font (workspace/find-resource workspace "/editor1/test.font"))])
+      (doseq [[mode material] [[:vector-font-mode-sdf "/builtins/fonts/font-df.material"]
+                               [:vector-font-mode-vector "/builtins/fonts/font-vector.material"]]
+              runtime [false true]
+              [outline shadow] [[false false] [true false] [false true] [true true]]]
+        (g/transact {:undoable false}
+          [(g/set-property font-node :vector-font-mode mode)
+           (g/set-property font-node :material (workspace/find-resource workspace material))
+           (g/set-property font-node :runtime runtime)
+           (g/set-property font-node :outline-alpha (if outline 1.0 0.0))
+           (g/set-property font-node :shadow-alpha (if shadow 1.0 0.0))])
+        (let [properties (:properties (g/node-value label-node :_properties))]
+          (is (= (not outline) (get-in properties [:outline :read-only?])))
+          (is (= (not shadow) (get-in properties [:shadow :read-only?])))))
+      (is (= original-outline (g/node-value label-node :outline)))
+      (is (= original-shadow (g/node-value label-node :shadow))))))
+
+(deftest vector-label-effects-require-font-support
+  (test-util/with-loaded-project
+    (let [font-node (project/get-resource-node project "/editor1/test.font")
+          label-node (project/get-resource-node project "/label/test.label")]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :material (workspace/find-resource workspace "/builtins/fonts/font-vector.material"))
+         (g/set-property font-node :vector-font-mode :vector-font-mode-vector)
+         (g/set-property font-node :outline-alpha 0.0)
+         (g/set-property font-node :shadow-alpha 0.0)
+         (g/set-property label-node :font (workspace/find-resource workspace "/editor1/test.font"))
+         (g/set-property label-node :outline [0.0 0.0 0.0 1.0])
+         (g/set-property label-node :shadow [0.0 0.0 0.0 1.0])])
+      (is (not (g/error? (g/node-value label-node :build-targets))))
+      (doseq [[property value] [[:outline [1.0 0.0 0.0 1.0]]
+                                [:shadow [0.0 0.0 0.0 0.5]]
+                                [:text "<outline>A</outline>"]
+                                [:text "<shadow>A</shadow>"]]]
+        (test-util/with-prop [label-node property value]
+          (let [build-error (g/node-value label-node :build-targets)]
+            (is (g/error-fatal? build-error))
+            (is (string/starts-with? (test-util/localization (:message build-error)) "The font has no ")))
+          (when (contains? #{:outline :shadow} property)
+            (is (nil? (test-util/prop-error label-node property))))))
+      (g/transact {:undoable false}
+        [(g/set-property font-node :outline-alpha 1.0)
+         (g/set-property font-node :shadow-alpha 1.0)
+         (g/set-property font-node :size 37)
+         (g/set-property label-node :font-size 64.0)
+         (g/set-property label-node :text "<outline><shadow>A</shadow></outline>")])
+      (is (not (g/error? (g/node-value label-node :build-targets))))
+      (is (= 37 (:size (g/node-value font-node :font-map)))))))

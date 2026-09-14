@@ -283,7 +283,8 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_BOX]"]
    {:default
-    {"custom_properties" :unused
+    {"font_size" :unused
+     "custom_properties" :unused
      "custom_type" :unused
      "font" :unused
      "innerRadius" :unused
@@ -309,7 +310,8 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_CUSTOM]"]
    {:default
-    {"custom_type" :deprecated ; Project files use custom_type_name. Runtime numeric custom_type coverage is tested in GUI build tests.
+    {"font_size" :unused
+     "custom_type" :deprecated ; Project files use custom_type_name. Runtime numeric custom_type coverage is tested in GUI build tests.
      "custom_properties" :non-overridable ; Custom property entries signal overrides individually; the field itself is not listed among overridden_fields.
      "custom_type_name" :non-overridable
      "font" :unused
@@ -340,7 +342,8 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_PARTICLEFX]"]
    {:default
-    {"blend_mode" :unused
+    {"font_size" :unused
+     "blend_mode" :unused
      "clipping_inverted" :unused
      "clipping_mode" :unused
      "clipping_visible" :unused
@@ -373,7 +376,8 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_PIE]"]
    {:default
-    {"custom_properties" :unused
+    {"font_size" :unused
+     "custom_properties" :unused
      "custom_type" :unused
      "font" :unused
      "line_break" :unused
@@ -395,7 +399,8 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_TEMPLATE]"]
    {:default
-    {"adjust_mode" :unused
+    {"font_size" :unused
+     "adjust_mode" :unused
      "blend_mode" :unused
      "clipping_inverted" :unused
      "clipping_mode" :unused
@@ -574,7 +579,10 @@
 
    'dmRenderDDF.FontDesc
    {:default
-    {"extra_characters" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
+    {"extra_characters" :deprecated
+     "output_format" :deprecated
+     "render_mode" :deprecated
+     "sdf_material" :deprecated}} ; Migrations tested in silent-migrations-test.
 
    'dmRenderDDF.MaterialDesc
    {:default
@@ -795,7 +803,14 @@
     (testing "font"
       (let [extra-characters-font (project/get-resource-node project "/silently_migrated/extra_characters.font")]
         (is (= " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~åäö"
-               (g/node-value extra-characters-font :characters)))))
+               (g/node-value extra-characters-font :characters))))
+      (let [legacy-font (project/get-resource-node project "/silently_migrated/font_properties.font")
+            source-value (g/node-value legacy-font :source-value)
+            save-value (g/node-value legacy-font :save-value)]
+        (is (= source-value save-value))
+        (is (= 15 (:size save-value)))
+        (is (false? (:runtime save-value)))
+        (is (not (coll/any? #(contains? save-value %) [:output-format :render-mode :sdf-material])))))
 
     (testing "gui"
       (let [background-color-gui (test-util/resource-node project "/silently_migrated/background_color.gui")]

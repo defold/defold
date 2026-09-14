@@ -4179,3 +4179,33 @@
              (-> (project/get-resource-node project "/importing.gui")
                  (make-built-layout->node->field->value)
                  (round-layout->node->field->value)))))))
+
+(deftest vector-gui-effects-require-font-support
+  (test-util/with-loaded-project
+    (let [scene (project/get-resource-node project "/editor1/test.gui")
+          text-node (gui-node scene "text")
+          font-node (project/get-resource-node project "/editor1/test.font")]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :material (workspace/find-resource workspace "/builtins/fonts/font-vector.material"))
+         (g/set-property font-node :vector-font-mode :vector-font-mode-vector)
+         (g/set-property font-node :outline-alpha 0.0)
+         (g/set-property font-node :shadow-alpha 0.0)
+         (g/set-property text-node :outline [0.0 0.0 0.0 1.0])
+         (g/set-property text-node :outline-alpha 1.0)
+         (g/set-property text-node :shadow [0.0 0.0 0.0 1.0])
+         (g/set-property text-node :shadow-alpha 1.0)])
+      (is (not (g/error? (g/node-value text-node :own-build-errors))))
+      (doseq [[property value] [[:outline [1.0 0.0 0.0 1.0]]
+                                [:shadow-alpha 0.5]
+                                [:text "<outline>A</outline>"]
+                                [:text "<shadow>A</shadow>"]]]
+        (test-util/with-prop [text-node property value]
+          (is (g/error-fatal? (g/node-value text-node :own-build-errors)))))
+      (g/transact {:undoable false}
+        [(g/set-property font-node :outline-alpha 1.0)
+         (g/set-property font-node :shadow-alpha 1.0)
+         (g/set-property font-node :size 37)
+         (g/set-property text-node :font-size 64.0)
+         (g/set-property text-node :text "<outline><shadow>A</shadow></outline>")])
+      (is (not (g/error? (g/node-value text-node :own-build-errors))))
+      (is (= 37 (:size (g/node-value font-node :font-map)))))))
