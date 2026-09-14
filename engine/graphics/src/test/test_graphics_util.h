@@ -114,6 +114,22 @@ namespace dmGraphics
             UpdateDDFPointers();
         }
 
+        void AddStorageBuffer(const char* name, int binding, int index, uint32_t buffer_size)
+        {
+            ShaderDesc::ResourceBinding res = {};
+            res.m_Name                    = name;
+            res.m_NameHash                = dmHashString64(name);
+            res.m_Binding                 = binding;
+            res.m_Type.m_UseTypeIndex     = true;
+            res.m_Type.m_Type.m_TypeIndex = index;
+            res.m_Bindinginfo.m_BlockSize = buffer_size;
+
+            m_StorageBuffers.OffsetCapacity(1);
+            m_StorageBuffers.Push(res);
+
+            UpdateDDFPointers();
+        }
+
         void AddTexture(const char* name, int binding, ShaderDesc::ShaderDataType data_type)
         {
             ShaderDesc::ResourceBinding res = {};
@@ -181,6 +197,8 @@ namespace dmGraphics
             m_DDF.m_Reflection.m_Inputs.m_Count = m_Inputs.Size();
             m_DDF.m_Reflection.m_UniformBuffers.m_Data = m_UniformBuffers.Begin();
             m_DDF.m_Reflection.m_UniformBuffers.m_Count = m_UniformBuffers.Size();
+            m_DDF.m_Reflection.m_StorageBuffers.m_Data = m_StorageBuffers.Begin();
+            m_DDF.m_Reflection.m_StorageBuffers.m_Count = m_StorageBuffers.Size();
             m_DDF.m_Reflection.m_Textures.m_Data = m_Textures.Begin();
             m_DDF.m_Reflection.m_Textures.m_Count = m_Textures.Size();
             m_DDF.m_Reflection.m_Types.m_Data = m_Types.Begin();
@@ -190,6 +208,7 @@ namespace dmGraphics
         dmArray<ShaderDesc::Shader>           m_Shaders;
         dmArray<ShaderDesc::ResourceBinding>  m_Inputs;
         dmArray<ShaderDesc::ResourceBinding>  m_UniformBuffers;
+        dmArray<ShaderDesc::ResourceBinding>  m_StorageBuffers;
         dmArray<ShaderDesc::ResourceBinding>  m_Textures;
         dmArray<ShaderDesc::ResourceTypeInfo> m_Types;
 

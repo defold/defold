@@ -28,7 +28,7 @@ namespace dmRender
     static void CommitLightInfo(HRenderContext render_context);
     static void FillLightInstanceSTD140(const LightPrototype* prototype, dmVMath::Point3 position, dmVMath::Vector3 world_direction, float scale, LightSTD140* out_light);
     static bool LightSTD140Equals(const LightSTD140& a, const LightSTD140& b);
-    static LightUniformBuffer* EnsureLightUniformBuffer(HRenderContext render_context);
+    static dmGraphics::HUniformBuffer EnsureLightUniformBuffer(HRenderContext render_context);
 
     DM_STATIC_ASSERT(sizeof(LightSTD140) == LIGHT_BUFFER_LIGHT_STRIDE, Invalid_LightSTD140_Size);
     DM_STATIC_ASSERT(offsetof(LightSTD140, m_Position) == 0, Invalid_LightSTD140_Position_Offset);
@@ -322,7 +322,7 @@ namespace dmRender
         return dmGraphics::GetUniformBufferLayout(0, light_types, DM_ARRAY_SIZE(light_types));
     }
 
-    static LightUniformBuffer* GenerateUniformBuffer(HRenderContext render_context)
+    static dmGraphics::HUniformBuffer GenerateUniformBuffer(HRenderContext render_context)
     {
         uint32_t buffer_size = 0;
         uint32_t info_offset = 0;
@@ -337,10 +337,9 @@ namespace dmRender
         assert(info_offset == render_context->m_LightBufferInfoWriteStart);
         assert(data_offset == render_context->m_LightBufferDataWriteStart);
 
-        LightUniformBuffer* light_buffer = &render_context->m_LightUniformBuffer;
-        light_buffer->m_Buffer  = buffer;
-        light_buffer->m_Version = 0;
-        return light_buffer;
+        render_context->m_LightUniformBuffer = buffer;
+        render_context->m_LightBufferDirty = 1;
+        return buffer;
     }
 
     static inline void FillLightInstanceSTD140(const LightPrototype* prototype, dmVMath::Point3 position, dmVMath::Vector3 world_direction, float scale, LightSTD140* out_light)
@@ -415,15 +414,7 @@ namespace dmRender
 
     void InvalidateLightBuffer(HRenderContext render_context)
     {
-        ++render_context->m_LightBufferVersion;
-
-        // Version zero is reserved for a buffer which has never been uploaded.
-        // Handle the extremely unlikely wrap without treating old data as current.
-        if (render_context->m_LightBufferVersion == 0)
-        {
-            render_context->m_LightBufferVersion = 1;
-            render_context->m_LightUniformBuffer.m_Version = 0;
-        }
+        render_context->m_LightBufferDirty = 1;
     }
 
     static uint32_t CompactLightBufferScratch(HRenderContext render_context)
@@ -462,13 +453,13 @@ namespace dmRender
         return render_context->m_LightBufferUploadScratch.Size();
     }
 
-    static void WriteLightInstanceData(HRenderContext render_context, LightUniformBuffer* light_buffer)
+    static void WriteLightInstanceData(HRenderContext render_context, dmGraphics::HUniformBuffer light_buffer)
     {
         uint32_t active_light_count = CompactLightBufferScratch(render_context);
 
         dmVMath::Vector4 info(render_context->m_AmbientLight, (float) active_light_count);
         dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext,
-                                     light_buffer->m_Buffer,
+                                     light_buffer,
                                      render_context->m_LightBufferInfoWriteStart,
                                      sizeof(info),
                                      &info);
@@ -480,20 +471,20 @@ namespace dmRender
         {
             uint32_t write_size = active_light_count * sizeof(LightSTD140);
             dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext,
-                                         light_buffer->m_Buffer,
+                                         light_buffer,
                                          render_context->m_LightBufferDataWriteStart,
                                          write_size,
                                          render_context->m_LightBufferUploadScratch.Begin());
         }
 
-        light_buffer->m_Version = render_context->m_LightBufferVersion;
+        render_context->m_LightBufferDirty = 0;
     }
 
-    static LightUniformBuffer* EnsureLightUniformBuffer(HRenderContext render_context)
+    static dmGraphics::HUniformBuffer EnsureLightUniformBuffer(HRenderContext render_context)
     {
-        if (render_context->m_LightUniformBuffer.m_Buffer)
+        if (render_context->m_LightUniformBuffer)
         {
-            return &render_context->m_LightUniformBuffer;
+            return render_context->m_LightUniformBuffer;
         }
 
         return GenerateUniformBuffer(render_context);
@@ -504,12 +495,11 @@ namespace dmRender
         assert(render_context);
         assert(render_context->m_RenderLightsIndices.Size() == 0);
 
-        if (render_context->m_LightUniformBuffer.m_Buffer)
+        if (render_context->m_LightUniformBuffer)
         {
-            dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer.m_Buffer);
+            dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer);
         }
-        render_context->m_LightUniformBuffer.m_Buffer  = 0;
-        render_context->m_LightUniformBuffer.m_Version = 0;
+        render_context->m_LightUniformBuffer = 0;
 
         if (max_lights > UINT16_MAX)
         {
@@ -520,7 +510,7 @@ namespace dmRender
         render_context->m_MaxLightCount               = (uint16_t) max_lights;
         render_context->m_LightBufferInfoWriteStart   = 0;
         render_context->m_LightBufferDataWriteStart   = 0;
-        render_context->m_LightBufferVersion          = 1;
+        render_context->m_LightBufferDirty            = 1;
         render_context->m_AmbientLight                = dmVMath::Vector3(0.0f, 0.0f, 0.0f);
 
         // These offsets are invariant with capacity and are part of the public ABI.
@@ -561,12 +551,12 @@ namespace dmRender
 
     void FinalizeLightData(HRenderContext render_context)
     {
-        if (render_context->m_LightUniformBuffer.m_Buffer)
+        if (render_context->m_LightUniformBuffer)
         {
-            dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer.m_Buffer);
+            dmGraphics::DeleteUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer);
         }
-        render_context->m_LightUniformBuffer.m_Buffer  = 0;
-        render_context->m_LightUniformBuffer.m_Version = 0;
+        render_context->m_LightUniformBuffer = 0;
+        render_context->m_LightBufferDirty = 1;
 
         uint32_t prototype_capacity = render_context->m_LightPrototypes.Capacity();
         for (uint32_t i = 0; i < prototype_capacity; ++i)
@@ -674,28 +664,28 @@ namespace dmRender
 
     static void ApplyLightBufferForBinding(HRenderContext render_context, uint16_t light_buffer_set, uint16_t light_buffer_binding)
     {
-        LightUniformBuffer* light_buffer = EnsureLightUniformBuffer(render_context);
+        dmGraphics::HUniformBuffer light_buffer = EnsureLightUniformBuffer(render_context);
         if (!light_buffer)
         {
             return;
         }
 
-        if (light_buffer->m_Version != render_context->m_LightBufferVersion)
+        if (render_context->m_LightBufferDirty)
         {
             WriteLightInstanceData(render_context, light_buffer);
         }
 
         dmGraphics::EnableUniformBuffer(render_context->m_GraphicsContext,
-                                        light_buffer->m_Buffer,
+                                        light_buffer,
                                         light_buffer_set,
                                         light_buffer_binding);
     }
 
     static inline void UnbindLightBuffer(HRenderContext render_context)
     {
-        if (render_context->m_LightUniformBuffer.m_Buffer)
+        if (render_context->m_LightUniformBuffer)
         {
-            dmGraphics::DisableUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer.m_Buffer);
+            dmGraphics::DisableUniformBuffer(render_context->m_GraphicsContext, render_context->m_LightUniformBuffer);
         }
     }
 

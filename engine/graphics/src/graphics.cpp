@@ -1422,8 +1422,7 @@ namespace dmGraphics
         const ProgramResourceBinding* next;
         while((next = it.Next()))
         {
-            if (next->m_Res->m_BindingFamily == BINDING_FAMILY_TEXTURE ||
-                next->m_Res->m_BindingFamily == BINDING_FAMILY_STORAGE_BUFFER)
+            if (next->m_Res->m_BindingFamily == BINDING_FAMILY_TEXTURE)
             {
                 CreateUniformLeafMembersCallbackParams params = {};
                 params.m_CanonicalName = next->m_Res->m_Name;
@@ -1497,8 +1496,15 @@ namespace dmGraphics
         const ProgramResourceBinding* next;
         while((next = it.Next()))
         {
-            const dmArray<ShaderResourceTypeInfo>& type_infos = *next->m_TypeInfos;
-            uniform_count += CountShaderResourceLeafMembers(type_infos, next->m_Res->m_Type);
+            if (next->m_Res->m_BindingFamily == BINDING_FAMILY_TEXTURE)
+            {
+                uniform_count++;
+            }
+            else if (next->m_Res->m_BindingFamily == BINDING_FAMILY_UNIFORM_BUFFER)
+            {
+                const dmArray<ShaderResourceTypeInfo>& type_infos = *next->m_TypeInfos;
+                uniform_count += CountShaderResourceLeafMembers(type_infos, next->m_Res->m_Type);
+            }
         }
 
         program->m_Uniforms.SetCapacity(uniform_count);

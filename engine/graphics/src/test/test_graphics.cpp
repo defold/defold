@@ -817,7 +817,9 @@ TEST_F(dmGraphicsTest, TestComputeProgram)
 
     dmGraphics::ShaderDescBuilder shader_desc_builder;
     shader_desc_builder.AddTypeMember("my_uniform", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    shader_desc_builder.AddTypeMember("values", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
     shader_desc_builder.AddUniform("my_uniform", 0, 0);
+    shader_desc_builder.AddStorageBuffer("StorageData", 1, 1, 16);
 
     shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, compute_data, (uint32_t) strlen(compute_data));
 
@@ -828,6 +830,7 @@ TEST_F(dmGraphicsTest, TestComputeProgram)
     const dmGraphics::Uniform* my_uniform = dmGraphics::GetUniform(program, dmHashString64("my_uniform"));
 
     ASSERT_EQ(1, dmGraphics::GetUniformCount(program));
+    ASSERT_EQ((const dmGraphics::Uniform*) 0, dmGraphics::GetUniform(program, dmHashString64("StorageData")));
     ASSERT_EQ(0, my_uniform->m_Location);
 
     ASSERT_STREQ("my_uniform", my_uniform->m_Name);

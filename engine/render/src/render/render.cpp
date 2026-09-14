@@ -194,7 +194,6 @@ namespace dmRender
 
         SetupContextEventCallback(context, &OnContextEvent);
 
-        context->m_LightBufferVersion = 1;
         SetLightBufferCount(context, 0);
 
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
