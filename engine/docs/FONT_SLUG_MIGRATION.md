@@ -4,7 +4,14 @@ This branch starts at the latest dev commit already merged into the R&D branch
 (`0c9968ea2b5df64a895247dd16230078fc30ce6f`). It carries the production font,
 resource, Bob and shader integration. Fontviewer experiments, benchmark tools,
 reports, radial shadows and dilation experiments remain on `rnd-vector-fonts`.
-Editor UI and preview changes have not been migrated.
+The editor includes Vector/SDF mode, Static/Dynamic glyph generation, inferred
+BMFont sizes, and separate label/GUI display sizes. Vector faces do not require
+an authored size; enabled bitmap effects default to a generation size of 15 in
+the editor. Explicit Static choices survive saving and reopening.
+
+Editor builds use the Slug glyph banks and bitmap effects described below.
+Editor previews use the existing SDF renderer at the selected display size;
+they do not yet reproduce Slug's curve rendering or baked bitmap effects.
 
 ## Resources and rendering
 
@@ -84,6 +91,8 @@ static runtime fixture includes a 4px outline contributing to a 16px shadow.
 The CMake Release build and Bob tests are validated; legacy Waf source/library
 lists are updated but a full Waf build has not been run. A static-only gamesys
 test linked with `font_gen_null` passes without the TTF parser or generation
-jobs. Actual engine GPU performance, editor integration, broader glyph quality and
+jobs. Editor font, label, GUI, and save-data integration tests cover property
+defaults, glyph-generation persistence, compiled vector data, and GUI overrides.
+Actual engine GPU performance, Slug editor previews, broader glyph quality and
 non-Metal runtime validation remain separate work. Existing R&D report data has
 not been relabeled as results for this branch.
