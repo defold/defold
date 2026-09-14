@@ -1,4 +1,5 @@
 font: "/builtins/fonts/vera_mo_bd.ttf"
-material: "/builtins/fonts/font.material"
-size: 15
+material: "/builtins/fonts/font-vector.material"
+vector_font_mode: VECTOR_FONT_MODE_VECTOR
+runtime: true
 characters: " !\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
