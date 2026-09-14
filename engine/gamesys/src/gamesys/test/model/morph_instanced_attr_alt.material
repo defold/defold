@@ -8,7 +8,7 @@ samplers {
   wrap_u: WRAP_MODE_CLAMP_TO_EDGE
   wrap_v: WRAP_MODE_CLAMP_TO_EDGE
   filter_min: FILTER_MODE_MIN_NEAREST
-  filter_mag: FILTER_MODE_MAG_LINEAR
+  filter_mag: FILTER_MODE_MAG_NEAREST
 }
 attributes {
   name: "mtx_world"
@@ -33,4 +33,12 @@ attributes {
   data_type: TYPE_FLOAT
   coordinate_space: COORDINATE_SPACE_LOCAL
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
+}
+attributes {
+  name: "instance_data"
+  vector_type: VECTOR_TYPE_VEC4
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+  double_values { v: 0.625 v: 0.75 v: 0.875 v: 1.0 }
 }

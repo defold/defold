@@ -15,6 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import java.util.List;
+import java.util.Locale;
 
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.MurmurHash;
@@ -269,6 +270,68 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(materialRed.hasProgram());
         assertEquals(materialRed.getProgram(), materialGreen.getProgram());
         assertEquals(materialGreen.getProgram(), materialBlue.getProgram());
+    }
+
+    private String makeInstancingMaterial(String name, String tag, String stepFunction, float value) {
+        return String.format(Locale.ROOT, """
+                name: "%s"
+                tags: "%s"
+                vertex_program: "/instancing_hash.vp"
+                fragment_program: "/instancing_hash.fp"
+                vertex_space: VERTEX_SPACE_LOCAL
+                attributes {
+                  name: "instance_data"
+                  vector_type: VECTOR_TYPE_VEC4
+                  data_type: TYPE_FLOAT
+                  coordinate_space: COORDINATE_SPACE_LOCAL
+                  step_function: %s
+                  double_values { v: %f v: 0.0 v: 0.0 v: 1.0 }
+                }
+                """, name, tag, stepFunction, value);
+    }
+
+    @Test
+    public void testInstancingCompatibilityHash() throws Exception {
+        String vertexShader = """
+                attribute highp vec4 position;
+                attribute mediump vec4 instance_data;
+                varying mediump vec4 var_data;
+                void main() {
+                    var_data = instance_data;
+                    gl_Position = position;
+                }
+                """;
+        String fragmentShader = """
+                varying mediump vec4 var_data;
+                void main() {
+                    gl_FragColor = var_data;
+                }
+                """;
+
+        addAndBuildShaderDescs(
+                new String[]{"/instancing_hash.vp", "/instancing_hash.fp"},
+                new String[]{vertexShader, fragmentShader},
+                "/instancing_hash.shbundle");
+
+        addFile("/instance_a.material", "");
+        addFile("/instance_b.material", "");
+        addFile("/vertex_a.material", "");
+        addFile("/vertex_b.material", "");
+
+        MaterialDesc instanceA = getMessage(build("/instance_a.material", makeInstancingMaterial(
+                "instance_a", "tag_a", "VERTEX_STEP_FUNCTION_INSTANCE", 1.0f)), MaterialDesc.class);
+        MaterialDesc instanceB = getMessage(build("/instance_b.material", makeInstancingMaterial(
+                "instance_b", "tag_b", "VERTEX_STEP_FUNCTION_INSTANCE", 2.0f)), MaterialDesc.class);
+        MaterialDesc vertexA = getMessage(build("/vertex_a.material", makeInstancingMaterial(
+                "vertex_a", "tag_a", "VERTEX_STEP_FUNCTION_VERTEX", 1.0f)), MaterialDesc.class);
+        MaterialDesc vertexB = getMessage(build("/vertex_b.material", makeInstancingMaterial(
+                "vertex_b", "tag_a", "VERTEX_STEP_FUNCTION_VERTEX", 2.0f)), MaterialDesc.class);
+
+        assertTrue(instanceA.hasInstancingCompatibilityHash());
+        assertNotEquals(0, instanceA.getInstancingCompatibilityHash());
+        assertEquals(instanceA.getInstancingCompatibilityHash(), instanceB.getInstancingCompatibilityHash());
+        assertNotEquals(instanceA.getInstancingCompatibilityHash(), vertexA.getInstancingCompatibilityHash());
+        assertNotEquals(vertexA.getInstancingCompatibilityHash(), vertexB.getInstancingCompatibilityHash());
     }
 
     @Test

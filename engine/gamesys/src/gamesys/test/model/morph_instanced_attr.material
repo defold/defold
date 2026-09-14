@@ -34,3 +34,11 @@ attributes {
   coordinate_space: COORDINATE_SPACE_LOCAL
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
 }
+attributes {
+  name: "instance_data"
+  vector_type: VECTOR_TYPE_VEC4
+  data_type: TYPE_FLOAT
+  coordinate_space: COORDINATE_SPACE_LOCAL
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+  double_values { v: 0.125 v: 0.25 v: 0.375 v: 0.5 }
+}

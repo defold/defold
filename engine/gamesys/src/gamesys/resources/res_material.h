@@ -20,6 +20,8 @@
 
 namespace dmGameSystem
 {
+    void InvalidateMaterialInstancingCompatibility(MaterialResource* resource);
+
     dmResource::Result ResMaterialCreate(const dmResource::ResourceCreateParams* params);
 
     dmResource::Result ResMaterialDestroy(const dmResource::ResourceDestroyParams* params);

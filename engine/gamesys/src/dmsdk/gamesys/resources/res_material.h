@@ -29,6 +29,8 @@ namespace dmGameSystem
         dmhash_t            m_TextureResourcePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
 
         dmhash_t            m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        uint64_t            m_InstancingCompatibilityHash;
+        uint32_t            m_InstancingCompatibilityVersion;
         uint32_t            m_NumTextures;
     };
 }
