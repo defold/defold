@@ -183,7 +183,7 @@ static bool BlurVectorShadow(FontGlyph* glyph, float sigma)
     return true;
 }
 
-static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* params, FontGlyph* glyph);
+static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* params, FontGlyph* glyph, bool outline_sdf = false);
 
 FontResult FontGenerateGlyph(HFont font, uint32_t glyph_index, const FontGlyphGenParams* params, FontGlyph* glyph)
 {
@@ -225,7 +225,7 @@ FontResult FontGenerateVectorGlyph(HFont font, uint32_t glyph_index, const FontG
     bitmap_params.m_OutputBitmap = true;
     bitmap_params.m_SdfPadding = options.m_StbttSDFPadding;
     bitmap_params.m_ShadowBlur = 0.0f;
-    result = ConvertGlyphBitmap(font, &bitmap_params, glyph);
+    result = ConvertGlyphBitmap(font, &bitmap_params, glyph, true);
     if (result == FONT_RESULT_OK && params->m_HasShadow && !BlurVectorShadow(glyph, params->m_ShadowBlur))
     {
         FontFreeGlyph(font, glyph);
@@ -235,7 +235,7 @@ FontResult FontGenerateVectorGlyph(HFont font, uint32_t glyph_index, const FontG
     return result;
 }
 
-static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* params, FontGlyph* glyph)
+static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* params, FontGlyph* glyph, bool outline_sdf)
 {
     const uint32_t width = glyph->m_Bitmap.m_Width;
     const uint32_t height = glyph->m_Bitmap.m_Height;
@@ -273,7 +273,9 @@ static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* param
                 if (channels == 3)
                 {
                     const uint8_t outline_coverage = has_outline_data ? SdfCoverage(value, outline_edge, pixel_dist_scale, params->m_Antialias) : 0;
-                    rgb[offset + 1] = outline_coverage;
+                    // Vector outlines keep the distance field so the shader
+                    // can reconstruct coverage at the final screen scale.
+                    rgb[offset + 1] = outline_sdf ? value : outline_coverage;
                     rgb[offset + 2] = params->m_HasShadow ? (params->m_HasOutline ? outline_coverage : face_coverage) : 0;
                 }
             }

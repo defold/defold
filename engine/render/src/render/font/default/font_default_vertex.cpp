@@ -244,7 +244,8 @@ static void OutputGlyphVector(uint32_t vertexindex,
     {
         GlyphVertex* quad[4] = { &v1, &v2, &v3, &v6 };
         const float u[4] = { sdf_u0, sdf_u0, sdf_u1, sdf_u1 };
-        const float v[4] = { sdf_v0, sdf_v1, sdf_v0, sdf_v1 };
+        // Bitmap rows run downwards; vector quad coordinates run upwards.
+        const float v[4] = { sdf_v1, sdf_v0, sdf_v1, sdf_v0 };
         for (uint32_t i = 0; i < 4; ++i)
         {
             quad[i]->m_VectorTexcoord[0] = u[i];
@@ -437,7 +438,10 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
 
             float glyph_width = dmMath::Max(0.0001f, glyph->m_Outline.m_Width * font_scale);
             float glyph_height = dmMath::Max(0.0001f, (glyph->m_Outline.m_Ascent + glyph->m_Outline.m_Descent) * font_scale);
-            float sdf_width = glyph->m_Bitmap.m_Width > 0 ? (float)glyph->m_Bitmap.m_Width * font_scale : glyph_width;
+            // Baked banks add an atlas border around the generated glyph.
+            // It belongs to neither the glyph's geometry nor its sampled area.
+            const float bitmap_border = FontGetType(font) == FONT_TYPE_GLYPH_BANK ? font_map->m_CacheCellPadding : 0.0f;
+            float sdf_width = glyph->m_Bitmap.m_Width > 0 ? (glyph->m_Bitmap.m_Width - 2.0f * bitmap_border) * font_scale : glyph_width;
             float sdf_left_bearing = glyph->m_LeftBearing * font_scale;
             float sdf_ascent = glyph->m_Ascent * font_scale;
             float sdf_descent = glyph->m_Descent * font_scale;
@@ -460,7 +464,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             float shadow_texcoord_min_y = -shadow_width_v;
             float shadow_texcoord_max_x = 1.0f + shadow_width_u;
             float shadow_texcoord_max_y = 1.0f + shadow_width_v;
-            // Bitmap effects share the vector material. Legacy SDF effects
+            // SDF outlines and bitmap shadows share the vector material. Legacy SDF effects
             // use a separate pass without the face.
             bool use_sdf_shadow = (!emit_face || font_map->m_VectorBitmapEffects) && emit_shadow &&
                                   cache_glyph->m_VectorSdfCached;
@@ -477,10 +481,12 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                                                        font_map->m_VectorSdfTexture);
                 float atlas_height = (float)dmGraphics::GetTextureHeight(font_map->m_GraphicsContext,
                                                                          font_map->m_VectorSdfTexture);
-                sdf_u0 = (cache_glyph->m_X + 0.5f) / atlas_width;
-                sdf_v0 = (cache_glyph->m_Y + 0.5f) / atlas_height;
-                sdf_u1 = (cache_glyph->m_X + glyph->m_Bitmap.m_Width - 0.5f) / atlas_width;
-                sdf_v1 = (cache_glyph->m_Y + glyph->m_Bitmap.m_Height - 0.5f) / atlas_height;
+                // Use texel edges: pixel centers then map to texel centers
+                // without stretching the generated field by a texel.
+                sdf_u0 = (cache_glyph->m_X + bitmap_border) / atlas_width;
+                sdf_v0 = (cache_glyph->m_Y + bitmap_border) / atlas_height;
+                sdf_u1 = (cache_glyph->m_X + glyph->m_Bitmap.m_Width - bitmap_border) / atlas_width;
+                sdf_v1 = (cache_glyph->m_Y + glyph->m_Bitmap.m_Height - bitmap_border) / atlas_height;
                 shadow_texcoord_min_x = 0.0f;
                 shadow_texcoord_min_y = 0.0f;
                 shadow_texcoord_max_x = 1.0f;

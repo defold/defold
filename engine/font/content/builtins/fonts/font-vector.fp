@@ -3,7 +3,7 @@
 precision highp float;
 precision highp int;
 #include "/builtins/fonts/font-vector-slug.glsl"
-uniform lowp sampler2D effect_bitmap;
+uniform highp sampler2D effect_bitmap;
 in highp vec2 var_texcoord;
 flat in highp float var_mode;
 in mediump vec4 var_color;
@@ -16,8 +16,14 @@ void main()
     float coverage;
     if (var_mode > 0.5)
     {
-        vec3 bitmap = texture(effect_bitmap, var_texcoord).rgb;
-        coverage = var_mode < 1.5 ? bitmap.g : bitmap.b;
+        vec3 effects = texture(effect_bitmap, var_texcoord).rgb;
+        if (var_mode < 1.5)
+        {
+            float smoothing = max(0.5 * fwidth(effects.g), 0.0001);
+            coverage = smoothstep(var_banding.x - smoothing, var_banding.x + smoothing, effects.g);
+        }
+        else
+            coverage = effects.b;
     }
     else
         coverage = SlugRender(var_texcoord, var_banding, var_glyph);

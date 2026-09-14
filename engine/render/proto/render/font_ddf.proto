@@ -133,6 +133,7 @@ message FontMap
     optional uint32 padding       = 23 [default = 0];
     repeated CompiledStyle styles = 24;
     optional string sdf_material = 25 [default = "", (resource)=true];
-    // Vector effects are RGB bitmap channels, baked by Bob or by CPU glyph jobs.
+    // Vector RGB effects: face coverage, outline SDF, and blurred shadow coverage.
+    // Baked by Bob or by CPU glyph jobs; rebuild resources when changing the format.
     optional bool vector_bitmap_effects = 26 [default = false];
 }

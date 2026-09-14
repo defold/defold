@@ -2584,6 +2584,44 @@ TEST_F(dmRenderTest, SlugFontCachesNumericBandsAndRestoresLegacyMaterial)
         ASSERT_EQ(0.0f, vertices[i].m_VectorEffectParams[3]);
         ASSERT_EQ(255u, vertices[i].m_VectorColor[3]);
     }
+    // Bitmap effects must use top-down atlas rows on the bottom-up vector quad.
+    ASSERT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, old));
+    m_SystemFontMap->m_VectorBitmapEffects = true;
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+    m_SystemFontMap->m_OutlineWidth = 2.0f;
+    m_SystemFontMap->m_CacheCellMaxAscent = 2;
+    ASSERT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, material));
+    const uint8_t bitmap[45] = {}; // One by three glyph texels, plus a one-texel border.
+    m_GlyphBank->m_Provider.m_GlyphPadding = 1;
+    m_SystemFontMap->m_CacheCellPadding = 1;
+    FontGlyphBankGlyph& effect_glyph = m_GlyphBank->m_Glyphs[66];
+    effect_glyph.m_VectorData = (const uint8_t*)curve;
+    effect_glyph.m_VectorDataSize = sizeof(curve);
+    effect_glyph.m_Data = bitmap;
+    effect_glyph.m_DataSize = sizeof(bitmap);
+    effect_glyph.m_OutlineWidth = 1;
+    effect_glyph.m_OutlineLeftBearing = effect_glyph.m_LeftBearing;
+    effect_glyph.m_OutlineAscent = 2;
+    effect_glyph.m_OutlineDescent = 1;
+    m_GlyphBank->m_Provider.m_GlyphChannels = 3;
+    te.m_OutlineColor = te.m_ShadowColor = COLOR_WHITE_RGBA;
+    dmRender::FontDefaultVertex effect_vertices[18];
+    ASSERT_EQ(18u, dmRender::CreateFontVertexData(backend, m_SystemFontMap, 5, "B", te,
+        1.0f, 1.0f, 1.0f, (uint8_t*)effect_vertices, 18));
+    for (uint32_t layer = 0; layer < 2; ++layer)
+    {
+        const dmRender::FontDefaultVertex* quad = effect_vertices + layer * 6;
+        ASSERT_LT(quad[0].m_Position[1], quad[1].m_Position[1]);
+        ASSERT_GT(quad[0].m_VectorTexcoord[1], quad[1].m_VectorTexcoord[1]);
+        ASSERT_EQ(layer == 0 ? 2.0f : 1.0f, quad[0].m_VectorTexcoord[3]);
+        ASSERT_EQ(1.0f, quad[2].m_Position[0] - quad[0].m_Position[0]);
+        ASSERT_EQ(3.0f, quad[1].m_Position[1] - quad[0].m_Position[1]);
+        ASSERT_NEAR(1.0f / 128.0f, quad[2].m_VectorTexcoord[0] - quad[0].m_VectorTexcoord[0], EPSILON);
+        ASSERT_NEAR(3.0f / 128.0f, quad[0].m_VectorTexcoord[1] - quad[1].m_VectorTexcoord[1], EPSILON);
+    }
+    ASSERT_EQ(effect_vertices[12].m_Position[0], effect_vertices[6].m_Position[0]);
+    ASSERT_EQ(effect_vertices[12].m_Position[1], effect_vertices[6].m_Position[1]);
+    ASSERT_LT(effect_vertices[12].m_VectorTexcoord[1], effect_vertices[13].m_VectorTexcoord[1]);
     ASSERT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, old));
     ASSERT_FALSE(m_SystemFontMap->m_VectorSlug);
     ASSERT_EQ((FontVectorSlugData*)0, m_SystemFontMap->m_SlugData);
