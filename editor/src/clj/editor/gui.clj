@@ -5107,7 +5107,7 @@
     :icon text-icon
     :defaults (assoc visual-base-node-defaults
                 :manual-size default-manual-size
-                :text "<text>")}
+                :text "-text-")}
    {:type :type-template
     :node-type TemplateNode
     :display-name outline-template-message
