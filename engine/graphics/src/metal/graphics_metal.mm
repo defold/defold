@@ -2266,10 +2266,12 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*) _context;
         MetalStorageBuffer* buffer = new MetalStorageBuffer();
         memset(buffer, 0, sizeof(MetalStorageBuffer));
+
         buffer->m_Base.m_Size = size;
         buffer->m_Base.m_Usage = buffer_usage;
         buffer->m_DeviceBuffer.m_StorageMode = MTL::StorageModeShared;
         DeviceBufferUploadHelper(context, data, size, 0, &buffer->m_DeviceBuffer);
+
         return (HStorageBuffer) buffer;
     }
 
@@ -2277,9 +2279,15 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*) _context;
         for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+        {
             for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
                 if (context->m_CurrentStorageBuffers[set][binding].m_Buffer == storage_buffer)
+                {
                     context->m_CurrentStorageBuffers[set][binding] = MetalStorageBufferBinding();
+                }
+            }
+        }
     }
 
     static void MetalDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
@@ -2287,8 +2295,11 @@ namespace dmGraphics
         MetalContext* context = (MetalContext*) _context;
         MetalStorageBuffer* buffer = (MetalStorageBuffer*) storage_buffer;
         MetalDisableStorageBuffer(_context, storage_buffer);
+
         if (!buffer->m_DeviceBuffer.m_Destroyed)
+        {
             DestroyResourceDeferred(context, &buffer->m_DeviceBuffer);
+        }
         delete buffer;
     }
 
@@ -3247,13 +3258,22 @@ namespace dmGraphics
                     assert(buffer);
                     arg_encoder->setBuffer(buffer->m_DeviceBuffer.m_Buffer, binding.m_BufferOffset, (NSUInteger) msl_index);
                     uint8_t access_flags = res->m_AccessFlags;
+
                     if (access_flags == SHADER_RESOURCE_ACCESS_NONE)
+                    {
                         access_flags = SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE;
+                    }
+
                     MTL::ResourceUsage usage = (MTL::ResourceUsage) 0;
                     if (access_flags & SHADER_RESOURCE_ACCESS_READ)
+                    {
                         usage = (MTL::ResourceUsage)(usage | MTL::ResourceUsageRead);
+                    }
                     if (access_flags & SHADER_RESOURCE_ACCESS_WRITE)
+                    {
                         usage = (MTL::ResourceUsage)(usage | MTL::ResourceUsageWrite);
+                    }
+
                     if (is_compute)
                         UseResourceCached(context, cenc, buffer->m_DeviceBuffer.m_Buffer, usage);
                     else
@@ -3786,7 +3806,7 @@ namespace dmGraphics
             return false;
         }
 
-        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
 
         MetalShaderModule* shaders[] = { 0x0, 0x0 };
         ShaderDesc::Shader* ddf_shaders[] = { 0x0, 0x0 };

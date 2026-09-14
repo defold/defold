@@ -3251,6 +3251,19 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    static void OpenGLStorageBufferBarrier(OpenGLContext* context)
+    {
+    #if defined(GL_SHADER_STORAGE_BUFFER)
+        if (context->m_StorageBufferSupport && context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
+        {
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_STORAGE);
+            CHECK_GL_ERROR;
+        }
+    #else
+        (void) context;
+    #endif
+    }
+
     static void OpenGLDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer buffer, uint32_t instance_count)
     {
         DM_PROFILE(__FUNCTION__);
@@ -3275,6 +3288,7 @@ static void LogFrameBufferError(GLenum status)
             glDrawElements(GetOpenGLPrimitiveType(prim_type), count, GetOpenGLType(type), (GLvoid*)(uintptr_t) first);
             CHECK_GL_ERROR
         }
+        OpenGLStorageBufferBarrier(context);
     }
 
     static void OpenGLDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
@@ -3296,6 +3310,7 @@ static void LogFrameBufferError(GLenum status)
             glDrawArrays(GetOpenGLPrimitiveType(prim_type), first, count);
             CHECK_GL_ERROR
         }
+        OpenGLStorageBufferBarrier(context);
     }
 
     static void OpenGLDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
@@ -4115,7 +4130,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLProgram* program = new OpenGLProgram();
 
-        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
 
         if (ddf_cp)
         {

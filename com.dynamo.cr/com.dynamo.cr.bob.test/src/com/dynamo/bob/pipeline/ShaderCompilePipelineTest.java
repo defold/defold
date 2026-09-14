@@ -213,6 +213,47 @@ public class ShaderCompilePipelineTest {
     }
 
     @Test
+    public void testRejectsCrossStageStorageBufferAccessMismatch() throws Exception {
+        String vsShader =
+                """
+                #version 430
+                readonly buffer Shared
+                {
+                    vec4 value;
+                };
+                void main()
+                {
+                    gl_Position = value;
+                }
+                """;
+
+        String fsShader =
+                """
+                #version 430
+                buffer Shared
+                {
+                    vec4 value;
+                };
+                out vec4 color;
+                void main()
+                {
+                    value = vec4(1.0);
+                    color = value;
+                }
+                """;
+
+        ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testStorageBufferAccessMismatch");
+        try {
+            ShaderCompilePipeline.createShaderPipeline(pipeline, toShaderDescs(vsShader, fsShader), new ShaderCompilePipeline.Options());
+            fail("Expected cross-stage storage-buffer access validation to fail");
+        } catch (CompileExceptionError e) {
+            assertTrue(e.getMessage().contains("Storage buffer access mismatch for 'Shared'"));
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
+    }
+
+    @Test
     public void testAreTypesEqual() throws IOException, CompileExceptionError {
         String vsShader =
                 """

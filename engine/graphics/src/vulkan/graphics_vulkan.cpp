@@ -465,6 +465,21 @@ namespace dmGraphics
         return -1;
     }
 
+    static void StorageBufferMemoryBarrier(VkCommandBuffer command_buffer,
+        VkPipelineStageFlags source_stages, VkPipelineStageFlags destination_stages,
+        VkDependencyFlags dependency_flags)
+    {
+        VkMemoryBarrier memory_barrier;
+        memset(&memory_barrier, 0, sizeof(memory_barrier));
+        memory_barrier.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        memory_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+
+        vkCmdPipelineBarrier(command_buffer,
+            source_stages, destination_stages, dependency_flags,
+            1, &memory_barrier, 0, 0, 0, 0);
+    }
+
     static bool EndRenderPass(VulkanContext* context)
     {
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
@@ -475,7 +490,16 @@ namespace dmGraphics
             return false;
         }
 
-        vkCmdEndRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight]);
+        VkCommandBuffer command_buffer = context->m_MainCommandBuffers[context->m_CurrentFrameInFlight];
+        vkCmdEndRenderPass(command_buffer);
+        if (context->m_StorageBufferGraphicsWritePending)
+        {
+            StorageBufferMemoryBarrier(command_buffer,
+                STORAGE_BUFFER_GRAPHICS_STAGES,
+                STORAGE_BUFFER_GRAPHICS_STAGES | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                0);
+            context->m_StorageBufferGraphicsWritePending = 0;
+        }
         current_rt->m_IsBound = 0;
         context->m_RenderTargetBound = 0;
         return true;
@@ -3370,6 +3394,13 @@ bail:
         // but vkCmdDrawIndexed only operates with actual offset values into the index buffer
         uint32_t index_offset = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
         vkCmdDrawIndexed(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), index_offset, 0, 0);
+        if (context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
+        {
+            StorageBufferMemoryBarrier(vk_command_buffer,
+                STORAGE_BUFFER_GRAPHICS_STAGES, STORAGE_BUFFER_GRAPHICS_STAGES,
+                VK_DEPENDENCY_BY_REGION_BIT);
+            context->m_StorageBufferGraphicsWritePending = 1;
+        }
     }
 
     static void VulkanDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
@@ -3388,6 +3419,13 @@ bail:
             return;
         }
         vkCmdDraw(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), first, 0);
+        if (context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
+        {
+            StorageBufferMemoryBarrier(vk_command_buffer,
+                STORAGE_BUFFER_GRAPHICS_STAGES, STORAGE_BUFFER_GRAPHICS_STAGES,
+                VK_DEPENDENCY_BY_REGION_BIT);
+            context->m_StorageBufferGraphicsWritePending = 1;
+        }
     }
 
     static void VulkanDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
@@ -3411,6 +3449,13 @@ bail:
             return;
         }
         vkCmdDispatch(vk_command_buffer, group_count_x, group_count_y, group_count_z);
+        if (context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
+        {
+            StorageBufferMemoryBarrier(vk_command_buffer,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                STORAGE_BUFFER_GRAPHICS_STAGES | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                0);
+        }
     }
 
     static bool ValidateShaderModule(VulkanContext* context, ShaderMeta* meta, ShaderModule* shader, ShaderStageFlag stage_flags, char* error_buffer, uint32_t error_buffer_size)
@@ -3795,7 +3840,7 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         VulkanProgram* program = new VulkanProgram;
 
-        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
 
         if (ddf_cp)
         {
@@ -3832,7 +3877,7 @@ bail:
                 return false;
 
             DestroyProgram(_context, program);
-            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
             CreateComputeProgram(context, program, program->m_ComputeModule);
         }
         else
@@ -3843,7 +3888,7 @@ bail:
                 return false;
 
             DestroyProgram(_context, program);
-            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
             CreateGraphicsProgram(context, program, program->m_VertexModule, program->m_FragmentModule);
         }
 

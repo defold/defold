@@ -32,8 +32,9 @@ namespace dmGraphics
     typedef dmHashTable64<Pipeline>    PipelineCache;
     typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
 
-    const static uint8_t DM_MAX_FRAMES_IN_FLIGHT = 3; // In flight frames - number of concurrent frames being processed
-    const static uint8_t MAX_FENCE_RESOURCES_TO_DESTROY_PER_ENTRY = 2; // Increase if necessary (or make fully dynamic)
+    const static uint8_t              DM_MAX_FRAMES_IN_FLIGHT = 3; // In flight frames - number of concurrent frames being processed
+    const static uint8_t              MAX_FENCE_RESOURCES_TO_DESTROY_PER_ENTRY = 2; // Increase if necessary (or make fully dynamic)
+    static const VkPipelineStageFlags STORAGE_BUFFER_GRAPHICS_STAGES = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 
     enum VulkanResourceType
     {
@@ -537,6 +538,7 @@ namespace dmGraphics
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_PolygonOffsetChanged : 1;
+        uint32_t                        m_StorageBufferGraphicsWritePending : 1;
         uint32_t                        m_UseValidationLayers  : 1;
         uint32_t                        m_ASTCSupport          : 1;
         // See OpenGL backend: separate flag for ASTC array textures

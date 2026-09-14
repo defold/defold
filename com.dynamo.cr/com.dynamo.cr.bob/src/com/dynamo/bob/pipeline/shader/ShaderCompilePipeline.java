@@ -420,6 +420,7 @@ public class ShaderCompilePipeline {
         }
 
         if (vertexModule != null && fragmentModule != null) {
+            validateStorageBufferAccessModes(vertexModule, fragmentModule);
             HashMap<Long, Integer> mergedResources = new HashMap<>();
             long compilerVs = 0;
             long compilerFs = 0;
@@ -535,6 +536,28 @@ public class ShaderCompilePipeline {
                 throw new CompileExceptionError(String.format(
                         "Shader stage type mismatch for '%s' at location %d between '%s' and '%s'",
                         input.name, inputLocation, vertexModule.desc.resourcePath, fragmentModule.desc.resourcePath));
+            }
+        }
+    }
+
+    private void validateStorageBufferAccessModes(ShaderModule vertexModule, ShaderModule fragmentModule) throws CompileExceptionError {
+        for (Shaderc.ShaderResource vertexSsbo : vertexModule.spirvReflector.getSsbos()) {
+            for (Shaderc.ShaderResource fragmentSsbo : fragmentModule.spirvReflector.getSsbos()) {
+                boolean sameBinding = vertexSsbo.set == fragmentSsbo.set && vertexSsbo.binding == fragmentSsbo.binding;
+                boolean sameResource = vertexSsbo.name.equals(fragmentSsbo.name) &&
+                        SPIRVReflector.AreResourceTypesEqual(vertexModule.spirvReflector, fragmentModule.spirvReflector, vertexSsbo, fragmentSsbo);
+                if (!sameBinding && !sameResource) {
+                    continue;
+                }
+
+                int vertexAccess = Byte.toUnsignedInt(vertexSsbo.accessFlags);
+                int fragmentAccess = Byte.toUnsignedInt(fragmentSsbo.accessFlags);
+                if (vertexAccess != fragmentAccess) {
+                    throw new CompileExceptionError(String.format(
+                            "Storage buffer access mismatch for '%s': vertex access flags 0x%x in '%s', fragment access flags 0x%x in '%s'",
+                            vertexSsbo.name, vertexAccess, vertexModule.desc.resourcePath,
+                            fragmentAccess, fragmentModule.desc.resourcePath));
+                }
             }
         }
     }

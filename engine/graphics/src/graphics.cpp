@@ -1235,12 +1235,25 @@ namespace dmGraphics
         }
     }
 
-    void CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta)
+    void CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, Program* program)
     {
+        ShaderMeta* meta = &program->m_ShaderMeta;
         PutShaderResourceBindings(ddf->m_UniformBuffers.m_Data, ddf->m_UniformBuffers.m_Count, meta->m_UniformBuffers, BINDING_FAMILY_UNIFORM_BUFFER);
         PutShaderResourceBindings(ddf->m_StorageBuffers.m_Data, ddf->m_StorageBuffers.m_Count, meta->m_StorageBuffers, BINDING_FAMILY_STORAGE_BUFFER);
         PutShaderResourceBindings(ddf->m_Textures.m_Data, ddf->m_Textures.m_Count, meta->m_Textures, BINDING_FAMILY_TEXTURE);
         PutShaderResourceBindings(ddf->m_Inputs.m_Data, ddf->m_Inputs.m_Count, meta->m_Inputs, BINDING_FAMILY_GENERIC);
+
+        // Cache this once to avoid scanning the reflected storage buffers for every draw or dispatch.
+        program->m_WritesStorageBuffers = 0;
+        for (uint32_t i = 0; i < meta->m_StorageBuffers.Size(); ++i)
+        {
+            const uint8_t access_flags = meta->m_StorageBuffers[i].m_AccessFlags;
+            if (access_flags == SHADER_RESOURCE_ACCESS_NONE || (access_flags & SHADER_RESOURCE_ACCESS_WRITE) != 0)
+            {
+                program->m_WritesStorageBuffers = 1;
+                break;
+            }
+        }
 
         meta->m_TypeInfos.SetCapacity(ddf->m_Types.m_Count);
         meta->m_TypeInfos.SetSize(ddf->m_Types.m_Count);
@@ -2556,7 +2569,9 @@ namespace dmGraphics
     }
     HStorageBuffer NewStorageBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        if (!context || !IsContextFeatureSupported(context, CONTEXT_FEATURE_STORAGE_BUFFER) || size == 0 || (size & 3) != 0)
+        // Some backends expose storage buffers as 32-bit raw buffer elements, so
+        // the buffer size must be a multiple of four bytes.
+        if (!IsContextFeatureSupported(context, CONTEXT_FEATURE_STORAGE_BUFFER) || size == 0 || (size & 3) != 0)
             return 0;
 
         GraphicsContextLimits limits = {};
@@ -2568,12 +2583,11 @@ namespace dmGraphics
     }
     void DeleteStorageBuffer(HContext context, HStorageBuffer storage_buffer)
     {
-        if (storage_buffer)
-            g_functions.m_DeleteStorageBuffer(context, storage_buffer);
+        g_functions.m_DeleteStorageBuffer(context, storage_buffer);
     }
     void SetStorageBufferData(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        if (!context || !storage_buffer || size == 0 || (size & 3) != 0)
+        if (size == 0 || (size & 3) != 0)
             return;
 
         GraphicsContextLimits limits = {};
@@ -2583,7 +2597,7 @@ namespace dmGraphics
     }
     void SetStorageBufferSubData(HContext context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
     {
-        if (!context || !storage_buffer || !data || size == 0 || ((offset | size) & 3) != 0)
+        if (size == 0 || ((offset | size) & 3) != 0)
             return;
 
         const uint32_t buffer_size = GetStorageBufferSize(context, storage_buffer);
@@ -2592,19 +2606,18 @@ namespace dmGraphics
     }
     uint32_t GetStorageBufferSize(HContext context, HStorageBuffer storage_buffer)
     {
-        return storage_buffer ? g_functions.m_GetStorageBufferSize(context, storage_buffer) : 0;
+        return g_functions.m_GetStorageBufferSize(context, storage_buffer);
     }
     void EnableStorageBuffer(HContext context, HStorageBuffer storage_buffer, uint32_t set, uint32_t binding)
     {
-        if (!context || !storage_buffer || set >= MAX_SET_COUNT || binding >= MAX_BINDINGS_PER_SET_COUNT)
+        if (set >= MAX_SET_COUNT || binding >= MAX_BINDINGS_PER_SET_COUNT)
             return;
 
         g_functions.m_EnableStorageBuffer(context, storage_buffer, binding, set);
     }
     void DisableStorageBuffer(HContext context, HStorageBuffer storage_buffer)
     {
-        if (storage_buffer)
-            g_functions.m_DisableStorageBuffer(context, storage_buffer);
+        g_functions.m_DisableStorageBuffer(context, storage_buffer);
     }
 // TODO: Make graphics.cpp backend agnostic
 #if defined(DM_PLATFORM_IOS)

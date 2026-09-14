@@ -364,6 +364,7 @@ namespace dmGraphics
         dmArray<UniformBufferLayout> m_UniformBufferLayouts;
         uint8_t                      m_MaxSet;
         uint8_t                      m_MaxBinding;
+        uint8_t                      m_WritesStorageBuffers;
     };
 
     struct ProgramResourceBindingIterator
@@ -430,7 +431,7 @@ namespace dmGraphics
     ShaderDesc::ShaderDataType GraphicsTypeToShaderDataType(Type graphics_type);
     bool                       GetShaderProgram(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** vp, ShaderDesc::Shader** fp, ShaderDesc::Shader** cp);
 
-    void                       CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta);
+    void                       CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, Program* program);
     void                       DestroyShaderMeta(ShaderMeta& meta);
     bool                       GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
     uint32_t                   CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0);

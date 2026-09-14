@@ -3425,7 +3425,7 @@ static HProgram WebGPUNewProgram(HContext _context, ShaderDesc* ddf, char* error
     WebGPUProgram* program = new WebGPUProgram;
     WebGPUContext* context = (WebGPUContext*) _context;
 
-    CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+    CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
 
     if (ddf_cp)
     {
@@ -3562,7 +3562,7 @@ static bool WebGPUReloadProgram(HContext _context, HProgram _program, ShaderDesc
             return false;
         }
 
-        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
         WebGPUCreateComputeProgram(context, program, compute_module);
     }
     else
@@ -3584,7 +3584,7 @@ static bool WebGPUReloadProgram(HContext _context, HProgram _program, ShaderDesc
             return false;
         }
 
-        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
         WebGPUCreateGraphicsProgram(context, program, vertex_module, fragment_module);
     }
 

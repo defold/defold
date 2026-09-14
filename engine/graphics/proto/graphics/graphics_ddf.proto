@@ -411,18 +411,18 @@ message ShaderDesc
         optional uint32         element_count      = 9;
         optional uint32         stage_flags        = 10; // 0x1=vert, 0x2=frag, 0x4=compute
         // ShaderResourceAccess flags: 0x1=read, 0x2=write
-        optional uint32         resource_access_flags = 13;
+        optional uint32         resource_access_flags = 11;
 
         oneof BindingInfo
         {
             // Uniform buffer block size
-            uint32 block_size = 11;
+            uint32 block_size = 12;
             // Sampler object index
             // Since we split combined samplers into
             // a texture + sampler object we need to
             // keep track of which of the textures
             // the sampler originally is pointing to.
-            uint32 sampler_texture_index = 12;
+            uint32 sampler_texture_index = 13;
         }
     }
 

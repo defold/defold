@@ -464,8 +464,15 @@ namespace dmGraphics
         buffer->m_Base.m_Size = size;
         buffer->m_Base.m_Usage = buffer_usage;
         buffer->m_Buffer = new uint8_t[size];
-        if (data) memcpy(buffer->m_Buffer, data, size);
-        else memset(buffer->m_Buffer, 0, size);
+
+        if (data)
+        {
+            memcpy(buffer->m_Buffer, data, size);
+        }
+        else
+        {
+            memset(buffer->m_Buffer, 0, size);
+        }
         return (HStorageBuffer) buffer;
     }
 
@@ -474,9 +481,15 @@ namespace dmGraphics
         NullContext* context = (NullContext*) _context;
         NullStorageBuffer* buffer = (NullStorageBuffer*) storage_buffer;
         for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+        {
             for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
                 if (context->m_StorageBuffers[set][binding] == buffer)
+                {
                     context->m_StorageBuffers[set][binding] = 0;
+                }
+            }
+        }
     }
 
     static void NullDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
@@ -497,8 +510,14 @@ namespace dmGraphics
             buffer->m_Base.m_Size = size;
         }
         buffer->m_Base.m_Usage = buffer_usage;
-        if (data) memcpy(buffer->m_Buffer, data, size);
-        else memset(buffer->m_Buffer, 0, size);
+        if (data)
+        {
+            memcpy(buffer->m_Buffer, data, size);
+        }
+        else
+        {
+            memset(buffer->m_Buffer, 0, size);
+        }
     }
 
     static void NullSetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
@@ -1004,7 +1023,7 @@ namespace dmGraphics
             p->m_FP = NewShaderModuleFromDDF(_context, ddf_fp);
         }
 
-        CreateShaderMeta(&ddf->m_Reflection, &p->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &p->m_BaseProgram);
         CreateProgramResourceBindings(p, p->m_VP, p->m_FP, p->m_Compute);
 
         return (HProgram) p;

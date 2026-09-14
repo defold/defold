@@ -3357,7 +3357,7 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         DX12ShaderProgram* program = new DX12ShaderProgram();
         program->m_NumWorkGroupsResourceIndex = 0xff; // 0xff == unused
 
-        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
 
         HashState64 program_hash;
         dmHashInit64(&program_hash, false);
