@@ -1112,7 +1112,7 @@ ordinary paths."
    (not= fn/constantly-true
          (g/raw-property-value basis workspace :editable-proj-path?))))
 
-(defn make-workspace [graph project-path build-settings workspace-config localization]
+(defn make-workspace [project-path build-settings workspace-config localization]
   (let [project-directory (.getCanonicalFile (io/file project-path))
         unloaded-proj-path? (resource/defunload-pred project-directory)
         editable-proj-path? (if-some [non-editable-directory-proj-paths (not-empty (:non-editable-directories workspace-config))]
@@ -1122,17 +1122,16 @@ ordinary paths."
       (g/tx-nodes-added
         (g/transact
           {:undoable false}
-          (g/make-nodes graph
-            [workspace [Workspace
-                        :root (.getPath project-directory)
-                        :opened-files (atom #{})
-                        :resource-listeners (atom [])
-                        :build-settings build-settings
-                        :editable-proj-path? editable-proj-path?
-                        :unloaded-proj-path? unloaded-proj-path?
-                        :localization localization]
-             code-preprocessors code.preprocessors/CodePreprocessorsNode
-             notifications notifications/NotificationsNode]
+          (g/make-nodes [workspace [Workspace
+                                    :root (.getPath project-directory)
+                                    :opened-files (atom #{})
+                                    :resource-listeners (atom [])
+                                    :build-settings build-settings
+                                    :editable-proj-path? editable-proj-path?
+                                    :unloaded-proj-path? unloaded-proj-path?
+                                    :localization localization]
+                         code-preprocessors code.preprocessors/CodePreprocessorsNode
+                         notifications notifications/NotificationsNode]
             (concat
               (g/connect notifications :_node-id workspace :notifications)
               (g/connect code-preprocessors :_node-id workspace :code-preprocessors))))))))
@@ -1162,7 +1161,7 @@ ordinary paths."
               MessagePattern or a string
 
   Optional kv-args:
-    :make-view-fn          fn of graph, parent (AnchorPane), resource node and
+    :make-view-fn          fn of parent (AnchorPane), resource node and
                            opts that should create new view node, set it up and
                            return the node id; opts is a map that will contain:
                            - :app-view
@@ -1175,7 +1174,7 @@ ordinary paths."
                            - any extra opts passed from the code
                            if not present, the resource will be opened in
                            the OS-associated application
-    :make-preview-fn       fn of graph, resource node, opts, width and height
+    :make-preview-fn       fn of resource node, opts, width and height
                            that should return a node id with :image output (with
                            value of type Image); opts is a map with:
                            - :app-view

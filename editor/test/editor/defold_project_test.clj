@@ -34,7 +34,7 @@
                      (g/set-property self :value-piece (str (first input)))))))
   (property source-resource resource/Resource
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [project (project/get-project (:basis evaluation-context) self)]
+                   (let [project (project/get-project (:basis evaluation-context))]
                      (:tx-data (project/connect-resource-node evaluation-context project new-value self [[:value :value-input]]))))))
   (input project-node-id g/NodeID)
   (input value-input g/Str))
@@ -82,8 +82,7 @@
               (let [data (read-string (slurp resource))]
                 (g/set-property self :value (:value data))))
 
-            workspace (workspace/make-workspace world
-                                                (.getAbsolutePath (io/file "test/resources/load_project"))
+            workspace (workspace/make-workspace (.getAbsolutePath (io/file "test/resources/load_project"))
                                                 {}
                                                 {}
                                                 test-util/localization)]

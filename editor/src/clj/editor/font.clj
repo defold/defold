@@ -1770,8 +1770,7 @@
              :child-reqs [{:node-type FontStyle :tx-attach-fn attach-style}]})))
 
 (defn- make-style [parent style]
-  (g/make-nodes (g/node-id->graph-id parent)
-    [child [FontStyle :id (:name style) :authored-markup (:markup style "") :generated (= "default" (:name style))]]
+  (g/make-nodes [child [FontStyle :id (:name style) :authored-markup (:markup style "") :generated (= "default" (:name style))]]
     (attach-style parent child)))
 
 (defn- preview-style [_aabb user-data overrides]
@@ -2018,7 +2017,7 @@
     (into
       [(g/connect project :use-font-layout self :use-font-layout)
        (g/connect project :use-rich-text self :use-rich-text)
-       (g/make-nodes (g/node-id->graph-id self) [styles-node FontStylesNode]
+       (g/make-nodes [styles-node FontStylesNode]
          (g/connect styles-node :_node-id self :nodes)
          (g/connect styles-node :_node-id self :styles-node)
          (g/connect styles-node :node-outline self :child-outlines)

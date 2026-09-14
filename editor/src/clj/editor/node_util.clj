@@ -35,7 +35,7 @@
    (g/with-auto-evaluation-context evaluation-context
      (node-qualifier-label node-id evaluation-context)))
   ([node-id {:keys [basis] :as evaluation-context}]
-   (when-some [node (g/node-by-id-at basis node-id)]
+   (when-some [node (g/node-by-id basis node-id)]
      (let [node-type (g/node-type node)]
        (or (when (in/behavior node-type :url)
              (let [value (in/node-value node :url evaluation-context)]
@@ -86,8 +86,7 @@
    (g/with-auto-evaluation-context evaluation-context
      (node-debug-label-path node-id evaluation-context)))
   ([node-id {:keys [basis] :as evaluation-context}]
-   (let [graph-id (g/node-id->graph-id node-id)
-         project-node-id (g/graph-value basis graph-id :project-id)]
+   (let [project-node-id (g/graph-value basis :project-id)]
      (->> node-id
           (iterate #(core/owner-node-id basis %))
           (take-while #(some-> % (not= project-node-id)))

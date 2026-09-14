@@ -400,7 +400,7 @@
 (g/defnk produce-script-property-entries [^:unsafe _evaluation-context _this _node-id deleted? name resource-kind type value]
   (when-not deleted?
     (let [basis (:basis _evaluation-context)
-          project (project/get-project basis _node-id)
+          project (project/get-project basis)
           workspace (project/workspace project _evaluation-context)
           prop-kw (properties/user-name->key name)
           prop-type (script-compilation/script-property-type->property-type type)
@@ -468,7 +468,7 @@
                    ;; When assigning a resource property, we must make sure the
                    ;; assigned resource is built and included in the game.
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project basis self)]
+                         project (project/get-project basis)]
                      (concat
                        (g/disconnect-sources basis self :resource)
                        (g/disconnect-sources basis self :resource-build-targets)
@@ -515,7 +515,7 @@
   (g/set-properties node-id :type type :resource-kind resource-kind :value value))
 
 (defn- create-script-property [script-node-id name type resource-kind value]
-  (g/make-nodes (g/node-id->graph-id script-node-id) [node-id [ScriptPropertyNode :name name]]
+  (g/make-nodes [node-id [ScriptPropertyNode :name name]]
     (edit-script-property node-id type resource-kind value)
     (g/connect node-id :_node-id script-node-id :nodes)
     (g/connect node-id :build-targets script-node-id :resource-property-build-targets)
@@ -574,7 +574,7 @@
 
 (g/defnk produce-script-build-targets [^:unsafe _evaluation-context _node-id resource lines lua-preprocessors script-properties original-resource-property-build-targets]
   (let [basis (:basis _evaluation-context)
-        project (project/get-project basis _node-id)]
+        project (project/get-project basis)]
     (script-compilation/build-targets
       _node-id
       resource
@@ -588,7 +588,7 @@
 
 (g/defnk produce-lua-build-targets [^:unsafe _evaluation-context _node-id resource lines lua-preprocessors]
   (let [basis (:basis _evaluation-context)
-        project (project/get-project basis _node-id)]
+        project (project/get-project basis)]
     (script-compilation/build-targets
       _node-id
       resource
@@ -658,7 +658,7 @@
                    (let [resource (g/node-value self :resource evaluation-context)
                          basis (:basis evaluation-context)
                          source-value (g/node-value self :source-value evaluation-context)
-                         lsp (lsp/get-node-lsp basis self)
+                         lsp (lsp/get-lsp basis)
                          workspace (resource/workspace resource)
                          lua-info (with-open [reader (data/lines-reader new-value)]
                                     (lua-parser/lua-info basis workspace script-compilation/valid-resource-kind? reader))
@@ -671,7 +671,7 @@
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project basis self)]
+                         project (project/get-project basis)]
                      (concat
                        (update-script-properties evaluation-context self old-value new-value)
                        (g/disconnect-sources basis self :original-resource-property-build-targets)
