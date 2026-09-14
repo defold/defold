@@ -23,7 +23,8 @@
             [editor.resource-node :as resource-node]
             [editor.types :as types]
             [editor.workspace :as workspace]
-            [schema.core :as s]))
+            [schema.core :as s]
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -175,6 +176,15 @@
   (output proj-path+full-lines ProjPath+Lines :cached produce-proj-path+full-lines)
   (output shader-source-info g/Any :cached produce-shader-source-info))
 
+(defn- shader-dependencies [read-opts owner-resource lines]
+  (if-not (:include-editor-dependencies read-opts)
+    []
+    (let [resolve-proj-path-fn (:resolve-proj-path-fn read-opts)]
+      (coll/into-> lines []
+        (keep try-parse-include)
+        (map #(resolve-proj-path-fn owner-resource %))
+        (distinct)))))
+
 (defn register-resource-types [workspace]
   ;; "sp" is the build output resource type
   [(workspace/register-resource-type workspace :ext "sp")
@@ -182,5 +192,6 @@
          :let [args (assoc def
                       :node-type ShaderNode
                       :built-pb-class shader-compilation/built-pb-class
+                      :dependencies-fn shader-dependencies
                       :lazy-loaded false)]]
      (apply r/register-code-resource-type workspace (mapcat identity args)))])

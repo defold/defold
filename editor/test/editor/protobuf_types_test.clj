@@ -207,7 +207,7 @@
         (let [resource (resource-node/resource basis node-id)
               resource-type (resource/resource-type resource)
               dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
-              source-value (g/node-value node-id :source-value)
+              save-value (g/node-value node-id :save-value)
               expected-dependencies (expected-dependencies resource-path)
               expected-editor-dependencies (expected-editor-dependencies resource-path)]
           (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
@@ -217,13 +217,13 @@
                  (sort (dependencies-fn
                          (workspace/make-read-opts basis workspace :include-editor-dependencies false)
                          resource
-                         source-value)))
+                         save-value)))
               resource-path)
           (is (= (sort (set (concat expected-dependencies expected-editor-dependencies)))
                  (sort (dependencies-fn
                          (workspace/make-read-opts basis workspace :include-editor-dependencies true)
                          resource
-                         source-value)))
+                         save-value)))
               resource-path))))))
 
 (deftest load-order-sanity
