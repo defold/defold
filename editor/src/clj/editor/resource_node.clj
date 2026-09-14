@@ -216,12 +216,14 @@
 
 (defn- make-pb-class-dependencies-fn-raw [^Class pb-class]
   {:pre [(protobuf/pb-class? pb-class)]}
-  (fn pb-class-dependencies-fn [_read-opts _owner-resource pb-map]
-    (coll/into->
-      (protobuf/resource-field-value-paths pb-class pb-map) []
-      (map second) ; => proj-paths
-      (remove coll/empty?)
-      (distinct))))
+  (fn pb-class-dependencies-fn [read-opts owner-resource pb-map]
+    (let [resource-field-value-paths (protobuf/resource-field-value-paths pb-class pb-map)
+          resolve-proj-path-fn (:resolve-proj-path-fn read-opts)]
+      (coll/into-> resource-field-value-paths []
+        (map second) ; => seq of proj-path-or-relative-path
+        (remove coll/empty?)
+        (map #(resolve-proj-path-fn owner-resource %))
+        (distinct)))))
 
 (def make-pb-class-dependencies-fn (fn/memoize make-pb-class-dependencies-fn-raw))
 
