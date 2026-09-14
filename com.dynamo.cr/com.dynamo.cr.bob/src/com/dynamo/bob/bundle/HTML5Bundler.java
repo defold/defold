@@ -31,6 +31,7 @@ import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,11 @@ public class HTML5Bundler implements IBundler {
 
     private static final String SplitFileDir = "archive";
     private static final String SplitFileJson = "archive_files.json";
+    private static final String GitAttributesName = ".gitattributes";
+    // dmloader.js verifies the size and sha1 of the text files in the bundle, which git
+    // changes when it rewrites their line endings. A .gitattributes in the bundle root also
+    // covers every subdirectory. See issue #10006.
+    private static final String GitAttributesContent = "* -text\n";
     private static int SplitFileSegmentSize = 2 * 1024 * 1024;
     private static String SplitFileSHA1 = "";
 
@@ -361,11 +367,7 @@ public class HTML5Bundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
         List<File> binsWasm = ExtenderUtil.getNativeExtensionEngineBinaries(project, platform);
         if (binsWasm == null) {
-            try {
-                binsWasm = Bob.getDefaultDmengineFiles(platform, variant);
-            } catch(IOException e) {
-                System.err.println(String.format("Unable to bundle platform %s: %s", platform, e.getMessage()));
-            }
+            binsWasm = Bob.getDefaultDmengineFiles(platform, variant);
         }
         else {
             logger.info("Using extender binary for WASM");
@@ -449,6 +451,8 @@ public class HTML5Bundler implements IBundler {
         File splitDir = new File(appDir, SplitFileDir);
         splitDir.mkdirs();
         createSplitFiles(project, buildDir, splitDir);
+        // Before the bundle resources, so a project shipping its own wins.
+        createGitAttributes(appDir);
 
         BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into bundle directory
@@ -521,6 +525,10 @@ public class HTML5Bundler implements IBundler {
             }
         }
         BundleHelper.moveBundleIfNeed(project, appDir);
+    }
+
+    private void createGitAttributes(File appDir) throws IOException {
+        FileUtils.write(new File(appDir, GitAttributesName), GitAttributesContent, StandardCharsets.UTF_8);
     }
 
     private void createSplitFiles(Project project, File buildDir, File targetDir) throws IOException {

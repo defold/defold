@@ -120,13 +120,6 @@ namespace dmRender
             return 0;
         }
 
-        // Ambient lights are folded into light_info.xyz and do not allocate
-        // entries in the per-light buffer.
-        if (prototype->m_Type == LIGHT_TYPE_AMBIENT)
-        {
-            return 0;
-        }
-
         // Reached max count.
         if (render_context->m_RenderLightsIndices.Size() >= render_context->m_MaxLightCount || render_context->m_RenderLightsIndices.Remaining() == 0)
         {
@@ -165,7 +158,24 @@ namespace dmRender
                 return;
             }
             render_context->m_RenderLightsIndices.Push(light_instance->m_LightBufferIndex);
+            render_context->m_LightBufferSubmitted[light_instance->m_LightBufferIndex] = 0;
             light_instance->m_LightPrototype = 0;
+            CommitLightInfo(render_context);
+        }
+    }
+
+    void SubmitLightInstance(HRenderContext render_context, HLightInstance instance)
+    {
+        uint16_t light_buffer_index = instance & 0xFFFF;
+        LightInstance* light_instance = light_buffer_index < render_context->m_RenderLights.Size() ? &render_context->m_RenderLights[light_buffer_index] : 0;
+        if (!light_instance || light_instance->m_LightPrototype == 0 || light_instance->m_Version != (instance >> 16))
+        {
+            return;
+        }
+
+        if (!render_context->m_LightBufferSubmitted[light_buffer_index])
+        {
+            render_context->m_LightBufferSubmitted[light_buffer_index] = 1;
             CommitLightInfo(render_context);
         }
     }
@@ -322,7 +332,6 @@ namespace dmRender
         switch (prototype->m_Type)
         {
         case LIGHT_TYPE_AMBIENT:
-            assert(false && "Ambient lights are accumulated in light_info.xyz and should not be written as light instances");
             break;
         case LIGHT_TYPE_DIRECTIONAL:
             direction = world_direction;
@@ -384,29 +393,37 @@ namespace dmRender
 
     static uint32_t CompactLightBufferScratch(HRenderContext render_context)
     {
-        uint32_t active_light_count = render_context->m_RenderLightsIndices.Size();
         render_context->m_LightBufferUploadScratch.SetSize(0);
 
-        if (active_light_count == 0)
+        uint32_t allocated_light_count = render_context->m_RenderLightsIndices.Size();
+        if (render_context->m_LightBufferUploadScratch.Capacity() < allocated_light_count)
         {
-            return 0;
+            render_context->m_LightBufferUploadScratch.SetCapacity(allocated_light_count);
         }
 
-        if (render_context->m_LightBufferUploadScratch.Capacity() < active_light_count)
-        {
-            render_context->m_LightBufferUploadScratch.SetCapacity(active_light_count);
-        }
-
+        dmVMath::Vector3 ambient_light(0.0f, 0.0f, 0.0f);
         uint32_t render_light_count = render_context->m_RenderLights.Size();
         for (uint32_t i = 0; i < render_light_count; ++i)
         {
             const LightInstance* instance = &render_context->m_RenderLights[i];
-            if (instance->m_LightPrototype != 0)
+            if (instance->m_LightPrototype == 0 || !render_context->m_LightBufferSubmitted[i])
             {
-                render_context->m_LightBufferUploadScratch.Push(render_context->m_LightBufferScratch[instance->m_LightBufferIndex]);
+                continue;
+            }
+
+            const LightSTD140& light = render_context->m_LightBufferScratch[instance->m_LightBufferIndex];
+            LightType type = (LightType) (uint32_t) light.m_Params.getX();
+            if (type == LIGHT_TYPE_AMBIENT)
+            {
+                ambient_light += dmVMath::Vector3(light.m_Color.getXYZ()) * light.m_Params.getY();
+            }
+            else
+            {
+                render_context->m_LightBufferUploadScratch.Push(light);
             }
         }
 
+        render_context->m_AmbientLight = ambient_light;
         return render_context->m_LightBufferUploadScratch.Size();
     }
 
@@ -414,15 +431,12 @@ namespace dmRender
     {
         uint32_t active_light_count = CompactLightBufferScratch(render_context);
 
-        if (render_context->m_LightBufferDirtyInfo)
-        {
-            dmVMath::Vector4 info(render_context->m_AmbientLight, (float) active_light_count);
-            dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext,
-                                         render_context->m_LightUniformBuffer,
-                                         render_context->m_LightBufferInfoWriteStart,
-                                         sizeof(info),
-                                         &info);
-        }
+        dmVMath::Vector4 info(render_context->m_AmbientLight, (float) active_light_count);
+        dmGraphics::SetUniformBuffer(render_context->m_GraphicsContext,
+                                     render_context->m_LightUniformBuffer,
+                                     render_context->m_LightBufferInfoWriteStart,
+                                     sizeof(info),
+                                     &info);
 
         // Write compacted light data from the scratch buffer. The shader loops
         // over [0..light_info.w), while light buffer indices may be reused.
@@ -468,17 +482,6 @@ namespace dmRender
         return true;
     }
 
-    void SetAmbientLight(HRenderContext render_context, dmVMath::Vector3 color)
-    {
-        if (render_context->m_AmbientLight.getX() != color.getX() ||
-            render_context->m_AmbientLight.getY() != color.getY() ||
-            render_context->m_AmbientLight.getZ() != color.getZ())
-        {
-            render_context->m_AmbientLight = color;
-            CommitLightInfo(render_context);
-        }
-    }
-
     void SetLightBufferCount(HRenderContext render_context, uint32_t max_lights)
     {
         assert(render_context);
@@ -518,6 +521,12 @@ namespace dmRender
         render_context->m_LightBufferScratch.SetSize(0);
         render_context->m_LightBufferUploadScratch.SetSize(0);
         render_context->m_LightBufferUploadScratch.SetCapacity(0);
+        if (render_context->m_LightBufferSubmitted.Capacity() < max_lights)
+        {
+            render_context->m_LightBufferSubmitted.SetCapacity(max_lights);
+        }
+        render_context->m_LightBufferSubmitted.SetSize(max_lights);
+        memset(render_context->m_LightBufferSubmitted.Begin(), 0, max_lights);
     }
 
     void FinalizeLightData(HRenderContext render_context)

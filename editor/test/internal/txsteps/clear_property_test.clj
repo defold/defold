@@ -25,8 +25,7 @@
 
 (deftest basic-property-undo-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          original-node-id (first (g/take-node-ids graph-id 1))
+    (let [original-node-id (first (g/take-node-ids world 1))
 
           original-props
           {:basic-property :original-basic-property-value
@@ -92,8 +91,7 @@
 
 (deftest effecting-property-undo-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          original-node-id (first (g/take-node-ids graph-id 1))
+    (let [original-node-id (first (g/take-node-ids world 1))
 
           original-props
           {:basic-property :original-basic-property-value
@@ -209,14 +207,12 @@
 
 (deftest override-invalidation-identical-value-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [consumer-node-id
+    (let [[consumer-node-id
            original-node-id
            override-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [consumer-node-id helpers/OverriddenPropertiesConsumer
                  original-node-id [helpers/PropertyTestNode :basic-property :initial-property-value]]
                 (g/override original-node-id {}
@@ -252,13 +248,11 @@
 
 (deftest effecting-property-nil-value-undo-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [_original-node-id
+    (let [[_original-node-id
            override-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id
+              (g/make-nodes world
                 [original-node-id helpers/PropertyTestNode]
                 (g/override original-node-id helpers/effect-log-node-override-opts))))]
 

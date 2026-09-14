@@ -17,9 +17,12 @@ target_compile_options(defold_sdk INTERFACE
   -ffunction-sections
   -fdata-sections
   -fstack-protector
-  -fomit-frame-pointer
   -fno-strict-aliasing
   -funwind-tables)
+
+if(NOT WITH_HWASAN)
+    target_compile_options(defold_sdk INTERFACE -fomit-frame-pointer)
+endif()
 
 if(TARGET_PLATFORM MATCHES "arm64-android")
     target_compile_definitions(defold_sdk INTERFACE __aarch64__)
@@ -54,5 +57,8 @@ target_link_options(defold_sdk INTERFACE
   -landroid
   -llog
   -z text
-  -Wl,--build-id=uuid
-  -static-libstdc++)
+  -Wl,--build-id=uuid)
+
+if(NOT WITH_HWASAN)
+    target_link_options(defold_sdk INTERFACE -static-libstdc++)
+endif()

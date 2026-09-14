@@ -56,6 +56,7 @@ namespace dmGraphics
     typedef HWindow (*GetWindowFn)(HContext context);
     typedef uint32_t (*GetDisplayDpiFn)(HContext context);
     typedef PipelineState (*GetPipelineStateFn)(HContext context);
+    typedef void (*SetSwapIntervalFn)(HContext context, uint32_t swap_interval);
     typedef void (*SetWindowSizeFn)(HContext context, uint32_t width, uint32_t height);
     typedef void (*ResizeWindowFn)(HContext context, uint32_t width, uint32_t height);
     typedef void (*BeginFrameFn)(HContext context);
@@ -227,6 +228,7 @@ namespace dmGraphics
         SetUniformBufferFn m_SetUniformBuffer;
         EnableUniformBufferFn m_EnableUniformBuffer;
         DisableUniformBufferFn m_DisableUniformBuffer;
+        SetSwapIntervalFn m_SetSwapInterval;
     };
 
     #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \

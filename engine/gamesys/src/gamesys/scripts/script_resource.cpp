@@ -1208,17 +1208,33 @@ static int CreateTextureAsync(lua_State* L)
     // a valid "clear the texture" source: it faults on DX12/WebGPU and leaves garbage on Metal/GL.
     bool is_transcoded        = dmGraphics::IsFormatTranscoded(create_params.m_CompressionType);
     uint8_t* blank_data       = 0;
-    uint32_t blank_slice_size = 0;
+    const uint32_t upload_slice_size = dmGraphics::GetTextureFormatDataSize(create_params.m_Format, create_params.m_Width, create_params.m_Height);
+    const uint32_t upload_slice_count = dmGraphics::GetLayerCount(create_params.m_Type)
+                                      * dmMath::Max((uint16_t) 1, create_params.m_Depth)
+                                      * dmMath::Max((uint8_t) 1, create_params.m_LayerCount);
+
+    // Cubemap upload paths interpret TextureParams::m_DataSize as a per-face
+    // stride, while GetBytes() returns the size of the complete Lua buffer.
+    // Validate the complete buffer here and assign the per-face value below.
+    if (create_params.m_Buffer && create_params.m_Type == dmGraphics::TEXTURE_TYPE_CUBE_MAP && !is_transcoded)
+    {
+        void* upload_data = 0;
+        uint32_t upload_data_size = 0;
+        dmBuffer::GetBytes(create_params.m_Buffer, &upload_data, &upload_data_size);
+        const uint64_t required_data_size = (uint64_t)upload_slice_size * upload_slice_count;
+        if (upload_data_size < required_data_size)
+        {
+            return luaL_error(L, "Unable to create cubemap texture, buffer contains %u bytes but %llu bytes are required.",
+                upload_data_size, (unsigned long long)required_data_size);
+        }
+    }
 
     if (create_params.m_Buffer == 0)
     {
         // Scaled by faces/layers/depth like MakeTextureImage
-        blank_slice_size    = dmGraphics::GetTextureFormatDataSize(create_params.m_Format, create_params.m_Width, create_params.m_Height);
-        uint32_t num_slices = dmGraphics::GetLayerCount(create_params.m_Type)
-                            * dmMath::Max((uint16_t) 1, create_params.m_Depth)
-                            * dmMath::Max((uint8_t) 1, create_params.m_LayerCount);
-        blank_data          = new uint8_t[blank_slice_size * num_slices];
-        memset(blank_data, 0, blank_slice_size * num_slices);
+        const size_t upload_data_size = (size_t)upload_slice_size * upload_slice_count;
+        blank_data = new uint8_t[upload_data_size];
+        memset(blank_data, 0, upload_data_size);
     }
 
     // The callback is optional, we don't have to do anything with the result if we don't need to.
@@ -1294,12 +1310,17 @@ static int CreateTextureAsync(lua_State* L)
 
     dmBuffer::GetBytes(request->m_Buffer, (void**) &texture_params.m_Data, &texture_params.m_DataSize);
 
-    // GetBytes leaves both out-params untouched for a null handle. m_DataSize is per slice, matching
-    // the sync path and the stride the GL adapter walks cube map faces with.
+    // GetBytes leaves both out-params untouched for a null handle.
     if (blank_data)
     {
         texture_params.m_Data     = blank_data;
-        texture_params.m_DataSize = blank_slice_size;
+        texture_params.m_DataSize = upload_slice_size;
+    }
+    else if (create_params.m_Type == dmGraphics::TEXTURE_TYPE_CUBE_MAP && !is_transcoded)
+    {
+        // Cubemap upload paths use m_DataSize as the stride between faces, not
+        // the size of the complete upload buffer returned by GetBytes().
+        texture_params.m_DataSize = upload_slice_size;
     }
 
     // If the data is transcoded, we need an extra pass here to unpack the data before uploading it

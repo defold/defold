@@ -58,15 +58,16 @@ function luajit_configure() {
 			export TARGET_FLAGS="$CFLAGS"
 			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64 ${COMMON_XCFLAGS}"
 			;;
-		x86_64-ios)
+		arm64_sim-ios)
 			TAR_SKIP_BIN=1
 			XFLAGS="$COMMON_MOBILE_FLAGS_64"
+			export CROSS=""
 			export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
 			export HOST_CC="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang"
 			export HOST_CFLAGS="$XFLAGS -m64 -isysroot $OSX_SDK_ROOT -I."
 			export HOST_ALDFLAGS="-m64 -isysroot $OSX_SDK_ROOT"
 			export TARGET_FLAGS="$CFLAGS"
-			export XCFLAGS="${COMMON_XCFLAGS}"
+			export XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64 ${COMMON_XCFLAGS}"
 			;;
 		armv7-android)
 			TAR_SKIP_BIN=1
@@ -161,7 +162,7 @@ case ${PLATFORM} in
 	arm64-ios)
 		export TARGET_SYS=iOS
 		;;
-	x86_64-ios)
+	arm64_sim-ios)
 		export TARGET_SYS=iOS
 		;;
 	armv7-android)

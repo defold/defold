@@ -462,7 +462,7 @@
   debug-view)
 
 (defn make-view!
-  [app-view view-graph project ^Parent root open-resource-fn state-changed-fn localization]
+  [app-view graph project ^Parent root open-resource-fn state-changed-fn localization]
   (let [console-grid-pane (.lookup root "#console-grid-pane")
         call-stack-view (doto (ListView.)
                           (.setId "debugger-call-stack"))
@@ -474,7 +474,7 @@
                   (g/tx-nodes-added
                     (g/transact
                       {:undoable false}
-                      (g/make-node view-graph DebugView
+                      (g/make-node graph DebugView
                                    :localization localization
                                    :open-resource-fn (make-open-resource-fn project open-resource-fn)
                                    :state-changed-fn state-changed-fn))))

@@ -86,7 +86,7 @@ fi
 
 if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_SDK}" ]; then
 	echo "Packing to ${PACKAGES_WIN32_SDK}"
-	GZIP=-9 tar czf "${TARGET_PATH}/${PACKAGES_WIN32_SDK}" -C "${SDK_PATH}" 10/Include/${SDK_VERSION} 10/Lib/${SDK_VERSION}/um/x86 10/Lib/${SDK_VERSION}/um/x64 10/Lib/${SDK_VERSION}/ucrt/x86 10/Lib/${SDK_VERSION}/ucrt/x64 10/Licenses 10/bin/${SDK_VERSION}/x64 10/bin/${SDK_VERSION}/x86
+	GZIP=-9 tar czf "${TARGET_PATH}/${PACKAGES_WIN32_SDK}" -C "${SDK_PATH}" 10/Include/${SDK_VERSION} 10/Lib/${SDK_VERSION}/um/x64 10/Lib/${SDK_VERSION}/ucrt/x64 10/Licenses 10/bin/${SDK_VERSION}/x64
 else
 	echo "Package ${TARGET_PATH}/${PACKAGES_WIN32_SDK} already existed"
 fi
@@ -97,18 +97,15 @@ if [ ! -e "${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN}" ]; then
 	TMP_VS_ROOT=${TMP}/VC/Tools/MSVC/${MSVC_VERSION}
 
 	mkdir -p "${TMP_VS_ROOT}/bin/Hostx64"
-	mkdir -p "${TMP_VS_ROOT}/bin/Hostx86"
 	mkdir -p "${TMP_VS_ROOT}/include"
 	mkdir -p "${TMP_VS_ROOT}/lib/x64"
-	mkdir -p "${TMP_VS_ROOT}/lib/x86"
-	mkdir -p "${TMP_VS_ROOT}/atlmfc"
+	mkdir -p "${TMP_VS_ROOT}/atlmfc/lib/x64"
 
 	cp -r -v "${VS_ROOT}/bin/Hostx64/x64" "${TMP_VS_ROOT}/bin/Hostx64"
-	cp -r -v "${VS_ROOT}/bin/Hostx64/x86" "${TMP_VS_ROOT}/bin/Hostx86"
 	cp -r -v "${VS_ROOT}/include" "${TMP_VS_ROOT}"
 	cp -r -v "${VS_ROOT}/lib/x64" "${TMP_VS_ROOT}/lib"
-	cp -r -v "${VS_ROOT}/lib/x86" "${TMP_VS_ROOT}/lib"
-	cp -r -v "${VS_ROOT}/atlmfc"  "${TMP_VS_ROOT}"
+	cp -r -v "${VS_ROOT}/atlmfc/include" "${TMP_VS_ROOT}/atlmfc"
+	cp -r -v "${VS_ROOT}/atlmfc/lib/x64" "${TMP_VS_ROOT}/atlmfc/lib"
 
 	GZIP=-9 tar czf "${TARGET_PATH}/${PACKAGES_WIN32_TOOLCHAIN}" -C "$TMP" VC
 else

@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.net.URL;
 import java.net.ConnectException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -131,7 +132,7 @@ public class BundleHelper {
         this.title = this.projectProperties.getStringValue("project", "title", "Unnamed");
 
         String appDirSuffix = "";
-        if (platform == Platform.X86_64MacOS || platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
+        if (platform == Platform.X86_64MacOS || platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim) {
             appDirSuffix = ".app";
         }
 
@@ -180,7 +181,7 @@ public class BundleHelper {
         if (data == null) {
             return "";
         }
-        String s = new String(data);
+        String s = new String(data, StandardCharsets.UTF_8);
         Template template = Mustache.compiler().emptyStringIsFalse(true).compile(s);
         StringWriter sw = new StringWriter();
         try {
@@ -205,7 +206,7 @@ public class BundleHelper {
     }
 
     public void formatResourceToFile(byte[] content, final String sourceLocation, File toFile) throws IOException {
-        FileUtils.write(toFile, formatResource(content, sourceLocation));
+        FileUtils.write(toFile, formatResource(content, sourceLocation), StandardCharsets.UTF_8);
     }
 
     public File getTargetManifestDir(Platform platform){
@@ -314,7 +315,7 @@ public class BundleHelper {
     public File copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
         File targetManifest = getAppManifestFile(platform, appDir);
 
-        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
+        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project, platform);
 
         File manifestFile;
         if (!hasExtensions) {

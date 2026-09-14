@@ -241,15 +241,13 @@
   (get-in @g/*the-system* [:graphs graph-id :successors]))
 
 (deftest transact-with-full-invalidation-test
-  (testing "Invalidates all graph successor caches after a property update."
+  (testing "Invalidates the successor cache after a property update."
     (ts/with-clean-system
-      (let [graph-a (g/make-graph!)
-            graph-b (g/make-graph!)
-            [resource-a receiver-a resource-b receiver-b] (ts/tx-nodes
-                                                            (g/make-node graph-a Resource :marker (int 0))
-                                                            (g/make-node graph-a Receiver)
-                                                            (g/make-node graph-b Resource)
-                                                            (g/make-node graph-b Receiver))]
+      (let [[resource-a receiver-a resource-b receiver-b] (ts/tx-nodes
+                                                            (g/make-node world Resource :marker (int 0))
+                                                            (g/make-node world Receiver)
+                                                            (g/make-node world Resource)
+                                                            (g/make-node world Receiver))]
         (g/transact
           [(g/connect resource-a :b receiver-a :generic-input)
            (g/connect resource-b :b receiver-b :generic-input)])
@@ -259,8 +257,7 @@
         (is (= #{(g/endpoint receiver-b :passthrough)}
                (set (g/successors (g/now) resource-b :b))))
 
-        (let [graph-a-successors-before (graph-successors-cache graph-a)
-              graph-b-successors-before (graph-successors-cache graph-b)
+        (let [successors-before (graph-successors-cache world)
               undo-stack-count-before (g/undo-stack-count :undo/global)
               tx-result (g/transact {:full-invalidation true}
                           (g/set-property resource-a :marker (int 1)))]
@@ -276,23 +273,17 @@
             (g/redo! :undo/global)
             (is (= 1 (g/node-value resource-a :marker))))
 
-          (let [graph-a-successors-after (graph-successors-cache graph-a)
-                graph-b-successors-after (graph-successors-cache graph-b)]
-            ;; :successors is a mutable cache object stored per graph. With full
-            ;; invalidation, we conservatively replace that cache for every
-            ;; graph. This ensures later successor queries are recomputed from
-            ;; the current topology instead of using stale cached data from
-            ;; before the transaction.
-            (is (not (identical? graph-a-successors-before graph-a-successors-after)))
-            (is (not (identical? graph-b-successors-before graph-b-successors-after)))
+          (let [successors-after (graph-successors-cache world)]
+            ;; Full invalidation replaces the mutable :successors cache, so
+            ;; later queries are recomputed from the current topology.
+            (is (not (identical? successors-before successors-after)))
             (is (= #{(g/endpoint receiver-b :passthrough)}
                    (set (g/successors (g/now) resource-b :b)))))))))
 
   (testing "Honors :undoable false with full invalidation."
     (ts/with-clean-system
-      (let [graph (g/make-graph!)
-            [resource] (ts/tx-nodes
-                         (g/make-node graph Resource :marker (int 0)))
+      (let [[resource] (ts/tx-nodes
+                         (g/make-node world Resource :marker (int 0)))
             undo-stack-count-before (g/undo-stack-count :undo/global)
             tx-result (g/transact
                         {:full-invalidation true
@@ -304,23 +295,21 @@
 
   (testing "Does not invalidate successors for a no-op transaction."
     (ts/with-clean-system
-      (let [graph (g/make-graph!)
-            [resource receiver] (ts/tx-nodes
-                                  (g/make-node graph Resource)
-                                  (g/make-node graph Receiver))]
+      (let [[resource receiver] (ts/tx-nodes
+                                  (g/make-node world Resource)
+                                  (g/make-node world Receiver))]
         (g/transact
           (g/connect resource :b receiver :generic-input))
 
-        (let [successors-before (graph-successors-cache graph)]
+        (let [successors-before (graph-successors-cache world)]
           (g/transact {:full-invalidation true} [])
-          (is (identical? successors-before (graph-successors-cache graph)))))))
+          (is (identical? successors-before (graph-successors-cache world)))))))
 
   (testing "Recomputes topology changes after connect and disconnect."
     (ts/with-clean-system
-      (let [graph (g/make-graph!)
-            [resource receiver] (ts/tx-nodes
-                                  (g/make-node graph Resource)
-                                  (g/make-node graph Receiver))]
+      (let [[resource receiver] (ts/tx-nodes
+                                  (g/make-node world Resource)
+                                  (g/make-node world Receiver))]
         (g/transact {:full-invalidation true}
           (g/connect resource :b receiver :generic-input))
         (is (= #{(g/endpoint receiver :passthrough)}
@@ -374,10 +363,9 @@
 (deftest successor-changes-test
   (testing "Skips arcs targeting a changed node."
     (ts/with-clean-system
-      (let [graph-id (g/make-graph!)
-            [source target] (ts/tx-nodes
-                              (g/make-node graph-id Resource)
-                              (g/make-node graph-id Downstream))
+      (let [[source target] (ts/tx-nodes
+                              (g/make-node world Resource)
+                              (g/make-node world Downstream))
             basis (g/now)
             changed-arc (gt/->Arc source :b target :consumer)]
         (is (= #{target}
@@ -385,10 +373,9 @@
 
   (testing "Skips arcs targeting an override of a changed node."
     (ts/with-clean-system
-      (let [graph-id (g/make-graph!)
-            [source target] (ts/tx-nodes
-                              (g/make-node graph-id Resource)
-                              (g/make-node graph-id Downstream))
+      (let [[source target] (ts/tx-nodes
+                              (g/make-node world Resource)
+                              (g/make-node world Downstream))
             [override-target] (ts/tx-nodes (g/override target))
             basis (g/now)
             changed-arc (gt/->Arc source :b override-target :consumer)]
@@ -397,9 +384,8 @@
 
   (testing "Omits the direct endpoint for a changed source node."
     (ts/with-clean-system
-      (let [graph-id (g/make-graph!)
-            [source] (ts/tx-nodes (g/make-node graph-id Resource))
-            missing-target (gt/make-node-id graph-id 1000000)
+      (let [[source] (ts/tx-nodes (g/make-node world Resource))
+            missing-target (gt/make-node-id world 1000000)
             basis (g/now)
             changed-arc (gt/->Arc source :b missing-target :consumer)]
         (is (= #{source}
@@ -407,13 +393,11 @@
 
   (testing "Retains target-side arc propagation for a changed source node."
     (ts/with-clean-system
-      (let [graph-id (g/make-graph!)
-
-            [changed-source affected-source target]
+      (let [[changed-source affected-source target]
             (ts/tx-nodes
-              (g/make-node graph-id Resource)
-              (g/make-node graph-id Resource)
-              (g/make-node graph-id Downstream))
+              (g/make-node world Resource)
+              (g/make-node world Resource)
+              (g/make-node world Downstream))
 
             _ (g/transact (g/connect affected-source :b target :consumer))
             basis (g/now)
@@ -444,14 +428,12 @@
 
 (deftest shadowing-arc-invalidates-old-and-new-source-successors-test
   (ts/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [initial-source shadowing-source target]
+    (let [[initial-source shadowing-source target]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id [initial-source Resource
-                                      _shadowing-source Resource
-                                      target Receiver]
+              (g/make-nodes world [initial-source Resource
+                                   _shadowing-source Resource
+                                   target Receiver]
                 (g/connect initial-source :b target :generic-input))))
 
           [first-order-override-target]
@@ -501,14 +483,12 @@
 
 (deftest changed-arc-invalidates-implicit-override-source-successors-test
   (ts/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [owner source target]
+    (let [[owner source target]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id [owner Container
-                                      source Resource
-                                      target Receiver]
+              (g/make-nodes world [owner Container
+                                   source Resource
+                                   target Receiver]
                 (g/connect source :_node-id owner :nodes)
                 (g/connect target :_node-id owner :nodes)
                 (g/connect source :b target :generic-input))))
@@ -537,14 +517,12 @@
 
 (deftest changed-override-relationship-invalidates-source-successors-test
   (ts/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [owner _source target]
+    (let [[owner _source target]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id [owner Container
-                                      source Resource
-                                      target Receiver]
+              (g/make-nodes world [owner Container
+                                   source Resource
+                                   target Receiver]
                 (g/connect source :_node-id owner :nodes)
                 (g/connect source :b target :generic-input))))
 
@@ -694,16 +672,14 @@
 
 (deftest node-deletion-pull-input
   (ts/with-clean-system
-    (let [view-graph (g/make-graph! :volatility 1)
-          [src-node] (g/tx-nodes-added
+    (let [[src-node] (g/tx-nodes-added
                       (g/transact
                        (g/make-nodes world
                                      [resource Resource])))
           [tgt-node] (g/tx-nodes-added
                       (g/transact
-                       (g/make-nodes view-graph
-                                     [view MultiInput]
-                                     (g/connect src-node :b view :in))))]
+                       (g/make-nodes world [view MultiInput]
+                         (g/connect src-node :b view :in))))]
       (is (= [:ok] (g/node-value tgt-node :in)))
       (g/delete-node! src-node)
       (is (= [] (g/node-value tgt-node :in))))))

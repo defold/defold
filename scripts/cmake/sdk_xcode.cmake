@@ -220,8 +220,8 @@ if(_XCODE_TOOLCHAIN AND EXISTS "${_XCODE_CXX}")
     # ------------------------------------------------------------------
     # Prefer an SDK sysroot matching TARGET_PLATFORM (uses discovered vars)
     # ------------------------------------------------------------------
-    if(TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
-        if(TARGET_PLATFORM MATCHES "^x86_64-ios$")
+    if(TARGET_PLATFORM MATCHES "arm64-ios|arm64_sim-ios")
+        if(TARGET_PLATFORM MATCHES "^arm64_sim-ios$")
             if(DEFOLD_SDK_IPHONESIMULATOR_SYSROOT)
                 _defold_use_xcode_sysroot("iphonesimulator" "${DEFOLD_SDK_IPHONESIMULATOR_SYSROOT}" "iOS Simulator")
             endif()

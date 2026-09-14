@@ -50,13 +50,14 @@ from BuildTimeTracker import BuildTimeTracker
 
 BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'x86_64-macos', 'arm64-macos',
-                    'win32', 'x86_64-win32',
-                    'x86_64-ios', 'arm64-ios',
+                    'x86_64-win32',
+                    'arm64-ios', 'arm64_sim-ios',
                     'armv7-android', 'arm64-android', 'x86_64-android',
                     'wasm-web', 'wasm_pthread-web']
 
 _CMAKE_FEATURE_FLAG_MAP = {
     '--with-asan': 'WITH_ASAN',
+    '--with-hwasan': 'WITH_HWASAN',
     '--with-ubsan': 'WITH_UBSAN',
     '--with-tsan': 'WITH_TSAN',
     '--with-valgrind': 'WITH_VALGRIND',
@@ -182,7 +183,7 @@ PACKAGES_HOST=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
-PACKAGES_IOS_X86_64=[
+PACKAGES_IOS_SIMULATOR=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "glfw-2.7.1",
@@ -263,20 +264,6 @@ PACKAGES_MACOS_ARM64=[
     "strip",
     "strip_android-14.0.6",
     "zipalign"]
-
-PACKAGES_WIN32=[
-    "protobuf-35.1",
-    "luajit-2.1.0-3e223cb",
-    "glut-3.7.6",
-    "vulkan-v1.4.307",
-    "glfw-3.4",
-    "box2d-3.1.0",
-    "box2d_defold-2.2.1",
-    "opus-1.5.2",
-    "harfbuzz-13.2.1",
-    "SheenBidi-2.9.0",
-    "libunibreak-6.1",
-    "SkriBidi-a4a2f5"]
 
 PACKAGES_WIN32_64=[
     "protobuf-35.1",
@@ -411,14 +398,13 @@ PACKAGES_EMSCRIPTEN=[
 PACKAGES_NODE_MODULES=["xhr2-0.1.0"]
 
 PLATFORM_PACKAGES = {
-    'win32':            PACKAGES_WIN32,
     'x86_64-win32':     PACKAGES_WIN32_64,
     'x86_64-linux':     PACKAGES_LINUX_X86_64,
     'arm64-linux':      PACKAGES_LINUX_ARM64,
     'x86_64-macos':     PACKAGES_MACOS_X86_64,
     'arm64-macos':      PACKAGES_MACOS_ARM64,
     'arm64-ios':        PACKAGES_IOS_64,
-    'x86_64-ios':       PACKAGES_IOS_X86_64,
+    'arm64_sim-ios':    PACKAGES_IOS_SIMULATOR,
     'armv7-android':    PACKAGES_ANDROID,
     'arm64-android':    PACKAGES_ANDROID_64,
     'x86_64-android':   PACKAGES_ANDROID_X86_64,
@@ -508,7 +494,7 @@ def get_host_platform():
 def format_exes(name, platform):
     prefix = ''
     suffix = ['']
-    if platform in ['win32', 'x86_64-win32', 'x86_64-xbone']:
+    if platform in ['x86_64-win32', 'x86_64-xbone']:
         suffix = ['.exe']
     elif 'android' in platform:
         prefix = 'lib'
@@ -596,6 +582,7 @@ class Configuration(object):
                  defold_home = None,
                  dynamo_home = None,
                  target_platform = None,
+                 sdk_platforms = None,
                  skip_tests = False,
                  test_device = None,
                  ios_identity = None,
@@ -650,6 +637,7 @@ class Configuration(object):
         self.defold_root = os.getcwd()
         self.host = get_host_platform()
         self.target_platform = target_platform
+        self.sdk_platforms = sdk_platforms
         self.sdk_info = None
 
         self.build_utility = BuildUtility.BuildUtility(self.target_platform, self.host, self.dynamo_home)
@@ -1324,8 +1312,7 @@ class Configuration(object):
             self.fatal("Ninja not found in PATH")
         self._log(f"Found Ninja: {ninja}")
 
-        cmake_target_platform = self._cmake_target_platform(target_platform)
-        args = ["cmake", f"-DTARGET_PLATFORM={cmake_target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
+        args = ["cmake", f"-DTARGET_PLATFORM={self.target_platform}", "-P", join(self.defold_root, "scripts/cmake/check_install.cmake")]
         if self.verbose:
             args.insert(1, '-DDEFOLD_VERBOSE=ON')
 
@@ -1356,12 +1343,12 @@ class Configuration(object):
         if sdk.get_host_platform() != target_platform:
             has_host_sdk = self.has_sdk(sdkfolder, sdk.get_host_platform())
 
-        if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+        if target_platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'arm64_sim-ios'):
             # macOS SDK
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_MACOS_SDK), join(sdkfolder, sdk.PACKAGES_MACOS_SDK))
             download_sdk(self,'%s/%s.darwin.tar.gz' % (self.package_path, sdk.PACKAGES_XCODE_TOOLCHAIN), sdkfolder, force_extract=True)
 
-        if target_platform in ('arm64-ios', 'x86_64-ios'):
+        if target_platform in ('arm64-ios', 'arm64_sim-ios'):
             # iOS SDK
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SDK))
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_IOS_SIMULATOR_SDK), join(sdkfolder, sdk.PACKAGES_IOS_SIMULATOR_SDK))
@@ -1598,26 +1585,14 @@ class Configuration(object):
                     return False
                 return True
 
-            def _sdk_lib_path_mapper(path):
-                # We currently still use the old "win32" folder for our x86 files
-                if path.startswith('lib/x86-win32/'):
-                    path = 'lib/win32/' + path[len('lib/x86-win32/'):]
-                elif path.startswith('ext/lib/x86-win32/'):
-                    path = 'ext/lib/win32/' + path[len('ext/lib/x86-win32/'):]
-                return path
-
             # Dynamo libs
             libdirs = [os.path.join(self.dynamo_home, 'lib/%s' % platform)]
-            if platform == 'win32':
-                libdirs.append(os.path.join(self.dynamo_home, 'lib/x86-win32'))
             paths = _findlibs(libdirs)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, _sdk_lib_path_filter, _sdk_lib_path_mapper)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, path_filter=_sdk_lib_path_filter)
             # External libs
             libdirs = [os.path.join(self.dynamo_home, 'ext/lib/%s' % platform)]
-            if platform == 'win32':
-                libdirs.append(os.path.join(self.dynamo_home, 'ext/lib/x86-win32'))
             paths = _findlibs(libdirs)
-            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, _sdk_lib_path_filter, _sdk_lib_path_mapper)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, path_filter=_sdk_lib_path_filter)
 
             if platform in ['armv7-android', 'arm64-android', 'x86_64-android']:
                 # Android Jars (Dynamo)
@@ -1632,17 +1607,15 @@ class Configuration(object):
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # Win32 resource files
-            if platform in ['win32', 'x86_64-win32']:
+            if platform == 'x86_64-win32':
                 resource_dirs = [os.path.join(self.dynamo_home, 'lib/%s' % platform)]
-                if platform == 'win32':
-                    resource_dirs.append(os.path.join(self.dynamo_home, 'lib/x86-win32'))
                 paths = []
                 for resource_dir in resource_dirs:
                     paths.extend([
                         os.path.join(resource_dir, 'defold.ico'),
                         os.path.join(resource_dir, 'engine.rc')
                     ])
-                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder, path_mapper=_sdk_lib_path_mapper)
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
             # the port scripts contain the necessary files, only need to include them once
             if platform in ['wasm-web']:
@@ -1811,7 +1784,7 @@ class Configuration(object):
 
     def _strip_engine(self, path):
         """ Strips the debug symbols from an executable """
-        if self.target_platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','x86_64-ios','armv7-android','arm64-android','x86_64-android']:
+        if self.target_platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','arm64_sim-ios','armv7-android','arm64-android','x86_64-android']:
             return False
 
         sdkfolder = join(self.ext, 'SDKs')
@@ -1829,13 +1802,8 @@ class Configuration(object):
         dynamo_home = self.dynamo_home
         self.full_archive_path = full_archive_path
 
-        artifact_platform = self._engine_artifact_platform(self.target_platform)
-        if artifact_platform == self.target_platform:
-            bin_dir = self.build_utility.get_binary_path()
-            lib_dir = self.build_utility.get_library_path()
-        else:
-            bin_dir = join(dynamo_home, 'bin', artifact_platform)
-            lib_dir = join(dynamo_home, 'lib', artifact_platform)
+        bin_dir = self.build_utility.get_binary_path()
+        lib_dir = self.build_utility.get_library_path()
 
         # upload editor 2.0 launcher
         if self.target_platform in ['x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
@@ -1871,7 +1839,7 @@ class Configuration(object):
                 shutil.copy2(engine, engine_stripped)
                 if self._strip_engine(engine_stripped):
                     self.upload_to_archive(engine_stripped, '%s/stripped/%s' % (full_archive_path, engine_name))
-                if self.target_platform in ['win32', 'x86_64-win32', 'x86_64-xbone']:
+                if self.target_platform in ['x86_64-win32', 'x86_64-xbone']:
                     pdb = join(bin_dir, os.path.splitext(engine_name)[0] + '.pdb')
                     self.upload_to_archive(pdb, '%s/%s' % (full_archive_path, os.path.basename(pdb)))
                 if 'web' in self.target_platform:
@@ -1931,7 +1899,7 @@ class Configuration(object):
     def _can_run_tests(self):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
-        supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
+        supported_tests['x86_64-win32'] = ['x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
         supported_tests['x86_64-linux'] = []
         supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'wasm_pthread-web']
         supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'wasm_pthread-web']
@@ -2010,7 +1978,7 @@ class Configuration(object):
                                  'arm64-macos': ['arm64-macos'],
                                  'x86_64-linux': [],
                                  'arm64-linux': [],
-                                 'x86_64-win32': ['win32']}
+                                 'x86_64-win32': []}
 
         platforms = list(platform_dependencies.get(self.host, [self.host]))
 
@@ -2122,20 +2090,8 @@ class Configuration(object):
             defines.append(f"-D{option}:STRING={';'.join(features)}")
         return defines
 
-    def _cmake_target_platform(self, platform):
-        if platform == 'win32':
-            return 'x86-win32'
-        return platform
-
     def _platform_build_home(self, platform):
         return self.defold_root
-
-    def _engine_artifact_platform(self, platform):
-        # Waf still writes 32-bit Windows artifacts to win32; CMake uses the
-        # explicit arch tuple x86-win32 while archive/package names stay win32.
-        if self._build_engine_with_waf():
-            return platform
-        return self._cmake_target_platform(platform)
 
     def _cmake_top_build_dir(self, platform):
         build_home = self._platform_build_home(platform)
@@ -2430,7 +2386,6 @@ class Configuration(object):
         self._remove_tree(join(build_home, 'share', 'extender', 'build', platform))
 
     def _build_engine_libs_cmake(self, name, lib_set, platform, skip_tests = False, reuse_builddir = False, allow_compatible_configure = False, use_existing_bob_light = False):
-        platform = self._cmake_target_platform(platform)
         build_home = self._platform_build_home(platform)
         builddir = self._cmake_top_build_dir(platform)
 
@@ -2732,7 +2687,7 @@ class Configuration(object):
     def build_ext(self):
         self.check_sdk()
 
-        platform = self._cmake_target_platform(self.target_platform)
+        platform = self.target_platform
         source_dir = join(self.defold_root, 'external')
         build_dir = join(source_dir, 'build', platform)
         build_type = self._find_cmake_build_type(self.waf_options)
@@ -2789,7 +2744,6 @@ class Configuration(object):
             self._build_external_lib_cmake(lib, self.target_platform)
 
     def _build_external_lib_cmake(self, lib, platform):
-        cmake_platform = 'x86-win32' if platform == 'win32' else platform
         version = EXTERNAL_PACKAGE_VERSIONS[lib]
         product_name = EXTERNAL_PACKAGE_NAMES.get(lib, lib)
         default_package_name = '%s-%s' % (product_name, version)
@@ -2817,7 +2771,7 @@ class Configuration(object):
             '-B', build_dir,
             '-GNinja',
             '-DCMAKE_BUILD_TYPE=%s' % build_type,
-            '-DTARGET_PLATFORM=%s' % cmake_platform,
+            '-DTARGET_PLATFORM=%s' % platform,
             '-DDEFOLD_EXTERNAL_PLATFORM=%s' % platform,
             '-DDEFOLD_SDK_ROOT=%s' % self.dynamo_home,
             '-DDEFOLD_EXTERNAL_INSTALL_PREFIX=%s' % install_dir,
@@ -2887,8 +2841,7 @@ class Configuration(object):
             txts = missing.setdefault(plf, txts)
             txts = txts.append(txt)
 
-        for plf in [['win32', 'x86_64-win32'],
-                    ['x86_64-win32', 'x86_64-win32'],
+        for plf in [['x86_64-win32', 'x86_64-win32'],
                     ['x86_64-linux', 'x86_64-linux'],
                     ['arm64-linux', 'arm64-linux'],
                     ['x86_64-macos', 'x86_64-macos'],
@@ -2909,7 +2862,6 @@ class Configuration(object):
                     self._copy(src, join(tgt_dir, luajit_exe))
 
         # Any shared libraries that we depend on
-        win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in [] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
         macos_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in [] for plf in [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']]])
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']]])
         js_files = {}
@@ -2932,7 +2884,6 @@ class Configuration(object):
                 name = format_lib('%s_shared' % lib, plf)
                 desktop_native_files['lib/%s/%s' % (plf, name)] = 'lib/%s/%s' % (plf, name)
 
-        win32_engine_platform = self._engine_artifact_platform('win32')
         # This dict is being built up and will eventually be used for copying in the end
         # - "type" - what the files are needed for, for error reporting
         #   - pairs of src-file -> dst-file
@@ -2948,7 +2899,7 @@ class Configuration(object):
                                  'lib/%s/%s' % (self.host, shaderc_name): 'lib/%s/%s' % (self.host, shaderc_name)},
                      'desktop-natives': desktop_native_files,
                      'android-bundling': android_files,
-                     'win32-bundling': win32_files,
+                     'win32-bundling': {},
                      'web-bundling': js_files,
                      'ios-bundling': {},
                      'osx-bundling': macos_files,
@@ -2956,9 +2907,9 @@ class Configuration(object):
                      'switch-bundling': switch_files}
         # Add dmengine to 'artefacts' procedurally
         for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android'], ['x86_64-android', 'x86_64-android']],
-                           'win32-bundling': [[win32_engine_platform, 'x86-win32'], ['x86_64-win32', 'x86_64-win32']],
+                           'win32-bundling': [['x86_64-win32', 'x86_64-win32']],
                            'web-bundling': [['wasm-web', 'wasm-web'], ['wasm_pthread-web', 'wasm_pthread-web']],
-                           'ios-bundling': [['arm64-ios', 'arm64-ios'], ['x86_64-ios', 'x86_64-ios']],
+                           'ios-bundling': [['arm64-ios', 'arm64-ios'], ['arm64_sim-ios', 'arm64_sim-ios']],
                            'osx-bundling': [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']],
                            'linux-bundling': [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']],
                            'switch-bundling': [['arm64-nx64', 'arm64-nx64']]}.items():
@@ -3058,15 +3009,18 @@ class Configuration(object):
         root = urlparse(self.get_archive_path()).path[1:]
         base_prefix = os.path.join(root, sha1)
 
-        # When a public checkout has a private platform added, only merge the
-        # requested private platform SDK. Public releases still merge all SDKs.
-        private_platforms = build_private.get_target_platforms()
-        if build_private.is_repo_private():
-            platforms = private_platforms
-        elif self.target_platform in private_platforms:
-            platforms = [self.target_platform]
+        if self.sdk_platforms:
+            platforms = self.sdk_platforms
         else:
-            platforms = get_target_platforms()
+            # When a public checkout has a private platform added, only merge the
+            # requested private platform SDK. Public releases still merge all SDKs.
+            private_platforms = build_private.get_target_platforms()
+            if build_private.is_repo_private():
+                platforms = private_platforms
+            elif self.target_platform in private_platforms:
+                platforms = [self.target_platform]
+            else:
+                platforms = get_target_platforms()
         print("Building combined SDK from platform SDK archives:", platforms)
 
         zipmerge_path = shutil.which('zipmerge')
@@ -3113,7 +3067,7 @@ class Configuration(object):
 
         print("Upload platform sdks mappings")
         platform_sdks_path = join(tempdir, 'platform.sdks.json')
-        write_merged_platform_sdks(self.defold_root, self.target_platform, platform_sdks_path)
+        write_merged_platform_sdks(self.defold_root, platforms, platform_sdks_path)
         self.upload_to_archive(platform_sdks_path, '%s/platform.sdks.json' % sdkurl)
 
         self.wait_uploads()
@@ -3124,7 +3078,7 @@ class Configuration(object):
         self._log('Building API docs')
         docs_dir = join(self.defold_root, 'engine/docs')
         builddir = join(docs_dir, 'build')
-        platform = self._cmake_target_platform(self.target_platform)
+        platform = self.target_platform
         build_type = self._find_cmake_build_type(self.waf_options)
         docs_run_tests = 'OFF' if self.skip_tests or self.target_platform != self.host else 'ON'
         is_verbose = self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
@@ -3675,10 +3629,14 @@ class Configuration(object):
         # * Editor files
         # * Defold SDK files
         # * launcher files, used to launch editor2
-        # * rarely used platforms: armv7-android and x86-win32
+        # * rarely used platforms: armv7-android, wasm_pthread-web,
+        #   x86_64-android and arm64_sim-ios
+        # * arm64-linux vanilla engines (keep native compiler libraries)
         # * headless builds
         pattern = re.compile(
-            r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$|/(armv7-android|x86-win32)(/|$)|headless'
+            r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$'
+            r'|/(armv7-android|wasm_pthread-web|x86_64-android|arm64_sim-ios)(/|$)|headless'
+            r'|/arm64-linux/(stripped/)?(lib)?dmengine[^/]*$'
         )
         prefix = s3.get_archive_prefix(self.get_archive_path(), self._git_sha1())
         for obj_summary in bucket.objects.filter(Prefix=prefix):
@@ -3899,10 +3857,9 @@ class Configuration(object):
 
         if u.scheme == 's3':
             bucket = s3.get_bucket(u.netloc)
-            # create redirect so that the old s3 paths still work
-            # s3://d.defold.com/archive/channel/sha1/engine/* -> http://d.defold.com/archive/sha1/engine/*
+            # Keep legacy archive paths working without redirecting HTTPS downloads to HTTP.
             redirect_key = self.get_archive_redirect_key(url)
-            redirect_url = url.replace("s3://", "http://")
+            redirect_url = url.replace("s3://", "https://")
 
             if not self.thread_pool:
                 self.thread_pool = ThreadPool(8)
@@ -4119,6 +4076,10 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       default = None,
                       help = 'Target platform. Defaults to the host platform. With add_private_repo, this may be a new private platform to write to .defold-platforms')
 
+    parser.add_option('--platforms', dest='sdk_platforms',
+                      default = None,
+                      help = 'Comma-separated target platforms to include with build_sdk')
+
     parser.add_option('--skip-tests', dest='skip_tests',
                       action = 'store_true',
                       default = False,
@@ -4312,6 +4273,19 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
     if options.target_platform and options.target_platform not in known_platforms and not is_add_private_repo:
         parser.error("option --platform: invalid choice: %r (choose from %s)" % (options.target_platform, ', '.join(known_platforms)))
 
+    sdk_platforms = None
+    if options.sdk_platforms is not None:
+        if 'build_sdk' not in args:
+            parser.error("option --platforms may only be used with build_sdk")
+        sdk_platforms = [platform.strip() for platform in options.sdk_platforms.split(',') if platform.strip()]
+        if not sdk_platforms:
+            parser.error("option --platforms requires at least one platform")
+        unknown_platforms = [platform for platform in sdk_platforms if platform not in known_platforms]
+        if unknown_platforms:
+            parser.error("option --platforms: invalid choice: %r (choose from %s)" % (', '.join(unknown_platforms), ', '.join(known_platforms)))
+        if len(sdk_platforms) != len(set(sdk_platforms)):
+            parser.error("option --platforms contains duplicate platforms")
+
     private_platform = None
     if is_add_private_repo:
         private_platform = options.target_platform or get_host_platform()
@@ -4329,6 +4303,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
 
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
+                      sdk_platforms = sdk_platforms,
                       skip_tests = options.skip_tests,
                       test_device = options.test_device,
                       ios_identity = options.ios_identity,

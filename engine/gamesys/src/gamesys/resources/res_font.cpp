@@ -39,9 +39,6 @@ namespace dmGameSystem
     const static dmhash_t EXT_HASH_TTF = dmHashString64("ttf");
     const static dmhash_t EXT_HASH_OTF = dmHashString64("otf");
     const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
-    const static dmhash_t STYLE_LINK = dmHashString64("link");
-    const static dmhash_t STYLE_LINK_HOVER = dmHashString64("link:hover");
-    const static dmhash_t STYLE_LINK_ACTIVE = dmHashString64("link:active");
     const static dmhash_t SAMPLER_HASH_CURVE_TEXTURE = dmHashString64("curve_texture");
     const static dmhash_t SAMPLER_HASH_CURVE_TEXTURE_PACKED = dmHashString64("curve_texture_packed");
     const static char* SDF_MATERIAL = "/builtins/fonts/font-df.materialc";
@@ -56,28 +53,73 @@ namespace dmGameSystem
         uint8_t m_Compression; // FontGlyphCompression
     };
 
-    static TextRenderStyle MakeColorStyle(float r, float g, float b, float a)
+    static bool RegisterFontStyles(HFontCollection collection, const dmRenderDDF::FontMap* ddf)
     {
-        TextRenderStyle style = {};
-        style.m_FaceColor[0] = r;
-        style.m_FaceColor[1] = g;
-        style.m_FaceColor[2] = b;
-        style.m_FaceColor[3] = a;
-        style.m_Flags = TEXT_RENDER_STYLE_FACE_COLOR;
-
-        return style;
-    }
-
-    static void SetDefaultNamedStyles(HFontCollection collection)
-    {
-        FontCollectionSetNamedStyle(collection, STYLE_LINK, MakeColorStyle(0.10f, 0.45f, 0.90f, 1.0f));
-        FontCollectionSetNamedStyle(collection, STYLE_LINK_HOVER, MakeColorStyle(0.30f, 0.65f, 1.00f, 1.0f));
-        FontCollectionSetNamedStyle(collection, STYLE_LINK_ACTIVE, MakeColorStyle(0.05f, 0.30f, 0.70f, 1.0f));
-
-        TextNamedStyleDecoration link_decoration = {};
-        link_decoration.m_Flags = TEXT_RESOLVED_DECORATION_UNDERLINE;
-        link_decoration.m_UnderlinePattern = TEXT_DECORATION_PATTERN_SOLID;
-        FontCollectionSetNamedStyleDecoration(collection, STYLE_LINK, link_decoration);
+        for (uint32_t i = 0; i < ddf->m_Styles.m_Count; ++i)
+        {
+            const dmRenderDDF::CompiledStyle& source = ddf->m_Styles[i];
+            if (!source.m_Name[0] || source.m_NameHash != dmHashString64(source.m_Name) ||
+                FontCollectionGetNamedStyle(collection, source.m_NameHash) ||
+                source.m_FaceColor.m_Count != 4 || source.m_OutlineColor.m_Count != 4 || source.m_ShadowColor.m_Count != 4 ||
+                (source.m_Flags & ~1023u) || (source.m_Flags & TEXT_RENDER_STYLE_FONT_SIZE) || source.m_Effects.m_Count > UINT16_MAX)
+                return false;
+            TextRenderStyle style = {};
+            memcpy(style.m_FaceColor, source.m_FaceColor.m_Data, sizeof(style.m_FaceColor));
+            memcpy(style.m_OutlineColor, source.m_OutlineColor.m_Data, sizeof(style.m_OutlineColor));
+            memcpy(style.m_ShadowColor, source.m_ShadowColor.m_Data, sizeof(style.m_ShadowColor));
+            style.m_Flags = source.m_Flags;
+            style.m_OutlineWidth = source.m_OutlineWidth;
+            style.m_ShadowX = source.m_ShadowX;
+            style.m_ShadowY = source.m_ShadowY;
+            style.m_ShadowBlur = source.m_ShadowBlur;
+            style.m_OutlineAlpha = source.m_OutlineAlpha;
+            style.m_ShadowAlpha = source.m_ShadowAlpha;
+            TextNamedStyleDecoration decoration = {};
+            decoration.m_Flags = source.m_DecorationFlags;
+            decoration.m_UnderlinePattern = source.m_UnderlinePattern;
+            decoration.m_StrikePattern = source.m_StrikePattern;
+            dmArray<TextEffect> effects;
+            effects.SetCapacity(source.m_Effects.m_Count);
+            for (uint32_t j = 0; j < source.m_Effects.m_Count; ++j)
+            {
+                const dmRenderDDF::StyleEffect& input = source.m_Effects[j];
+                TextEffect                      effect = {};
+                effect.m_Type = (uint16_t)input.m_Type;
+                if (input.m_Fit > TEXT_EFFECT_FIT_TEXT)
+                    return false;
+                if (effect.m_Type == TEXT_EFFECT_GRADIENT)
+                {
+                    if (input.m_Colors.m_Count != 16 || input.m_GradientMode > TEXT_GRADIENT_MODE_QUAD)
+                        return false;
+                    memcpy(effect.m_Gradient.m_BottomLeft, input.m_Colors.m_Data, 16 * sizeof(float));
+                    effect.m_Flags = TEXT_EFFECT_AFFECTS_COLOR;
+                    effect.m_Gradient.m_Hz = input.m_Hz;
+                    effect.m_Gradient.m_Fit = input.m_Fit;
+                    effect.m_Gradient.m_Mode = input.m_GradientMode;
+                }
+                else if (effect.m_Type == TEXT_EFFECT_WAVE)
+                {
+                    effect.m_Flags = TEXT_EFFECT_AFFECTS_POSITION;
+                    effect.m_Wave.m_Amplitude = input.m_Amplitude;
+                    effect.m_Wave.m_Hz = input.m_Hz;
+                    effect.m_Wave.m_Wavelength = input.m_Wavelength;
+                    effect.m_Wave.m_Fit = input.m_Fit;
+                }
+                else if (effect.m_Type == TEXT_EFFECT_SHAKE)
+                {
+                    effect.m_Flags = TEXT_EFFECT_AFFECTS_POSITION;
+                    effect.m_Shake.m_Amplitude = input.m_Amplitude;
+                    effect.m_Shake.m_Hz = input.m_Hz;
+                    effect.m_Shake.m_Fit = input.m_Fit;
+                }
+                else
+                    return false;
+                effects.Push(effect);
+            }
+            FontCollectionSetNamedStyle(collection, source.m_NameHash, style, effects.Begin(), effects.Size());
+            FontCollectionSetNamedStyleDecoration(collection, source.m_NameHash, decoration);
+        }
+        return true;
     }
 
     template<typename T>
@@ -503,9 +545,9 @@ namespace dmGameSystem
         return (base_edge - (pixel_dist_scale * width)) / 255.0f;;
     }
 
-    static void SetupParamsBase(dmRenderDDF::FontMap* ddf, const char* filename, dmRender::FontMapParams* params)
+    static void SetupParamsBase(dmRenderDDF::FontMap* ddf, dmhash_t name_hash, dmRender::FontMapParams* params)
     {
-        params->m_NameHash           = dmHashString64(filename);
+        params->m_NameHash           = name_hash;
         params->m_ShadowX            = ddf->m_ShadowX;
         params->m_ShadowY            = ddf->m_ShadowY;
         params->m_ShadowBlur         = ddf->m_ShadowBlur;
@@ -756,7 +798,7 @@ namespace dmGameSystem
             return dmResource::RESULT_INVALID_DATA;
         }
         dmRender::FontMapParams params;
-        SetupParamsBase(ddf, path, &params);
+        SetupParamsBase(ddf, resource->m_PathHash, &params);
         params.m_ShadowSdf = resource->m_SdfMaterialResource ? 1 : 0;
         params.m_VectorBitmapEffects = ddf->m_VectorBitmapEffects;
 
@@ -781,7 +823,12 @@ namespace dmGameSystem
         }
 
         HFontCollection font_collection = FontCollectionCreate();
-        SetDefaultNamedStyles(font_collection);
+        if (!RegisterFontStyles(font_collection, ddf))
+        {
+            dmLogError("Invalid style table in font '%s'", path);
+            FontCollectionDestroy(font_collection);
+            return dmResource::RESULT_INVALID_DATA;
+        }
         FontCollectionAddFont(font_collection, hfont);
 
         params.m_FontCollection = font_collection;
@@ -897,6 +944,7 @@ namespace dmGameSystem
             SetupDynamicFontState(params->m_Factory, font);
         }
 
+        font->m_PathHash = ResourceDescriptorGetNameHash(params->m_Resource);
         r = CreateFont(context, ddf, path, font);
         if (r != dmResource::RESULT_OK)
         {
@@ -905,7 +953,6 @@ namespace dmGameSystem
             return r;
         }
 
-        font->m_PathHash = ResourceDescriptorGetNameHash(params->m_Resource);
         dmResource::SetResource(params->m_Resource, font);
         dmResource::SetResourceSize(params->m_Resource, GetResourceSize(font));
         return r;
@@ -945,17 +992,19 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-
+        // resource.set() provides a hash and buffer without a filename.
+        const dmhash_t path_hash = ResourceDescriptorGetNameHash(params->m_Resource);
+        const char* path = params->m_Filename ? params->m_Filename : dmHashReverseSafe64(path_hash);
         if (IsDynamic(ddf) && !FontGenIsSupported())
         {
-            dmLogError("Dynamic font '%s' cannot be reloaded because this custom engine was built without font_gen", params->m_Filename);
+            dmLogError("Dynamic font '%s' cannot be reloaded because this custom engine was built without font_gen", path);
             dmDDF::FreeMessage(ddf);
             return dmResource::RESULT_NOT_SUPPORTED;
         }
 
-        const char* path = params->m_Filename;
         FontResource* tmp_font_map = new FontResource;
         tmp_font_map->m_Factory = params->m_Factory;
+        tmp_font_map->m_PathHash = path_hash;
         FontResourceContext* context = (FontResourceContext*) params->m_Context;
 
         dmResource::Result r = AcquireResources(context, params->m_Factory, ddf, tmp_font_map, path);

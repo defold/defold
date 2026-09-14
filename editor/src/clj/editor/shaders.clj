@@ -46,6 +46,20 @@
     "shaders/basic-color.vp"
     "shaders/basic-color.fp"))
 
+(def basic-color-straight-alpha-local-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_world_view_proj" :world-view-proj}}
+    "shaders/basic-color-straight-alpha.vp"
+    "shaders/basic-color.fp"))
+
+(def basic-color-straight-alpha-world-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_world_view_proj" :view-proj}}
+    "shaders/basic-color-straight-alpha.vp"
+    "shaders/basic-color.fp"))
+
 (def basic-texture-local-space
   (editor-shader
     {:coordinate-space :coordinate-space-local
@@ -105,6 +119,26 @@
      :uniforms {"mtx_world_view_proj" :view-proj}}
     "shaders/basic-texture-paged-color.vp"
     "shaders/basic-texture-paged-color.fp"))
+
+(def infinity-grid-local-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-local
+     :uniforms {"mtx_world_view_proj" :world-view-proj
+                "mtx_world_view" :world-view
+                "fog_color" :fog-color
+                "fog_parameters" :fog-parameters}}
+    "shaders/infinity-grid.vp"
+    "shaders/infinity-grid.fp"))
+
+(def infinity-grid-world-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_world_view_proj" :view-proj
+                "mtx_world_view" :view
+                "fog_color" :fog-color
+                "fog_parameters" :fog-parameters}}
+    "shaders/infinity-grid.vp"
+    "shaders/infinity-grid.fp"))
 
 (def mesh-preview-local-space
   (editor-shader

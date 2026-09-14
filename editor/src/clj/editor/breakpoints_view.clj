@@ -454,13 +454,13 @@
 
   (output breakpoints-anchor-pane AnchorPane :cached produce-breakpoints-anchor-pane))
 
-(defn make-breakpoints-view [workspace project open-resource-fn view-graph prefs ^Node parent]
+(defn make-breakpoints-view [workspace project open-resource-fn graph prefs ^Node parent]
   (first
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
         (let [open-res-fn (make-open-resource-fn open-resource-fn)]
-          (g/make-nodes view-graph [view [BreakpointsView :parent-view parent :prefs prefs :open-resource-fn open-res-fn]]
+          (g/make-nodes graph [view [BreakpointsView :parent-view parent :prefs prefs :open-resource-fn open-res-fn]]
             (g/connect workspace :_node-id view :workspace)
             (g/connect workspace :localization view :localization)
             (g/connect project :breakpoints view :breakpoints)
@@ -498,7 +498,7 @@
         open-resource (partial #'editor.app-view/open-resource!
                                (dev/app-view) (dev/prefs) (dev/localization) (dev/project))
         bp-view (make-breakpoints-view (dev/workspace) (dev/project) open-resource
-                                       editor.boot-open-project/*view-graph*
+                                       editor.boot-open-project/*project-graph*
                                        (dev/prefs) bp-container)
         auto-pulls [[bp-view :breakpoints-anchor-pane]]]
     (g/transact (concat (g/update-property (dev/app-view) :auto-pulls into auto-pulls))))

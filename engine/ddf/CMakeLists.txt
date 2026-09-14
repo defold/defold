@@ -127,7 +127,7 @@ set(DDF_PROTO_PY)
 set(DDF_PROTO_PY_INIT "${DDF_PROTO_PY_DIR}/__init__.py")
 
 set(DDF_PROTOBUF_INTEROP_TESTS OFF)
-if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|win32|x86_64-win32)$")
+if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")
   set(DDF_PROTOBUF_INTEROP_TESTS ON)
 endif()
 

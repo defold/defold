@@ -32,6 +32,8 @@ enum TextRenderStyleFlags
     TEXT_RENDER_STYLE_SHADOW_X      = 1 << 5,
     TEXT_RENDER_STYLE_SHADOW_Y      = 1 << 6,
     TEXT_RENDER_STYLE_SHADOW_BLUR   = 1 << 7,
+    TEXT_RENDER_STYLE_OUTLINE_ALPHA = 1 << 8,
+    TEXT_RENDER_STYLE_SHADOW_ALPHA  = 1 << 9,
 };
 
 struct TextRenderStyle
@@ -44,6 +46,8 @@ struct TextRenderStyle
     float    m_ShadowX;
     float    m_ShadowY;
     float    m_ShadowBlur;
+    float    m_OutlineAlpha;
+    float    m_ShadowAlpha;
     uint32_t m_Flags;
 };
 
@@ -122,8 +126,10 @@ struct TextResolvedSpan
     uint16_t m_EffectIndex;
     uint16_t m_EffectCount;
     uint8_t  m_DecorationFlags;
+    uint8_t  m_InlineDecorationFlags;
     uint8_t  m_UnderlinePattern;
     uint8_t  m_StrikePattern;
+    uint8_t  m_HasObjectStyle;
 };
 
 enum TextResolvedDecorationFlags
@@ -150,6 +156,35 @@ struct TextDecorationGeometry
     float m_Length;
 };
 
+// Retain shaped metrics for decorations that an object style can enable later.
+struct TextDecorationSource
+{
+    TextDecoration m_Decoration;
+    uint8_t        m_Flag;
+};
+
+struct TextLayoutHitTestParams
+{
+    dmhash_t m_Tag; // Zero matches all layout object types.
+    float    m_X;
+    float    m_Y;
+    float    m_Width;
+    float    m_Height;
+    float    m_FontSize;
+    float    m_MonospacePadding;
+    uint32_t m_Align;
+    uint32_t m_VAlign;
+};
+
+struct TextLayoutObjectBounds
+{
+    float    m_MinX;
+    float    m_MinY;
+    float    m_MaxX;
+    float    m_MaxY;
+    uint16_t m_Parent;
+};
+
 struct TextLayout
 {
     FTextLayoutDestroy m_Destroy;
@@ -163,6 +198,7 @@ struct TextLayout
     dmArray<TextEffect>                m_Effects;
     dmArray<uint16_t>                  m_SpanEffects;
     dmArray<TextResolvedSpan>          m_ResolvedSpans;
+    dmArray<TextDecorationSource>      m_DecorationSources;
     dmArray<TextDecoration>            m_Decorations;
     dmArray<TextDecorationGeometry>    m_DecorationGeometry;
     dmArray<uint32_t>                  m_DecorationGeometryOffsets;
@@ -170,8 +206,11 @@ struct TextLayout
     dmArray<TextLayoutObject>          m_Objects;
     dmArray<TextLayoutObjectAttribute> m_ObjectAttributes;
     dmArray<dmhash_t>                  m_ObjectStyleOverrides;
+    dmArray<TextLayoutObjectBounds>    m_ObjectBounds;
+    TextLayoutHitTestParams            m_ObjectBoundsParams;
 
     HFontCollection                    m_FontCollection;
+    dmhash_t                           m_BaseStyleName;
 
     uint32_t                           m_NamedStyleRevision;
     uint16_t                           m_BaseStyleCount;
@@ -215,11 +254,14 @@ TextResult TextLayoutCreateMarkup(HFontCollection collection, HMarkup markup, Te
 // Resolves generic markup nodes into renderer-facing styles, effects, and objects.
 bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, ResolvedMarkup* resolved);
 
+struct TextNamedStyleDecoration;
 // Compiles an opening-tag fragment into one named style and its effects.
-bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_length, TextRenderStyle* style, dmArray<TextEffect>* effects, MarkupError* error);
+// A decoration output enables underline and strikethrough; null rejects them.
+bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_length, TextRenderStyle* style, dmArray<TextEffect>* effects, TextNamedStyleDecoration* decoration, MarkupError* error);
 
 // Transfers resolved markup storage and object callbacks into a layout.
-void TextLayoutAdoptResolvedMarkup(HTextLayout layout, ResolvedMarkup* resolved, TextLayoutSettings* settings);
+// A null resolved pointer initializes a single span for plain styled text.
+void TextLayoutAdoptResolvedMarkup(HTextLayout layout, ResolvedMarkup* resolved, TextLayoutSettings* settings, uint32_t text_length);
 
 // Precomputes physically ordered, gap-free per-glyph decoration geometry.
 void TextLayoutInitializeDecorationGeometry(HTextLayout layout);
@@ -261,21 +303,10 @@ struct TextGlyphRenderData
     uint32_t            m_StyleFlags;
 };
 
-struct TextLayoutHitTestParams
-{
-    dmhash_t m_Tag; // Zero matches all layout object types.
-    float    m_X;
-    float    m_Y;
-    float    m_Width;
-    float    m_Height;
-    float    m_FontSize;
-    float    m_MonospacePadding;
-    uint32_t m_Align;
-    uint32_t m_VAlign;
-};
-
 // Returns the index of the tagged layout object under the local text-render
-// position, or UINT32_MAX when no object was hit.
+// position, or UINT32_MAX when no object was hit. Each object uses one AABB
+// spanning all its glyphs and lines, including nested objects. Bounds follow
+// layout positions, unaffected by animated styles. Nested/later objects win.
 uint32_t TextLayoutHitTestObject(HTextLayout layout, const TextLayoutHitTestParams& params);
 
 // Resolves the final four-corner face colors for a glyph.

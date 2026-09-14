@@ -90,7 +90,7 @@ namespace dmGameSystem
 
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
         dmPhysics::HHullSet2D hull_set = (dmPhysics::HHullSet2D)texture_set->m_HullSet;
-        if (hull_set != 0x0)
+        if (context != 0x0 && hull_set != 0x0)
         {
             // Calculate AABB for offset
             dmVMath::Point3 offset(0.0f, 0.0f, 0.0f);

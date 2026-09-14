@@ -257,13 +257,11 @@
             (g/connect s3 :constant combiner :renderables)))
         (is (= "source-1source-2source-3" (g/node-value combiner :transform-renderables)))))))
 
-(deftest invalidation-across-graphs
+(deftest invalidation
   (ts/with-clean-system
-    (let [project-graph (g/make-graph!)
-          view-graph    (g/make-graph! :volatility 100)
-          [content-node aux-node] (ts/tx-nodes (g/make-node project-graph CacheTestNode :scalar "Snake")
-                                               (g/make-node project-graph CacheTestNode :scalar "Plissken"))
-          [view-node]    (ts/tx-nodes (g/make-node view-graph CacheTestNode))]
+    (let [[content-node aux-node] (ts/tx-nodes (g/make-node world CacheTestNode :scalar "Snake")
+                                               (g/make-node world CacheTestNode :scalar "Plissken"))
+          [view-node]    (ts/tx-nodes (g/make-node world CacheTestNode))]
       (g/transact
         [(g/connect content-node :scalar view-node :first-name)
          (g/connect aux-node     :scalar view-node :last-name)])

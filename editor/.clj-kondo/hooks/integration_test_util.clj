@@ -16,13 +16,22 @@
   (:require [clj-kondo.hooks-api :as api]))
 
 (def implicit-loaded-project-bindings
-  '#{app-view cache project world workspace})
+  '{app-view 0
+    cache nil
+    project 0
+    world 0
+    workspace 0})
 
 (def implicit-scratch-project-bindings
-  '#{app-view project workspace})
+  '{app-view 0
+    project 0
+    workspace 0})
 
 (def implicit-temp-project-bindings
-  '#{app-view project project-path workspace})
+  '{app-view 0
+    project 0
+    project-path ""
+    workspace 0})
 
 (defn- binding-symbols [form]
   (into #{}
@@ -82,10 +91,10 @@
 (defn implicit-binding-nodes [implicit-symbols body]
   (let [body-symbols (free-symbols-in-nodes body)]
     (into []
-          (mapcat (fn [sym]
+          (mapcat (fn [[sym value]]
                     (when (contains? body-symbols sym)
                       [(api/token-node sym)
-                       (api/token-node nil)])))
+                       (api/token-node value)])))
           implicit-symbols)))
 
 (defn let-node [binding-nodes body]

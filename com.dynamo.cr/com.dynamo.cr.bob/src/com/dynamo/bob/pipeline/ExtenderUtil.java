@@ -19,6 +19,7 @@ import static org.apache.commons.io.FilenameUtils.normalize;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.util.AppManifestMigration;
 import com.dynamo.bob.util.MiscUtil;
 import com.dynamo.bob.util.TimeProfiler;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
@@ -65,7 +66,7 @@ import com.dynamo.bob.util.FileUtil;
 public class ExtenderUtil {
 
     public static final String appManifestPath = "_app/" + ExtenderClient.appManifestFilename;
-    public static final String proguardPath = "_app/app.pro";
+    public static final String r8KeepRulesPath = "_app/app.keep";
     public static final String privacyManifestPath = "_app/PrivacyInfo.xcprivacy";
     public static final String JAR_RE = "(.+\\.jar)";
 
@@ -336,7 +337,7 @@ public class ExtenderUtil {
             }
 
             byte[] prefixBytes = prefix.getBytes(StandardCharsets.UTF_8);
-            byte[] content = addBullet3DAppManifestCompatibility(getResource().getContent());
+            byte[] content = migrateAppManifest(getResource().getContent());
             byte[] c = new byte[prefixBytes.length + content.length];
             System.arraycopy(prefixBytes, 0, c, 0, prefixBytes.length);
             System.arraycopy(content, 0, c, prefixBytes.length, content.length);
@@ -405,9 +406,37 @@ public class ExtenderUtil {
         return modified;
     }
 
-    // Older editor versions disabled Bullet3D without knowing about its script
-    // archive and extension symbol. Complete that exclusion before upload.
-    static byte[] addBullet3DAppManifestCompatibility(byte[] content) {
+    @SuppressWarnings("unchecked")
+    private static boolean migrateWindowsLibraryNames(Object contextValue) {
+        if (!(contextValue instanceof Map<?, ?>)) {
+            return false;
+        }
+
+        Map<String, Object> context = (Map<String, Object>) contextValue;
+        boolean modified = false;
+        for (String key : List.of("excludeLibs", "libs", "engineLibs")) {
+            Object librariesValue = context.get(key);
+            if (!(librariesValue instanceof List<?>)) {
+                continue;
+            }
+
+            List<?> libraries = (List<?>) librariesValue;
+            List<Object> migratedLibraries = new ArrayList<>(libraries.size());
+            for (Object library : libraries) {
+                String migratedLibrary = AppManifestMigration.WINDOWS_LIBRARY_NAMES.get(library);
+                migratedLibraries.add(migratedLibrary == null ? library : migratedLibrary);
+            }
+            if (!libraries.equals(migratedLibraries)) {
+                context.put(key, migratedLibraries);
+                modified = true;
+            }
+        }
+        return modified;
+    }
+
+    // Complete legacy Bullet3D exclusions and update Windows engine library
+    // names before upload, including projects never opened in the editor.
+    private static byte[] migrateAppManifest(byte[] content) {
         Object manifestValue;
         try {
             manifestValue = new Yaml().load(new String(content, StandardCharsets.UTF_8));
@@ -422,9 +451,16 @@ public class ExtenderUtil {
         boolean modified = addBullet3DCompatibilityExclusions(manifest.get("context"));
         Object platformsValue = manifest.get("platforms");
         if (platformsValue instanceof Map<?, ?>) {
-            for (Object platformValue : ((Map<?, ?>) platformsValue).values()) {
+            for (Map.Entry<?, ?> platform : ((Map<?, ?>) platformsValue).entrySet()) {
+                Object platformValue = platform.getValue();
                 if (platformValue instanceof Map<?, ?>) {
-                    modified |= addBullet3DCompatibilityExclusions(((Map<?, ?>) platformValue).get("context"));
+                    Object context = ((Map<?, ?>) platformValue).get("context");
+                    modified |= addBullet3DCompatibilityExclusions(context);
+                    if ("win32".equals(platform.getKey())
+                            || "x86-win32".equals(platform.getKey())
+                            || "x86_64-win32".equals(platform.getKey())) {
+                        modified |= migrateWindowsLibraryNames(context);
+                    }
                 }
             }
         }
@@ -562,6 +598,10 @@ public class ExtenderUtil {
         return false;
     }
 
+    private static boolean isAndroidPlatform(Platform platform) {
+        return "android".equals(platform.getOs());
+    }
+
 
 
     public static List<File> getNativeExtensionEngineBinaries(Project project, Platform platform) throws IOException {
@@ -582,16 +622,14 @@ public class ExtenderUtil {
 
 
     /**
-     * Returns true if the project should build remotely
+     * Returns true if the project contains platform-independent reasons to use Extender.
      * @param project
-     * @return True if it contains native extension code
+     * @return True if it contains native extension code or an app manifest
      */
     public static boolean hasNativeExtensions(Project project) {
         TimeProfiler.start("hasNativeExtensions");
         BobProjectProperties projectProperties = project.getProjectProperties();
-        if (hasPropertyResource(project, projectProperties, "native_extension", "app_manifest") ||
-            hasPropertyResource(project, projectProperties, "android", "proguard") &&
-            !projectProperties.getStringValue("android", "proguard", "").startsWith("/builtins/")) {
+        if (hasPropertyResource(project, projectProperties, "native_extension", "app_manifest")) {
             TimeProfiler.stop();
             return true;
         }
@@ -601,6 +639,17 @@ public class ExtenderUtil {
         boolean hasNativeExtensions = paths.stream().anyMatch(v -> isEngineExtensionManifest(project, v));
         TimeProfiler.stop();
         return hasNativeExtensions;
+    }
+
+    /**
+     * Returns true if this target must be built by Extender. R8 is Android-only,
+     * and a non-empty setting selects Extender even if the resource is missing so
+     * {@link #getProjectResource} can report the invalid path.
+     */
+    public static boolean hasNativeExtensions(Project project, Platform platform) {
+        return hasNativeExtensions(project) ||
+               (isAndroidPlatform(platform) &&
+                !project.getProjectProperties().getStringValue("android", "r8_keep_rules", "").isEmpty());
     }
 
     private static IResource getProjectResource(Project project, String section, String key) throws CompileExceptionError, IOException {
@@ -634,16 +683,17 @@ public class ExtenderUtil {
 
             sources.add( new FSAppManifestResource(resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ));
         }
-        // Find a Proguard file if specified
-        {
-            IResource resource = getProjectResource(project, "android", "proguard");
+        // Find R8 keep rules if specified. The selected resource is the complete
+        // project-level configuration, just like a custom Android manifest.
+        if (isAndroidPlatform(platform)) {
+            IResource resource = getProjectResource(project, "android", "r8_keep_rules");
             if (resource != null) {
-                sources.add(new FSAliasResource(resource, project.getRootDirectory(), proguardPath));
+                sources.add(new FSAliasResource(resource, project.getRootDirectory(), r8KeepRulesPath));
             }
         }
 
         // For iOS and macOS only: Add the project privacy manifest 
-        if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
+        if (platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim) {
             IResource resource = getProjectResource(project, "ios", "privacymanifest");
             if (resource != null) {
                 sources.add(new FSAliasResource(resource, project.getRootDirectory(), privacyManifestPath));

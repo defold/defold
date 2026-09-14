@@ -77,15 +77,13 @@
 (defn pile-of-nodes [where tp n] (tx-nodes (repeatedly (int n) #(g/make-node where tp))))
 (defn connection-targets [how-many from] (partition how-many (repeatedly #(rand-nth from))))
 
-(defn build-fake-graphs!
-  [resource-count view-node-count]
-  (let [project-graph  (g/make-graph! :volatility 1)
-        view-graph     (g/make-graph! :volatility 10)
-        workspace      (first (tx-nodes (g/make-node project-graph FWorkspace)))
-        bottom-layer   (pile-of-nodes project-graph FResource resource-count)
-        middle-layer   (pile-of-nodes project-graph FEditable resource-count)
-        top-layer      (pile-of-nodes project-graph FEditable (bit-shift-right resource-count 2))
-        view-layer     (pile-of-nodes view-graph    FView     view-node-count)]
+(defn build-fake-graph!
+  [graph resource-count view-node-count]
+  (let [workspace      (first (tx-nodes (g/make-node graph FWorkspace)))
+        bottom-layer   (pile-of-nodes graph FResource resource-count)
+        middle-layer   (pile-of-nodes graph FEditable resource-count)
+        top-layer      (pile-of-nodes graph FEditable (bit-shift-right resource-count 2))
+        view-layer     (pile-of-nodes graph FView     view-node-count)]
 
     (g/transact
      [(for [b bottom-layer] (g/connect b :_node-id workspace :children))
@@ -208,7 +206,7 @@
 
 (defn do-transactions-for-tracing [n]
   (with-clean-system
-    (let [[resources views] (build-fake-graphs! 1000 100)
+    (let [[resources views] (build-fake-graph! world 1000 100)
           actions           (map (fn [& a] a)
                                  (repeatedly n #(rand-nth resources))
                                  (repeat n :path)
@@ -220,7 +218,7 @@
 
 (defn do-transactions [n]
   (with-clean-system
-    (let [[resources views] (build-fake-graphs! 1000 100)
+    (let [[resources views] (build-fake-graph! world 1000 100)
           actions           (map (fn [& a] a)
                                  (repeatedly n #(rand-nth resources))
                                  (repeat n :path)

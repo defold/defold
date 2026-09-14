@@ -313,7 +313,6 @@ public class BundleResourcesTest {
         expected.put(Platform.X86_64MacOS, new String[] { "osx.txt", "x86_64-osx.txt" });
         expected.put(Platform.Arm64MacOS, new String[] { "osx.txt", "arm64-osx.txt" });
         expected.put(Platform.X86_64Linux, new String[] { "linux.txt", "x86_64-linux.txt" });
-        expected.put(Platform.X86Win32, new String[] { "win32.txt", "x86-win32.txt" });
         expected.put(Platform.X86_64Win32, new String[] { "win32.txt", "x86_64-win32.txt" });
         expected.put(Platform.Armv7Android, new String[] { "android.txt" });
         expected.put(Platform.Arm64Ios, new String[] { "ios.txt", "arm64-ios.txt" });

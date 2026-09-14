@@ -66,23 +66,28 @@
 
 (def shape-type-ui
   {:type-sphere  {:label "Sphere"
-                  :message (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere")
+                  :message-2d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.circle")
+                  :message-3d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere")
                   :icon  "icons/32/Icons_45-Collistionshape-convex-Sphere.png"
                   :physics-types #{"2D" "3D"}}
    :type-box     {:label "Box"
-                  :message (localization/message "command.edit.add-embedded-component.variant.collision-object.option.box")
+                  :message-2d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.rectangle")
+                  :message-3d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.box")
                   :icon  "icons/32/Icons_44-Collistionshape-convex-Box.png"
                   :physics-types #{"2D" "3D"}}
    :type-capsule {:label "Capsule"
-                  :message (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")
+                  :message-2d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")
+                  :message-3d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")
                   :icon  "icons/32/Icons_46-Collistionshape-convex-Cylinder.png"
                   :physics-types #{"3D"}}
    :type-hull    {:label "Hull"
-                  :message (localization/message "command.edit.add-embedded-component.variant.collision-object.option.hull")
+                  :message-2d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.hull")
+                  :message-3d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.hull")
                   :icon "icons/32/Icons_51-Collision-shape-convex.png"
                   :physics-types #{"3D"}}
    :type-mesh    {:label "Mesh"
-                  :message (localization/message "command.edit.add-embedded-component.variant.collision-object.option.mesh")
+                  :message-2d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.mesh")
+                  :message-3d (localization/message "command.edit.add-embedded-component.variant.collision-object.option.mesh")
                   :icon "icons/32/Icons_27-AT-Mesh.png"
                   :physics-types #{"3D"}}})
 
@@ -106,8 +111,11 @@
   (get-in shape-type-ui [shape-type :label]))
 
 (defn- shape-type-message
-  [shape-type]
-  (get-in shape-type-ui [shape-type :message]))
+  [shape-type physics-type]
+  (let [{:keys [message-2d message-3d]} (shape-type-ui shape-type)]
+    (case physics-type
+      "2D" message-2d
+      "3D" message-3d)))
 
 (defn- shape-type-icon
   [shape-type]
@@ -249,11 +257,11 @@
               {:mesh-scene (resource/resource->proj-path mesh-scene)
                :mesh-set collision-mesh-set})))
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id shape-type id node-outline-key]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id shape-type id node-outline-key project-physics-type]
                                                      {:node-id _node-id
                                                       :node-outline-key node-outline-key
                                                       :label (if (empty? id)
-                                                               (localization/message "outline.unnamed-collision-shape" {"shape" (shape-type-message shape-type)})
+                                                               (localization/message "outline.unnamed-collision-shape" {"shape" (shape-type-message shape-type project-physics-type)})
                                                                id)
                                                       :icon (shape-type-icon shape-type)})))
 
@@ -1020,7 +1028,7 @@
                        (map :shape-type)
                        (distinct)
                        (map #(localization/message "error.collision-object-shape-not-supported-in-physics"
-                                                   {"shape" (shape-type-message %)
+                                                   {"shape" (shape-type-message % project-physics-type)
                                                     "physics" project-physics-type}))
                        (map #(g/->error _node-id :shapes :fatal shapes %)))
                  shapes)
@@ -1222,23 +1230,26 @@
   (handler/adapt-single selection CollisionObjectNode evaluation-context))
 
 (handler/defhandler :edit.add-embedded-component :workbench
-  (label [user-data]
+  (label [selection user-data evaluation-context]
     (if-not user-data
       (localization/message "command.edit.add-embedded-component.variant.collision-object")
-      (shape-type-message (:shape-type user-data))))
+      (shape-type-message (:shape-type user-data)
+                          (g/node-value (selection->collision-object selection evaluation-context)
+                                        :project-physics-type evaluation-context))))
   (active? [selection evaluation-context] (selection->collision-object selection evaluation-context))
   (run [selection user-data app-view]
     (g/let-ec [self (selection->collision-object selection evaluation-context)]
       (add-shape-handler self (:shape-type user-data) (fn [node-ids] (app-view/select app-view node-ids)))))
   (options [selection user-data evaluation-context]
-    (let [self (selection->collision-object selection evaluation-context)]
+    (let [self (selection->collision-object selection evaluation-context)
+          physics-type (g/node-value self :project-physics-type evaluation-context)]
       (when-not user-data
         (->> shape-type-ui
              (reduce-kv
-               (fn [acc shape-type {:keys [icon message physics-types]}]
-                 (if-not (contains? physics-types (g/node-value self :project-physics-type evaluation-context))
+               (fn [acc shape-type {:keys [icon physics-types]}]
+                 (if-not (contains? physics-types physics-type)
                    acc
-                   (conj! acc {:label message
+                   (conj! acc {:label (shape-type-message shape-type physics-type)
                                :icon icon
                                :command :edit.add-embedded-component
                                :user-data {:_node-id self :shape-type shape-type}})))

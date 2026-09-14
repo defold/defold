@@ -185,7 +185,8 @@
 
    'dmGameSystemDDF.LabelDesc
    {:default
-    {"scale" :deprecated}} ; Migration tested in integration.label-test/label-migration-test.
+    {"scale" :deprecated ; Migration tested in integration.label-test/label-migration-test.
+     "style_hash" :runtime-only}}
 
    'dmGameSystemDDF.SpineSceneDesc
    {:default
@@ -302,6 +303,7 @@
      "spine_node_child" :unused
      "spine_scene" :unused
      "spine_skin" :unused
+     "style" :unused
      "template" :unused
      "text" :unused
      "text_leading" :unused
@@ -333,6 +335,7 @@
      "spine_scene" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
      "spine_skin" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
      "spine_node_child" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test. This was a legacy setting in our own Spine implementation. The Spine/Rive extensions now create GUI bones themselves.
+     "style" :unused
      "template" :unused
      "template_node_child" :unused
      "text" :unused
@@ -368,6 +371,7 @@
      "spine_node_child" :unused
      "spine_scene" :unused
      "spine_skin" :unused
+     "style" :unused
      "template" :unused
      "text" :unused
      "text_leading" :unused
@@ -392,6 +396,7 @@
      "spine_node_child" :unused
      "spine_scene" :unused
      "spine_skin" :unused
+     "style" :unused
      "template" :unused
      "text" :unused
      "text_leading" :unused
@@ -429,6 +434,7 @@
      "spine_node_child" :unused
      "spine_scene" :unused
      "spine_skin" :unused
+     "style" :unused
      "template" :non-overridable
      "text" :unused
      "text_leading" :unused

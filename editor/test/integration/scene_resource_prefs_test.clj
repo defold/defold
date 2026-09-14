@@ -122,8 +122,7 @@
 (deftest visibility-settings-load-per-resource
   (test-util/with-loaded-project
     (let [prefs (make-isolated-prefs)
-          scene-visibility (scene-visibility/make-scene-visibility-node!
-                             (test-util/make-view-graph!) prefs app-view)
+          scene-visibility (scene-visibility/make-scene-visibility-node! world prefs app-view)
           stored {:filters-enabled false :filtered-renderable-tags #{:sprite :model}}]
       (prefs/set-pref-entry-in! prefs resource-settings-path "/logic/atlas_sprite.collection" [:scene-visibility] stored)
 
@@ -138,8 +137,7 @@
 (deftest visibility-settings-persist-against-the-active-resource
   (test-util/with-loaded-project
     (let [prefs (make-isolated-prefs)
-          scene-visibility (scene-visibility/make-scene-visibility-node!
-                             (test-util/make-view-graph!) prefs app-view)
+          scene-visibility (scene-visibility/make-scene-visibility-node! world prefs app-view)
           collection-path "/logic/atlas_sprite.collection"
           go-path "/logic/atlas_sprite.go"
           stored-tags (fn [proj-path]
@@ -174,8 +172,7 @@
   ;; still update; it just must not invent a prefs entry.
   (test-util/with-loaded-project
     (let [prefs (make-isolated-prefs)
-          scene-visibility (scene-visibility/make-scene-visibility-node!
-                             (test-util/make-view-graph!) prefs app-view)]
+          scene-visibility (scene-visibility/make-scene-visibility-node! world prefs app-view)]
       (set-visibility-settings! scene-visibility #(assoc % :filters-enabled false))
       (is (false? (:filters-enabled (visibility-settings scene-visibility)))
           "the toggle should still take effect in the view")

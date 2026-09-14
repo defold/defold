@@ -30,6 +30,7 @@ import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.font.FontRenderer;
 import com.dynamo.bob.font.BMFont;
 import com.dynamo.bob.font.BMFont.BMFontFormatException;
+import com.dynamo.bob.font.FontStyles;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
 
@@ -265,6 +266,11 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             fontMapBuilder.setCharacters(fontDesc.getCharacters());
         }
 
+        try {
+            fontMapBuilder.addAllStyles(FontStyles.compileStyles(fontDesc));
+        } catch (IllegalArgumentException error) {
+            throw new CompileExceptionError(task.firstInput(), 0, error.getMessage(), error);
+        }
         fontMapBuilder.setSize(fontDesc.getSize());
         fontMapBuilder.setShadowX(fontDesc.getShadowX());
         fontMapBuilder.setShadowY(fontDesc.getShadowY());

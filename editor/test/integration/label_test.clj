@@ -27,8 +27,10 @@
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [util.fn :as fn])
-  (:import [editor.types Region]))
+            [util.fn :as fn]
+            [util.murmur :as murmur])
+  (:import [com.dynamo.gamesys.proto Label$LabelDesc]
+           [editor.types Region]))
 
 (deftest label-validation-test
   (test-util/with-loaded-project
@@ -41,6 +43,18 @@
         (testing case
           (test-util/with-prop [node-id prop (workspace/resolve-workspace-resource workspace path)]
                                (is (g/error? (test-util/prop-error node-id prop)))))))))
+
+(deftest unassigned-font-label-preview-test
+  (test-util/with-loaded-project
+    (let [node-id (project/get-resource-node project "/label/test.label")]
+      (test-util/with-prop [node-id :font nil]
+        (is (nil? (g/node-value node-id :font-map)))
+        (let [text-layout (g/node-value node-id :text-layout)]
+          (is (= [] (:lines text-layout)))
+          (is (= 0 (:height text-layout))))
+        (let [scene (g/node-value node-id :scene)]
+          (is (map? scene))
+          (is (nil? (label/render-tris nil {:pass pass/transparent} [(:renderable scene)] 1))))))))
 
 (deftest invalid-markup-is-label-text-property-warning-test
   (test-util/with-loaded-project
@@ -304,3 +318,55 @@
          (g/set-property label-node :text "<outline><shadow>A</shadow></outline>")])
       (is (not (g/error? (g/node-value label-node :build-targets))))
       (is (= 37 (:size (g/node-value font-node :font-map)))))))
+
+(deftest selected-font-style-validation-and-preview
+  (test-util/with-scratch-project test-util/project-path
+    (let [node (project/get-resource-node project "/label/test.label")]
+      (is (= "default" (g/node-value node :style)))
+      (doseq [style ["" "default" "link"]]
+        (test-util/with-prop [node :style style]
+          (is (nil? (test-util/prop-error node :style)))
+          (is (= style (:style (g/node-value node :text-layout))))
+          (is (= style (:style (g/node-value node :save-value) "default")))
+          (is (not (contains? (g/node-value node :save-value) :style-hash)))
+          (with-open [_ (test-util/build! node)]
+            (let [built (test-util/built-pb node Label$LabelDesc)]
+              (is (= style (.getStyle built)))
+              (is (= (if (= "" style) 0 (murmur/hash64 style)) (.getStyleHash built)))))))
+      (test-util/with-prop [node :style "missing"]
+        (is (g/error-fatal? (test-util/prop-error node :style)))
+        (is (g/error-fatal? (g/node-value node :build-targets)))))))
+
+(deftest vector-font-size-and-style-survive-build
+  (test-util/with-temp-project-content
+    {"/styled.font" {:font "/builtins/fonts/vera_mo_bd.ttf"
+                      :material "/builtins/fonts/font-vector.material"
+                      :vector-font-mode :vector-font-mode-vector
+                      :runtime false
+                      :size 37
+                      :outline-alpha 1.0
+                      :outline-width 2.0
+                      :characters "A"
+                      :styles [{:name "default"}
+                               {:name "notice" :markup "<color=#ff6600>"}]}
+     "/styled.label" {:font "/styled.font"
+                       :material "/builtins/fonts/label-vector.material"
+                       :text "A"
+                       :size [128.0 32.0 0.0 0.0]
+                       :font-size 64.0
+                       :style "notice"}}
+    (let [font-node (test-util/resource-node project "/styled.font")
+          label-node (test-util/resource-node project "/styled.label")]
+      (doseq [runtime [false true]]
+        (test-util/prop! font-node :runtime runtime)
+        (is (= "notice" (:style (g/node-value label-node :text-layout))))
+        (let [width (:width (g/node-value label-node :text-layout))]
+          (test-util/with-prop [label-node :font-size 32.0]
+            (is (= width (* 2.0 (:width (g/node-value label-node :text-layout)))))))
+        (with-open [_ (test-util/build! label-node)]
+          (let [built-label (test-util/built-pb label-node Label$LabelDesc)
+                built-font (test-util/built-pb font-node com.dynamo.render.proto.Font$FontMap)]
+            (is (= 64.0 (.getFontSize built-label)))
+            (is (= (murmur/hash64 "notice") (.getStyleHash built-label)))
+            (is (= 37 (.getSize built-font)))
+            (is (= ["default" "notice"] (mapv #(.getName %) (.getStylesList built-font))))))))))

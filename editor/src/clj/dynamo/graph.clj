@@ -2073,18 +2073,6 @@
       (log/info :message "Clearing the system cache in desperation due to low-memory conditions.")
       (clear-system-cache!))))
 
-(defn make-graph!
-  "Create a new graph in the system with an optional value of `:volatility`. If no
-  options are provided, the volatility is 0
-
-  Example:
-
-  `(make-graph! :volatility 1)`"
-  [& {:keys [volatility] :or {volatility 0}}]
-  (let [g (assoc (ig/empty-graph) :_volatility volatility)
-        s (swap! *the-system* is/attach-graph g)]
-    (:last-graph s)))
-
 (defn last-graph-added
   "Retuns the last graph added to the system"
   []
@@ -2094,20 +2082,6 @@
   "Returns the latest version of a graph id"
   [graph-id]
   (is/graph-time @*the-system* graph-id))
-
-(defn delete-graph!
-  "Given a `graph-id`, deletes it from the system. It is assumed that there are
-  no changes on the undo stack that operate on the deleted graph. Otherwise,
-  calling g/undo! after g/delete-graph! will likely cause runtime errors.
-
-  Example:
-
-  ` (delete-graph! agraph-id)`"
-  [graph-id]
-  (when-let [graph (is/graph @*the-system* graph-id)]
-    (transact {:undoable false} (mapv it/delete-node (ig/node-ids graph)))
-    (swap! *the-system* is/detach-graph graph-id)
-    nil))
 
 (defn undo!
   "Reverts the changes from the top undo step and moves it to the redo stack.

@@ -2391,6 +2391,43 @@ Expected collection errors:
 Transaction: clear collection
 After transaction (clear collection)
   children: 0 (editable)
+Font initial state:
+  styles: 1
+    id: style1
+    markup: [<color=#00ff00>]
+  can get styles: true
+  can add styles: true
+  can set styles: false
+Transaction: add and edit font styles
+After transaction (add and edit font styles):
+  styles: 4
+    id: notice
+    markup: [<color=#aa3300>\\n<ul>]
+    id: style
+    markup: []
+    id: style2
+    markup: []
+    id: accent
+    markup: [<color=#ff6600>]
+Transaction: remove font style
+After transaction (remove font style):
+  styles: 3
+    id: notice
+    markup: [<color=#aa3300>\\n<ul>]
+    id: style2
+    markup: []
+    id: accent
+    markup: [<color=#ff6600>]
+Transaction: clear font styles
+After transaction (clear font styles):
+  styles: 0
+Transaction: add font styles after clear
+After transaction (add font styles after clear):
+  styles: 2
+    id: notice
+    markup: [<color=#aa3300>\\n<ul>]
+    id: accent
+    markup: [<color=#ff6600>]
 ")
 
 (deftest attachment-properties-test
@@ -2658,8 +2695,7 @@ localization.message('progress.loading-resource', {resource = message}) => Loadi
       (run!
         (fn [[proj-path view-node-type view-node-args label]]
           (let [resource-node (test-util/resource-node project proj-path)
-                view-graph (test-util/make-view-graph!)
-                view-node (first (g/take-node-ids view-graph 1))]
+                view-node (first (g/take-node-ids world 1))]
             (g/transact
               {:undoable false}
               (concat

@@ -4,7 +4,7 @@
 
 The order of the includes are shown (.cmake is implied)
 
-- defold - a bit like our top level waf_dynamo.py
+- defold - sets up the common build configuration
 - functions - optional helpers that set defines/flags/linkerflags on build artefacts
 - tools - verify our list of tools (e.g. java, ninja etc)
 - verify our list of tools (e.g. java, ninja etc)
@@ -51,7 +51,7 @@ If you are not in `./scripts/build.py shell`, pass `-G Ninja` or set
 
 ### Feature toggles
 
-CMake builds honour the same feature flags as the legacy Waf flow.
+Engine features can be configured with CMake options or flags passed to `scripts/build.py`.
 
 For named engine features, pass comma-separated values with
 `DEFOLD_ENABLE_FEATURES`:
@@ -74,10 +74,15 @@ To clear features in an existing build directory, configure with an empty value:
 cmake -S . -B engine/build/arm64-macos -DDEFOLD_ENABLE_FEATURES=
 ```
 
-When invoking `scripts/build.py`, pass `--with-asan`, `--with-ubsan`, or
+When invoking `scripts/build.py`, pass `--with-asan`, `--with-hwasan`, `--with-ubsan`, or
 `--with-tsan` after the `--` separator and the configure step applies the
 matching `WITH_*` cache options, such as `WITH_ASAN=ON`. The graphics toggles
 such as `--with-vulkan` continue to map to `WITH_VULKAN`.
+
+`WITH_HWASAN=ON` enables HWAddressSanitizer for `arm64-android`, including shared
+libc++ linkage. It cannot be combined with other sanitizers. See the
+[Android HWASan workflow](../mobile/README_ANDROID.md#hwasan-android-14-arm64)
+for building and repacking an APK for Android 14 or newer.
 
 ## Invocation
 
@@ -92,9 +97,6 @@ separate from the engine build to keep normal rebuilds fast.
 with one CMake cache under `engine/build/<platform>`. Each engine library still
 gets its own binary directory under `engine/<lib>/build/<platform>`, so objects,
 generated files, and archives stay with the library.
-
-During the transition, `scripts/build.py --with-waf build_engine` uses the
-restored Waf lib loop instead.
 
 For local shorthand, the host platform, release-with-debug-symbols build type,
 and tests are all defaulted:

@@ -13,3 +13,10 @@ all_chars: true
 cache_width: 2048
 cache_height: 2048
 characters: " !\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\303\245\303\244\303\266"
+styles {
+  name: "default"
+}
+styles {
+  name: "notice"
+  markup: "<color=#ff6600><ul>"
+}

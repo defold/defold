@@ -193,7 +193,8 @@ message NodeDesc
 
     optional string    custom_type_name  = 49;
     repeated Property  custom_properties = 50;
-    optional float     font_size          = 51 [default = 16.0];
+    optional string    style             = 51 [default = "default"];
+    optional float     font_size          = 52 [default = 16.0];
 }
 
 message SceneDesc

@@ -318,14 +318,14 @@
 
 (defn show-external-node-type-connections-for-all-scoped-nodes-of-type [node-type]
   (show-external-node-type-connections-between-nodes
-    (->> (get-in (g/now) [:graphs 1 :nodes])
+    (->> (get-in (g/now) [:graphs 0 :nodes])
          (filter (comp #{node-type} :node-type val))
          (map key)
          (mapcat #(conj (g/node-value % :nodes) %)))))
 
 (defn show-external-node-type-connections-for-all-nodes-of-ns-type [node-type-ns]
   (show-external-node-type-connections-between-nodes
-    (->> (get-in (g/now) [:graphs 1 :nodes])
+    (->> (get-in (g/now) [:graphs 0 :nodes])
          (filter (comp #{node-type-ns} namespace :k :node-type val))
          (map key))))
 
@@ -334,7 +334,7 @@
   ;; selected scoped node
   (show-external-node-type-connections-for-scoped-node (first (dev/selection)))
   ;; all project nodes
-  (show-external-node-type-connections-between-nodes (keys (get-in (g/now) [:graphs 1 :nodes])))
+  (show-external-node-type-connections-between-nodes (keys (get-in (g/now) [:graphs 0 :nodes])))
   ;; particular type of scope
   (show-external-node-type-connections-for-all-scoped-nodes-of-type editor.gui/GuiSceneNode)
   (show-external-node-type-connections-for-all-nodes-of-ns-type "editor.gui")
