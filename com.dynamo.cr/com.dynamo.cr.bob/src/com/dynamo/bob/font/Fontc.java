@@ -211,6 +211,16 @@ public class Fontc {
         return characters;
     }
 
+    /** Migrates the built-in bitmap materials when a scalable font becomes SDF.
+     * Custom materials retain their authored paths. */
+    public static String getSdfMaterial(String material) {
+        if ("/builtins/fonts/font.material".equals(material))
+            return "/builtins/fonts/font-df.material";
+        if ("/builtins/fonts/label.material".equals(material))
+            return "/builtins/fonts/label-df.material";
+        return material;
+    }
+
     private void buildBMFont(InputStream fontStream) throws IOException {
         bmfont = new BMFont();
         try {

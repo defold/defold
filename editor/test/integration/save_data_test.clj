@@ -808,6 +808,7 @@
 
     (testing "font"
       (let [extra-characters-font (project/get-resource-node project "/silently_migrated/extra_characters.font")]
+        (is (= "/builtins/fonts/font-df.material" (:material (g/node-value extra-characters-font :save-value))))
         (is (= " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~åäö"
                (g/node-value extra-characters-font :characters))))
       (let [legacy-font (project/get-resource-node project "/silently_migrated/font_properties.font")

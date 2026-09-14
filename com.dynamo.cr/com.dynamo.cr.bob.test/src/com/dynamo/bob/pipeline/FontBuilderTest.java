@@ -611,6 +611,32 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testLegacyBitmapMaterialsFollowSdfConversion() throws Exception {
+        for (boolean runtime : new boolean[] { false, true }) {
+            String source = "font: \"/Tuffy.ttf\"\nmaterial: \"/builtins/fonts/font.material\"\n"
+                    + "size: 16\ncharacters: \"A\"\nruntime: " + runtime + "\n";
+            FontMap font = getFontMap(build("/legacy.font", source));
+            assertEquals(FontTextureFormat.TYPE_DISTANCE_FIELD, font.getOutputFormat());
+            assertEquals(ResourceUtil.minifyPath("/builtins/fonts/font-df.materialc"), font.getMaterial());
+            String label = "size { x: 100 y: 32 }\nfont: \"/legacy.font\"\n"
+                    + "material: \"/builtins/fonts/label.material\"\ntext: \"A\"\n";
+            boolean foundLabel = false;
+            for (Message message : build("/legacy.label", label)) {
+                if (message instanceof com.dynamo.gamesys.proto.Label.LabelDesc) {
+                    foundLabel = true;
+                    assertEquals(ResourceUtil.minifyPath("/builtins/fonts/label-df.materialc"),
+                        ((com.dynamo.gamesys.proto.Label.LabelDesc)message).getMaterial());
+                }
+            }
+            assertTrue("The build must produce the compiled Label", foundLabel);
+        }
+        FontDesc custom = FontDesc.newBuilder().setFont("/Tuffy.ttf").setMaterial("/custom.material").setSize(16).build();
+        assertEquals("/custom.material", FontBuilder.getEffectiveFontDesc(custom, false).getMaterial());
+        FontDesc bitmap = custom.toBuilder().setFont("/custom.fnt").setMaterial("/builtins/fonts/font.material").build();
+        assertEquals("/builtins/fonts/font.material", FontBuilder.getEffectiveFontDesc(bitmap, false).getMaterial());
+    }
+
+    @Test
     public void testTTFDefaultSdfMaterial() throws Exception {
         StringBuilder src = new StringBuilder();
         src.append("font: \"/Tuffy.ttf\"\n");

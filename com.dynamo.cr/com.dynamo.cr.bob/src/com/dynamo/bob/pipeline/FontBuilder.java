@@ -142,6 +142,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
                 }
                 builder.clearSdfMaterial();
             } else {
+                builder.setMaterial(Fontc.getSdfMaterial(fontDesc.getMaterial()));
                 builder.clearSdfMaterial();
             }
         }

@@ -370,3 +370,30 @@
             (is (= (murmur/hash64 "notice") (.getStyleHash built-label)))
             (is (= 37 (.getSize built-font)))
             (is (= ["default" "notice"] (mapv #(.getName %) (.getStylesList built-font))))))))))
+
+(deftest legacy-bitmap-materials-follow-sdf-font-builds
+  (test-util/with-temp-project-content
+    {"/legacy.font" {:font "/builtins/fonts/vera_mo_bd.ttf"
+                     :material "/builtins/fonts/font.material"
+                     :size 24
+                     :characters "A"}
+     "/legacy.label" {:font "/legacy.font"
+                      :material "/builtins/fonts/label.material"
+                      :size [128.0 32.0 0.0 0.0]
+                      :text "A"}}
+    (let [font-node (test-util/resource-node project "/legacy.font")
+          label-node (test-util/resource-node project "/legacy.label")]
+      (is (= "/builtins/fonts/font-df.material" (:material (g/node-value font-node :save-value))))
+      (is (= (g/node-value font-node :source-value) (g/node-value font-node :save-value)))
+      (is (true? (g/node-value label-node :use-sdf-material)))
+      (is (string/includes? (shader/fragment-shader-source (g/node-value label-node :material-shader)) "smoothstep"))
+      (doseq [runtime [false true]]
+        (test-util/prop! font-node :runtime runtime)
+        (with-open [_ (test-util/build! label-node)]
+          (is (= "/builtins/fonts/label-df.materialc" (.getMaterial (test-util/built-pb label-node Label$LabelDesc))))))
+      (test-util/save-project! project)
+      (workspace/resource-sync! workspace)
+      (is (= "/builtins/fonts/font-df.material" (:material (g/node-value font-node :save-value))))
+      (is (true? (g/node-value label-node :use-sdf-material)))
+      (test-util/with-prop [label-node :material (workspace/resolve-workspace-resource workspace "/builtins/fonts/label-df.material")]
+        (is (false? (g/node-value label-node :use-sdf-material)))))))

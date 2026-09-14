@@ -2270,7 +2270,7 @@
         vector-font-mode :vector-font-mode
         runtime :runtime))))
 
-(defn sanitize-font [{:keys [characters extra-characters font] :as font-desc}]
+(defn sanitize-font [{:keys [characters extra-characters font material] :as font-desc}]
   {:pre [(map? font-desc)]} ; Font$FontDesc in map format.
   ;; In a previous file format, we would always include all printable ASCII
   ;; characters in the font, and the user could specify :extra-characters to
@@ -2307,6 +2307,9 @@
 
     (-> font-desc
         (dissoc :extra-characters :sdf-material :output-format :render-mode)
+        (cond-> (and (contains? #{"ttf" "otf"} (FilenameUtils/getExtension font))
+                     (not= :vector-font-mode-vector (:vector-font-mode font-desc)))
+          (assoc :material (Fontc/getSdfMaterial material)))
         (assoc :characters merged-characters
                :styles (mapv protobuf/pb->map-without-defaults
                              (FontStyles/getSourceStyles (protobuf/map->pb Font$FontDesc font-desc))))
