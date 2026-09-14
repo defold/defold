@@ -34,7 +34,9 @@ if(TARGET_PLATFORM MATCHES "macos")
     DEPENDS launcher
     USES_TERMINAL
     VERBATIM)
-  add_dependencies(run_tests run_test_launcher_macos)
+  if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+    add_dependencies(run_tests run_test_launcher_macos)
+  endif()
   defold_register_sequential_test_command(test_launcher_macos
     COMMAND ${TOOLS_LAUNCHER_MACOS_TEST_COMMAND}
     DEPENDS launcher)
