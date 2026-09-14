@@ -3328,6 +3328,16 @@ static int SetBuffer(lua_State* L)
     return 0;
 }
 
+// Reserve sprite dimensions without loading rendering resources.
+static uint8_t ResolveTextMetricsObject(void*, const char*, const TextLayoutObjectAttribute*, float proposed_width, float proposed_height, TextLayoutObject* object)
+{
+    object->m_Width = proposed_width;
+    object->m_Height = proposed_height;
+    object->m_Resource = 0;
+
+    return 1;
+}
+
 static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metrics)
 {
     lua_createtable(L, 0, 4);
@@ -3349,6 +3359,7 @@ static void PushTextMetricsTable(lua_State* L, const dmRender::TextMetrics* metr
  *
  * Gets the text metrics from a font. Rich text markup is measured using its
  * visible text and font sizes. If markup cannot be parsed, the text is measured literally.
+ * Inline sprites reserve their specified dimensions, or one em by default.
  *
  * @name resource.get_text_metrics
  * @param url [type:hash] the font to get the (unscaled) metrics from
@@ -3399,6 +3410,7 @@ static int GetTextMetrics(lua_State* L)
     settings.m_Leading = leading;
     settings.m_Tracking = tracking;
     settings.m_Size = dmRender::GetFontMapSize(font_map);
+    settings.m_ResolveObject = ResolveTextMetricsObject;
     // legacy options for glyph bank fonts
     settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
     settings.m_Padding = dmRender::GetFontMapPadding(font_map);

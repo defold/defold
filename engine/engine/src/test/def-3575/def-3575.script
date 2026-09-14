@@ -76,6 +76,22 @@ local function test_size_markup(font)
     assert_metrics(plain, base_size)
 end
 
+local function test_sprite_markup(font)
+    local plain = resource.get_text_metrics(font, "AB")
+    -- The fixture font is size 14, with a line height greater than 16.
+    local sprites = {
+        { "<sprite width=32 height=16/>", 32, plain.height },
+        { "<sprite width=48 height=32></sprite>", 48, 32 },
+        { "<sprite/>", 14, plain.height },
+        { "<sprite width=2em height=200%/>", 28, 28 },
+    }
+    for _, sprite in ipairs(sprites) do
+        local metrics = resource.get_text_metrics(font, "A" .. sprite[1] .. "B")
+        assert_near(plain.width + sprite[2], metrics.width, sprite[1] .. " reserves width")
+        assert_near(sprite[3], metrics.height, sprite[1] .. " reserves height")
+    end
+end
+
 local function test_invalid_markup(font)
     local malformed = resource.get_text_metrics(font, "<color=#ff0000>Hello</size>")
     local literal = resource.get_text_metrics(font, "&lt;color=#ff0000&gt;Hello&lt;/size&gt;")
@@ -166,6 +182,7 @@ function update(self, dt)
         { "tracking", test_tracking },
         { "color markup", test_color_markup },
         { "size markup", test_size_markup },
+        { "sprite markup", test_sprite_markup },
         { "invalid markup", test_invalid_markup },
         { "empty text", test_empty_text },
     }
