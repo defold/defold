@@ -14,7 +14,8 @@
 
 (ns internal.graph.types
   (:require [util.defonce :as defonce])
-  (:import [clojure.lang IHashEq Keyword Murmur3 Util]
+  (:import [clojure.lang Associative IHashEq IKeywordLookup ILookup ILookupThunk
+            IPersistentCollection Keyword MapEntry Murmur3 Seqable Util]
            [com.defold.util WeakInterner]
            [java.io Writer]
            [java.util.concurrent.atomic AtomicLong]))
@@ -127,7 +128,176 @@
   (original            [this]                          "Return the ID of the original of this node, if any")
   (set-original        [this original-id]              "Set the ID of the original of this node, if any"))
 
-(defonce/record Graph [nodes sarcs successors tarcs tx-id graph-values overrides node->overrides])
+(defonce/type Graph [nodes sarcs successors tarcs tx-id graph-values overrides node->overrides]
+  ILookup
+  (valAt [this key]
+    (.valAt this key nil))
+  (valAt [_this key not-found]
+    (case key
+      :nodes nodes
+      :sarcs sarcs
+      :successors successors
+      :tarcs tarcs
+      :tx-id tx-id
+      :graph-values graph-values
+      :overrides overrides
+      :node->overrides node->overrides
+      not-found))
+
+  IKeywordLookup
+  (getLookupThunk [this key]
+    (let [graph-class (class this)]
+      (case key
+        :nodes
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-nodes ^Graph target)
+              thunk)))
+
+        :sarcs
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-sarcs ^Graph target)
+              thunk)))
+
+        :successors
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-successors ^Graph target)
+              thunk)))
+
+        :tarcs
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-tarcs ^Graph target)
+              thunk)))
+
+        :tx-id
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-tx-id ^Graph target)
+              thunk)))
+
+        :graph-values
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-graph-values ^Graph target)
+              thunk)))
+
+        :overrides
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-overrides ^Graph target)
+              thunk)))
+
+        :node->overrides
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-node->overrides ^Graph target)
+              thunk)))
+
+        nil)))
+
+  Associative
+  (containsKey [_this key]
+    (case key
+      (:nodes :sarcs :successors :tarcs :tx-id :graph-values :overrides :node->overrides) true
+      false))
+  (entryAt [this key]
+    (when (.containsKey this key)
+      (MapEntry/create key (.valAt this key))))
+  (assoc [this key value]
+    (case key
+      :nodes
+      (if (identical? nodes value)
+        this
+        (Graph. value sarcs successors tarcs tx-id graph-values overrides node->overrides))
+
+      :sarcs
+      (if (identical? sarcs value)
+        this
+        (Graph. nodes value successors tarcs tx-id graph-values overrides node->overrides))
+
+      :successors
+      (if (identical? successors value)
+        this
+        (Graph. nodes sarcs value tarcs tx-id graph-values overrides node->overrides))
+
+      :tarcs
+      (if (identical? tarcs value)
+        this
+        (Graph. nodes sarcs successors value tx-id graph-values overrides node->overrides))
+
+      :tx-id
+      (if (identical? tx-id value)
+        this
+        (Graph. nodes sarcs successors tarcs value graph-values overrides node->overrides))
+
+      :graph-values
+      (if (identical? graph-values value)
+        this
+        (Graph. nodes sarcs successors tarcs tx-id value overrides node->overrides))
+
+      :overrides
+      (if (identical? overrides value)
+        this
+        (Graph. nodes sarcs successors tarcs tx-id graph-values value node->overrides))
+
+      :node->overrides
+      (if (identical? node->overrides value)
+        this
+        (Graph. nodes sarcs successors tarcs tx-id graph-values overrides value))
+
+      (throw (IllegalArgumentException. (str "Unsupported Graph key: " key)))))
+
+  IHashEq
+  (hasheq [this]
+    (.hashCode this))
+
+  IPersistentCollection
+  (count [_this]
+    (throw (UnsupportedOperationException.)))
+  (cons [_this _value]
+    (throw (UnsupportedOperationException.)))
+  (empty [_this]
+    (throw (UnsupportedOperationException.)))
+  (equiv [this other]
+    (.equals this other))
+
+  Seqable
+  (seq [_this]
+    (throw (UnsupportedOperationException.)))
+
+  Object
+  (equals [this other]
+    (or (identical? this other)
+        (and (instance? Graph other)
+             (let [^Graph other other]
+               (and (= nodes (.-nodes other))
+                    (= sarcs (.-sarcs other))
+                    (= successors (.-successors other))
+                    (= tarcs (.-tarcs other))
+                    (= tx-id (.-tx-id other))
+                    (= graph-values (.-graph-values other))
+                    (= overrides (.-overrides other))
+                    (= node->overrides (.-node->overrides other)))))))
+  (hashCode [_this]
+    (-> (Util/hasheq nodes)
+        (Util/hashCombine (Util/hasheq sarcs))
+        (Util/hashCombine (Util/hasheq successors))
+        (Util/hashCombine (Util/hasheq tarcs))
+        (Util/hashCombine (Util/hasheq tx-id))
+        (Util/hashCombine (Util/hasheq graph-values))
+        (Util/hashCombine (Util/hasheq overrides))
+        (Util/hashCombine (Util/hasheq node->overrides)))))
 
 (defn graph-arc-count [^Graph graph]
   (reduce-kv

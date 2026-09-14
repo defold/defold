@@ -1676,6 +1676,9 @@
       (:full-invalidation ctx)
       (update ctx :basis ig/invalidate-all-successors)
 
+      (coll/empty? successors-changed)
+      ctx
+
       :else
       (update ctx :basis ig/update-successors successors-changed))))
 

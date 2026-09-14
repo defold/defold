@@ -251,10 +251,11 @@
 (defn take-node-ids
   [system ^long node-id-count]
   (let [^AtomicLong node-id-generator (node-id-generator system)
-        node-ids (long-array node-id-count)]
+        node-ids (long-array node-id-count)
+        first-node-id (.getAndAdd node-id-generator node-id-count)]
     (loop [index 0]
       (when (< index node-id-count)
-        (aset node-ids index (.getAndIncrement node-id-generator))
+        (aset node-ids index (unchecked-add first-node-id index))
         (recur (inc index))))
     node-ids))
 
