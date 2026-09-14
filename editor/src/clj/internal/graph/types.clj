@@ -14,8 +14,7 @@
 
 (ns internal.graph.types
   (:require [util.defonce :as defonce])
-  (:import [clojure.lang Associative IHashEq IKeywordLookup ILookup ILookupThunk
-            IPersistentCollection Keyword MapEntry Murmur3 Seqable Util]
+  (:import [clojure.lang Associative IHashEq IKeywordLookup ILookup ILookupThunk IPersistentCollection Keyword MapEntry Murmur3 Seqable Util]
            [com.defold.util WeakInterner]
            [java.io Writer]
            [java.util.concurrent.atomic AtomicLong]))
