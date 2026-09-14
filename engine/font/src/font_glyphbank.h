@@ -76,6 +76,8 @@ struct FontGlyphBankProvider
     uint32_t                    m_GlyphChannels;
     float                       m_MaxAscent;
     float                       m_MaxDescent;
+    // Zero keeps bitmap metrics fixed; vector metrics scale from this baked size.
+    float                       m_ReferenceSize;
 };
 
 /*# Creates a prebaked glyph-bank font.

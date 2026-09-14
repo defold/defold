@@ -53,21 +53,20 @@ static uint32_t GlyphBankGetResourceSize(HFont hfont)
 
 static float GlyphBankGetScaleFromSize(HFont hfont, uint32_t size)
 {
-    (void)hfont;
-    (void)size;
-    return 1.0f;
+    const float reference_size = GetProvider(hfont)->m_ReferenceSize;
+    return reference_size > 0.0f ? size / reference_size : 1.0f;
 }
 
 static float GlyphBankGetAscent(HFont hfont, float scale)
 {
-    (void)scale;
-    return GetProvider(hfont)->m_MaxAscent;
+    FontGlyphBankProvider* provider = GetProvider(hfont);
+    return provider->m_MaxAscent * (provider->m_ReferenceSize > 0.0f ? scale : 1.0f);
 }
 
 static float GlyphBankGetDescent(HFont hfont, float scale)
 {
-    (void)scale;
-    return GetProvider(hfont)->m_MaxDescent;
+    FontGlyphBankProvider* provider = GetProvider(hfont);
+    return provider->m_MaxDescent * (provider->m_ReferenceSize > 0.0f ? scale : 1.0f);
 }
 
 static float GlyphBankGetLineGap(HFont hfont, float scale)

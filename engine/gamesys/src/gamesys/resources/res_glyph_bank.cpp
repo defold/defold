@@ -99,6 +99,11 @@ namespace dmGameSystem
         return resource->m_Font;
     }
 
+    void SetGlyphBankReferenceSize(GlyphBankResource* resource, float size)
+    {
+        resource->m_Provider.m_ReferenceSize = size;
+    }
+
     dmFontDDF::GlyphBank* GetGlyphBank(GlyphBankResource* resource)
     {
         return resource->m_DDF;

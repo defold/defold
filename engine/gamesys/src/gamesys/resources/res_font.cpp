@@ -820,6 +820,11 @@ namespace dmGameSystem
                 return dmResource::RESULT_INVALID_DATA;
             }
             SetupParamsForGlyphBank(ddf, path, glyph_bank, &params);
+            if (glyph_bank->m_ImageFormat == dmFontDDF::TYPE_VECTOR)
+            {
+                // The bank is compiled for this font's generation settings.
+                SetGlyphBankReferenceSize(resource->m_GlyphBankResource, ddf->m_Size);
+            }
         }
 
         HFontCollection font_collection = FontCollectionCreate();
