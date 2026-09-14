@@ -198,11 +198,11 @@
                                 BaseTransform/IDENTITY_TRANSFORM
                                 FontResource/AA_GREYSCALE)
         line-height (Math/ceil (* (inc (.getLineHeight font-metrics)) line-height-factor))
-        ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))]
-    (let [glyph-metrics (->GlyphMetrics (make-char-width-cache font-strike) line-height ascent)]
-      (locking glyph-metrics-fonts
-        (.put glyph-metrics-fonts glyph-metrics font))
-      glyph-metrics)))
+        ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))
+        glyph-metrics (->GlyphMetrics (make-char-width-cache font-strike) line-height ascent)]
+    (locking glyph-metrics-fonts
+      (.put glyph-metrics-fonts glyph-metrics font))
+    glyph-metrics))
 
 (def ^:private default-editor-color-scheme
   (let [foreground-color (Color/valueOf "#DDDDDD")
