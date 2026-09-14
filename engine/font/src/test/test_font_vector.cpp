@@ -54,6 +54,52 @@ TEST(FontVector, CpuBitmapsPreserveFaceCurvesAndSeparateEffectChannels)
     FontDestroy(font);
 }
 
+TEST(FontVector, CubicOpenTypeOutlinesGenerateSizeIndependentVectorCurves)
+{
+    const char* paths[] = { "src/test/data/SourceCodePro-Regular.otf", "src/test/data/SourceSerif4Variable-Roman_cff2.otf" };
+    for (uint32_t f = 0; f < DM_ARRAY_SIZE(paths); ++f)
+    {
+        uint32_t size = 0;
+        ASSERT_EQ(dmSys::RESULT_OK, dmSys::ResourceSize(paths[f], &size));
+        dmArray<uint8_t> bytes;
+        bytes.SetCapacity(size);
+        bytes.SetSize(size);
+        ASSERT_EQ(dmSys::RESULT_OK, dmSys::LoadResource(paths[f], bytes.Begin(), size, &size));
+        HFont font = FontLoadFromMemory(paths[f], bytes.Begin(), size, false);
+        ASSERT_NE((HFont)0, font);
+        const char* text = "Example";
+        for (const char* c = text; *c; ++c)
+        {
+            uint32_t curve_count = 0;
+            for (uint32_t pass = 0; pass < 2; ++pass)
+            {
+                FontGlyphGenParams params;
+                params.m_Scale = FontGetScaleFromSize(font, pass == 0 ? 16 : 36);
+                params.m_HasOutline = pass != 0;
+                params.m_HasShadow = pass != 0;
+                params.m_OutlineWidth = 2;
+                params.m_ShadowBlur = 2;
+                FontGlyph glyph;
+                ASSERT_EQ(FONT_RESULT_OK, FontGenerateVectorGlyph(font, FontGetGlyphIndex(font, *c), &params, &glyph));
+                FontVectorSlugData data;
+                FontVectorSlugGlyph encoded;
+                ASSERT_TRUE(FontVectorSlugAddFontGlyph(&data, glyph, 8, &encoded));
+                ASSERT_GT(encoded.m_CurveCount, 0u);
+                if (pass == 0)
+                    curve_count = encoded.m_CurveCount;
+                else
+                {
+                    ASSERT_EQ(curve_count, encoded.m_CurveCount);
+                    ASSERT_EQ(3u, glyph.m_Bitmap.m_Channels);
+                    ASSERT_GT(glyph.m_Bitmap.m_DataSize, 0u);
+                }
+                FontFreeGlyph(font, &glyph);
+            }
+        }
+        FontDestroy(font);
+    }
+}
+
 int main(int argc, char** argv)
 {
     jc_test_init(&argc, argv);

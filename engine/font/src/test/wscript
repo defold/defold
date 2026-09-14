@@ -32,3 +32,9 @@ def build(bld):
             use = 'TESTMAIN DLIB PROFILE_NULL ' + library + (' font' if library != 'font' else ''),
             includes = '. .. ../font',
             target = name)
+
+    bld(features = 'cxx cprogram test',
+        source = 'test_font_vector.cpp',
+        use = 'TESTMAIN DLIB PROFILE_NULL HARFBUZZ SKRIBIDI font_skribidi',
+        includes = '. .. ../font',
+        target = 'test_font_vector_skribidi')

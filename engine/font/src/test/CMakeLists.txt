@@ -263,3 +263,6 @@ defold_register_test_target(test_font_gen_null ON "${FONT_ROOT}")
 
 defold_add_executable(test_font_vector "${FONT_TEST_ROOT}/test_font_vector.cpp")
 font_configure_test(test_font_vector font)
+
+defold_add_executable(test_font_vector_skribidi "${FONT_TEST_ROOT}/test_font_vector.cpp")
+font_configure_test(test_font_vector_skribidi font_skribidi)

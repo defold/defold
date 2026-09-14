@@ -149,7 +149,7 @@ static FontResult GetGlyphOutlineTTF(HFont hfont, uint32_t glyph_index, FontOutl
 struct OutlineBuildContext
 {
     dmArray<FontCurveCommand> m_Commands;
-    bool                      m_Unsupported; // E.g. vcubic
+    bool                      m_Unsupported;
 
     OutlineBuildContext()
     : m_Unsupported(false)
@@ -213,6 +213,41 @@ static void OutlineClosePath(OutlineBuildContext* ctx)
     PushOutlineCommand(ctx, command);
 }
 
+static FontOutlinePoint OutlineMidpoint(const FontOutlinePoint& a, const FontOutlinePoint& b)
+{
+    FontOutlinePoint point = { (a.m_X + b.m_X) * 0.5f, (a.m_Y + b.m_Y) * 0.5f };
+    return point;
+}
+
+static bool OutlineCubicTo(OutlineBuildContext* ctx, float scale, float tolerance_squared,
+                           const FontOutlinePoint& p0, const FontOutlinePoint& p1,
+                           const FontOutlinePoint& p2, const FontOutlinePoint& p3, uint32_t depth)
+{
+    // Degree reduction followed by degree elevation bounds the error by the
+    // largest control-point difference. Subdivide until that bound is small
+    // in font units, keeping the approximation independent of bitmap size.
+    const float error_x = (3.0f * (p1.m_X - p2.m_X) - p0.m_X + p3.m_X) / 6.0f;
+    const float error_y = (3.0f * (p1.m_Y - p2.m_Y) - p0.m_Y + p3.m_Y) / 6.0f;
+    if (error_x * error_x + error_y * error_y <= tolerance_squared)
+    {
+        const float control_x = (3.0f * (p1.m_X + p2.m_X) - p0.m_X - p3.m_X) * 0.25f;
+        const float control_y = (3.0f * (p1.m_Y + p2.m_Y) - p0.m_Y - p3.m_Y) * 0.25f;
+        OutlineQuadraticTo(ctx, scale, control_x, control_y, p3.m_X, p3.m_Y);
+        return true;
+    }
+    if (depth == 16)
+        return false;
+
+    const FontOutlinePoint p01 = OutlineMidpoint(p0, p1);
+    const FontOutlinePoint p12 = OutlineMidpoint(p1, p2);
+    const FontOutlinePoint p23 = OutlineMidpoint(p2, p3);
+    const FontOutlinePoint p012 = OutlineMidpoint(p01, p12);
+    const FontOutlinePoint p123 = OutlineMidpoint(p12, p23);
+    const FontOutlinePoint middle = OutlineMidpoint(p012, p123);
+    return OutlineCubicTo(ctx, scale, tolerance_squared, p0, p01, p012, middle, depth + 1) &&
+           OutlineCubicTo(ctx, scale, tolerance_squared, middle, p123, p23, p3, depth + 1);
+}
+
 static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, float scale, FontGlyph* glyph)
 {
 
@@ -231,6 +266,9 @@ static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, f
     OutlineBuildContext ctx;
     ctx.m_Commands.SetCapacity(32);
     ctx.m_Commands.SetSize(0);
+    FontOutlinePoint current = {};
+    FontOutlinePoint start = {};
+    const float tolerance = 1.0f / (4096.0f * FontImplGetScaleFromSize(font->m_Font, 1));
 
     for (uint32_t i = 0; i < outline.m_CommandCount; ++i)
     {
@@ -240,11 +278,13 @@ static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, f
             case FONT_OUTLINE_MOVE_TO:
             {
                 OutlineMoveTo(&ctx, scale, command.m_Points[0].m_X, command.m_Points[0].m_Y);
+                current = start = command.m_Points[0];
                 break;
             }
             case FONT_OUTLINE_LINE_TO:
             {
                 OutlineLineTo(&ctx, scale, command.m_Points[0].m_X, command.m_Points[0].m_Y);
+                current = command.m_Points[0];
                 break;
             }
             case FONT_OUTLINE_QUADRATIC_TO:
@@ -252,16 +292,21 @@ static FontResult GenerateGlyphOutlineTTF(TTFFont* font, uint32_t glyph_index, f
                 OutlineQuadraticTo(&ctx, scale,
                                    command.m_Points[0].m_X, command.m_Points[0].m_Y,
                                    command.m_Points[1].m_X, command.m_Points[1].m_Y);
+                current = command.m_Points[1];
                 break;
             }
             case FONT_OUTLINE_CUBIC_TO:
             {
-                ctx.m_Unsupported = true;
+                if (!OutlineCubicTo(&ctx, scale, tolerance * tolerance, current,
+                                    command.m_Points[0], command.m_Points[1], command.m_Points[2], 0))
+                    ctx.m_Unsupported = true;
+                current = command.m_Points[2];
                 break;
             }
             case FONT_OUTLINE_CLOSE:
             {
                 OutlineClosePath(&ctx);
+                current = start;
                 break;
             }
             default:
