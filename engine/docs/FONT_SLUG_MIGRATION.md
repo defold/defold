@@ -19,9 +19,18 @@ Use `/builtins/fonts/font-vector.material` for GUI text, or
 `/builtins/fonts/label-vector.material` for labels, with
 `vector_font_mode: VECTOR_FONT_MODE_VECTOR` in the font resource. Both materials
 use `font-vector.vp` and `font-vector.fp`. The shared shader renders three modes:
-Slug vector face, bitmap outline, and bitmap shadow. Layers are separate quads
+Slug vector face, SDF outline, and bitmap shadow. Layers are separate quads
 using the same material; there is no additional shadow shader or material.
 Existing SDF fonts remain available and retain their default materials.
+Legacy scalable fonts using the built-in bitmap materials migrate to the
+corresponding SDF materials. Labels resolve the matching material at build and
+preview time, including when the font has unsaved edits. BMFont materials are
+unchanged. Custom material paths are preserved; custom shaders must interpret
+the generated distance-field data themselves.
+
+Vector glyphs use the shared text layout's bounded layer counts and resolved
+span styles. Size, corner colors, animated offsets, and outline/shadow colors
+follow the text layout. Shadow blur remains baked at the font's authored size.
 
 The face uses quadratic curves in RGBA16F and eight horizontal plus eight
 vertical bands in R32UI. References are sorted for Slug's early exit. Glyph
@@ -44,11 +53,12 @@ is used to generate or blur these bitmaps.
 Bitmap channels are:
 
 - R: antialiased face mask, retained in the initial RGB layout.
-- G: expanded outline fill.
+- G: signed distance, reconstructed into outline coverage in the shader.
 - B: blurred shadow of the outline when enabled, otherwise of the face.
 
 The initial production helper thresholds a CPU-generated signed-distance image
-into face/outline masks, then applies three separable box filters to approximate
+into a face mask and the shadow source, preserving the distance field for
+outlines. It then applies three separable box filters to approximate
 a Gaussian shadow. Sliding sums make filtering linear in pixel area, independent
 of blur radius. The authored blur is sigma in glyph pixels, with 3-sigma padding.
 This helper is not the viewer's experimental vector rasterizer, and viewer
