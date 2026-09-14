@@ -571,6 +571,12 @@ namespace dmGameSystem
         // Local space + instancing
         if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && instance_vx_decl)
         {
+            // Component material overrides are already included in the base hash.
+            if (!component->m_Material)
+            {
+                HashMaterial(state, material_res);
+            }
+
             // We need to hash the mesh pointer for instance grouping
             dmHashUpdateBuffer32(state, item.m_Mesh, sizeof(*item.m_Mesh));
 
