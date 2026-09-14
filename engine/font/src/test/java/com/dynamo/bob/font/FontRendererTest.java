@@ -684,6 +684,65 @@ public class FontRendererTest {
     }
 
     @Test
+    public void testBakedGlyphsPreserveRuntimeHorizontalPlacement() throws Exception {
+        for (String fontResource : new String[] {"/NotoSans-Regular.ttf", "/SourceCodePro-Regular.otf"}) {
+            byte[] fontBytes;
+            try (InputStream input = FontRendererTest.class.getResourceAsStream(fontResource)) {
+                assertNotNull(input);
+                fontBytes = input.readAllBytes();
+            }
+            for (boolean bitmap : new boolean[] {false, true}) {
+                for (boolean effects : new boolean[] {false, true}) {
+                    FontRenderer.Params params = new FontRenderer.Params();
+                    params.size = 36.0f;
+                    params.cacheWidth = 512;
+                    params.cacheHeight = 512;
+                    params.outputBitmap = bitmap;
+                    params.hasOutline = effects;
+                    params.hasShadow = effects;
+                    params.outlineWidth = effects ? 2.0f : 0.0f;
+                    params.shadowBlur = effects ? 2.0f : 0.0f;
+                    try (FontRenderer runtime = new FontRenderer(fontResource, fontBytes, params)) {
+                        FontRenderer.Layout metrics = runtime.measure("", false, 0.0f, 1.0f, 0.0f);
+                        for (char codepoint : new char[] {'E', 'j'}) {
+                            FontRenderer.GeneratedGlyph glyph = runtime.generateGlyph(codepoint);
+                            // Match the compiler's one-pixel atlas border around the generated image.
+                            int rowBytes = glyph.width * glyph.channels;
+                            int paddedRowBytes = (glyph.width + 2) * glyph.channels;
+                            byte[] pixels = new byte[paddedRowBytes * (glyph.height + 2)];
+                            for (int row = 0; row < glyph.height; ++row)
+                                glyph.pixels.get(row * rowBytes, pixels, (row + 1) * paddedRowBytes + glyph.channels, rowBytes);
+                            FontRenderer.GlyphBankGlyph[] glyphs = {
+                                new FontRenderer.GlyphBankGlyph(codepoint, glyph.width, glyph.advance,
+                                        glyph.leftBearing, glyph.ascent, glyph.descent, 0, pixels.length)
+                            };
+                            FontRenderer.GlyphBank bank = new FontRenderer.GlyphBank(glyphs, pixels, 1,
+                                    glyph.channels, metrics.maxAscent, metrics.maxDescent);
+                            try (FontRenderer offline = new FontRenderer("baked.glyph_bankc", bank, params)) {
+                                String text = String.valueOf(codepoint).repeat(2);
+                                for (FontRenderer renderer : new FontRenderer[] {runtime, offline}) {
+                                    renderer.setProperties(properties(100.0f, 1.0f, 0));
+                                    renderer.setText(text);
+                                    renderer.beginBatch();
+                                    renderer.generateTexture(0);
+                                }
+                                TestVertices expected = getVertices(runtime, IDENTITY);
+                                TestVertices actual = getVertices(offline, IDENTITY);
+                                assertEquals(expected.vertexCount, actual.vertexCount);
+                                for (int vertex = 0; vertex < expected.vertexCount; ++vertex) {
+                                    assertEquals(fontResource + " bitmap=" + bitmap + " effects=" + effects + " " + text,
+                                            expected.vertices.getFloat(vertex * VERTEX_STRIDE),
+                                            actual.vertices.getFloat(vertex * VERTEX_STRIDE), 0.00001f);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     public void testGenerateMissingGlyphDoesNotRasterizeGlyphZero() throws Exception {
         try (FontRenderer renderer = createRenderer(32.0f)) {
             FontRenderer.GeneratedGlyph glyph = renderer.generateGlyph(Character.MAX_CODE_POINT);

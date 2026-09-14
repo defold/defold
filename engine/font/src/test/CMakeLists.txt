@@ -145,10 +145,12 @@ if(FONT_RENDERER_IS_DESKTOP AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
             -C "${FONT_RENDERER_TEST_CLASSES_DIR}" .
             -C "${FONT_TEST_ROOT}/data" NotoSans-Regular.ttf
             -C "${FONT_TEST_ROOT}/data" NotoSansArabic-Regular.ttf
+            -C "${FONT_TEST_ROOT}/data" SourceCodePro-Regular.otf
     DEPENDS font_renderer_jar
             "${FONT_RENDERER_TEST_JAVA}"
             "${FONT_TEST_ROOT}/data/NotoSans-Regular.ttf"
             "${FONT_TEST_ROOT}/data/NotoSansArabic-Regular.ttf"
+            "${FONT_TEST_ROOT}/data/SourceCodePro-Regular.otf"
     COMMENT "Packaging font-renderer-tests.jar")
   add_custom_target(test_font_renderer_java_jar DEPENDS "${FONT_RENDERER_TEST_JAR}")
   add_dependencies(test_font_renderer_java_jar fontc_shared font_renderer_jar)

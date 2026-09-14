@@ -1364,6 +1364,12 @@ FontRendererResult FontcGenerateGlyph(HFontRenderer renderer, uint32_t codepoint
     output->m_LeftBearing = glyph.m_LeftBearing;
     output->m_Ascent = glyph.m_Ascent;
     output->m_Descent = glyph.m_Descent;
+    if (!renderer->m_Vector && !renderer->m_IsGlyphBank && glyph.m_Bitmap.m_Width != 0)
+    {
+        // Baked banks store the bitmap width instead of the font metric width.
+        // Preserve the runtime quad's centering in the exported bearing.
+        output->m_LeftBearing -= (glyph.m_Bitmap.m_Width - glyph.m_Width) * 0.5f;
+    }
     const uint32_t vector_header_size = renderer->m_Vector ? sizeof(uint32_t) + sizeof(float) * 4 : 0;
     std::vector<EncodedVectorCurve> curves;
     if (renderer->m_Vector)
