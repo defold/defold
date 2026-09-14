@@ -93,7 +93,6 @@
        (is (= 2 (count (.getItems (first menu-items)))))
        (is (instance? MenuItem (first (.getItems (first menu-items)))))))))
 
-
 (deftest options-menu-test
   (test-support/with-clean-system
     (handler/register-menu! ::my-menu
@@ -139,7 +138,7 @@
        (let [root (Pane.)
              tab (Tab. "tab" root)
              tab-pane (TabPane.)
-             app-view (g/make-node! world FakeAppView :active-tab tab)
+             app-view (g/make-node! FakeAppView :active-tab tab)
              scene (Scene. tab-pane)
              selection-provider (TestSelectionProvider. [])]
          (ui/user-data! scene :localization test-util/localization)

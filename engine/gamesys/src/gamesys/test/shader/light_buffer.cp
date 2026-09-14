@@ -20,8 +20,9 @@ uniform LightBuffer
 
 void main()
 {
+    int light_count = min(int(light_info.w), MAX_LIGHTS);
     vec4 light_accum = vec4(light_info.xyz, 0.0);
-    for (int i = 0; i < int(light_info.w); i++)
+    for (int i = 0; i < light_count; i++)
     {
         light_accum += lights[i].color;
     }

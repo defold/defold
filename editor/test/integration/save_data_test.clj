@@ -1673,10 +1673,9 @@
             (g/delete-nodes resource-node-ids))
           (let [leaked-node-frequencies
                 (->> @g/*the-system*
-                     (is/graphs)
+                     (is/basis)
+                     gt/nodes
                      (eduction
-                       (map val)
-                       (mapcat :nodes)
                        (map val)
                        (map g/node-type)
                        (map :k)
@@ -1689,12 +1688,12 @@
   (test-support/with-clean-system
     {:cache-size test-util/system-cache-size
      :cache-retain? project/cache-retain?}
-    (let [workspace (test-util/setup-workspace! world project-path)
+    (let [workspace (test-util/setup-workspace! project-path)
           _ (test-util/fetch-libraries! workspace)
-          extensions (extensions/make world)
-          project (project/make-project world workspace extensions)
+          extensions (extensions/make)
+          project (project/make-project workspace extensions)
           resources (g/node-value project :resources)
-          node-id+resource-pairs (project/make-node-id+resource-pairs world resources)
+          node-id+resource-pairs (project/make-node-id+resource-pairs resources)
           node-load-infos (project/read-nodes node-id+resource-pairs)
 
           _ (g/transact
@@ -1702,9 +1701,7 @@
               (project/make-resource-nodes-tx-data project node-id+resource-pairs))
 
           explicit-arcs-before
-          (coll/into-> (:graphs (g/now)) #{}
-            (mapcat (fn [[_graph-id graph]]
-                      (:sarcs graph)))
+          (coll/into-> (gt/sarcs (g/now)) #{}
             (mapcat (fn [[_source-node-id source-label->arcs]]
                       (coll/vals source-label->arcs)))
             (mapcat ig/arc-table-arcs))
@@ -1751,7 +1748,7 @@
                             (contains? owned-node-ids (gt/target-id arc)))]
 
                       (coll/into-> owned-node-ids :eduction
-                        (mapcat #(g/explicit-arcs-by-source basis %))
+                        (mapcat #(ig/explicit-arcs-by-source basis %))
                         (remove internal-arc?)
                         (remove save-data-arc?)
                         (remove explicit-arcs-before)

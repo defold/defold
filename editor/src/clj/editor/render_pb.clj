@@ -23,7 +23,8 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.validation :as validation]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [internal.graph.types :as gt])
   (:import [com.dynamo.render.proto Render$RenderPrototypeDesc Render$RenderPrototypeDesc$RenderResourceDesc]))
 
 (g/defnode NamedRenderResource
@@ -32,7 +33,7 @@
   (property render-resource resource/Resource ; Required protobuf field.
             (value (gu/passthrough resource))
             (set (fn [evaluation-context self old-value new-value]
-                   (let [project (project/get-project (:basis evaluation-context) self)
+                   (let [project (project/get-project (:basis evaluation-context))
                          connections [[:resource :resource]
                                       [:build-targets :dep-build-targets]]]
                      (concat
@@ -53,9 +54,8 @@
                                          :path render-resource})))
 
 (defn- make-named-render-resource-node
-  [graph-id render-node name render-resource-resource]
+  [render-node name render-resource-resource]
   (g/make-nodes
-    graph-id
     [named-render-resource [NamedRenderResource :name name :render-resource render-resource-resource]]
     (g/connect named-render-resource :_node-id render-node :nodes)
     (g/connect named-render-resource :named-render-resource render-node :named-render-resources)
@@ -86,12 +86,11 @@
 (defn- set-form-op [{:keys [node-id] :as user-data} path value]
   (condp = path
     [:script] (g/set-property node-id :script value)
-    [:named-render-resources] (let [graph-id (g/node-id->graph-id node-id)]
-                                (concat
-                                  (for [[named-render-resource-id _] (g/sources-of node-id :named-render-resources)]
-                                    (g/delete-node named-render-resource-id))
-                                  (for [{:keys [name path]} value]
-                                    (make-named-render-resource-node graph-id node-id name path))))))
+    [:named-render-resources] (concat
+                                (for [arc (g/inputs (g/now) node-id :named-render-resources)]
+                                  (g/delete-node (gt/source-id arc)))
+                                (for [{:keys [name path]} value]
+                                  (make-named-render-resource-node node-id name path)))))
 
 (g/defnk produce-form-data [_node-id script-resource named-render-resources]
   (-> form-sections
@@ -170,13 +169,12 @@
 (defn- load-render [_project self resource render-ddf]
   (let [basis (g/now)
         resolve-resource #(workspace/resolve-resource basis resource %)
-        graph-id (g/node-id->graph-id self)
         {script-path :script render-resources :render-resources} render-ddf]
     (concat
       (g/set-property self :script (resolve-resource script-path))
       (for [{:keys [name path]} render-resources]
         (let [render-resource (resolve-resource path)]
-          (make-named-render-resource-node graph-id self name render-resource))))))
+          (make-named-render-resource-node self name render-resource))))))
 
 (defn- sanitize-render [render-ddf]
   (let [migrated-materials (mapv (fn [material-desc]

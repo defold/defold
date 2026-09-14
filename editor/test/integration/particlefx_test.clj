@@ -22,7 +22,8 @@
             [editor.particle-lib :as plib]
             [editor.properties :as properties]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt])
   (:import [javax.vecmath Matrix4d]))
 
 (defn- dump-outline [outline]
@@ -129,7 +130,9 @@
   (test-util/with-loaded-project
     (let [particlefx-path "/particlefx/fireworks_big.particlefx"
           particlefx (project/get-resource-node project particlefx-path)
-          [[emitter] _ [modifier]] (g/sources-of particlefx :child-scenes)
+          child-scene-arcs (g/inputs (g/now) particlefx :child-scenes)
+          emitter (gt/source-id (nth child-scene-arcs 0))
+          modifier (gt/source-id (nth child-scene-arcs 2))
           check! (fn check! [node-id prop-kw]
                    (doseq [original-curve-spread
                            [(properties/->curve-spread [[(float 0.0) (float 1.0) (float 1.0) (float 0.0)]] (float 0.0))

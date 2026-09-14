@@ -279,13 +279,13 @@
   (inherits ComponentNode)
 
   (property path g/Any ; Required protobuf field.
-            (dynamic edit-type (g/fnk [source-resource _node-id]
+            (dynamic edit-type (g/fnk [source-resource]
                                  (let [resource-type (some-> source-resource resource/resource-type)
                                        tags (:tags resource-type)]
                                    {:type resource/Resource
                                     :ext (or (and (or (contains? tags :component) (contains? tags :embeddable))
                                                   (some-> resource-type :ext))
-                                             (get-all-comp-exts (project/workspace (project/get-project _node-id))))
+                                             (get-all-comp-exts (project/workspace (project/get-project))))
                                     :to-type (fn [v] (:resource v))
                                     :from-type (fn [r] {:resource r :overrides []})})))
             (value (g/fnk [source-resource ddf-properties]
@@ -298,7 +298,7 @@
                      (let [basis (:basis evaluation-context)
                            new-resource (:resource new-value)
                            resource-type (some-> new-resource resource/resource-type)
-                           project (project/get-project basis self)
+                           project (project/get-project basis)
 
                            [comp-node tx-data]
                            (if (resource/overridable-resource-type? resource-type)
@@ -487,8 +487,7 @@
 (defn- add-component [self source-resource id transform-properties properties select-fn]
   (let [path {:resource source-resource
               :overrides properties}]
-    (g/make-nodes (g/node-id->graph-id self)
-      [comp-node [ReferencedComponent :id id]]
+    (g/make-nodes [comp-node [ReferencedComponent :id id]]
       (gu/set-properties-from-pb-map comp-node GameObject$ComponentDesc transform-properties
         position :position
         rotation :rotation
@@ -509,7 +508,7 @@
   (contains? sound/supported-audio-formats (resource/type-ext resource)))
 
 (defn- add-embedded-sound-component! [go-id audio-resource select-fn]
-  (let [project (project/get-project go-id)
+  (let [project (project/get-project)
         workspace (project/workspace project)
         resource-type (workspace/get-resource-type workspace "sound")
         pb-map (assoc (game-object-common/template-pb-map workspace resource-type)
@@ -554,11 +553,10 @@
 
 (defn- add-embedded-component [self project type pb-map id transform-properties select-fn]
   {:pre [(map? pb-map)]}
-  (let [graph (g/node-id->graph-id self)
-        resource (project/make-embedded-resource project :editable type pb-map)
+  (let [resource (project/make-embedded-resource project :editable type pb-map)
         node-type (project/resource-node-type resource)]
-    (g/make-nodes graph [comp-node [EmbeddedComponent :id id]
-                         resource-node [node-type :resource resource]]
+    (g/make-nodes [comp-node [EmbeddedComponent :id id]
+                   resource-node [node-type :resource resource]]
       (gu/set-properties-from-pb-map comp-node GameObject$EmbeddedComponentDesc transform-properties
         position :position
         rotation :rotation
@@ -570,7 +568,7 @@
         (select-fn [comp-node])))))
 
 (defn add-embedded-component! [go-id resource-type select-fn]
-  (let [project (project/get-project go-id)
+  (let [project (project/get-project)
         workspace (project/workspace project)
         pb-map (game-object-common/template-pb-map workspace resource-type)
         id (gen-component-id go-id (:ext resource-type))]
@@ -733,11 +731,10 @@
         resource-type (resource-types component-ext)]
     (assert resource-type)
     (assert (embeddable-component-resource-type? basis resource-type workspace))
-    (let [graph (g/node-id->graph-id node-id)
-          pb-map (game-object-common/template-pb-map basis workspace resource-type)
+    (let [pb-map (game-object-common/template-pb-map basis workspace resource-type)
           resource (resource/make-memory-resource workspace resource-type pb-map)
           node-type (:node-type resource-type)]
-      (g/make-nodes graph [resource-node [node-type :resource resource]]
+      (g/make-nodes [resource-node [node-type :resource resource]]
         (project/load-embedded-resource-node project resource-node resource pb-map)
         (connect-embedded-resource node-type resource-node node-id)))))
 

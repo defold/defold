@@ -378,9 +378,7 @@
   (output scene-info g/Any (g/fnk [sampler gpu-texture anim-data :as info] info)))
 
 (defn- create-texture-binding-tx [sprite sampler texture]
-  (g/make-nodes (g/node-id->graph-id sprite) [texture-binding [TextureBinding
-                                                               :sampler sampler
-                                                               :texture texture]]
+  (g/make-nodes [texture-binding [TextureBinding :sampler sampler :texture texture]]
     (g/connect texture-binding :_node-id sprite :copied-nodes)
     (g/connect texture-binding :texture-binding-info sprite :texture-binding-infos)
     (g/connect texture-binding :texture-binding-save-value sprite :texture-binding-save-values)

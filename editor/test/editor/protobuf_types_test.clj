@@ -29,7 +29,7 @@
 
 (deftest test-load
   (with-clean-system
-    (is (let [workspace (test-util/setup-workspace! world project-path)
+    (is (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)]
           true))))
 
@@ -198,7 +198,7 @@
 
 (deftest dependencies
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world project-path)
+    (let [workspace (test-util/setup-workspace! project-path)
           project (test-util/setup-project! workspace)
           resource-nodes (g/node-value project :nodes-by-resource-path)
           basis (g/now)]
@@ -228,12 +228,12 @@
 
 (deftest load-order-sanity
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world project-path)
-          extensions (extensions/make world)
-          project (project/make-project world workspace extensions)
+    (let [workspace (test-util/setup-workspace! project-path)
+          extensions (extensions/make)
+          project (project/make-project workspace extensions)
 
           node-id+resource-pairs
-          (project/make-node-id+resource-pairs world (g/node-value project :resources))
+          (project/make-node-id+resource-pairs (g/node-value project :resources))
 
           node-load-infos
           (project/read-nodes node-id+resource-pairs)
@@ -265,7 +265,7 @@
 (deftest broken-embedded-data-gives-no-dependencies
   (log/without-logging ; skip warnings about <<<<<<<< in game.project, BORK in go/collection
     (with-clean-system
-      (let [workspace (test-util/setup-workspace! world "test/resources/broken_project")
+      (let [workspace (test-util/setup-workspace! "test/resources/broken_project")
             project (test-util/setup-project! workspace)
             resource-nodes (g/node-value project :nodes-by-resource-path)
             basis (g/now)]
