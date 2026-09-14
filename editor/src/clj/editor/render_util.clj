@@ -37,6 +37,24 @@
 ;; streamed-color-geometry
 ;; -----------------------------------------------------------------------------
 
+(defmacro emit-quad!
+  "Threads a vertex buffer through four vertex-emission forms, expanding the
+  quad into two triangles while preserving its winding."
+  [vertex-buffer v0 v1 v2 v3]
+  `(-> ~vertex-buffer
+       ~v0 ~v1 ~v2
+       ~v2 ~v3 ~v0))
+
+(defmacro emit-quad-outline!
+  "Threads a vertex buffer through four vertex-emission forms, expanding the
+  quad into four independent line segments."
+  [vertex-buffer v0 v1 v2 v3]
+  `(-> ~vertex-buffer
+       ~v0 ~v1
+       ~v1 ~v2
+       ~v2 ~v3
+       ~v3 ~v0))
+
 (def ^:private streamed-color-geometry-shader shaders/basic-color-straight-alpha-local-space)
 
 (defn- quad->triangles

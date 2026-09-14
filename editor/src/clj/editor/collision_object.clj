@@ -864,7 +864,7 @@
                       :passes [pass/transparent pass/selection]
                       :user-data {:color color
                                   :double-sided true
-                                  :geometry {:primitive-type GL2/GL_POLYGON
+                                  :geometry {:primitive-type GL2/GL_TRIANGLE_FAN
                                              :vbuf vbuf}}}
          :children [{:node-id _node-id
                      :aabb aabb
