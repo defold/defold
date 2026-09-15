@@ -56,11 +56,12 @@
   (vec4 color))
 
 (shader/defshader vertex-shader
+  (uniform mat4 view_proj)
   (attribute vec4 position)
   (attribute vec4 color)
   (varying vec4 var_color)
   (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq gl_Position (* view_proj position))
     (setq var_color color)))
 
 (shader/defshader fragment-shader
@@ -68,14 +69,15 @@
   (defn void main []
     (setq gl_FragColor var_color)))
 
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader))
+(def shader (shader/make-shader ::shader vertex-shader fragment-shader {"view_proj" :view-proj}))
 
 (shader/defshader line-vertex-shader
+  (uniform mat4 view_proj)
   (attribute vec4 position)
   (attribute vec4 color)
   (varying vec4 var_color)
   (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq gl_Position (* view_proj position))
     (setq var_color color)))
 
 (shader/defshader line-fragment-shader
@@ -83,7 +85,7 @@
   (defn void main []
     (setq gl_FragColor var_color)))
 
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
+(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader {"view_proj" :view-proj}))
 
 (shader/defshader label-id-vertex-shader
   (uniform mat4 view_proj)
