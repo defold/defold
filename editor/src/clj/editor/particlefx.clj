@@ -128,11 +128,12 @@
   (vec4 color))
 
 (shader/defshader line-vertex-shader
+  (uniform mat4 view_proj)
   (attribute vec4 position)
   (attribute vec4 color)
   (varying vec4 var_color)
   (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq gl_Position (* view_proj position))
     (setq var_color color)))
 
 (shader/defshader line-fragment-shader
@@ -140,19 +141,20 @@
   (defn void main []
     (setq gl_FragColor var_color)))
 
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
+(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader {"view_proj" :view-proj}))
 
 (shader/defshader line-id-vertex-shader
+  (uniform mat4 view_proj)
   (attribute vec4 position)
   (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
+    (setq gl_Position (* view_proj position))))
 
 (shader/defshader line-id-fragment-shader
   (uniform vec4 id)
   (defn void main []
     (setq gl_FragColor id)))
 
-(def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"id" :id}))
+(def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"view_proj" :view-proj "id" :id}))
 
 (defn- curve->pb-spline-points [curve]
   (->> curve
