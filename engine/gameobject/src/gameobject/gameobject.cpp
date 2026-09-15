@@ -654,7 +654,6 @@ namespace dmGameObject
             // TODO Note indexing of m_Collections is always 0 because DeleteCollection modifies the array.
             // Should be fixed by DEF-54
             Collection* collection = gocontext->m_Collections[0];
-            FinalCollection(collection);
             DeleteCollection(collection);
         }
         gocontext->m_Collections.SetSize(0);
@@ -889,11 +888,26 @@ namespace dmGameObject
         return hcollection;
     }
 
+    static uint32_t GetInstanceSpan(Collection* collection)
+    {
+        uint32_t instance_span = 0;
+        for (uint32_t level = 0; level < MAX_HIERARCHICAL_DEPTH; ++level)
+        {
+            const dmArray<uint32_t>& indices = collection->m_LevelIndices[level];
+            for (uint32_t i = 0; i < indices.Size(); ++i)
+            {
+                instance_span = dmMath::Max(instance_span, indices[i] + 1);
+            }
+        }
+        return instance_span;
+    }
+
     static void DoDeleteAll(Collection* collection)
     {
         // This will perform tons of unnecessary work to resolve and reorder
         // the hierarchies and other things but will serve as a nice test case
-        for (uint32_t i = 0; i < collection->m_Instances.Size(); ++i)
+        uint32_t instance_span = GetInstanceSpan(collection);
+        for (uint32_t i = 0; i < instance_span; ++i)
         {
             Instance* instance = collection->m_Instances[i];
             if (instance)
@@ -2326,8 +2340,8 @@ namespace dmGameObject
         assert(collection->m_InUpdate == 0 && "Finalizing instances during Update(.) is not permitted");
 
         bool result = true;
-        uint32_t n_objects = collection->m_Instances.Size();
-        for (uint32_t i = 0; i < n_objects; ++i)
+        uint32_t instance_span = GetInstanceSpan(collection);
+        for (uint32_t i = 0; i < instance_span; ++i)
         {
             Instance* instance = collection->m_Instances[i];
             if (instance != 0x0 && instance->m_Initialized && ! FinalInstance(collection, instance))
@@ -2491,7 +2505,8 @@ namespace dmGameObject
         Collection* collection = GetCollectionFromHandle(hcollection);
         if (!collection)
             return;
-        for (uint32_t i = 0; i < collection->m_Instances.Size(); ++i)
+        uint32_t instance_span = GetInstanceSpan(collection);
+        for (uint32_t i = 0; i < instance_span; ++i)
         {
             Instance* instance = collection->m_Instances[i];
             if (instance)
