@@ -125,9 +125,13 @@ endif()
 
 # Each Bob process owns its project metadata and extracted tools. Limit the
 # number of JVMs competing with compilation for memory on CI runners.
-set(DEFOLD_GAMESYS_BOB_THREADS 2 CACHE STRING "Maximum worker threads per gamesys test content Bob process")
-if(NOT DEFOLD_GAMESYS_BOB_THREADS MATCHES "^[1-9][0-9]*$")
-  message(FATAL_ERROR "DEFOLD_GAMESYS_BOB_THREADS must be a positive integer")
+set(_GS_BOB_THREAD_ARGS)
+if(DEFINED ENV{GITHUB_WORKFLOW})
+  set(DEFOLD_GAMESYS_BOB_THREADS 2 CACHE STRING "Maximum worker threads per gamesys test content Bob process in CI")
+  if(NOT DEFOLD_GAMESYS_BOB_THREADS MATCHES "^[1-9][0-9]*$")
+    message(FATAL_ERROR "DEFOLD_GAMESYS_BOB_THREADS must be a positive integer")
+  endif()
+  list(APPEND _GS_BOB_THREAD_ARGS --max-cpu-threads "${DEFOLD_GAMESYS_BOB_THREADS}")
 endif()
 set(_GS_CONTENT_JOB_POOL)
 set(_GS_CONTENT_LANES 1)
@@ -221,7 +225,7 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
       --build-input-file "${_GS_BOB_STAGE_ROOT}/common_build.inputs"
       --use-uncompressed-lua-source
       --debug-output-spirv true
-      --max-cpu-threads "${DEFOLD_GAMESYS_BOB_THREADS}"
+      ${_GS_BOB_THREAD_ARGS}
       --platform "${TARGET_PLATFORM}"
       ${_settings_args}
       build
