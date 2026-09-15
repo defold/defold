@@ -26,6 +26,7 @@ import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -64,7 +65,7 @@ public class IOSBundler implements IBundler {
             ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
             IOUtils.copy(errorIn, errorOut);
             errorIn.close();
-            String errorMessage = new String(errorOut.toByteArray());
+            String errorMessage = errorOut.toString();
 
             int ret = process.waitFor();
             if (ret != 0) {
@@ -100,7 +101,7 @@ public class IOSBundler implements IBundler {
         return binaries;
     }
 
-    private static final String SYMBOL_EXE_RELATIVE_PATH = String.format("Contents/Resources/DWARF/dmengine");
+    private static final String SYMBOL_EXE_RELATIVE_PATH = "Contents/Resources/DWARF/dmengine";
 
     public static List<File> getSymbolDirsFromArchitectures(File buildDir, List<Platform> architectures) {
         final String[] prefixes = {"", "src" + File.separator};
@@ -232,9 +233,7 @@ public class IOSBundler implements IBundler {
     private void codesign(File target, String identity, String... extraArgs) throws IOException {
         List<String> args = new ArrayList<String>();
         args.add("codesign");
-        for (String extraArg : extraArgs) {
-            args.add(extraArg);
-        }
+        args.addAll(Arrays.asList(extraArgs));
         args.add("-f");
         args.add("-s");
         args.add(identity);
@@ -260,7 +259,7 @@ public class IOSBundler implements IBundler {
             }
         }
         else {
-            System.out.printf("No ./Framework folder to sign\n");
+            System.out.print("No ./Framework folder to sign\n");
         }
 
         File pluginsDir = new File(appDir, "PlugIns");
@@ -279,7 +278,7 @@ public class IOSBundler implements IBundler {
             }
         }
         else {
-            System.out.printf("No ./PlugIns folder to sign\n");
+            System.out.print("No ./PlugIns folder to sign\n");
         }
     }
 
@@ -339,7 +338,7 @@ public class IOSBundler implements IBundler {
 
         String provisioningProfile = project.option("mobileprovisioning", null);
         String identity = project.option("identity", null);
-        Boolean shouldSign = provisioningProfile != null && identity != null;
+        boolean shouldSign = provisioningProfile != null && identity != null;
 
         // The simulator cannot use device signing; simctl installs ad-hoc signed bundles
         final boolean isSimulator = platform == Platform.Arm64IosSim;

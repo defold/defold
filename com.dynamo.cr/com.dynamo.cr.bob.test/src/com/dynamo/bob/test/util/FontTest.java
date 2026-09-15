@@ -17,6 +17,7 @@ package com.dynamo.bob.test.util;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -540,12 +541,12 @@ public class FontTest {
         BufferedInputStream glyphBankCStream = new BufferedInputStream(new FileInputStream(outfile));
         glyphBank = GlyphBank.newBuilder().mergeFrom(glyphBankCStream).build();
 
-        String actual = "";
+        StringBuilder actual = new StringBuilder();
         for (int i=0; i < glyphBank.getGlyphsCount(); i++)
         {
-            actual += new String(Character.toChars(glyphBank.getGlyphs(i).getCharacter()));
+            actual.append(new String(Character.toChars(glyphBank.getGlyphs(i).getCharacter())));
         }
-        assertEquals(actual, "!$0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
+        assertEquals("!$0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", actual.toString());
     }
 
     @Test
@@ -759,7 +760,7 @@ public class FontTest {
             }
         }
         // we should not get here unless the '.' glyph wasn't found
-        assertTrue(false);
+        fail();
     }
 
 }

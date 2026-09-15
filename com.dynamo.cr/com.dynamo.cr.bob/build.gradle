@@ -14,6 +14,9 @@ import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
 import org.apache.commons.compress.parallel.InputStreamSupplier
 
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.jar.Attributes
@@ -36,20 +39,20 @@ def keepBobUncompressed = project.hasProperty('keep-bob-uncompressed')
 def gradleVersion = gradle.gradleVersion
 
 allprojects {
-    tasks.withType(Jar) {
+    tasks.withType(Jar).configureEach {
         exclude('tmp/**', 'reports/**')
         includeEmptyDirs = false
         if (project.hasProperty('keep-bob-uncompressed')) {
             entryCompression = ZipEntryCompression.STORED
         }
     }
-    tasks.withType(Zip) {
+    tasks.withType(Zip).configureEach {
         includeEmptyDirs = false
     }
-    tasks.withType(Copy) {
+    tasks.withType(Copy).configureEach {
         includeEmptyDirs = false
     }
-    tasks.withType(JavaCompile) {
+    tasks.withType(JavaCompile).configureEach {
         options.incremental = true
     }
 }
@@ -67,7 +70,7 @@ dependencies {
     implementation fileTree(dir: "${bobDir}/lib/aws", include: '*.jar')
 }
 
-task cleanDirs(type: Delete) {
+tasks.register('cleanDirs', Delete) {
     delete classesDir
     delete file("${bobDir}/generated")
     delete file("${bobDir}/dist")
@@ -76,17 +79,19 @@ task cleanDirs(type: Delete) {
     delete file("${bobDir}/lib/luajit-share.zip")
 }
 
-clean.dependsOn cleanDirs
+tasks.named('clean') {
+    dependsOn 'cleanDirs'
+}
 
 gradle.projectsEvaluated {
     project.protoFiles.each { proto ->
         def protoDir = file(proto.dir)
         def protoFilePath = file("${proto.dir}/${proto.file}")
-        def protoTaskName = "protoTask_${proto.file.replace('/', '_').replace('.', '_')}" as Object
+        def protoTaskName = "protoTask_${proto.file.replace('/', '_').replace('.', '_')}" as String
         tasks.named('compileJava').configure {
             dependsOn protoTaskName
         }
-        tasks.create(name: protoTaskName, type: Exec) {
+        tasks.register(protoTaskName, Exec) {
             group = 'build'
             inputs.file(protoFilePath)
             outputs.dir("${bobDir}/generated")
@@ -109,13 +114,14 @@ gradle.projectsEvaluated {
     }
 }
 
-task execProtoTasks {
+tasks.register('execProtoTasks') {
+    dependsOn 'prepareBobBuildContext'
     dependsOn project.protoFiles.collect { proto ->
         "protoTask_${proto.file.replace('/', '_').replace('.', '_')}"
     }
 }
 
-task proto(type: Exec) {
+tasks.register('proto', Exec) {
     group = 'build'
     def protoDir = project.findProperty('protoDir') ?: ''
     def protoFile = project.findProperty('protoFile') ?: ''
@@ -188,7 +194,7 @@ def readGitRevision = { String repositoryRoot ->
     }
     try {
         def stdout = new ByteArrayOutputStream()
-        def result = services.get(org.gradle.process.ExecOperations).exec {
+        def result = services.get(ExecOperations).exec {
             commandLine 'git', '-C', repositoryRoot, 'rev-parse', 'HEAD'
             standardOutput = stdout
             errorOutput = new ByteArrayOutputStream()
@@ -210,7 +216,7 @@ def bobBuildContext = [
 ].join('\n') + '\n'
 def bobBuildContextFile = file("${bobDir}/build/bob-build-context.txt")
 
-task prepareBobBuildContext {
+tasks.register('prepareBobBuildContext') {
     inputs.property('buildContext', bobBuildContext)
     outputs.file(bobBuildContextFile)
 
@@ -231,10 +237,8 @@ task prepareBobBuildContext {
     }
 }
 
-execProtoTasks.dependsOn prepareBobBuildContext
-
-task copyDependencies {
-    dependsOn prepareBobBuildContext
+tasks.register('copyDependencies') {
+    dependsOn 'prepareBobBuildContext'
     inputs.file("${bobDir}/engine_version_generator.py")
     inputs.file("../../VERSION")
     inputs.property("gitRevision", bobGitRevision)
@@ -243,7 +247,7 @@ task copyDependencies {
     outputs.files(bobLightDependencyJars.collect { "${bobDir}/lib/${it}" })
 
     doLast {
-        services.get(org.gradle.process.ExecOperations).exec {
+        services.get(ExecOperations).exec {
             workingDir bobDir
             commandLine python, "${bobDir}/engine_version_generator.py"
         }
@@ -261,7 +265,8 @@ task copyDependencies {
     }
 }
 
-task compileGenerated(type: JavaCompile, dependsOn: [execProtoTasks, copyDependencies]) {
+tasks.register('compileGenerated', JavaCompile) {
+    dependsOn 'execProtoTasks', 'copyDependencies'
     mkdir classesDir
     source = fileTree("${bobDir}/generated")
     destinationDirectory = classesDir
@@ -272,7 +277,8 @@ task compileGenerated(type: JavaCompile, dependsOn: [execProtoTasks, copyDepende
     outputs.dir(classesDir)
 }
 
-task compileSrc(type: JavaCompile, dependsOn: [compileGenerated, copyDependencies]) {
+tasks.register('compileSrc', JavaCompile) {
+    dependsOn 'compileGenerated', 'copyDependencies'
     source = sourceSets.main.java
     destinationDirectory = classesDir
     include '**'
@@ -288,8 +294,8 @@ privateBobPluginModules.each { module ->
     def taskSuffix = module.name.replaceAll(/[^A-Za-z0-9]/, '_')
     def pluginClassesDir = file("${bobDir}/build/private_plugins/${module.name}")
 
-    def compileTask = tasks.create(name: "compilePrivatePlugin_${taskSuffix}", type: JavaCompile) {
-        dependsOn compileSrc, 'compileBobLight'
+    def compileTask = tasks.register("compilePrivatePlugin_${taskSuffix}", JavaCompile) {
+        dependsOn 'compileSrc', 'compileBobLight'
         source = fileTree(module.sourceDir)
         destinationDirectory = pluginClassesDir
         include '**/*.java'
@@ -299,7 +305,7 @@ privateBobPluginModules.each { module ->
         outputs.dir(pluginClassesDir)
     }
 
-    def jarTask = tasks.create(name: "createPrivatePluginJar_${taskSuffix}", type: Jar) {
+    def jarTask = tasks.register("createPrivatePluginJar_${taskSuffix}", Jar) {
         dependsOn compileTask
         archiveFileName = module.jarName
         destinationDirectory = file("${bobDir}/dist/plugins")
@@ -311,7 +317,8 @@ privateBobPluginModules.each { module ->
     privateBobPluginJarTasks << jarTask
 }
 
-task installPrivatePluginJars(dependsOn: privateBobPluginJarTasks) {
+tasks.register('installPrivatePluginJars') {
+    dependsOn privateBobPluginJarTasks
     doLast {
         privateBobPluginModules.each { module ->
             copy {
@@ -322,10 +329,12 @@ task installPrivatePluginJars(dependsOn: privateBobPluginJarTasks) {
     }
 }
 
-task installPrivatePlugins(dependsOn: 'installBobLight') {
+tasks.register('installPrivatePlugins') {
+    dependsOn 'installBobLight'
 }
 
-task createLuaJitShareZip(type: Zip, dependsOn: [compileSrc, compileGenerated]) {
+tasks.register('createLuaJitShareZip', Zip) {
+    dependsOn 'compileSrc', 'compileGenerated'
     archiveFileName = 'luajit-share.zip'
     destinationDirectory = file("${bobDir}/lib")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -348,7 +357,8 @@ def vkQualityNativeLibraries = [
         'x86_64-android/libvkquality.so'
 ]
 
-task compileBobLight(dependsOn: [compileSrc, createLuaJitShareZip]) {
+tasks.register('compileBobLight') {
+    dependsOn 'compileSrc', 'createLuaJitShareZip'
     inputs.files(bobLightResourceFiles)
     inputs.dir("${dynamoHome}/ext/bin")
     inputs.dir("${dynamoHome}/ext/share/luajit")
@@ -472,10 +482,12 @@ task compileBobLight(dependsOn: [compileSrc, createLuaJitShareZip]) {
     }
 }
 
-task compile(dependsOn: ['compileBobLight']) {
+tasks.register('compile') {
+    dependsOn 'compileBobLight'
 }
 
-task createExternalLibsLightJar(type: Jar, dependsOn: compileSrc) {
+tasks.register('createExternalLibsLightJar', Jar) {
+    dependsOn 'compileSrc'
     archiveFileName = 'external-libs-light.jar'
     destinationDirectory = file("${bobDir}/tmp")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -496,7 +508,8 @@ task createExternalLibsLightJar(type: Jar, dependsOn: compileSrc) {
     }
 }
 
-task createBobLightJar(type: Jar, dependsOn: [compileBobLight, createExternalLibsLightJar, createLuaJitShareZip]) {
+tasks.register('createBobLightJar', Jar) {
+    dependsOn 'compileBobLight', 'createExternalLibsLightJar', 'createLuaJitShareZip'
     dependsOn privateBobPluginJarTasks
 
     archiveFileName = 'bob-light.jar'
@@ -578,10 +591,12 @@ task createBobLightJar(type: Jar, dependsOn: [compileBobLight, createExternalLib
     }
 }
 
-task distBobLight(dependsOn: ['compileBobLight', 'createBobLightJar']) {
+tasks.register('distBobLight') {
+    dependsOn 'compileBobLight', 'createBobLightJar'
 }
 
-task createExternalLibsBuiltinsJar(type: Jar, dependsOn: [compileSrc, compileGenerated]) {
+tasks.register('createExternalLibsBuiltinsJar', Jar) {
+    dependsOn 'compileSrc', 'compileGenerated'
     archiveFileName = 'external-libs-builtins.jar'
     destinationDirectory = file("${bobDir}/tmp")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -705,7 +720,8 @@ def addParallelArchiveEntry = { ParallelScatterZipCreator creator, Set<String> s
     creator.addArchiveEntry(entry, { openStream.call() } as InputStreamSupplier)
 }
 
-task createBobJar(dependsOn: [compileBobLight, createExternalLibsBuiltinsJar, createLuaJitShareZip]) {
+tasks.register('createBobJar') {
+    dependsOn 'compileBobLight', 'createExternalLibsBuiltinsJar', 'createLuaJitShareZip'
     dependsOn privateBobPluginJarTasks
 
     def outputFile = file("${bobDir}/dist/bob.jar")
@@ -812,14 +828,17 @@ task createBobJar(dependsOn: [compileBobLight, createExternalLibsBuiltinsJar, cr
     }
 }
 
-task distBob(dependsOn: ['compile', 'createBobJar']) {
+tasks.register('distBob') {
+    dependsOn 'compile', 'createBobJar'
     doLast {
         mkdir "${bobDir}/dist"
         mkdir "${bobDir}/tmp"
     }
 }
 
-task installBobLight(dependsOn: 'distBobLight') {
+tasks.register('installBobLight') {
+    dependsOn 'distBobLight'
+    finalizedBy 'installPrivatePluginJars'
     doLast {
         def sourceFile = file("${bobDir}/dist/bob-light.jar")
         def destinationDir = file("${dynamoHome}/share/java")
@@ -832,26 +851,27 @@ task installBobLight(dependsOn: 'distBobLight') {
 
         destinationDir.mkdirs()
         if (destinationFile.exists()
-                && java.nio.file.Files.mismatch(sourceFile.toPath(), destinationFile.toPath()) == -1L) {
+                && Files.mismatch(sourceFile.toPath(), destinationFile.toPath()) == -1L) {
             return
         }
 
-        java.nio.file.Files.copy(sourceFile.toPath(), temporaryFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        Files.copy(sourceFile.toPath(), temporaryFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
         try {
-            java.nio.file.Files.move(temporaryFile.toPath(), destinationFile.toPath(),
-                    java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                    java.nio.file.StandardCopyOption.ATOMIC_MOVE)
-        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
-            java.nio.file.Files.move(temporaryFile.toPath(), destinationFile.toPath(),
-                    java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            Files.move(temporaryFile.toPath(), destinationFile.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE)
+        } catch (AtomicMoveNotSupportedException ignored) {
+            Files.move(temporaryFile.toPath(), destinationFile.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING)
         } finally {
             temporaryFile.delete()
         }
     }
 }
-installBobLight.finalizedBy installPrivatePluginJars
 
-task install(dependsOn: 'distBob') {
+tasks.register('install') {
+    dependsOn 'distBob'
+    finalizedBy 'installPrivatePluginJars'
     doLast {
         copy {
             from "${bobDir}/dist/bob.jar"
@@ -859,4 +879,3 @@ task install(dependsOn: 'distBob') {
         }
     }
 }
-install.finalizedBy installPrivatePluginJars
