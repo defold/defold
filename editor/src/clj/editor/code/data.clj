@@ -21,10 +21,8 @@
             [util.defonce :as defonce]
             [util.diff :as diff])
   (:import [java.io IOException InputStream Reader Writer]
-           [java.lang Character$UnicodeScript]
            [java.nio CharBuffer]
-           [java.text BreakIterator]
-           [java.util Collections Locale]
+           [java.util Collections]
            [java.util.regex MatchResult Pattern]
            [org.apache.commons.io.input ReaderInputStream]))
 
@@ -50,95 +48,46 @@
   (complex-text-x->col [this text x] "The logical offset nearest a visual x position in a complex string.")
   (complex-text-x->character-col [this text x] "The logical offset of the character at a visual x position in a complex string."))
 
-(def ^:private shaping-scripts
-  "Unicode scripts whose text requires shaping beyond independent glyph advances."
-  #{Character$UnicodeScript/ADLAM
-    Character$UnicodeScript/ARABIC
-    Character$UnicodeScript/BALINESE
-    Character$UnicodeScript/BATAK
-    Character$UnicodeScript/BENGALI
-    Character$UnicodeScript/BHAIKSUKI
-    Character$UnicodeScript/BRAHMI
-    Character$UnicodeScript/BUGINESE
-    Character$UnicodeScript/CHAKMA
-    Character$UnicodeScript/CHAM
-    Character$UnicodeScript/DEVANAGARI
-    Character$UnicodeScript/GRANTHA
-    Character$UnicodeScript/GUJARATI
-    Character$UnicodeScript/GUNJALA_GONDI
-    Character$UnicodeScript/GURMUKHI
-    Character$UnicodeScript/HANIFI_ROHINGYA
-    Character$UnicodeScript/JAVANESE
-    Character$UnicodeScript/KANNADA
-    Character$UnicodeScript/KAYAH_LI
-    Character$UnicodeScript/KHMER
-    Character$UnicodeScript/KHOJKI
-    Character$UnicodeScript/KHUDAWADI
-    Character$UnicodeScript/LAO
-    Character$UnicodeScript/LEPCHA
-    Character$UnicodeScript/LIMBU
-    Character$UnicodeScript/MAHAJANI
-    Character$UnicodeScript/MALAYALAM
-    Character$UnicodeScript/MANDAIC
-    Character$UnicodeScript/MANICHAEAN
-    Character$UnicodeScript/MEETEI_MAYEK
-    Character$UnicodeScript/MODI
-    Character$UnicodeScript/MONGOLIAN
-    Character$UnicodeScript/MRO
-    Character$UnicodeScript/MYANMAR
-    Character$UnicodeScript/NANDINAGARI
-    Character$UnicodeScript/NEWA
-    Character$UnicodeScript/NKO
-    Character$UnicodeScript/ORIYA
-    Character$UnicodeScript/SAURASHTRA
-    Character$UnicodeScript/SHARADA
-    Character$UnicodeScript/SIDDHAM
-    Character$UnicodeScript/SINHALA
-    Character$UnicodeScript/SYLOTI_NAGRI
-    Character$UnicodeScript/SYRIAC
-    Character$UnicodeScript/TAI_THAM
-    Character$UnicodeScript/TAI_VIET
-    Character$UnicodeScript/TAKRI
-    Character$UnicodeScript/TAMIL
-    Character$UnicodeScript/TELUGU
-    Character$UnicodeScript/THAANA
-    Character$UnicodeScript/THAI
-    Character$UnicodeScript/TIBETAN
-    Character$UnicodeScript/TIRHUTA})
+(defn- simple-character?
+  "True for characters the per-character advance model measures correctly. Every
+  other character is handed to the shaper, so unfamiliar scripts render slowly
+  rather than incorrectly."
+  [character]
+  (< (int character) 0x80))
 
-(defn- complex-script-character?
-  [^long codepoint]
-  (contains? shaping-scripts (Character$UnicodeScript/of codepoint)))
-
-(defn- complex-script-extension-character?
-  [^long codepoint]
-  (or (= 0x200c codepoint) ; ZERO WIDTH NON-JOINER
-      (= 0x200d codepoint) ; ZERO WIDTH JOINER
-      (let [character-type (Character/getType codepoint)]
-        (or (= Character/NON_SPACING_MARK character-type)
-            (= Character/COMBINING_SPACING_MARK character-type)
-            (= Character/ENCLOSING_MARK character-type)))))
+(defn- combining-character?
+  [character]
+  (let [character-type (Character/getType (unchecked-char character))]
+    (or (= Character/NON_SPACING_MARK character-type)
+        (= Character/COMBINING_SPACING_MARK character-type)
+        (= Character/ENCLOSING_MARK character-type))))
 
 (defn complex-text-ranges
+  "Ranges of the line, as [start end] character offsets, that must be measured
+  and drawn as a shaped unit rather than one character at a time."
   [^String line]
   (let [line-length (count line)]
     (loop [index 0
            ranges []]
       (if (>= index line-length)
         ranges
-        (let [codepoint (.codePointAt line (int index))
-              next-index (+ index (Character/charCount (int codepoint)))]
-          (if-not (complex-script-character? codepoint)
-            (recur next-index ranges)
-            (let [end (loop [end next-index]
-                        (if (< end line-length)
-                          (let [next-codepoint (.codePointAt line (int end))]
-                            (if (or (complex-script-character? next-codepoint)
-                                    (complex-script-extension-character? next-codepoint))
-                              (recur (+ end (Character/charCount (int next-codepoint))))
-                              end))
+        (if (simple-character? (.charAt line index))
+          (recur (inc index) ranges)
+          ;; A combining mark on a simple base must be shaped together with it,
+          ;; so the range starts one character earlier in that case. Whitespace
+          ;; is never pulled in: a range must not contain a tab, since the
+          ;; shaper does not know the editor's tab stops.
+          (let [start (if (and (pos? index)
+                               (combining-character? (.charAt line index))
+                               (not (Character/isWhitespace (.charAt line (dec index)))))
+                        (dec index)
+                        index)
+                end (loop [end (inc index)]
+                      (if (and (< end line-length)
+                               (not (simple-character? (.charAt line end))))
+                        (recur (inc end))
                         end))]
-              (recur end (conj ranges [index end])))))))))
+            (recur end (conj ranges [start end]))))))))
 
 (defmacro clamp [value minimum maximum]
   `(max ~minimum (min ~value ~maximum)))
@@ -1639,42 +1588,6 @@
         (->Cursor new-row new-col))
       (->Cursor row new-col))))
 
-(defn- previous-grapheme-boundary
-  ^long [^String line ^long col]
-  (let [iterator (BreakIterator/getCharacterInstance Locale/ROOT)]
-    (.setText iterator line)
-    (let [boundary (.preceding iterator col)]
-      (if (= BreakIterator/DONE boundary) 0 boundary))))
-
-(defn- next-grapheme-boundary
-  ^long [^String line ^long col]
-  (let [iterator (BreakIterator/getCharacterInstance Locale/ROOT)]
-    (.setText iterator line)
-    (let [boundary (.following iterator col)]
-      (if (= BreakIterator/DONE boundary) (count line) boundary))))
-
-(defn- cursor-left-grapheme
-  ^Cursor [lines ^Cursor cursor]
-  (let [adjusted (adjust-cursor lines cursor)
-        row (.row adjusted)
-        col (.col adjusted)]
-    (if (zero? col)
-      (let [new-row (max 0 (dec row))]
-        (->Cursor new-row (if (zero? row) 0 (count (lines new-row)))))
-      (->Cursor row (previous-grapheme-boundary (lines row) col)))))
-
-(defn- cursor-right-grapheme
-  ^Cursor [lines ^Cursor cursor]
-  (let [adjusted (adjust-cursor lines cursor)
-        row (.row adjusted)
-        col (.col adjusted)
-        line (lines row)]
-    (if (= col (count line))
-      (let [last-row (dec (count lines))
-            new-row (min (inc row) last-row)]
-        (->Cursor new-row (if (= last-row row) (count (lines last-row)) 0)))
-      (->Cursor row (next-grapheme-boundary line col)))))
-
 (defn- cursor-prev-word
   ^Cursor [lines ^Cursor cursor]
   (let [left-adjusted (cursor-left lines cursor)]
@@ -2736,11 +2649,8 @@
     [(->CursorRange from to) [""]]))
 
 (defn delete-character-after-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
-  ;; Deletes a whole grapheme cluster, unlike backspace which deletes a single
-  ;; character. Deleting only the base character would orphan its combining
-  ;; marks, which would then attach to the preceding character.
   (let [from (CursorRange->Cursor cursor-range)
-        to (cursor-right-grapheme lines from)]
+        to (cursor-right lines from)]
     [(->CursorRange from to) [""]]))
 
 (defn delete-word-after-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
@@ -3408,8 +3318,8 @@
                       :end cursor-line-end
                       :up cursor-up
                       :down cursor-down
-                      :left cursor-left-grapheme
-                      :right cursor-right-grapheme
+                      :left cursor-left
+                      :right cursor-right
                       :prev-word cursor-prev-word
                       :next-word cursor-next-word
                       :line-start cursor-line-start

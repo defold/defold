@@ -177,35 +177,7 @@
     (.setContent layout text (FontHelper/getNativeFont font))
     layout))
 
-;; Monospace fonts rarely cover complex scripts, and JavaFX falls back to
-;; whatever fontconfig lists first, which may lack the mark-positioning rules
-;; needed to stack Thai vowels and tone marks. Complex ranges are therefore
-;; drawn with an explicitly chosen font instead of the code font.
-(def ^:private complex-script-font-families
-  ["Noto Sans Thai" "Waree" "Noto Sans Arabic" "Noto Sans"])
-
-(defn- resolve-font-family
-  "Returns the first family JavaFX actually loads, or nil. JavaFX lists variable
-  fonts in getFamilies but resolves them to the System font, so the returned
-  family is compared against the requested one."
-  [families]
-  (some (fn [family]
-          (when (= family (.getFamily (Font. ^String family 12.0)))
-            family))
-        families))
-
-;; Resolved lazily. Constructing a Font initializes the native font system, so
-;; this must not happen until the JavaFX toolkit is up.
-(defonce ^:private complex-script-font-family
-  (delay (resolve-font-family complex-script-font-families)))
-
-(defn- make-complex-script-font
-  ^Font [^Font font]
-  (if-some [family @complex-script-font-family]
-    (Font. ^String family (.getSize font))
-    font))
-
-(defonce/record GlyphMetrics [^Font font ^Font complex-font char-width-cache ^double line-height ^double ascent]
+(defonce/record GlyphMetrics [^Font font char-width-cache ^double line-height ^double ascent]
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
@@ -214,14 +186,14 @@
 (extend-type GlyphMetrics
   data/ComplexTextMetrics
   (complex-text-width [this text]
-    (.getWidth (.getBounds (text-layout (.complex-font this) text))))
+    (.getWidth (.getBounds (text-layout (.font this) text))))
   (complex-text-col->x [this text col]
     (.x ^TextLayout$CaretGeometry$Single
-        (.getCaretGeometry (text-layout (.complex-font this) text) col true)))
+        (.getCaretGeometry (text-layout (.font this) text) col true)))
   (complex-text-x->col [this text x]
-    (.getInsertionIndex (.getHitInfo (text-layout (.complex-font this) text) (float x) (float 0.0))))
+    (.getInsertionIndex (.getHitInfo (text-layout (.font this) text) (float x) (float 0.0))))
   (complex-text-x->character-col [this text x]
-    (.getCharIndex (.getHitInfo (text-layout (.complex-font this) text) (float x) (float 0.0)))))
+    (.getCharIndex (.getHitInfo (text-layout (.font this) text) (float x) (float 0.0)))))
 
 (defn make-glyph-metrics
   ^GlyphMetrics [^Font font ^double line-height-factor]
@@ -232,7 +204,7 @@
                                 FontResource/AA_GREYSCALE)
         line-height (Math/ceil (* (inc (.getLineHeight font-metrics)) line-height-factor))
         ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))]
-    (->GlyphMetrics font (make-complex-script-font font) (make-char-width-cache font-strike) line-height ascent)))
+    (->GlyphMetrics font (make-char-width-cache font-strike) line-height ascent)))
 
 (def ^:private default-editor-color-scheme
   (let [foreground-color (Color/valueOf "#DDDDDD")
@@ -447,8 +419,7 @@
         visible-start-x (.x canvas-rect)
         visible-end-x (+ visible-start-x (.w canvas-rect))
         offset-x (+ visible-start-x (.scroll-x layout))
-        ^Font code-font (.getFont gc)
-        ^Font complex-font (.complex-font ^GlyphMetrics (.glyph layout))]
+        ^Font font (.getFont gc)]
     (loop [^long i start-index
            x (- ^double x offset-x)
            range-index 0]
@@ -480,7 +451,7 @@
                               j
                               (recur (inc j))))))
               next-x (if shaped?
-                       (+ x (shaped-text-width complex-font (.substring text i seg-end)))
+                       (+ x (shaped-text-width font (.substring text i seg-end)))
                        (double (data/advance-text layout text i seg-end x)))]
           (cond
             tab?
@@ -490,9 +461,7 @@
             ;; cannot be applied to individual glyphs.
             shaped?
             (when (< visible-start-x (+ next-x offset-x))
-              (.setFont gc complex-font)
-              (.fillText gc (.substring text i seg-end) (+ x offset-x) y)
-              (.setFont gc code-font))
+              (.fillText gc (.substring text i seg-end) (+ x offset-x) y))
 
             ;; Currently using FontSmoothingType/GRAY results in poor kerning
             ;; when drawing subsequent characters in a string given to fillText.
@@ -591,46 +560,60 @@
                 visible-start-x (.x canvas-rect)
                 visible-end-x (+ visible-start-x (.w canvas-rect))]
             (loop [inside-leading-whitespace? true
+                   range-index 0
                    i 0
                    x 0.0]
               (when (< i line-length)
-                (let [character (.charAt line i)
-                      next-i (inc i)
-                      next-x (double (data/advance-text layout line i next-i x))
-                      draw-start-x (+ x line-x)
-                      draw-end-x (+ next-x line-x)
-                      inside-visible-start? (< visible-start-x draw-end-x)
-                      inside-visible-end? (< draw-start-x visible-end-x)]
-                  (when (and inside-visible-start? inside-visible-end?)
-                    (case character
-                      \space (let [sx (+ line-x (Math/floor (* (+ x next-x) 0.5)))
-                                   sy (- line-y baseline-offset)]
-                               (cond
-                                 (and highlight-rogue-whitespace?
-                                      inside-leading-whitespace?
-                                      (= :tabs indent-type))
-                                 (do (.setFill gc rogue-whitespace-color)
-                                     (.fillRect gc sx sy 1.0 1.0))
+                (let [[range-start range-end] (get complex-ranges range-index)]
+                  (if (= i range-start)
+                    ;; A shaped range contains no whitespace, but it is not as
+                    ;; wide as its characters' advances. Skip it in one step so
+                    ;; the marks after it stay aligned with the painted text.
+                    (when (< (+ x line-x) visible-end-x)
+                      (recur false
+                             (inc range-index)
+                             (long range-end)
+                             (+ x (data/complex-text-width (.glyph layout) (.substring line i range-end)))))
+                    (let [character (.charAt line i)
+                          next-i (inc i)
+                          next-x (double (data/advance-text layout line i next-i x))
+                          draw-start-x (+ x line-x)
+                          draw-end-x (+ next-x line-x)
+                          inside-visible-start? (< visible-start-x draw-end-x)
+                          inside-visible-end? (< draw-start-x visible-end-x)]
+                      (when (and inside-visible-start? inside-visible-end?)
+                        (case character
+                          \space (let [sx (+ line-x (Math/floor (* (+ x next-x) 0.5)))
+                                       sy (- line-y baseline-offset)]
+                                   (cond
+                                     (and highlight-rogue-whitespace?
+                                          inside-leading-whitespace?
+                                          (= :tabs indent-type))
+                                     (do (.setFill gc rogue-whitespace-color)
+                                         (.fillRect gc sx sy 1.0 1.0))
 
-                                 visible-whitespace?
-                                 (do (.setFill gc space-color)
-                                     (.fillRect gc sx sy 1.0 1.0))))
+                                     visible-whitespace?
+                                     (do (.setFill gc space-color)
+                                         (.fillRect gc sx sy 1.0 1.0))))
 
-                      \tab (let [sx (+ line-x x 2.0)
-                                 sy (- line-y baseline-offset)]
-                             (cond
-                               (and highlight-rogue-whitespace?
-                                    inside-leading-whitespace?
-                                    (not= :tabs indent-type))
-                               (do (.setFill gc rogue-whitespace-color)
-                                   (.fillRect gc sx sy (- next-x x 4.0) 1.0))
+                          \tab (let [sx (+ line-x x 2.0)
+                                     sy (- line-y baseline-offset)]
+                                 (cond
+                                   (and highlight-rogue-whitespace?
+                                        inside-leading-whitespace?
+                                        (not= :tabs indent-type))
+                                   (do (.setFill gc rogue-whitespace-color)
+                                       (.fillRect gc sx sy (- next-x x 4.0) 1.0))
 
-                               visible-whitespace?
-                               (do (.setFill gc tab-color)
-                                   (.fillRect gc sx sy (- next-x x 4.0) 1.0))))
-                      nil))
-                  (when inside-visible-end?
-                    (recur (and inside-leading-whitespace? (Character/isWhitespace character)) next-i next-x))))))
+                                   visible-whitespace?
+                                   (do (.setFill gc tab-color)
+                                       (.fillRect gc sx sy (- next-x x 4.0) 1.0))))
+                          nil))
+                      (when inside-visible-end?
+                        (recur (and inside-leading-whitespace? (Character/isWhitespace character))
+                               range-index
+                               next-i
+                               next-x))))))))
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 

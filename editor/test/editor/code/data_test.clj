@@ -60,8 +60,8 @@
   data/ComplexTextMetrics
   (complex-text-width [_this _text] 100.0)
   (complex-text-col->x [_this _text _col] 0.0)
-  (complex-text-x->col [_this _text _x] 4)
-  (complex-text-x->character-col [_this _text _x] 3))
+  (complex-text-x->col [_this _text _x] 3)
+  (complex-text-x->character-col [_this _text _x] 2))
 
 (defn layout-info
   ([] (layout-info nil))
@@ -70,18 +70,34 @@
    (data/layout-info 800.0 600.0 800.0 0.0 0.0 lines 30.0 5.0 glyph-metrics 4 false)))
 
 (deftest complex-text-ranges-test
-  (doseq [text ["العربية" "ไทย" "हिन्दी" "বাংলা" "ខ្មែរ" "မြန်မာ"]]
+  (doseq [text ["العربية" "ไทย" "हिन्दी" "বাংলা" "ខ្មែរ" "မြန်မာ" "עִבְרִית"]]
     (is (= [[1 (inc (count text))]]
            (data/complex-text-ranges (str "x" text "y")))))
-  (is (= [] (data/complex-text-ranges "plain Latin text"))))
+
+  ;; A combining mark on an ASCII base pulls the base into the range.
+  (is (= [[0 2]] (data/complex-text-ranges "e\u0301")))
+  (is (= [[1 3]] (data/complex-text-ranges "xe\u0301x")))
+
+  ;; ...but never onto whitespace, so a range cannot contain a tab.
+  (is (= [[1 2]] (data/complex-text-ranges "\t\u0301")))
+  (is (= [[1 2]] (data/complex-text-ranges " \u0301")))
+
+  ;; Astral-plane characters are shaped rather than measured as surrogate halves.
+  (is (= [[1 3]] (data/complex-text-ranges "a\uD83D\uDE00b")))
+
+  (is (= [] (data/complex-text-ranges "plain Latin text")))
+  (is (= [] (data/complex-text-ranges "\tindented\t"))))
 
 (defn- word-boundary-before-index? [line index]
   (#'data/word-boundary-before-index? line index))
 
 (deftest complex-text-character-hover-test
+  ;; The shaped range covers the Thai characters, not the surrounding quotes, so
+  ;; the offsets reported by the shaper are relative to col 1.
   (let [line "\"ไทย\""
         layout (layout-info [line] (->ComplexGlyphMetrics 14.0 9.0 6.0))
         x (+ (.x (.canvas layout)) 50.0)]
+    (is (= [[1 4]] (data/complex-text-ranges line)))
     (is (= 4 (data/x->col layout x line)))
     (is (= 3 (data/x->character-col layout x line)))))
 
