@@ -13,6 +13,8 @@ import org.apache.commons.compress.archivers.zip.Zip64Mode
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
 import org.apache.commons.compress.parallel.InputStreamSupplier
+import org.apache.tools.ant.DirectoryScanner
+import org.apache.tools.ant.types.selectors.SelectorUtils
 
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
@@ -476,35 +478,6 @@ tasks.register('distBobLight') {
     dependsOn 'compileBobLight', 'createBobLightJar'
 }
 
-tasks.register('createExternalLibsBuiltinsJar', Jar) {
-    dependsOn 'compileSrc', 'compileGenerated'
-    archiveFileName = 'external-libs-builtins.jar'
-    destinationDirectory = file("${bobDir}/tmp")
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-
-    Set<File> jarFiles = new HashSet<>()
-
-    jarFiles.addAll(bobAwsJars.files as Set<File>)
-
-    jarFiles.addAll(bobDependencyJars.files as Set<File>)
-
-    from {
-        jarFiles.collect { zipTree(it) }
-    }
-
-    inputs.files(jarFiles)
-    outputs.file("${bobDir}/tmp/external-libs-builtins.jar")
-
-    doLast {
-        def outputFile = file("${bobDir}/tmp/external-libs-builtins.jar")
-        if (!outputFile.exists()) {
-            throw new RuntimeException("File '${outputFile}' was not created")
-        } else {
-            println "external-libs-builtins.jar successfully created"
-        }
-    }
-}
-
 def createManifestBytes = { Map<String, String> attributes ->
     Manifest manifest = new Manifest()
     Attributes mainAttributes = manifest.mainAttributes
@@ -585,8 +558,16 @@ def addParallelArchiveEntry = { ParallelScatterZipCreator creator, Set<String> s
 }
 
 tasks.register('createBobJar') {
-    dependsOn 'compileBobLight', 'createExternalLibsBuiltinsJar', 'createLuaJitShareZip'
+    dependsOn 'compileBobLight', 'createLuaJitShareZip'
     dependsOn privateBobPluginJarTasks
+
+    // Preserve the former merge task's dependency order and duplicate precedence.
+    Set<File> dependencyJars = new HashSet<>()
+    dependencyJars.addAll(bobAwsJars.files as Set<File>)
+    dependencyJars.addAll(bobDependencyJars.files as Set<File>)
+    def dependencyExcludes = (DirectoryScanner.getDefaultExcludes().toList() + ['tmp/**', 'reports/**']).collect {
+        it.replace('/' as char, File.separatorChar)
+    }
 
     def outputFile = file("${bobDir}/dist/bob.jar")
     def bobClassesFileTree = fileTree(classesDir) {
@@ -599,7 +580,8 @@ tasks.register('createBobJar') {
     inputs.files(bobLightResourceFiles).ignoreEmptyDirectories()
     inputs.files { artifactFiles().values() }
     inputs.property('artifactPaths', { artifactFiles().keySet().sort() })
-    inputs.file("${bobDir}/tmp/external-libs-builtins.jar")
+    inputs.files(dependencyJars)
+    inputs.property('dependencyExcludes', dependencyExcludes)
     inputs.file(bobArtifacts.builtinsZip)
     inputs.property('keep-bob-uncompressed', keepBobUncompressed)
     inputs.property('gradle-version', gradleVersion)
@@ -628,13 +610,20 @@ tasks.register('createBobJar') {
             addParallelArchiveEntry(creator, seenPaths, path, { new BufferedInputStream(new FileInputStream(sourceFile)) }, sourceFile.length(), compressionMethod)
         }
 
-        def addZipEntries = { File zipPath, boolean excludeMetaInf ->
+        def addZipEntries = { File zipPath, boolean dependencyJar ->
             ZipFile zipFile = new ZipFile(zipPath)
             zipFiles.add(zipFile)
             zipFile.entries().toList().each { zipEntry ->
                 def currentEntry = zipEntry
-                if (currentEntry.directory || (excludeMetaInf && isMetaInfPath(currentEntry.name))) {
+                if (currentEntry.directory) {
                     return
+                }
+                // Retain zipTree's default exclusions and the former Jar task's filters.
+                if (dependencyJar) {
+                    String entryPath = currentEntry.name.replace('/' as char, File.separatorChar)
+                    if (isMetaInfPath(currentEntry.name) || dependencyExcludes.any { SelectorUtils.matchPath(it, entryPath) }) {
+                        return
+                    }
                 }
                 collectParentDirectories(directoryPaths, currentEntry.name)
                 addParallelArchiveEntry(creator, seenPaths, currentEntry.name, { zipFile.getInputStream(currentEntry) }, currentEntry.size, compressionMethod)
@@ -662,7 +651,9 @@ tasks.register('createBobJar') {
             artifactFiles().sort().each { path, sourceFile ->
                 addFile(path, sourceFile)
             }
-            addZipEntries(file("${bobDir}/tmp/external-libs-builtins.jar"), true)
+            dependencyJars.each { dependencyJar ->
+                addZipEntries(dependencyJar, true)
+            }
             addZipEntries(bobArtifacts.builtinsZip, false)
 
             ZipArchiveOutputStream zipOutputStream = new ZipArchiveOutputStream(outputFile)
