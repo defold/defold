@@ -69,6 +69,12 @@
   ([lines glyph-metrics]
    (data/layout-info 800.0 600.0 800.0 0.0 0.0 lines 30.0 5.0 glyph-metrics 4 false)))
 
+(deftest complex-text-ranges-test
+  (doseq [text ["العربية" "ไทย" "हिन्दी" "বাংলা" "ខ្មែរ" "မြန်မာ"]]
+    (is (= [[1 (inc (count text))]]
+           (data/complex-text-ranges (str "x" text "y")))))
+  (is (= [] (data/complex-text-ranges "plain Latin text"))))
+
 (defn- word-boundary-before-index? [line index]
   (#'data/word-boundary-before-index? line index))
 

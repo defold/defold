@@ -78,7 +78,7 @@
            [com.sun.javafx.font FontResource FontStrike PGFont]
            [com.sun.javafx.geom.transform BaseTransform]
            [com.sun.javafx.perf PerformanceTracker]
-           [com.sun.javafx.scene.text FontHelper]
+           [com.sun.javafx.scene.text FontHelper TextLayout TextLayout$CaretGeometry$Single]
            [com.sun.javafx.tk Toolkit]
            [com.sun.javafx.util Utils]
            [editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect]
@@ -95,7 +95,7 @@
            [javafx.scene.input Clipboard DataFormat InputMethodEvent InputMethodRequests KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent]
            [javafx.scene.layout ColumnConstraints GridPane Pane Priority]
            [javafx.scene.paint Color LinearGradient Paint]
-           [javafx.scene.shape MoveTo Rectangle]
+           [javafx.scene.shape Rectangle]
            [javafx.scene.text Font FontSmoothingType Text TextAlignment]
            [javafx.stage PopupWindow Screen Stage]))
 
@@ -157,17 +157,55 @@
             i (unchecked-int ch)
             cached-width (aget cache i)]
         (if (Float/isNaN cached-width)
-          (let [width (.getCharAdvance font-strike ch)]
-            (aset cache i width)
-            (double width))
+          (let [width (Math/floor (.getCharAdvance font-strike ch))]
+            (aset cache i (float width))
+            width)
           (double cached-width))))))
 
-(defn- text-node
-  ^Text [^Font font ^String text]
-  (doto (Text. text)
-    (.setFont font)))
+;; Complex text is measured with a TextLayout rather than a Text node. A Text
+;; node measures via Prism's shared layout instance, which is not safe to touch
+;; from more than one thread, and doing so crashes the renderer. Each thread
+;; gets a private layout instead.
+(defonce ^:private complex-text-layout
+  (proxy [ThreadLocal] []
+    (initialValue []
+      (.createLayout (.getTextLayoutFactory (Toolkit/getToolkit))))))
 
-(defonce/record GlyphMetrics [^Font font char-width-cache ^double line-height ^double ascent]
+(defn- text-layout
+  ^TextLayout [^Font font ^String text]
+  (let [^TextLayout layout (.get ^ThreadLocal complex-text-layout)]
+    (.setContent layout text (FontHelper/getNativeFont font))
+    layout))
+
+;; Monospace fonts rarely cover complex scripts, and JavaFX falls back to
+;; whatever fontconfig lists first, which may lack the mark-positioning rules
+;; needed to stack Thai vowels and tone marks. Complex ranges are therefore
+;; drawn with an explicitly chosen font instead of the code font.
+(def ^:private complex-script-font-families
+  ["Noto Sans Thai" "Waree" "Noto Sans Arabic" "Noto Sans"])
+
+(defn- resolve-font-family
+  "Returns the first family JavaFX actually loads, or nil. JavaFX lists variable
+  fonts in getFamilies but resolves them to the System font, so the returned
+  family is compared against the requested one."
+  [families]
+  (some (fn [family]
+          (when (= family (.getFamily (Font. ^String family 12.0)))
+            family))
+        families))
+
+;; Resolved lazily. Constructing a Font initializes the native font system, so
+;; this must not happen until the JavaFX toolkit is up.
+(defonce ^:private complex-script-font-family
+  (delay (resolve-font-family complex-script-font-families)))
+
+(defn- make-complex-script-font
+  ^Font [^Font font]
+  (if-some [family @complex-script-font-family]
+    (Font. ^String family (.getSize font))
+    font))
+
+(defonce/record GlyphMetrics [^Font font ^Font complex-font char-width-cache ^double line-height ^double ascent]
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
@@ -176,14 +214,14 @@
 (extend-type GlyphMetrics
   data/ComplexTextMetrics
   (complex-text-width [this text]
-    (.getWidth (.getLayoutBounds (text-node (.font this) text))))
+    (.getWidth (.getBounds (text-layout (.complex-font this) text))))
   (complex-text-col->x [this text col]
-    (let [caret-shape (.caretShape (text-node (.font this) text) col true)]
-      (.getX ^MoveTo (first caret-shape))))
+    (.x ^TextLayout$CaretGeometry$Single
+        (.getCaretGeometry (text-layout (.complex-font this) text) col true)))
   (complex-text-x->col [this text x]
-    (.getInsertionIndex (.hitTest (text-node (.font this) text) (Point2D. x 0.0))))
+    (.getInsertionIndex (.getHitInfo (text-layout (.complex-font this) text) (float x) (float 0.0))))
   (complex-text-x->character-col [this text x]
-    (.getCharIndex (.hitTest (text-node (.font this) text) (Point2D. x 0.0)))))
+    (.getCharIndex (.getHitInfo (text-layout (.complex-font this) text) (float x) (float 0.0)))))
 
 (defn make-glyph-metrics
   ^GlyphMetrics [^Font font ^double line-height-factor]
@@ -194,7 +232,7 @@
                                 FontResource/AA_GREYSCALE)
         line-height (Math/ceil (* (inc (.getLineHeight font-metrics)) line-height-factor))
         ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))]
-    (->GlyphMetrics font (make-char-width-cache font-strike) line-height ascent)))
+    (->GlyphMetrics font (make-complex-script-font font) (make-char-width-cache font-strike) line-height ascent)))
 
 (def ^:private default-editor-color-scheme
   (let [foreground-color (Color/valueOf "#DDDDDD")
@@ -395,26 +433,25 @@
                     guide-positions' (conj (into [] (take-while #(< ^double % guide-x)) guide-positions) guide-x)]
                 (recur (inc row) guide-positions')))))))))
 
-(defn- complex-script?
-  [^String text]
-  (boolean (re-find #"[\u0600-\u08ff\u0e00-\u0e7f\ufb50-\ufdff\ufe70-\ufeff]" text)))
-
 (defn- shaped-text-width
-  ^double [^GraphicsContext gc ^String text]
-  (.getWidth (.getLayoutBounds (text-node (.getFont gc) text))))
+  ^double [^Font font ^String text]
+  (.getWidth (.getBounds (text-layout font text))))
 
 (defn- fill-text!
   "Draws text onto the canvas. In order to support tab stops, we remap the supplied x
   coordinate into document space, then remap back to canvas coordinates when drawing.
   Returns the canvas x coordinate where the drawn string ends, or nil if drawing
   stopped because we reached the end of the visible canvas region."
-  [^GraphicsContext gc ^LayoutInfo layout ^String text start-index end-index x y]
+  [^GraphicsContext gc ^LayoutInfo layout ^String text complex-ranges start-index end-index x y]
   (let [^Rect canvas-rect (.canvas layout)
         visible-start-x (.x canvas-rect)
         visible-end-x (+ visible-start-x (.w canvas-rect))
-        offset-x (+ visible-start-x (.scroll-x layout))]
+        offset-x (+ visible-start-x (.scroll-x layout))
+        ^Font code-font (.getFont gc)
+        ^Font complex-font (.complex-font ^GlyphMetrics (.glyph layout))]
     (loop [^long i start-index
-           x (- ^double x offset-x)]
+           x (- ^double x offset-x)
+           range-index 0]
       (cond
         (= ^long end-index i)
         (+ x offset-x)
@@ -423,21 +460,59 @@
         nil
 
         :else
-        (let [tab? (= \tab (.charAt text i))
+        (let [range-index (loop [range-index range-index]
+                            (if-let [[_ range-end] (get complex-ranges range-index)]
+                              (if (<= range-end i)
+                                (recur (inc range-index))
+                                range-index)
+                              range-index))
+              [range-start range-end] (get complex-ranges range-index)
+              tab? (= \tab (.charAt text i))
+              shaped? (and (= i range-start) (<= range-end end-index))
               seg-end (if tab?
                         (inc i)
-                        (loop [j (inc i)]
-                          (if (or (= ^long end-index j) (= \tab (.charAt text j)))
-                            j
-                            (recur (inc j)))))
-              segment (.substring text i seg-end)
-              next-x (if (complex-script? segment)
-                       (+ x (shaped-text-width gc segment))
+                        (if shaped?
+                          range-end
+                          (loop [j (inc i)]
+                            (if (or (= ^long end-index j)
+                                    (= \tab (.charAt text j))
+                                    (= range-start j))
+                              j
+                              (recur (inc j))))))
+              next-x (if shaped?
+                       (+ x (shaped-text-width complex-font (.substring text i seg-end)))
                        (double (data/advance-text layout text i seg-end x)))]
-          (when (and (not tab?)
-                     (< visible-start-x (+ next-x offset-x)))
-            (.fillText gc segment (+ x offset-x) y))
-          (recur seg-end next-x))))))
+          (cond
+            tab?
+            nil
+
+            ;; A shaped range must be drawn as a whole string, since shaping
+            ;; cannot be applied to individual glyphs.
+            shaped?
+            (when (< visible-start-x (+ next-x offset-x))
+              (.setFont gc complex-font)
+              (.fillText gc (.substring text i seg-end) (+ x offset-x) y)
+              (.setFont gc code-font))
+
+            ;; Currently using FontSmoothingType/GRAY results in poor kerning
+            ;; when drawing subsequent characters in a string given to fillText.
+            ;; Here glyphs are drawn individually at whole pixels as a workaround.
+            :else
+            (loop [^long glyph-index i
+                   glyph-x (double x)]
+              (when (< glyph-index ^long seg-end)
+                (let [glyph (.charAt text glyph-index)
+                      next-glyph-index (inc glyph-index)
+                      next-glyph-x (double (data/advance-text layout text glyph-index next-glyph-index glyph-x))
+                      draw-start-x (+ glyph-x offset-x)
+                      draw-end-x (+ next-glyph-x offset-x)]
+                  (when (and (< visible-start-x draw-end-x)
+                             (< draw-start-x visible-end-x)
+                             (not (Character/isWhitespace glyph)))
+                    (.fillText gc (String/valueOf glyph) draw-start-x y))
+                  (when (< draw-start-x visible-end-x)
+                    (recur next-glyph-index next-glyph-x))))))
+          (recur seg-end next-x range-index))))))
 
 (defn- draw-code! [^GraphicsContext gc ^Font font ^LayoutInfo layout color-scheme lines syntax-info indent-type visible-whitespace]
   (let [^Rect canvas-rect (.canvas layout)
@@ -459,27 +534,57 @@
       (when (and (< drawn-line-index drawn-line-count)
                  (< source-line-index source-line-count))
         (let [^String line (lines source-line-index)
+              complex-ranges (data/complex-text-ranges line)
               line-x (+ (.x canvas-rect)
                         (.scroll-x layout))
               line-y (+ ascent
                         (.scroll-y-remainder layout)
                         (* drawn-line-index line-height))]
           (if-some [runs (second (get syntax-info source-line-index))]
-            ;; Draw syntax-highlighted runs.
+            ;; Draw syntax-highlighted runs. A shaped range is drawn in one pass,
+            ;; even if syntax scopes split it, so it stays in sync with layout.
+            ;; The cost is that such a range takes the color of the scope it
+            ;; starts in rather than being colored per-scope.
             (loop [run-index 0
+                   start 0
                    glyph-offset line-x]
-              (when-some [[start scope] (get runs run-index)]
-                (.setFill gc (color-match color-scheme scope))
-                (let [end (or (first (get runs (inc run-index)))
-                              (count line))
-                      glyph-offset (fill-text! gc layout line start end glyph-offset line-y)]
-                  (when (some? glyph-offset)
-                    (recur (inc run-index) (double glyph-offset))))))
+              (when-some [[_ scope] (get runs run-index)]
+                (let [run-end (or (first (get runs (inc run-index)))
+                                  (count line))
+                      complex-range-index (loop [complex-range-index 0]
+                                            (if-let [[_ complex-end] (get complex-ranges complex-range-index)]
+                                              (if (<= complex-end start)
+                                                (recur (inc complex-range-index))
+                                                complex-range-index)
+                                              complex-range-index))
+                      [complex-start complex-end] (get complex-ranges complex-range-index)
+                      end (cond
+                            (= start complex-start) complex-end
+                            (and complex-start (< start complex-start) (< complex-start run-end)) complex-start
+                            :else run-end)
+                      next-run-index (if (= start complex-start)
+                                       (loop [next-run-index run-index]
+                                         (let [next-run-end (or (first (get runs (inc next-run-index)))
+                                                                (count line))]
+                                           (cond
+                                             (< next-run-end complex-end)
+                                             (recur (inc next-run-index))
+
+                                             (= next-run-end complex-end)
+                                             (inc next-run-index)
+
+                                             :else
+                                             next-run-index)))
+                                       (if (= end run-end) (inc run-index) run-index))]
+                  (.setFill gc (color-match color-scheme scope))
+                  (let [glyph-offset (fill-text! gc layout line complex-ranges start end glyph-offset line-y)]
+                    (when (some? glyph-offset)
+                      (recur next-run-index end (double glyph-offset)))))))
 
             ;; Just draw line as plain text.
             (when-not (string/blank? line)
               (.setFill gc foreground-color)
-              (fill-text! gc layout line 0 (count line) line-x line-y)))
+              (fill-text! gc layout line complex-ranges 0 (count line) line-x line-y)))
 
           (let [line-length (count line)
                 baseline-offset (Math/ceil (/ line-height 4.0))

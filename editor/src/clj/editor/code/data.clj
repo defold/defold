@@ -21,6 +21,7 @@
             [util.defonce :as defonce]
             [util.diff :as diff])
   (:import [java.io IOException InputStream Reader Writer]
+           [java.lang Character$UnicodeScript]
            [java.nio CharBuffer]
            [java.text BreakIterator]
            [java.util Collections Locale]
@@ -49,30 +50,95 @@
   (complex-text-x->col [this text x] "The logical offset nearest a visual x position in a complex string.")
   (complex-text-x->character-col [this text x] "The logical offset of the character at a visual x position in a complex string."))
 
-(defn- complex-script?
-  [^String text]
-  (boolean (re-find #"[\u0600-\u08ff\u0e00-\u0e7f\ufb50-\ufdff\ufe70-\ufeff]" text)))
+(def ^:private shaping-scripts
+  "Unicode scripts whose text requires shaping beyond independent glyph advances."
+  #{Character$UnicodeScript/ADLAM
+    Character$UnicodeScript/ARABIC
+    Character$UnicodeScript/BALINESE
+    Character$UnicodeScript/BATAK
+    Character$UnicodeScript/BENGALI
+    Character$UnicodeScript/BHAIKSUKI
+    Character$UnicodeScript/BRAHMI
+    Character$UnicodeScript/BUGINESE
+    Character$UnicodeScript/CHAKMA
+    Character$UnicodeScript/CHAM
+    Character$UnicodeScript/DEVANAGARI
+    Character$UnicodeScript/GRANTHA
+    Character$UnicodeScript/GUJARATI
+    Character$UnicodeScript/GUNJALA_GONDI
+    Character$UnicodeScript/GURMUKHI
+    Character$UnicodeScript/HANIFI_ROHINGYA
+    Character$UnicodeScript/JAVANESE
+    Character$UnicodeScript/KANNADA
+    Character$UnicodeScript/KAYAH_LI
+    Character$UnicodeScript/KHMER
+    Character$UnicodeScript/KHOJKI
+    Character$UnicodeScript/KHUDAWADI
+    Character$UnicodeScript/LAO
+    Character$UnicodeScript/LEPCHA
+    Character$UnicodeScript/LIMBU
+    Character$UnicodeScript/MAHAJANI
+    Character$UnicodeScript/MALAYALAM
+    Character$UnicodeScript/MANDAIC
+    Character$UnicodeScript/MANICHAEAN
+    Character$UnicodeScript/MEETEI_MAYEK
+    Character$UnicodeScript/MODI
+    Character$UnicodeScript/MONGOLIAN
+    Character$UnicodeScript/MRO
+    Character$UnicodeScript/MYANMAR
+    Character$UnicodeScript/NANDINAGARI
+    Character$UnicodeScript/NEWA
+    Character$UnicodeScript/NKO
+    Character$UnicodeScript/ORIYA
+    Character$UnicodeScript/SAURASHTRA
+    Character$UnicodeScript/SHARADA
+    Character$UnicodeScript/SIDDHAM
+    Character$UnicodeScript/SINHALA
+    Character$UnicodeScript/SYLOTI_NAGRI
+    Character$UnicodeScript/SYRIAC
+    Character$UnicodeScript/TAI_THAM
+    Character$UnicodeScript/TAI_VIET
+    Character$UnicodeScript/TAKRI
+    Character$UnicodeScript/TAMIL
+    Character$UnicodeScript/TELUGU
+    Character$UnicodeScript/THAANA
+    Character$UnicodeScript/THAI
+    Character$UnicodeScript/TIBETAN
+    Character$UnicodeScript/TIRHUTA})
 
-(defn- complex-string-ranges
+(defn- complex-script-character?
+  [^long codepoint]
+  (contains? shaping-scripts (Character$UnicodeScript/of codepoint)))
+
+(defn- complex-script-extension-character?
+  [^long codepoint]
+  (or (= 0x200c codepoint) ; ZERO WIDTH NON-JOINER
+      (= 0x200d codepoint) ; ZERO WIDTH JOINER
+      (let [character-type (Character/getType codepoint)]
+        (or (= Character/NON_SPACING_MARK character-type)
+            (= Character/COMBINING_SPACING_MARK character-type)
+            (= Character/ENCLOSING_MARK character-type)))))
+
+(defn complex-text-ranges
   [^String line]
   (let [line-length (count line)]
-    (loop [start 0
+    (loop [index 0
            ranges []]
-      (if (>= start line-length)
+      (if (>= index line-length)
         ranges
-        (let [quote (.charAt line start)]
-          (if-not (or (= \" quote) (= \' quote))
-            (recur (inc start) ranges)
-            (let [end (loop [index (inc start)]
-                        (cond
-                          (>= index line-length) line-length
-                          (= \\ (.charAt line index)) (recur (+ index 2))
-                          (= quote (.charAt line index)) (inc index)
-                          :else (recur (inc index))))
-                  string-range (.substring line start end)]
-              (recur end
-                     (cond-> ranges
-                       (complex-script? string-range) (conj [start end]))))))))))
+        (let [codepoint (.codePointAt line (int index))
+              next-index (+ index (Character/charCount (int codepoint)))]
+          (if-not (complex-script-character? codepoint)
+            (recur next-index ranges)
+            (let [end (loop [end next-index]
+                        (if (< end line-length)
+                          (let [next-codepoint (.codePointAt line (int end))]
+                            (if (or (complex-script-character? next-codepoint)
+                                    (complex-script-extension-character? next-codepoint))
+                              (recur (+ end (Character/charCount (int next-codepoint))))
+                              end))
+                        end))]
+              (recur end (conj ranges [index end])))))))))
 
 (defmacro clamp [value minimum maximum]
   `(max ~minimum (min ~value ~maximum)))
@@ -608,7 +674,7 @@
 
 (defn- line-col->x
   ^double [glyph-metrics tab-stops ^String line ^long col]
-  (let [ranges (complex-string-ranges line)]
+  (let [ranges (complex-text-ranges line)]
     (loop [range-index 0
            index 0
            x 0.0]
@@ -630,74 +696,76 @@
 
 (defn- line-x->col
   ^long [glyph-metrics tab-stops ^String line ^double x]
-  (loop [ranges (complex-string-ranges line)
-         index 0
-         start-x 0.0]
-    (if-let [[start end] (get ranges 0)]
-      (let [complex-start-x (advance-text-impl glyph-metrics tab-stops line index start start-x)
-            complex-end-x (+ complex-start-x (complex-text-width glyph-metrics (.substring line start end)))]
-        (cond
-          (< x complex-start-x)
-          (loop [col index
-                 col-x start-x]
+  (let [ranges (complex-text-ranges line)]
+    (loop [range-index 0
+           index 0
+           start-x 0.0]
+      (if-let [[start end] (get ranges range-index)]
+        (let [complex-start-x (advance-text-impl glyph-metrics tab-stops line index start start-x)
+              complex-end-x (+ complex-start-x (complex-text-width glyph-metrics (.substring line start end)))]
+          (cond
+            (< x complex-start-x)
+            (loop [col index
+                   col-x start-x]
+              (let [next-col (inc col)
+                    next-x (advance-text-impl glyph-metrics tab-stops line col next-col col-x)]
+                (if (or (<= x next-x) (= next-col start))
+                  (max 0 (+ col (long (+ 0.5 (/ (- x col-x) (- next-x col-x))))))
+                  (recur next-col next-x))))
+
+            (< x complex-end-x)
+            (+ start (complex-text-x->col glyph-metrics (.substring line start end) (- x complex-start-x)))
+
+            :else
+            (recur (inc range-index) end complex-end-x)))
+        (loop [col index
+               col-x start-x]
+          (if (>= col (count line))
+            col
             (let [next-col (inc col)
                   next-x (advance-text-impl glyph-metrics tab-stops line col next-col col-x)]
-              (if (or (<= x next-x) (= next-col start))
+              (if (<= x next-x)
                 (max 0 (+ col (long (+ 0.5 (/ (- x col-x) (- next-x col-x))))))
-                (recur next-col next-x))))
-
-          (< x complex-end-x)
-          (+ start (complex-text-x->col glyph-metrics (.substring line start end) (- x complex-start-x)))
-
-          :else
-          (recur (subvec ranges 1) end complex-end-x)))
-      (loop [col index
-             col-x start-x]
-        (if (>= col (count line))
-          col
-          (let [next-col (inc col)
-                next-x (advance-text-impl glyph-metrics tab-stops line col next-col col-x)]
-            (if (<= x next-x)
-              (max 0 (+ col (long (+ 0.5 (/ (- x col-x) (- next-x col-x))))))
-              (recur next-col next-x))))))))
-
+                (recur next-col next-x)))))))))
 (defn- line-x->character-col
-  ^long [glyph-metrics tab-stops ^String line ^double x]
-  (loop [ranges (complex-string-ranges line)
-         index 0
-         start-x 0.0]
-    (if-let [[start end] (get ranges 0)]
-      (let [complex-start-x (advance-text-impl glyph-metrics tab-stops line index start start-x)
-            complex-end-x (+ complex-start-x (complex-text-width glyph-metrics (.substring line start end)))]
-        (cond
-          (< x complex-start-x)
-          (loop [col index
-                 col-x start-x]
+  "Returns the col of the character at x, or nil if x is past the end of the line."
+  [glyph-metrics tab-stops ^String line ^double x]
+  (let [ranges (complex-text-ranges line)]
+    (loop [range-index 0
+           index 0
+           start-x 0.0]
+      (if-let [[start end] (get ranges range-index)]
+        (let [complex-start-x (advance-text-impl glyph-metrics tab-stops line index start start-x)
+              complex-end-x (+ complex-start-x (complex-text-width glyph-metrics (.substring line start end)))]
+          (cond
+            (< x complex-start-x)
+            (loop [col index
+                   col-x start-x]
+              (let [next-col (inc col)
+                    next-x (advance-text-impl glyph-metrics tab-stops line col next-col col-x)]
+                (if (or (<= x next-x) (= next-col start))
+                  (max 0 (+ col (long (/ (- x col-x) (- next-x col-x)))))
+                  (recur next-col next-x))))
+
+            (< x complex-end-x)
+            (+ start (complex-text-x->character-col glyph-metrics (.substring line start end) (- x complex-start-x)))
+
+            :else
+            (recur (inc range-index) end complex-end-x)))
+        (loop [col index
+               col-x start-x]
+          (if (>= col (count line))
+            nil
             (let [next-col (inc col)
                   next-x (advance-text-impl glyph-metrics tab-stops line col next-col col-x)]
-              (if (or (<= x next-x) (= next-col start))
+              (if (<= x next-x)
                 (max 0 (+ col (long (/ (- x col-x) (- next-x col-x)))))
-                (recur next-col next-x))))
-
-          (< x complex-end-x)
-          (+ start (complex-text-x->character-col glyph-metrics (.substring line start end) (- x complex-start-x)))
-
-          :else
-          (recur (subvec ranges 1) end complex-end-x)))
-      (loop [col index
-             col-x start-x]
-        (if (>= col (count line))
-          nil
-          (let [next-col (inc col)
-                next-x (advance-text-impl glyph-metrics tab-stops line col next-col col-x)]
-            (if (<= x next-x)
-              (max 0 (+ col (long (/ (- x col-x) (- next-x col-x)))))
-              (recur next-col next-x))))))))
+                (recur next-col next-x)))))))))
 
 (defn line-width
   "Returns an accurate line width measurement, taking tab stops into account."
   ^double [glyph-metrics tab-stops line]
-  (let [ranges (complex-string-ranges line)]
+  (let [ranges (complex-text-ranges line)]
     (if (pos? (count ranges))
       (line-width-with-complex-strings glyph-metrics tab-stops line ranges)
       (advance-text-impl glyph-metrics tab-stops line 0 (count line) 0.0))))
@@ -891,7 +959,7 @@
 
 (defn col->x
   ^double [^LayoutInfo layout ^long col ^String line]
-  (let [ranges (complex-string-ranges line)]
+  (let [ranges (complex-text-ranges line)]
     (+ (.x ^Rect (.canvas layout))
        (.scroll-x layout)
        ^double (if (pos? (count ranges))
@@ -900,35 +968,35 @@
 
 (defn x->col
   ^long [^LayoutInfo layout ^double x ^String line]
-  (let [ranges (complex-string-ranges line)]
+  (let [ranges (complex-text-ranges line)]
     (if (pos? (count ranges))
       (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x))
       (let [line-x (x->doc-x layout x)
             line-length (count line)]
-      (loop [col 0
-             start-x 0.0]
-        (if (<= line-length col)
-          col
-          (let [next-col (inc col)
-                end-x (double (advance-text layout line col next-col start-x))]
-            (if (<= end-x line-x)
-              (recur next-col end-x)
+        (loop [col 0
+               start-x 0.0]
+          (if (<= line-length col)
+            col
+            (let [next-col (inc col)
+                  end-x (double (advance-text layout line col next-col start-x))]
+              (if (<= end-x line-x)
+                (recur next-col end-x)
                 (max 0 (+ col (long (+ 0.5 (/ (- line-x start-x) (- end-x start-x))))))))))))))
 
 (defn x->character-col [^LayoutInfo layout ^double x ^String line]
-  (let [ranges (complex-string-ranges line)]
+  (let [ranges (complex-text-ranges line)]
     (if (pos? (count ranges))
       (line-x->character-col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x))
       (let [line-x (x->doc-x layout x)
             line-length (count line)]
-      (loop [col 0
-             start-x 0.0]
-        (if (<= line-length col)
-          nil
-          (let [next-col (inc col)
-                end-x (double (advance-text layout line col next-col start-x))]
-            (if (<= end-x line-x)
-              (recur next-col end-x)
+        (loop [col 0
+               start-x 0.0]
+          (if (<= line-length col)
+            nil
+            (let [next-col (inc col)
+                  end-x (double (advance-text layout line col next-col start-x))]
+              (if (<= end-x line-x)
+                (recur next-col end-x)
                 (max 0 (+ col (long (/ (- line-x start-x) (- end-x start-x)))))))))))))
 
 (defn adjust-row
@@ -2668,8 +2736,11 @@
     [(->CursorRange from to) [""]]))
 
 (defn delete-character-after-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
+  ;; Deletes a whole grapheme cluster, unlike backspace which deletes a single
+  ;; character. Deleting only the base character would orphan its combining
+  ;; marks, which would then attach to the preceding character.
   (let [from (CursorRange->Cursor cursor-range)
-        to (cursor-right lines from)]
+        to (cursor-right-grapheme lines from)]
     [(->CursorRange from to) [""]]))
 
 (defn delete-word-after-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
