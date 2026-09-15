@@ -153,9 +153,9 @@
   ;; You might also want to familiarize yourself with how this process works in
   ;; `game_object.clj`, since it is similar but less complicated there.
   ;;
-  ;; NOTE: A `go-prop` is basically a PropertyDesc in map form with an
-  ;; additional :clj-value entry. See `properties/build-target-go-props`
-  ;; for more info.
+  ;; NOTE: A `go-prop` is basically a GameObject$PropertyDesc in map form with
+  ;; an additional :clj-value entry. See `properties/build-target-go-props` for
+  ;; more info.
   (let [build-target-go-props (partial properties/build-target-go-props
                                        proj-path->resource-property-build-target)
         component-property-infos (mapv (comp build-target-go-props :properties)
@@ -283,16 +283,17 @@
   ;; when reading this. It will clear up how the output binaries are structured.
   ;; Be aware that these structures are also used to store the saved project
   ;; data. Sometimes a field will only be used by the editor *or* the runtime.
-  ;; In the case of CollectionDesc, neither the `collection_instances` nor the
-  ;; `embedded_instances` fields are read by the runtime. Instead, all the game
-  ;; objects brought in from these two fields are recursively collected into a
-  ;; flat list of InstanceDesc under the `instances` field, each referencing a
-  ;; BuildResource of a PrototypeDesc binary produced from the referenced or
+  ;; In the case of GameObject$CollectionDesc, neither the
+  ;; `collection_instances` nor the `embedded_instances` fields are read by the
+  ;; runtime. Instead, all the game objects brought in from these two fields are
+  ;; recursively collected into a flat list of GameObject$InstanceDesc under the
+  ;; `instances` field, each referencing a BuildResource of a
+  ;; GameObject$PrototypeDesc binary produced from the referenced or
   ;; embedded game objects. However, embedded game objects from different
   ;; collections might have been fused into a single BuildResource if they are
   ;; equivalent. We must update any references to these BuildResources
   ;; to instead point to the resulting fused BuildResource. The same goes for
-  ;; resource property overrides inside the InstanceDescs.
+  ;; resource property overrides inside the GameObject$InstanceDescs.
   (let [{:keys [name game-object-instance-datas]} user-data
         build-go-props (partial properties/build-go-props dep-resources)
         go-instance-msgs (map :instance-msg game-object-instance-datas)

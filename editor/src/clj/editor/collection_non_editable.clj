@@ -242,8 +242,9 @@
 
 (defn- collection-desc->referenced-property-resources [collection-desc proj-path->resource]
   ;; This returns a sequence of all distinct resources referenced by
-  ;; ComponentPropertyDesc property overrides in the CollectionDescs contained
-  ;; InstanceDescs, EmbeddedInstanceDescs, and CollectionInstanceDescs.
+  ;; GameObject$ComponentPropertyDesc property overrides in the
+  ;; GameObject$CollectionDescs contained GameObject$InstanceDescs,
+  ;; GameObject$EmbeddedInstanceDescs, and GameObject$CollectionInstanceDescs.
   ;;
   ;; The resulting resources build targets will be connected to the
   ;; own-resource-property-build-targets input of our NonEditableCollectionNode.

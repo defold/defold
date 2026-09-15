@@ -168,10 +168,10 @@
 
 (defn referenced-component-instance-data [build-resource component-desc pose proj-path->resource-property-build-target]
   {:pre [(workspace/build-resource? build-resource)
-         (map? component-desc) ; GameObject$ComponentDesc in map format, but PropertyDescs must have a :clj-value.
+         (map? component-desc) ; GameObject$ComponentDesc in map format, but its GameObject$PropertyDescs in map format must have a :clj-value.
          (pose/pose? pose)
          (ifn? proj-path->resource-property-build-target)]}
-  (let [go-props-with-source-resources (:properties component-desc) ; Every PropertyDesc must have a :clj-value with actual Resource, etc.
+  (let [go-props-with-source-resources (:properties component-desc) ; Every GameObject$PropertyDesc must have a :clj-value with actual Resource, etc.
         [go-props go-prop-dep-build-targets] (properties/build-target-go-props proj-path->resource-property-build-target go-props-with-source-resources)]
     {:resource build-resource
      :pose pose
@@ -192,8 +192,9 @@
   ;; might have been fused into one BuildResource if they had the same contents.
   ;; We must update any references to these BuildResources to instead point to
   ;; the resulting fused BuildResource. We also extract :component-instance-data
-  ;; from the component build targets and embed these as ComponentDesc instances
-  ;; in the PrototypeDesc that represents the game object.
+  ;; from the component build targets and embed these as
+  ;; GameObject$ComponentDesc instances in the GameObject$PrototypeDesc that
+  ;; represents the game object.
   (let [component-instance-data->fused-build-resource-proj-path
         (fn component-instance-data->fused-build-resource-proj-path [component-instance-data]
           (let [build-resource (:resource component-instance-data)]
