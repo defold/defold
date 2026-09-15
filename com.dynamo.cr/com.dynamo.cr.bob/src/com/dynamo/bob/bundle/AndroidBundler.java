@@ -55,7 +55,6 @@ import com.dynamo.bob.tools.ToolsHelper;
 public class AndroidBundler implements IBundler {
     private static Logger logger = Logger.getLogger(AndroidBundler.class.getName());
 
-    private static String stripToolName = "strip_android";
     private static final String VKQUALITY_DATA_FILE = "vkqualitydata.vkq";
 
     private static Hashtable<Platform, String> platformToLibMap = new Hashtable<Platform, String>();
@@ -210,6 +209,7 @@ public class AndroidBundler implements IBundler {
         final boolean strip_executable = project.hasOption("strip-executable");
         if (strip_executable) {
             // llvm-strip reads every Android ABI, so a single tool covers armv7/arm64/x86_64
+            String stripToolName = "strip_android";
             String stripTool = Bob.getExe(Platform.getHostPlatform(), stripToolName);
             AndroidTools.exec(stripTool, binary.getAbsolutePath());
             BundleHelper.throwIfCanceled(canceled);

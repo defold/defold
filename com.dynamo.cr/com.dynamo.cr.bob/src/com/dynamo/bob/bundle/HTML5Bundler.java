@@ -64,7 +64,6 @@ public class HTML5Bundler implements IBundler {
     // changes when it rewrites their line endings. A .gitattributes in the bundle root also
     // covers every subdirectory. See issue #10006.
     private static final String GitAttributesContent = "* -text\n";
-    private static int SplitFileSegmentSize = 2 * 1024 * 1024;
     private static String SplitFileSHA1 = "";
 
     // previously it was hardcoded in dmloader.js
@@ -236,7 +235,8 @@ public class HTML5Bundler implements IBundler {
                 input = new BufferedInputStream(new FileInputStream(source));
                 long remaining = source.length();
                 while (0 < remaining) {
-                    int thisRead = (int)Math.min(SplitFileSegmentSize, remaining);
+                    int splitFileSegmentSize = 2 * 1024 * 1024;
+                    int thisRead = (int)Math.min(splitFileSegmentSize, remaining);
 
                     byte[] readBuffer = new byte[thisRead];
                     long bytesRead = input.read(readBuffer, 0, thisRead);

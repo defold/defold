@@ -98,11 +98,9 @@ public class ProjectTest {
     private final static String AUTH = "secret-auth";
     private final static String BASIC_AUTH = "user:secret";
 
-    private MockFileSystem fileSystem;
     private MockProject project;
     private Server httpServer;
     private ArrayList<URI> libraryUrls = new ArrayList<URI>();
-    private String basicAuthEnvToken;
     private String basicAuthEnvTokenResolved;
 
     private AtomicInteger _304Count = new AtomicInteger();
@@ -148,7 +146,7 @@ public class ProjectTest {
         System.out.print("setUp start");
         // See TestLibrariesRule.java for the creation of these zip files
         String[] authEnv = selectLibraryAuthEnv();
-        basicAuthEnvToken = "user:__" + authEnv[0] + "__";
+        String basicAuthEnvToken = "user:__" + authEnv[0] + "__";
         basicAuthEnvTokenResolved = "user:" + authEnv[1];
         libraryUrls = new ArrayList<URI>();
         libraryUrls.add(URI.create("http://localhost:8081/test_lib1.zip"));
@@ -157,7 +155,7 @@ public class ProjectTest {
         libraryUrls.add(URI.create("http://" + basicAuthEnvToken + "@localhost:8081/test_lib6.zip"));
         libraryUrls.add(URI.create("http://localhost:8081/test.zip"));
 
-        fileSystem = new MockFileSystem();
+        MockFileSystem fileSystem = new MockFileSystem();
         project = new MockProject(fileSystem, Files.createTempDirectory("defold_").toString(), "build/default");
         project.setOption("email", EMAIL);
         project.setOption("auth", AUTH);

@@ -86,34 +86,6 @@ public class BundlerTest {
     private File buildReportHtmlFile;
     private Platform platform;
 
-    // Only the keys that identify the Apple platform, since those are the ones the simulator bundle rewrites
-    private final String IOS_INFO_PLIST = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        + "<plist version=\"1.0\">\n"
-        + "<dict>\n"
-        + "        <key>CFBundleSupportedPlatforms</key>\n"
-        + "        <array>\n"
-        + "                <string>iPhoneOS</string>\n"
-        + "        </array>\n"
-        + "        <key>DTPlatformName</key>\n"
-        + "        <string>iphoneos</string>\n"
-        + "        <key>DTSDKName</key>\n"
-        + "        <string>iphoneos18.0</string>\n"
-        + "</dict>\n"
-        + "</plist>\n";
-
-    private final String ANDROID_MANIFEST = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-        + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\" android:versionCode=\"1\">"
-        + "  <application android:label=\"Minimal Android Application\">"
-        + "    <activity android:name=\".MainActivity\" android:label=\"Hello World\">"
-        + "      <intent-filter>"
-        + "        <action android:name=\"android.intent.action.MAIN\" />"
-        + "        <category android:name=\"android.intent.category.DEFAULT\" />"
-        + "        <category android:name=\"android.intent.category.LAUNCHER\" />"
-        + "      </intent-filter>"
-        + "    </activity>"
-        + "  </application>"
-        + "</manifest>";
-
     @Parameters
     public static Collection<Platform[]> data() {
         List<Platform[]> data = new ArrayList<>();
@@ -502,8 +474,34 @@ public class BundlerTest {
         createFile(outputContentRoot, "builtins/manifests/web/light_theme.css", "");
         createFile(outputContentRoot, "builtins/manifests/web/dark_theme.css", "");
         createFile(outputContentRoot, "builtins/manifests/osx/Info.plist", "");
+        // Only the keys that identify the Apple platform, since those are the ones the simulator bundle rewrites
+        String IOS_INFO_PLIST = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<plist version=\"1.0\">\n"
+                + "<dict>\n"
+                + "        <key>CFBundleSupportedPlatforms</key>\n"
+                + "        <array>\n"
+                + "                <string>iPhoneOS</string>\n"
+                + "        </array>\n"
+                + "        <key>DTPlatformName</key>\n"
+                + "        <string>iphoneos</string>\n"
+                + "        <key>DTSDKName</key>\n"
+                + "        <string>iphoneos18.0</string>\n"
+                + "</dict>\n"
+                + "</plist>\n";
         createFile(outputContentRoot, "builtins/manifests/ios/Info.plist", IOS_INFO_PLIST);
         createFile(outputContentRoot, "builtins/manifests/ios/LaunchScreen.storyboardc/Info.plist", "");
+        String ANDROID_MANIFEST = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+                + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\" android:versionCode=\"1\">"
+                + "  <application android:label=\"Minimal Android Application\">"
+                + "    <activity android:name=\".MainActivity\" android:label=\"Hello World\">"
+                + "      <intent-filter>"
+                + "        <action android:name=\"android.intent.action.MAIN\" />"
+                + "        <category android:name=\"android.intent.category.DEFAULT\" />"
+                + "        <category android:name=\"android.intent.category.LAUNCHER\" />"
+                + "      </intent-filter>"
+                + "    </activity>"
+                + "  </application>"
+                + "</manifest>";
         createFile(outputContentRoot, "builtins/manifests/android/AndroidManifest.xml", ANDROID_MANIFEST);
         createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "{{{DEFOLD_CUSTOM_CSS_INLINE}}} {{DEFOLD_APP_TITLE}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_ARCHIVE_LOCATION_PREFIX}} {{#HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_ENGINE_ARGUMENTS}} {{/HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_SPLASH_IMAGE}} {{DEFOLD_HEAP_SIZE}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_HAS_FACEBOOK_APP_ID}}");
         return count;

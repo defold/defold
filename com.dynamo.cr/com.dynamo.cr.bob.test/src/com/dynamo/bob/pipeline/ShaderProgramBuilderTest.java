@@ -53,29 +53,10 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "gl_Position = position; \n" +
             "}\n";
 
-    private final String vpEs3 =
-            "#version 310 es \n" +
-            "in vec4 position; \n" +
-            "out vec4 fragColor; \n" +
-            "uniform NonOpaqueBlock { vec4 color; }; \n" +
-            "void main(){ \n" +
-            "   fragColor   = color;\n" +
-            "   gl_Position = position; \n" +
-            "}\n";
-
     public static final String fp =
             "varying vec4 fragColor; \n" +
             "void main(){ \n" +
             "gl_FragColor = fragColor; \n" +
-            "}\n";
-
-    private final String fpEs3 =
-            "#version 310 es \n" +
-            "precision mediump float; \n" +
-            "in vec4 fragColor; \n" +
-            "out vec4 FragColorOut; \n" +
-            "void main(){ \n" +
-            "   FragColorOut = fragColor; \n" +
             "}\n";
 
     private static ShaderDesc.Language getPlatformGLSLLanguage() {
@@ -174,9 +155,24 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private void doTestEs3(ShaderDesc.Language[] expectedLanguagesES3, String outputResource) throws Exception {
+        String vpEs3 = "#version 310 es \n" +
+                "in vec4 position; \n" +
+                "out vec4 fragColor; \n" +
+                "uniform NonOpaqueBlock { vec4 color; }; \n" +
+                "void main(){ \n" +
+                "   fragColor   = color;\n" +
+                "   gl_Position = position; \n" +
+                "}\n";
         ShaderDesc shader = addAndBuildShaderDesc("/test_shader.vp", vpEs3, outputResource);
         checkExpectedLanguages(shader, expectedLanguagesES3);
 
+        String fpEs3 = "#version 310 es \n" +
+                "precision mediump float; \n" +
+                "in vec4 fragColor; \n" +
+                "out vec4 FragColorOut; \n" +
+                "void main(){ \n" +
+                "   FragColorOut = fragColor; \n" +
+                "}\n";
         shader = addAndBuildShaderDesc("/test_shader.fp", fpEs3, outputResource);
         checkExpectedLanguages(shader, expectedLanguagesES3);
     }

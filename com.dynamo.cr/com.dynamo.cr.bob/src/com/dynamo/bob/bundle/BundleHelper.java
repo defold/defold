@@ -86,10 +86,8 @@ public class BundleHelper {
     private Platform platform;
     private BobProjectProperties projectProperties;
     private IBundler platformBundler;
-    private String title;
     private File buildDir;
     private File appDir;
-    private String variant;
     private Map<String, Map<String, Object>> propertiesMap;
 
     private Map<String, Object> templateProperties = new HashMap<>();
@@ -129,7 +127,7 @@ public class BundleHelper {
 
         this.project = project;
         this.platform = platform;
-        this.title = this.projectProperties.getStringValue("project", "title", "Unnamed");
+        String title = this.projectProperties.getStringValue("project", "title", "Unnamed");
 
         String appDirSuffix = "";
         if (platform == Platform.X86_64MacOS || platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim) {
@@ -139,7 +137,6 @@ public class BundleHelper {
         this.buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         this.appDir = new File(bundleDir, title + appDirSuffix);
 
-        this.variant = variant;
     }
 
     public static String[] getArchiveFilenames(File buildDir) {
