@@ -7,11 +7,13 @@ def testClassesDir = file("$testDir/build")
 def testTmpDir = file("$testDir/tmp")
 def DM_BOB_BUNDLERTEST_ONLY_HOST = project.hasProperty('DM_BOB_BUNDLERTEST_ONLY_HOST') ? project.property('DM_BOB_BUNDLERTEST_ONLY_HOST') : ''
 
-task cleanTestDirs(type: Delete) {
+tasks.register('cleanTestDirs', Delete) {
     delete testClassesDir, testTmpDir
 }
 
-clean.dependsOn cleanTestDirs
+tasks.named('clean') {
+    dependsOn 'cleanTestDirs'
+}
 
 configurations {
     testClasspath
@@ -25,7 +27,8 @@ dependencies {
     testClasspath files("$testDir/lib/servlet-api-2.5.jar")
 }
 
-task compileTest(type: JavaCompile, dependsOn: distBob) {
+tasks.register('compileTest', JavaCompile) {
+    dependsOn 'distBob'
     source = fileTree(dir: 'src', include: '**/com/dynamo/**')
     destinationDirectory = testClassesDir
     classpath = files("$project.bobDir/dist/bob.jar", configurations.testClasspath)
@@ -40,7 +43,8 @@ task compileTest(type: JavaCompile, dependsOn: distBob) {
     }
 }
 
-task createTestJar(type: Jar, dependsOn: compileTest) {
+tasks.register('createTestJar', Jar) {
+    dependsOn 'compileTest'
     archiveFileName = 'bob-tests.jar'
     destinationDirectory = testTmpDir
     includeEmptyDirs = false
@@ -59,7 +63,8 @@ task createTestJar(type: Jar, dependsOn: compileTest) {
     }
 }
 
-task testJar(type: Test, dependsOn: createTestJar) {
+tasks.register('testJar', Test) {
+    dependsOn 'createTestJar'
     useJUnit()
 
     // Check if running from IntelliJ IDEA - then test bundler only for the host platform
@@ -87,7 +92,8 @@ task testJar(type: Test, dependsOn: createTestJar) {
 }
 
 // old-fashioned way to run a single test in jar
-task runSingleTest(type: Test, dependsOn: createTestJar) {
+tasks.register('runSingleTest', Test) {
+    dependsOn 'createTestJar'
     useJUnit()
 
     testLogging {

@@ -59,7 +59,7 @@ def configureBuildTools = {
 
     for (def pythonCandidate : pythonCandidates.unique()) {
         try {
-            def process = new ProcessBuilder(pythonCandidate, "--version")
+            def process = new ProcessBuilder(pythonCandidate as String, "--version")
                 .redirectErrorStream(true)
                 .start()
             process.waitFor()
@@ -112,7 +112,7 @@ def configureBuildTools = {
 
 configureBuildTools()
 
-task getGitRevision {
+tasks.register('getGitRevision') {
     ext.gitRevision = ""
     doLast {
         gitRevision = "git log --pretty=%H -n1".execute().text.trim()
