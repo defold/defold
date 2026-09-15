@@ -57,7 +57,7 @@ public class PluginScanner {
 				throw new CompileExceptionError("PluginScanner found more than one class implementing " + pluginBaseClass + " in package " + packageName);
 			}
 			// get the plugin (or null if none was found) and cache it
-			plugin = (T)plugins.get(0);
+			plugin = plugins.get(0);
 		}
 		return plugin;
 	}

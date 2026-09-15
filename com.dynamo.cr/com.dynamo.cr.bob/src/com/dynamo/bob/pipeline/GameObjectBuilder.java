@@ -31,7 +31,6 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.proto.DdfMath.Vector3One;
 import com.dynamo.proto.DdfMath.Vector4One;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;

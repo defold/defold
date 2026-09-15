@@ -105,7 +105,6 @@ import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.logging.Level;
-import java.util.stream.Collectors;
 import java.util.zip.ZipOutputStream;
 
 import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
@@ -423,7 +422,7 @@ public class Project implements AutoCloseable {
                         !(is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper")))
-                .collect(Collectors.toList());
+                .toList();
         for (String className : filteredClassNames) {
             try {
                 TimeProfiler.start(className);
@@ -649,10 +648,10 @@ public class Project implements AutoCloseable {
     }
 
     private void logWarning(String fmt, Object... args) {
-        System.err.println(String.format(fmt, args));
+        System.err.printf((fmt) + "%n", args);
     }
     private void logInfo(String fmt, Object... args) {
-        System.out.println(String.format(fmt, args));
+        System.out.printf((fmt) + "%n", args);
     }
 
     public void createPublisher() throws CompileExceptionError {
@@ -1419,7 +1418,7 @@ public class Project implements AutoCloseable {
 
     private boolean shouldBuildEngine() {
         String str = this.option("build-artifacts", "");
-        return str.equals("") || shouldBuildArtifact("engine");
+        return str.isEmpty() || shouldBuildArtifact("engine");
     }
 
     public void scanJavaClasses() throws IOException, CompileExceptionError {
@@ -1792,7 +1791,7 @@ public class Project implements AutoCloseable {
                             Files.createDirectories(outputDir.toPath());
                             try {
                                 List<ILuaTranspiler.Issue> issues = transpiler.transpile(new File(getPluginsDirectory()), sourceDir, outputDir);
-                                List<ILuaTranspiler.Issue> errors = issues.stream().filter(issue -> issue.severity == ILuaTranspiler.Severity.ERROR).collect(Collectors.toList());
+                                List<ILuaTranspiler.Issue> errors = issues.stream().filter(issue -> issue.severity == ILuaTranspiler.Severity.ERROR).toList();
                                 if (!errors.isEmpty()) {
                                     MultipleCompileException exception = new MultipleCompileException("Transpilation failed", null);
                                     errors.forEach(issue -> exception.addIssue(issue.severity.ordinal(), getResource(issue.resourcePath), issue.message, issue.lineNumber));
