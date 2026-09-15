@@ -17,6 +17,7 @@ package com.dynamo.bob.test.util;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -545,7 +546,7 @@ public class FontTest {
         {
             actual += new String(Character.toChars(glyphBank.getGlyphs(i).getCharacter()));
         }
-        assertEquals(actual, "!$0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
+        assertEquals("!$0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", actual);
     }
 
     @Test
@@ -759,7 +760,7 @@ public class FontTest {
             }
         }
         // we should not get here unless the '.' glyph wasn't found
-        assertTrue(false);
+        fail();
     }
 
 }

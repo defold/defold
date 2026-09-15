@@ -17,6 +17,7 @@ package com.dynamo.bob.cache.test;
 import static java.util.Map.entry;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
@@ -108,7 +109,7 @@ public class ResourceCacheKeyTest {
 		DummyBuilder builder = new DummyBuilder();
 		Task task = builder.addInput(input).addOutput(output).create(null);
 		String key = ResourceCacheKey.calculate(task.calculateSignature(), output);
-		assertTrue(key != null);
+        assertNotNull(key);
 	}
 
 	// do we always get the same key with the same input?

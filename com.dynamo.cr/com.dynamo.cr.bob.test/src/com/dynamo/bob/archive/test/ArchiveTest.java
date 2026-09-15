@@ -304,7 +304,7 @@ public class ArchiveTest {
                 if(correctOrder)
                     break;
             }
-            assertEquals(correctOrder, true);
+            assertEquals(true, correctOrder);
         }
 
         ar.close();
@@ -341,8 +341,8 @@ public class ArchiveTest {
 
             assertEquals(48, hashOffset);
             assertEquals(48 + entrySize * ArchiveBuilder.HASH_MAX_LENGTH, entryOffset);
-            assertTrue(entryOffset % 4 == 0);
-            assertTrue(hashOffset % 4 == 0);
+            assertEquals(0, entryOffset % 4);
+            assertEquals(0, hashOffset % 4);
         }
     }
 

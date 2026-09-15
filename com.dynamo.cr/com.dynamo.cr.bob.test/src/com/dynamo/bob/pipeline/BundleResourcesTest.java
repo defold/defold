@@ -15,6 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
@@ -299,8 +300,8 @@ public class BundleResourcesTest {
         // Read temp zip file and assert
         ZipFile zipFile = new ZipFile(tmpZipFile);
         assertEquals(2, zipFile.size());
-        assertTrue(zipFile.getEntry("collision.txt") != null);
-        assertTrue(zipFile.getEntry("subdir/subdirtest.txt") != null);
+        assertNotNull(zipFile.getEntry("collision.txt"));
+        assertNotNull(zipFile.getEntry("subdir/subdirtest.txt"));
         zipFile.close();
     }
 
@@ -361,24 +362,24 @@ public class BundleResourcesTest {
         List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64MacOS, null);
         assertEquals(7, resources.size());
 
-        assertTrue(findInResourceList(resources, "_app/app.manifest") != null);
-        assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
-        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp") != null);
-        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
-        assertTrue(findInResourceList(resources, "extension1/lib/x86_64-osx/x86_64-osx.a") != null);
-        assertTrue(findInResourceList(resources, "extension1/res/common/collision.txt") != null);
-        assertTrue(findInResourceList(resources, "extension1/res/common/subdir/subdirtest.txt") != null);
+        assertNotNull(findInResourceList(resources, "_app/app.manifest"));
+        assertNotNull(findInResourceList(resources, "extension1/ext.manifest"));
+        assertNotNull(findInResourceList(resources, "extension1/src/extension1.cpp"));
+        assertNotNull(findInResourceList(resources, "extension1/lib/common/common.a"));
+        assertNotNull(findInResourceList(resources, "extension1/lib/x86_64-osx/x86_64-osx.a"));
+        assertNotNull(findInResourceList(resources, "extension1/res/common/collision.txt"));
+        assertNotNull(findInResourceList(resources, "extension1/res/common/subdir/subdirtest.txt"));
 
         Map<String, String> appmanifestOptions = new HashMap<String,String>();
         appmanifestOptions.put("baseVariant", "release");
         resources = ExtenderUtil.getExtensionSources(project, Platform.Arm64Ios, appmanifestOptions);
         assertEquals(6, resources.size());
 
-        assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
-        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp") != null);
-        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
-        assertTrue(findInResourceList(resources, "extension1/res/common/collision.txt") != null);
-        assertTrue(findInResourceList(resources, "extension1/res/common/subdir/subdirtest.txt") != null);
+        assertNotNull(findInResourceList(resources, "extension1/ext.manifest"));
+        assertNotNull(findInResourceList(resources, "extension1/src/extension1.cpp"));
+        assertNotNull(findInResourceList(resources, "extension1/lib/common/common.a"));
+        assertNotNull(findInResourceList(resources, "extension1/res/common/collision.txt"));
+        assertNotNull(findInResourceList(resources, "extension1/res/common/subdir/subdirtest.txt"));
         ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
         String synthesizedManifest = new String(appManifest.getContent());
         String expectedManifest = "";

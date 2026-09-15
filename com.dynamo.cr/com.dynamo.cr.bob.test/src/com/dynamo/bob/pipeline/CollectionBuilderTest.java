@@ -364,7 +364,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals(0, collection.getCollectionInstancesCount());
 
         InstanceDesc instance = collection.getInstances(0);
-        Assert.assertTrue(instance.getComponentProperties(0).getProperties(0).getValue().equals("2"));
+        Assert.assertEquals("2", instance.getComponentProperties(0).getProperties(0).getValue());
     }
 
     /**
@@ -416,7 +416,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals(0, collection.getCollectionInstancesCount());
 
         InstanceDesc instance = collection.getInstances(0);
-        Assert.assertTrue(instance.getComponentProperties(0).getProperties(0).getValue().equals("2"));
+        Assert.assertEquals("2", instance.getComponentProperties(0).getProperties(0).getValue());
     }
 
     /**
@@ -507,7 +507,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         SpriteDesc sprite = getMessage(messages, SpriteDesc.class);
 
         // Double check that it was removed..
-        Assert.assertEquals(false, sprite.hasTileSet());
+        Assert.assertFalse(sprite.hasTileSet());
         // ...and replaced with a SpriteTexture
         Assert.assertEquals(1, sprite.getTexturesCount());
         SpriteTexture texture = sprite.getTextures(0);

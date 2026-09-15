@@ -16,7 +16,9 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import org.junit.Test;
 
@@ -472,7 +474,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
 
     private static void assertMissingInput(GamepadMapRuntime map, Gamepad input) {
         for (GamepadMapEntry entry : map.getMapList()) {
-            assertFalse("Unexpected gamepad input: " + input, entry.getInput() == input);
+            assertNotSame("Unexpected gamepad input: " + input, entry.getInput(), input);
         }
     }
 
@@ -482,12 +484,12 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
                 return;
             }
         }
-        assertTrue("Missing modifier " + modifier + " for " + entry.getInput(), false);
+        fail("Missing modifier " + modifier + " for " + entry.getInput());
     }
 
     private static void assertMissingModifier(GamepadMapEntry entry, GamepadModifier modifier) {
         for (int i = 0; i < entry.getModCount(); i++) {
-            assertFalse("Unexpected modifier " + modifier + " for " + entry.getInput(), entry.getMod(i).getMod() == modifier);
+            assertNotSame("Unexpected modifier " + modifier + " for " + entry.getInput(), entry.getMod(i).getMod(), modifier);
         }
     }
 

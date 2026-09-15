@@ -146,8 +146,8 @@ public class TextureSetGeneratorTest {
         BufferedImage image1 = result.images.get(1);
         assertThat(image0.getWidth(), is(16));
         assertThat(image0.getHeight(), is(16));
-        assertTrue(image0.getHeight() == image1.getHeight());
-        assertTrue(image0.getWidth() == image1.getWidth());
+        assertEquals(image0.getHeight(), image1.getHeight());
+        assertEquals(image0.getWidth(), image1.getWidth());
 
         TextureSet textureSet = result.builder.setTexture("").build();
 

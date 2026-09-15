@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -285,10 +286,10 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
             }
         }
 
-        assertTrue(fontMap != null);
+        assertNotNull(fontMap);
         assertTrue(fontMap.getAllChars());
         assertTrue(fontMap.getGlyphBank().endsWith(".glyph_bankc"));
-        assertTrue(glyphBank != null);
+        assertNotNull(glyphBank);
         assertEquals(1499, glyphBank.getGlyphsCount());
     }
 
@@ -316,7 +317,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                 }
             }
         }
-        assertTrue(fontMap != null);
+        assertNotNull(fontMap);
         assertEquals("/Test.otf", fontMap.getFont());
         assertTrue(fontMap.getGlyphBank().isEmpty());
     }
@@ -346,7 +347,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
             if (message instanceof GlyphBank)
                 glyphBank = (GlyphBank)message;
         }
-        assertTrue(glyphBank != null);
+        assertNotNull(glyphBank);
         assertEquals(-3, glyphBank.getCacheCellMaxAscent());
         assertEquals(-3, GlyphBank.parseFrom(glyphBank.toByteArray()).getCacheCellMaxAscent());
         assertEquals(5, glyphBank.getCacheCellHeight());
@@ -369,7 +370,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
             if (message instanceof GlyphBank)
                 glyphBank = GlyphBank.parseFrom(message.toByteArray());
         }
-        assertTrue(glyphBank != null);
+        assertNotNull(glyphBank);
         assertEquals(9.0f, glyphBank.getMaxAscent(), 0.0f);
         assertEquals(0.0f, glyphBank.getMaxDescent(), 0.0f);
         assertEquals(-7, glyphBank.getGlyphs(0).getDescent());
@@ -402,7 +403,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                 renderer.setProperties(properties);
                 renderer.setText("A");
                 renderer.beginBatch();
-                assertTrue(renderer.generateTexture(0).pixels != null);
+                assertNotNull(renderer.generateTexture(0).pixels);
             }
         }
     }
@@ -430,7 +431,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testFNTSubDir() throws Exception {
         byte[] toff_file = getFile("/bmfont.png");
-        assertTrue(toff_file != null);
+        assertNotNull(toff_file);
         addFile("/subdir/bmfont.png", toff_file);
 
         StringBuilder src = new StringBuilder();

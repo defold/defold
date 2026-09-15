@@ -39,6 +39,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
@@ -297,8 +298,8 @@ public class BundlerTest {
             assertTrue(outputApk.exists());
             ZipFile apkZip = new ZipFile(outputApk.getAbsolutePath());
             ZipEntry zipEntry = apkZip.getEntry("assets/game.arcd");
-            assertFalse(zipEntry == null);
-            assertEquals(zipEntry.getMethod(), ZipEntry.STORED);
+            assertNotNull(zipEntry);
+            assertEquals(ZipEntry.STORED, zipEntry.getMethod());
         }
     }
 

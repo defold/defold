@@ -601,9 +601,9 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         Gui.SceneDesc gui = buildGui(src, "/test.gui");
         NodeDesc node = findNode(gui, "Landscape", "template/text");
 
-        Assert.assertFalse("Can't find node!", node == null);
+        Assert.assertNotNull("Can't find node!", node);
         Assert.assertFalse(node.getClippingVisible());
-        Assert.assertEquals(node.getText(), "defaultText");
+        Assert.assertEquals("defaultText", node.getText());
     }
 
     @Test
@@ -622,8 +622,8 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         NodeDesc boxNode = findNode(gui, "", "template/box");
         NodeDesc textNode = findNode(gui, "", "template/text");
 
-        Assert.assertFalse("Can't find box node!", boxNode == null);
-        Assert.assertFalse("Can't find text node!", textNode == null);
+        Assert.assertNotNull("Can't find box node!", boxNode);
+        Assert.assertNotNull("Can't find text node!", textNode);
         Assert.assertFalse(boxNode.getEnabled());
         Assert.assertTrue(textNode.getEnabled());
     }

@@ -17,6 +17,8 @@ package com.dynamo.bob.pipeline;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
@@ -167,10 +169,10 @@ public class ExtenderUtilTest {
             List<ExtenderResource> androidResources = ExtenderUtil.getExtensionSources(r8Project, Platform.Arm64Android, null);
             List<ExtenderResource> linuxResources = ExtenderUtil.getExtensionSources(r8Project, Platform.X86_64Linux, null);
             ExtenderResource appRules = findResource(androidResources, ExtenderUtil.r8KeepRulesPath);
-            assertTrue(appRules != null);
+            assertNotNull(appRules);
             assertEquals("-keep class com.dynamo.android.DefoldActivity { *; }\n", new String(appRules.getContent(), StandardCharsets.UTF_8));
-            assertTrue(findResource(androidResources, "_app/dmengine.keep") == null);
-            assertTrue(findResource(linuxResources, ExtenderUtil.r8KeepRulesPath) == null);
+            assertNull(findResource(androidResources, "_app/dmengine.keep"));
+            assertNull(findResource(linuxResources, ExtenderUtil.r8KeepRulesPath));
         } finally {
             r8Project.dispose();
         }
@@ -186,9 +188,9 @@ public class ExtenderUtilTest {
             assertFalse(ExtenderUtil.hasNativeExtensions(r8Project, Platform.X86_64Linux));
             List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(r8Project, Platform.Arm64Android, null);
             ExtenderResource appRules = findResource(resources, ExtenderUtil.r8KeepRulesPath);
-            assertTrue(appRules != null);
+            assertNotNull(appRules);
             assertEquals("-keep class example.Custom\n", new String(appRules.getContent(), StandardCharsets.UTF_8));
-            assertTrue(findResource(resources, "_app/dmengine.keep") == null);
+            assertNull(findResource(resources, "_app/dmengine.keep"));
         } finally {
             r8Project.dispose();
         }
@@ -202,7 +204,7 @@ public class ExtenderUtilTest {
             assertFalse(ExtenderUtil.hasNativeExtensions(r8Project));
             assertFalse(ExtenderUtil.hasNativeExtensions(r8Project, Platform.Arm64Android));
             List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(r8Project, Platform.Arm64Android, null);
-            assertTrue(findResource(resources, ExtenderUtil.r8KeepRulesPath) == null);
+            assertNull(findResource(resources, ExtenderUtil.r8KeepRulesPath));
         } finally {
             r8Project.dispose();
         }
@@ -229,9 +231,9 @@ public class ExtenderUtilTest {
             assertFalse(ExtenderUtil.hasNativeExtensions(r8Project));
             assertTrue(ExtenderUtil.hasNativeExtensions(r8Project, Platform.Arm64Android));
             assertFalse(ExtenderUtil.hasNativeExtensions(r8Project, Platform.X86_64Linux));
-            assertTrue(findResource(
+            assertNull(findResource(
                     ExtenderUtil.getExtensionSources(r8Project, Platform.X86_64Linux, null),
-                    ExtenderUtil.r8KeepRulesPath) == null);
+                    ExtenderUtil.r8KeepRulesPath));
             try {
                 ExtenderUtil.getExtensionSources(r8Project, Platform.Arm64Android, null);
                 throw new AssertionError("Expected missing R8 rules to fail");

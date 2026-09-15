@@ -15,6 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -112,7 +113,7 @@ public class AnimationSetBuilderTest extends AbstractProtoBuilderTest {
 
         Map<Long, RigAnimation> anims = getAnims(getMessage(outputs, AnimationSet.class));
         assertEquals(1,anims.size());
-        assertTrue(null != getAnim(anims, "testanim"));
+        assertNotNull(getAnim(anims, "testanim"));
     }
 
     @Test
@@ -136,7 +137,7 @@ public class AnimationSetBuilderTest extends AbstractProtoBuilderTest {
         AnimationSet animationSet = AnimationSet.parseFrom(animationSetTask.output(0).getContent());
         Map<Long, RigAnimation> animations = getAnims(animationSet);
         assertEquals(1, animations.size());
-        assertTrue(null != getAnim(animations, "testanim"));
+        assertNotNull(getAnim(animations, "testanim"));
     }
 
     @Test
@@ -164,10 +165,10 @@ public class AnimationSetBuilderTest extends AbstractProtoBuilderTest {
 
         Map<Long, RigAnimation> anims = getAnims(getMessage(outputs, AnimationSet.class));
         assertEquals(4,anims.size());
-        assertTrue(null != getAnim(anims, "testanim1"));
-        assertTrue(null != getAnim(anims, "testanim2"));
-        assertTrue(null != getAnim(anims, "testset1/testanim3"));
-        assertTrue(null != getAnim(anims, "testset2/testanim3"));
+        assertNotNull(getAnim(anims, "testanim1"));
+        assertNotNull(getAnim(anims, "testanim2"));
+        assertNotNull(getAnim(anims, "testset1/testanim3"));
+        assertNotNull(getAnim(anims, "testset2/testanim3"));
     }
 
     @Test(expected=CompileExceptionError.class)

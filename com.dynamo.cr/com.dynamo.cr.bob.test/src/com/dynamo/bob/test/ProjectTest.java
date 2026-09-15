@@ -198,8 +198,8 @@ public class ProjectTest {
 
         assertEquals(libraryUrls.size(), results.size());
         for (Library.Result result : results) {
-            assertTrue(result.problem() == null);
-            assertTrue(result.archive() != null);
+            assertNull(result.problem());
+            assertNotNull(result.archive());
             assertTrue(result.archive().path().toFile().exists());
         }
 
@@ -211,8 +211,8 @@ public class ProjectTest {
         List<File> filenames = new ArrayList<>();
         for (Library.Result result : results) {
             filenames.add(result.archive().path().toFile());
-            assertTrue(result.problem() == null);
-            assertTrue(result.archive() != null);
+            assertNull(result.problem());
+            assertNotNull(result.archive());
         }
         assertEquals(filenames.size(), _304Count.get());
 
