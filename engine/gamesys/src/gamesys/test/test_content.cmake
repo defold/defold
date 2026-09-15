@@ -130,14 +130,41 @@ if(NOT DEFOLD_GAMESYS_BOB_THREADS MATCHES "^[1-9][0-9]*$")
   message(FATAL_ERROR "DEFOLD_GAMESYS_BOB_THREADS must be a positive integer")
 endif()
 set(_GS_CONTENT_JOB_POOL)
+set(_GS_CONTENT_LANES 1)
 if(CMAKE_GENERATOR MATCHES "^Ninja")
   set_property(GLOBAL APPEND PROPERTY JOB_POOLS gamesys_test_content=2)
   set(_GS_CONTENT_JOB_POOL JOB_POOL gamesys_test_content)
+  set(_GS_CONTENT_LANES 2)
 endif()
+
+# Folders in each dependency chain run sequentially, so they can reuse one
+# source copy. Build metadata is cleared before each Bob invocation below.
+set(_GS_CONTENT_SOURCE_STAMPS)
+math(EXPR _GS_LAST_CONTENT_LANE "${_GS_CONTENT_LANES} - 1")
+foreach(_lane RANGE 0 ${_GS_LAST_CONTENT_LANE})
+  set(_stage_root "${GS_TEST_RUNTIME_DIR}/.bob/roots/lane-${_lane}")
+  set(_source_stamp "${CMAKE_CURRENT_BINARY_DIR}/.bob/source-${_lane}.stamp")
+  add_custom_command(
+    OUTPUT "${_source_stamp}"
+    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_stage_root}"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${GS_TEST_ROOT}" "${_stage_root}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_stage_root}/builtins"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BUILTINS_GRAPHICS_DIR}" "${_stage_root}/builtins/graphics"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
+    COMMAND "${CMAKE_COMMAND}" -E touch "${_source_stamp}"
+    DEPENDS ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES}
+    ${_GS_CONTENT_JOB_POOL}
+    COMMENT "Staging gamesys test sources for content chain ${_lane}"
+    VERBATIM)
+  add_custom_target(gamesys_test_sources_${_lane} DEPENDS "${_source_stamp}")
+  list(APPEND _GS_CONTENT_SOURCE_STAMPS "${_source_stamp}")
+endforeach()
+
 set(gamesys_content_outputs)
 set(gamesys_content_targets)
 set(_GS_PREVIOUS_CONTENT_TARGET)
 set(_GS_CONTENT_QUEUE)
+set(_GS_CONTENT_LANE 0)
 foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
   if(CMAKE_GENERATOR MATCHES "^Ninja")
     set(_GS_PREVIOUS_CONTENT_TARGET)
@@ -155,7 +182,8 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
   list(FILTER _folder_sources EXCLUDE REGEX "/build/")
   list(FILTER _folder_sources EXCLUDE REGEX "\\.DS_Store$")
 
-  set(_GS_BOB_STAGE_ROOT "${GS_TEST_RUNTIME_DIR}/.bob/roots/${_folder}")
+  set(_GS_BOB_STAGE_ROOT "${GS_TEST_RUNTIME_DIR}/.bob/roots/lane-${_GS_CONTENT_LANE}")
+  list(GET _GS_CONTENT_SOURCE_STAMPS ${_GS_CONTENT_LANE} _source_stamp)
   set(_settings_args)
   if(EXISTS "${GS_TEST_ROOT}/${_folder}/game.project")
     list(APPEND _settings_args --settings "${_GS_BOB_STAGE_ROOT}/${_folder}/game.project")
@@ -177,12 +205,8 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
   set(_stamp "${CMAKE_CURRENT_BINARY_DIR}/.bob/${_folder}.stamp")
   add_custom_command(
     OUTPUT "${_stamp}"
-    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_GS_BOB_STAGE_ROOT}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_GS_BOB_STAGE_ROOT}"
-    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${GS_TEST_ROOT}" "${_GS_BOB_STAGE_ROOT}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_GS_BOB_STAGE_ROOT}/builtins"
-    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BUILTINS_GRAPHICS_DIR}" "${_GS_BOB_STAGE_ROOT}/builtins/graphics"
     COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_GS_BOB_STAGE_ROOT}/build"
+    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_GS_BOB_STAGE_ROOT}/.internal"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_bob_root}"
     COMMAND "${CMAKE_COMMAND}" -E env
       "DM_BOB_ROOTFOLDER=${_bob_root}"
@@ -207,7 +231,7 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
     ${_prebuilt_copy_commands}
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_stamp}"
-    DEPENDS ${_GS_PREVIOUS_CONTENT_TARGET} ${_GS_BUILTINS_GRAPHICS_SOURCES} "${_GS_BOB_LIGHT}" ${_GS_BOB_PLUGIN_JARS} "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES} ${_prebuilt_sources}
+    DEPENDS ${_GS_PREVIOUS_CONTENT_TARGET} gamesys_test_sources_${_GS_CONTENT_LANE} "${_source_stamp}" "${_GS_BOB_LIGHT}" ${_GS_BOB_PLUGIN_JARS} "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_prebuilt_sources}
     WORKING_DIRECTORY "${GS_TEST_ROOT}"
     ${_GS_CONTENT_JOB_POOL}
     COMMENT "Building gamesys test data folder ${_folder}"
@@ -227,4 +251,5 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
     # Other generators ignore job pools, so use one ordered target chain.
     set(_GS_PREVIOUS_CONTENT_TARGET ${_content_target})
   endif()
+  math(EXPR _GS_CONTENT_LANE "(${_GS_CONTENT_LANE} + 1) % ${_GS_CONTENT_LANES}")
 endforeach()
