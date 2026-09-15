@@ -303,6 +303,63 @@ public class FontRendererTest {
     }
 
     @Test
+    public void testVectorAtlasRecoversAfterOverflow() throws Exception {
+        byte[] fontBytes;
+        try (InputStream input = FontRendererTest.class.getResourceAsStream("/vector_atlas_stress.ttf")) {
+            assertNotNull(input);
+            fontBytes = input.readAllBytes();
+        }
+        StringBuilder overflowingText = new StringBuilder();
+        for (int i = 0; i < 800; ++i)
+            overflowingText.appendCodePoint(0xE000 + i);
+        for (boolean effects : new boolean[] {false, true}) {
+            FontRenderer.Params params = new FontRenderer.Params();
+            params.vector = true;
+            params.size = 8;
+            params.cacheWidth = params.cacheHeight = 1024;
+            params.hasOutline = effects;
+            params.outlineWidth = effects ? 1 : 0;
+            params.layerMask = FontRenderer.LAYER_FACE | (effects ? FontRenderer.LAYER_OUTLINE : 0);
+            try (FontRenderer renderer = new FontRenderer("vector_atlas_stress.ttf", fontBytes, params)) {
+                renderer.setProperties(properties(100, 1, 0));
+                renderer.setText("\uE000");
+                renderer.beginBatch();
+                FontRenderer.Texture baselineBitmap = renderer.generateTexture(0);
+                long version = baselineBitmap.atlasVersion;
+                FontRenderer.Texture[] baseline = renderer.getVectorTextures(0);
+                TestVertices baselineVertices = getVertices(renderer, IDENTITY);
+                assertEquals(effects ? 12 : 6, baselineVertices.vertexCount);
+                for (int pass = 0; pass < 2; ++pass) {
+                    renderer.setText(overflowingText.toString());
+                    renderer.beginBatch();
+                    version = renderer.generateTexture(version).atlasVersion;
+                    try {
+                        renderer.getVectorTextures(0);
+                        fail("Expected the numeric atlas to overflow");
+                    } catch (IllegalStateException expected) {
+                        assertTrue(expected.getMessage().contains("native result -4"));
+                    }
+
+                    renderer.setText("\uE000");
+                    renderer.beginBatch();
+                    FontRenderer.Texture recovered = renderer.generateTexture(version);
+                    assertTrue(recovered.atlasVersion > version);
+                    assertNotNull(recovered.pixels);
+                    if (effects)
+                        assertEquals(baselineBitmap.pixels, recovered.pixels);
+                    FontRenderer.Texture[] textures = renderer.getVectorTextures(version);
+                    for (int i = 0; i < 2; ++i) {
+                        assertEquals(baseline[i].pixels, textures[i].pixels);
+                        assertNull(renderer.getVectorTextures(recovered.atlasVersion)[i].pixels);
+                    }
+                    assertEquals(baselineVertices.vertices, getVertices(renderer, IDENTITY).vertices);
+                    version = recovered.atlasVersion;
+                }
+            }
+        }
+    }
+
+    @Test
     public void testVectorBatchFinalizesAllEntriesTogether() throws Exception {
         byte[] fontBytes;
         try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {

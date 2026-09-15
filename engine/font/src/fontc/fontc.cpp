@@ -1601,6 +1601,16 @@ FontRendererResult FontcBeginBatch(HFontRenderer renderer)
 {
     if (!renderer)
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    if (renderer->m_VectorData.m_Overflow)
+    {
+        // A failed pack still contains the previous batch's glyphs. Reset at
+        // the batch boundary so a smaller working set can render again.
+        while (!renderer->m_Glyphs.Empty())
+            RemoveCachedGlyph(renderer, renderer->m_Glyphs.Size() - 1);
+        UpdateCellMetrics(renderer);
+        RebuildAtlas(renderer);
+        FontVectorSlugBegin(&renderer->m_VectorData);
+    }
     ++renderer->m_Frame;
     if (renderer->m_Frame == 0)
     {
