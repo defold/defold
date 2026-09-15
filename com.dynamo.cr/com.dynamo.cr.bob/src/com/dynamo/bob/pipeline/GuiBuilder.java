@@ -924,7 +924,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private class SceneBuilderIO implements ISceneBuilderIO {
+    private static class SceneBuilderIO implements ISceneBuilderIO {
         com.dynamo.bob.Project project;
         SceneBuilderIO(com.dynamo.bob.Project project) {
             this.project = project;

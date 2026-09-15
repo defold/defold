@@ -196,7 +196,7 @@ public class HTML5Bundler implements IBundler {
         properties.put("DEFOLD_HAS_WASM_PTHREAD_ENGINE", architectures.contains(Platform.WasmPthreadWeb));
     }
 
-    class SplitFile {
+    static class SplitFile {
         private File source;
         private Project project;
         private MessageDigest sha1;

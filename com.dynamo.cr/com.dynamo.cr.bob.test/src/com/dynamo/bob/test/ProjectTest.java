@@ -79,7 +79,7 @@ public class ProjectTest {
         }
     }
 
-    private class MockProject extends Project {
+    private static class MockProject extends Project {
         public HashMap<String,String> env;
 
         public MockProject(IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {

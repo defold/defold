@@ -54,15 +54,17 @@ public class TextureSetLayout {
     {
         public int x;
         public int y;
-        public Pointi() {};
+        public Pointi() {}
+
         public Pointi(int x, int y) {
             this.x = x;
             this.y = y;
-        };
+        }
+
         public Pointi(Point p) {
             this.x = (int)p.x;
             this.y = (int)p.y;
-        };
+        }
     }
 
     public static class Sizei
@@ -72,7 +74,7 @@ public class TextureSetLayout {
         public Sizei(int width, int height) {
             this.width = width;
             this.height = height;
-        };
+        }
     }
 
     public static class Rectanglei
@@ -87,14 +89,14 @@ public class TextureSetLayout {
             this.y = y;
             this.width = width;
             this.height = height;
-        };
+        }
 
         public Rectanglei(Rectangle rect) {
             this.x = (int)rect.x;
             this.y = (int)rect.y;
             this.width = (int)rect.width;
             this.height = (int)rect.height;
-        };
+        }
 
         public Point getCenter() {
             return new Point(x + width * 0.5f, y + height * 0.5f);
@@ -535,11 +537,12 @@ public class TextureSetLayout {
         public Point(float x, float y) {
             this.x = x;
             this.y = y;
-        };
+        }
+
         public Point(Point rhs) {
             this.x = rhs.x;
             this.y = rhs.y;
-        };
+        }
 
         public float getX()                 { return x; }
         public void setX(float x)           { this.x = x; }
@@ -554,7 +557,7 @@ public class TextureSetLayout {
         public Size(float width, float height) {
             this.width = width;
             this.height = height;
-        };
+        }
 
         public float getWidth()                 { return width; }
         public void setWidth(float width)       { this.width = width; }
@@ -573,7 +576,7 @@ public class TextureSetLayout {
             this.y = y;
             this.width = width;
             this.height = height;
-        };
+        }
 
         public float getX()                 { return x; }
         public void setX(float x)           { this.x = x; }

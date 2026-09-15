@@ -557,7 +557,7 @@ public class BundleHelper {
             this.message = message;
             this.lineNumber = Integer.parseInt(lineNumber.isEmpty() ? "1" : lineNumber);
         }
-    };
+    }
 
     // These regexp's works for both cpp and javac errors, warnings and note entries associated with a resource.
     private static Pattern resourceIssueGCCRe = Pattern.compile("^(?:(?:(?:\\/tmp\\/job[0-9]*\\/)?(?:upload\\/packages|upload|build)\\/)|(?:.*\\/drive_c\\/))?([^:]+):([0-9]+):([0-9]*)?:?\\s*(error|warning|note|):?\\s*(.+)"); // GCC + Clang + Java

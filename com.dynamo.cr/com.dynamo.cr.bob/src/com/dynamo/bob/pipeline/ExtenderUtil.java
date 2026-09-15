@@ -329,10 +329,10 @@ public class ExtenderUtil {
         public byte[] getContent() throws IOException {
             StringBuilder prefix = new StringBuilder();
             if (options != null) {
-                prefix.append("context:").append(System.getProperty("line.separator"));
+                prefix.append("context:").append(System.lineSeparator());
                 for (String key : options.keySet()) {
                     String value = options.get(key);
-                    prefix.append(String.format("    %s: %s", key, value)).append(System.getProperty("line.separator"));
+                    prefix.append(String.format("    %s: %s", key, value)).append(System.lineSeparator());
                 }
             }
 
@@ -731,7 +731,7 @@ public class ExtenderUtil {
     }
 
     static private String createExtensionManifest(String name, Platform platform, Map<String, Object> options) {
-        String ln = System.getProperty("line.separator");
+        String ln = System.lineSeparator();
         StringBuilder s = new StringBuilder(String.format("name: %s", name) + ln);
         s.append("platforms:").append(ln);
         s.append(String.format("  %s:", platform.getExtenderPair())).append(ln);
@@ -1252,7 +1252,7 @@ public class ExtenderUtil {
         try {
             return new Yaml().load(yaml);
         } catch(YAMLException e) {
-            throw new IOException(String.format("%s:1: error: %s", resource.getAbsPath(), e.toString()));
+            throw new IOException(String.format("%s:1: error: %s", resource.getAbsPath(), e));
         }
     }
 
@@ -1372,7 +1372,7 @@ public class ExtenderUtil {
             ctx = mergeManifestContext(ctx, platform_ctx);
         } catch (RuntimeException e) {
             e.printStackTrace(System.out);
-            throw new CompileExceptionError(resource, -1, String.format("Extension manifest '%s' contains invalid values: %s", resource.getAbsPath(), e.toString()));
+            throw new CompileExceptionError(resource, -1, String.format("Extension manifest '%s' contains invalid values: %s", resource.getAbsPath(), e));
         }
         return ctx;
     }

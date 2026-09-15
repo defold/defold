@@ -47,7 +47,7 @@ import com.google.protobuf.ByteString;
 
 public class ManifestTest {
 
-    private class ManifestInstance {
+    private static class ManifestInstance {
 
         public final String projectIdentifier = "Defold test";
         public final String[] supportedEngineVersions = { "alpha", "beta", "gamma", "delta" };

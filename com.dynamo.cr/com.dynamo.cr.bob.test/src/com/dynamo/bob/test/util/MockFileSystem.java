@@ -85,7 +85,7 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
 
     // Sort a list of paths based on lexicographically
     // Needed to be able to mimic the directory traversal on disc
-    class SortPath implements Comparator<String> {
+    static class SortPath implements Comparator<String> {
         public int compare(String a, String b) {
             return a.compareTo(b);
         }

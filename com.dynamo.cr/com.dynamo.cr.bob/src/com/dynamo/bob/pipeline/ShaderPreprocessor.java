@@ -59,7 +59,7 @@ public class ShaderPreprocessor {
         public String                             source;
         public IncludeNode                        parent;
         public LinkedHashMap<String, IncludeNode> children = new LinkedHashMap<String, IncludeNode>();
-    };
+    }
 
     private static class IncludeDirectiveTreeIterator implements Iterator<IncludeNode> {
         private final IncludeNode            root;

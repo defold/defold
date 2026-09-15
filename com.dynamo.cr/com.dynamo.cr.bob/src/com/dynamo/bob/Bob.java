@@ -255,7 +255,7 @@ public class Bob {
         init();
         File f = new File(rootFolder, path);
         if (!f.exists()) {
-            throw new RuntimeException(String.format("location %s not found", f.toString()));
+            throw new RuntimeException(String.format("location %s not found", f));
         }
         return f.getAbsolutePath();
     }
@@ -272,7 +272,7 @@ public class Bob {
     public static String getExe(Platform platform, String name) throws IOException {
         List<String> exes = getExes(platform, name);
         if (exes.size() > 1) {
-            throw new IOException("More than one alternative when getting binary executable for platform: " + platform.toString());
+            throw new IOException("More than one alternative when getting binary executable for platform: " + platform);
         }
         return exes.get(0);
     }
@@ -469,7 +469,7 @@ public class Bob {
             description = description + ". More than one occurrence is allowed";
         }
         return new CommandLineOption(shortOpt, longOpt, argCount, argType, description);
-    };
+    }
 
     private static CommandLineOption opt(String shortOpt, String longOpt, CommandLineOption.ArgCount argCount, String description) {
         return opt(shortOpt, longOpt, argCount, CommandLineOption.ArgType.UNSPECIFIED, description);

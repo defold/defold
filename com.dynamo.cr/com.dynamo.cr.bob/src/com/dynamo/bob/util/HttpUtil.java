@@ -86,13 +86,13 @@ public class HttpUtil {
 			connection.disconnect();
 		}
 		catch (ConnectException e) {
-			throw new RuntimeException(String.format("Connection refused by the server at %s", url.toString()), e);
+			throw new RuntimeException(String.format("Connection refused by the server at %s", url), e);
 		}
 		catch (FileNotFoundException e) {
-			throw new RuntimeException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
+			throw new RuntimeException(String.format("The URL %s points to a resource which doesn't exist", url), e);
 		}
 		catch (IOException e) {
-			throw new RuntimeException(String.format("Connection refused by the server at %s", url.toString()), e);
+			throw new RuntimeException(String.format("Connection refused by the server at %s", url), e);
 		}
 	}
 
@@ -120,10 +120,10 @@ public class HttpUtil {
 			connection.disconnect();
 		}
 		catch (ConnectException e) {
-			throw new RuntimeException(String.format("Connection refused by the server at %s", url.toString()), e);
+			throw new RuntimeException(String.format("Connection refused by the server at %s", url), e);
 		}
 		catch (IOException e) {
-			throw new RuntimeException(String.format("Error while uploading file %s to %s", file.toString(), url.toString()), e);
+			throw new RuntimeException(String.format("Error while uploading file %s to %s", file.toString(), url), e);
 		}
 	}
 
@@ -136,13 +136,13 @@ public class HttpUtil {
 			return (code >= 200 && code < 400);
 		}
 		catch (ConnectException e) {
-			throw new RuntimeException(String.format("Connection refused by the server at %s", url.toString()), e);
+			throw new RuntimeException(String.format("Connection refused by the server at %s", url), e);
 		}
 		catch (FileNotFoundException e) {
-			throw new RuntimeException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
+			throw new RuntimeException(String.format("The URL %s points to a resource which doesn't exist", url), e);
 		}
 		catch (IOException e) {
-			throw new RuntimeException(String.format("Connection refused by the server at %s", url.toString()), e);
+			throw new RuntimeException(String.format("Connection refused by the server at %s", url), e);
 		}
 	}
 }

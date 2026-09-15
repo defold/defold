@@ -70,7 +70,7 @@ public class BobProjectProperties {
         }
     }
 
-    private class ProjectProperty {
+    private static class ProjectProperty {
         private String value;
         private String defaultValue;
         private final List<String> defaultValues = new ArrayList<String>();

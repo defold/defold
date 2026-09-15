@@ -383,8 +383,8 @@ public class BundleResourcesTest {
         ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
         String synthesizedManifest = new String(appManifest.getContent());
         String expectedManifest = "";
-        expectedManifest += "context:" + System.getProperty("line.separator");
-        expectedManifest += "    baseVariant: release" + System.getProperty("line.separator");
+        expectedManifest += "context:" + System.lineSeparator();
+        expectedManifest += "    baseVariant: release" + System.lineSeparator();
         assertEquals(synthesizedManifest, expectedManifest);
     }
 
@@ -399,8 +399,8 @@ public class BundleResourcesTest {
         ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
         String patchedManifest = new String(appManifest.getContent());
         String expectedManifest = "";
-        expectedManifest += "context:" + System.getProperty("line.separator");
-        expectedManifest += "    baseVariant: debug" + System.getProperty("line.separator");
+        expectedManifest += "context:" + System.lineSeparator();
+        expectedManifest += "    baseVariant: debug" + System.lineSeparator();
         assertTrue(patchedManifest.length() > expectedManifest.length());
         assertEquals(patchedManifest.substring(0, expectedManifest.length()), expectedManifest);
     }

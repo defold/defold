@@ -51,7 +51,7 @@ import com.dynamo.bob.test.util.MockResource;
 public class ResourceCacheKeyTest {
 
 	@BuilderParams(name = "DummyBuilder", outExt = "", inExts = {}, paramsForSignature = {"important_option"})
-	private class DummyBuilder extends Builder {
+	private static class DummyBuilder extends Builder {
 		private TaskBuilder builder;
 
 		public DummyBuilder() {
