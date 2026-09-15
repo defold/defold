@@ -245,7 +245,7 @@ public class TimeProfiler {
     }
 
     private static long getCurrentThreadId() {
-        return Thread.currentThread().getId();
+        return Thread.currentThread().threadId();
     }
 
     private static void setCurrentScope(ProfilingScope scope) {
