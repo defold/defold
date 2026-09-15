@@ -2283,6 +2283,7 @@
              (.select (.getSelectionModel tab-pane)))))))
 
 (defn- configure-editor-tab-pane! [^TabPane tab-pane app-view prefs]
+  (ui/init-tab-pane! tab-pane)
   (apply-tab-pane-active-style! tab-pane false)
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
   (.setTabDragPolicy tab-pane TabPane$TabDragPolicy/REORDER)
@@ -2342,6 +2343,7 @@
   (let [app-scene (.getScene stage)
         editor-tab-pane (TabPane.)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
+    (ui/init-tab-pane! tool-tab-pane)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (ui/make-title))
     (.add (.getItems editor-tabs-split) editor-tab-pane)
