@@ -31,6 +31,7 @@ The following software has licenses which require inclusion of their respective 
     * [Metal.hpp](/licenses/NOTICE-metal-cpp) - Used by the Metal graphics backend on macOS and iOS.
     * [VkQuality](/licenses/NOTICE-vkquality) - Used by the Android Vulkan graphics backend to select between Vulkan and OpenGL ES.
   * MIT
+    * [Slug reference shaders](/licenses/NOTICE-slug) - Eric Lengyel. Used by the built-in Vector font shaders. Include this notice in games and applications that distribute these shaders. Defold uses the MIT license option offered by the upstream project.
     * [jctest](/licenses/NOTICE-jctest) - Used when running unit tests in the engine. Not included in any builds.
     * [Nuklear](https://github.com/Immediate-Mode-UI/Nuklear) - Micha Mettke and contributors. Used by the desktop-only fontviewer development and test application. Not included in the Defold engine or games built with Defold. The license text is included with the vendored library in `engine/font/src/test/fontviewer/LICENSE.nuklear`.
     * [Lua](/licenses/NOTICE-lua) - Used in HTML5 builds.
