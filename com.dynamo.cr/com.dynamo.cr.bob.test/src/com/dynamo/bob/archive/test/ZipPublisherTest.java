@@ -54,7 +54,7 @@ public class ZipPublisherTest {
 
             // Step 1: Read files and create ArchiveEntry objects
             long startReadTime = System.currentTimeMillis();
-            List<Path> toZip = Arrays.asList(Path.of(inputFolder.getAbsolutePath()));
+            List<Path> toZip = List.of(Path.of(inputFolder.getAbsolutePath()));
 
             var archiveMap = new ConcurrentHashMap<ArchiveEntry, byte[]>();
             ForkJoinPool pool = ForkJoinPool.commonPool();

@@ -84,12 +84,12 @@ public class TextureCompressorPreset {
     }
 
     public String toString() {
-        String s = String.format("Preset:\n  name: '%s'\n  displayName: '%s',\n  compressorName: '%s',\n  options: {", getName(), getDisplayName(), getCompressorName());
+        StringBuilder s = new StringBuilder(String.format("Preset:\n  name: '%s'\n  displayName: '%s',\n  compressorName: '%s',\n  options: {", getName(), getDisplayName(), getCompressorName()));
         for (String key : options.keySet()) {
             Object value = options.get(key);
-            s += String.format("    '%s' = '%s',\n", key, value);
+            s.append(String.format("    '%s' = '%s',\n", key, value));
         }
-        s += "  }\n";
-        return s;
+        s.append("  }\n");
+        return s.toString();
     }
 }

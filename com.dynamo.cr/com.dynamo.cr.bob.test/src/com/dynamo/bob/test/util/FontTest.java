@@ -541,12 +541,12 @@ public class FontTest {
         BufferedInputStream glyphBankCStream = new BufferedInputStream(new FileInputStream(outfile));
         glyphBank = GlyphBank.newBuilder().mergeFrom(glyphBankCStream).build();
 
-        String actual = "";
+        StringBuilder actual = new StringBuilder();
         for (int i=0; i < glyphBank.getGlyphsCount(); i++)
         {
-            actual += new String(Character.toChars(glyphBank.getGlyphs(i).getCharacter()));
+            actual.append(new String(Character.toChars(glyphBank.getGlyphs(i).getCharacter())));
         }
-        assertEquals("!$0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", actual);
+        assertEquals("!$0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", actual.toString());
     }
 
     @Test

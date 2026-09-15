@@ -657,27 +657,27 @@ public class BundleHelper {
 
         for (int count = 0; count < lines.length; ++count) {
             Matcher m;
-            String line = lines[count];
+            StringBuilder line = new StringBuilder(lines[count]);
 
-            m = resourceIssueLinkerUnresolvedSymbol.matcher(line);
+            m = resourceIssueLinkerUnresolvedSymbol.matcher(line.toString());
             if (m.matches()) {
                 issues.add(new BundleHelper.ResourceInfo(m.group(3), m.group(1), m.group(2), m.group(4)));
             }
 
             // Compare with some lookahead if it matches
             for (int i = 1; i <= 2 && (count+i) < lines.length; ++i) {
-                line += "\n" + lines[count+i];
+                line.append("\n").append(lines[count + i]);
             }
-            m = linkerPattern.matcher(line);
+            m = linkerPattern.matcher(line.toString());
             if (m.matches()) {
                 // Groups: message
                 issues.add(new BundleHelper.ResourceInfo("error", null, "", m.group(1)));
             }
-            m = linkerMissingSDKFolderPattern.matcher(line);
+            m = linkerMissingSDKFolderPattern.matcher(line.toString());
             if (m.matches()) {
                 issues.add(new BundleHelper.ResourceInfo("error", null, "", "Invalid Defold SDK: '" + m.group(1) + "'"));
             }
-            m = linkerMissingLibraryLinkerCLANGRe.matcher(line);
+            m = linkerMissingLibraryLinkerCLANGRe.matcher(line.toString());
             if (m.matches()) {
                 issues.add(new BundleHelper.ResourceInfo("error", null, "", "Missing library '" + m.group(1) + "'"));
             }

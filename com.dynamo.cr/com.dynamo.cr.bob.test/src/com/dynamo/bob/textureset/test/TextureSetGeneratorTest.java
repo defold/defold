@@ -135,8 +135,8 @@ public class TextureSetGeneratorTest {
         atlasImages.add(newAtlasImage(0.5f, 0.5f, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF));
 
         List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
-        animations.add(newAnim("anim1", Arrays.asList("1")));
-        animations.add(newAnim("anim2", Arrays.asList("2")));
+        animations.add(newAnim("anim1", List.of("1")));
+        animations.add(newAnim("anim2", List.of("2")));
         animations.add(newAnim("anim3", Arrays.asList("1", "2")));
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);

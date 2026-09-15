@@ -265,11 +265,11 @@ public class HTML5Bundler implements IBundler {
             generator.writeNumber(source.length());
             if(this.sha1 != null) {
                 generator.writeFieldName("sha1");
-                String sha1 = new BigInteger(1, this.sha1.digest()).toString(16);
+                StringBuilder sha1 = new StringBuilder(new BigInteger(1, this.sha1.digest()).toString(16));
                 while (sha1.length() < 40) {
-                    sha1 = "0" + sha1;
+                    sha1.insert(0, "0");
                 }
-                generator.writeString(sha1);
+                generator.writeString(sha1.toString());
             }
             generator.writeFieldName("pieces");
             generator.writeStartArray();
@@ -343,11 +343,11 @@ public class HTML5Bundler implements IBundler {
                 n = is.read(buffer);
             }
             is.close();
-            String sha1 = new BigInteger(1, md.digest()).toString(16);
+            StringBuilder sha1 = new StringBuilder(new BigInteger(1, md.digest()).toString(16));
             while (sha1.length() < 40) {
-                sha1 = "0" + sha1;
+                sha1.insert(0, "0");
             }
-            return sha1;
+            return sha1.toString();
         } catch (IOException e) {
             return null;
         } catch (NoSuchAlgorithmException e) {

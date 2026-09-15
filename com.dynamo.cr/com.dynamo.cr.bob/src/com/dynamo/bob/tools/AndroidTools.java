@@ -246,9 +246,7 @@ public class AndroidTools {
 
         // create list of args, starting from the second value (first is the command to run)
         List<String> argslist = new ArrayList<>();
-        for (int i = 1; i < args.length; i++) {
-            argslist.add(args[i]);
-        }
+        argslist.addAll(Arrays.asList(args).subList(1, args.length));
 
         final String command = args[0];
         switch (command) {

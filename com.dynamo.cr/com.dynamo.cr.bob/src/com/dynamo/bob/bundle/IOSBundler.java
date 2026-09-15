@@ -26,6 +26,7 @@ import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -232,9 +233,7 @@ public class IOSBundler implements IBundler {
     private void codesign(File target, String identity, String... extraArgs) throws IOException {
         List<String> args = new ArrayList<String>();
         args.add("codesign");
-        for (String extraArg : extraArgs) {
-            args.add(extraArg);
-        }
+        args.addAll(Arrays.asList(extraArgs));
         args.add("-f");
         args.add("-s");
         args.add(identity);

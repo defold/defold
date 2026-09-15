@@ -224,9 +224,7 @@ public class ResourceCacheKeyTest {
 				allOptions.add(option.longOpt);
 			}
 
-			for (String key :project.getOptions().keySet()) {
-				allOptions.add(key);
-			}
+            allOptions.addAll(project.getOptions().keySet());
 
 			// Validate each parameter in classToParamsDigest
 			for (Class<?> klass : map.keySet()) {

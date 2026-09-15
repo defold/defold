@@ -261,14 +261,14 @@ public class ExtenderUtilTest {
                 "dmbedtls_noasan", "dmbedtls_noasan", "dmbedtls_noasan", "dmbedtls_noasan",
                 "dmbedtls", "dmbedtls_noasan", "font_render", "gameobject",
                 "physics", "libbox2d_defold", "libopus.lib", "vpx", "vulkan-1", "libcustom.lib", null, 42);
-        String manifestYaml = "context:\n    libs: " + libraries + "\nplatforms:\n";
+        StringBuilder manifestYaml = new StringBuilder("context:\n    libs: " + libraries + "\nplatforms:\n");
         for (String platform : List.of("win32", "x86-win32", "x86_64-win32", "common", "x86_64-linux")) {
-            manifestYaml += "    " + platform + ":\n        context:\n";
+            manifestYaml.append("    ").append(platform).append(":\n        context:\n");
             for (String key : List.of("excludeLibs", "libs", "engineLibs", "symbols")) {
-                manifestYaml += "            " + key + ": " + libraries + "\n";
+                manifestYaml.append("            ").append(key).append(": ").append(libraries).append("\n");
             }
         }
-        byte[] originalContent = manifestYaml.getBytes(StandardCharsets.UTF_8);
+        byte[] originalContent = manifestYaml.toString().getBytes(StandardCharsets.UTF_8);
         createFile(fileSystem, "legacy-windows.appmanifest", originalContent);
         project.getProjectProperties().putStringValue("native_extension", "app_manifest", "legacy-windows.appmanifest");
 
@@ -276,7 +276,7 @@ public class ExtenderUtilTest {
                 ExtenderUtil.getExtensionSources(project, Platform.X86_64Win32, null), ExtenderUtil.appManifestPath);
         byte[] migratedContent = uploadedResource.getContent();
         Map<String, Object> manifest = new Yaml().load(new String(migratedContent, StandardCharsets.UTF_8));
-        Map<String, Object> original = new Yaml().load(manifestYaml);
+        Map<String, Object> original = new Yaml().load(manifestYaml.toString());
         Map<String, Object> platforms = (Map<String, Object>) manifest.get("platforms");
         Map<String, Object> originalPlatforms = (Map<String, Object>) original.get("platforms");
         for (String platform : List.of("win32", "x86-win32", "x86_64-win32")) {

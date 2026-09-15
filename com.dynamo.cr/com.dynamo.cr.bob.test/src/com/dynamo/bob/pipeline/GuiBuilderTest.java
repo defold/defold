@@ -131,8 +131,8 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     private static void startBoxNode(StringBuilder src, String id, String parent) {
         src.append("nodes {\n");
         src.append("  type: TYPE_BOX\n");
-        src.append("  id: \""+id+"\"\n");
-        src.append("  parent: \""+parent+"\"\n");
+        src.append("  id: \"").append(id).append("\"\n");
+        src.append("  parent: \"").append(parent).append("\"\n");
     }
 
     private static void addBoxNode(StringBuilder src, String id, String parent) {
@@ -143,24 +143,24 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     private static void addTextNode(StringBuilder src, String id, String parent, String text) {
         src.append("nodes {\n");
         src.append("  type: TYPE_TEXT\n");
-        src.append("  id: \""+id+"\"\n");
-        src.append("  parent: \""+parent+"\"\n");
-        src.append("  text: \""+text+"\"\n");
+        src.append("  id: \"").append(id).append("\"\n");
+        src.append("  parent: \"").append(parent).append("\"\n");
+        src.append("  text: \"").append(text).append("\"\n");
         src.append("}\n");
     }
 
     private void addSpineResource(StringBuilder src, String name) {
         src.append("\nresources {\n");
-        src.append("  name: \""+name+"\"\n");
-        src.append("  path: \"/assets/"+name+".gui\"\n");
+        src.append("  name: \"").append(name).append("\"\n");
+        src.append("  path: \"/assets/").append(name).append(".gui\"\n");
         src.append("}\n");
         addFile("/assets/"+name+".gui", createGui().toString());
     }
 
     private void addGuiResource(StringBuilder src, String name) {
         src.append("\nresources {\n");
-        src.append("  name: \""+name+"\"\n");
-        src.append("  path: \"/assets/"+name+".gui\"\n");
+        src.append("  name: \"").append(name).append("\"\n");
+        src.append("  path: \"/assets/").append(name).append(".gui\"\n");
         src.append("}\n");
         addFile("/assets/"+name+".gui", createGui().toString());
     }
@@ -172,22 +172,22 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     private static void startCustomNode(StringBuilder src, String id, String typeName) {
         src.append("\nnodes {\n");
         src.append("  type: TYPE_CUSTOM\n");
-        src.append("  custom_type: "+Integer.toUnsignedLong(MurmurHash.hash32(typeName))+"\n");
-        src.append("  custom_type_name: \""+typeName+"\"\n");
-        src.append("  id: \""+id+"\"\n");
+        src.append("  custom_type: ").append(Integer.toUnsignedLong(MurmurHash.hash32(typeName))).append("\n");
+        src.append("  custom_type_name: \"").append(typeName).append("\"\n");
+        src.append("  id: \"").append(id).append("\"\n");
     }
 
     private static void startCustomNodeWithTypeName(StringBuilder src, String id, String typeName) {
         src.append("\nnodes {\n");
         src.append("  type: TYPE_CUSTOM\n");
-        src.append("  custom_type_name: \""+typeName+"\"\n");
-        src.append("  id: \""+id+"\"\n");
+        src.append("  custom_type_name: \"").append(typeName).append("\"\n");
+        src.append("  id: \"").append(id).append("\"\n");
     }
 
     private static void startLegacySpineNode(StringBuilder src, String id) {
         src.append("\nnodes {\n");
         src.append("  type: TYPE_SPINE\n");
-        src.append("  id: \""+id+"\"\n");
+        src.append("  id: \"").append(id).append("\"\n");
     }
 
     private static void addLegacySpineProperties(StringBuilder src) {
@@ -201,12 +201,12 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     private static void addTemplateNode(StringBuilder src, String id, String parent, String template, String[] extraProperties) {
         src.append("nodes {\n");
         src.append("  type: TYPE_TEMPLATE\n");
-        src.append("  id: \""+id+"\"\n");
-        src.append("  parent: \""+parent+"\"\n");
+        src.append("  id: \"").append(id).append("\"\n");
+        src.append("  parent: \"").append(parent).append("\"\n");
         for (String prop: extraProperties) { 
             src.append(prop);
         }
-        src.append("  template: \""+template+"\"\n");
+        src.append("  template: \"").append(template).append("\"\n");
         src.append("}\n");
     }
 
@@ -217,12 +217,12 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
     private static void startOverriddenNode(StringBuilder src, NodeDesc.Type type, String id, String parent, boolean templateNodeChild, List<Integer> overriddenFields) {
         src.append("nodes {\n");
-        src.append("  type: "+type+"\n");
-        src.append("  id: \""+id+"\"\n");
-        src.append("  parent: \""+parent+"\"\n");
-        src.append("  template_node_child: "+templateNodeChild+"\n");
+        src.append("  type: ").append(type).append("\n");
+        src.append("  id: \"").append(id).append("\"\n");
+        src.append("  parent: \"").append(parent).append("\"\n");
+        src.append("  template_node_child: ").append(templateNodeChild).append("\n");
         for(int num : overriddenFields) {
-            src.append("  overridden_fields: "+num+"\n");
+            src.append("  overridden_fields: ").append(num).append("\n");
         }
     }
 
@@ -237,7 +237,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
     private static void startLayout(StringBuilder src, String name) {
         src.append("layouts {\n");
-        src.append("  name: \""+name+"\"\n");
+        src.append("  name: \"").append(name).append("\"\n");
     }
 
     private static void finishLayout(StringBuilder src) {
@@ -275,7 +275,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private static NodeDesc findNode(Gui.SceneDesc gui, String layoutName, String nodeName) {
-        List<NodeDesc> nodesList = Arrays.asList();
+        List<NodeDesc> nodesList = List.of();
         if (layoutName.equals("")) {
             nodesList = gui.getNodesList();
         }

@@ -19,6 +19,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
@@ -112,9 +113,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     private void checkOnlyExpectedLanguages(ShaderDesc shader, ShaderDesc.Language... expectedLanguages) {
         Set<ShaderDesc.Language> expected = new HashSet<>();
-        for (ShaderDesc.Language language : expectedLanguages) {
-            expected.add(language);
-        }
+        expected.addAll(Arrays.asList(expectedLanguages));
 
         Set<ShaderDesc.Language> actual = new HashSet<>();
         for (ShaderDesc.Shader shaderDesc : shader.getShadersList()) {

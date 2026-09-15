@@ -864,10 +864,7 @@ public class ModelUtil {
         for (Modelimporter.KeyFrame key : keys) {
             RigUtil.AnimationKey outKey = createKey(key.time, false, componentSize);
 
-            for (int i = 0; i < componentSize; ++i)
-            {
-                outKey.value[i] = key.value[i];
-            }
+            if (componentSize >= 0) System.arraycopy(key.value, 0, outKey.value, 0, componentSize);
             outKeys.add(outKey);
         }
     }
@@ -879,9 +876,7 @@ public class ModelUtil {
         for (int k = 0; k < nodeAnimation.morphWeightKeyTimes.length; ++k) {
             RigUtil.AnimationKey outKey = createKey(nodeAnimation.morphWeightKeyTimes[k], false, dim);
             int base = k * dim;
-            for (int i = 0; i < dim; ++i) {
-                outKey.value[i] = nodeAnimation.morphWeightKeyValues[base + i];
-            }
+            if (dim >= 0) System.arraycopy(nodeAnimation.morphWeightKeyValues, base + 0, outKey.value, 0, dim);
             sparseTrack.keys.add(outKey);
         }
         RigUtil.MorphWeightsBuilder wb = new RigUtil.MorphWeightsBuilder(weightTrackBuilder, dim);
@@ -1323,15 +1318,13 @@ public class ModelUtil {
     }
 
     private static void copyFloatArray(float[] src, int srcIndex, float[] dst, int dstIndex, int num_components) {
-        for (int i = 0; i < num_components; ++i) {
-            dst[dstIndex*num_components+i] = src[srcIndex*num_components+i];
-        }
+        if (num_components >= 0)
+            System.arraycopy(src, srcIndex * num_components + 0, dst, dstIndex * num_components + 0, num_components);
     }
 
     private static void copyIntArray(int[] src, int srcIndex, int[] dst, int dstIndex, int num_components) {
-        for (int i = 0; i < num_components; ++i) {
-            dst[dstIndex*num_components+i] = src[srcIndex*num_components+i];
-        }
+        if (num_components >= 0)
+            System.arraycopy(src, srcIndex * num_components + 0, dst, dstIndex * num_components + 0, num_components);
     }
 
     private static boolean hasData(float[] data) {

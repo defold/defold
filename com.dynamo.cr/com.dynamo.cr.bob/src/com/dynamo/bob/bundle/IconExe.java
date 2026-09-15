@@ -64,9 +64,7 @@ public class IconExe {
 			try {
 				//An ICO should contain 7 images, a BMP will contain 1
 				ImageData[] current = loader.load(args[i]);
-				for (int j = 0; j < current.length; j++) {
-					images.add(current[j]);
-				}
+                images.addAll(Arrays.asList(current));
 			} catch (RuntimeException e) {
 				//ignore so that we process the other images
 			}

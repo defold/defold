@@ -58,7 +58,7 @@ public class TextureSetLayoutTest {
     @Test
     public void testEmpty() throws CompileExceptionError {
         List<TextureSetLayout.Rect> rectangles
-            = Arrays.asList();
+            = List.of();
 
         Layout layout = packedLayout(0, rectangles).get(0);
         assertThat(layout.getWidth(), is(1));
@@ -113,7 +113,7 @@ public class TextureSetLayoutTest {
     @Test
     public void testBasic3() throws CompileExceptionError {
         List<TextureSetLayout.Rect> rectangles
-            = Arrays.asList(rect("0", 0, 512, 128));
+            = List.of(rect("0", 0, 512, 128));
 
         Layout layout = packedLayout(0, rectangles).get(0);
         assertThat(layout.getWidth(), is(512));
@@ -175,7 +175,7 @@ public class TextureSetLayoutTest {
 
     @Test
     public void testThinStrip() throws CompileExceptionError {
-        List<TextureSetLayout.Rect> rectangles = Arrays.asList(rect("0", 0, 1, 16));
+        List<TextureSetLayout.Rect> rectangles = List.of(rect("0", 0, 1, 16));
 
         Layout layout = packedLayout(0, rectangles).get(0);
         assertThat(layout.getWidth(), is(1));
@@ -295,7 +295,7 @@ public class TextureSetLayoutTest {
     public void testGridLayout2() throws CompileExceptionError {
 
         List<Rect> rectangles
-            = Arrays.asList(rect("0", 0, 32, 16));
+            = List.of(rect("0", 0, 32, 16));
 
         Layout layout = gridLayout(0, rectangles, new Grid(2,2) );
 

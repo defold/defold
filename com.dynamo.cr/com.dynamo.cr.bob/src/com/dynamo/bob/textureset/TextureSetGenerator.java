@@ -165,14 +165,14 @@ public class TextureSetGenerator {
 
         @Override
         public String toString() {
-            String s = "LayoutResult:\n";
-            s += String.format("  innerPadding: %d:\n", innerPadding);
-            s += String.format("  extrudeBorders: %d:\n", extrudeBorders);
+            StringBuilder s = new StringBuilder("LayoutResult:\n");
+            s.append(String.format("  innerPadding: %d:\n", innerPadding));
+            s.append(String.format("  extrudeBorders: %d:\n", extrudeBorders));
             for (Layout l : layouts) {
-                s += String.format("%s:\n", l.toString());
+                s.append(String.format("%s:\n", l.toString()));
             }
-            s += "\n";
-            return s;
+            s.append("\n");
+            return s.toString();
         }
     }
 

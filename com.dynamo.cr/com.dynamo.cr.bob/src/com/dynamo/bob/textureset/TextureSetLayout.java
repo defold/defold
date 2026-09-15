@@ -271,20 +271,20 @@ public class TextureSetLayout {
 
         @Override
         public String toString() {
-            String s = "Layout:\n";
-            s += String.format("  width: %d:\n", width);
-            s += String.format("  height: %d:\n", height);
+            StringBuilder s = new StringBuilder("Layout:\n");
+            s.append(String.format("  width: %d:\n", width));
+            s.append(String.format("  height: %d:\n", height));
             for (Rect r : rectangles) {
-                s += String.format("  %s\n", r.toString());
+                s.append(String.format("  %s\n", r.toString()));
             }
-            s += "\n";
-            return s;
+            s.append("\n");
+            return s.toString();
         }
     }
 
     public static List<Layout> packedLayout(int margin, List<Rect> rectangles, boolean rotate, float maxPageSizeW, float maxPageSizeH) throws CompileExceptionError {
         if (rectangles.size() == 0) {
-            return Arrays.asList(new Layout(1, 1, new ArrayList<TextureSetLayout.Rect>()));
+            return List.of(new Layout(1, 1, new ArrayList<Rect>()));
         }
 
         return createMaxRectsLayout(margin, rectangles, rotate, maxPageSizeW, maxPageSizeH);

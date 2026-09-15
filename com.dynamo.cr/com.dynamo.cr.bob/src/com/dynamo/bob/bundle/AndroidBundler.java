@@ -446,7 +446,7 @@ public class AndroidBundler implements IBundler {
             for (File resDir : compiledResourcesDir.listFiles(File::isDirectory)) {
                 for (File file : resDir.listFiles()) {
                     if (file.getAbsolutePath().endsWith(".flat")) {
-                        sb.append(file.getAbsolutePath() + " ");
+                        sb.append(file.getAbsolutePath()).append(" ");
                     }
                 }
             }
