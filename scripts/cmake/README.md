@@ -183,8 +183,12 @@ compile dependencies. Xcode test executables retain runtime dependencies
 because Run schemes build the executable directly. iOS app targets also need
 these assets for the post-build step that copies them into the app bundle.
 
-Gamesys test content builds use up to two Bob processes with Ninja. Other
-generators build the content folders sequentially to bound JVM memory use.
+Gamesys test content builds use up to two Bob processes with Ninja. Two
+dependency chains keep queued content visible to Ninja's scheduler so it starts
+alongside compilation. Their target dependencies preserve independent folder
+rebuilds, and separate folder targets avoid waiting for unrelated engine
+libraries. Other generators build the content folders sequentially to bound JVM
+memory use.
 
 Native desktop tests built with Ninja use a pool of two commands. Set
 `-DDEFOLD_TEST_JOBS=1` to serialize them, or choose another positive worker

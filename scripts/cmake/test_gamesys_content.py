@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 CONTENT_MODULE = Path(__file__).resolve().parents[2] / 'engine/gamesys/src/gamesys/test/test_content.cmake'
-FOLDERS = ('first', 'second', 'third', 'fourth')
+FOLDERS = ('first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth')
 
 
 def fake_bob(control, arguments):
@@ -23,6 +23,7 @@ def fake_bob(control, arguments):
     parser.add_argument('--output')
     parser.add_argument('--settings', type=Path)
     parser.add_argument('--expect-parallel', action='store_true')
+    parser.add_argument('--expect-compilation', action='store_true')
     args, _ = parser.parse_known_args(arguments)
     folder = Path(args.output).name
     started = time.monotonic_ns()
@@ -42,6 +43,12 @@ def fake_bob(control, arguments):
         while len(list(control.glob('*.started'))) < 2:
             if time.monotonic() > deadline:
                 raise RuntimeError('Content builds are serialized')
+        time.sleep(0.01)
+    if args.expect_compilation:
+        deadline = time.monotonic() + 10
+        while not (control / 'compilation.started').exists():
+            if time.monotonic() > deadline:
+                raise RuntimeError('Content blocked compilation')
             time.sleep(0.01)
     time.sleep(0.1)
     assert metadata.read_text() == folder, 'Bob project metadata was shared'
@@ -92,7 +99,8 @@ if(CMAKE_GENERATOR MATCHES "^Ninja")
   list(APPEND DEFOLD_JAVA_RUNTIME_FLAGS_LIST --expect-parallel)
 endif()
 include("{CONTENT_MODULE.as_posix()}")
-add_custom_target(content ALL DEPENDS ${{gamesys_content_outputs}})
+add_custom_target(content ALL)
+add_dependencies(content ${{gamesys_content_targets}})
 ''')
         self.env = os.environ.copy()
         self.env['DM_BOB_ROOTFOLDER'] = str(self.root / 'tools')
@@ -149,6 +157,43 @@ add_custom_target(content ALL DEPENDS ${{gamesys_content_outputs}})
         completed = {folder: (self.control / (folder + '.json')).read_text() for folder in FOLDERS}
         self.build_content()
         self.assertEqual(completed, {folder: (self.control / (folder + '.json')).read_text() for folder in FOLDERS})
+
+    # Content must start and continue under compile load without inheriting its consumer's engine dependencies.
+    def test_content_overlaps_compilation_under_load(self):
+        self.write('compile.py', '''
+from pathlib import Path
+import sys
+import time
+control = Path('../control')
+(control / 'compilation.started').touch()
+deadline = time.monotonic() + 10
+while len(list(control.glob('*.started'))) < 3:
+    if time.monotonic() > deadline:
+        raise RuntimeError('Compilation starved the Bob content queue')
+    time.sleep(0.01)
+Path(sys.argv[1]).touch()
+''')
+        cmake = self.root / 'CMakeLists.txt'
+        cmake.write_text(cmake.read_text().replace(
+            f'include("{CONTENT_MODULE.as_posix()}")', f'''
+list(APPEND DEFOLD_JAVA_RUNTIME_FLAGS_LIST --expect-compilation)
+foreach(i RANGE 1 8)
+  add_custom_command(OUTPUT compile-${{i}}
+    COMMAND "{Path(sys.executable).as_posix()}" "${{CMAKE_CURRENT_SOURCE_DIR}}/compile.py" compile-${{i}}
+    DEPENDS compile.py)
+  add_custom_command(OUTPUT link-${{i}}
+    COMMAND "${{CMAKE_COMMAND}}" -E touch link-${{i}}
+    DEPENDS compile-${{i}})
+  list(APPEND engine_outputs link-${{i}})
+endforeach()
+add_custom_target(engine ALL DEPENDS ${{engine_outputs}})
+include("{CONTENT_MODULE.as_posix()}")
+''') + '\nadd_dependencies(content engine)\n')
+        self.configure()
+        self.run_command('cmake', '--build', str(self.build), '--parallel', '4')
+        self.assertTrue((self.build / 'link-8').is_file())
+        for folder in FOLDERS:
+            self.assertEqual(folder, (self.runtime / folder / folder / 'generated.resourcec').read_text())
 
     # Makefiles must serialize Bob processes because they cannot enforce Ninja's JVM pool limit.
     def test_makefile_content_builds_are_serialized(self):

@@ -108,8 +108,8 @@ set_source_files_properties(${_EMBED_HEADERS} ${_EMBED_CPP} PROPERTIES GENERATED
 add_custom_target(gamesys_test_embeds DEPENDS ${_EMBED_HEADERS} ${_EMBED_CPP})
 
 # Make a phony target to expose content build step
-add_custom_target(gamesys_test_content DEPENDS ${gamesys_content_outputs})
-add_dependencies(gamesys_test_content gamesys gamesys_test_embeds gamesys_host_test_files)
+add_custom_target(gamesys_test_content)
+add_dependencies(gamesys_test_content ${gamesys_content_targets} gamesys_test_embeds gamesys_host_test_files)
 
 # test_gamesys_http uses ComponentTest, whose factory root is collision_object.
 # Mirror the HTTP test collection into that root to match the resource path used

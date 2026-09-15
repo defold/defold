@@ -131,8 +131,17 @@ if(CMAKE_GENERATOR MATCHES "^Ninja")
   set(_GS_CONTENT_JOB_POOL JOB_POOL gamesys_test_content)
 endif()
 set(gamesys_content_outputs)
-set(_GS_PREVIOUS_CONTENT_STAMP)
+set(gamesys_content_targets)
+set(_GS_PREVIOUS_CONTENT_TARGET)
+set(_GS_CONTENT_QUEUE)
 foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
+  if(CMAKE_GENERATOR MATCHES "^Ninja")
+    set(_GS_PREVIOUS_CONTENT_TARGET)
+    list(LENGTH _GS_CONTENT_QUEUE _queue_size)
+    if(_queue_size EQUAL 2)
+      list(POP_FRONT _GS_CONTENT_QUEUE _GS_PREVIOUS_CONTENT_TARGET)
+    endif()
+  endif()
   set(_inputs_file "${GS_TEST_ROOT}/${_folder}/build.inputs")
   if(NOT EXISTS "${_inputs_file}")
     message(FATAL_ERROR "Missing gamesys test data input list: ${_inputs_file}")
@@ -193,14 +202,24 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
     ${_prebuilt_copy_commands}
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_stamp}"
-    DEPENDS ${_GS_PREVIOUS_CONTENT_STAMP} ${_GS_BUILTINS_GRAPHICS_SOURCES} "${_GS_BOB_LIGHT}" ${_GS_BOB_PLUGIN_JARS} "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES} ${_prebuilt_sources}
+    DEPENDS ${_GS_PREVIOUS_CONTENT_TARGET} ${_GS_BUILTINS_GRAPHICS_SOURCES} "${_GS_BOB_LIGHT}" ${_GS_BOB_PLUGIN_JARS} "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES} ${_prebuilt_sources}
     WORKING_DIRECTORY "${GS_TEST_ROOT}"
     ${_GS_CONTENT_JOB_POOL}
     COMMENT "Building gamesys test data folder ${_folder}"
     VERBATIM)
   list(APPEND gamesys_content_outputs "${_stamp}")
-  if(NOT CMAKE_GENERATOR MATCHES "^Ninja")
-    # Other generators ignore job pools, so retain the serial dependency chain.
-    set(_GS_PREVIOUS_CONTENT_STAMP "${_stamp}")
+  # Give each command its own target so dependencies of the runtime aggregate
+  # do not become implicit prerequisites of every Bob invocation.
+  set(_content_target "gamesys_test_data_${_folder}")
+  add_custom_target(${_content_target} DEPENDS "${_stamp}")
+  list(APPEND gamesys_content_targets ${_content_target})
+  if(CMAKE_GENERATOR MATCHES "^Ninja")
+    # Two chains expose the queued JVM work to Ninja's critical-path scheduler.
+    # Target dependencies only order commands; touching a stamp must not rebuild
+    # later folders as a file dependency would.
+    list(APPEND _GS_CONTENT_QUEUE ${_content_target})
+  else()
+    # Other generators ignore job pools, so use one ordered target chain.
+    set(_GS_PREVIOUS_CONTENT_TARGET ${_content_target})
   endif()
 endforeach()
