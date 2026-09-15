@@ -800,7 +800,11 @@
         decoded-shape-data (decode-shape-data shape shape-data)]
     (merge shape decoded-shape-data)))
 
-(defn load-collision-object
+(defn- connect-collision-object
+  [project self _resource]
+  (g/connect self :group project :collision-groups))
+
+(defn- load-collision-object
   [project self resource collision-object-desc]
   {:pre [(map? collision-object-desc)]} ; Physics$CollisionObjectDesc in map format.
   (let [basis (g/now)
@@ -826,7 +830,6 @@
         event-collision :event-collision
         event-contact :event-contact
         event-trigger :event-trigger)
-      (g/connect self :group project :collision-groups)
       (g/connect project :settings self :project-settings)
       (when-some [{:keys [data shapes]} (:embedded-collision-shape collision-object-desc)]
         (sequence (comp (map #(assoc %1 :node-outline-key %2))
@@ -1174,6 +1177,7 @@
       :label (localization/message "resource.type.collisionobject")
       :node-type CollisionObjectNode
       :ddf-type Physics$CollisionObjectDesc
+      :connect-fn connect-collision-object
       :load-fn load-collision-object
       :sanitize-fn sanitize-collision-object
       :icon collision-object-icon

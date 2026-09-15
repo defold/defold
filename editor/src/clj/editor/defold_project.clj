@@ -1556,7 +1556,7 @@
   (input texture-profiles g/Any)
   (input use-font-layout g/Bool)
   (input use-rich-text g/Bool)
-  (input collision-groups g/Str :array :substitute gu/array-subst-remove-errors)
+  (input collision-groups g/Any :array :substitute gu/array-subst-remove-errors)
   (input build-settings g/Any)
   (input dependencies g/Any)
   (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
@@ -1610,6 +1610,7 @@
   (output nil-resource resource/Resource (g/constantly nil))
   (output default-tex-params g/Any :cached produce-default-tex-params)
   (output default-sampler-filter-modes g/Any :cached produce-default-sampler-filter-modes)
+  (output collision-groups g/Any :cached (g/fnk [collision-groups] (into #{} coll/flatten-xf collision-groups)))
   (output build-errors g/Any :cached
           (g/fnk [_node-id collision-groups]
             (g/package-errors

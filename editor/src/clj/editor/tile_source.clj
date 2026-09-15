@@ -384,13 +384,11 @@
 
 (defn- attach-collision-group-node
   [self collision-group-node]
-  (let [project (project/get-project)]
-    (concat
-     (g/connect collision-group-node :_node-id self :nodes)
-     (g/connect collision-group-node :node-outline self :child-outlines)
-     (g/connect collision-group-node :id self :collision-groups)
-     (g/connect collision-group-node :id project :collision-groups)
-     (g/connect collision-group-node :collision-group-node self :collision-group-nodes))))
+  (concat
+    (g/connect collision-group-node :_node-id self :nodes)
+    (g/connect collision-group-node :node-outline self :child-outlines)
+    (g/connect collision-group-node :id self :collision-groups)
+    (g/connect collision-group-node :collision-group-node self :collision-group-nodes)))
 
 (g/defnk produce-tile-source-outline [_node-id child-outlines]
   (let [{coll-outlines true anim-outlines false} (group-by #(g/node-instance? CollisionGroupNode (:node-id %)) child-outlines)]
@@ -1045,6 +1043,9 @@
                          (pair idx (collision-group->node-id collision-group))))
           convex-hulls)))
 
+(defn- connect-tile-source [project self _resource]
+  (g/connect self :collision-groups project :collision-groups))
+
 (defn- load-tile-source [project self resource tile-set]
   {:pre [(map? tile-set)]} ; Tile$TileSet in map format.
   (let [basis (g/now)
@@ -1140,6 +1141,7 @@
       :build-ext "t.texturesetc"
       :node-type TileSourceNode
       :ddf-type Tile$TileSet
+      :connect-fn connect-tile-source
       :load-fn load-tile-source
       :icon tile-source-icon
       :icon-class :design
