@@ -226,7 +226,11 @@ function(gamesys_configure_common_test target)
   defold_target_link_platform(${target} ${TARGET_PLATFORM})
   defold_target_link_socket(${target} ${TARGET_PLATFORM})
   defold_target_link_app(${target} ${TARGET_PLATFORM})
+  # The headless suites use null device backends and module-local content.
+  # Keep them together because resource reload tests modify staged files.
+  # HTTP tests register separately and retain the shared server group.
   defold_register_test_target(${target} ON "${GS_TEST_RUN_DIR}"
+    RUN_GROUP gamesys
     RUNTIME_DEPENDS gamesys_test_content
     STAGE_FILES
       "build/src/gamesys/test" "build/src/gamesys/test"

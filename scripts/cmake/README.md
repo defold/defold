@@ -200,8 +200,12 @@ commands concurrently. Set
 `-DDEFOLD_TEST_JOBS=1` to serialize them, or choose another positive worker
 limit. Tests use the `shared` resource group by default, so existing network
 tests and HTTP servers still run one at a time. Independently runnable font,
-sound and texture-codec tests use separate groups. The scheduler only starts a
-command when its group is free, so queued tests do not occupy worker slots.
+sound, texture-codec, gameobject and headless gamesys tests use separate groups.
+Gameobject tests use module-local content and process-local message sockets.
+The headless gamesys suites use null device backends and share a group because
+their resource reload tests modify staged files; gamesys HTTP tests remain in
+the `shared` group. The scheduler only starts a command when its group is free,
+so queued tests do not occupy worker slots.
 The long macOS sound suite has priority to overlap with shared tests. A group
 lock covers the entire command, including server startup and cleanup, and also
 protects individually requested `run_*` targets. `RUN_GROUP <name>` opts a test
