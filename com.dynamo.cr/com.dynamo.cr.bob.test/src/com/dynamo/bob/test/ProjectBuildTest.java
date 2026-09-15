@@ -384,7 +384,7 @@ public class ProjectBuildTest {
         build();
 
         BobProjectProperties outputProps = new BobProjectProperties();
-        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+        outputProps.load(new FileInputStream(contentRoot + "/build/game.projectc"));
         checkProjectSetting(outputProps, "input", "gamepads", expectedProjectGamepads);
         checkProjectSetting(outputProps, "input", "gamepad_database", null);
 
@@ -429,7 +429,7 @@ public class ProjectBuildTest {
         createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[display]" + "\nvariable_dt = 1\n" + "vsync = 1\n" + "update_frequency = 30\n");
         build();
         BobProjectProperties outputProps = new BobProjectProperties();
-        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+        outputProps.load(new FileInputStream(contentRoot + "/build/game.projectc"));
 
         checkProjectSetting(outputProps, "display", "vsync", "0");
         checkProjectSetting(outputProps, "display", "update_frequency", "0");
@@ -442,7 +442,7 @@ public class ProjectBuildTest {
         createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[custom]\nlove = defold\nshould_be_empty =\nempty_list =\nempty_list2 =,,,\nlist1 = a\nlist2 = a,b,c\n");
         build();
         BobProjectProperties outputProps = new BobProjectProperties();
-        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+        outputProps.load(new FileInputStream(contentRoot + "/build/game.projectc"));
 
         checkProjectSetting(outputProps, "project", "title", projectName);
 
@@ -492,7 +492,7 @@ public class ProjectBuildTest {
             "\ncustom_string_list#0 = http://test.com/test.zip\ncustom_string_list#2 = http://test.com/test2.zip\ncustom_string_list#1 = http://test.com/test1.zip\n");
         build();
         BobProjectProperties outputProps = new BobProjectProperties();
-        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+        outputProps.load(new FileInputStream(contentRoot + "/build/game.projectc"));
 
         checkProjectSettingArray(outputProps, "project", "custom_string_list", new String[]{"http://test.com/test.zip", "http://test.com/test1.zip", "http://test.com/test2.zip"});
     }
@@ -541,7 +541,7 @@ public class ProjectBuildTest {
         createFile(contentRoot, BobProjectProperties.PROPERTIES_PROJECT_FILE, "[project]\ncustom_property.private = 1\n");
         build();
         BobProjectProperties outputProps = new BobProjectProperties();
-        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+        outputProps.load(new FileInputStream(contentRoot + "/build/game.projectc"));
 
         checkProjectSetting(outputProps, "project", "custom_property", null);
     }
@@ -641,7 +641,7 @@ public class ProjectBuildTest {
         Manifest.ManifestData bundledManifestData = readManifestData(getBundledManifestFile());
         Manifest.ManifestData publishedManifestData = readManifestData(getPublishedManifestFile());
         BobProjectProperties outputProps = new BobProjectProperties();
-        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+        outputProps.load(new FileInputStream(contentRoot + "/build/game.projectc"));
 
         assertEquals(0, countExcludedEntries(bundledManifestData));
         assertTrue(bundledManifestData.getHasExcludedResources());

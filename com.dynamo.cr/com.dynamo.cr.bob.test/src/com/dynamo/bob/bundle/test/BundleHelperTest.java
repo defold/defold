@@ -260,11 +260,11 @@ public class BundleHelperTest {
 
     @Test
     public void testExcludeString() throws IOException {
-        List<String> input = Arrays.asList(new String[]{"com.facebook", "com.other.package", "com.foobar.blah"});
+        List<String> input = Arrays.asList("com.facebook", "com.other.package", "com.foobar.blah");
 
-        List<String> expressions = Arrays.asList(new String[]{"com.f(.*)"});
+        List<String> expressions = Arrays.asList("com.f(.*)");
         List<String> result = BundleHelper.excludeItems(input, expressions);
-        assertEquals(Arrays.asList(new String[]{"com.other.package"}), result);
+        assertEquals(Arrays.asList("com.other.package"), result);
     }
 
     @Test

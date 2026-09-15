@@ -105,7 +105,6 @@ import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.logging.Level;
-import java.util.stream.Collectors;
 import java.util.zip.ZipOutputStream;
 
 import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
