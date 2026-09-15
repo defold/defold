@@ -124,6 +124,7 @@ namespace dmGui
         uint64_t                m_TextureHash;
         uint64_t                m_FlipbookAnimHash;
         uint64_t                m_FontHash;
+        dmhash_t                m_TextStyle;
         uint64_t                m_ParticlefxHash;
         dmhash_t                m_LayerHash;
         dmhash_t                m_MaterialNameHash;

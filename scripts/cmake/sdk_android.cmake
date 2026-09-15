@@ -1,14 +1,28 @@
 defold_log("sdk_android.cmake:")
 
 # Detect Android NDK toolchain from (in order):
-# 1) Packaged NDK under ${DEFOLD_SDK_ROOT}/ext/SDKs
-# 2) Local Android SDK (Android Studio) via ANDROID_SDK_ROOT / ANDROID_HOME
-# 3) Well-known default SDK locations on host OS
+# 1) Explicit CMAKE_TOOLCHAIN_FILE or ANDROID_NDK / CMAKE_ANDROID_NDK
+# 2) Packaged NDK under ${DEFOLD_SDK_ROOT}/ext/SDKs
+# 3) Local Android SDK (Android Studio) via ANDROID_SDK_ROOT / ANDROID_HOME
+# 4) Well-known default SDK locations on host OS
 
 set(_ANDROID_TOOLCHAINS "")
+if(CMAKE_TOOLCHAIN_FILE)
+    set(_ANDROID_EXPLICIT_TOOLCHAIN "${CMAKE_TOOLCHAIN_FILE}")
+elseif(ANDROID_NDK)
+    set(_ANDROID_EXPLICIT_TOOLCHAIN "${ANDROID_NDK}/build/cmake/android.toolchain.cmake")
+elseif(CMAKE_ANDROID_NDK)
+    set(_ANDROID_EXPLICIT_TOOLCHAIN "${CMAKE_ANDROID_NDK}/build/cmake/android.toolchain.cmake")
+endif()
+if(_ANDROID_EXPLICIT_TOOLCHAIN)
+    if(NOT EXISTS "${_ANDROID_EXPLICIT_TOOLCHAIN}")
+        message(FATAL_ERROR "sdk_android: Android toolchain not found: ${_ANDROID_EXPLICIT_TOOLCHAIN}")
+    endif()
+    list(APPEND _ANDROID_TOOLCHAINS "${_ANDROID_EXPLICIT_TOOLCHAIN}")
+endif()
 
-# 1) Packaged NDK under DEFOLD_SDK_ROOT
-if(DEFINED DEFOLD_SDK_ROOT)
+# Packaged NDK under DEFOLD_SDK_ROOT
+if(NOT _ANDROID_TOOLCHAINS AND DEFINED DEFOLD_SDK_ROOT)
     set(_SDKS_DIR "${DEFOLD_SDK_ROOT}/ext/SDKs")
     if(EXISTS "${_SDKS_DIR}")
         set(_NDK_TOOLCHAIN_CANDIDATES
@@ -27,7 +41,7 @@ if(DEFINED DEFOLD_SDK_ROOT)
     else()
         message(DEBUG "sdk_android: SDKs directory not found: ${_SDKS_DIR}")
     endif()
-else()
+elseif(NOT DEFINED DEFOLD_SDK_ROOT)
     message(DEBUG "sdk_android: DEFOLD_SDK_ROOT not set; skipping packaged NDK detection")
 endif()
 
@@ -50,7 +64,7 @@ function(_defold_android_sdk_add_toolchains SDK_PATH)
     set(_ANDROID_TOOLCHAINS "${_ANDROID_TOOLCHAINS}" PARENT_SCOPE)
 endfunction()
 
-# 2) Local Android SDK via env vars
+# Local Android SDK via env vars
 if(NOT _ANDROID_TOOLCHAINS)
     if(DEFINED ENV{ANDROID_SDK_ROOT})
         _defold_android_sdk_add_toolchains("$ENV{ANDROID_SDK_ROOT}")
@@ -59,7 +73,7 @@ if(NOT _ANDROID_TOOLCHAINS)
     endif()
 endif()
 
-# 3) Well-known default SDK roots
+# Well-known default SDK roots
 if(NOT _ANDROID_TOOLCHAINS)
     if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
         _defold_android_sdk_add_toolchains("$ENV{HOME}/Library/Android/sdk")

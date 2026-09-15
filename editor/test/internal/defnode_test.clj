@@ -264,7 +264,6 @@
     (is (= (empty?       (g/cascade-deletes CardinalityInputNode))))
     (is (= #{:component} (g/cascade-deletes CascadingInputNode)))))
 
-
 (defn- private-function [x] [x :ok])
 
 (g/defnode SinglePropertyNode
@@ -399,13 +398,13 @@
         (is (= 0 (:self-incrementing standalone)))
 
         (let [ingraph-id (first
-                          (g/tx-nodes-added
-                           (g/transact
-                            (g/make-node world SetterFnPropertyNode :self-incrementing 0))))]
+                           (g/tx-nodes-added
+                             (g/transact
+                               (g/make-node SetterFnPropertyNode :self-incrementing 0))))]
           (is (= 1 (g/node-value ingraph-id :self-incrementing)))
 
           (g/transact
-           (g/set-property ingraph-id :self-incrementing 10))
+            (g/set-property ingraph-id :self-incrementing 10))
 
           (is (= 11 (g/node-value ingraph-id :self-incrementing)))))))
 
@@ -413,21 +412,21 @@
     (with-clean-system
       (let [basic-id (first (g/tx-nodes-added
                               (g/transact
-                                (g/make-node world BasicNode))))]
+                                (g/make-node BasicNode))))]
         (is (= {:properties {} :display-order [] :node-id 0} (g/node-value basic-id :_properties))))))
 
   (testing "getter functions are invoked when supplying values"
     (with-clean-system
       (let [[getter-node] (g/tx-nodes-added
-                           (g/transact
-                            (g/make-node world GetterFnPropertyNode :reports-higher 0)))]
+                            (g/transact
+                              (g/make-node GetterFnPropertyNode :reports-higher 0)))]
         (is (= 1 (g/node-value getter-node :reports-higher))))))
 
   (testing "getter functions are used when supplying :_declared-properties"
     (with-clean-system
       (let [[getter-node] (g/tx-nodes-added
-                           (g/transact
-                            (g/make-node world GetterFnPropertyNode :reports-higher 0)))]
+                            (g/transact
+                              (g/make-node GetterFnPropertyNode :reports-higher 0)))]
         (is (= 1 (->  (g/node-value getter-node :_declared-properties) :properties :reports-higher :value))))))
 
   (testing "do not allow a property to shadow an input of the same name"
@@ -781,7 +780,7 @@
 
 (deftest inherited-property-setters-work
   (with-clean-system
-    (let [[nid] (tx-nodes (g/make-node world InheritingSetter))]
+    (let [[nid] (tx-nodes (g/make-node InheritingSetter))]
       (g/set-property! nid :string-property "bang!"))))
 
 (defmacro fnk-generator
@@ -870,12 +869,12 @@
 (deftest inheriting-properties-output
   (testing "custom _properties function is invoked"
     (with-clean-system
-      (let [[n] (tx-nodes (g/make-node world CustomPropertiesOutput))]
+      (let [[n] (tx-nodes (g/make-node CustomPropertiesOutput))]
         (is (some-> n (g/node-value :_properties) :properties :from-custom-output :value)))))
 
   (testing "inherited function is invoked"
     (with-clean-system
-      (let [[n] (tx-nodes (g/make-node world InheritFromCustomProperties))]
+      (let [[n] (tx-nodes (g/make-node InheritFromCustomProperties))]
         (is (some-> n (g/node-value :_properties) :properties :from-custom-output :value)))))
 
   (testing "cached flag is not inherited"
@@ -885,7 +884,7 @@
 (deftest declared-properties-is-cached
   (is (contains? (in/cached-outputs CustomPropertiesOutput) :_declared-properties))
   (with-clean-system
-    (let [[node-id] (tx-nodes (g/make-node world CustomPropertiesOutput))
+    (let [[node-id] (tx-nodes (g/make-node CustomPropertiesOutput))
           endpoint (g/endpoint node-id :_declared-properties)]
       (g/node-value node-id :_declared-properties)
       (is (contains? (cached-endpoints) endpoint)))))
@@ -897,18 +896,18 @@
 (deftest overridden-properties
   (testing "is empty for an original node"
     (with-clean-system
-      (let [[n] (tx-nodes (g/make-node world BasicNode))]
+      (let [[n] (tx-nodes (g/make-node BasicNode))]
         (is (empty? (g/node-value n :_overridden-properties))))))
 
   (testing "is empty for an override node with no properties set"
     (with-clean-system
-      (let [[n] (tx-nodes (g/make-node world BasicNode))
+      (let [[n] (tx-nodes (g/make-node BasicNode))
             [onode] (override n)]
         (is (empty? (g/node-value onode :_overridden-properties))))))
 
   (testing "contains only properties with an override value"
     (with-clean-system
-      (let [[n]     (tx-nodes (g/make-node world BasicNode))
+      (let [[n]     (tx-nodes (g/make-node BasicNode))
             [onode] (override n)
             _       (g/set-property! onode :dynamic-property 99)
             v1      (g/node-value onode :_overridden-properties)
@@ -938,7 +937,7 @@
 
 (deftest as-all
   (with-clean-system
-    (let [[n] (tx-nodes (g/make-node world AsAllNode))]
+    (let [[n] (tx-nodes (g/make-node AsAllNode))]
       (is (= {:test "test"} (g/node-value n :inline)))
       (is (= #{:test :_node-id :_this :_evaluation-context} (set (keys (g/node-value n :inline-intrinsics)))))
       (is (= {:test "test"} (g/node-value n :defnk)))
@@ -1032,54 +1031,54 @@
   (testing "Trying on output forwards the error"
     (with-clean-system
       ;; sanity check - no :try errors the output
-      (let [[node-id] (tx-nodes (g/make-node world WithoutTryModifierOnErrorOutput))]
+      (let [[node-id] (tx-nodes (g/make-node WithoutTryModifierOnErrorOutput))]
         (is (g/error? (g/node-value node-id :target))))
       ;; expected behavior with :try
-      (let [[node-id] (tx-nodes (g/make-node world TryModifierOnErrorOutput))]
+      (let [[node-id] (tx-nodes (g/make-node TryModifierOnErrorOutput))]
         (is (not (g/error? (g/node-value node-id :target))))
         (is (g/error? (:result (g/node-value node-id :target)))))))
   (testing "Trying on input forwards the error"
     (with-clean-system
       ;; sanity check - no :try on input errors the output
-      (let [[_ target-id] (tx-nodes (g/make-nodes world [source [ErrorSource]
-                                                         target [WithoutTryModifierOnErrorInput]]
+      (let [[_ target-id] (tx-nodes (g/make-nodes [source [ErrorSource]
+                                                   target [WithoutTryModifierOnErrorInput]]
                                       (g/connect source :out target :in)))]
         (is (g/error? (g/node-value target-id :target))))
       ;; expected behavior with :try
-      (let [[_ target-id] (tx-nodes (g/make-nodes world [source [ErrorSource]
-                                                         target [TryModifierOnErrorInput]]
+      (let [[_ target-id] (tx-nodes (g/make-nodes [source [ErrorSource]
+                                                   target [TryModifierOnErrorInput]]
                                       (g/connect source :out target :in)))]
         (is (not (g/error? (g/node-value target-id :target))))
         (is (g/error? (:result (g/node-value target-id :target)))))))
   (testing "Trying on input with the same name forwards the error (i.e. we can implement :substitute with :try)"
     (with-clean-system
       ;; sanity check - no :try errors the output
-      (let [node-id (first (tx-nodes (g/make-nodes world [target [WithoutTryModifierOnSameNameInput]
-                                                          source [ErrorSource]]
+      (let [node-id (first (tx-nodes (g/make-nodes [target [WithoutTryModifierOnSameNameInput]
+                                                    source [ErrorSource]]
                                        (g/connect source :out target :port))))]
         (is (g/error? (g/node-value node-id :port))))
       ;; expected behavior with :try
-      (let [node-id (first (tx-nodes (g/make-nodes world [target [TryModifierOnSameNameInput]
-                                                          source [ErrorSource]]
+      (let [node-id (first (tx-nodes (g/make-nodes [target [TryModifierOnSameNameInput]
+                                                    source [ErrorSource]]
                                        (g/connect source :out target :port))))]
         (is (not (g/error? (g/node-value node-id :port))))
         (is (g/error? (:result (g/node-value node-id :port)))))))
   (testing "Trying on array input makes it possible to receive errors in an array"
     (with-clean-system
       ;; sanity check - no :try on array input errors the output
-      (let [node-id (first (tx-nodes (g/make-nodes world [target [WithoutTryModifierOnArrayErrorInput]
-                                                          in1 [ValueSource :out 1]
-                                                          in2 [ErrorSource]
-                                                          in3 [ValueSource :out 3]]
+      (let [node-id (first (tx-nodes (g/make-nodes [target [WithoutTryModifierOnArrayErrorInput]
+                                                    in1 [ValueSource :out 1]
+                                                    in2 [ErrorSource]
+                                                    in3 [ValueSource :out 3]]
                                        (g/connect in1 :out target :in)
                                        (g/connect in2 :out target :in)
                                        (g/connect in3 :out target :in))))]
         (is (g/error? (g/node-value node-id :target))))
       ;; expected behavior with :try
-      (let [node-id (first (tx-nodes (g/make-nodes world [target [TryModifierOnArrayErrorInput]
-                                                          in1 [ValueSource :out 1]
-                                                          in2 [ErrorSource]
-                                                          in3 [ValueSource :out 3]]
+      (let [node-id (first (tx-nodes (g/make-nodes [target [TryModifierOnArrayErrorInput]
+                                                    in1 [ValueSource :out 1]
+                                                    in2 [ErrorSource]
+                                                    in3 [ValueSource :out 3]]
                                        (g/connect in1 :out target :in)
                                        (g/connect in2 :out target :in)
                                        (g/connect in3 :out target :in))))]
@@ -1091,69 +1090,69 @@
   (testing "Trying on array input with substitute performs substitution"
     (with-clean-system
       ;; sanity check - no :try also performs substitution
-      (let [node-id (first (tx-nodes (g/make-nodes world [target [WithoutTryModifierOnArrayErrorInputWithSubstitute]
-                                                          in [ErrorSource]]
+      (let [node-id (first (tx-nodes (g/make-nodes [target [WithoutTryModifierOnArrayErrorInputWithSubstitute]
+                                                    in [ErrorSource]]
                                        (g/connect in :out target :in))))]
         (is (= {:result [:substitute]} (g/node-value node-id :target))))
       ;; expected behavior with :try is equivalent to no :try because semantically
       ;; substitution is similar to try-catch block on input
-      (let [node-id (first (tx-nodes (g/make-nodes world [target [TryModifierOnArrayErrorInputWithSubstitute]
-                                                          in [ErrorSource]]
+      (let [node-id (first (tx-nodes (g/make-nodes [target [TryModifierOnArrayErrorInputWithSubstitute]
+                                                    in [ErrorSource]]
                                        (g/connect in :out target :in))))]
         (is (= {:result [:substitute]} (g/node-value node-id :target))))))
   (testing "Trying on single value input with substitute performs substitution"
     (with-clean-system
       ;; sanity check - no :try also performs substitution
-      (let [node-id (first (tx-nodes (g/make-nodes world [target [WithoutTryModifierOnErrorInputWithSubstitute]
-                                                          in [ErrorSource]]
+      (let [node-id (first (tx-nodes (g/make-nodes [target [WithoutTryModifierOnErrorInputWithSubstitute]
+                                                    in [ErrorSource]]
                                        (g/connect in :out target :in))))]
         (is (= {:result :substitute} (g/node-value node-id :target))))
       ;; expected behavior with :try is equivalent to no :try
-      (let [node-id (first (tx-nodes (g/make-nodes world [target [TryModifierOnErrorInputWithSubstitute]
-                                                          in [ErrorSource]]
+      (let [node-id (first (tx-nodes (g/make-nodes [target [TryModifierOnErrorInputWithSubstitute]
+                                                    in [ErrorSource]]
                                        (g/connect in :out target :in))))]
         (is (= {:result :substitute} (g/node-value node-id :target))))))
   (testing "Trying on property forwards the error"
     (with-clean-system
       ;; sanity check - no :try on error property errors the output
-      (let [[node-id] (tx-nodes (g/make-node world WithoutTryModifierOnProperty :prop (g/map->error {})))]
+      (let [[node-id] (tx-nodes (g/make-node WithoutTryModifierOnProperty :prop (g/map->error {})))]
         (is (g/error? (g/node-value node-id :out))))
       ;; expected behavior
-      (let [[node-id] (tx-nodes (g/make-node world TryModifierOnProperty :prop (g/map->error {})))]
+      (let [[node-id] (tx-nodes (g/make-node TryModifierOnProperty :prop (g/map->error {})))]
         (is (not (g/error? (g/node-value node-id :out))))
         (is (g/error? (:result (g/node-value node-id :out)))))))
   (testing "Trying in custom property value forwards the error"
     (with-clean-system
       ;; sanity check
-      (let [node-id (first (tx-nodes (g/make-node world WithoutTryModifierOnPropertyValue
-                                                  :x 1
-                                                  :y (g/map->error {:severity :fatal}))))]
+      (let [node-id (first (tx-nodes (g/make-node WithoutTryModifierOnPropertyValue
+                                       :x 1
+                                       :y (g/map->error {:severity :fatal}))))]
         (is (g/error? (g/node-value node-id :properties))))
       ;; expected behavior
-      (let [node-id (first (tx-nodes (g/make-node world TryModifierOnPropertyValue
-                                                  :x 1
-                                                  :y (g/map->error {:severity :fatal}))))]
+      (let [node-id (first (tx-nodes (g/make-node TryModifierOnPropertyValue
+                                       :x 1
+                                       :y (g/map->error {:severity :fatal}))))]
         (is (not (g/error? (g/node-value node-id :properties))))
         (is (not (g/error? (:x (g/node-value node-id :properties)))))
         (is (g/error? (:y (g/node-value node-id :properties)))))))
   (testing "Trying in property dynamic forwards the error"
     (with-clean-system
       ;; sanity check - no :try errors the dynamic
-      (let [node-id (first (tx-nodes (g/make-node world WithoutTryModifierOnPropertyDynamic :prop (g/map->error {:severity :fatal}))))]
+      (let [node-id (first (tx-nodes (g/make-node WithoutTryModifierOnPropertyDynamic :prop (g/map->error {:severity :fatal}))))]
         (is (g/error? (:string (:prop (:properties (g/node-value node-id :_properties)))))))
       ;; expected behavior with :try forwards the error value
-      (let [node-id (first (tx-nodes (g/make-node world TryModifierOnPropertyDynamic :prop (g/map->error {:severity :fatal}))))]
+      (let [node-id (first (tx-nodes (g/make-node TryModifierOnPropertyDynamic :prop (g/map->error {:severity :fatal}))))]
         (is (string? (:string (:prop (:properties (g/node-value node-id :_properties))))))
         (is (string/includes? (:string (:prop (:properties (g/node-value node-id :_properties)))) "error")))))
   (testing "Trying on jammed output forwards the error"
     (with-clean-system
       ;; sanity check - no :try jams the output
-      (let [node-id (first (tx-nodes (g/make-nodes world [node WithoutTryModifierOnJammedOutput]
+      (let [node-id (first (tx-nodes (g/make-nodes [node WithoutTryModifierOnJammedOutput]
                                        (g/mark-defective node WithoutTryModifierOnJammedOutput
                                                          (g/map->error {:severity :fatal})))))]
         (is (g/error? (g/node-value node-id :target))))
       ;; expected behavior with :try
-      (let [node-id (first (tx-nodes (g/make-nodes world [node TryModifierOnJammedOutput]
+      (let [node-id (first (tx-nodes (g/make-nodes [node TryModifierOnJammedOutput]
                                        (g/mark-defective node TryModifierOnJammedOutput
                                                          (g/map->error {:severity :fatal})))))]
         (is (not (g/error? (g/node-value node-id :target))))

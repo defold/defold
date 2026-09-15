@@ -74,7 +74,7 @@ public class Bob {
     public static final String VARIANT_RELEASE = "release";
     public static final String VARIANT_HEADLESS = "headless";
 
-    public static final String ARTIFACTS_URL = "http://d.defold.com/archive/";
+    public static final String ARTIFACTS_URL = "https://d.defold.com/archive/";
 
     private static File rootFolder = null;
 

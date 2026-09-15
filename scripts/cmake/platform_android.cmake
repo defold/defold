@@ -17,9 +17,12 @@ target_compile_options(defold_sdk INTERFACE
   -ffunction-sections
   -fdata-sections
   -fstack-protector
-  -fomit-frame-pointer
   -fno-strict-aliasing
   -funwind-tables)
+
+if(NOT WITH_HWASAN AND NOT WITH_ASAN)
+    target_compile_options(defold_sdk INTERFACE -fomit-frame-pointer)
+endif()
 
 if(TARGET_PLATFORM MATCHES "arm64-android")
     target_compile_definitions(defold_sdk INTERFACE __aarch64__)
@@ -54,5 +57,30 @@ target_link_options(defold_sdk INTERFACE
   -landroid
   -llog
   -z text
-  -Wl,--build-id=uuid
-  -static-libstdc++)
+  -Wl,--build-id=uuid)
+
+if(NOT WITH_HWASAN)
+    target_link_options(defold_sdk INTERFACE -static-libstdc++)
+endif()
+
+set(DEFOLD_ANDROID_TEST_ENV)
+if(WITH_ASAN AND BUILD_TESTS)
+    if(TARGET_PLATFORM STREQUAL "arm64-android")
+        set(_asan_arch aarch64)
+    elseif(TARGET_PLATFORM STREQUAL "x86_64-android")
+        set(_asan_arch x86_64)
+    else()
+        set(_asan_arch arm)
+    endif()
+    # Query the compiler so the runtime always matches the NDK used to build.
+    execute_process(
+        COMMAND "${CMAKE_CXX_COMPILER}" "--target=${CMAKE_CXX_COMPILER_TARGET}"
+            "--print-file-name=libclang_rt.asan-${_asan_arch}-android.so"
+        RESULT_VARIABLE _asan_result
+        OUTPUT_VARIABLE _asan_runtime
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(NOT _asan_result EQUAL 0 OR NOT EXISTS "${_asan_runtime}")
+        message(FATAL_ERROR "Android ASAN runtime not found: ${_asan_runtime}")
+    endif()
+    set(DEFOLD_ANDROID_TEST_ENV "${CMAKE_COMMAND}" -E env "ANDROID_ASAN_RUNTIME=${_asan_runtime}")
+endif()

@@ -23,6 +23,7 @@
             [editor.properties :as properties]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto Physics$CollisionObjectDesc]
            [com.jogamp.opengl GL2]))
@@ -52,7 +53,25 @@
                 (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere")})
                 (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.box")})
                 (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")})]
-               (outline-seq outline)))))))
+               (outline-seq outline))))
+
+      (testing "the round and box shapes are presented as Circle and Rectangle under 2D physics, an existing Capsule keeps its name, and only 2D shapes are offered"
+        (with-open [_ (test-util/make-system-reverter)]
+          (test-util/set-setting! (test-util/resource-node project "/game.project") ["physics" "type"] "2D")
+          (let [node-id (test-util/resource-node project "/collision_object/three_shapes.collisionobject")
+                outline (g/node-value node-id :node-outline)
+                menu-labels (set (map :label (test-util/handler-options :edit.add-embedded-component [{:name :workbench :env {:selection [node-id] :app-view app-view}}] nil)))]
+            (is (= (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.circle")})
+                   (second (outline-seq outline))))
+            (is (= (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.rectangle")})
+                   (nth (outline-seq outline) 2)))
+            (is (= (localization/message "outline.unnamed-collision-shape" {"shape" (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule")})
+                   (nth (outline-seq outline) 3)))
+            (is (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.circle")))
+            (is (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.rectangle")))
+            (is (not (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.capsule"))))
+            (is (not (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.sphere"))))
+            (is (not (contains? menu-labels (localization/message "command.edit.add-embedded-component.variant.collision-object.option.box"))))))))))
 
 (deftest add-shapes
   (testing "Adding a sphere"
@@ -301,7 +320,10 @@
   (test-util/with-loaded-project
     (let [collision-object-path "/collision_object/three_shapes.collisionobject"
           collision-object (project/get-resource-node project collision-object-path)
-          [[sphere-shape] [box-shape] [capsule-shape]] (g/sources-of collision-object :child-scenes)]
+          child-scene-arcs (g/inputs (g/now) collision-object :child-scenes)
+          sphere-shape (gt/source-id (nth child-scene-arcs 0))
+          box-shape (gt/source-id (nth child-scene-arcs 1))
+          capsule-shape (gt/source-id (nth child-scene-arcs 2))]
 
       (testing "Sphere Shape"
         (doseq [original-diameter [(float 10.0) (double 10.0)]]

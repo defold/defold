@@ -63,12 +63,12 @@
                               cascade-deletes (g/cascade-deletes node-type)
                               is-override (g/override? basis node-id)]
                           (->> cascade-deletes
-                               ;; important: we use sources instead of
-                               ;; explicit-arcs-by-target because the latter
+                               ;; important: we use inputs instead of
+                               ;; explicit-inputs because the latter
                                ;; does not return inherited override
                                ;; connections
-                               (e/mapcat #(g/sources basis node-id %))
-                               (e/map first)
+                               (e/mapcat #(g/inputs basis node-id %))
+                               (e/map gt/source-id)
                                ;; important: it's possible that an override
                                ;; "owns" a real node instead of another override
                                ;; node. For example, EmbeddedComponent of a
@@ -82,11 +82,11 @@
 
                     ;; resource nodes we depend on
                     (mapcat
-                      ;; important: here, we explicit-arcs-by-target
-                      ;; instead of sources because for overrides, we
-                      ;; are only interested on overrides that establish
+                      ;; important: here, we use explicit-inputs
+                      ;; instead of inputs because for overrides, we
+                      ;; are only interested in overrides that establish
                       ;; the connection
-                      #(g/explicit-arcs-by-target basis %))
+                      #(g/explicit-inputs basis %))
                     (map gt/source-id)
                     (filter #(g/node-instance? basis resource/ResourceNode %))
                     (map #(g/override-root basis %)))
@@ -108,7 +108,7 @@
                     (coll/tree-xf any? #(g/overrides basis %))
                     (map thread-util/abortable-identity!)
                     ;; nodes that depend on us
-                    (mapcat #(g/explicit-arcs-by-source basis %))
+                    (mapcat #(g/explicit-outputs basis %))
                     (map gt/target-id)
                     ;; their nearest holding resource nodes (possibly overrides)
                     (keep (fn [node-id]

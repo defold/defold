@@ -110,8 +110,8 @@ defold_info['xcode']['pattern'] = PACKAGES_XCODE_TOOLCHAIN
 defold_info['xcode-clang']['version'] = VERSION_XCODE_CLANG
 defold_info['arm64-ios']['version'] = VERSION_IPHONEOS
 defold_info['arm64-ios']['pattern'] = PACKAGES_IOS_SDK
-defold_info['x86_64-ios']['version'] = VERSION_IPHONESIMULATOR
-defold_info['x86_64-ios']['pattern'] = PACKAGES_IOS_SIMULATOR_SDK
+defold_info['arm64_sim-ios']['version'] = VERSION_IPHONESIMULATOR
+defold_info['arm64_sim-ios']['pattern'] = PACKAGES_IOS_SIMULATOR_SDK
 defold_info['x86_64-macos']['version'] = VERSION_MACOSX
 defold_info['x86_64-macos']['pattern'] = PACKAGES_MACOS_SDK
 defold_info['arm64-macos']['version'] = VERSION_MACOSX
@@ -119,8 +119,6 @@ defold_info['arm64-macos']['pattern'] = PACKAGES_MACOS_SDK
 
 defold_info['x86_64-win32']['version'] = VERSION_WINDOWS_SDK
 defold_info['x86_64-win32']['pattern'] = "Win32/%s" % PACKAGES_WIN32_TOOLCHAIN
-defold_info['win32']['version'] = defold_info['x86_64-win32']['version']
-defold_info['win32']['pattern'] = defold_info['x86_64-win32']['pattern']
 
 defold_info['win10sdk']['version'] = VERSION_WINDOWS_SDK
 defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK
@@ -184,7 +182,7 @@ def _convert_darwin_platform(platform):
         return 'macosx'
     if platform in ('arm64-ios',):
         return 'iphoneos'
-    if platform in ('x86_64-ios',):
+    if platform in ('arm64_sim-ios',):
         return 'iphonesimulator'
     return 'unknown'
 
@@ -810,8 +808,6 @@ def get_windows_bin_dirs(vs_root, sdk_bin_root, arch, extra_bin_dirs=None):
 
 def get_windows_info(vs_root, vs_version, sdk_root, sdk_version, platform, llvm_bin_dir=None):
     arch = 'x64'
-    if platform == 'win32':
-        arch = 'x86'
 
     sdk_includes_root = os.path.join(sdk_root, 'Include', sdk_version)
     sdk_libs_root = os.path.join(sdk_root, 'Lib', sdk_version)
@@ -851,8 +847,6 @@ def get_windows_packaged_sdk_info(sdkdir, platform):
     windowskitsdir = os.path.join(sdkdir, 'Win32', 'WindowsKits')
 
     arch = 'x64'
-    if platform == 'win32':
-        arch = 'x86'
 
     # Since the programs(Windows!) can update, we do this dynamically to find the correct version
     ucrt_dirs = [ x for x in os.listdir(os.path.join(windowskitsdir,'10','Include'))]
@@ -969,11 +963,11 @@ def check_defold_sdk(sdkfolder, host_platform, platform, verbose=False):
     if sdk_vendor is not None and sdk_vendor.supports_platform(platform):
         folders = sdk_vendor.get_defold_sdk_folders(platform)
 
-    elif platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+    elif platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'arm64_sim-ios'):
         folders.append(_get_defold_path(sdkfolder, 'xcode'))
         folders.append(_get_defold_path(sdkfolder, platform))
 
-    elif platform in ('x86_64-win32', 'win32'):
+    elif platform == 'x86_64-win32':
         folders.append(os.path.join(sdkfolder, 'Win32','WindowsKits','10'))
         folders.append(os.path.join(sdkfolder, 'Win32','MicrosoftVisualStudio14.0','VC'))
 
@@ -1012,12 +1006,12 @@ def check_defold_sdk(sdkfolder, host_platform, platform, verbose=False):
 def check_local_sdk(platform, verbose=False):
     log_verbose(verbose, f"check_local_sdk: {platform}")
 
-    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'arm64_sim-ios'):
         xcode_version = get_local_darwin_toolchain_version()
         if not xcode_version:
             raise SDKException(f"Failed to find XCode version")
 
-    elif platform in ('win32', 'x86_64-win32'):
+    elif platform == 'x86_64-win32':
         info, error = _detect_windows_local_sdk(platform, verbose)
         if info is None:
             raise SDKException(error)
@@ -1036,7 +1030,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
     if sdk_vendor is not None and sdk_vendor.supports_platform(platform):
         return sdk_vendor.get_sdk_info(platform)
 
-    elif platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
+    elif platform in ('x86_64-macos', 'arm64-macos','arm64-ios','arm64_sim-ios'):
         info['xcode'] = {}
         info['xcode']['version'] = VERSION_XCODE
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
@@ -1055,7 +1049,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
         # We download the package for the host platform, and rely on its ability cross compile
         info[platform]['path'] = _get_defold_path(sdkfolder, host_platform)
 
-    elif platform in ('win32', 'x86_64-win32'):
+    elif platform == 'x86_64-win32':
         windowsinfo = get_windows_packaged_sdk_info(sdkfolder, platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
@@ -1080,7 +1074,7 @@ def _get_defold_sdk_info(sdkfolder, host_platform, platform):
 
 def _get_local_sdk_info(platform, verbose=False):
     info = {}
-    if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
+    if platform in ('x86_64-macos', 'arm64-macos','arm64-ios','arm64_sim-ios'):
         info['xcode'] = {}
         info['xcode']['version'] = get_local_darwin_toolchain_version()
         info['xcode']['path'] = get_local_darwin_toolchain_path()
@@ -1101,7 +1095,7 @@ def _get_local_sdk_info(platform, verbose=False):
         info['clang-version'] = info[platform]['version']
         info[platform]['path'] = get_local_compiler_path()
 
-    elif platform in ('win32', 'x86_64-win32'):
+    elif platform == 'x86_64-win32':
         windowsinfo = get_windows_local_sdk_info(platform)
         return _setup_info_from_windowsinfo(windowsinfo, platform)
 
@@ -1167,7 +1161,6 @@ def get_host_platform():
     machine = platform.machine().lower()
     if machine == 'amd64':
         machine = 'x86_64'
-    is64bit = machine.endswith('64')
 
     if sys.platform == 'linux':
         if machine == 'aarch64':
@@ -1176,6 +1169,8 @@ def get_host_platform():
     elif sys.platform == 'win32':
         if machine == 'arm64':
             machine = 'x86_64' # we don't support arm64 windows targets yet
+        if machine != 'x86_64' or sys.maxsize <= 2**32:
+            raise Exception("32-bit Windows hosts are not supported")
         return '%s-win32' % machine
     elif sys.platform == 'darwin':
         return '%s-macos' % machine
@@ -1264,7 +1259,7 @@ def _test_version_clang(platform, info, can_run, verbose):
 
     if platform in ['arm64-linux', 'x86_64-linux']:
         required_version = VERSION_LINUX_CLANG
-    elif platform in ['arm64-macos', 'x86_64-macos', 'arm64-ios', 'x86_64-ios']:
+    elif platform in ['arm64-macos', 'x86_64-macos', 'arm64-ios', 'arm64_sim-ios']:
         required_version = VERSION_XCODE_CLANG
 
     if required_version is None:
@@ -1286,7 +1281,7 @@ def _compile_file_clang(platform, info, srcfile, exefile, verbose):
     # if we can rely on the PATH variable
     use_local_path = False
     clang = 'clang++'
-    if platform in ['arm64-linux', 'x86_64-linux', 'arm64-macos', 'x86_64-macos', 'arm64-ios', 'x86_64-ios']:
+    if platform in ['arm64-linux', 'x86_64-linux', 'arm64-macos', 'x86_64-macos', 'arm64-ios', 'arm64_sim-ios']:
         use_local_path = True
         clang = _get_clang_from_info(info)
         if verbose:
@@ -1297,8 +1292,9 @@ def _compile_file_clang(platform, info, srcfile, exefile, verbose):
         clang = os.path.join(info['bintools'], info['clangname'])
         cmd = [clang]
 
-    elif platform in ['arm64-ios', 'x86_64-ios']:
-        cmd.extend(['-isysroot', info[platform]['path'], '-arch', platform.split('-')[0]])
+    elif platform in ['arm64-ios', 'arm64_sim-ios']:
+        # Both the device and the simulator are arm64, the platform prefix is not the cpu arch
+        cmd.extend(['-isysroot', info[platform]['path'], '-arch', 'arm64'])
 
     if not use_local_path:
         if not os.path.exists(clang):
@@ -1338,7 +1334,7 @@ def test_sdk(platform, info, verbose=False):
 
     if platform in ['arm64-linux', 'x86_64-linux',
                     'arm64-macos', 'x86_64-macos',
-                    'arm64-ios', 'x86_64-ios',
+                    'arm64-ios', 'arm64_sim-ios',
                     'arm64-android', 'armv7-android', 'x86_64-android']:
         use_clang = True
 
@@ -1354,7 +1350,7 @@ def test_sdk(platform, info, verbose=False):
     return True
 
 def get_toolchain_root(sdkinfo, platform):
-    if platform in ('x86_64-macos','arm64-macos','x86_64-ios','arm64-ios'):
+    if platform in ('x86_64-macos','arm64-macos','arm64-ios','arm64_sim-ios'):
         return sdkinfo['xcode']['path']
     if platform in ('x86_64-linux','arm64-linux'):
         return sdkinfo[platform]['path']
@@ -1365,7 +1361,7 @@ def get_strip_executable(platform, sdkinfo):
     if platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
         return os.path.join(sdkinfo['bintools'], 'llvm-strip')
 
-    if platform in ('x86_64-macos', 'arm64-macos', 'x86_64-ios', 'arm64-ios'):
+    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'arm64_sim-ios'):
         return os.path.join(get_toolchain_root(sdkinfo, platform), 'usr', 'bin', 'strip')
 
     return 'strip'

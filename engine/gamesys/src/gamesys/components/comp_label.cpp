@@ -243,11 +243,12 @@ namespace dmGameSystem
         settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
         settings.m_Padding = dmRender::GetFontMapPadding(font_map);
         settings.m_ResolveObject = ResolveLabelLayoutObject;
+        settings.m_BaseStyle = component->m_Resource->m_DDF->m_StyleHash;
+        settings.m_UseBaseStyle = 1;
 
         HTextLayout  layout = 0;
         HMarkup      markup = 0;
         MarkupResult markup_result = MarkupCreate(component->m_Text, strlen(component->m_Text), &markup, 0);
-        const bool   use_rich_text = markup_result != MARKUP_RESULT_UNSUPPORTED;
         TextResult   result = TEXT_RESULT_ERROR;
 
         if (markup_result == MARKUP_RESULT_OK)
@@ -276,8 +277,6 @@ namespace dmGameSystem
                 TextLayoutRelease(layout);
             return 0;
         }
-
-        ((TextLayout*)layout)->m_UseRichText = use_rich_text;
 
         component->m_TextLayout = layout;
         component->m_TextLayoutFontVersion = font_version;

@@ -9,7 +9,7 @@ def configure(conf):
 def build(bld):
 
     source = ['extension.cpp']
-    if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
+    if bld.env.PLATFORM in ('arm64-ios', 'arm64_sim-ios'):
         source += ['extension_ios.cpp']
     if re.match('.*?-android$', bld.env.PLATFORM):
         source += ['extension_android.cpp']

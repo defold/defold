@@ -53,6 +53,8 @@ message LabelDesc
     optional string         text        = 11;
     required string         font        = 12 [(resource)=true];
     required string         material    = 13 [(resource)=true];
+    optional string         style       = 14 [default = "default"];
+    optional uint64         style_hash  = 15; // Compiled from style; zero means no base style.
 }
 
 

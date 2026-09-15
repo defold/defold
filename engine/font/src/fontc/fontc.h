@@ -152,7 +152,46 @@ extern "C"
         uint32_t m_LineBreak;
         uint32_t m_Align;
         uint32_t m_VerticalAlign;
+        uint64_t m_BaseStyle;
+        uint32_t m_UseBaseStyle;
     } FontcProperties;
+
+    /* Compiled style data. Color arrays are RGBA; flags distinguish inherited
+     * properties from explicit overrides. No pointers are retained by SetStyle. */
+    typedef struct FontcStyle
+    {
+        float m_FaceColor[4];
+        float m_OutlineColor[4];
+        float m_ShadowColor[4];
+        float m_OutlineWidth;
+        float m_ShadowX;
+        float m_ShadowY;
+        float m_ShadowBlur;
+        float m_OutlineAlpha;
+        float m_ShadowAlpha;
+        uint32_t m_Flags;
+        uint32_t m_DecorationFlags;
+        uint32_t m_UnderlinePattern;
+        uint32_t m_StrikePattern;
+    } FontcStyle;
+
+    typedef struct FontcStyleEffect
+    {
+        float m_Colors[16];
+        float m_Amplitude;
+        float m_Hz;
+        float m_Wavelength;
+        uint32_t m_Type;
+        uint32_t m_Fit;
+        uint32_t m_GradientMode;
+    } FontcStyleEffect;
+
+    typedef struct FontcStyleData
+    {
+        FontcStyle m_Style;
+        FontcStyleEffect* m_Effects;
+        uint32_t m_EffectCount;
+    } FontcStyleData;
 
     typedef struct FontcTexture
     {
@@ -234,6 +273,13 @@ extern "C"
         const FontcMarkupSpan*      m_Spans;
         uint32_t                    m_SpanCount;
     } FontcMarkupData;
+
+    /* Compile an opening-only resource style. The caller owns the returned
+     * effect array and must release it with FontcFreeStyle after success. */
+    DM_DLLEXPORT FontRendererResult FontcCompileStyle(const char* markup, uint32_t length, FontcStyleData* output, FontcMarkupError* error);
+    DM_DLLEXPORT void FontcFreeStyle(FontcStyleData* style);
+    /* Copy a compiled style into the renderer's font collection. */
+    DM_DLLEXPORT FontRendererResult FontcSetStyle(HFontRenderer renderer, uint64_t name, const FontcStyleData* style);
 
     /*#
      * Creates a persistent font renderer context.

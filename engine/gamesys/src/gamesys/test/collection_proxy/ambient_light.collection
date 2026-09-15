@@ -1,0 +1,9 @@
+name: "ambient_light"
+instances {
+  id: "ambient_light"
+  prototype: "/light/valid_ambient_light.go"
+}
+instances {
+  id: "point_light"
+  prototype: "/light/valid_point_light.go"
+}

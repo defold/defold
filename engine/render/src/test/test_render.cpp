@@ -1987,6 +1987,9 @@ TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLay
 
 TEST_F(dmRenderTest, MarkupOutlineLayerOnlyCoversSpan)
 {
+    // Separate effect quads require a multi-layer font; markup does not change its layer mode.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+
     const char source[] = "<outline size=1>A</outline>B";
     const char text[] = "AB";
     HMarkup markup = 0;
@@ -2020,6 +2023,20 @@ TEST_F(dmRenderTest, MarkupOutlineLayerOnlyCoversSpan)
         ASSERT_EQ(1.0f, vertices[i].m_LayerMasks[1]);
         ASSERT_EQ(0u, vertices[12 + i].m_OutlineColor[3]);
         ASSERT_EQ(0.0f, vertices[12 + i].m_LayerMasks[1]);
+    }
+
+    // The same markup on a single-layer font stays at one combined quad per glyph.
+    // Only the tagged glyph receives outline alpha; channel masks alone do not hide it.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    FontGlyphVertex single_vertices[12];
+    memset(single_vertices, 0, sizeof(single_vertices));
+    ASSERT_EQ(DM_ARRAY_SIZE(single_vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, single_vertices, DM_ARRAY_SIZE(single_vertices)));
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        ASSERT_EQ(255u, single_vertices[i].m_OutlineColor[3]);
+        ASSERT_EQ(0u, single_vertices[6 + i].m_OutlineColor[3]);
+        ASSERT_EQ(1.0f, single_vertices[i].m_LayerMasks[1]);
+        ASSERT_EQ(1.0f, single_vertices[6 + i].m_LayerMasks[1]);
     }
 
     TextLayoutRelease(layout);
@@ -2096,8 +2113,9 @@ TEST_F(dmRenderTest, MarkupWithoutEffectTagsSuppressesBaseEffects)
     ASSERT_EQ(0u, rich_vertices[0].m_OutlineColor[3]);
     ASSERT_EQ(0u, rich_vertices[0].m_ShadowColor[3]);
     ASSERT_EQ(1.0f, rich_vertices[0].m_LayerMasks[0]);
-    ASSERT_EQ(0.0f, rich_vertices[0].m_LayerMasks[1]);
-    ASSERT_EQ(0.0f, rich_vertices[0].m_LayerMasks[2]);
+    // Single-layer compositing keeps all channels enabled; zero alpha suppresses the effects.
+    ASSERT_EQ(1.0f, rich_vertices[0].m_LayerMasks[1]);
+    ASSERT_EQ(1.0f, rich_vertices[0].m_LayerMasks[2]);
 
     TextLayoutRelease(legacy_layout);
     TextLayoutRelease(rich_layout);
@@ -2144,6 +2162,9 @@ TEST_F(dmRenderTest, MarkupOutlineColorOverridesBaseOutlineColor)
 
 TEST_F(dmRenderTest, MarkupOutlineSizeZeroDisablesAndOversizeClamps)
 {
+    // Separate effect quads require a multi-layer font; markup does not change its layer mode.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+
     const char zero_source[] = "<outline size=0>A</outline>";
     const char oversize_source[] = "<outline size=8>A</outline>";
     HMarkup zero_markup = 0;
@@ -2201,6 +2222,9 @@ TEST_F(dmRenderTest, MarkupOutlineSizeZeroDisablesAndOversizeClamps)
 
 TEST_F(dmRenderTest, MarkupCrispShadowOnlyCoversSpan)
 {
+    // Separate effect quads require a multi-layer font; markup does not change its layer mode.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+
     const char source[] = "<shadow x=0 y=0 blur=0 color=#FFFFFFFF>A</shadow>B";
     const char text[] = "AB";
     HMarkup markup = 0;
@@ -2252,6 +2276,9 @@ TEST_F(dmRenderTest, MarkupCrispShadowOnlyCoversSpan)
 
 TEST_F(dmRenderTest, MarkupBitmapShadowDoesNotRevealUntaggedOutline)
 {
+    // Separate effect quads require a multi-layer font; markup does not change its layer mode.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+
     const char source[] = "<shadow blur=2>A</shadow>";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
@@ -2371,6 +2398,9 @@ TEST_F(dmRenderTest, DrawTextOnlyAppliesBaseOutlineAlphaToLegacyText)
 
 TEST_F(dmRenderTest, MarkupShadowUsesFontBlurWhenOmitted)
 {
+    // Separate effect quads require a multi-layer font; markup does not change its layer mode.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+
     const char source[] = "<shadow x=1>A</shadow>";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
@@ -2640,7 +2670,8 @@ TEST_F(dmRenderTest, MarkupDecorationInheritsOutlineAndShadowLayers)
 
     const uint8_t old_layer_mask = m_SystemFontMap->m_LayerMask;
     const bool    old_is_sdf = m_SystemFontMap->m_IsSdf;
-    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    // These assertions inspect separate shadow/outline quads.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
     m_SystemFontMap->m_IsSdf = true;
     FontGlyphVertex vertices[36];
     memset(vertices, 0, sizeof(vertices));
@@ -3354,6 +3385,17 @@ TEST_F(dmRenderTest, LightBufferTestAllTypes)
 {
     dmRender::LightPrototypeParams params;
 
+    params.m_Type = dmRender::LIGHT_TYPE_AMBIENT;
+    params.m_Color = dmVMath::Vector4(0.25f, 0.5f, 0.75f, 1.0f);
+    params.m_Intensity = 2.0f;
+    dmRender::HLightPrototype proto_ambient = dmRender::NewLightPrototype(m_Context, params);
+    ASSERT_NE((dmRender::HLightPrototype)0, proto_ambient);
+    dmRender::HLightInstance inst_ambient = dmRender::NewLightInstance(m_Context, proto_ambient);
+    ASSERT_NE((dmRender::HLightInstance)0, inst_ambient);
+    dmRender::SetLightInstance(m_Context, inst_ambient, dmVMath::Point3(0, 0, 0), dmVMath::Quat::identity(), 1.0f);
+    dmRender::DeleteLightInstance(m_Context, inst_ambient);
+    dmRender::DeleteLightPrototype(m_Context, proto_ambient);
+
     params.m_Type = dmRender::LIGHT_TYPE_DIRECTIONAL;
     params.m_Color = dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f);
     params.m_Intensity = 2.0f;
@@ -3389,6 +3431,32 @@ TEST_F(dmRenderTest, LightBufferTestAllTypes)
     dmRender::SetLightInstance(m_Context, inst_spot, dmVMath::Point3(0, 0, 10), dmVMath::Quat::identity(), 1.0f);
     dmRender::DeleteLightInstance(m_Context, inst_spot);
     dmRender::DeleteLightPrototype(m_Context, proto_spot);
+}
+
+TEST_F(dmRenderTest, LightBufferSubmissionIsPerFrame)
+{
+    dmRender::LightPrototypeParams params;
+    dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
+    dmRender::HLightInstance instance = dmRender::NewLightInstance(m_Context, prototype);
+    ASSERT_NE((dmRender::HLightInstance)0, instance);
+
+    uint16_t light_buffer_index = instance & 0xFFFF;
+    dmRender::RenderContext* render_context = (dmRender::RenderContext*) m_Context;
+
+    dmRender::BeginFrame(m_Context, 1.0f, 1.0f / 60.0f);
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitLightInstance(m_Context, instance);
+    ASSERT_EQ(1, render_context->m_LightBufferSubmitted[light_buffer_index]);
+
+    // Starting another render list in the same frame must preserve submissions.
+    dmRender::RenderListBegin(m_Context);
+    ASSERT_EQ(1, render_context->m_LightBufferSubmitted[light_buffer_index]);
+
+    dmRender::BeginFrame(m_Context, 2.0f, 1.0f / 60.0f);
+    ASSERT_EQ(0, render_context->m_LightBufferSubmitted[light_buffer_index]);
+
+    dmRender::DeleteLightInstance(m_Context, instance);
+    dmRender::DeleteLightPrototype(m_Context, prototype);
 }
 
 TEST_F(dmRenderTest, LightBufferTestMultipleInstances)
@@ -3554,10 +3622,10 @@ TEST_F(dmRenderTest, ConstantTypeTimeSetsTimeAndDt)
     dmGraphics::ProgramResourceBinding& pgm_res = null_program->m_BaseProgram.m_ResourceBindings[set][binding];
     uint32_t uniform_offset = pgm_res.m_UniformBufferOffset + buffer_offset;
 
-    // Set frame time values on the render context.
+    // Begin the frame with time values on the render context.
     float time = 123.0f;
     float dt   = 1.0f / 60.0f;
-    dmRender::SetFrameTime(m_Context, time, dt);
+    dmRender::BeginFrame(m_Context, time, dt);
 
     // Enable the program so constants can be written to its uniform buffer.
     dmGraphics::EnableProgram(m_GraphicsContext, program);

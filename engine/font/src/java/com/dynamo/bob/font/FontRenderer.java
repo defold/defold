@@ -61,6 +61,9 @@ import com.dynamo.bob.font.generated.FontcGlyphMetrics;
 import com.dynamo.bob.font.generated.FontcImage;
 import com.dynamo.bob.font.generated.FontcLayout;
 import com.dynamo.bob.font.generated.FontcMarkupAttribute;
+import com.dynamo.bob.font.generated.FontcStyle;
+import com.dynamo.bob.font.generated.FontcStyleData;
+import com.dynamo.bob.font.generated.FontcStyleEffect;
 import com.dynamo.bob.font.generated.FontcMarkupData;
 import com.dynamo.bob.font.generated.FontcMarkupError;
 import com.dynamo.bob.font.generated.FontcMarkupNode;
@@ -178,11 +181,138 @@ public final class FontRenderer implements AutoCloseable {
         public float tracking;
         public int align;
         public int verticalAlign;
-        public float[] faceColor;
-        public float[] outlineColor;
-        public float[] shadowColor;
+        public float[] faceColor = {1, 1, 1, 1};
+        public float[] outlineColor = {1, 1, 1, 1};
+        public float[] shadowColor = {1, 1, 1, 1};
         public float baseShadowAlpha = 1.0f;
         public float sdfScale;
+        public long baseStyle;
+        public boolean useBaseStyle;
+    }
+
+    /** Font-independent compiled resource style; native setters copy these values. */
+    public static final class Style {
+        // Render-property flags from TextRenderStyleFlags in font/text_layout.h.
+        public static final int FLAG_OUTLINE_COLOR = 1 << 2;
+        public static final int FLAG_OUTLINE_WIDTH = 1 << 3;
+        public static final int FLAG_SHADOW_COLOR = 1 << 4;
+        public static final int FLAG_SHADOW_X = 1 << 5;
+        public static final int FLAG_SHADOW_Y = 1 << 6;
+        public static final int FLAG_SHADOW_BLUR = 1 << 7;
+        public static final int FLAG_OUTLINE_ALPHA = 1 << 8;
+        public static final int FLAG_SHADOW_ALPHA = 1 << 9;
+
+        public float[] faceColor = {1, 1, 1, 1};
+        public float[] outlineColor = {1, 1, 1, 1};
+        public float[] shadowColor = {1, 1, 1, 1};
+        public float outlineWidth;
+        public float shadowX;
+        public float shadowY;
+        public float shadowBlur;
+        public float outlineAlpha = 1.0f;
+        public float shadowAlpha = 1.0f;
+        public int flags;
+        public int decorationFlags;
+        public int underlinePattern;
+        public int strikePattern;
+        public StyleEffect[] effects = new StyleEffect[0];
+    }
+
+    public static final class StyleEffect {
+        public float[] colors = new float[16];
+        public float amplitude;
+        public float hz;
+        public float wavelength;
+        public int type;
+        public int fit;
+        public int gradientMode;
+    }
+
+    /** Compile opening-only markup, including static resource decorations. */
+    public static Style compileStyle(String markup) {
+        byte[] bytes = markup.getBytes(StandardCharsets.UTF_8);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment data = FontcStyleData.allocate(arena);
+            MemorySegment error = FontcMarkupError.allocate(arena);
+            int result = FontRendererFFM.FontcCompileStyle(arena.allocateFrom(JAVA_BYTE, bytes), bytes.length, data, error);
+            if (result != 0)
+                throw new IllegalArgumentException("Invalid style markup at byte " + FontcMarkupError.m_ByteOffset(error));
+            try {
+                Style style = new Style();
+                MemorySegment values = FontcStyleData.m_Style(data);
+                style.faceColor = FontcStyle.m_FaceColor(values).toArray(JAVA_FLOAT);
+                style.outlineColor = FontcStyle.m_OutlineColor(values).toArray(JAVA_FLOAT);
+                style.shadowColor = FontcStyle.m_ShadowColor(values).toArray(JAVA_FLOAT);
+                style.outlineWidth = FontcStyle.m_OutlineWidth(values);
+                style.shadowX = FontcStyle.m_ShadowX(values);
+                style.shadowY = FontcStyle.m_ShadowY(values);
+                style.shadowBlur = FontcStyle.m_ShadowBlur(values);
+                style.outlineAlpha = FontcStyle.m_OutlineAlpha(values);
+                style.shadowAlpha = FontcStyle.m_ShadowAlpha(values);
+                style.flags = FontcStyle.m_Flags(values);
+                style.decorationFlags = FontcStyle.m_DecorationFlags(values);
+                style.underlinePattern = FontcStyle.m_UnderlinePattern(values);
+                style.strikePattern = FontcStyle.m_StrikePattern(values);
+                int count = FontcStyleData.m_EffectCount(data);
+                style.effects = new StyleEffect[count];
+                if (count != 0) {
+                    MemorySegment effects = FontcStyleData.m_Effects(data).reinterpret(count * FontcStyleEffect.layout().byteSize());
+                    for (int i = 0; i < count; ++i) {
+                        StyleEffect effect = new StyleEffect();
+                        MemorySegment item = FontcStyleEffect.asSlice(effects, i);
+                        effect.colors = FontcStyleEffect.m_Colors(item).toArray(JAVA_FLOAT);
+                        effect.amplitude = FontcStyleEffect.m_Amplitude(item);
+                        effect.hz = FontcStyleEffect.m_Hz(item);
+                        effect.wavelength = FontcStyleEffect.m_Wavelength(item);
+                        effect.type = FontcStyleEffect.m_Type(item);
+                        effect.fit = FontcStyleEffect.m_Fit(item);
+                        effect.gradientMode = FontcStyleEffect.m_GradientMode(item);
+                        style.effects[i] = effect;
+                    }
+                }
+                return style;
+            } finally {
+                FontRendererFFM.FontcFreeStyle(data);
+            }
+        }
+    }
+
+    /** Copy one compiled named style into this renderer's font collection. */
+    public synchronized void setStyle(long name, Style style) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment data = FontcStyleData.allocate(arena);
+            MemorySegment values = FontcStyleData.m_Style(data);
+            FontcStyle.m_FaceColor(values, arena.allocateFrom(JAVA_FLOAT, style.faceColor));
+            FontcStyle.m_OutlineColor(values, arena.allocateFrom(JAVA_FLOAT, style.outlineColor));
+            FontcStyle.m_ShadowColor(values, arena.allocateFrom(JAVA_FLOAT, style.shadowColor));
+            FontcStyle.m_OutlineWidth(values, style.outlineWidth);
+            FontcStyle.m_ShadowX(values, style.shadowX);
+            FontcStyle.m_ShadowY(values, style.shadowY);
+            FontcStyle.m_ShadowBlur(values, style.shadowBlur);
+            FontcStyle.m_OutlineAlpha(values, style.outlineAlpha);
+            FontcStyle.m_ShadowAlpha(values, style.shadowAlpha);
+            FontcStyle.m_Flags(values, style.flags);
+            FontcStyle.m_DecorationFlags(values, style.decorationFlags);
+            FontcStyle.m_UnderlinePattern(values, style.underlinePattern);
+            FontcStyle.m_StrikePattern(values, style.strikePattern);
+            FontcStyleData.m_EffectCount(data, style.effects.length);
+            if (style.effects.length != 0) {
+                MemorySegment effects = FontcStyleEffect.allocateArray(style.effects.length, arena);
+                FontcStyleData.m_Effects(data, effects);
+                for (int i = 0; i < style.effects.length; ++i) {
+                    StyleEffect effect = style.effects[i];
+                    MemorySegment item = FontcStyleEffect.asSlice(effects, i);
+                    FontcStyleEffect.m_Colors(item, arena.allocateFrom(JAVA_FLOAT, effect.colors));
+                    FontcStyleEffect.m_Amplitude(item, effect.amplitude);
+                    FontcStyleEffect.m_Hz(item, effect.hz);
+                    FontcStyleEffect.m_Wavelength(item, effect.wavelength);
+                    FontcStyleEffect.m_Type(item, effect.type);
+                    FontcStyleEffect.m_Fit(item, effect.fit);
+                    FontcStyleEffect.m_GradientMode(item, effect.gradientMode);
+                }
+            }
+            checkResult(FontRendererFFM.FontcSetStyle(requireHandle(), name, data), "Unable to register font style");
+        }
     }
 
     public static final class Layout {
@@ -759,6 +889,8 @@ public final class FontRenderer implements AutoCloseable {
             FontcProperties.m_LineBreak(values, flag(properties.lineBreak));
             FontcProperties.m_Align(values, properties.align);
             FontcProperties.m_VerticalAlign(values, properties.verticalAlign);
+            FontcProperties.m_BaseStyle(values, properties.baseStyle);
+            FontcProperties.m_UseBaseStyle(values, flag(properties.useBaseStyle));
             checkResult(FontcSetProperties(requireHandle(), values), "Unable to set native font renderer properties");
         }
     }

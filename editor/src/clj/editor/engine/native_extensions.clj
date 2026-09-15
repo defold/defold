@@ -53,6 +53,8 @@
                                      :library-paths #{"osx" "x86_64-osx"}}
    (.getPair Platform/Arm64Ios)     {:platform      "arm64-ios"
                                      :library-paths #{"ios" "arm64-ios"}}
+   (.getPair Platform/Arm64IosSim)  {:platform      "arm64_sim-ios"
+                                     :library-paths #{"ios" "arm64_sim-ios"}}
    (.getPair Platform/Armv7Android) {:platform      "armv7-android"
                                      :library-paths #{"android" "armv7-android"}}
    (.getPair Platform/Arm64Android) {:platform      "arm64-android"
@@ -63,8 +65,6 @@
                                      :library-paths #{"web" "wasm-web"}}
    (.getPair Platform/WasmPthreadWeb) {:platform      "wasm_pthread-web"
                                        :library-paths #{"web" "wasm_pthread-web"}}
-   (.getPair Platform/X86Win32)     {:platform      "x86-win32"
-                                     :library-paths #{"win32" "x86-win32"}}
    (.getPair Platform/X86_64Win32)  {:platform      "x86_64-win32"
                                      :library-paths #{"win32" "x86_64-win32"}}
    (.getPair Platform/X86_64Linux)  {:platform      "x86_64-linux"
@@ -237,7 +237,7 @@
      "arm64-android"    ["android" "manifest"]
      "x86_64-android"   ["android" "manifest"]
      "arm64-ios"        ["ios" "infoplist"]
-     "armv7-ios"        ["ios" "infoplist"]
+     "arm64_sim-ios"    ["ios" "infoplist"]
      "arm64-osx"        ["osx" "infoplist"]
      "x86_64-osx"       ["osx" "infoplist"]
      "wasm-web"         ["html5" "htmlfile"]
@@ -249,7 +249,7 @@
     "arm64-android"    "AndroidManifest.xml"
     "x86_64-android"   "AndroidManifest.xml"
     "arm64-ios"        "Info.plist"
-    "armv7-ios"        "Info.plist"
+    "arm64_sim-ios"    "Info.plist"
     "arm64-osx"        "Info.plist"
     "x86_64-osx"       "Info.plist"
     "wasm-web"         "engine_template.html"

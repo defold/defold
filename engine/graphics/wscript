@@ -52,7 +52,7 @@ def configure(conf):
 
     if target_os == TargetOS.MACOS:
         conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenGL', '-framework', 'IOKit', '-framework', 'CoreVideo'])
-    elif platform == "x86_64-ios":
+    elif platform == "arm64_sim-ios":
         pass
     elif platform == "x86_64-linux":
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])

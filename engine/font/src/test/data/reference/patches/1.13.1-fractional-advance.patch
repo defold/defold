@@ -1,0 +1,29 @@
+--- a/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/font/Fontc.java
++++ b/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/font/Fontc.java
+@@ -144,7 +144,7 @@
+         public int           index;
+         public int           c;
+         public int           width;
+-        public int           advance;
++        public float         advance;
+         public int           leftBearing;
+         public int           ascent;
+         public int           descent;
+@@ -350,7 +350,7 @@
+ 
+                 glyph.c = codePoint;
+                 glyph.index = i;
+-                glyph.advance = Math.round(metrics.getAdvance());
++                glyph.advance = metrics.getAdvance();
+                 float leftBearing = metrics.getLSB();
+                 glyph.leftBearing = (int)Math.floor(leftBearing);
+                 glyph.width = visualBounds.width;
+@@ -757,7 +757,7 @@
+         }
+ 
+         boolean monospace = true;
+-        int prevAdvance = -1;
++        float prevAdvance = -1;
+ 
+         for (int i = 0; i < include_glyph_count; i++) {
+             Glyph glyph = glyphs.get(i);

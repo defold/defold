@@ -39,6 +39,7 @@
             [editor.pipeline.texture-set-gen :as texture-set-gen]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
+            [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
@@ -261,15 +262,14 @@
           (when-let [frame (:frame state)]
             (let [user-data (:user-data renderable)
                   {:keys [start-tile tile-source-attributes]} user-data
-                  [[x0 y0] [x1 y1]] (tile-coords (+ (dec start-tile) frame) tile-source-attributes [sx sy])
-                  [cr cg cb ca] colors/selected-outline-color]
-              (.glColor4d gl cr cg cb ca)
-              (.glBegin gl GL2/GL_LINE_LOOP)
-              (.glVertex3d gl x0 y0 0)
-              (.glVertex3d gl x0 y1 0)
-              (.glVertex3d gl x1 y1 0)
-              (.glVertex3d gl x1 y0 0)
-              (.glEnd gl)))))
+                  [[x0 y0] [x1 y1]] (tile-coords (+ (dec start-tile) frame) tile-source-attributes [sx sy])]
+              (render-util/render-color-line-loop!
+                gl render-args ::animation-outline
+                colors/selected-outline-color
+                [[x0 y0]
+                 [x0 y1]
+                 [x1 y1]
+                 [x1 y0]])))))
 
       pass/overlay
       (texture-set/render-animation-overlay gl render-args renderables))))
@@ -389,7 +389,7 @@
 
 (defn- attach-collision-group-node
   [self collision-group-node]
-  (let [project (project/get-project self)]
+  (let [project (project/get-project)]
     (concat
      (g/connect collision-group-node :_node-id self :nodes)
      (g/connect collision-group-node :node-outline self :child-outlines)
@@ -1006,7 +1006,7 @@
 
 (defn- make-animation-node [self _project select-fn animation]
   {:pre [(map? animation)]} ; Tile$Animation in map format.
-  (g/make-nodes (g/node-id->graph-id self) [animation-node TileAnimationNode]
+  (g/make-nodes [animation-node TileAnimationNode]
     (gu/set-properties-from-pb-map animation-node Tile$Animation animation
       id :id
       start-tile :start-tile
@@ -1020,13 +1020,11 @@
     (when select-fn
       (select-fn [animation-node]))))
 
-(defn- make-collision-group-node [self project select-fn collision-group]
-  (g/make-nodes
-   (g/node-id->graph-id self)
-   [collision-group-node [CollisionGroupNode :id collision-group]]
-   (attach-collision-group-node self collision-group-node)
-   (when select-fn
-     (select-fn [collision-group-node]))))
+(defn- make-collision-group-node [self select-fn collision-group]
+  (g/make-nodes [collision-group-node [CollisionGroupNode :id collision-group]]
+    (attach-collision-group-node self collision-group-node)
+    (when select-fn
+      (select-fn [collision-group-node]))))
 
 (defn- make-convex-hulls
   [{:keys [convex-hulls convex-hull-points] :as tile-set}]
@@ -1062,7 +1060,7 @@
 
         collision-group-nodes-tx-data
         (into []
-              (mapcat (partial make-collision-group-node self project nil))
+              (mapcat (partial make-collision-group-node self nil))
               (apply sorted-set (:collision-groups tile-set)))]
 
     (concat
@@ -1098,15 +1096,15 @@
     :flip-vertical 0))
 
 (defn add-animation-node! [self select-fn]
-  (g/transact (make-animation-node self (project/get-project self) select-fn new-animation-defaults)))
+  (g/transact (make-animation-node self (project/get-project) select-fn new-animation-defaults)))
 
 (defn add-collision-group-node!
   [self select-fn]
-  (let [project (project/get-project self)
+  (let [project (project/get-project)
         collision-groups-data (g/node-value project :collision-groups-data)
         id (id/gen "collision_group" (collision-groups/collision-groups collision-groups-data))]
     (g/transact
-      (make-collision-group-node self project select-fn id))))
+      (make-collision-group-node self select-fn id))))
 
 (defn- selection->tile-source [selection evaluation-context]
   (handler/adapt-single selection TileSourceNode evaluation-context))

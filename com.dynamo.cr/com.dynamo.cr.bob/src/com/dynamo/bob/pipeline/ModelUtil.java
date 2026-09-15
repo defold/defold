@@ -422,7 +422,9 @@ public class ModelUtil {
         }
 
         public TextureGenerator.GenerateResult toGenerateResult() {
-            TextureImage.Image image = TextureImage.Image.newBuilder()
+            // Mipmap sizes are per layer; data size covers the complete array.
+            int layerDataSize = data.length / layerCount;
+            TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder()
                     .setWidth(width)
                     .setHeight(height)
                     .setDepth(1)
@@ -431,12 +433,14 @@ public class ModelUtil {
                     .setOriginalDepth(1)
                     .setFormat(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA32F)
                     .addMipMapOffset(0)
-                    .addMipMapSize(data.length)
-                    .addMipMapSizeCompressed(data.length)
+                    .addMipMapSize(layerDataSize)
                     .addMipMapDimensions(width)
                     .addMipMapDimensions(height)
-                    .setDataSize(data.length)
-                    .build();
+                    .setDataSize(data.length);
+            for (int i = 0; i < layerCount; ++i) {
+                imageBuilder.addMipMapSizeCompressed(layerDataSize);
+            }
+            TextureImage.Image image = imageBuilder.build();
 
             TextureGenerator.GenerateResult result = new TextureGenerator.GenerateResult();
             result.textureImage = TextureImage.newBuilder()
@@ -1240,7 +1244,7 @@ public class ModelUtil {
             materialBuilder.setIndex(material.index);
             materialBuilder.setIsSkinned(material.isSkinned!=0);
             materialBuilder.setAlphaCutoff(material.alphaCutoff);
-            materialBuilder.setAlphaMode(Rig.AlphaMode.valueOf(material.alphaMode.getValue()));
+            materialBuilder.setAlphaMode(Rig.AlphaMode.forNumber(material.alphaMode.getValue()));
             materialBuilder.setDoubleSided(material.doubleSided);
             materialBuilder.setUnlit(material.unlit);
 
@@ -1631,7 +1635,7 @@ public class ModelUtil {
             meshBuilder.setIndices(ByteString.copyFrom(create16BitIndices(mesh.indices)));
         }
 
-        meshBuilder.setPrimitiveType(Rig.PrimitiveType.valueOf(mesh.primitiveType.getValue()));
+        meshBuilder.setPrimitiveType(Rig.PrimitiveType.forNumber(mesh.primitiveType.getValue()));
 
         if (mesh.material != null)
             meshBuilder.setMaterialIndex(mesh.material.index);

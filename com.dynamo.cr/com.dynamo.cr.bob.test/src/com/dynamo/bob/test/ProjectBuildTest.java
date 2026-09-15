@@ -121,7 +121,6 @@ public class ProjectBuildTest {
                 project.setOption("liveupdate", "true");
             }
 
-            // project.setOption("platform", Platform.X86Win32.getPair());
             List<TaskResult> result = project.build(Progress.discarding(), "clean", "build");
             for (TaskResult taskResult : result) {
                 assertTrue(taskResult.toString(), taskResult.isOk());
@@ -463,7 +462,6 @@ public class ProjectBuildTest {
         checkProjectSetting(outputProps, "project", "doesn't_exist", null);
 
         // Default boolean value
-        checkProjectSetting(outputProps, "script", "shared_state", "0");
         checkProjectSetting(outputProps, "display", "vsync", "1");
         checkProjectSetting(outputProps, "display", "update_frequency", "0");
 

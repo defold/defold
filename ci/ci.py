@@ -192,13 +192,15 @@ def install_linux(args):
         "libxrandr-dev",
         "libopenal-dev",
         "libgl1-mesa-dev",
+        "libgl1-mesa-dri",
         "libglw1-mesa-dev",
         "openssl",
         "tofrodos",
         "tree",
         "valgrind",
         "uuid-dev",
-        "xvfb"
+        "xvfb",
+        "xauth"
     ]
     aptget(" ".join(packages))
 
@@ -257,7 +259,7 @@ def build_engine(channel, platform, args):
     if platform in ('x86_64-macos',
                     'arm64-macos',
                     'arm64-ios',
-                    'x86_64-ios',
+                    'arm64_sim-ios',
                     'wasm-web',
                     'wasm_pthread-web',
                     'arm64-linux',

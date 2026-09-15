@@ -16,7 +16,9 @@
   (:require [hooks.integration-test-util :as test-util]))
 
 (def implicit-scratch-project-bindings
-  '#{app-view project workspace})
+  '{app-view 0
+    project 0
+    workspace 0})
 
 (defn with-scratch-project [{:keys [node]}]
   (let [[_ project-path-node & body] (:children node)

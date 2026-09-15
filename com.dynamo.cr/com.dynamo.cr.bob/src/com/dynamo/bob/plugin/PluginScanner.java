@@ -109,10 +109,10 @@ public class PluginScanner {
 				boolean isPrivate = Modifier.isPrivate(klass.getModifiers());
 				if (pluginBaseClass.isAssignableFrom(klass) && !isAbstract && !isPrivate) {
 					logger.fine("Found plugin " + className);
-					plugins.add((T)klass.newInstance());
+					plugins.add((T)klass.getDeclaredConstructor().newInstance());
 				}
 			}
-			catch(InstantiationException | IllegalAccessException e) {
+			catch(InstantiationException | IllegalAccessException | NoSuchMethodException e) {
 				throw new CompileExceptionError("Unable to create plugin " + className, e);
 			}
 			catch (Exception e) {

@@ -16,5 +16,6 @@
 /sprite/test_comp.go
 /sprite/texture_transform_multi.go
 /sprite/texture_transform_sprite.go
+/sprite/textureless.go
 /sprite/valid_sprite.go
 /tile/valid.tileset

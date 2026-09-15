@@ -57,7 +57,7 @@ def static_libs(conf, uselib, libs, exact_windows_libs = None):
     # may need their exact .lib filename instead, while keeping the usual STLIB path elsewhere.
     libs = Utils.to_list(libs)
     exact_windows_libs = set(Utils.to_list(exact_windows_libs or libs))
-    if conf.env.PLATFORM in ['win32', 'x86_64-win32']:
+    if conf.env.PLATFORM == 'x86_64-win32':
         conf.env['STLIB_%s' % uselib] = [lib for lib in libs if lib not in exact_windows_libs]
         conf.env.append_unique('LINKFLAGS_%s' % uselib, ['%s.lib' % lib for lib in libs if lib in exact_windows_libs])
     else:
@@ -76,17 +76,17 @@ def platform_supports_feature(platform, feature, data):
     if is_platform_private(platform):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan' or feature == 'compute':
-        return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios']
+        return platform not in ['wasm-web', 'wasm_pthread-web', 'arm64_sim-ios']
     if feature == 'dx12':
         return platform in ['x86_64-win32']
     if feature == 'opengl_compute':
-        return platform not in ['wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
+        return platform not in ['wasm-web', 'wasm_pthread-web', 'arm64-ios', 'arm64_sim-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
-        return platform in ['arm64-linux', 'armv7-android', 'arm64-android', 'x86_64-android', 'x86_64-ios', 'arm64-ios']
+        return platform in ['arm64-linux', 'armv7-android', 'arm64-android', 'x86_64-android', 'arm64-ios', 'arm64_sim-ios']
     if feature == 'webgpu':
         return platform in ['wasm-web', 'wasm_pthread-web']
     if feature == 'metal':
-        return platform in ['x86_64-macos', 'arm64-macos', 'x86_64-ios', 'arm64-ios']
+        return platform in ['x86_64-macos', 'arm64-macos', 'arm64-ios', 'arm64_sim-ios']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -223,7 +223,7 @@ def prepend_private_task_paths(task_gen, platform):
                 setattr(task_gen, name, private_paths + current_paths)
 
 def platform_glfw_version(platform):
-    if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win32', 'win32', 'x86_64-linux', 'arm64-linux']:
+    if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win32', 'x86_64-linux', 'arm64-linux']:
         return 3
     return 2
 
@@ -253,7 +253,7 @@ def platform_graphics_libs_and_symbols(platform):
     use_vulkan = False
     use_metal = Options.options.with_metal and platform_supports_feature(platform, 'metal', {})
 
-    if platform in ('x86_64-ios', 'arm64-ios'):
+    if platform in ('arm64-ios', 'arm64_sim-ios'):
         use_opengles = True
         use_vulkan = Options.options.with_vulkan
     elif platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
@@ -294,7 +294,7 @@ def platform_graphics_libs_and_symbols(platform):
 
     if use_metal:
         graphics_libs += ['GRAPHICS_METAL']
-        if platform in ('x86_64-ios', 'arm64-ios') and not use_opengl and not use_opengles and not use_vulkan:
+        if platform in ('arm64-ios', 'arm64_sim-ios') and not use_opengl and not use_opengles and not use_vulkan:
             graphics_libs += ['DMGLFW']
         graphics_libs += ['METAL']
         graphics_lib_symbols.append('GraphicsAdapterMetal')
@@ -535,17 +535,6 @@ def default_flags(self):
     self.env.append_value('INCLUDES', build_util.get_dynamo_ext('include'))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
-    # For 32-bit Windows, search both legacy 'win32' and tuple 'x86-win32' folders
-    # TODO: Remove the redundant lib folders ("win32") once we've moved fully to CMake
-    if build_util.get_target_platform() == 'win32':
-        alias = 'x86-win32' # used by the new/CMake code path
-        # Includes under DYNAMO_HOME and DYNAMO_HOME/ext
-        self.env.append_value('INCLUDES', build_util.get_dynamo_home('include', alias))
-        self.env.append_value('INCLUDES', build_util.get_dynamo_ext('include', alias))
-        # Lib paths under DYNAMO_HOME and DYNAMO_HOME/ext
-        self.env.append_value('LIBPATH', build_util.get_dynamo_home('lib', alias))
-        self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', alias))
-
     # Platform specific paths etc comes after the project specific stuff
 
     if target_os in (TargetOS.MACOS, TargetOS.IOS):
@@ -600,7 +589,9 @@ def default_flags(self):
         if 'linux' in self.env['BUILD_PLATFORM']:
             self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % target_arch])
 
-    elif TargetOS.IOS == target_os and target_arch in ('armv7', 'arm64', 'x86_64'):
+    elif TargetOS.IOS == target_os and target_arch == 'arm64':
+        is_simulator = build_util.get_target_platform() == 'arm64_sim-ios'
+        version_min_flag = '-m%s-version-min=%s' % ('ios-simulator' if is_simulator else 'iphoneos', sdk.VERSION_IPHONEOS_MIN)
         extra_ccflags = []
         extra_linkflags = []
         if 'linux' in self.env['BUILD_PLATFORM']:
@@ -613,13 +604,11 @@ def default_flags(self):
             extra_linkflags += ['-fobjc-link-runtime']
 
         sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
-        swift_dir = "%s/usr/lib/swift-%s/iphoneos" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
-        if 'x86_64' == target_arch:
-            swift_dir = "%s/usr/lib/swift-%s/iphonesimulator" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
+        swift_dir = "%s/usr/lib/swift-%s/%s" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION, 'iphonesimulator' if is_simulator else 'iphoneos')
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, extra_ccflags + ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fvisibility=hidden',
-                                            '-arch', target_arch, '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN])
+                                            '-arch', target_arch, version_min_flag])
             self.env.append_value(f, ['-isysroot', sys_root])
 
             if f == 'CXXFLAGS':
@@ -627,10 +616,10 @@ def default_flags(self):
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
 
             self.env.append_value(f, ['-DDM_PLATFORM_IOS'])
-            if 'x86_64' == target_arch:
+            if is_simulator:
                 self.env.append_value(f, ['-DIOS_SIMULATOR'])
 
-        self.env.append_value('LINKFLAGS', ['-arch', target_arch, '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN] + extra_linkflags)
+        self.env.append_value('LINKFLAGS', ['-arch', target_arch, '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', version_min_flag] + extra_linkflags)
         self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
     elif TargetOS.ANDROID == target_os:
@@ -769,7 +758,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', emflags_link)
         self.env.append_value('LINKFLAGS', linkflags)
 
-    elif target_platform in ['win32', 'x86_64-win32']:
+    elif target_platform == 'x86_64-win32':
         for f in ['CFLAGS', 'CXXFLAGS']:
             # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
             # 0x0600 = _WIN32_WINNT_VISTA
@@ -843,14 +832,6 @@ def android_link_flags(self):
             # NOTE: This is a hack We change cprogram -> cshlib
             # but it's probably to late. It works for the name though (libX.so and not X)
             self.env.append_value('LINKFLAGS', ['-shared'])
-
-@feature('cprogram', 'cxxprogram')
-@before('process_source')
-def osx_64_luajit(self):
-    # Was previously needed for 64bit OSX, but removed when we updated luajit-2.1.0-beta3,
-    # however it is still needed for 64bit iOS Simulator.
-    if self.env['PLATFORM'] == 'x86_64-ios':
-        self.env.append_value('LINKFLAGS', ['-pagezero_size', '10000', '-image_base', '100000000'])
 
 @feature('skip_asan')
 @before('process_source')
@@ -1169,7 +1150,7 @@ Task.task_factory('app_bundle',
 
 def _strip_executable(bld, platform, target_arch, path):
     """ Strips the debug symbols from an executable """
-    if platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','armv7-android','arm64-android','x86_64-android']:
+    if platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','arm64_sim-ios','armv7-android','arm64-android','x86_64-android']:
         return 0 # return ok, path is still unstripped
 
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env.PLATFORM)
@@ -1836,7 +1817,7 @@ def detect(conf):
         print ("Codesign unsupported (%s cannot codesign for %s)" % (host_platform, build_util.get_target_platform()))
 
     # Vulkan support
-    if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'wasm-web', 'wasm_pthread-web'):
+    if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'arm64_sim-ios', 'wasm-web', 'wasm_pthread-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if target_os == TargetOS.WINDOWS:
@@ -1881,7 +1862,7 @@ def detect(conf):
         conf.env['AR']      = '%s/%sar' % (bin_dir, llvm_prefix)
         conf.env['RANLIB']  = '%s/%sranlib' % (bin_dir, llvm_prefix)
 
-    elif TargetOS.IOS == target_os and build_util.get_target_architecture() in ('armv7','arm64','x86_64'):
+    elif TargetOS.IOS == target_os and build_util.get_target_architecture() == 'arm64':
 
         # NOTE: If we are to use clang for OSX-builds the wrapper script must be qualifed, e.g. clang-ios.sh or similar
         if 'linux' in host_platform:
@@ -1987,9 +1968,6 @@ def detect(conf):
             # there's no lib prefix anymore so we need to set our our lib dir first so we don't
             # pick up the wrong hid.lib from the windows sdk
             libdirs.insert(0, build_util.get_dynamo_home('lib', build_util.get_target_platform()))
-            if build_util.get_target_platform() == 'win32':
-                libdirs.insert(1, build_util.get_dynamo_home('lib', 'x86-win32'))
-
             bindirs_env = os.pathsep.join(bindirs)
             os.environ['PATH'] = bindirs_env + os.pathsep + os.environ['PATH']
             conf.environ['PATH'] = bindirs_env + os.pathsep + conf.environ['PATH']
@@ -2260,7 +2238,7 @@ def detect(conf):
         conf.env['LINKFLAGS_DX12']      = ['D3D12.lib', 'DXGI.lib', 'D3Dcompiler.lib']
 
 
-    if conf.env.PLATFORM in ['win32', 'x86_64-win32']:
+    if conf.env.PLATFORM == 'x86_64-win32':
         static_libs(conf, 'HID', ['hid'])
         static_libs(conf, 'HID_NULL', ['hid_null'])
         static_libs(conf, 'INPUT', ['input'])

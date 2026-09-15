@@ -19,7 +19,7 @@ def build(bld):
                 use = 'TESTMAIN DDF DLIB SOCKET PROFILE_NULL PLATFORM_NULL graphics_null graphics_transcoder_basisu basis_transcoder',
                 target = 'test_transcoder')
 
-    if not bld.env.PLATFORM in ('x86_64-ios', 'x86_64-ps4', 'x86_64-ps5'):
+    if not bld.env.PLATFORM in ('arm64_sim-ios', 'x86_64-ps4', 'x86_64-ps5'):
 
         extra_libs = []
         extra_symbols = []

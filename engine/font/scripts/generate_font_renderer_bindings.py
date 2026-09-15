@@ -44,6 +44,9 @@ PACKAGE = "com.dynamo.bob.font.generated"
 HEADER_CLASS = "FontRendererFFM"
 SYMBOLS_CLASS = "FontRendererSymbols"
 FUNCTIONS = (
+    "FontcCompileStyle",
+    "FontcFreeStyle",
+    "FontcSetStyle",
     "FontcCreate",
     "FontcCreateGlyphBank",
     "FontcDestroy",
@@ -71,6 +74,9 @@ FUNCTIONS = (
     "FontcGetVertices",
 )
 STRUCTS = (
+    "FontcStyle",
+    "FontcStyleEffect",
+    "FontcStyleData",
     "FontcParams",
     "FontcGlyphBankGlyph",
     "FontcLayout",

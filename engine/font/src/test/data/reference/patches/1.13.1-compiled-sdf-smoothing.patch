@@ -1,0 +1,13 @@
+--- a/engine/engine/content/builtins/fonts/font-df.fp
++++ b/engine/engine/content/builtins/fonts/font-df.fp
+@@ -20,7 +20,9 @@
+ 
+     mediump float sdf_edge      = var_sdf_params.x;
+     mediump float sdf_outline   = var_sdf_params.y;
+-    mediump float sdf_smoothing = var_sdf_params.z;
++    // Reference-only compatibility: stable encodes distance with slope 0.25/spread;
++    // native uses (191/255)/spread. Match the native transition width in pixels.
++    mediump float sdf_smoothing = var_sdf_params.z * (0.25 / (191.0 / 255.0));
+     mediump float sdf_shadow    = var_sdf_params.w;
+ 
+     // If there is no blur, the shadow should behave in the same way as the outline.

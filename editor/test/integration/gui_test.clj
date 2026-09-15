@@ -32,6 +32,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types]
+            [internal.graph.types :as gt]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.node :as in]
@@ -281,7 +282,7 @@
 (deftest load-gui
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/logic/main.gui")
-          _gui-node (ffirst (g/sources-of node-id :child-outlines))]
+          _gui-node (some-> (first (g/inputs (g/now) node-id :child-outlines)) gt/source-id)]
       (is (some? _gui-node)))))
 
 (deftest custom-gui-extension-registration
@@ -1167,7 +1168,7 @@
 
 (deftest introduce-missing-referenced-gui-resource
   (test-util/with-loaded-project
-    (let [[workspace project _app-view] (test-util/setup! world)
+    (let [[workspace project _app-view] (test-util/setup!)
           make-restore-point! #(test-util/make-system-reverter)
           scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
           shapes {:box (gui-node scene "box")
@@ -1217,7 +1218,7 @@
 
 (deftest introduce-missing-referenced-gui-resource-in-template
   (test-util/with-loaded-project
-    (let [[workspace project _app-view] (test-util/setup! world)
+    (let [[workspace project _app-view] (test-util/setup!)
           make-restore-point! #(test-util/make-system-reverter)
           template-scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
           template-shapes {:box (gui-node template-scene "box")
@@ -1321,7 +1322,7 @@
   ;; │   └── text2
   ;; └── box2
   (test-util/with-loaded-project
-    (let [[workspace project _] (test-util/setup! world)
+    (let [[workspace project _] (test-util/setup!)
           scene (project/get-resource-node project "/gui/reorder.gui")
           id-map (scene-gui-node-map scene)]
 
@@ -1336,8 +1337,6 @@
       (move-child-node! (id-map "box1") -1)
       (check-order scene < "box1" "box2")
 
-
-
       ;; move up text2
       (move-child-node! (id-map "text2") -1)
       (check-order scene < "text2" "text1")
@@ -1346,8 +1345,6 @@
       (move-child-node! (id-map "text1") -1)
       (check-order scene < "text1" "text2")
 
-
-
       ;; move down box1
       (move-child-node! (id-map "box1") 1)
       (check-order scene < "box2" "box1")
@@ -1355,7 +1352,6 @@
       ;; move down box2 (restore order)
       (move-child-node! (id-map "box2") 1)
       (check-order scene < "box1" "box2")
-
 
       ;; move down text1
       (move-child-node! (id-map "text1") 1)
@@ -1371,7 +1367,7 @@
           scene (project/get-resource-node project "/gui/reorder.gui")
           id-map (scene-gui-node-map scene)
           layouts (g/node-feeding-into scene :layout-names)
-          [landscape portrait] (map first (g/sources-of layouts :names))]
+          [landscape portrait] (map gt/source-id (g/inputs (g/now) layouts :names))]
 
       ;; sanity
       (is (= "Landscape" (g/node-value landscape :name)))
@@ -4179,3 +4175,50 @@
              (-> (project/get-resource-node project "/importing.gui")
                  (make-built-layout->node->field->value)
                  (round-layout->node->field->value)))))))
+
+(deftest selected-font-style-layout-and-template-overrides
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [scene (test-util/resource-node project "/gui/resources/button.gui")
+          node (gui-node scene "text")]
+      (is (= "default" (g/node-value node :style)))
+      (test-util/prop! node :style "link")
+      (is (= "link" (:style (g/node-value node :text-layout))))
+      (with-visible-layout! scene "Landscape"
+        (test-util/prop! node :style "")
+        (is (= "" (:style (g/node-value node :text-layout)))))
+      (is (= "link" (g/node-value node :style)))
+      (is (= "" (get-in (g/node-value node :layout->prop->override) ["Landscape" :style])))
+      (test-util/with-prop [node :style "missing"]
+        (is (g/error-fatal? (test-util/prop-error node :style))))
+      (let [saved (g/node-value scene :save-value)
+            text (coll/first-where #(= "text" (:id %)) (:nodes saved))
+            landscape (coll/first-where #(= "Landscape" (:name %)) (:layouts saved))
+            override (coll/first-where #(= "text" (:id %)) (:nodes landscape))]
+        (is (= "link" (:style text)))
+        (is (= "" (:style override)))
+        (is (contains? (set (:overridden-fields override)) 51))))))
+
+(deftest selected-font-style-template-override
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [button (test-util/resource-node project "/gui/template_layout/button.gui")
+          panel (test-util/resource-node project "/gui/template_layout/panel_button.gui")
+          text (gui-node button "text")
+          template-text (gui-node panel "button/text")]
+      (test-util/prop! text :style "link")
+      (is (= "link" (g/node-value template-text :style)))
+      (test-util/prop! template-text :style "")
+      (is (= "" (g/node-value template-text :style)))
+      (let [saved (coll/first-where #(= "button/text" (:id %)) (:nodes (g/node-value panel :save-value)))]
+        (is (= "" (:style saved)))
+        (is (contains? (set (:overridden-fields saved)) 51)))
+      (test-util/prop! text :style "default")
+      (is (= "" (g/node-value template-text :style))))))
+
+(deftest missing-style-in-hidden-layout-is-build-error
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [scene (test-util/resource-node project "/gui/resources/button.gui")
+          node (gui-node scene "text")]
+      (with-visible-layout! scene "Landscape"
+        (test-util/prop! node :style "missing"))
+      (is (= "default" (g/node-value node :style)))
+      (is (g/error-fatal? (g/node-value scene :build-targets))))))

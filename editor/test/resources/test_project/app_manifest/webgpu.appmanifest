@@ -15,7 +15,7 @@ platforms:
       libs: []
       frameworks: []
       linkFlags: []
-  x86_64-ios:
+  arm64_sim-ios:
     context:
       excludeLibs: []
       excludeSymbols: []
@@ -67,13 +67,6 @@ platforms:
       frameworks: []
       linkFlags: []
   x86_64-linux:
-    context:
-      excludeLibs: []
-      excludeSymbols: []
-      symbols: []
-      libs: []
-      linkFlags: []
-  x86-win32:
     context:
       excludeLibs: []
       excludeSymbols: []

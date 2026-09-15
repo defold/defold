@@ -295,13 +295,19 @@ namespace dmRender
 
     const LightPrototype* GetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
 
-    // CPU-mapped representation of a light in STD140 layout
+    // CPU-mapped representation of a light in std140 layout.
     struct LightSTD140
     {
         dmVMath::Vector4 m_Position;
         dmVMath::Vector4 m_Color;
         dmVMath::Vector4 m_DirectionRange;
         dmVMath::Vector4 m_Params;
+    };
+
+    enum LightBufferLayout
+    {
+        LIGHT_BUFFER_HEADER_SIZE  = 16,
+        LIGHT_BUFFER_LIGHT_STRIDE = 64,
     };
 
     struct RenderContext
@@ -335,7 +341,8 @@ namespace dmRender
 
         dmArray<LightSTD140>                   m_LightBufferScratch;
         dmArray<LightSTD140>                   m_LightBufferUploadScratch;
-        dmGraphics::HUniformBuffer             m_LightUniformBuffer;
+        dmArray<uint8_t>                       m_LightBufferSubmitted;
+        dmGraphics::HUniformBuffer              m_LightUniformBuffer;
         dmVMath::Vector3                       m_AmbientLight;
 
         HFontMap                    m_SystemFontMap;
@@ -351,12 +358,10 @@ namespace dmRender
         HComputeProgram             m_ComputeProgram;
         dmMessage::HSocket          m_Socket;
 
-        uint32_t                    m_LightBufferDirtyStart;
-        uint32_t                    m_LightBufferDirtyEnd;
         uint32_t                    m_LightBufferInfoWriteStart;
         uint32_t                    m_LightBufferDataWriteStart;
         uint16_t                    m_MaxLightCount;
-        uint16_t                    m_LightBufferDirtyInfo          : 1;
+        uint16_t                    m_LightBufferDirty             : 1;
         uint16_t                    m_OutOfResources                : 1;
         uint16_t                    m_StencilBufferCleared          : 1;
         uint16_t                    m_MultiBufferingRequired        : 1;
@@ -421,6 +426,7 @@ namespace dmRender
 
     // Lights
     void FinalizeLightData(HRenderContext render_context);
+    void InvalidateLightBuffer(HRenderContext render_context);
     void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint16_t* out_set, uint16_t* out_binding, uint16_t* out_capacity);
     void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material);
     void ApplyComputeProgramLightBuffers(HRenderContext render_context, HComputeProgram compute_program);

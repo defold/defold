@@ -60,11 +60,6 @@ function cmi_package_platform() {
 	pushd $PREFIX  >/dev/null
 
 		case $1 in
-			win32)
-				# it has wrong casing: Win32
-				mv lib/Win32 lib/tmp
-				mv lib/tmp ${libdir}
-				;;
 			x86_64-win32)
 				mv lib/x64 ${libdir}
 				;;
@@ -104,11 +99,6 @@ case $CONF_TARGET in
 		;;
 	linux)
 		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86-linux-gcc"
-		;;
-	win32)
-		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86-win32-vs14 --enable-static-msvcrt"
-		# If used, it will build via command line, although with the /GL flag which we don't support when using lld-link
-		#PATH="/c/Program Files (x86)/MSBuild/14.0/Bin:$PATH"
 		;;
 	x86_64-win32)
 		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86_64-win64-vs14 --enable-static-msvcrt"

@@ -41,7 +41,7 @@ IOS_DEVICECTL_RETRY_DELAY_SECONDS = 2.0
 IOS_DEVICECTL_PROCESS_TIMEOUT_MARGIN_SECONDS = 15
 IOS_PROVISIONING_PROFILE_DIR = os.path.expanduser('~/Library/MobileDevice/Provisioning Profiles')
 IOS_DEVICE_PLATFORM = 'arm64-ios'
-IOS_SIMULATOR_PLATFORM = 'x86_64-ios'
+IOS_SIMULATOR_PLATFORM = 'arm64_sim-ios'
 IOS_TEST_PLATFORMS = (IOS_DEVICE_PLATFORM, IOS_SIMULATOR_PLATFORM)
 IOS_XCODE_SOLUTION_DEFAULT_BUNDLE_ID = 'com.defold.dmengine'
 IOS_XCODE_UNSIGNED_WARNING = (
@@ -1053,11 +1053,10 @@ def no_available_simulators_message():
         '  1. Make sure xcrun points at a full Xcode: xcode-select -p\n'
         '  2. Complete Xcode first-launch tasks: sudo xcodebuild -runFirstLaunch\n'
         '  3. Install an iOS Simulator runtime in Xcode Settings > Platforms, or run:\n'
-        '       xcodebuild -downloadPlatform iOS -architectureVariant universal\n'
+        '       xcodebuild -downloadPlatform iOS\n'
         '  4. Create or boot an iPhone simulator, then verify:\n'
         '       xcrun simctl list devices available\n'
-        '       python3 build_tools/build_ios.py list-simulators\n'
-        'For the current x86_64-ios test runner, use a universal iOS simulator runtime on Apple Silicon hosts.')
+        '       python3 build_tools/build_ios.py list-simulators')
 
 
 class IOSTestRunner(object):

@@ -26,12 +26,14 @@
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [internal.graph.types :as gt]
             [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :refer [with-loaded-project] :as test-util]
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll]
+            [util.http-server :as http-server]
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.util DependencyMetadata Library$Problem$Missing Library$Result TextureUtil]
            [com.dynamo.font.proto GlyphBankProto$GlyphBank]
@@ -133,6 +135,8 @@
                                    :leading 1.0,
                                    :font "/builtins/fonts/default.fontc",
                                    :size [128.0 32.0 0.0 0.0],
+                                   :style "default",
+                                   :style-hash (murmur/hash64 "default"),
                                    :tracking 0.0,
                                    :material "/builtins/fonts/label.materialc",
                                    :outline [0.0 0.0 0.0 1.0],
@@ -427,7 +431,7 @@
           (is (contains? content-by-target (:sound sound-desc))))))))
 
 (defn- first-source [node label]
-  (ffirst (g/sources-of node label)))
+  (some-> (first (g/inputs (g/now) node label)) gt/source-id))
 
 (deftest break-merged-targets
   (with-build-results "/merge/merge_embed.collection"
@@ -817,9 +821,6 @@
                                ;; Non existent property
                                (check-project-setting built-properties ["project" "doesn't_exist"] nil)
 
-                               ;; Default boolean value
-                               (check-project-setting built-properties ["script" "shared_state"] "0")
-
                                ;; Default number value
                                (check-project-setting built-properties ["display" "width"] "960")
 
@@ -858,7 +859,7 @@
                  "[input]\n"
                  "game_binding = game.input_bindingc\n"))
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
               game-project (test-util/resource-node project "/game.project")]
           (is (nil? (game-project/get-setting game-project ["bootstrap" "render"])))
@@ -941,7 +942,7 @@
 
 (deftest build-with-custom-resources-from-ext-properties-default
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/custom_resources_project")
           ext-dir (io/file (abs-project-path workspace "ext"))
           ext-properties-file (io/file ext-dir "ext.properties")]
       (.mkdirs ext-dir)
@@ -959,7 +960,7 @@
 
 (deftest build-with-custom-resources-from-unsaved-ext-properties-default
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/custom_resources_project")
           ext-dir (io/file (abs-project-path workspace "ext"))
           ext-properties-file (io/file ext-dir "ext.properties")]
       (.mkdirs ext-dir)
@@ -1003,6 +1004,22 @@
         (is (nil? (:error (project-build! project game-project))))
         (is (false? (.exists build-metadata-file)))))))
 
+(deftest build-with-dependencies-metadata-from-library
+  (with-open [server (http-server/start! test-util/lib-server-handler)]
+    (let [dependency-url (test-util/lib-server-uri server "lib_resource_project")
+          property-name "defold.extension.test-dependency.url"]
+      (System/setProperty property-name dependency-url)
+      (try
+        (test-util/with-scratch-project "test/resources/dependencies_metadata_project"
+          (let [game-project (test-util/resource-node project "/game.project")
+                build-result (project-build! project game-project)]
+            (when (is (nil? (:error build-result)))
+              (let [metadata-json (slurp (build-path workspace DependencyMetadata/OUTPUT_PATH))]
+                (is (string/includes? metadata-json dependency-url))
+                (is (string/includes? metadata-json "\"payload-sha1\""))))))
+        (finally
+          (System/clearProperty property-name))))))
+
 (deftest build-with-ssl-certificates
   (with-loaded-project "test/resources/custom_resources_project"
     (let [game-project (test-util/resource-node project "/game.project")
@@ -1034,7 +1051,7 @@
 (deftest custom-resources-cached
   (testing "Check custom resources are only rebuilt when source has changed"
     (with-clean-system
-      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+      (let [workspace (test-util/setup-scratch-workspace! "test/resources/custom_resources_project")
             project (test-util/setup-project! workspace)
             game-project (test-util/resource-node project "/game.project")]
         (with-setting ["project" "custom_resources"] "assets"
@@ -1051,7 +1068,7 @@
 (deftest ssl-certificates-cached
   (testing "Check SSL certificates are only rebuilt when source has changed"
     (with-clean-system
-      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/custom_resources_project")
+      (let [workspace (test-util/setup-scratch-workspace! "test/resources/custom_resources_project")
             project (test-util/setup-project! workspace)
             game-project (test-util/resource-node project "/game.project")]
         (with-setting ["network" "ssl_certificates"] (workspace/find-resource workspace "/example_cert.pem")
@@ -1084,7 +1101,7 @@
 
 (deftest collision-groups-data-doesnt-break-build
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/collision_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/collision_project")
           project (test-util/setup-project! workspace)
           game-project (test-util/resource-node project "/game.project")]
       (let [br (project-build! project game-project)]

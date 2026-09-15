@@ -907,7 +907,6 @@ namespace dmGraphics
         }
     }
 
-#if defined(DM_PLATFORM_IOS)
     static void ResizeMainFramebufferResources(MetalContext* context, uint32_t width, uint32_t height)
     {
         if (context->m_MainDepthStencilTexture &&
@@ -944,7 +943,6 @@ namespace dmGraphics
 
         SetMainRenderTargetSize(context, width, height);
     }
-#endif
 
     static inline bool MetalFormatHasDepth(MTL::PixelFormat fmt)
     {
@@ -1398,6 +1396,10 @@ namespace dmGraphics
         context->m_PipelineState     = GetDefaultPipelineState();
         context->m_RenderTargetBound = 0;
         context->m_MainRTBegunThisFrame = 0;
+        context->m_MainMSAAColorNeedsResolve = 0;
+        context->m_CombinedMSAAStoreAndResolveSupport =
+            context->m_Device->supportsFamily(MTL::GPUFamilyApple3) ||
+            context->m_Device->supportsFamily(MTL::GPUFamilyMac2);
         ResetRenderEncoderStateCache(context);
         context->m_ViewportChanged   = true;
         context->m_CullFaceChanged   = true;
@@ -1656,6 +1658,53 @@ namespace dmGraphics
         ResetRenderEncoderStateCache(context);
     }
 
+    static bool ResolveMainMSAAColor(MetalContext* context)
+    {
+        if (!context->m_MainMSAAColorNeedsResolve)
+        {
+            return false;
+        }
+
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
+        assert(!frame.m_RenderCommandEncoder);
+        if (!frame.m_CommandBuffer || !frame.m_MSAAColorTexture || !frame.m_Drawable)
+        {
+            return false;
+        }
+
+        // GPUs without combined MSAA store-and-resolve support need two passes.
+        // The rendering passes store the multisample texture, and this final
+        // pass loads and resolves it into the drawable.
+        MTL::RenderPassDescriptor* rp_desc = MTL::RenderPassDescriptor::alloc()->init();
+        MTL::RenderPassColorAttachmentDescriptor* color_attachment = rp_desc->colorAttachments()->object(0);
+        color_attachment->setTexture(frame.m_MSAAColorTexture);
+        color_attachment->setResolveTexture(frame.m_Drawable->texture());
+        color_attachment->setLoadAction(MTL::LoadActionLoad);
+        color_attachment->setStoreAction(MTL::StoreActionMultisampleResolve);
+
+        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+        MTL::RenderCommandEncoder* encoder = frame.m_CommandBuffer->renderCommandEncoder(rp_desc);
+        if (encoder)
+        {
+            encoder->retain();
+        }
+        pool->release();
+        rp_desc->release();
+
+        if (!encoder)
+        {
+            return false;
+        }
+
+        encoder->endEncoding();
+        encoder->release();
+        context->m_MainMSAAColorNeedsResolve = 0;
+        // MultisampleResolve may discard the multisample texture. A later pass
+        // must not try to load its previous contents.
+        context->m_MainRTBegunThisFrame = 0;
+        return true;
+    }
+
     static void BeginRenderPass(MetalContext* context, HRenderTarget render_target)
     {
         if (context->m_CurrentRenderTarget == render_target && context->m_RenderTargetBound)
@@ -1726,8 +1775,20 @@ namespace dmGraphics
             if (rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID && context->m_MSAASampleCount > 1)
             {
                 colorAttachment->setTexture(frame.m_MSAAColorTexture);
-                colorAttachment->setResolveTexture(tex->m_Texture);
-                colorAttachment->setStoreAction(MTL::StoreActionMultisampleResolve);
+                if (context->m_CombinedMSAAStoreAndResolveSupport)
+                {
+                    colorAttachment->setResolveTexture(tex->m_Texture);
+                    // The main render target can be resumed after rendering to an
+                    // offscreen target. Preserve its multisample attachment so the
+                    // resumed pass can load the pixels written by the previous pass.
+                    colorAttachment->setStoreAction(MTL::StoreActionStoreAndMultisampleResolve);
+                }
+                else
+                {
+                    // Resolve in a separate pass once rendering to the main target
+                    // is finished.
+                    colorAttachment->setStoreAction(MTL::StoreActionStore);
+                }
             }
             else if (rt->m_Base.m_SampleCount > 1)
             {
@@ -1777,12 +1838,12 @@ namespace dmGraphics
                     if (depthAttachment)
                     {
                         depthAttachment->setTexture(frame.m_MSAADepthTexture);
-                        depthAttachment->setStoreAction(MTL::StoreActionDontCare);
+                        depthAttachment->setStoreAction(MTL::StoreActionStore);
                     }
                     if (stencilAttachment)
                     {
                         stencilAttachment->setTexture(frame.m_MSAADepthTexture);
-                        stencilAttachment->setStoreAction(MTL::StoreActionDontCare);
+                        stencilAttachment->setStoreAction(MTL::StoreActionStore);
                     }
                 }
                 else
@@ -1837,6 +1898,10 @@ namespace dmGraphics
         if (is_main_rt)
         {
             context->m_MainRTBegunThisFrame = 1;
+            if (context->m_MSAASampleCount > 1 && !context->m_CombinedMSAAStoreAndResolveSupport)
+            {
+                context->m_MainMSAAColorNeedsResolve = 1;
+            }
         }
         rt->m_HasPendingClearColor = 0;
         rt->m_HasPendingClearDepth = 0;
@@ -1890,6 +1955,11 @@ namespace dmGraphics
                 [native_view.layer addSublayer:context->m_Layer];
             }
         }
+#else
+        uint32_t requested_drawable_width = 0;
+        uint32_t requested_drawable_height = 0;
+        GetDrawableSize(context, &requested_drawable_width, &requested_drawable_height);
+        context->m_Layer.drawableSize = CGSizeMake(requested_drawable_width, requested_drawable_height);
 #endif
 
         NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
@@ -1911,6 +1981,7 @@ namespace dmGraphics
         frame.m_ArgumentBufferPool.Rewind();
         context->m_RenderTargetBound = 0;
         context->m_MainRTBegunThisFrame = 0;
+        context->m_MainMSAAColorNeedsResolve = 0;
         ResetRenderEncoderStateCache(context);
 
         // Setup the initial render pass state
@@ -1922,19 +1993,10 @@ namespace dmGraphics
 
         const uint32_t drawable_width = frame.m_Drawable->texture()->width();
         const uint32_t drawable_height = frame.m_Drawable->texture()->height();
-#if defined(DM_PLATFORM_IOS)
         ResizeMainFramebufferResources(context, drawable_width, drawable_height);
-#endif
 
         color_tex->m_Texture    = frame.m_Drawable->texture();
         ds_tex->m_Texture       = context->m_MainDepthStencilTexture;
-
-        rt->m_ColorTextureParams[0].m_Width  = drawable_width;
-        rt->m_ColorTextureParams[0].m_Height = drawable_height;
-        rt->m_Base.m_ColorTextureParams[0].m_Width  = rt->m_ColorTextureParams[0].m_Width;
-        rt->m_Base.m_ColorTextureParams[0].m_Height = rt->m_ColorTextureParams[0].m_Height;
-        rt->m_Width = drawable_width;
-        rt->m_Height = drawable_height;
     }
 
     static void MetalCommandBufferCompleted(MetalContext* context, uint32_t frame_index)
@@ -1970,6 +2032,7 @@ namespace dmGraphics
 
         // End the current render pass
         EndRenderPass(context);
+        ResolveMainMSAAColor(context);
 
         const uint32_t frame_index = context->m_CurrentFrameInFlight;
         MetalFrameResource& frame = context->m_FrameResources[frame_index];
@@ -3116,7 +3179,10 @@ namespace dmGraphics
                     if (bound_ubo)
                     {
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
-                        if (bound_ubo->m_BaseUniformBuffer.m_Layout != *pgm_layout)
+                        if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout,
+                                                             bound_ubo->m_BaseUniformBuffer.m_Size,
+                                                             *pgm_layout,
+                                                             res->m_BindingInfo.m_BlockSize))
                         {
                             dmLogWarning("Uniform buffer with hash %u has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%u)",
                                 bound_ubo->m_BaseUniformBuffer.m_Layout,
@@ -3963,6 +4029,10 @@ namespace dmGraphics
         {
             context->m_ScissorChanged = true;
         }
+        else if (state == STATE_CULL_FACE)
+        {
+            context->m_CullFaceChanged = true;
+        }
         else if (state == STATE_POLYGON_OFFSET_FILL)
         {
             context->m_PolygonOffsetChanged = true;
@@ -3977,6 +4047,10 @@ namespace dmGraphics
         if (state == STATE_SCISSOR_TEST)
         {
             context->m_ScissorChanged = true;
+        }
+        else if (state == STATE_CULL_FACE)
+        {
+            context->m_CullFaceChanged = true;
         }
         else if (state == STATE_POLYGON_OFFSET_FILL)
         {
@@ -5458,6 +5532,8 @@ namespace dmGraphics
             source_is_backbuffer = rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID;
         }
 
+        const bool consumed_main_msaa = source_is_backbuffer && ResolveMainMSAAColor(context);
+
         const uint32_t src_row_size = AlignTo(dst_row_size, 256);
         const uint32_t readback_size = src_row_size * height;
         MTL::Buffer* readback_buffer = context->m_Device->newBuffer(readback_size, MTL::ResourceStorageModeShared);
@@ -5537,7 +5613,7 @@ namespace dmGraphics
         readback_buffer->release();
         source_texture->release();
 
-        if (was_rendering && frame.m_CommandBuffer)
+        if (was_rendering && frame.m_CommandBuffer && !consumed_main_msaa)
         {
             BeginRenderPass(context, render_target);
         }
@@ -5596,6 +5672,15 @@ namespace dmGraphics
 
     }
 
+    static void MetalSetSwapInterval(HContext _context, uint32_t swap_interval)
+    {
+        MetalContext* context = (MetalContext*)_context;
+        context->m_SwapInterval = swap_interval;
+#if !defined(DM_PLATFORM_IOS)
+        context->m_Layer.displaySyncEnabled = swap_interval != 0;
+#endif
+    }
+
     static void MetalGetViewport(HContext _context, int32_t* x, int32_t* y, uint32_t* width, uint32_t* height)
     {
         MetalContext* context = (MetalContext*)_context;
@@ -5607,6 +5692,7 @@ namespace dmGraphics
     {
         GraphicsAdapterFunctionTable fn_table = {};
         DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, Metal);
+        DM_REGISTER_GRAPHICS_FUNCTION(fn_table, Metal, SetSwapInterval);
         return fn_table;
     }
 }

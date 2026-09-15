@@ -198,6 +198,7 @@ enum MarkupAttributeType
     MARKUP_ATTRIBUTE_WIDTH,
     MARKUP_ATTRIBUTE_X,
     MARKUP_ATTRIBUTE_Y,
+    MARKUP_ATTRIBUTE_ALPHA,
 };
 
 enum MarkupConstantType

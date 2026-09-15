@@ -19,6 +19,7 @@ import static org.apache.commons.io.FilenameUtils.normalize;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.util.AppManifestMigration;
 import com.dynamo.bob.util.MiscUtil;
 import com.dynamo.bob.util.TimeProfiler;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
@@ -336,7 +337,7 @@ public class ExtenderUtil {
             }
 
             byte[] prefixBytes = prefix.getBytes(StandardCharsets.UTF_8);
-            byte[] content = addBullet3DAppManifestCompatibility(getResource().getContent());
+            byte[] content = migrateAppManifest(getResource().getContent());
             byte[] c = new byte[prefixBytes.length + content.length];
             System.arraycopy(prefixBytes, 0, c, 0, prefixBytes.length);
             System.arraycopy(content, 0, c, prefixBytes.length, content.length);
@@ -405,9 +406,37 @@ public class ExtenderUtil {
         return modified;
     }
 
-    // Older editor versions disabled Bullet3D without knowing about its script
-    // archive and extension symbol. Complete that exclusion before upload.
-    static byte[] addBullet3DAppManifestCompatibility(byte[] content) {
+    @SuppressWarnings("unchecked")
+    private static boolean migrateWindowsLibraryNames(Object contextValue) {
+        if (!(contextValue instanceof Map<?, ?>)) {
+            return false;
+        }
+
+        Map<String, Object> context = (Map<String, Object>) contextValue;
+        boolean modified = false;
+        for (String key : List.of("excludeLibs", "libs", "engineLibs")) {
+            Object librariesValue = context.get(key);
+            if (!(librariesValue instanceof List<?>)) {
+                continue;
+            }
+
+            List<?> libraries = (List<?>) librariesValue;
+            List<Object> migratedLibraries = new ArrayList<>(libraries.size());
+            for (Object library : libraries) {
+                String migratedLibrary = AppManifestMigration.WINDOWS_LIBRARY_NAMES.get(library);
+                migratedLibraries.add(migratedLibrary == null ? library : migratedLibrary);
+            }
+            if (!libraries.equals(migratedLibraries)) {
+                context.put(key, migratedLibraries);
+                modified = true;
+            }
+        }
+        return modified;
+    }
+
+    // Complete legacy Bullet3D exclusions and update Windows engine library
+    // names before upload, including projects never opened in the editor.
+    private static byte[] migrateAppManifest(byte[] content) {
         Object manifestValue;
         try {
             manifestValue = new Yaml().load(new String(content, StandardCharsets.UTF_8));
@@ -422,9 +451,16 @@ public class ExtenderUtil {
         boolean modified = addBullet3DCompatibilityExclusions(manifest.get("context"));
         Object platformsValue = manifest.get("platforms");
         if (platformsValue instanceof Map<?, ?>) {
-            for (Object platformValue : ((Map<?, ?>) platformsValue).values()) {
+            for (Map.Entry<?, ?> platform : ((Map<?, ?>) platformsValue).entrySet()) {
+                Object platformValue = platform.getValue();
                 if (platformValue instanceof Map<?, ?>) {
-                    modified |= addBullet3DCompatibilityExclusions(((Map<?, ?>) platformValue).get("context"));
+                    Object context = ((Map<?, ?>) platformValue).get("context");
+                    modified |= addBullet3DCompatibilityExclusions(context);
+                    if ("win32".equals(platform.getKey())
+                            || "x86-win32".equals(platform.getKey())
+                            || "x86_64-win32".equals(platform.getKey())) {
+                        modified |= migrateWindowsLibraryNames(context);
+                    }
                 }
             }
         }
@@ -657,7 +693,7 @@ public class ExtenderUtil {
         }
 
         // For iOS and macOS only: Add the project privacy manifest 
-        if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
+        if (platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim) {
             IResource resource = getProjectResource(project, "ios", "privacymanifest");
             if (resource != null) {
                 sources.add(new FSAliasResource(resource, project.getRootDirectory(), privacyManifestPath));
