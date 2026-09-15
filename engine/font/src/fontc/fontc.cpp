@@ -16,6 +16,7 @@
 #include "font.h"
 #include "font_glyphbank.h"
 #include "font_ttf.h"
+#include "font_vector_slug.h"
 #include "harfbuzz/font_harfbuzz.h"
 
 #include <glyph_gen.h>
@@ -162,8 +163,8 @@ struct CachedGlyph
     uint32_t  m_GlyphIndex;
     uint16_t  m_X;
     uint16_t  m_Y;
-    uint32_t  m_VectorCurveTexel;
-    uint32_t  m_VectorCurveCount;
+    FontGlyph m_VectorFace; // Borrows the owning glyph's outline; exact face metrics.
+    FontVectorSlugGlyph m_VectorGlyph;
 };
 
 struct TextureUpdateState
@@ -191,6 +192,7 @@ struct FontcContext
         , m_Collection(0)
         , m_Atlas(0)
         , m_AtlasVersion(1)
+        , m_VectorAtlasVersion(0)
         , m_Frame(0)
         , m_Hash(0)
         , m_TextLayout(0)
@@ -202,7 +204,6 @@ struct FontcContext
         , m_CellWidth(1)
         , m_CellHeight(1)
         , m_CellMaxAscent(0)
-        , m_VectorCurveCursor(0)
         , m_IsGlyphBank(false)
         , m_Vector(false)
     {
@@ -214,6 +215,7 @@ struct FontcContext
     dmArray<uint32_t>    m_FontCodepoints;
     uint8_t*             m_Atlas;
     uint64_t             m_AtlasVersion;
+    uint64_t             m_VectorAtlasVersion;
     uint64_t             m_Frame;
     uint64_t             m_Hash;
     HTextLayout          m_TextLayout;
@@ -240,7 +242,8 @@ struct FontcContext
     uint16_t             m_CellWidth;
     uint16_t             m_CellHeight;
     int32_t              m_CellMaxAscent;
-    uint32_t             m_VectorCurveCursor;
+    FontVectorSlugData   m_VectorData;
+    dmArray<FontGlyphVertex> m_LayoutVertices;
     uint8_t              m_CellPadding;
     uint8_t              m_SdfEdgeValue;
     uint8_t              m_Channels;
@@ -464,39 +467,6 @@ static void CalculateCurveJoinAngles(std::vector<EncodedVectorCurve>& curves)
     }
 }
 
-static bool EncodeVectorGlyph(FontcContext* session, CachedGlyph* cached)
-{
-    std::vector<EncodedVectorCurve> curves;
-    CollectEncodedCurves(cached->m_Glyph, curves);
-    CalculateCurveJoinAngles(curves);
-    if (curves.empty() || curves.size() > 256)
-        return false;
-    const uint32_t required_texels = (uint32_t)curves.size() * 2;
-    const uint32_t capacity = (uint32_t)session->m_AtlasWidth * session->m_AtlasHeight;
-    if (session->m_VectorCurveCursor + required_texels > capacity)
-        return false;
-
-    cached->m_VectorCurveTexel = session->m_VectorCurveCursor;
-    cached->m_VectorCurveCount = (uint32_t)curves.size();
-    float* atlas = (float*)session->m_Atlas;
-    for (uint32_t i = 0; i < curves.size(); ++i)
-    {
-        const EncodedVectorCurve& curve = curves[i];
-        const uint32_t component = (session->m_VectorCurveCursor + i * 2) * 4;
-        atlas[component + 0] = curve.m_P0.m_X;
-        atlas[component + 1] = curve.m_P0.m_Y;
-        atlas[component + 2] = curve.m_P1.m_X;
-        atlas[component + 3] = curve.m_P1.m_Y;
-        atlas[component + 4] = curve.m_P2.m_X;
-        atlas[component + 5] = curve.m_P2.m_Y;
-        atlas[component + 6] = curve.m_StartTangentAngle;
-        atlas[component + 7] = curve.m_EndTangentAngle;
-    }
-    session->m_VectorCurveCursor += required_texels;
-    ++session->m_AtlasVersion;
-    return true;
-}
-
 static uint32_t GetGlyphImageX(const FontcContext* session, uint32_t cell_x)
 {
     return cell_x + (session->m_IsGlyphBank ? 0 : session->m_CellPadding);
@@ -717,18 +687,35 @@ static CachedGlyph* GetOrCreateGlyph(FontcContext* session, HFont font, uint32_t
 
     if (session->m_Vector)
     {
-        FontGlyphOptions options = {};
-        options.m_Scale = FontGetScaleFromSize(font, session->m_Size);
-        options.m_GenerateOutline = true;
-        if (FontGetGlyphByIndex(font, glyph_index, &options, &new_glyph.m_Glyph) != FONT_RESULT_OK)
+        FontGlyphGenParams params;
+        GetGlyphGenParams(session, font, &params);
+        if (FontGenerateVectorGlyph(font, glyph_index, &params, &new_glyph.m_Glyph) != FONT_RESULT_OK)
             return 0;
-        new_glyph.m_Glyph.m_Bitmap.m_Width = (uint16_t)dmMath::Max(1.0f, ceilf(new_glyph.m_Glyph.m_Outline.m_Width));
-        new_glyph.m_Glyph.m_Bitmap.m_Height = (uint16_t)dmMath::Max(1.0f, ceilf(new_glyph.m_Glyph.m_Outline.m_Ascent + new_glyph.m_Glyph.m_Outline.m_Descent));
-        new_glyph.m_Glyph.m_Width = new_glyph.m_Glyph.m_Outline.m_Width;
-        new_glyph.m_Glyph.m_Height = new_glyph.m_Glyph.m_Outline.m_Height;
-        new_glyph.m_Glyph.m_LeftBearing = new_glyph.m_Glyph.m_Outline.m_LeftBearing;
-        new_glyph.m_Glyph.m_Ascent = new_glyph.m_Glyph.m_Outline.m_Ascent;
-        new_glyph.m_Glyph.m_Descent = new_glyph.m_Glyph.m_Outline.m_Descent;
+        const FontGlyphOutline& outline = new_glyph.m_Glyph.m_Outline;
+        // Joiners and other invisible glyphs can have a valid glyph index but
+        // no drawable outline. Keep their layout advance without caching a quad.
+        if (outline.m_CommandCount == 0 || outline.m_Width <= 0.0f || outline.m_Ascent + outline.m_Descent <= 0.0f)
+        {
+            FontFreeGlyph(font, &new_glyph.m_Glyph);
+            return 0;
+        }
+        FontGlyph& face = new_glyph.m_VectorFace;
+        face = new_glyph.m_Glyph;
+        face.m_Width = face.m_Outline.m_Width;
+        face.m_Height = face.m_Outline.m_Height;
+        face.m_LeftBearing = face.m_Outline.m_LeftBearing;
+        face.m_Ascent = face.m_Outline.m_Ascent;
+        face.m_Descent = face.m_Outline.m_Descent;
+        face.m_Bitmap.m_Width = (uint16_t)dmMath::Max(1.0f, ceilf(face.m_Width));
+        face.m_Bitmap.m_Height = (uint16_t)dmMath::Max(1.0f, ceilf(face.m_Ascent + face.m_Descent));
+        if (!new_glyph.m_Glyph.m_Bitmap.m_Data)
+        {
+            if (session->m_Glyphs.Full())
+                session->m_Glyphs.OffsetCapacity(32);
+            session->m_Glyphs.Push(new_glyph);
+            ++session->m_AtlasVersion;
+            return &session->m_Glyphs.Back();
+        }
     }
     else
     {
@@ -741,21 +728,6 @@ static CachedGlyph* GetOrCreateGlyph(FontcContext* session, HFont font, uint32_t
     {
         FontFreeGlyph(font, &new_glyph.m_Glyph);
         return 0;
-    }
-
-    if (session->m_Vector)
-    {
-        if (session->m_Glyphs.Full())
-            session->m_Glyphs.OffsetCapacity(32);
-        session->m_Glyphs.Push(new_glyph);
-        CachedGlyph* cached_glyph = &session->m_Glyphs.Back();
-        if (!EncodeVectorGlyph(session, cached_glyph))
-        {
-            RemoveCachedGlyph(session, session->m_Glyphs.Size() - 1);
-            return 0;
-        }
-        texture_update->m_Full = true;
-        return cached_glyph;
     }
 
     const uint16_t old_cell_width = session->m_CellWidth;
@@ -1024,7 +996,7 @@ static FontRendererResult CreateRenderer(HFont              font,
     *renderer = 0;
 
     const bool vector = !is_glyph_bank && params->m_OutputBitmap == 2;
-    const uint32_t component_size = vector ? sizeof(float) : sizeof(uint8_t);
+    const uint32_t component_size = sizeof(uint8_t);
 
     FontcContext* session = new FontcContext;
     session->m_Font = font;
@@ -1047,7 +1019,7 @@ static FontRendererResult CreateRenderer(HFont              font,
     session->m_ShadowBlur = params->m_ShadowBlur;
     session->m_ShadowX = params->m_ShadowX;
     session->m_ShadowY = params->m_ShadowY;
-    session->m_LayerMask = vector ? FONT_RENDERER_LAYER_FACE : params->m_LayerMask;
+    session->m_LayerMask = params->m_LayerMask;
     session->m_OutputBitmap = params->m_OutputBitmap != 0;
     session->m_Antialias = params->m_Antialias != 0;
     session->m_HasOutline = params->m_HasOutline != 0;
@@ -1075,7 +1047,7 @@ FontRendererResult FontcCreate(const char*        name,
                                HFontRenderer*     renderer)
 {
     const bool vector = params && params->m_OutputBitmap == 2;
-    const uint32_t channels = vector ? 4 : (params ? FontGetGlyphChannelCount(params->m_OutputBitmap, params->m_OutlineWidth > 0.0f, params->m_HasShadow, params->m_ShadowBlur) : 1);
+    const uint32_t channels = params ? FontGetGlyphChannelCount(params->m_OutputBitmap != 0, params->m_OutlineWidth > 0.0f, params->m_HasShadow, vector ? 0.0f : params->m_ShadowBlur) : 1;
     if (!name || !font_bytes || font_byte_count == 0 || !ValidateRendererParams(params, channels, renderer))
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
 
@@ -1683,7 +1655,7 @@ FontRendererResult FontcGenerateTexture(HFontRenderer renderer,
     texture->m_Width = update_width;
     texture->m_Height = update_height;
     texture->m_Channels = renderer->m_Channels;
-    const uint32_t component_size = renderer->m_Vector ? sizeof(float) : sizeof(uint8_t);
+    const uint32_t component_size = sizeof(uint8_t);
     const uint64_t pixel_count = (uint64_t)update_width * update_height * renderer->m_Channels * component_size;
     if (pixel_count > UINT32_MAX)
         return FONT_RENDERER_RESULT_OUT_OF_MEMORY;
@@ -1698,6 +1670,68 @@ FontRendererResult FontcGenerateTexture(HFontRenderer renderer,
         memcpy(texture->m_Pixels + y * row_bytes,
                renderer->m_Atlas + ((update_y + y) * renderer->m_AtlasWidth + update_x) * renderer->m_Channels * component_size,
                row_bytes);
+    }
+    return FONT_RENDERER_RESULT_OK;
+}
+
+static FontRendererResult PrepareVectorData(HFontRenderer renderer)
+{
+    if (renderer->m_VectorAtlasVersion == renderer->m_AtlasVersion)
+        return FONT_RENDERER_RESULT_OK;
+
+    // Finalize after all text entries have populated the glyph cache. Vertex
+    // requests also use this path so callers need no additional API step.
+    FontVectorSlugData& data = renderer->m_VectorData;
+    FontVectorSlugBegin(&data);
+    for (uint32_t i = 0; i < renderer->m_Glyphs.Size(); ++i)
+    {
+        CachedGlyph& glyph = renderer->m_Glyphs[i];
+        if (!FontVectorSlugAddFontGlyph(&data, glyph.m_Glyph, 8, &glyph.m_VectorGlyph))
+            return FONT_RENDERER_RESULT_GLYPH_ERROR;
+    }
+    renderer->m_VectorAtlasVersion = renderer->m_AtlasVersion;
+    return FONT_RENDERER_RESULT_OK;
+}
+
+FontRendererResult FontcGetVectorTextures(HFontRenderer renderer, uint64_t known_atlas_version,
+                                         FontcTexture* curves, FontcTexture* bands)
+{
+    if (!renderer || !renderer->m_Vector || !curves || !bands || curves == bands)
+        return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
+    memset(curves, 0, sizeof(*curves));
+    memset(bands, 0, sizeof(*bands));
+    curves->m_AtlasVersion = bands->m_AtlasVersion = renderer->m_AtlasVersion;
+    if (known_atlas_version == renderer->m_AtlasVersion)
+        return FONT_RENDERER_RESULT_OK;
+
+    FontRendererResult result = PrepareVectorData(renderer);
+    if (result != FONT_RENDERER_RESULT_OK)
+        return result;
+
+    const FontVectorSlugData& data = renderer->m_VectorData;
+    curves->m_Width = bands->m_Width = FONT_VECTOR_SLUG_WIDTH;
+    curves->m_Height = dmMath::Max(1u, (data.m_Curves.Size() / 4 + FONT_VECTOR_SLUG_WIDTH - 1) / FONT_VECTOR_SLUG_WIDTH);
+    bands->m_Height = dmMath::Max(1u, (data.m_Bands.Size() + FONT_VECTOR_SLUG_WIDTH - 1) / FONT_VECTOR_SLUG_WIDTH);
+    curves->m_Channels = bands->m_Channels = 4;
+    curves->m_PixelCount = curves->m_Width * curves->m_Height * 4 * sizeof(uint16_t);
+    bands->m_PixelCount = bands->m_Width * bands->m_Height * 4 * sizeof(float);
+    curves->m_Pixels = (uint8_t*)calloc(1, curves->m_PixelCount);
+    bands->m_Pixels = (uint8_t*)calloc(1, bands->m_PixelCount);
+    if (!curves->m_Pixels || !bands->m_Pixels)
+    {
+        FontcFreeTexture(curves);
+        FontcFreeTexture(bands);
+        return FONT_RENDERER_RESULT_OUT_OF_MEMORY;
+    }
+    if (!data.m_Curves.Empty())
+        memcpy(curves->m_Pixels, data.m_Curves.Begin(), data.m_Curves.Size() * sizeof(uint16_t));
+    // GL 2 has no integer samplers. Each unsigned 16-bit field is represented
+    // exactly by a float32 channel, using the runtime's unchanged band records.
+    float* output = (float*)bands->m_Pixels;
+    for (uint32_t i = 0; i < data.m_Bands.Size(); ++i)
+    {
+        output[i * 4] = (float)(data.m_Bands[i] & 65535u);
+        output[i * 4 + 1] = (float)(data.m_Bands[i] >> 16);
     }
     return FONT_RENDERER_RESULT_OK;
 }
@@ -1720,9 +1754,19 @@ static bool ResolveLayoutGlyph(void* context, const TextGlyph& text_glyph, FontL
         return false;
     }
 
-    output->m_Glyph = &cached->m_Glyph;
+    output->m_Glyph = renderer->m_Vector && !cached->m_Glyph.m_Bitmap.m_Data ? &cached->m_VectorFace : &cached->m_Glyph;
     output->m_CellX = cached->m_X;
     output->m_CellY = cached->m_Y;
+    return true;
+}
+
+static bool ResolveVectorFaceGlyph(void* context, const TextGlyph& text_glyph, FontLayoutCachedGlyph* output)
+{
+    CachedGlyph* cached = FindGlyph((HFontRenderer)context, text_glyph.m_Font, text_glyph.m_GlyphIndex);
+    if (!cached)
+        return false;
+    output->m_Glyph = &cached->m_VectorFace;
+    output->m_CellX = output->m_CellY = 0;
     return true;
 }
 
@@ -1760,14 +1804,14 @@ static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, co
     config->m_BaseLayerMask = renderer->m_LayerMask;
     // Curves map to exact outline bounds, not rounded bitmap widths.
     config->m_MetricsFromTtf = !renderer->m_IsGlyphBank && !renderer->m_Vector;
-    config->m_IsSdf = !renderer->m_IsGlyphBank && !renderer->m_OutputBitmap;
+    config->m_IsSdf = renderer->m_Vector || (!renderer->m_IsGlyphBank && !renderer->m_OutputBitmap);
     config->m_IsBMFont = renderer->m_IsGlyphBank && renderer->m_Channels == 4;
     config->m_ShadowUsesFaceCoverage = !renderer->m_IsGlyphBank && !renderer->m_Vector && renderer->m_OutputBitmap && !renderer->m_HasShadow;
     config->m_ShadowIncludesOutline = !renderer->m_IsGlyphBank && !renderer->m_Vector && renderer->m_OutputBitmap && renderer->m_HasShadow && renderer->m_HasOutline;
     config->m_RenderDecorations = !renderer->m_Vector;
     config->m_RenderObjectOutlines = !renderer->m_Vector;
     config->m_ResolveGlyphsForMetrics = true;
-    config->m_FaceOnly = renderer->m_Vector;
+    config->m_FaceOnly = false;
 }
 
 FontRendererResult FontcGetVertexBufferSize(HFontRenderer renderer,
@@ -1812,6 +1856,13 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
     if (!renderer || !renderer->m_HasProperties || !renderer->m_HasText || !world_transform)
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
 
+    if (renderer->m_Vector)
+    {
+        FontRendererResult result = PrepareVectorData(renderer);
+        if (result != FONT_RENDERER_RESULT_OK)
+            return result;
+    }
+
     HTextLayout layout = 0;
     TextResult  layout_result = GetRetainedLayout(renderer, &layout);
     if (layout_result != TEXT_RESULT_OK)
@@ -1841,15 +1892,51 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
     }
 
+    if (required_size == 0)
+    {
+        TextLayoutRelease(layout);
+        return FONT_RENDERER_RESULT_OK;
+    }
+
     if (!renderer->m_Vector)
     {
         FontCreateLayoutVertices(config, metrics, (FontGlyphVertex*)vertex_buffer, metrics.m_VertexCount);
     }
     else
     {
-        FontGlyphVertex* layout_vertices = new FontGlyphVertex[metrics.m_VertexCount];
+        // Reuse the common layout/style geometry. Effects use the padded bitmap
+        // bounds; faces use a second face-only plan with exact outline metrics.
+        FontLayoutVertexConfig face_config = config;
+        face_config.m_ResolveGlyph = ResolveVectorFaceGlyph;
+        face_config.m_FaceOnly = true;
+        FontLayoutVertexMetrics face_metrics;
+        FontGetLayoutVertexMetrics(face_config, &face_metrics);
+        const uint32_t scratch_count = metrics.m_VertexCount + face_metrics.m_VertexCount;
+        if (scratch_count > renderer->m_LayoutVertices.Capacity())
+            renderer->m_LayoutVertices.SetCapacity(scratch_count);
+        renderer->m_LayoutVertices.SetSize(scratch_count);
+        FontGlyphVertex* layout_vertices = renderer->m_LayoutVertices.Begin();
+        memset(layout_vertices, 0, scratch_count * sizeof(FontGlyphVertex));
         FontCreateLayoutVertices(config, metrics, layout_vertices, metrics.m_VertexCount);
+        FontGlyphVertex* face_vertices = layout_vertices + metrics.m_VertexCount;
+        FontCreateLayoutVertices(face_config, face_metrics, face_vertices, face_metrics.m_VertexCount);
         VectorPreviewVertex* vector_vertices = (VectorPreviewVertex*)vertex_buffer;
+        memset(vector_vertices, 0, required_size);
+        const uint32_t effect_count = (metrics.m_ShadowQuadCount + metrics.m_OutlineQuadCount) * 6;
+        for (uint32_t i = 0; i < effect_count; ++i)
+        {
+            const FontGlyphVertex& source = layout_vertices[i];
+            VectorPreviewVertex& destination = vector_vertices[i];
+            const bool shadow = i < metrics.m_ShadowQuadCount * 6;
+            destination.m_Position[0] = source.m_Position[0];
+            destination.m_Position[1] = source.m_Position[1];
+            destination.m_Position[3] = source.m_Position[2];
+            destination.m_Texcoord[0] = FontUnpackGlyphUV(source.m_UV[0]);
+            destination.m_Texcoord[1] = FontUnpackGlyphUV(source.m_UV[1]);
+            destination.m_Texcoord[3] = shadow ? 2.0f : 1.0f;
+            destination.m_EffectParams[0] = source.m_SdfParams[1];
+            memcpy(destination.m_Color, shadow ? source.m_ShadowColor : source.m_OutlineColor, 4);
+        }
         TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
         const uint32_t glyph_count = TextLayoutGetGlyphCount(layout);
         const uint32_t source_order[6] = { 0, 2, 1, 1, 2, 5 };
@@ -1865,21 +1952,20 @@ FontRendererResult FontcGetVertices(HFontRenderer renderer,
                 continue;
             for (uint32_t vertex_index = 0; vertex_index < 6; ++vertex_index)
             {
-                const FontGlyphVertex& source = layout_vertices[quad_index * 6 + source_order[vertex_index]];
-                VectorPreviewVertex& destination = vector_vertices[quad_index * 6 + vertex_index];
-                memset(&destination, 0, sizeof(destination));
+                const FontGlyphVertex& source = face_vertices[quad_index * 6 + source_order[vertex_index]];
+                VectorPreviewVertex& destination = vector_vertices[effect_count + quad_index * 6 + vertex_index];
                 destination.m_Position[0] = source.m_Position[0];
                 destination.m_Position[1] = source.m_Position[1];
-                destination.m_Position[2] = (float)cached->m_VectorCurveTexel;
+                destination.m_Position[2] = (float)cached->m_VectorGlyph.m_BandTexel;
+                destination.m_Position[3] = source.m_Position[2];
                 destination.m_Texcoord[0] = texcoords[vertex_index][0];
                 destination.m_Texcoord[1] = texcoords[vertex_index][1];
-                destination.m_Texcoord[2] = (float)cached->m_VectorCurveCount;
-                for (uint32_t color = 0; color < 4; ++color)
-                    destination.m_Color[color] = source.m_FaceColor[color];
+                destination.m_Texcoord[2] = (float)cached->m_VectorGlyph.m_CurveCount;
+                memcpy(destination.m_EffectParams, cached->m_VectorGlyph.m_BandTransform, sizeof(destination.m_EffectParams));
+                memcpy(destination.m_Color, source.m_FaceColor, 4);
             }
             ++quad_index;
         }
-        delete[] layout_vertices;
     }
     TextLayoutRelease(layout);
     return FONT_RENDERER_RESULT_OK;

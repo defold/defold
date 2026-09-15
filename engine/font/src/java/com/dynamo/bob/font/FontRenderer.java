@@ -36,6 +36,7 @@ import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetMarkupData;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetSupportedGlyphMetrics;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertexBufferSize;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVertices;
+import static com.dynamo.bob.font.generated.FontRendererFFM.FontcGetVectorTextures;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcHash;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcMeasure;
 import static com.dynamo.bob.font.generated.FontRendererFFM.FontcMeasureParsedMarkup;
@@ -447,14 +448,14 @@ public final class FontRenderer implements AutoCloseable {
         public final int componentSize;
         public final ByteBuffer pixels;
 
-        private Texture(MemorySegment values, boolean vector) {
+        private Texture(MemorySegment values, int componentSize) {
             atlasVersion = FontcTexture.m_AtlasVersion(values);
             x = FontcTexture.m_X(values);
             y = FontcTexture.m_Y(values);
             width = FontcTexture.m_Width(values);
             height = FontcTexture.m_Height(values);
             channels = FontcTexture.m_Channels(values);
-            componentSize = vector ? Float.BYTES : Byte.BYTES;
+            this.componentSize = componentSize;
             int pixelCount = FontcTexture.m_PixelCount(values);
             pixels = pixelCount == 0 ? null : copyNativeBytes(FontcTexture.m_Pixels(values), pixelCount);
         }
@@ -992,13 +993,39 @@ public final class FontRenderer implements AutoCloseable {
             int status = FontcGenerateTexture(requireHandle(), knownAtlasVersion, texture);
             checkResult(status, "Native font texture generation failed");
             try {
-                Texture result = new Texture(texture, vector);
+                Texture result = new Texture(texture, Byte.BYTES);
                 atlasVersion = result.atlasVersion;
                 return result;
             } finally {
                 FontcFreeTexture(texture);
             }
         }
+    }
+
+    /**
+     * Returns complete Slug curve (RGBA16F) and band (RGBA32F) texture updates.
+     * Call generateTexture for every entry in the batch first, then request these
+     * textures once. Both textures share the final atlas version; null
+     * pixels mean the caller's textures are current. Returned buffers are owned
+     * by Java, and native allocations are released before returning.
+     */
+    public synchronized Texture[] getVectorTextures(long knownAtlasVersion) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment curves = FontcTexture.allocate(arena);
+            MemorySegment bands = FontcTexture.allocate(arena);
+            try {
+                checkResult(FontcGetVectorTextures(requireHandle(), knownAtlasVersion, curves, bands),
+                        "Native Vector texture generation failed");
+                return new Texture[] {new Texture(curves, Short.BYTES), new Texture(bands, Float.BYTES)};
+            } finally {
+                FontcFreeTexture(curves);
+                FontcFreeTexture(bands);
+            }
+        }
+    }
+
+    public boolean isVector() {
+        return vector;
     }
 
     /**
