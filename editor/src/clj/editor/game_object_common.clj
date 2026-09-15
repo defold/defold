@@ -172,13 +172,17 @@
 
 (defn game-object-dependencies-fn [read-opts owner-resource prototype-desc]
   {:pre [(map? prototype-desc)]} ; GameObject$PrototypeDesc in map format.
-  ;; TODO: This should probably also consider resource property overrides?
-  (let [editable (resource/editable? owner-resource)
+  (let [existing-proj-path-fn (:existing-proj-path-fn read-opts)
         editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
+        editable (resource/editable? owner-resource)
         type-ext->resource-type (editable->type-ext->resource-type editable)]
-    (into (default-game-object-dependencies-fn read-opts owner-resource prototype-desc)
-          (mapcat #(embedded-component-desc->dependencies type-ext->resource-type read-opts owner-resource %))
-          (:embedded-components prototype-desc))))
+    (into []
+          (comp cat
+                (distinct))
+          [(default-game-object-dependencies-fn read-opts owner-resource prototype-desc)
+           (prototype-desc->referenced-property-resources prototype-desc existing-proj-path-fn)
+           (coll/into-> (:embedded-components prototype-desc) :eduction
+             (mapcat #(embedded-component-desc->dependencies type-ext->resource-type read-opts owner-resource %)))])))
 
 (defn embedded-component-instance-data [build-resource embedded-component-desc pose]
   {:pre [(workspace/build-resource? build-resource)

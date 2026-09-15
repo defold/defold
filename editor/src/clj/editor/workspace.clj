@@ -528,6 +528,12 @@ ordinary paths."
   {:pre [(every? keyword? (keys additional-kw-opts))]}
   (let [project-directory (project-directory basis workspace)
         editable-proj-path? (g/raw-property-value basis workspace :editable-proj-path?)
+        proj-path->resource (g/raw-property-value basis workspace :resource-map)
+
+        existing-proj-path-fn
+        (fn existing-proj-path-fn [value]
+          (when (contains? proj-path->resource value)
+            value))
 
         resolve-proj-path-fn
         (fn resolve-proj-path-fn [base-resource proj-path-or-relative-path]
@@ -551,6 +557,8 @@ ordinary paths."
     (assoc additional-kw-opts
       :editable->type-ext->resource-type editable->type-ext->resource-type
       :editable-proj-path? editable-proj-path?
+      :existing-proj-path-fn existing-proj-path-fn
+      :proj-path->resource proj-path->resource
       :proj-path->resource-type proj-path->resource-type
       :resolve-proj-path-fn resolve-proj-path-fn)))
 

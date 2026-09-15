@@ -203,27 +203,31 @@
 
 (defn collection-dependencies-fn [read-opts owner-resource collection-desc]
   {:pre [(map? collection-desc)]} ; GameObject$CollectionDesc in map format.
-  (let [editable (resource/editable? owner-resource)
+  (let [existing-proj-path-fn (:existing-proj-path-fn read-opts)
         editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
+        editable (resource/editable? owner-resource)
         type-ext->resource-type (editable->type-ext->resource-type editable)
         go-resource-type (type-ext->resource-type "go")
         go-dependencies-fn (:dependencies-fn go-resource-type)]
-    (coll/into->
-      (:embedded-instances collection-desc)
-      (default-collection-dependencies-fn read-opts owner-resource collection-desc)
-      (mapcat
-        (fn [{:keys [data] :as embedded-instance-desc}]
-          ;; If sanitation failed (due to a corrupt file), the embedded data
-          ;; might still be a string. In that case we report no dependencies.
-          ;; The load-fn will eventually mark our resource node as defective,
-          ;; so it doesn't matter.
-          (when (map? data)
-            (try
-              (go-dependencies-fn read-opts owner-resource data)
-              (catch Exception error
-                (log/warn :msg (format "Couldn't determine dependencies for embedded instance %s" (:id embedded-instance-desc))
-                          :exception error)
-                nil))))))))
+    (into []
+          (comp cat
+                (distinct))
+          [(default-collection-dependencies-fn read-opts owner-resource collection-desc)
+           (collection-desc->referenced-property-resources collection-desc existing-proj-path-fn)
+           (coll/into-> (:embedded-instances collection-desc) :eduction
+             (mapcat
+               (fn [{:keys [data] :as embedded-instance-desc}]
+                 ;; If sanitation failed (due to a corrupt file), the embedded
+                 ;; data might still be a string. In that case we report no
+                 ;; dependencies. The load-fn will eventually mark our resource
+                 ;; node as defective, so it doesn't matter.
+                 (when (map? data)
+                   (try
+                     (go-dependencies-fn read-opts owner-resource data)
+                     (catch Exception error
+                       (log/warn :msg (format "Couldn't determine dependencies for embedded instance %s" (:id embedded-instance-desc))
+                                 :exception error)
+                       nil))))))])))
 
 (defn game-object-instance-build-target [game-object-build-target instance-desc-with-go-props pose proj-path->resource-property-build-target]
   {:pre [(map? game-object-build-target)
