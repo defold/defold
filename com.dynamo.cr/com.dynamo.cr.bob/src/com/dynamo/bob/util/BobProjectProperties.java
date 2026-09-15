@@ -320,7 +320,7 @@ public class BobProjectProperties {
                     }
                     val.parseValueAsValuesArray();
                 }
-                return val.valuesArray.values().toArray(new String[val.valuesArray.size()]);
+                return val.valuesArray.values().toArray(new String[0]);
             }
         }
         return defaultValue;
@@ -375,7 +375,7 @@ public class BobProjectProperties {
         }
 
         List<String> merged = new ArrayList<String>(values);
-        return merged.toArray(new String[merged.size()]);
+        return merged.toArray(new String[0]);
     }
 
     /**

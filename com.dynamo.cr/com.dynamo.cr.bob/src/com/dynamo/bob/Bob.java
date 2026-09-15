@@ -688,7 +688,7 @@ public class Bob {
             for (String choice : validChoices) {
                 System.out.printf("%s, ", choice);
             }
-            System.out.printf("\n");
+            System.out.print("\n");
             throw new OptionValidationException(1);
         }
     }
@@ -746,7 +746,7 @@ public class Bob {
                 return new InvocationResult(true, Collections.emptyList());
             }
             if (cmd.hasOption("version")) {
-                System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
+                System.out.printf("bob.jar version: %s  sha1: %s  built: %s%n", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp);
                 return new InvocationResult(true, Collections.emptyList());
             }
             String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
@@ -909,7 +909,7 @@ public class Bob {
                 }
 
                 if (architectures.length == 0) {
-                    System.out.println(String.format("ERROR! --architectures cannot be empty. Available architectures: %s", String.join(", ", availableArchitectures)));
+                    System.out.printf("ERROR! --architectures cannot be empty. Available architectures: %s%n", String.join(", ", availableArchitectures));
                     throw new OptionValidationException(1);
                 }
 
@@ -918,7 +918,7 @@ public class Bob {
                 Set<String> uniqueArchitectures = new HashSet<String>();
                 for (String architecture : architectures) {
                     if (!availableArchitectures.contains(architecture)) {
-                        System.out.println(String.format("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s", architecture, platform.getPair(), String.join(", ", availableArchitectures)));
+                        System.out.printf("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s%n", architecture, platform.getPair(), String.join(", ", availableArchitectures));
                         throw new OptionValidationException(1);
                     }
                     uniqueArchitectures.add(architecture);
@@ -941,7 +941,7 @@ public class Bob {
 
                 String variant = project.option("variant", VARIANT_RELEASE);
                 if (!(variant.equals(VARIANT_DEBUG) || variant.equals(VARIANT_RELEASE) || variant.equals(VARIANT_HEADLESS))) {
-                    System.out.println(String.format("--variant option must be one of %s, %s, or %s", VARIANT_DEBUG, VARIANT_RELEASE, VARIANT_HEADLESS));
+                    System.out.printf("--variant option must be one of %s, %s, or %s%n", VARIANT_DEBUG, VARIANT_RELEASE, VARIANT_HEADLESS);
                     throw new OptionValidationException(1);
                 }
 

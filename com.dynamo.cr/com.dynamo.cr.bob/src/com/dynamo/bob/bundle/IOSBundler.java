@@ -101,7 +101,7 @@ public class IOSBundler implements IBundler {
         return binaries;
     }
 
-    private static final String SYMBOL_EXE_RELATIVE_PATH = String.format("Contents/Resources/DWARF/dmengine");
+    private static final String SYMBOL_EXE_RELATIVE_PATH = "Contents/Resources/DWARF/dmengine";
 
     public static List<File> getSymbolDirsFromArchitectures(File buildDir, List<Platform> architectures) {
         final String[] prefixes = {"", "src" + File.separator};
@@ -259,7 +259,7 @@ public class IOSBundler implements IBundler {
             }
         }
         else {
-            System.out.printf("No ./Framework folder to sign\n");
+            System.out.print("No ./Framework folder to sign\n");
         }
 
         File pluginsDir = new File(appDir, "PlugIns");
@@ -278,7 +278,7 @@ public class IOSBundler implements IBundler {
             }
         }
         else {
-            System.out.printf("No ./PlugIns folder to sign\n");
+            System.out.print("No ./PlugIns folder to sign\n");
         }
     }
 

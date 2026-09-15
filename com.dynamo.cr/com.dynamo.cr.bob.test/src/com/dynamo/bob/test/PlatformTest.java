@@ -79,7 +79,7 @@ public class PlatformTest {
             List<String> availableArchitectures = Arrays.asList(platform.getArchitectures().getArchitectures());
             if (!availableArchitectures.contains(platform.getPair()))
             {
-                System.out.println(String.format("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s", platform.getPair(), platform.getPair(), String.join(", ", availableArchitectures)));
+                System.out.printf("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s%n", platform.getPair(), platform.getPair(), String.join(", ", availableArchitectures));
                 fail();
             }
         }

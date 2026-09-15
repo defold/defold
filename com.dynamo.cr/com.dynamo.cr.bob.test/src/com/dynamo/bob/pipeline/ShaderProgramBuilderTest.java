@@ -112,8 +112,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private void checkOnlyExpectedLanguages(ShaderDesc shader, ShaderDesc.Language... expectedLanguages) {
-        Set<ShaderDesc.Language> expected = new HashSet<>();
-        expected.addAll(Arrays.asList(expectedLanguages));
+        Set<ShaderDesc.Language> expected = new HashSet<>(Arrays.asList(expectedLanguages));
 
         Set<ShaderDesc.Language> actual = new HashSet<>();
         for (ShaderDesc.Shader shaderDesc : shader.getShadersList()) {

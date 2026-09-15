@@ -111,7 +111,7 @@ public class ProjectTest {
     public TestLibrariesRule testLibs = new TestLibrariesRule();
 
     private void initHttpServer(String serverLocation) throws IOException {
-        System.out.printf("initHttpServer start");
+        System.out.print("initHttpServer start");
         httpServer = new Server();
 
         SocketConnector connector = new SocketConnector();
@@ -128,7 +128,7 @@ public class ProjectTest {
         } catch (Exception e) {
             throw new IOException("Unable to start http server", e);
         }
-        System.out.printf("initHttpServer end");
+        System.out.print("initHttpServer end");
     }
 
     private String[] selectLibraryAuthEnv() {
@@ -145,7 +145,7 @@ public class ProjectTest {
 
     @Before
     public void setUp() throws Exception {
-        System.out.printf("setUp start");
+        System.out.print("setUp start");
         // See TestLibrariesRule.java for the creation of these zip files
         String[] authEnv = selectLibraryAuthEnv();
         basicAuthEnvToken = "user:__" + authEnv[0] + "__";
@@ -165,7 +165,7 @@ public class ProjectTest {
         project.setLibUrls(libraryUrls);
 
         initHttpServer(testLibs.getServerLocation());
-        System.out.printf("setUp end");
+        System.out.print("setUp end");
     }
 
     @After
@@ -184,7 +184,7 @@ public class ProjectTest {
 
     @Test
     public void testResolve() throws Exception {
-        System.out.printf("testResolve begin");
+        System.out.print("testResolve begin");
 
         assertEquals(0, _304Count.get());
         File libDir = new File(project.getLibPath());
@@ -216,7 +216,7 @@ public class ProjectTest {
         }
         assertEquals(filenames.size(), _304Count.get());
 
-        System.out.printf("testResolve end");
+        System.out.print("testResolve end");
     }
 
     @Test
@@ -376,7 +376,7 @@ public class ProjectTest {
 
     @Test
     public void testMountPoints() throws Exception {
-        System.out.printf("testMountPoints start");
+        System.out.print("testMountPoints start");
         project.resolveLibUrls(Progress.discarding());
         project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test_lib1/file1.in", "test_lib2/file2.in", "test_lib5/file5.in", "builtins/cp_test.in"));
@@ -385,12 +385,12 @@ public class ProjectTest {
         for (TaskResult result : results) {
             assertTrue(result.isOk());
         }
-        System.out.printf("end");
+        System.out.print("end");
     }
 
     @Test
     public void testMountPointFindSources() throws Exception {
-        System.out.printf("testMountPointFindSources start");
+        System.out.print("testMountPointFindSources start");
         project.resolveLibUrls(Progress.discarding());
         project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test_lib2/file2.in", "test_lib1/file1.in", "test_lib6/file6.in", "test_lib5/file5.in"));
@@ -400,7 +400,7 @@ public class ProjectTest {
             assertTrue(result.isOk());
         }
 
-        System.out.printf("end");
+        System.out.print("end");
     }
 
     // due to bob.jar including builtins/ we get way too many resources
@@ -419,7 +419,7 @@ public class ProjectTest {
 
     @Test
     public void testFindResourcePaths() throws Exception {
-        System.out.printf("testFindResourcePaths start");
+        System.out.print("testFindResourcePaths start");
         libraryUrls.add(URI.create("http://localhost:8081/test_lib3.zip"));
         project.resolveLibUrls(Progress.discarding());
         project.mount(new ClassLoaderResourceScanner());
@@ -431,12 +431,12 @@ public class ProjectTest {
 
         assertFalse(results.isEmpty());
         assertEquals(7, results.size());
-        System.out.printf("end");
+        System.out.print("end");
     }
 
     @Test
     public void testFindResourceDirs() throws Exception {
-        System.out.printf("testFindResourceDirs start");
+        System.out.print("testFindResourceDirs start");
         libraryUrls.add(URI.create("http://localhost:8081/test_lib3.zip"));
         project.resolveLibUrls(Progress.discarding());
         project.mount(new ClassLoaderResourceScanner());
@@ -457,7 +457,7 @@ public class ProjectTest {
         assertEquals(2, results.size());
         assertTrue(results.contains("testdir1"));
         assertTrue(results.contains("testdir2"));
-        System.out.printf("end");
+        System.out.print("end");
     }
 
     @Test

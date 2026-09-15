@@ -649,10 +649,10 @@ public class Project implements AutoCloseable {
     }
 
     private void logWarning(String fmt, Object... args) {
-        System.err.println(String.format(fmt, args));
+        System.err.printf((fmt) + "%n", args);
     }
     private void logInfo(String fmt, Object... args) {
-        System.out.println(String.format(fmt, args));
+        System.out.printf((fmt) + "%n", args);
     }
 
     public void createPublisher() throws CompileExceptionError {

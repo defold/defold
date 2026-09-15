@@ -178,7 +178,7 @@ public class BundlerTest {
         if (!file.exists())
         {
             System.out.printf("A missing file %s\n", file);
-            System.out.printf("Directory contents:\n");
+            System.out.print("Directory contents:\n");
             listDir(bundleDir);
         }
         assertTrue(file.exists());
