@@ -163,6 +163,40 @@
             (test-util/close-tab! project app-view "/fonts/vector_preview.go")
             (test-util/close-tab! project app-view "/fonts/vector_preview.gui")))))))
 
+(deftest font-mode-switch-in-font-view
+  (test-util/with-loaded-project
+    (let [path "/fonts/vector_implicit_dynamic.font"
+          font-node (project/get-resource-node project path)]
+      (g/transact
+        {:undoable false}
+        [(g/set-property font-node :characters "Example")
+         (g/set-property font-node :size 36)
+         (g/set-property font-node :runtime true)
+         (g/set-property font-node :vector-font-mode :vector-font-mode-sdf)])
+      (let [[_ view] (test-util/open-scene-view! project app-view path 512 256)
+            request-vertex-buffer font/request-vertex-buffer
+            buffers (volatile! [])]
+        (try
+          (doseq [mode [:sdf :vector :sdf :vector]]
+            (testing (name mode)
+              (g/transact
+                {:undoable false}
+                [(g/set-property font-node :vector-font-mode (if (= :sdf mode) :vector-font-mode-sdf :vector-font-mode-vector))
+                 (g/set-property font-node :material (workspace/find-resource workspace (if (= :sdf mode) "/builtins/fonts/font-df.material" "/builtins/fonts/font-vector.material")))])
+              (vreset! buffers [])
+              (with-redefs [font/request-vertex-buffer (fn [& args]
+                                                       (let [buffer (apply request-vertex-buffer args)]
+                                                         (vswap! buffers conj buffer)
+                                                         buffer))]
+                (g/valid-node-value view :frame))
+              (is (= 1 (count @buffers)))
+              (let [^editor.gl.vertex2.VertexBuffer buffer (first @buffers)]
+                (is (= 42 (count buffer)))
+                (is (= (if (= :sdf mode) 56 52) (:size (.vertex-description buffer)))))))
+          (finally
+            (#'scene/dispose-preview view)
+            (test-util/close-tab! project app-view path)))))))
+
 (deftest vector-batch-uploads-numeric-textures-once
   (test-util/with-loaded-project
     (let [font-node (project/get-resource-node project "/fonts/vector_implicit_dynamic.font")

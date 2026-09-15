@@ -1342,7 +1342,7 @@
              native-entry-states (mapv #(make-native-entry-state (:font-map font-data) %) text-entries)
              atlas-state (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)
              [vertex-key entry-requirements] (prepare-native-render-batch! gl native-renderer font-data native-entry-states atlas-state)]
-         (scene-cache/request-object! ::native-vb [request-id (:type font-data) (:vector? font-data)] gl
+         (scene-cache/request-object! ::native-vb [request-id (:type font-data) (.isVector ^FontRenderer native-renderer)] gl
                                       (NativeVertexBufferRequest. native-renderer native-entry-states entry-requirements vertex-key)))
        (let [glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
                                                       (select-keys font-data [:font-map :texture]))
