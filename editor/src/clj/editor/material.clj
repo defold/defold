@@ -18,6 +18,7 @@
             [editor.code.data :as code.data]
             [editor.code.shader-compilation :as shader-compilation]
             [editor.defold-project :as project]
+            [editor.font-shader :as font-shader]
             [editor.gl.shader :as shader]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
@@ -212,13 +213,23 @@
 (g/defnk produce-combined-shader-info [_node-id vertex-program vertex-shader-source-info fragment-program fragment-shader-source-info max-page-count glsl-es-default-precision-float glsl-es-default-precision-int]
   (or (prop-resource-error _node-id :vertex-program vertex-program vertex-program-message "vp")
       (prop-resource-error _node-id :fragment-program fragment-program fragment-program-message "fp")
-      (let [augmented-shader-infos
-            (mapv (fn [{:keys [node-id resource shader-source]}]
-                    (transpile-shader-source node-id resource shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int))
-                  [vertex-shader-source-info
-                   fragment-shader-source-info])]
-        (g/precluding-errors augmented-shader-infos
-          (shader-gen/combined-shader-info augmented-shader-infos)))))
+      ;; The built-in Slug shader has a numeric-texture representation for the
+      ;; GL 2 preview. Its uint operations must not reach the GLSL 1.20 transpiler.
+      (if (and (= "/builtins/fonts/font-vector.vp" (resource/proj-path vertex-program))
+               (= "/builtins/fonts/font-vector.fp" (resource/proj-path fragment-program)))
+        {:shader-type+source-pairs (font-shader/preview-sources (:shader-source fragment-shader-source-info) false)
+         :attribute-reflection-infos []
+         :location+attribute-name-pairs []
+         :array-sampler-name->slice-sampler-names {}
+         :preview-light-capacity 0
+         :max-page-count max-page-count}
+        (let [augmented-shader-infos
+              (mapv (fn [{:keys [node-id resource shader-source]}]
+                      (transpile-shader-source node-id resource shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int))
+                    [vertex-shader-source-info
+                     fragment-shader-source-info])]
+          (g/precluding-errors augmented-shader-infos
+            (shader-gen/combined-shader-info augmented-shader-infos))))))
 
 (g/defnk produce-shader-request-data [combined-shader-info]
   (-> (shader/make-shader-request-data

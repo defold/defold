@@ -26,13 +26,23 @@ SOFTWARE.
 // Packed R32UI carries the reference's two unsigned 16-bit band fields.
 float saturate(float x) { return clamp(x, 0.0, 1.0); }
 uniform highp sampler2D curve_texture;
+#ifdef SLUG_LEGACY_GL
+// The editor's GL 2 profile reads the same band records as exact float32 pairs.
+uniform sampler2D band_texture;
+uniform vec4 curve_texture_size_recip;
+uniform vec4 band_texture_size_recip;
+ivec2 LoadBand(ivec2 location)
+{
+    return ivec2(texture2D(band_texture, (vec2(location) + 0.5) * band_texture_size_recip.xy).rg);
+}
+#else
 uniform highp utexture2D band_texture;
-
-uvec2 LoadBand(ivec2 location)
+ivec2 LoadBand(ivec2 location)
 {
     uint packed = texelFetch(band_texture, location, 0).x;
-    return uvec2(packed & 65535U, packed >> 16U);
+    return ivec2(packed & 65535U, packed >> 16U);
 }
+#endif
 
 // ===================================================
 // Reference pixel shader for the Slug algorithm.
@@ -47,11 +57,23 @@ uvec2 LoadBand(ivec2 location)
 
 // It's convenient to have a texel load function to aid in translation to other shader languages.
 
+#ifdef SLUG_LEGACY_GL
+#define TexelLoad2D(x, y) texture2D(x, (vec2(y) + 0.5) * curve_texture_size_recip.xy)
+#else
 #define TexelLoad2D(x, y) texelFetch(x, y, 0)
+#endif
 
 
-uint CalcRootCode(float y1, float y2, float y3)
+int CalcRootCode(float y1, float y2, float y3)
 {
+#ifdef SLUG_LEGACY_GL
+    // The reference's eight sign combinations, without GLSL integer bit ops.
+    int signs = (y1 < 0.0 ? 1 : 0) + (y2 < 0.0 ? 2 : 0) + (y3 < 0.0 ? 4 : 0);
+    if (signs == 1 || signs == 3) return 256;
+    if (signs == 2 || signs == 5) return 257;
+    if (signs == 4 || signs == 6) return 1;
+    return 0;
+#else
 	// Calculate the root eligibility code for a sample-relative quadratic Bézier curve.
 	// Extract the signs of the y coordinates of the three control points.
 
@@ -64,7 +86,8 @@ uint CalcRootCode(float y1, float y2, float y3)
 
 	// Eligibility is returned in bits 0 and 8.
 
-	return ((0x2E74U >> shift) & 0x0101U);
+	return int((0x2E74U >> shift) & 0x0101U);
+#endif
 }
 
 vec2 SolveHorizPoly(vec4 p12, vec2 p3)
@@ -119,14 +142,19 @@ vec2 SolveVertPoly(vec4 p12, vec2 p3)
 	return (vec2((a.y * t1 - b.y * 2.0) * t1 + p12.y, (a.y * t2 - b.y * 2.0) * t2 + p12.y));
 }
 
-ivec2 CalcBandLoc(ivec2 glyphLoc, uint offset)
+ivec2 CalcBandLoc(ivec2 glyphLoc, int offset)
 {
+#ifdef SLUG_LEGACY_GL
+    float x = float(glyphLoc.x + offset);
+    return ivec2(mod(x, 4096.0), float(glyphLoc.y) + floor(x / 4096.0));
+#else
 	// If the offset causes the x coordinate to exceed the texture width, then wrap to the next line.
 
 	ivec2 bandLoc = ivec2(glyphLoc.x + int(offset), glyphLoc.y);
 	bandLoc.y += bandLoc.x >> kLogBandTextureWidth;
 	bandLoc.x &= (1 << kLogBandTextureWidth) - 1;
 	return (bandLoc);
+#endif
 }
 
 float CalcCoverage(float xcov, float ycov, float xwgt, float ywgt, int flags)
@@ -183,13 +211,21 @@ float SlugRender(vec2 renderCoord, vec4 bandTransform, ivec4 glyphData)
 	vec2 pixelsPerEm = 1.0 / emsPerPixel;
 
 	ivec2 bandMax = glyphData.zw;
-	bandMax.y &= 0x00FF;
+	#ifdef SLUG_LEGACY_GL
+    bandMax.y = int(mod(float(bandMax.y), 256.0));
+    #else
+    bandMax.y &= 0x00FF;
+    #endif
 
 	// Determine what bands the current pixel lies in by applying a scale and offset
 	// to the render coordinates. The scales are given by bandTransform.xy, and the
 	// offsets are given by bandTransform.zw. Band indexes are clamped to [0, bandMax.xy].
 
-	ivec2 bandIndex = clamp(ivec2(renderCoord * bandTransform.xy + bandTransform.zw), ivec2(0, 0), bandMax);
+	#ifdef SLUG_LEGACY_GL
+    ivec2 bandIndex = ivec2(clamp(renderCoord * bandTransform.xy + bandTransform.zw, vec2(0.0), vec2(bandMax)));
+    #else
+    ivec2 bandIndex = clamp(ivec2(renderCoord * bandTransform.xy + bandTransform.zw), ivec2(0, 0), bandMax);
+    #endif
 	ivec2 glyphLoc = glyphData.xy;
 
 	float xcov = 0.0;
@@ -199,7 +235,7 @@ float SlugRender(vec2 renderCoord, vec4 bandTransform, ivec4 glyphData)
 	// of curves intersecting the band is in the x component, and the offset
 	// to the list of locations for those curves is in the y component.
 
-	uvec2 hbandData = LoadBand(ivec2(glyphLoc.x + bandIndex.y, glyphLoc.y)).xy;
+	ivec2 hbandData = LoadBand(ivec2(glyphLoc.x + bandIndex.y, glyphLoc.y)).xy;
 	ivec2 hbandLoc = CalcBandLoc(glyphLoc, hbandData.y);
 
 	// Loop over all curves in the horizontal band.
@@ -228,8 +264,8 @@ float SlugRender(vec2 renderCoord, vec4 bandTransform, ivec4 glyphData)
 
 		if (max(max(p12.x, p12.z), p3.x) * pixelsPerEm.x < -0.5) break;
 
-		uint code = CalcRootCode(p12.y, p12.w, p3.y);
-		if (code != 0U)
+		int code = CalcRootCode(p12.y, p12.w, p3.y);
+		if (code != 0)
 		{
 			// At least one root makes a contribution. Calculate them and scale so
 			// that the current pixel corresponds to the range [0,1].
@@ -238,13 +274,13 @@ float SlugRender(vec2 renderCoord, vec4 bandTransform, ivec4 glyphData)
 
 			// Bits in code tell which roots make a contribution.
 
-			if ((code & 1U) != 0U)
+			if (code == 1 || code == 257)
 			{
 				xcov += saturate(r.x + 0.5);
 				xwgt = max(xwgt, saturate(1.0 - abs(r.x) * 2.0));
 			}
 
-			if (code > 1U)
+			if (code > 1)
 			{
 				xcov -= saturate(r.y + 0.5);
 				xwgt = max(xwgt, saturate(1.0 - abs(r.y) * 2.0));
@@ -258,7 +294,7 @@ float SlugRender(vec2 renderCoord, vec4 bandTransform, ivec4 glyphData)
 	// Fetch data for the vertical band from the index texture. This follows
 	// the data for all horizontal bands, so we have to add bandMax.y + 1.
 
-	uvec2 vbandData = LoadBand(ivec2(glyphLoc.x + bandMax.y + 1 + bandIndex.x, glyphLoc.y)).xy;
+	ivec2 vbandData = LoadBand(ivec2(glyphLoc.x + bandMax.y + 1 + bandIndex.x, glyphLoc.y)).xy;
 	ivec2 vbandLoc = CalcBandLoc(glyphLoc, vbandData.y);
 
 	// Loop over all curves in the vertical band.
@@ -276,18 +312,18 @@ float SlugRender(vec2 renderCoord, vec4 bandTransform, ivec4 glyphData)
 
 		if (max(max(p12.y, p12.w), p3.y) * pixelsPerEm.y < -0.5) break;
 
-		uint code = CalcRootCode(p12.x, p12.z, p3.x);
-		if (code != 0U)
+		int code = CalcRootCode(p12.x, p12.z, p3.x);
+		if (code != 0)
 		{
 			vec2 r = SolveVertPoly(p12, p3) * pixelsPerEm.y;
 
-			if ((code & 1U) != 0U)
+			if (code == 1 || code == 257)
 			{
 				ycov -= saturate(r.x + 0.5);
 				ywgt = max(ywgt, saturate(1.0 - abs(r.x) * 2.0));
 			}
 
-			if (code > 1U)
+			if (code > 1)
 			{
 				ycov += saturate(r.y + 0.5);
 				ywgt = max(ywgt, saturate(1.0 - abs(r.y) * 2.0));

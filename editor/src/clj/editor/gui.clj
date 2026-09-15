@@ -245,6 +245,7 @@
 (defn render-tris [^GL2 gl render-args renderables _rcount]
   (let [user-data (get-in renderables [0 :user-data])
         clipping-state (:clipping-state user-data)
+        font-data (get-in user-data [:text-data :font-data])
         gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
         material-shader (get user-data :material-shader)
         blend-mode (get user-data :blend-mode)
@@ -258,8 +259,10 @@
               vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
                                (vtx2/use-with ::tris vb shader)
                                (vtx/use-with ::tris vb shader))]
-          (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
-            (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
+          (gl/with-gl-bindings gl render-args (into [shader vertex-binding gpu-texture] (:vector-textures font-data))
+            (if (:vector? font-data)
+              (font/set-vector-uniforms! gl shader font-data)
+              (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture)))
             (clipping/setup-gl gl clipping-state)
             (gl/set-blend-mode gl blend-mode)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
@@ -267,11 +270,14 @@
             (clipping/restore-gl gl clipping-state)))
 
         pass/selection
-        (let [vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
+        (let [id-shader (or (:selection-shader font-data) id-shader)
+              vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
                                (vtx2/use-with ::tris vb id-shader)
                                (vtx/use-with ::tris vb id-shader))]
-          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
-            (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
+          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) (into [id-shader vertex-binding gpu-texture] (:vector-textures font-data))
+            (if (:vector? font-data)
+              (font/set-vector-uniforms! gl id-shader font-data)
+              (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture)))
             (clipping/setup-gl gl clipping-state)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
             (clipping/restore-gl gl clipping-state)))))))

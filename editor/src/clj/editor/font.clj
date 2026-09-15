@@ -26,6 +26,7 @@
             [editor.defold-project :as project]
             [editor.editor-extensions.graph :as ext-graph]
             [editor.editor-extensions.runtime :as rt]
+            [editor.font-shader :as font-shader]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
@@ -58,6 +59,7 @@
            [com.dynamo.render.proto Font$CompiledStyle Font$FontDesc Font$FontMap Font$FontRenderMode Font$FontTextureFormat Font$StyleDesc Font$VectorFontMode]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl.util.texture Texture]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB Region]
@@ -174,6 +176,20 @@
   (vec3 layer_mask))
 
 (def ^:private vertex-order [0 1 2 1 3 2])
+
+(vtx/defvertex ^:private ^:no-put VectorFontVertex
+  (vec4 position)
+  (vec4 texcoord)
+  (vec4 effect_params)
+  (vec4.ubyte color true))
+
+(defn set-vector-uniforms!
+  [^GL2 gl material-shader font-data]
+  (doseq [[gpu-texture uniform] (mapv vector (:vector-textures font-data)
+                                     ["curve_texture_size_recip" "band_texture_size_recip"])]
+    (let [^Texture tex (texture/->texture gpu-texture gl 0)]
+      (shader/set-uniform material-shader gl uniform
+                          (Vector4d. (/ 1.0 (.getWidth tex)) (/ 1.0 (.getHeight tex)) 0.0 0.0)))))
 
 (defn- put-pos-uv!
   [^ByteBuffer bb x y z u v]
@@ -882,7 +898,9 @@
                      :texture  schema/Any
                      :native-renderer-spec schema/Any
                      :vector? schema/Bool
-                     :preview-shader schema/Any})
+                     :preview-shader schema/Any
+                     (schema/optional-key :vector-textures) schema/Any
+                     (schema/optional-key :selection-shader) schema/Any})
 
 (defn- place-glyph [glyph-cache glyph]
   (let [placed-glyph (glyph-cache glyph)]
@@ -1187,18 +1205,18 @@
     (.setText native-renderer ^String (:text native-entry-state))))
 
 (defn- generate-native-texture!
-  [^GL2 gl ^FontRenderer native-renderer texture ^long known-atlas-version]
+  [^GL2 gl ^FontRenderer native-renderer font-data ^long known-atlas-version]
   (let [^FontRenderer$Texture generated-texture
         (.generateTexture native-renderer known-atlas-version)]
     (when-let [^ByteBuffer pixels (.-pixels generated-texture)]
-      (texture/update-sub-image! texture gl 0 pixels
+      (texture/update-sub-image! (:texture font-data) gl 0 pixels
                                  (glyph-channels->data-format (.-channels generated-texture))
                                  (.-x generated-texture) (.-y generated-texture)
                                  (.-width generated-texture) (.-height generated-texture)))
     (.-atlasVersion generated-texture)))
 
 (defn- prepare-native-render-batch!
-  [^GL2 gl ^FontRenderer native-renderer texture native-entry-states atlas-state]
+  [^GL2 gl ^FontRenderer native-renderer font-data native-entry-states atlas-state]
   (let [atlas-key (mapv :atlas-key native-entry-states)
         previous-state @atlas-state
         known-atlas-version (:atlas-version previous-state)
@@ -1212,7 +1230,7 @@
             (.beginBatch ^FontRenderer native-renderer)
             (reduce (fn [[atlas-version entry-requirements] native-entry-state]
                       (apply-native-entry-state! native-renderer native-entry-state)
-                      (let [atlas-version (generate-native-texture! gl native-renderer texture atlas-version)
+                      (let [atlas-version (generate-native-texture! gl native-renderer font-data atlas-version)
                             requirement (.getVertexBufferRequirements ^FontRenderer native-renderer)]
                         [atlas-version (conj entry-requirements requirement)]))
                     [known-atlas-version []]
@@ -1221,6 +1239,14 @@
                            [(:state-key native-entry-state)
                             (vec (:transform native-entry-state))])
                          native-entry-states)]
+    (when (and (.isVector native-renderer)
+               (not= known-atlas-version atlas-version))
+      (let [generated-textures (.getVectorTextures native-renderer known-atlas-version)]
+        (dotimes [i 2]
+          (let [^FontRenderer$Texture generated (aget generated-textures i)]
+            (texture/update-image! (nth (:vector-textures font-data) i) gl (.-pixels generated)
+                                   (if (zero? i) :rgba16f :rgba32f)
+                                   (.-width generated) (.-height generated))))))
     (vreset! atlas-state {:atlas-version atlas-version
                           :atlas-key atlas-key
                           :entry-requirements entry-requirements})
@@ -1253,7 +1279,7 @@
       (vtx/flip! vertex-buffer)
       (do
         (.flip byte-buffer)
-        (vtx/wrap-vertex-buffer NativeFontVertex :static byte-buffer)))))
+        (vtx/wrap-vertex-buffer (if (.isVector native-renderer) VectorFontVertex NativeFontVertex) :static byte-buffer)))))
 
 (defonce/type NativeVertexBufferRequest [native-renderer native-entry-states entry-requirements vertex-key]
   Object
@@ -1295,7 +1321,7 @@
        (let [native-renderer (scene-cache/request-object! ::native-renderers (:texture font-data) gl native-renderer-spec)
              native-entry-states (mapv #(make-native-entry-state font-map %) text-entries)
              atlas-state (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)
-             [_ entry-requirements] (prepare-native-render-batch! gl native-renderer (:texture font-data) native-entry-states atlas-state)]
+             [_ entry-requirements] (prepare-native-render-batch! gl native-renderer font-data native-entry-states atlas-state)]
          (gen-native-vertex-buffer native-renderer native-entry-states entry-requirements nil))
        (let [vbuf (make-vbuf type text-entries (:layer-mask font-map))
              glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
@@ -1312,8 +1338,8 @@
        (let [native-renderer (scene-cache/request-object! ::native-renderers (:texture font-data) gl native-renderer-spec)
              native-entry-states (mapv #(make-native-entry-state (:font-map font-data) %) text-entries)
              atlas-state (scene-cache/request-object! ::native-atlas-states [(:texture font-data) native-renderer] gl nil)
-             [vertex-key entry-requirements] (prepare-native-render-batch! gl native-renderer (:texture font-data) native-entry-states atlas-state)]
-         (scene-cache/request-object! ::native-vb [request-id (:type font-data)] gl
+             [vertex-key entry-requirements] (prepare-native-render-batch! gl native-renderer font-data native-entry-states atlas-state)]
+         (scene-cache/request-object! ::native-vb [request-id (:type font-data) (:vector? font-data)] gl
                                       (NativeVertexBufferRequest. native-renderer native-entry-states entry-requirements vertex-key)))
        (let [glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
                                                       (select-keys font-data [:font-map :texture]))
@@ -1353,7 +1379,8 @@
     (when (> vcount 0)
       (let [vertex-binding (vtx/use-with ::vb vertex-buffer material-shader)
             texture-recip-uniform (get-texture-recip-uniform font-map)]
-        (gl/with-gl-bindings gl render-args [material-shader vertex-binding gpu-texture]
+        (gl/with-gl-bindings gl render-args (into [material-shader vertex-binding gpu-texture] (:vector-textures user-data))
+          (set-vector-uniforms! gl material-shader user-data)
           (shader/set-uniform material-shader gl "texture_size_recip" texture-recip-uniform)
           ;; Need to set the blend mode to alpha since alpha blending the source with GL_SRC_ALPHA and dest with GL_ONE_MINUS_SRC_ALPHA
           ;; gives us a small black border around the outline that looks different than other views..
@@ -1372,7 +1399,7 @@
 
 (declare preview-style)
 
-(g/defnk produce-scene [_node-id aabb gpu-texture font-map material material-shader type preview-text preview-text-layout]
+(g/defnk produce-scene [_node-id aabb gpu-texture vector-textures font-map material material-shader type preview-text preview-text-layout]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material material-message)
                               (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material material-message)]
                              (remove nil?)
@@ -1390,6 +1417,7 @@
                             :user-data {:node-id _node-id
                                         :type type
                                         :texture gpu-texture
+                                        :vector-textures vector-textures
                                         :font-map font-map
                                         :shader material-shader
                                         :text-layout preview-text-layout
@@ -1512,9 +1540,11 @@
         output-bitmap (= :defold type)
         shadow-blur (double (:shadow-blur font-desc))
         outline-width (double (:outline-width font-desc))
-        sdf-padding (+ (double FontRenderer/DEFAULT_SDF_BASE_PADDING)
-                       outline-width
-                       shadow-blur)]
+        sdf-padding (if (:vector? font-map)
+                      (double (:sdf-spread font-map))
+                      (+ (double FontRenderer/DEFAULT_SDF_BASE_PADDING) outline-width shadow-blur))]
+    (set! (.-vector render-params) (boolean (:vector? font-map)))
+    (set! (.-vector measure-params) (.-vector render-params))
     (set! (.-size render-params) (float (:size font-desc)))
     (set! (.-cacheWidth render-params) (int (:cache-width font-map)))
     (set! (.-cacheHeight render-params) (int (:cache-height font-map)))
@@ -1612,9 +1642,8 @@
         font-desc (cond-> font-desc
                     (bitmap-font? font) (assoc :size font-source-size))
         vector (vector-font? font (:vector-font-mode font-desc))
-        preview-font-desc (assoc font-desc :vector-font-mode :vector-font-mode-sdf)
         font-map (make-font-map _node-id font (font-type font (:output-format font-desc))
-                                preview-font-desc font-resource-map use-font-layout use-rich-text (:runtime font-desc) vector)]
+                                font-desc font-resource-map use-font-layout use-rich-text (:runtime font-desc) vector)]
     (if (g/error? font-map)
       font-map
       (assoc font-map :vector? vector))))
@@ -2001,11 +2030,11 @@
              :child-reqs [{:node-type FontStyle
                            :tx-attach-fn (fn [_parent child] (attach-style styles-node child))}]}))
 
-  (property preview-material resource/Resource
+  (property vector-shader-source resource/Resource
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
-                                            [:shader :preview-material-shader]))))
+                                            [:shader-source-info :vector-shader-source-info]))))
 
   (property font resource/Resource ; Required protobuf field.
             (value (gu/passthrough font-resource))
@@ -2184,7 +2213,7 @@
   (input material-resource resource/Resource)
   (input material-samplers [g/KeywordMap])
   (input material-shader ShaderLifecycle)
-  (input preview-material-shader ShaderLifecycle)
+  (input vector-shader-source-info g/Any)
   (input font-resource-map g/Any)
   (input project-settings g/Any)
   (input use-font-layout g/Bool)
@@ -2210,17 +2239,34 @@
                                               channels (:glyph-channels font-map)
                                               data-format (glyph-channels->data-format channels)]
                                           (texture/empty-texture _node-id data-format w h
-                                                                 (material/sampler->tex-params (first material-samplers)) 0)))))
-  (output material-shader ShaderLifecycle (g/fnk [font vector-font-mode material-shader preview-material-shader]
-                                            (if (vector-font? font vector-font-mode)
-                                              preview-material-shader
-                                              material-shader)))
+                                                                 (if (:vector? font-map)
+                                                                   {:min-filter GL2/GL_LINEAR :mag-filter GL2/GL_LINEAR
+                                                                    :wrap-s GL2/GL_CLAMP_TO_EDGE :wrap-t GL2/GL_CLAMP_TO_EDGE}
+                                                                   (material/sampler->tex-params (first material-samplers))) 0)))))
+  (output vector-textures g/Any :cached
+          (g/fnk [_node-id font-map]
+            (when (:vector? font-map)
+              (let [params {:min-filter GL2/GL_NEAREST :mag-filter GL2/GL_NEAREST
+                            :wrap-s GL2/GL_CLAMP_TO_EDGE :wrap-t GL2/GL_CLAMP_TO_EDGE}]
+                [(texture/empty-texture [_node-id :curves] :rgba16f 1 1 params 1)
+                 (texture/empty-texture [_node-id :bands] :rgba32f 1 1 params 2)]))))
+  (output material-shader ShaderLifecycle :cached
+          (g/fnk [_node-id font vector-font-mode material-shader vector-shader-source-info]
+            (if (vector-font? font vector-font-mode)
+              (font-shader/make-preview-shader _node-id vector-shader-source-info false)
+              material-shader)))
+  (output selection-shader g/Any :cached
+          (g/fnk [_node-id font vector-font-mode vector-shader-source-info]
+            (when (vector-font? font vector-font-mode)
+              (font-shader/make-preview-shader _node-id vector-shader-source-info true))))
   (output type g/Keyword produce-font-type)
-  (output font-data FontData :cached (g/fnk [font vector-font-mode type gpu-texture font-map material-shader]
+  (output font-data FontData :cached (g/fnk [font vector-font-mode type gpu-texture vector-textures font-map material-shader selection-shader]
                                        {:type type
                                         :texture gpu-texture
                                         :font-map font-map
                                         :preview-shader (when (vector-font? font vector-font-mode) material-shader)
+                                        :vector-textures vector-textures
+                                        :selection-shader selection-shader
                                         :native-renderer-spec (:native-renderer-spec font-map)
                                         :vector? (vector-font? font vector-font-mode)}))
   (output preview-text g/Str :cached produce-preview-text)
@@ -2234,7 +2280,7 @@
         resolve-resource #(workspace/resolve-resource basis resource %)]
     (into
       [(g/connect project :settings self :project-settings)
-       (g/set-property self :preview-material (workspace/resolve-resource basis resource default-vector-sdf-material))
+       (g/set-property self :vector-shader-source (workspace/resolve-resource basis resource "/builtins/fonts/font-vector.fp"))
        (g/connect project :use-font-layout self :use-font-layout)
        (g/connect project :use-rich-text self :use-rich-text)
        (g/make-nodes [styles-node FontStylesNode]

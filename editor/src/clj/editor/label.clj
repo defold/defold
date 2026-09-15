@@ -138,6 +138,7 @@
 (defn render-tris [^GL2 gl render-args renderables rcount]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
+        font-data (get-in user-data [:text-data :font-data])
         gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
         render-pass (:pass render-args)
         vb (gen-vb gl renderables render-args)
@@ -149,15 +150,18 @@
               blend-mode (get user-data :blend-mode)
               shader (or material-shader shader)
               vertex-binding (vtx/use-with ::tris vb shader)]
-          (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
+          (gl/with-gl-bindings gl render-args (into [shader vertex-binding gpu-texture] (:vector-textures font-data))
+            (font/set-vector-uniforms! gl shader font-data)
             (light/bind-preview-lights-for-shader! gl shader render-args)
             (gl/set-blend-mode gl blend-mode)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
             (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
 
         pass/selection
-        (let [vertex-binding (vtx/use-with ::tris-selection vb id-shader)]
-          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable)) [id-shader vertex-binding gpu-texture]
+        (let [id-shader (or (:selection-shader font-data) id-shader)
+              vertex-binding (vtx/use-with ::tris-selection vb id-shader)]
+          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable)) (into [id-shader vertex-binding gpu-texture] (:vector-textures font-data))
+            (font/set-vector-uniforms! gl id-shader font-data)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))))
 
 ; Node defs

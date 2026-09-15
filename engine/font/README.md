@@ -29,6 +29,18 @@ exercise prebaked layout/fallback. Vector banks use the curve and effect payload
 exported by Fontc. Java/Bob tests cover the resource compiler integration.
 Labels and GUI components are not included here.
 
+Editor Vector previews use the same Slug curve and band records, with an OpenGL 2
+adapter that stores the two integer band fields as exact float32 values. Faces
+remain analytical; outlines use the generated SDF channel and shadows use the
+blurred bitmap channel. Numeric textures are finalized and uploaded once after
+all entries in a batch have populated the glyph cache. Invisible glyphs retain
+their layout advance without creating drawable quads.
+`integration.vector-font-test` covers Label drawing and picking, GUI stencil
+clipping, switching SDF/Vector in open views, texture uploads per batch, and
+closing/reopening preview contexts. Run it
+from `editor` with `lein test integration.vector-font-test` after rebuilding Bob's
+font renderer library and Java bindings.
+
 Vector contributes 56 captures across the four configurations:
 
 | Sources | Scenarios | Layout/parser configurations |
