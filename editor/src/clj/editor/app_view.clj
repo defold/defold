@@ -58,6 +58,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.icons :as icons]
             [editor.keymap :as keymap]
+            [editor.launcher :as launcher]
             [editor.library :as library]
             [editor.live-update-settings :as live-update-settings]
             [editor.localization :as localization]
@@ -105,10 +106,8 @@
             [util.profiler :as profiler]
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
-           [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
-           [java.lang.management ManagementFactory]
            [java.net SocketTimeoutException URL]
            [java.time LocalTime]
            [java.time.format DateTimeFormatter]
@@ -662,23 +661,6 @@
   (run []
     (let [^Stage main-stage (ui/main-stage)]
       (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST)))))
-
-(defn- start-launcher! []
-  (if (system/defold-dev?)
-    (apply process/start!
-           {:dir (System/getProperty "user.dir")
-            :out :inherit
-            :err :inherit}
-           (str (io/file (System/getProperty "java.home") "bin" (if (os/is-win32?) "java.exe" "java")))
-           (into (vec (.getInputArguments (ManagementFactory/getRuntimeMXBean)))
-                 ["-cp" (System/getProperty "java.class.path") "com.defold.editor.Main"]))
-    (let [resources-path (system/defold-resourcespath)]
-      (process/start!
-        {:dir (.getCanonicalFile
-                (case (.getOs (Platform/getHostPlatform))
-                  "macos" (io/file resources-path "../../")
-                  ("linux" "win32") (io/file resources-path)))}
-        (system/defold-launcherpath)))))
 
 (defn store-window-dimensions [^Stage stage prefs]
   (let [dims    {:x           (.getX stage)
@@ -1993,7 +1975,7 @@
   (run [] (ui/reload-root-styles!)))
 
 (handler/defhandler :file.open-project :global
-  (run [] (start-launcher!)))
+  (run [] (launcher/start!)))
 
 (handler/register-menu! ::menubar
   [{:label (localization/message "menu.file")
@@ -3080,7 +3062,7 @@
 (defn- restart-defold! [^Stage stage prefs]
   (store-window-state! stage prefs)
   (ui/close! stage)
-  (start-launcher!))
+  (launcher/start!))
 
 (handler/defhandler :app.restart :global
   (run [app-view changes-view project prefs localization]
