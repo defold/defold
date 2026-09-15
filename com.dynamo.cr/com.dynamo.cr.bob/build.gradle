@@ -15,7 +15,11 @@ import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
 import org.apache.commons.compress.parallel.InputStreamSupplier
 import org.apache.tools.ant.DirectoryScanner
 import org.apache.tools.ant.types.selectors.SelectorUtils
+import org.gradle.workers.WorkAction
+import org.gradle.workers.WorkParameters
+import org.gradle.workers.WorkerExecutor
 
+import javax.inject.Inject
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -26,6 +30,26 @@ import java.util.jar.Manifest
 import java.util.zip.CRC32
 import java.util.zip.ZipFile
 import groovy.json.JsonSlurper
+
+interface ProtocBatchParameters extends WorkParameters {
+    ListProperty<String> getArguments()
+}
+
+abstract class ProtocBatch implements WorkAction<ProtocBatchParameters> {
+    @Inject
+    abstract ExecOperations getExecOperations()
+
+    @Override
+    void execute() {
+        def arguments = parameters.arguments.get()
+        execOperations.exec { commandLine arguments }
+    }
+}
+
+abstract class GenerateBobProtos extends DefaultTask {
+    @Inject
+    abstract WorkerExecutor getWorkerExecutor()
+}
 
 apply plugin: 'java'
 gradle.startParameter.parallelProjectExecutionEnabled = true
@@ -82,41 +106,50 @@ tasks.named('clean') {
     dependsOn 'cleanDirs'
 }
 
-gradle.projectsEvaluated {
-    project.protoFiles.each { proto ->
-        def protoDir = file(proto.dir)
-        def protoFilePath = file("${proto.dir}/${proto.file}")
-        def protoTaskName = "protoTask_${proto.file.replace('/', '_').replace('.', '_')}" as String
-        tasks.named('compileJava').configure {
-            dependsOn protoTaskName
-        }
-        tasks.register(protoTaskName, Exec) {
-            group = 'build'
-            inputs.file(protoFilePath)
-            outputs.dir("${bobDir}/generated")
-            doFirst {
-                if (!protoDir.exists()) {
-                    throw new RuntimeException("Directory '${protoDir}' does not exist")
-                }
-                if (!protoFilePath.exists()) {
-                    throw new RuntimeException("File '${protoFilePath}' does not exist")
-                }
-                mkdir "${bobDir}/generated"
-                if (!hostPlatform) {
-                    throw new RuntimeException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
-                }
-                commandLine "${dynamoHome}/ext/bin/${hostPlatform}/protoc", "--java_out=${bobDir}/generated",
-                        "-I${protoDir}", "-I${dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
-                        "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoFilePath}"
-            }
-        }
-    }
+tasks.register('execProtoTasks', GenerateBobProtos) {
+    group = 'build'
+    dependsOn 'prepareBobBuildContext'
 }
 
-tasks.register('execProtoTasks') {
-    dependsOn 'prepareBobBuildContext'
-    dependsOn project.protoFiles.collect { proto ->
-        "protoTask_${proto.file.replace('/', '_').replace('.', '_')}"
+tasks.named('compileJava') {
+    dependsOn 'execProtoTasks'
+}
+
+gradle.projectsEvaluated {
+    def protoSources = project.protoFiles.collect { proto -> file("${proto.dir}/${proto.file}") }
+    def protoIncludeDirs = (project.protoFiles.collect { proto -> file(proto.dir) } + [
+            file("${dynamoHome}/ext/include"), file('../../engine/gameobject/proto'),
+            file('../../engine/script/src'), file('../../engine/ddf/src'), file('../../engine/graphics/proto')
+    ]).unique()
+    def generatedDir = file("${bobDir}/generated")
+    def protoc = file("${dynamoHome}/ext/bin/${hostPlatform}/protoc")
+
+    // Each batch generates different Java files. Use Gradle workers so these
+    // processes run concurrently within one project and honor --max-workers.
+    int batchCount = Math.max(1, Math.min(4, Math.min(gradle.startParameter.maxWorkerCount, protoSources.size())))
+    def batches = (0..<batchCount).collect { [] }
+    protoSources.eachWithIndex { source, index -> batches[index % batchCount].add(source.absolutePath) }
+    def arguments = [protoc.absolutePath, "--java_out=${generatedDir}".toString()] +
+            protoIncludeDirs.collect { "-I${it}".toString() }
+
+    tasks.named('execProtoTasks') {
+        inputs.files(protoSources).withPropertyName('protoSources')
+        inputs.files(protoIncludeDirs.collect { dir -> fileTree(dir) { include '**/*.proto' } })
+                .withPropertyName('protoImports').ignoreEmptyDirectories()
+        inputs.file(protoc).withPropertyName('protoc')
+        inputs.property('protoIncludeDirs', protoIncludeDirs.collect { it.absolutePath })
+        outputs.dir(generatedDir)
+
+        doLast {
+            mkdir generatedDir
+            def queue = workerExecutor.noIsolation()
+            batches.findAll { !it.isEmpty() }.each { batch ->
+                queue.submit(ProtocBatch) { parameters ->
+                    parameters.arguments.set(arguments + batch)
+                }
+            }
+            queue.await()
+        }
     }
 }
 
