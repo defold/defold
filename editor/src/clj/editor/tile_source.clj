@@ -875,15 +875,15 @@
         y-border (* scale-y tile-border-size)
         [x y] active-tile
         w width h height]
-    (let [outline? (= pass/outline (:pass render-args))
+    (let [is-outline (= pass/outline (:pass render-args))
           [r g b] (collision-groups/node->color collision-groups-data selected-collision-group-node)
-          a (if outline? 1.0 0.30)
+          a (if is-outline 1.0 0.30)
           vbuf (let [x0 (+ (* x (+ x-border w)) x-border)
                      x1 (+ x0 w)
                      y0 (+ (* y (+ y-border h)) y-border)
                      y1 (+ y0 h)]
                  (persistent!
-                   (if outline?
+                   (if is-outline
                      (render-util/emit-quad-outline!
                        (->pos-color-vtx 8)
                        (conj! [x0 y0 0.0 r g b a])
@@ -898,7 +898,7 @@
                        (conj! [x1 y0 0.0 r g b a])))))
           vb (vtx/use-with node-id vbuf color-shader)]
       (gl/with-gl-bindings gl render-args [color-shader vb]
-        (gl/gl-draw-arrays gl (if outline? GL2/GL_LINES GL2/GL_TRIANGLES) 0 (count vbuf))))))
+        (gl/gl-draw-arrays gl (if is-outline GL2/GL_LINES GL2/GL_TRIANGLES) 0 (count vbuf))))))
 
 (g/defnk produce-tool-renderables
   [_node-id active-tile tile-source-attributes convex-hulls collision-groups-data selected-collision-group-node]

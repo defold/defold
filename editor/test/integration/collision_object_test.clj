@@ -239,8 +239,8 @@
                 {:shape-type :type-hull
                  :data [-1.0 -1.0 0.0
                         1.0 -1.0 0.0
-                        1.0  1.0 0.0
-                        -1.0  1.0 0.0]}
+                        1.0 1.0 0.0
+                        -1.0 1.0 0.0]}
                 [1.0 1.0 1.0 1.0]
                 "2D")
         fill-renderable (:renderable scene)
