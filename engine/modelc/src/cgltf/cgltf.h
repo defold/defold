@@ -2433,7 +2433,10 @@ cgltf_size cgltf_accessor_unpack_floats(const cgltf_accessor* accessor, cgltf_fl
 		reader_head += sparse->values_byte_offset;
 
 		cgltf_size index_stride = cgltf_component_size(sparse->indices_component_type);
-		for (cgltf_size reader_index = 0; reader_index < sparse->count; reader_index++, index_data += index_stride, reader_head += accessor->stride)
+		// DEFOLD: Sparse values are tightly packed regardless of the base accessor stride.
+		// Upstream issue: https://github.com/jkuhlmann/cgltf/issues/295
+		cgltf_size value_stride = cgltf_calc_size(accessor->type, accessor->component_type);
+		for (cgltf_size reader_index = 0; reader_index < sparse->count; reader_index++, index_data += index_stride, reader_head += value_stride)
 		{
 			size_t writer_index = cgltf_component_read_index(index_data, sparse->indices_component_type);
 			float* writer_head = out + writer_index * floats_per_element;

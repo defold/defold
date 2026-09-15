@@ -72,6 +72,9 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(mimeType, "Ljava/lang/String;");
         GET_FLD(buffer, "Buffer");
         GET_FLD_TYPESTR(index, "I");
+        GET_FLD_TYPESTR(bufferIndex, "I");
+        GET_FLD_TYPESTR(bufferOffset, "I");
+        GET_FLD_TYPESTR(bufferSize, "I");
     }
     {
         SETUP_CLASS(SamplerJNI, "Sampler");
@@ -307,6 +310,9 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
     {
         SETUP_CLASS(OptionsJNI, "Options");
         GET_FLD_TYPESTR(dummy, "I");
+        GET_FLD_TYPESTR(loadMaterialsOnly, "Z");
+        GET_FLD_TYPESTR(loadMeshMetadata, "Z");
+        GET_FLD_TYPESTR(skipImageData, "Z");
     }
     #undef GET_FLD
     #undef GET_FLD_ARRAY
@@ -396,6 +402,9 @@ jobject C2J_CreateImage(JNIEnv* env, TypeInfos* types, const Image* src) {
     dmJNI::SetString(env, obj, types->m_ImageJNI.mimeType, src->m_MimeType);
     dmJNI::SetObjectDeref(env, obj, types->m_ImageJNI.buffer, C2J_CreateBuffer(env, types, src->m_Buffer));
     dmJNI::SetUInt(env, obj, types->m_ImageJNI.index, src->m_Index);
+    dmJNI::SetInt(env, obj, types->m_ImageJNI.bufferIndex, src->m_BufferIndex);
+    dmJNI::SetUInt(env, obj, types->m_ImageJNI.bufferOffset, src->m_BufferOffset);
+    dmJNI::SetUInt(env, obj, types->m_ImageJNI.bufferSize, src->m_BufferSize);
     return obj;
 }
 
@@ -712,6 +721,9 @@ jobject C2J_CreateOptions(JNIEnv* env, TypeInfos* types, const Options* src) {
     if (src == 0) return 0;
     jobject obj = env->AllocObject(types->m_OptionsJNI.cls);
     dmJNI::SetInt(env, obj, types->m_OptionsJNI.dummy, src->dummy);
+    dmJNI::SetBoolean(env, obj, types->m_OptionsJNI.loadMaterialsOnly, src->m_LoadMaterialsOnly);
+    dmJNI::SetBoolean(env, obj, types->m_OptionsJNI.loadMeshMetadata, src->m_LoadMeshMetadata);
+    dmJNI::SetBoolean(env, obj, types->m_OptionsJNI.skipImageData, src->m_SkipImageData);
     return obj;
 }
 
@@ -1434,6 +1446,9 @@ bool J2C_CreateImage(JNIEnv* env, TypeInfos* types, jobject obj, Image* out) {
         }
     }
     out->m_Index = dmJNI::GetUInt(env, obj, types->m_ImageJNI.index);
+    out->m_BufferIndex = dmJNI::GetInt(env, obj, types->m_ImageJNI.bufferIndex);
+    out->m_BufferOffset = dmJNI::GetUInt(env, obj, types->m_ImageJNI.bufferOffset);
+    out->m_BufferSize = dmJNI::GetUInt(env, obj, types->m_ImageJNI.bufferSize);
     return true;
 }
 
@@ -2369,6 +2384,9 @@ bool J2C_CreateScene(JNIEnv* env, TypeInfos* types, jobject obj, Scene* out) {
 bool J2C_CreateOptions(JNIEnv* env, TypeInfos* types, jobject obj, Options* out) {
     if (out == 0) return false;
     out->dummy = dmJNI::GetInt(env, obj, types->m_OptionsJNI.dummy);
+    out->m_LoadMaterialsOnly = dmJNI::GetBoolean(env, obj, types->m_OptionsJNI.loadMaterialsOnly);
+    out->m_LoadMeshMetadata = dmJNI::GetBoolean(env, obj, types->m_OptionsJNI.loadMeshMetadata);
+    out->m_SkipImageData = dmJNI::GetBoolean(env, obj, types->m_OptionsJNI.skipImageData);
     return true;
 }
 
