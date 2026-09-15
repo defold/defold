@@ -113,8 +113,8 @@ endif()
         result = subprocess.run(args, capture_output=True, text=True, timeout=60)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
-    def configure(self, platform='arm64-macos'):
-        self.command('cmake', '-G', 'Ninja', '-S', str(self.root), '-B', str(self.build),
+    def configure(self, platform='arm64-macos', *, generator='Ninja'):
+        self.command('cmake', '-G', generator, '-S', str(self.root), '-B', str(self.build),
                      '-DFIXTURE_PLATFORM=' + platform)
 
     def build_target(self, target):
@@ -157,6 +157,24 @@ endif()
         self.build_target('run_tests')
         self.assertTrue((self.build / 'prepared.txt').is_file())
         self.assertTrue((self.build / 'ran.txt').is_file())
+
+    # Xcode Run builds only the executable, which must prepare missing and changed runtime assets itself.
+    def test_xcode_binary_prepares_runtime_content(self):
+        if sys.platform != 'darwin' or not shutil.which('xcodebuild'):
+            self.skipTest('Xcode is required')
+        self.write('content.py', "import shutil\nshutil.copyfile('../input.txt', 'content.txt')\n")
+        self.configure(generator='Xcode')
+        for content in ('ready', 'refreshed'):
+            with self.subTest(content=content):
+                self.write('input.txt', content)
+                (self.build / 'ran.txt').unlink(missing_ok=True)
+                self.command('cmake', '--build', str(self.build), '--target', 'unit', '--config', 'Debug')
+                self.assertEqual(content, (self.build / 'content.txt').read_text())
+                self.assertFalse((self.build / 'ran.txt').exists())
+                result = subprocess.run([str(self.build / 'Debug/unit')], cwd=self.build,
+                                        capture_output=True, text=True, timeout=10)
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                self.assertTrue((self.build / 'ran.txt').is_file())
 
 
 if __name__ == '__main__':

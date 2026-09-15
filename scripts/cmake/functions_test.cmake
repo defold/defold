@@ -546,8 +546,9 @@ function(defold_register_test_target target_name)
   set_property(TARGET ${target_name} PROPERTY DEFOLD_TEST_RUNTIME_DEPENDENCIES "${DEFOLD_TEST_RUNTIME_DEPENDS}")
   if(DEFOLD_TEST_RUNTIME_DEPENDS)
     add_dependencies(build_tests ${DEFOLD_TEST_RUNTIME_DEPENDS})
-    # Xcode copies iOS resources into the app in POST_BUILD, before any run target.
-    if(CMAKE_GENERATOR STREQUAL "Xcode" AND TARGET_PLATFORM MATCHES "ios$")
+    # Xcode Run schemes build the executable directly, bypassing run_* targets.
+    # iOS resource staging also runs in the executable's POST_BUILD step.
+    if(CMAKE_GENERATOR STREQUAL "Xcode")
       add_dependencies(${target_name} ${DEFOLD_TEST_RUNTIME_DEPENDS})
     endif()
   endif()

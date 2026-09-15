@@ -22,6 +22,7 @@ def fake_bob(control, arguments):
     parser.add_argument('--root', type=Path)
     parser.add_argument('--output')
     parser.add_argument('--settings', type=Path)
+    parser.add_argument('--expect-parallel', action='store_true')
     args, _ = parser.parse_known_args(arguments)
     folder = Path(args.output).name
     started = time.monotonic_ns()
@@ -36,11 +37,12 @@ def fake_bob(control, arguments):
     assert (args.root / 'builtins/graphics/default.texture_profiles').is_file()
 
     (control / (folder + '.started')).touch()
-    deadline = time.monotonic() + 10
-    while len(list(control.glob('*.started'))) < 2:
-        if time.monotonic() > deadline:
-            raise RuntimeError('Content builds are serialized')
-        time.sleep(0.01)
+    if args.expect_parallel:
+        deadline = time.monotonic() + 10
+        while len(list(control.glob('*.started'))) < 2:
+            if time.monotonic() > deadline:
+                raise RuntimeError('Content builds are serialized')
+            time.sleep(0.01)
     time.sleep(0.1)
     assert metadata.read_text() == folder, 'Bob project metadata was shared'
 
@@ -86,12 +88,17 @@ set(DEFOLD_SDK_ROOT "${{CMAKE_CURRENT_SOURCE_DIR}}/sdk")
 set(TARGET_PLATFORM "test-platform")
 set(Java_JAVA_EXECUTABLE "{Path(sys.executable).as_posix()}")
 set(DEFOLD_JAVA_RUNTIME_FLAGS_LIST "{Path(__file__).resolve().as_posix()}" --fake-bob "${{CMAKE_CURRENT_SOURCE_DIR}}/control")
+if(CMAKE_GENERATOR MATCHES "^Ninja")
+  list(APPEND DEFOLD_JAVA_RUNTIME_FLAGS_LIST --expect-parallel)
+endif()
 include("{CONTENT_MODULE.as_posix()}")
 add_custom_target(content ALL DEPENDS ${{gamesys_content_outputs}})
 ''')
         self.env = os.environ.copy()
         self.env['DM_BOB_ROOTFOLDER'] = str(self.root / 'tools')
-        self.run_command('cmake', '-S', str(self.root), '-B', str(self.build), '-G', 'Ninja')
+
+    def configure(self, generator='Ninja'):
+        self.run_command('cmake', '-S', str(self.root), '-B', str(self.build), '-G', generator)
 
     def write(self, relative_path, content):
         path = self.root / relative_path
@@ -107,6 +114,7 @@ add_custom_target(content ALL DEPENDS ${{gamesys_content_outputs}})
 
     # Verify actual parallel build execution, its memory limit, and isolated Bob state/output staging.
     def test_parallel_builds_preserve_content_and_isolate_projects(self):
+        self.configure()
         self.build_content()
         runs = [json.loads((self.control / (folder + '.json')).read_text()) for folder in FOLDERS]
         self.assertEqual(len(FOLDERS), len({run['root'] for run in runs}))
@@ -126,6 +134,7 @@ add_custom_target(content ALL DEPENDS ${{gamesys_content_outputs}})
 
     # Rebuilding one folder must not trigger or overwrite other folders through a serial dependency chain.
     def test_rebuilding_one_folder_leaves_other_folders_untouched(self):
+        self.configure()
         self.build_content()
         before = {folder: (self.control / (folder + '.json')).read_text() for folder in FOLDERS}
         (self.build / '.bob/first.stamp').unlink()
@@ -140,6 +149,19 @@ add_custom_target(content ALL DEPENDS ${{gamesys_content_outputs}})
         completed = {folder: (self.control / (folder + '.json')).read_text() for folder in FOLDERS}
         self.build_content()
         self.assertEqual(completed, {folder: (self.control / (folder + '.json')).read_text() for folder in FOLDERS})
+
+    # Makefiles must serialize Bob processes because they cannot enforce Ninja's JVM pool limit.
+    def test_makefile_content_builds_are_serialized(self):
+        if os.name == 'nt' or not shutil.which('make'):
+            self.skipTest('Unix Makefiles are required')
+        self.configure('Unix Makefiles')
+        self.build_content()
+        previous_finish = 0
+        for folder in FOLDERS:
+            run = json.loads((self.control / (folder + '.json')).read_text())
+            self.assertGreaterEqual(run['started'], previous_finish)
+            previous_finish = run['finished']
+            self.assertEqual(folder, (self.runtime / folder / folder / 'generated.resourcec').read_text())
 
 
 if __name__ == '__main__':

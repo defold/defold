@@ -125,8 +125,13 @@ endif()
 
 # Each Bob process owns its project metadata and extracted tools. Limit the
 # number of JVMs competing with compilation for memory on CI runners.
-set_property(GLOBAL APPEND PROPERTY JOB_POOLS gamesys_test_content=2)
+set(_GS_CONTENT_JOB_POOL)
+if(CMAKE_GENERATOR MATCHES "^Ninja")
+  set_property(GLOBAL APPEND PROPERTY JOB_POOLS gamesys_test_content=2)
+  set(_GS_CONTENT_JOB_POOL JOB_POOL gamesys_test_content)
+endif()
 set(gamesys_content_outputs)
+set(_GS_PREVIOUS_CONTENT_STAMP)
 foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
   set(_inputs_file "${GS_TEST_ROOT}/${_folder}/build.inputs")
   if(NOT EXISTS "${_inputs_file}")
@@ -188,10 +193,14 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
     ${_prebuilt_copy_commands}
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_stamp}"
-    DEPENDS ${_GS_BUILTINS_GRAPHICS_SOURCES} "${_GS_BOB_LIGHT}" ${_GS_BOB_PLUGIN_JARS} "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES} ${_prebuilt_sources}
+    DEPENDS ${_GS_PREVIOUS_CONTENT_STAMP} ${_GS_BUILTINS_GRAPHICS_SOURCES} "${_GS_BOB_LIGHT}" ${_GS_BOB_PLUGIN_JARS} "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_GS_ALL_TEST_SOURCES} ${_prebuilt_sources}
     WORKING_DIRECTORY "${GS_TEST_ROOT}"
-    JOB_POOL gamesys_test_content
+    ${_GS_CONTENT_JOB_POOL}
     COMMENT "Building gamesys test data folder ${_folder}"
     VERBATIM)
   list(APPEND gamesys_content_outputs "${_stamp}")
+  if(NOT CMAKE_GENERATOR MATCHES "^Ninja")
+    # Other generators ignore job pools, so retain the serial dependency chain.
+    set(_GS_PREVIOUS_CONTENT_STAMP "${_stamp}")
+  endif()
 endforeach()

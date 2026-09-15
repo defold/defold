@@ -179,8 +179,12 @@ Pass `RUNTIME_DEPENDS <content-target> ...` to `defold_register_test_target`
 for generated assets that are only needed when running a test. `build_tests`
 and all test runners prepare these assets, while a direct binary build can
 compile without waiting for them. Generated headers and sources must remain
-compile dependencies. Xcode iOS app targets also wait for runtime assets
-because their post-build step copies the assets into the app bundle.
+compile dependencies. Xcode test executables retain runtime dependencies
+because Run schemes build the executable directly. iOS app targets also need
+these assets for the post-build step that copies them into the app bundle.
+
+Gamesys test content builds use up to two Bob processes with Ninja. Other
+generators build the content folders sequentially to bound JVM memory use.
 
 Native desktop tests built with Ninja use a pool of two commands. Set
 `-DDEFOLD_TEST_JOBS=1` to serialize them, or choose another positive worker
