@@ -10165,6 +10165,33 @@ TEST_F(MaterialTest, DynamicMatrixVertexAttributes)
         ASSERT_NEAR(expected_default_mat2[i], desc.m_Variant.m_M4[i], EPSILON);
     }
 
+    // Compiled component attributes derive their value count from the vector type
+    // and leave the deprecated element count at zero. Also verify that a smaller
+    // component matrix is expanded to the material's matrix type.
+    float component_mat2[4] = { 21.0f, 22.0f, 23.0f, 24.0f };
+    dmGraphics::VertexAttribute component_attribute = {};
+    component_attribute.m_NameHash                      = dmHashString64("custom_mat3");
+    component_attribute.m_DataType                      = dmGraphics::VertexAttribute::TYPE_FLOAT;
+    component_attribute.m_VectorType                    = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2;
+    component_attribute.m_Values.m_BinaryValues.m_Data  = (uint8_t*) component_mat2;
+    component_attribute.m_Values.m_BinaryValues.m_Count = sizeof(component_mat2);
+    ASSERT_EQ(0u, component_attribute.m_ElementCount);
+    ctx.m_Attributes.Push(component_attribute);
+
+    const float expected_component_mat3[16] = {
+        21.0f, 22.0f, 0.0f, 0.0f,
+        23.0f, 24.0f, 0.0f, 0.0f,
+        0.0f,  0.0f,  1.0f, 0.0f,
+        0.0f,  0.0f,  0.0f, 1.0f
+    };
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("custom_mat3"), desc, Test_GetMaterialAttributeCallback, &ctx));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_MATRIX4, desc.m_Variant.m_Type);
+    for (uint32_t i = 0; i < 16; ++i)
+    {
+        ASSERT_NEAR(expected_component_mat3[i], desc.m_Variant.m_M4[i], EPSILON);
+    }
+    ctx.m_Attributes.SetSize(0);
+
     dmGameObject::PropertyVar vector_value(dmVMath::Vector4(1.0f, 2.0f, 3.0f, 4.0f));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_TYPE, SetMaterialAttribute(dynamic_attribute_pool, &index, material, dmHashString64("custom_mat2"), vector_value, Test_GetMaterialAttributeCallback, &ctx, 0));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_TYPE, SetMaterialAttribute(dynamic_attribute_pool, &index, material, dmHashString64("custom_mat3"), vector_value, Test_GetMaterialAttributeCallback, &ctx, 0));

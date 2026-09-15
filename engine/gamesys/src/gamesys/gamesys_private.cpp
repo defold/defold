@@ -417,7 +417,8 @@ namespace dmGameSystem
     {
         dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(attribute->m_DataType);
         uint32_t bytes_per_element     = dmGraphics::GetTypeSize(graphics_type);
-        for (uint32_t i = 0; i < attribute->m_ElementCount; ++i)
+        uint32_t element_count         = dmGraphics::VectorTypeToElementCount(attribute->m_VectorType);
+        for (uint32_t i = 0; i < element_count; ++i)
         {
             out[i] = dmGraphics::VertexAttributeDataTypeToFloat(attribute->m_DataType, value_ptr + bytes_per_element * i);
         }
@@ -630,6 +631,7 @@ namespace dmGameSystem
         }
 
         float values[16] = {};
+        // Matrix size conversion is supported, so the component and material matrix types need not match.
         if (has_component_attribute && IsMatrixAttribute(info.m_Attribute->m_VectorType) && IsMatrixAttribute(comp_attribute->m_VectorType))
         {
             float component_values[16] = {};
