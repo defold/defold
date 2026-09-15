@@ -45,8 +45,6 @@ import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import static com.dynamo.bob.util.MiscUtil.concatenateArrays;
-
 public class TextureUtil {
 
     private static final int MAX_IMAGE_DATA_ALIGNMENT = 4;

@@ -20,7 +20,6 @@ package com.dynamo.bob.tile;
 // ./editor/src/java/com/defold/editor/pipeline/ConvexHull2D.java
 
 import java.util.Arrays;
-import java.lang.Math;
 import javax.vecmath.Vector2d;
 
 // for easier debugging standalone

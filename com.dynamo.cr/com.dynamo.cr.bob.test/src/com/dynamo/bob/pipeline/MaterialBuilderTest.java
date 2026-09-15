@@ -25,7 +25,6 @@ import org.junit.Test;
 import com.dynamo.render.proto.Material.MaterialDesc;
 
 import static org.junit.Assert.*;
-import static org.junit.Assert.assertEquals;
 
 public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 

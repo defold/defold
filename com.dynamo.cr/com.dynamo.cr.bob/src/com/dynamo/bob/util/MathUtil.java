@@ -25,7 +25,6 @@ import javax.vecmath.Vector3f;
 import javax.vecmath.Vector4d;
 
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.fs.IResource;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;

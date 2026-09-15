@@ -33,7 +33,6 @@ import java.util.Set;
 import java.util.HashSet;
 
 import java.io.IOException;
-import java.lang.Throwable;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Callable;

@@ -49,7 +49,6 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Tuple4d;
 import javax.vecmath.Vector3d;
-import javax.vecmath.Vector4d;
 
 import com.dynamo.bob.util.MathUtil;
 

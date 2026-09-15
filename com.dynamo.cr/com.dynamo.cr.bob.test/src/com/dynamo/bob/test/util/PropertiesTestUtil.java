@@ -15,7 +15,6 @@
 package com.dynamo.bob.test.util;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.nio.charset.StandardCharsets;
 

@@ -4,7 +4,6 @@ import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.liveupdate.proto.Manifest;
-import org.junit.Test;
 
 import javax.xml.bind.DatatypeConverter;
 import java.io.BufferedInputStream;
@@ -13,7 +12,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

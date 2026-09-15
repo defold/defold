@@ -15,7 +15,6 @@
 package com.dynamo.bob.pipeline;
 
 import com.defold.extension.pipeline.texture.*;
-import com.defold.extension.pipeline.texture.TestTextureCompressor;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;

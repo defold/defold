@@ -14,17 +14,10 @@
 
 package com.dynamo.bob.tools;
 
-import com.dynamo.bob.bundle.AndroidBundler;
-
 
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,9 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.dynamo.bob.Bob;
-import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
