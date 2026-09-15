@@ -109,7 +109,7 @@ jobs:
             codesign: true
           - name: "bld-eng-darwin (x86_64-macos)"
             platform: x86_64-macos
-            runner: macos-26
+            runner: macos-26-intel
             timeout: 30
             engine_args: "--skip-builtins --skip-docs"
             dotnet: true
