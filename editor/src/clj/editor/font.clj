@@ -271,6 +271,9 @@
   "Annotate text entries with :sdf-screen-scale when rendering SDF fonts."
   [render-args font-data text-entries]
   (if (and (= :distance-field (:type font-data))
+           ;; Vector faces and their SDF outlines use shader derivatives. Zoom
+           ;; changes the projection, but does not change their vertex data.
+           (not (get-in font-data [:font-map :vector?]))
            (some? render-args))
     (let [^Matrix4d view-proj (:view-proj render-args)
           ^Region viewport (:viewport render-args)]

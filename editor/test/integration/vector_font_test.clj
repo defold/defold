@@ -20,6 +20,7 @@
             [editor.font :as font]
             [editor.gl :as gl]
             [editor.gl.texture :as texture]
+            [editor.gl.vertex2 :as vtx]
             [editor.scene :as scene]
             [editor.scene-selection :as scene-selection]
             [editor.workspace :as workspace]
@@ -190,3 +191,59 @@
         (finally
           (#'scene/dispose-preview view)
           (test-util/close-tab! project app-view "/fonts/vector_preview.go"))))))
+
+(deftest vector-preview-zoom-reuses-vertices
+  (test-util/with-loaded-project
+    (let [font-path "/fonts/vector_implicit_dynamic.font"
+          font-node (project/get-resource-node project font-path)
+          label-node (project/get-resource-node project "/label/test.label")]
+      (g/transact
+        {:undoable false}
+        [(g/set-property font-node :characters "O")
+         (g/set-property font-node :size 36)
+         (g/set-property font-node :outline-width 2.0)
+         (g/set-property font-node :shadow-blur 2.0)
+         (g/set-property label-node :font (workspace/find-resource workspace font-path))
+         (g/set-property label-node :material (workspace/find-resource workspace "/builtins/fonts/label-vector.material"))
+         (g/set-property label-node :text "O")])
+      (doseq [effects [false true]
+              path [font-path "/fonts/vector_preview.go" "/fonts/vector_preview.gui"]]
+        (testing (str path ", effects=" effects)
+          (g/transact
+            {:undoable false}
+            [(g/set-property font-node :outline-alpha (if effects 1.0 0.0))
+             (g/set-property font-node :shadow-alpha (if effects 1.0 0.0))])
+          (let [[_ view] (test-util/open-scene-view! project app-view path 512 256)
+                camera-id (scene/view->camera view)
+                initial-camera (g/node-value camera-id :local-camera)
+                buffers (volatile! [])
+                uploads (volatile! 0)
+                request-vertex-buffer font/request-vertex-buffer
+                update-image! texture/update-image!]
+            (try
+              (with-redefs [font/request-vertex-buffer (fn [& args]
+                                                       (let [buffer (apply request-vertex-buffer args)]
+                                                         (vswap! buffers conj [buffer (vtx/version buffer)])
+                                                         buffer))
+                            texture/update-image! (fn [& args]
+                                                    (vswap! uploads inc)
+                                                    (apply update-image! args))]
+                (g/valid-node-value view :frame)
+                (let [[[initial-buffer initial-version]] @buffers]
+                  (is (pos? (count initial-buffer)))
+                  (is (= 2 @uploads))
+                  (vreset! buffers [])
+                  (doseq [zoom [2.0 4.0 0.5 1.0]]
+                    (g/set-property! camera-id :local-camera
+                                     (-> initial-camera
+                                         (update :fov-x / zoom)
+                                         (update :fov-y / zoom)))
+                    (g/valid-node-value view :frame))
+                  (is (= 4 (count @buffers)))
+                  (doseq [[buffer version] @buffers]
+                    (is (identical? initial-buffer buffer))
+                    (is (= initial-version version)))
+                  (is (= 2 @uploads))))
+              (finally
+                (#'scene/dispose-preview view)
+                (test-util/close-tab! project app-view path)))))))))
