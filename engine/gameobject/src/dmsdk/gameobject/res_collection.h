@@ -33,6 +33,9 @@ namespace dmGameObject
      * Opaque pointer returned by dmResource::Get for a compiled collection
      * resource. The pointer remains valid while the caller holds a resource
      * reference, including across resource reloads.
+     *
+     * Do not load a collection resource directly into an HCollection. An
+     * HCollection is a numeric collection handle and is not resource storage.
      * @struct
      * @name CollectionResource
      */
@@ -47,6 +50,17 @@ namespace dmGameObject
      * @name GetCollectionFromResource
      * @param resource [type: dmGameObject::CollectionResource*] Live collection resource returned by dmResource::Get.
      * @return collection [type: dmGameObject::HCollection] Collection handle, or dmGameObject::INVALID_COLLECTION if resource is null.
+     * @examples
+     * ```cpp
+     * dmGameObject::CollectionResource* resource = 0;
+     * dmResource::Result result = dmResource::Get(factory, "/main.collectionc", (void**)&resource);
+     * if (result == dmResource::RESULT_OK)
+     * {
+     *     dmGameObject::HCollection collection = dmGameObject::GetCollectionFromResource(resource);
+     *     // Use collection with the game-object API.
+     *     dmResource::Release(factory, resource);
+     * }
+     * ```
      */
     HCollection GetCollectionFromResource(CollectionResource* resource);
 }

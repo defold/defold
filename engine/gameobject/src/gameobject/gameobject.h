@@ -186,7 +186,7 @@ namespace dmGameObject
      * @param instance Game object instance
      * @return Instance generation, or zero for an invalid handle encoding
      */
-    uint32_t GetGeneration(HInstance instance);
+    uint32_t GetInstanceGeneration(HInstance instance);
 
     /**
      * Get component index from component identifier. This function has complexity O(n), where n is the number of components of the instance.

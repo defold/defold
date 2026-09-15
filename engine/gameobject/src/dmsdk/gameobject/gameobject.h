@@ -23,6 +23,14 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/hid/hid.h>
 
+#if defined(_MSC_VER)
+#define DM_GAMEOBJECT_DEPRECATED(message) __declspec(deprecated(message))
+#elif defined(__GNUC__) || defined(__clang__)
+#define DM_GAMEOBJECT_DEPRECATED(message) __attribute__((deprecated(message)))
+#else
+#define DM_GAMEOBJECT_DEPRECATED(message)
+#endif
+
 // Winuser.h defines MAX_TOUCH_COUNT to 256, which clashes with dmHID::MAX_TOUCH_COUNT.
 #ifdef MAX_TOUCH_COUNT
 #undef MAX_TOUCH_COUNT
@@ -98,16 +106,12 @@ namespace dmGameObject
      * @name HRegister
      * @note Deprecated. Use HContext instead.
      */
-#if defined(_MSC_VER)
-    typedef __declspec(deprecated("Use dmGameObject::HContext instead")) HContext HRegister;
-#elif defined(__GNUC__) || defined(__clang__)
-    typedef __attribute__((deprecated("Use dmGameObject::HContext instead"))) HContext HRegister;
-#else
-    typedef HContext HRegister;
-#endif
+    typedef DM_GAMEOBJECT_DEPRECATED("Use dmGameObject::HContext instead") HContext HRegister;
 
     /*#
-     * Opaque gameobject collection handle
+     * Opaque gameobject collection handle.
+     * This is not a collection resource pointer. Load collection resources into
+     * a CollectionResource* and use GetCollectionFromResource to obtain this handle.
      * @typedef
      * @name HCollection
      */
@@ -649,6 +653,15 @@ namespace dmGameObject
      * @return [type:dmhash_t] Identifier, or zero if the instance is invalid or stale.
      */
     dmhash_t GetIdentifier(HInstance instance);
+
+    /*# Get instance generation
+     * Get the generation encoded in an instance handle.
+     * @name GetGeneration
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return generation [type:uint32_t] Generation counter for the instance.
+     * @note Deprecated. Use IsValid to test whether an instance is still alive.
+     */
+    DM_GAMEOBJECT_DEPRECATED("Use dmGameObject::IsValid instead") uint32_t GetGeneration(HInstance instance);
 
     /*#
      * Set instance identifier. Must be unique within the collection.
@@ -1404,5 +1417,7 @@ namespace dmGameObject
      */
     bool TraverseIteratePropertiesNext(SceneNodePropertyIterator* it);
 }
+
+#undef DM_GAMEOBJECT_DEPRECATED
 
 #endif // DMSDK_GAMEOBJECT_H

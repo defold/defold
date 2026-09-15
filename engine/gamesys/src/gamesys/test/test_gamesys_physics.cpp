@@ -573,10 +573,10 @@ TEST_F(Bullet3DComponentTest, Bullet3DCollisionObjectHandleInvalidatedOnResource
     ASSERT_TRUE(lua_toboolean(L, -1));
     lua_pop(L, 1);
 
-    uint32_t generation = dmGameObject::GetGeneration(go);
+    uint32_t generation = dmGameObject::GetInstanceGeneration(go);
     ASSERT_EQ(dmResource::RESULT_OK,
               dmResource::ReloadResource(m_Factory, "/collision_object/bullet3d_body.collisionobjectc", 0));
-    ASSERT_EQ(generation, dmGameObject::GetGeneration(go));
+    ASSERT_EQ(generation, dmGameObject::GetInstanceGeneration(go));
 
     lua_pushboolean(L, 1);
     lua_setglobal(L, "bullet3d_lifetime_reload_complete");

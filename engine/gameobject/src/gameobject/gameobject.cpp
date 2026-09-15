@@ -118,9 +118,14 @@ namespace dmGameObject
         return (uint16_t)((hinstance >> COLLECTION_INDEX_SHIFT) & COLLECTION_INDEX_MASK);
     }
 
-    uint32_t GetGeneration(HInstance hinstance)
+    uint32_t GetInstanceGeneration(HInstance hinstance)
     {
         return (uint32_t)(hinstance >> INSTANCE_GENERATION_SHIFT);
+    }
+
+    uint32_t GetGeneration(HInstance hinstance)
+    {
+        return GetInstanceGeneration(hinstance);
     }
 
     static uint32_t AllocateInstanceGeneration(Collection* collection)
@@ -262,7 +267,7 @@ namespace dmGameObject
         if (out_collection)
             *out_collection = 0;
 
-        uint32_t generation = GetGeneration(hinstance);
+        uint32_t generation = GetInstanceGeneration(hinstance);
         if (generation == 0)
             return 0;
 
@@ -300,7 +305,7 @@ namespace dmGameObject
 
     Instance* GetInstanceFromHandle(Collection* collection, HInstance hinstance)
     {
-        uint32_t generation = GetGeneration(hinstance);
+        uint32_t generation = GetInstanceGeneration(hinstance);
         if (!collection || generation == 0 || GetInstanceCollectionIndex(hinstance) != GetCollectionIndex(collection->m_HCollection))
             return 0;
 

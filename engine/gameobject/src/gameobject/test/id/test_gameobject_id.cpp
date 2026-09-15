@@ -143,7 +143,7 @@ TEST_F(IdTest, TestGenerationChangesOnIdentifierReuse)
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go1, "go1"));
 
     dmhash_t id = dmGameObject::GetIdentifier(go1);
-    uint32_t generation1 = dmGameObject::GetGeneration(go1);
+    uint32_t generation1 = dmGameObject::GetInstanceGeneration(go1);
 
     ASSERT_EQ(go1, dmGameObject::GetInstanceFromIdentifier(m_Collection, id));
 
@@ -155,7 +155,7 @@ TEST_F(IdTest, TestGenerationChangesOnIdentifierReuse)
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go2);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go2, "go1"));
 
-    uint32_t generation2 = dmGameObject::GetGeneration(go2);
+    uint32_t generation2 = dmGameObject::GetInstanceGeneration(go2);
 
     ASSERT_LT(generation1, generation2);
     ASSERT_EQ(go2, dmGameObject::GetInstanceFromIdentifier(m_Collection, id));
@@ -171,21 +171,21 @@ TEST_F(IdTest, TestPackedHandlesAndStaleGameObject)
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, game_object);
     ASSERT_EQ((uint64_t)(m_Collection & 0xffff), (game_object >> 20) & collection_index_mask);
     ASSERT_NE(0U, (uint32_t)(game_object >> 32));
-    ASSERT_EQ((uint32_t)(game_object >> 32), dmGameObject::GetGeneration(game_object));
+    ASSERT_EQ((uint32_t)(game_object >> 32), dmGameObject::GetInstanceGeneration(game_object));
     ASSERT_TRUE(dmGameObject::IsValid(game_object));
 
     uint32_t index = (uint32_t)(game_object & instance_index_mask);
     dmGameObject::HInstance zero_generation = (game_object & 0xffffffffULL);
-    ASSERT_EQ(0U, dmGameObject::GetGeneration(zero_generation));
+    ASSERT_EQ(0U, dmGameObject::GetInstanceGeneration(zero_generation));
     ASSERT_FALSE(dmGameObject::IsValid(zero_generation));
 
-    dmGameObject::HInstance max_indices = ((uint64_t)dmGameObject::GetGeneration(game_object) << 32) |
+    dmGameObject::HInstance max_indices = ((uint64_t)dmGameObject::GetInstanceGeneration(game_object) << 32) |
                                           (collection_index_mask << 20) |
                                           instance_index_mask;
     ASSERT_FALSE(dmGameObject::IsValid(max_indices));
 
     dmGameObject::HInstance maximum_encoding = UINT64_MAX;
-    ASSERT_EQ(UINT32_MAX, dmGameObject::GetGeneration(maximum_encoding));
+    ASSERT_EQ(UINT32_MAX, dmGameObject::GetInstanceGeneration(maximum_encoding));
     ASSERT_FALSE(dmGameObject::IsValid(maximum_encoding));
     ASSERT_EQ(dmGameObject::INVALID_COLLECTION, dmGameObject::GetCollection(maximum_encoding));
 
@@ -311,7 +311,7 @@ TEST_F(IdTest, TestInvalidHandleDefaults)
     dmGameObject::HInstance invalid_generation = 1;
     ASSERT_FALSE(dmGameObject::IsValid(invalid_generation));
     ASSERT_EQ(0U, dmGameObject::GetIdentifier(invalid_generation));
-    ASSERT_EQ(0U, dmGameObject::GetGeneration(invalid_generation));
+    ASSERT_EQ(0U, dmGameObject::GetInstanceGeneration(invalid_generation));
     ASSERT_EQ(dmGameObject::INVALID_COLLECTION, dmGameObject::GetCollection(invalid_generation));
     ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::SetIdentifier(m_Collection, invalid_generation, "invalid"));
 
