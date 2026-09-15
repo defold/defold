@@ -78,7 +78,7 @@
            [com.sun.javafx.font FontResource FontStrike PGFont]
            [com.sun.javafx.geom.transform BaseTransform]
            [com.sun.javafx.perf PerformanceTracker]
-           [com.sun.javafx.scene.text FontHelper TextLayout TextLayout$CaretGeometry$Single]
+           [com.sun.javafx.scene.text FontHelper TextLayout TextLayout$CaretGeometry$Single TextLayout$CaretGeometry$Split]
            [com.sun.javafx.tk Toolkit]
            [com.sun.javafx.util Utils]
            [editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect]
@@ -208,8 +208,14 @@
   ;; positions in visual order, so the caret runs right-to-left through an
   ;; Arabic phrase, which is what it should do.
   (complex-text-col->x [this text col]
-    (.x ^TextLayout$CaretGeometry$Single
-        (.getCaretGeometry (text-layout (.font this) text) col true)))
+    (let [geometry (.getCaretGeometry (text-layout (.font this) text) col true)]
+      ;; At a direction boundary the offset has two visual positions and the
+      ;; shaper reports both halves of a split caret. The editor draws one
+      ;; caret, so take the upper half, which is the position in the direction
+      ;; the offset's own character runs.
+      (if (instance? TextLayout$CaretGeometry$Split geometry)
+        (.x1 ^TextLayout$CaretGeometry$Split geometry)
+        (.x ^TextLayout$CaretGeometry$Single geometry))))
   (complex-text-x->col [this text x]
     (.getInsertionIndex (.getHitInfo (text-layout (.font this) text) (float x) (float 0.0))))
   (complex-text-x->character-col [this text x]
