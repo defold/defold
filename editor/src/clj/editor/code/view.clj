@@ -183,15 +183,18 @@
 (defn- make-complex-width-cache [^Font font]
   ;; Shaping is the most expensive thing on the paint path - milliseconds for a
   ;; long line - and a run's width never changes, so each distinct run is
-  ;; measured once. The cache is dropped wholesale when it grows too large
-  ;; rather than evicting, which keeps the lookup free of bookkeeping.
+  ;; measured once. When full the cache is dropped wholesale and refilled,
+  ;; rather than evicted from, which keeps the lookup free of bookkeeping. A
+  ;; document with more distinct runs than fit re-shapes a viewport's worth
+  ;; after each drop instead of never caching at all.
   (let [cache (ConcurrentHashMap.)]
     (fn get-complex-width [^String text]
       (if-some [cached-width (.get cache text)]
         cached-width
         (let [width (double (.getWidth (.getBounds (text-layout font text))))]
-          (when (< (.size cache) ^long max-complex-width-cache-size)
-            (.put cache text width))
+          (when (<= ^long max-complex-width-cache-size (.size cache))
+            (.clear cache))
+          (.put cache text width)
           width)))))
 
 (defonce/record GlyphMetrics [^Font font char-width-cache complex-width-cache ^double line-height ^double ascent]

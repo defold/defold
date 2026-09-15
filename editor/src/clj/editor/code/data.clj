@@ -670,10 +670,15 @@
            x 0.0]
       (if-let [[start end] (get ranges range-index)]
         (cond
-          (<= col start)
+          (< col start)
           (advance-text-impl glyph-metrics tab-stops line index col x)
 
-          (< col end)
+          ;; Both ends of the range included: in a right-to-left run the caret
+          ;; at the first column belongs at the run's right edge and the one at
+          ;; the last column at its left edge, which only the shaper knows.
+          ;; Taking the advance path at either end put the caret on the wrong
+          ;; side of the text.
+          (<= col end)
           (+ ^double (advance-text-impl glyph-metrics tab-stops line index start x)
              ^double (complex-text-col->x glyph-metrics (.substring line start end) (- col start)))
 
@@ -1320,13 +1325,18 @@
   [^LayoutInfo layout lines ^CursorRange adjusted-cursor-range]
   (let [canvas ^Rect (.canvas layout)
         ^double line-height (line-height (.glyph layout))
+        ;; Inside a right-to-left range the visual x decreases as the column
+        ;; increases, so two columns' x positions are not ordered. The rect is
+        ;; the span between them either way. A selection crossing a direction
+        ;; boundary is drawn as one rect covering the whole visual span rather
+        ;; than as several - that wants range geometry from the shaper.
+        span-rect (fn [^double top ^double start-x ^double end-x]
+                    (->Rect (min start-x end-x) top (Math/abs (- end-x start-x)) line-height))
         col-to-col-rect (fn [^long row ^long start-col ^long end-col]
-                          (let [line (lines row)
-                                top (row->y layout row)
-                                left (col->x layout start-col line)
-                                right (col->x layout end-col line)
-                                width (- right left)]
-                            (->Rect left top width line-height)))
+                          (let [line (lines row)]
+                            (span-rect (row->y layout row)
+                                       (col->x layout start-col line)
+                                       (col->x layout end-col line))))
         col-to-edge-rect (fn [^long row ^long col]
                            (let [line (lines row)
                                  top (row->y layout row)
@@ -1334,12 +1344,10 @@
                                  width (- (+ (.x canvas) (.w canvas)) left)]
                              (->Rect left top width line-height)))
         edge-to-col-rect (fn [^long row ^long col]
-                           (let [line (lines row)
-                                 top (row->y layout row)
-                                 left (col->x layout 0 line)
-                                 right (col->x layout col line)
-                                 width (- right left)]
-                             (->Rect left top width line-height)))
+                           (let [line (lines row)]
+                             (span-rect (row->y layout row)
+                                        (col->x layout 0 line)
+                                        (col->x layout col line))))
         edge-to-edge-rect (fn [^long start-row ^long end-row]
                             (let [top (row->y layout start-row)
                                   left (col->x layout 0 "")
