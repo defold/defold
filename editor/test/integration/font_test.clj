@@ -947,6 +947,7 @@
       (is (g/error-fatal? (g/node-value node :build-targets))))))
 
 (deftest default-style-markup-follows-font-settings
+  ;; The read-only default markup is derived from the current font properties.
   (test-util/with-loaded-project
     (let [node (test-util/resource-node project "/editor1/test.font")
           default-node (:node-id (first (g/node-value node :style-infos)))
@@ -963,6 +964,8 @@
                    (g/set-property node :shadow-blur 0)
                    (g/set-property node :shadow-alpha 0.375)])
       (is (= updated-markup (g/node-value default-node :markup)))
+      ;; Save only the default style's name. Its generated properties should compile
+      ;; identically to an authored style containing the displayed markup.
       (let [saved (g/node-value node :save-value)
             generated (get-in (g/node-value node :build-targets) [0 :user-data :pb-map :styles 0])
             [_ copied] (mapv protobuf/pb->map-with-defaults
@@ -972,6 +975,7 @@
                                                       {:name "copy" :markup updated-markup}]))))]
         (is (= {:name "default"} (first (:styles saved))))
         (is (= (dissoc generated :name :name-hash) (dissoc copied :name :name-hash))))
+      ;; Property history must invalidate the derived markup rather than leave stale effects.
       (g/undo! :undo/global)
       (is (= original-markup (g/node-value default-node :markup)))
       (g/redo! :undo/global)

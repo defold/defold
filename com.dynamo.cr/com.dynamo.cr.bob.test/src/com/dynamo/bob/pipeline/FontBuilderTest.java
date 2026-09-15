@@ -146,6 +146,72 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                 assertEquals(0.6235f, compiled.getStyles(0).getShadowAlpha(), 0.0f);
                 assertEquals(1.375f, compiled.getOutlineWidth(), 0.0f);
                 assertEquals(1, compiled.getShadowBlur());
+                com.dynamo.render.proto.Font.CompiledStyle defaults = compiled.getStyles(0);
+                assertEquals(1.375f, defaults.getOutlineWidth(), 0.0f);
+                assertEquals(0.3725f, defaults.getOutlineAlpha(), 0.0f);
+                assertEquals(0.6235f, defaults.getShadowAlpha(), 0.0f);
+
+                FontRenderer.Params params = new FontRenderer.Params();
+                params.size = 16.0f;
+                params.cacheWidth = 128;
+                params.cacheHeight = 128;
+                params.outputBitmap = outputFormat.equals("TYPE_BITMAP");
+                params.hasOutline = true;
+                params.hasShadow = true;
+                params.outlineWidth = compiled.getOutlineWidth();
+                params.shadowBlur = compiled.getShadowBlur();
+                params.shadowX = compiled.getShadowX();
+                params.shadowY = compiled.getShadowY();
+                params.sdfSpread = 6.0f;
+                try (FontRenderer renderer = new FontRenderer("Tuffy.ttf", getProject().getResource("/Tuffy.ttf").getContent(), params)) {
+                    renderer.setStyle(defaults.getNameHash(), com.dynamo.bob.font.FontStyles.toNativeStyle(defaults));
+                    FontRenderer.Properties properties = new FontRenderer.Properties();
+                    properties.width = 128.0f;
+                    properties.height = 64.0f;
+                    properties.leading = 1.0f;
+                    properties.sdfScale = 1.0f;
+                    properties.outlineColor = new float[] {0.0f, 0.0f, 1.0f, 1.0f};
+                    properties.baseStyle = defaults.getNameHash();
+                    properties.useBaseStyle = true;
+                    renderer.setProperties(properties);
+                    renderer.setText("A");
+                    renderer.beginBatch();
+                    renderer.generateTexture(0);
+                    FontRenderer.VertexBufferRequirements requirements = renderer.getVertexBufferRequirements();
+                    // Restoring the effects must keep one quad, not add outline and shadow quads.
+                    assertEquals(6, requirements.vertexCount);
+                    ByteBuffer vertices = ByteBuffer.allocateDirect(requirements.byteCount).order(ByteOrder.nativeOrder());
+                    float[] transform = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+                    renderer.getVertices(transform, vertices, requirements);
+                    // FontGlyphVertex has a 56-byte stride: outline RGBA at 20, shadow RGBA at 24,
+                    // and face/outline/shadow masks at 44. Alpha comparisons allow one byte of quantization.
+                    for (int i = 0; i < requirements.vertexCount; ++i) {
+                        int offset = i * 56;
+                        assertEquals(0, Byte.toUnsignedInt(vertices.get(offset + 20)));
+                        assertEquals(0, Byte.toUnsignedInt(vertices.get(offset + 21)));
+                        assertEquals(255, Byte.toUnsignedInt(vertices.get(offset + 22)));
+                        assertEquals(0.3725f * 255, Byte.toUnsignedInt(vertices.get(offset + 23)), 1.0f);
+                        assertEquals(0.6235f * 255, Byte.toUnsignedInt(vertices.get(offset + 27)), 1.0f);
+                        assertEquals(1.0f, vertices.getFloat(offset + 44), 0.0f);
+                        assertEquals(1.0f, vertices.getFloat(offset + 48), 0.0f);
+                        assertEquals(1.0f, vertices.getFloat(offset + 52), 0.0f);
+                    }
+
+                    // Without a base style, font opacity comes from draw properties. Applying the
+                    // generated default must produce identical geometry, colors and SDF thresholds,
+                    // including ignoring shadow X/Y offsets in the combined quad.
+                    properties.useBaseStyle = false;
+                    properties.outlineColor[3] = defaults.getOutlineAlpha();
+                    properties.baseShadowAlpha = defaults.getShadowAlpha();
+                    renderer.setProperties(properties);
+                    renderer.beginBatch();
+                    renderer.generateTexture(0);
+                    FontRenderer.VertexBufferRequirements legacyRequirements = renderer.getVertexBufferRequirements();
+                    assertEquals(requirements.vertexCount, legacyRequirements.vertexCount);
+                    ByteBuffer legacyVertices = ByteBuffer.allocateDirect(legacyRequirements.byteCount);
+                    renderer.getVertices(transform, legacyVertices, legacyRequirements);
+                    assertEquals(legacyVertices.flip(), vertices.flip());
+                }
             }
         }
     }

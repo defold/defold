@@ -172,7 +172,7 @@
 (defn loaded?
   "Returns true if the specified node-id corresponds to a resource that has been
   loaded. The node-id must refer to an existing resource node. A resource node
-  can exist in the project graph in an unloaded state, for example if its
+  can exist in the graph in an unloaded state, for example if its
   proj-path matches a pattern listed in the .defunload file."
   ([resource-node-id]
    (loaded? (g/now) resource-node-id))

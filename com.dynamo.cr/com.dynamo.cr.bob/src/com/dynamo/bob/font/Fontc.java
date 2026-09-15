@@ -152,7 +152,11 @@ public class Fontc {
     public static int GetFontMapPadding(FontDesc fontDesc) {
         if (isBitmapFont(fontDesc))
             return 0;
-        return Math.round(getNativeSdfPadding(fontDesc));
+        // Preserve the layout padding used by compiled fonts. The native SDF
+        // sampling border is separate and must not add space between text nodes.
+        if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD)
+            return fontDesc.getShadowBlur() + (int)fontDesc.getOutlineWidth() + 1;
+        return Math.min(4, fontDesc.getShadowBlur()) + (int)fontDesc.getOutlineWidth();
     }
 
     public static float GetFontMapSdfSpread(FontDesc fontDesc) {
@@ -519,7 +523,7 @@ public class Fontc {
         glyphBankBuilder.setVectorData(ByteString.copyFrom(vectorData.toByteArray()));
         boolean monospaced = includeCount > 1;
         float advance = includeCount == 0 ? 0.0f : glyphs.get(0).advance;
-        int padding = bmfont == null ? Math.round(getNativeSdfPadding(fontDesc)) : 0;
+        int padding = GetFontMapPadding(fontDesc);
         for (int i = 0; i < includeCount; ++i) {
             Glyph glyph = glyphs.get(i);
             GlyphBank.Glyph.Builder output = GlyphBank.Glyph.newBuilder().setCharacter(glyph.character)

@@ -125,7 +125,8 @@ static uint8_t GetGlyphLayerMask(const FontLayoutVertexConfig& config, const Tex
         mask |= FONT_RENDER_LAYER_SHADOW;
     }
 
-    return mask;
+    // Styles select effects; the font determines whether they use separate quads.
+    return mask & config.m_BaseLayerMask;
 }
 
 static bool IsRenderableGlyph(const FontLayoutVertexConfig& config, const TextGlyph& glyph)
@@ -500,7 +501,8 @@ void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
     {
         const float requested_width = has_explicit_outline_width ? render_data.m_OutlineWidth / glyph.m_RenderScale : config.m_OutlineWidth;
         const float width = config.m_IsSdf ? dmMath::Min(requested_width, config.m_OutlineWidth) : config.m_OutlineWidth;
-        if (config.m_SdfSpread > 0.0f)
+        if (config.m_SdfSpread > 0.0f &&
+            (config.m_BaseLayerMask != FONT_RENDER_LAYER_FACE || width < config.m_OutlineWidth))
         {
             layer_data->m_SdfOutline = config.m_SdfEdge - (191.0f / 255.0f) * width / config.m_SdfSpread;
         }
@@ -539,12 +541,21 @@ void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
         const float requested_blur = has_explicit_blur ? render_data.m_ShadowBlur / glyph.m_RenderScale : config.m_ShadowBlur;
 
         const bool shadow_has_hidden_outline = config.m_ShadowIncludesOutline && !markup_outline;
+        // Base-style flags describe inherited font effects, not explicit markup.
+        // Preserve their shadow channel in both layer modes; authored shadow
+        // overrides retain the face-based coverage used by rich text.
+        const uint32_t override_flags = glyph.m_StyleIndex < config.m_Layout->m_StyleOverrideFlags.Size() ?
+                                         config.m_Layout->m_StyleOverrideFlags[glyph.m_StyleIndex] : render_data.m_StyleFlags;
+        const bool inherited_shadow = (override_flags & SHADOW_STYLE_FLAGS) == 0;
+        const bool use_baked_shadow = (inherited_shadow || config.m_BaseLayerMask == FONT_RENDER_LAYER_FACE) &&
+                                      config.m_BaseShadowAlpha > 0.0f && requested_blur >= config.m_ShadowBlur &&
+                                      !shadow_has_hidden_outline;
         const bool use_face_coverage = requested_blur <= 0.0f || config.m_ShadowBlur <= 0.0f || shadow_has_hidden_outline;
-        if (use_face_coverage)
+        if (!use_baked_shadow && use_face_coverage)
         {
             layer_data->m_SdfShadow = config.m_SdfEdge;
         }
-        else if (config.m_SdfSpread > 0.0f)
+        else if (!use_baked_shadow && config.m_SdfSpread > 0.0f)
         {
             const float blur = dmMath::Min(requested_blur, config.m_ShadowBlur);
             layer_data->m_SdfShadow = config.m_SdfEdge - (191.0f / 255.0f) * blur / config.m_SdfSpread;
@@ -554,7 +565,7 @@ void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
         // remapped shadow channel, which can include the configured outline.
         // Bitmap fonts can only select face coverage for crisp shadows because
         // their positive blur is already baked into the shadow channel.
-        if (config.m_IsSdf || use_face_coverage)
+        if (!use_baked_shadow && (config.m_IsSdf || use_face_coverage))
         {
             layer_data->m_SdfShadow = EncodeFaceShadowThreshold(layer_data->m_SdfShadow);
         }
@@ -595,7 +606,7 @@ static void SetVertexLayerParams(const FontLayoutVertexConfig& config,
     params->m_ShadowX = render_data.m_ShadowX;
     params->m_ShadowY = render_data.m_ShadowY;
     params->m_LayerCount = layer_count;
-    params->m_FaceOnly = config.m_Layout->m_UseRichText;
+    params->m_FaceOnly = config.m_BaseLayerMask != FONT_RENDER_LAYER_FACE;
 }
 
 uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,

@@ -22,6 +22,7 @@
             [editor.resource-update :as resource-update]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [support.test-support :refer [spit-until-new-mtime touch-until-new-mtime]]))
 
 (set! *warn-on-reflection* true)
@@ -134,9 +135,9 @@
 
 (defn- perform-edits-to-all-editable-files [project]
   (into []
-        (mapcat (fn [[editable-resource-node-id]]
-                  (test-util/edit-resource-node editable-resource-node-id)))
-        (g/sources-of project :save-data)))
+        (mapcat (fn [arc]
+                  (test-util/edit-resource-node (gt/source-id arc))))
+        (g/inputs (g/now) project :save-data)))
 
 (defn- perform-edits-to-all-editable-files! [project]
   (g/transact (perform-edits-to-all-editable-files project))
@@ -239,8 +240,7 @@
 
 (deftest keep-existing-nodes-undo-after-save-test
   (test-util/with-scratch-project project-path
-    (let [project-graph (g/node-id->graph-id project)
-          resource-change-plans-atom (make-resource-change-plans-atom! project)]
+    (let [resource-change-plans-atom (make-resource-change-plans-atom! project)]
 
       ;; Perform edits on all editable files in the project.
       (perform-edits-to-all-editable-files! project)

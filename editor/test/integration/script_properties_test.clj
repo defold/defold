@@ -42,11 +42,11 @@
 
 (defn- component [go-id id]
   (let [comps (->> (g/node-value go-id :node-outline)
-                :children
-                (map (fn [v] [(-> (:label v)
-                                (string/split #" ")
-                                first) (:node-id v)]))
-                (into {}))]
+                   :children
+                   (map (fn [v] [(-> (:label v)
+                                     (string/split #" ")
+                                     first) (:node-id v)]))
+                   (into {}))]
     (comps id)))
 
 (defmacro with-source [script-id source & body]
@@ -91,11 +91,11 @@
   (tu/with-loaded-project
     (let [script-id (tu/resource-node project "/script/props.script")]
       (testing "reading values"
-               (is (= 1.0 (prop script-id "number")))
-               (is (read-only? script-id "number")))
+        (is (= 1.0 (prop script-id "number")))
+        (is (read-only? script-id "number")))
       (testing "string prop defs"
-               (with-source script-id "go.property(\"number\", \"my_string\")\n"
-                 (is (= "my_string" (prop script-id "number"))))))))
+        (with-source script-id "go.property(\"number\", \"my_string\")\n"
+          (is (= "my_string" (prop script-id "number"))))))))
 
 (deftest script-properties-component
   (tu/with-loaded-project
@@ -353,7 +353,7 @@
 
 (deftest edit-text-script-property-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           build-output (partial tu/build-output project)
           props-script (doto (tu/make-resource-node! project "/props.script")
@@ -407,7 +407,7 @@
 
 (deftest go-property-rejected-outside-script-files-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           bad-source "go.property('number', 1)\n"
           bad-invalid-args-source "go.property()\n"
@@ -472,7 +472,7 @@
 
 (deftest edit-script-resource-properties-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
@@ -572,11 +572,11 @@
                              (error-item-open-info-without-opts error-item-of-parent-resource)))
                       (is (= [(resource "/props.script") props-script]
                              (error-item-open-info-without-opts error-item-of-faulty-node))))))))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest edit-component-instance-resource-properties-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
@@ -778,11 +778,11 @@
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
               (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest rename-resource-referenced-from-component-instance-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
@@ -819,11 +819,11 @@
                      {"atlas" (murmur/hash64 renamed-build-resource-path)}))
               (is (= (:property-resources built-props-game-object)
                      [renamed-build-resource-path])))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest edit-game-object-instance-resource-properties-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
@@ -1044,11 +1044,11 @@
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
               (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest rename-resource-referenced-from-game-object-instance-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
@@ -1091,11 +1091,11 @@
                      {"atlas" (murmur/hash64 renamed-build-resource-path)}))
               (is (= (:property-resources built-props-collection)
                      [renamed-build-resource-path])))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest edit-collection-instance-resource-properties-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
@@ -1103,7 +1103,7 @@
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
           build-output (partial tu/build-output project)
           texture-build-resource (partial tu/texture-build-resource project)
-          shader-program-build-resource(partial tu/shader-program-build-resource project)
+          shader-program-build-resource (partial tu/shader-program-build-resource project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
@@ -1333,11 +1333,11 @@
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
               (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest edit-collection-instance-embedded-game-object-resource-properties-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
@@ -1346,7 +1346,7 @@
           build-output (partial tu/build-output project)
           node-build-resource tu/node-build-resource
           texture-build-resource (partial tu/texture-build-resource project)
-          shader-program-build-resource(partial tu/shader-program-build-resource project)
+          shader-program-build-resource (partial tu/shader-program-build-resource project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
@@ -1365,7 +1365,7 @@
                                             "go.property('texture',  resource.texture('/from-props-script.png'))"]))
               props-collection (doto (make-resource-node! "/props.collection"))
               embedded-game-object-instance (tu/add-embedded-game-object! props-collection)
-              embedded-game-object(tu/to-game-object-node-id embedded-game-object-instance)
+              embedded-game-object (tu/to-game-object-node-id embedded-game-object-instance)
               props-script-component (tu/add-referenced-component! embedded-game-object (resource-node/resource props-script))
               sub-props-collection (make-resource-node! "/sub-props.collection")
               props-collection-instance (tu/add-referenced-collection! sub-props-collection (resource-node/resource props-collection))
@@ -1578,11 +1578,11 @@
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
               (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest rename-resource-referenced-from-collection-instance-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
@@ -1630,11 +1630,11 @@
                      {"atlas" (murmur/hash64 renamed-build-resource-path)}))
               (is (= (:property-resources built-sub-props-collection)
                      [renamed-build-resource-path])))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest layered-resource-property-override-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)
@@ -1781,11 +1781,11 @@
                      "/from-props-game-object.atlas"
                      "/from-props-script.atlas"}
                    (tu/node-built-source-paths sub-props-collection)))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest overrides-remain-after-script-edit-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           resource (partial tu/resource workspace)
           make-atlas! (partial tu/make-atlas-resource-node! project)
@@ -1832,11 +1832,11 @@
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.go") props-script-component]
                            (error-item-open-info-without-opts error-item-of-faulty-node)))))))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest overrides-remain-after-script-reload-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)
@@ -1895,7 +1895,7 @@
           (is (overridden-property? props-script-component))
           (is (overridden-property? ov-props-script-component))
           (is (overridden-property? ov-ov-props-script-component)))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest zip-resource-reference-remains-valid-after-script-reload-test
   ;; It seems currently all ZipResources are recreated during resource sync.
@@ -1907,7 +1907,7 @@
   ;; resource sync had occurred.
   ;; Reported as #4370 "ZipResource equality issues" in the GitHub tracker.
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)]
       (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (doto (tu/make-resource-node! project "/props.script")
@@ -1931,4 +1931,4 @@
                    "/builtins/graphics/particle_blob.tilesource"}
                  (tu/node-built-source-paths props-script))))
 
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))

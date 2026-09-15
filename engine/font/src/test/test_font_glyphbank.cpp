@@ -126,6 +126,10 @@ TEST(FontGlyphBank, LookupMetricsBitmapAndOwnership)
     ASSERT_EQ(0U, FontGetGlyphIndex(font, 66));
     ASSERT_EQ(7.0f, FontGetAscent(font, 1.0f));
     ASSERT_EQ(2.0f, FontGetDescent(font, 1.0f));
+    ASSERT_EQ(14.0f, FontGetAscent(font, 2.0f));
+    ASSERT_EQ(4.0f, FontGetDescent(font, 2.0f));
+    ASSERT_EQ(3.5f, FontGetAscent(font, 0.5f));
+    ASSERT_EQ(1.0f, FontGetDescent(font, 0.5f));
     ASSERT_EQ(0.0f, FontGetLineGap(font, 1.0f));
     ASSERT_EQ(1.0f, FontGetScaleFromSize(font, 42.0f));
 

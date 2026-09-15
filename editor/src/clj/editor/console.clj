@@ -754,7 +754,7 @@
 
 (def ^:private resource->menu-item (comp ui/string->menu-item resource/proj-path))
 
-(defn make-console! [graph workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn prefs localization]
+(defn make-console! [workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn prefs localization]
   (let [^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
         canvas (Canvas. (.getWidth canvas-pane) (.getHeight canvas-pane))
 
@@ -762,17 +762,17 @@
         (g/tx-nodes-added
           (g/transact
             {:undoable false}
-            [(g/make-node graph ConsoleNode)
-             (g/make-node graph ConsoleView
-                          :canvas canvas
-                          :canvas-width (.getWidth canvas)
-                          :canvas-height (.getHeight canvas)
-                          :color-scheme console-color-scheme
-                          :grammar console-grammar
-                          :gutter-view (ConsoleGutterView.)
-                          :highlighted-find-term (.getValue find-term-property)
-                          :line-height-factor 1.2
-                          :resize-reference :bottom)]))
+            [(g/make-node ConsoleNode)
+             (g/make-node ConsoleView
+               :canvas canvas
+               :canvas-width (.getWidth canvas)
+               :canvas-height (.getHeight canvas)
+               :color-scheme console-color-scheme
+               :grammar console-grammar
+               :gutter-view (ConsoleGutterView.)
+               :highlighted-find-term (.getValue find-term-property)
+               :line-height-factor 1.2
+               :resize-reference :bottom)]))
 
         view-node (setup-view! console-node view-node)
         tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node prefs localization)

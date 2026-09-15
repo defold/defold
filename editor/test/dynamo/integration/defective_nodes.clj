@@ -38,7 +38,7 @@
 
 (deftest defective-node-overrides-outputs
   (with-clean-system
-    (let [[node] (tx-nodes (g/make-node world OrdinaryNode))]
+    (let [[node] (tx-nodes (g/make-node OrdinaryNode))]
       (is (= "a0" (g/node-value node :catted)))
       (is (= "A"  (g/node-value node :upper)))
 
@@ -49,9 +49,9 @@
 
 (deftest defective-nodes-values-are-decached
   (with-clean-system
-    (let [[node downstream prop-consumer] (tx-nodes (g/make-node world OrdinaryNode)
-                                                    (g/make-node world StringConsumer)
-                                                    (g/make-node world StringConsumer))]
+    (let [[node downstream prop-consumer] (tx-nodes (g/make-node OrdinaryNode)
+                                                    (g/make-node StringConsumer)
+                                                    (g/make-node StringConsumer))]
 
       (g/transact [(g/connect node :upper downstream :a-string)
                    (g/connect node :a-property prop-consumer :a-string)])
@@ -76,7 +76,7 @@
 
 (deftest defective-node-excludes-unjammable-properties
   (with-clean-system
-    (let [[node] (tx-nodes (g/make-node world OrdinaryNode))]
+    (let [[node] (tx-nodes (g/make-node OrdinaryNode))]
       (is (= "/foo" (g/node-value node :external-ref)))
 
       (g/transact (g/mark-defective node :bad-value))
@@ -85,7 +85,7 @@
 
 (deftest defective-node-excludes-intrinsics
   (with-clean-system
-    (let [[node] (tx-nodes (g/make-node world OrdinaryNode))]
+    (let [[node] (tx-nodes (g/make-node OrdinaryNode))]
 
       (g/transact (g/mark-defective node :bad-value))
 
@@ -94,7 +94,7 @@
 
 (deftest defective-node-includes-_properties
   (with-clean-system
-    (let [[node] (tx-nodes (g/make-node world OrdinaryNode))]
+    (let [[node] (tx-nodes (g/make-node OrdinaryNode))]
       (g/transact (g/mark-defective node :bad-value))
       (is (= :bad-value (g/node-value node :_properties)))
       (is (= :bad-value (g/node-value node :_overridden-properties))))))
@@ -104,7 +104,7 @@
   ;; _declared-properties should behave in regards to mark-defective
   ;; and possible error values among their arguments
   (with-clean-system
-    (let [[node] (tx-nodes (g/make-node world OrdinaryNode))]
+    (let [[node] (tx-nodes (g/make-node OrdinaryNode))]
       (g/transact (g/mark-defective node :bad-value))
       (is (not= :bad-value (g/node-value node :_declared-properties))))))
 

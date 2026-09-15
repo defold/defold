@@ -438,7 +438,8 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
     glyph->m_Ascent = ascent;
     glyph->m_Descent = descent;
 
-    if (options->m_GenerateOutline && has_sdf_image)
+    // Preserve the sampled image bounds and origin; advances remain floating point.
+    if (has_sdf_image)
     {
         glyph->m_Width = (float)glyph->m_Bitmap.m_Width;
         glyph->m_Height = (float)srch;
@@ -578,7 +579,7 @@ FontResult FontGetGlyphSDFMetricsTTF(HFont hfont, uint32_t glyph_index, float sc
     glyph->m_Width = (float)(x1 - x0);
     glyph->m_Height = (float)(y1 - y0);
     glyph->m_Advance = advance * scale;
-    glyph->m_LeftBearing = left_bearing * scale;
+    glyph->m_LeftBearing = x0;
     glyph->m_Ascent = -y0;
     glyph->m_Descent = y1;
     return FONT_RESULT_OK;
