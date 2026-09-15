@@ -439,6 +439,51 @@ public class FontTest {
     }
 
     @Test
+    public void testCompiledFontLayoutPaddingPreservesFractionalMetrics() throws Exception {
+        FontDesc baseDesc = FontDesc.newBuilder()
+            .setFont("/builtins/fonts/vera_mo_bd.ttf")
+            .setMaterial("font.material")
+            .setSize(14)
+            .setCharacters(" L")
+            .build();
+        FontDesc[] descriptions = {
+            baseDesc.toBuilder().setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD).build(),
+            baseDesc.toBuilder().setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD).setOutlineWidth(1.5f).setShadowBlur(2).build(),
+            baseDesc.toBuilder().setOutputFormat(FontTextureFormat.TYPE_BITMAP).build(),
+            baseDesc.toBuilder().setOutputFormat(FontTextureFormat.TYPE_BITMAP).setOutlineWidth(1.5f).setShadowBlur(6).build()
+        };
+        int[] expectedPadding = {1, 4, 0, 5};
+
+        for (int i = 0; i < descriptions.length; ++i) {
+            FontDesc fontDesc = descriptions[i];
+            Fontc fontc = new Fontc();
+            try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+                fontc.compile(input, fontDesc, false);
+            }
+            EditorFontMap editorFontMap;
+            try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+                editorFontMap = new Fontc().compileForEditor(input, fontDesc, null, null);
+            }
+            GlyphBank editorBuild;
+            try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+                editorBuild = new Fontc().compileForEditorBuild(input, fontDesc, null, null);
+            }
+
+            assertEquals(expectedPadding[i], editorFontMap.fontMap.getPadding());
+            for (GlyphBank bank : new GlyphBank[] {fontc.getGlyphBank(), editorFontMap.glyphBank, editorBuild}) {
+                assertTrue(bank.getIsMonospaced());
+                assertEquals(expectedPadding[i], bank.getPadding());
+                assertEquals(8.4287109375f, bank.getGlyphs(0).getAdvance(), EPSILON);
+                assertEquals(16.296875f, bank.getMaxAscent() + bank.getMaxDescent(), EPSILON);
+            }
+            if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
+                // Layout padding must not change the native SDF's sampling range.
+                assertEquals(i == 0 ? 3.0f : 6.5f, fontc.getGlyphBank().getSdfSpread(), EPSILON);
+            }
+        }
+    }
+
+    @Test
     public void testNativeDistanceFieldSingleChannelGlyphBank() throws Exception {
         FontDesc fontDesc = FontDesc.newBuilder()
             .setFont("Tuffy.ttf")
