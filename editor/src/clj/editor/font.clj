@@ -243,9 +243,7 @@
 
 (defn- native-sdf-limit
   ^double [^double padding ^double width]
-  (/ (- (* 0.75 255.0)
-        (* (/ (double FontRenderer/DEFAULT_SDF_EDGE_VALUE) padding) width))
-     255.0))
+  (- 0.75 (* 0.25 (/ width padding))))
 
 (defn- add-sdf-screen-scale
   "Annotate text entries with :sdf-screen-scale when rendering SDF fonts."
