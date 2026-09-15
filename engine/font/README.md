@@ -9,24 +9,44 @@ cmake --build ../build/arm64-macos --target generate_font_test_images
 
 Four generator executables compile `src/test/test_font_bitmap_gen.cpp`: legacy/full
 layout, each with the rich-text parser enabled/excluded. Each runs only its
-supported bitmap matrix by default, sharing one graphics context. The ordinary
+supported font matrix by default, sharing one graphics context. The ordinary
 `test_font` unit tests remain independent and require no graphics context.
 The matrix is enumerated in `src/test/make_report.py`.
 
 The tests use fontviewer's direct graphics approach: glyph atlas, font-library
 layout/vertex packing, and font shaders. One hidden OpenGL context per process
-renders directly into off-screen targets. There is no engine, Bob, generated
-project, component, frame delay or process per image. PNG output is normalized
+renders directly into off-screen targets. Vector cases use the production
+render library cache, vertex backend, and Slug shader. There is no engine
+executable, generated project, component, frame delay or process per image. PNG output is normalized
 from the backend's BGRA readback. Actual and accepted current captures use the same
 fixed rectangles and text origins from `src/test/data/font_render/capture_geometry.json`.
 No foreground-dependent cropping is applied; clipping is an assertion failure.
 
-The matrix covers TTF/OTF distance-field and bitmap output, glyph-bank provider
-snapshots, BMFont, both layer modes, effect alpha/width/shadow settings, rich
-markup overrides, and wrapped English/Arabic. Glyph-bank snapshots exercise
-prebaked layout/fallback; they do not test the font compiler. Compiler tests
-remain in the existing Java/Bob test suites. Labels and GUI are not font-library
-objects and are not included here.
+The matrix covers TTF/OTF distance-field, bitmap, and Vector output, glyph-bank
+providers, BMFont, both bitmap layer modes, effect alpha/width/shadow settings,
+rich markup overrides, and wrapped English/Arabic. Bitmap glyph-bank snapshots
+exercise prebaked layout/fallback. Vector banks use the curve and effect payload
+exported by Fontc. Java/Bob tests cover the resource compiler integration.
+Labels and GUI components are not included here.
+
+Vector contributes 56 captures across the four configurations:
+
+| Sources | Scenarios | Layout/parser configurations |
+| --- | --- | --- |
+| TTF and OTF runtime glyphs | Face only; face + outline + shadow; 2× font size | All four |
+| TTF and OTF Fontc glyph banks | Same three scenarios | All four |
+| All four Vector sources | Rich text color and 150% size override | Legacy/full with rich text |
+
+The Vector face uses analytical curves; outline and shadow sample the generated
+SDF effect atlas. Glyph data is generated at size 40, including the cases drawn
+at size 80. Captures assert that faces, blue outlines, and green shadows are
+present and fit within the fixed capture rectangle. Vector uses separate layer
+quads; manual Vector captures require `--layers multi`.
+
+```sh
+./build/arm64-macos/src/test/test_font_bitmap_gen --case otf_vector_bank_multi_effects \
+  --output build/font-test-images
+```
 
 Images and per-configuration logs go into `build/font-test-images/`. The HTML,
 JSON and Markdown report goes into `build/font-render-report/`, with one child
@@ -62,7 +82,7 @@ This writes `build/font-manual/legacy-rich/manual.png`. Use `--help` for all
 options. Manual options cannot be combined with `--case`. Layout/parser support
 is chosen by executable: `test_font_bitmap_gen_skribidi`,
 `test_font_bitmap_gen_plain`, or `test_font_bitmap_gen_skribidi_plain`.
-The CMake target runs all four (344 images) and then generates the report.
+The CMake target runs all four (400 images) and then generates the report.
 
 Rendered reference PNGs belong under
 `src/test/data/reference/<configuration>/`. They require visual
