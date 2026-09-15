@@ -1,6 +1,37 @@
 path_settings {
+  path: "/texture/hdr_rgba16f.hdr"
+  profile: "HDR RGBA16F"
+}
+path_settings {
+  path: "/texture/hdr_rgba32f.hdr"
+  profile: "HDR RGBA32F"
+}
+path_settings {
   path: "**"
   profile: "Default"
+}
+profiles {
+  name: "HDR RGBA16F"
+  platforms {
+    os: OS_ID_GENERIC
+    formats {
+      format: TEXTURE_FORMAT_RGBA16F
+    }
+    formats {
+      format: TEXTURE_FORMAT_RGBA32F
+    }
+    mipmaps: true
+  }
+}
+profiles {
+  name: "HDR RGBA32F"
+  platforms {
+    os: OS_ID_GENERIC
+    formats {
+      format: TEXTURE_FORMAT_RGBA32F
+    }
+    mipmaps: false
+  }
 }
 profiles {
   name: "Default"
