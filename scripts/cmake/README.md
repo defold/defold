@@ -182,6 +182,17 @@ compile without waiting for them. Generated headers and sources must remain
 compile dependencies. Xcode iOS app targets also wait for runtime assets
 because their post-build step copies the assets into the app bundle.
 
+Native desktop tests built with Ninja use a pool of two commands. Set
+`-DDEFOLD_TEST_JOBS=1` to serialize them, or choose another positive worker
+limit. Tests use the `shared` resource group by default, so existing network
+tests and HTTP servers still run one at a time. Independently runnable font,
+sound and texture-codec tests use separate groups. A group lock covers the
+entire command, including server startup and cleanup; tests within each group
+remain serialized. `RUN_GROUP <name>` opts a test into another group after
+checking that its files, ports and devices are independent of other groups.
+Device runners, other generators and `run_tests_sequential` retain their
+existing execution order.
+
 ## Solution generation
 
 You can generate a solution for a platform with:
