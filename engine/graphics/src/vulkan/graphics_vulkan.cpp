@@ -694,7 +694,9 @@ namespace dmGraphics
             res = TransitionImageLayout(&context->m_LogicalDevice,
                 depth_stencil_texture_out,
                 vk_aspect_flags,
-                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                0,
+                GetLayerCount(depth_stencil_texture_out->m_Base.m_Type));
             CHECK_VK_ERROR(res);
         }
 
@@ -4525,7 +4527,9 @@ bail:
                     res = TransitionImageLayout(&context->m_LogicalDevice,
                         new_texture_color,
                         VK_IMAGE_ASPECT_COLOR_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                        0,
+                        GetLayerCount(rt->m_Base.m_TextureType));
                     CHECK_VK_ERROR(res);
                 }
 
@@ -4729,7 +4733,9 @@ bail:
                     res = TransitionImageLayout(&context->m_LogicalDevice,
                         texture_color,
                         VK_IMAGE_ASPECT_COLOR_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                        0,
+                        GetLayerCount(brt->m_TextureType));
                     CHECK_VK_ERROR(res);
                 }
             }
