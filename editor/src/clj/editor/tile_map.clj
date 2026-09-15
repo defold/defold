@@ -395,7 +395,7 @@
               #_(if selected
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 1.0))
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 0.5)))
-              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))
+              (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf))
               (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA)))))
 
       pass/selection
@@ -404,7 +404,7 @@
         (when vbuf
           (let [vertex-binding (vtx/use-with node-id vbuf tile-map-id-shader)]
             (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [tile-map-id-shader vertex-binding gpu-texture]
-              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))))))
+              (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))))))
 
 (defn make-tile-uv-lookup-cache
   [tile-count uv-transforms]
@@ -439,16 +439,18 @@
               v1 (aget uvs (if (.v-flip tile) 1 3))]
           (recur it
                  (if (.rotate90 tile)
-                   (-> vbuf
-                       (pos-uv-vtx-put! x0 y1 0 u0 v1)
-                       (pos-uv-vtx-put! x1 y1 0 u0 v0)
-                       (pos-uv-vtx-put! x1 y0 0 u1 v0)
-                       (pos-uv-vtx-put! x0 y0 0 u1 v1))
-                   (-> vbuf
-                       (pos-uv-vtx-put! x0 y0 0 u0 v1)
-                       (pos-uv-vtx-put! x0 y1 0 u0 v0)
-                       (pos-uv-vtx-put! x1 y1 0 u1 v0)
-                       (pos-uv-vtx-put! x1 y0 0 u1 v1)))
+                   (render-util/emit-quad!
+                     vbuf
+                     (pos-uv-vtx-put! x0 y1 0 u0 v1)
+                     (pos-uv-vtx-put! x1 y1 0 u0 v0)
+                     (pos-uv-vtx-put! x1 y0 0 u1 v0)
+                     (pos-uv-vtx-put! x0 y0 0 u1 v1))
+                   (render-util/emit-quad!
+                     vbuf
+                     (pos-uv-vtx-put! x0 y0 0 u0 v1)
+                     (pos-uv-vtx-put! x0 y1 0 u0 v0)
+                     (pos-uv-vtx-put! x1 y1 0 u1 v0)
+                     (pos-uv-vtx-put! x1 y0 0 u1 v1)))
                  (min-l min-x x0)
                  (min-l min-y y0)
                  (max-l max-x x1)
@@ -820,16 +822,18 @@
           x1 (+ x0 w)
           y1 (+ y0 h)]
       (if rotate90
-          (-> vbuf
-              (pos-uv-vtx-put! x0 y1 0 u0 v1)
-              (pos-uv-vtx-put! x1 y1 0 u0 v0)
-              (pos-uv-vtx-put! x1 y0 0 u1 v0)
-              (pos-uv-vtx-put! x0 y0 0 u1 v1))
-          (-> vbuf
-              (pos-uv-vtx-put! x0 y0 0 u0 v1)
-              (pos-uv-vtx-put! x0 y1 0 u0 v0)
-              (pos-uv-vtx-put! x1 y1 0 u1 v0)
-              (pos-uv-vtx-put! x1 y0 0 u1 v1))))))
+        (render-util/emit-quad!
+          vbuf
+          (pos-uv-vtx-put! x0 y1 0 u0 v1)
+          (pos-uv-vtx-put! x1 y1 0 u0 v0)
+          (pos-uv-vtx-put! x1 y0 0 u1 v0)
+          (pos-uv-vtx-put! x0 y0 0 u1 v1))
+        (render-util/emit-quad!
+          vbuf
+          (pos-uv-vtx-put! x0 y0 0 u0 v1)
+          (pos-uv-vtx-put! x0 y1 0 u0 v0)
+          (pos-uv-vtx-put! x1 y1 0 u1 v0)
+          (pos-uv-vtx-put! x1 y0 0 u1 v1))))))
 
 (defn gen-brush-vbuf
   [brush uvs tile-width tile-height]
@@ -837,7 +841,7 @@
     (loop [x 0
            y 0
            tiles tiles
-           vbuf (->pos-uv-vtx (* 4 (count tiles)))]
+           vbuf (->pos-uv-vtx (* 6 (count tiles)))]
       (if (< y height)
         (if (< x width)
           (recur (inc x) y (rest tiles) (conj-brush-quad! vbuf (first tiles) uvs tile-width tile-height (* x tile-width) (* y tile-height)))
@@ -867,7 +871,7 @@
                              (:texture render-args)))]
     (gl/with-gl-bindings gl render-args [tex-shader vb gpu-texture]
       (shader/set-uniform tex-shader gl "texture_sampler" 0)
-      (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))
 
 ;; palette
 
@@ -966,7 +970,7 @@
         h (:height tile-source-attributes)
         rows (:tiles-per-column tile-source-attributes)
         cols (:tiles-per-row tile-source-attributes)
-        vbuf (->pos-uv-vtx (* 4 (:tile-count (:texture-set texture-set-data))))]
+        vbuf (->pos-uv-vtx (* 6 (:tile-count (:texture-set texture-set-data))))]
     (loop [x 0
            y 0
            vbuf vbuf]
@@ -980,11 +984,12 @@
                 [[u0 v0] [u1 v1]] (geom/uv-trans uv [[0 0] [1 1]])]
             (recur (inc x)
                    y
-                   (-> vbuf
-                       (pos-uv-vtx-put! x0 y0 0 u0 v0)
-                       (pos-uv-vtx-put! x0 y1 0 u0 v1)
-                       (pos-uv-vtx-put! x1 y1 0 u1 v1)
-                       (pos-uv-vtx-put! x1 y0 0 u1 v0))))
+                   (render-util/emit-quad!
+                     vbuf
+                     (pos-uv-vtx-put! x0 y0 0 u0 v0)
+                     (pos-uv-vtx-put! x0 y1 0 u0 v1)
+                     (pos-uv-vtx-put! x1 y1 0 u1 v1)
+                     (pos-uv-vtx-put! x1 y0 0 u1 v0))))
           (recur 0 (inc y) vbuf))
         (vtx/flip! vbuf)))))
 
@@ -995,7 +1000,7 @@
         gpu-texture (texture/set-params gpu-texture tile-source/texture-params)]
     (gl/with-gl-bindings gl render-args [tex-shader vb gpu-texture]
       (shader/set-uniform tex-shader gl "texture_sampler" 0)
-      (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))
 
 (defn gen-palette-grid-vbuf
   [tile-source-attributes]
@@ -1005,25 +1010,27 @@
         cols (:tiles-per-row tile-source-attributes)
         w (+ (:visual-width tile-source-attributes) (* (inc cols) tile-border-size))
         h (+ (:visual-height tile-source-attributes) (* rows tile-border-size))]
-    (as-> (->color-vtx (+ (* (+ 1 rows) 4)
-                          (* (+ 1 cols) 4)))
-        vbuf
+    (as-> (->color-vtx (+ (* (+ 1 rows) 6)
+                          (* (+ 1 cols) 6)))
+          vbuf
       (reduce (fn [vbuf y]
                 (let [y0 (* y (+ th tile-border-size))]
-                  (-> vbuf
-                      (color-vtx-put! 0 y0 0 0.3 0.3 0.3 1.0)
-                      (color-vtx-put! w y0 0 0.3 0.3 0.3 1.0)
-                      (color-vtx-put! w (+ tile-border-size y0) 0 0.3 0.3 0.3 1.0)
-                      (color-vtx-put! 0 (+ tile-border-size y0) 0 0.3 0.3 0.3 1.0))))
+                  (render-util/emit-quad!
+                    vbuf
+                    (color-vtx-put! 0 y0 0 0.3 0.3 0.3 1.0)
+                    (color-vtx-put! w y0 0 0.3 0.3 0.3 1.0)
+                    (color-vtx-put! w (+ tile-border-size y0) 0 0.3 0.3 0.3 1.0)
+                    (color-vtx-put! 0 (+ tile-border-size y0) 0 0.3 0.3 0.3 1.0))))
               vbuf
               (range (inc rows)))
       (reduce (fn [vbuf x]
                 (let [x0 (* x (+ tw tile-border-size))]
-                  (-> vbuf
-                      (color-vtx-put! x0 0 0 0.3 0.3 0.3 1.0)
-                      (color-vtx-put! x0 h 0 0.3 0.3 0.3 1.0)
-                      (color-vtx-put! (+ tile-border-size x0) h 0 0.3 0.3 0.3 1.0)
-                      (color-vtx-put! (+ tile-border-size x0) 0 0 0.3 0.3 0.3 1.0))))
+                  (render-util/emit-quad!
+                    vbuf
+                    (color-vtx-put! x0 0 0 0.3 0.3 0.3 1.0)
+                    (color-vtx-put! x0 h 0 0.3 0.3 0.3 1.0)
+                    (color-vtx-put! (+ tile-border-size x0) h 0 0.3 0.3 0.3 1.0)
+                    (color-vtx-put! (+ tile-border-size x0) 0 0 0.3 0.3 0.3 1.0))))
               vbuf
               (range (inc cols)))
       (vtx/flip! vbuf))))
@@ -1033,7 +1040,7 @@
   (let [vbuf (gen-palette-grid-vbuf tile-source-attributes)
         vb (vtx/use-with ::palette-grid vbuf color-shader)]
     (gl/with-gl-bindings gl render-args [color-shader vb]
-      (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))
 
 (defn- render-palette-active
   [^GL2 gl render-args tile-source-attributes start-tile end-tile]
@@ -1051,31 +1058,35 @@
           y1 (+ (* (inc (max start-y end-y)) height) (* (max start-y end-y) tile-border-size))
           [r g b] blue-color
           a 1.0
-          vbuf (-> (->color-vtx 16)
+          vbuf (-> (->color-vtx 24)
                    ;; left edge
-                   (color-vtx-put! x0 y0 0 r g b a)
-                   (color-vtx-put! x0 y1 0 r g b a)
-                   (color-vtx-put! (+ x0 tile-border-size) y1 0 r g b a)
-                   (color-vtx-put! (+ x0 tile-border-size) y0 0 r g b a)
+                   (render-util/emit-quad!
+                     (color-vtx-put! x0 y0 0 r g b a)
+                     (color-vtx-put! x0 y1 0 r g b a)
+                     (color-vtx-put! (+ x0 tile-border-size) y1 0 r g b a)
+                     (color-vtx-put! (+ x0 tile-border-size) y0 0 r g b a))
                    ;; right edge
-                   (color-vtx-put! x1 y0 0 r g b a)
-                   (color-vtx-put! x1 y1 0 r g b a)
-                   (color-vtx-put! (+ x1 tile-border-size) y1 0 r g b a)
-                   (color-vtx-put! (+ x1 tile-border-size) y0 0 r g b a)
+                   (render-util/emit-quad!
+                     (color-vtx-put! x1 y0 0 r g b a)
+                     (color-vtx-put! x1 y1 0 r g b a)
+                     (color-vtx-put! (+ x1 tile-border-size) y1 0 r g b a)
+                     (color-vtx-put! (+ x1 tile-border-size) y0 0 r g b a))
                    ;; bottom edge
-                   (color-vtx-put! x0 y0 0 r g b a)
-                   (color-vtx-put! x1 y0 0 r g b a)
-                   (color-vtx-put! x1 (+ y0 tile-border-size) 0 r g b a)
-                   (color-vtx-put! x0 (+ y0 tile-border-size) 0 r g b a)
+                   (render-util/emit-quad!
+                     (color-vtx-put! x0 y0 0 r g b a)
+                     (color-vtx-put! x1 y0 0 r g b a)
+                     (color-vtx-put! x1 (+ y0 tile-border-size) 0 r g b a)
+                     (color-vtx-put! x0 (+ y0 tile-border-size) 0 r g b a))
                    ;; top edge
-                   (color-vtx-put! x0 y1 0 r g b a)
-                   (color-vtx-put! (+ x1 tile-border-size) y1 0 r g b a)
-                   (color-vtx-put! (+ x1 tile-border-size) (+ y1 tile-border-size) 0 r g b a)
-                   (color-vtx-put! x0 (+ y1 tile-border-size) 0 r g b a)
+                   (render-util/emit-quad!
+                     (color-vtx-put! x0 y1 0 r g b a)
+                     (color-vtx-put! (+ x1 tile-border-size) y1 0 r g b a)
+                     (color-vtx-put! (+ x1 tile-border-size) (+ y1 tile-border-size) 0 r g b a)
+                     (color-vtx-put! x0 (+ y1 tile-border-size) 0 r g b a))
                    (vtx/flip!))
           vb (vtx/use-with ::palette-active vbuf color-shader)]
       (gl/with-gl-bindings gl render-args [color-shader vb]
-        (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
+        (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf))))))
 
 (defn render-palette-background
   [^GL2 gl render-args viewport]

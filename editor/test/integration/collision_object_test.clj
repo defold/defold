@@ -233,6 +233,26 @@
     (is (= [pass/outline pass/selection]
            (get-in scene [:renderable :passes])))))
 
+(deftest legacy-2d-convex-hull-preview-uses-core-topology
+  (let [scene (collision-object/convex-hull-scene
+                0
+                {:shape-type :type-hull
+                 :data [-1.0 -1.0 0.0
+                        1.0 -1.0 0.0
+                        1.0 1.0 0.0
+                        -1.0 1.0 0.0]}
+                [1.0 1.0 1.0 1.0]
+                "2D")
+        fill-renderable (:renderable scene)
+        outline-renderable (get-in scene [:children 0 :renderable])
+        fill-geometry (get-in fill-renderable [:user-data :geometry])
+        outline-geometry (get-in outline-renderable [:user-data :geometry])]
+    (is (= GL2/GL_TRIANGLE_FAN (:primitive-type fill-geometry)))
+    (is (= GL2/GL_LINE_LOOP (:primitive-type outline-geometry)))
+    (is (identical? (:vbuf fill-geometry) (:vbuf outline-geometry)))
+    (is (= [pass/transparent pass/selection] (:passes fill-renderable)))
+    (is (= [pass/outline] (:passes outline-renderable)))))
+
 (deftest mesh-shape-source-selection-survives-load
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/collision_object/mesh_shape.collisionobject")

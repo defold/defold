@@ -16,11 +16,96 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
+            [editor.gl.vertex2 :as vtx]
             [editor.localization :as localization]
             [editor.tile-map :as tile-map]
+            [editor.tile-map-common :as tile-map-common]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [internal.graph.types :as gt]))
+            [internal.graph.types :as gt])
+  (:import [java.nio ByteBuffer]))
+
+(defn- vertex-buffer->vertices
+  [vertex-buffer component-count]
+  (let [^ByteBuffer source-buffer (vtx/buf vertex-buffer)
+        ^ByteBuffer byte-buffer (.asReadOnlyBuffer source-buffer)
+        _ (.order byte-buffer (.order source-buffer))
+        _ (.rewind byte-buffer)
+        float-buffer (.asFloatBuffer byte-buffer)
+        values (float-array (.remaining float-buffer))]
+    (.get float-buffer values)
+    (mapv vec (partition component-count values))))
+
+(defn- quad-triangles?
+  [vertices]
+  (and (= 6 (count vertices))
+       (= (nth vertices 2) (nth vertices 3))
+       (= (nth vertices 0) (nth vertices 5))))
+
+(defn- layer-vertices
+  [h-flip v-flip rotate90]
+  (let [tile (tile-map-common/->Tile 0 0 0 h-flip v-flip rotate90)
+        texture-set-data {:texture-set {:tile-width 2
+                                        :tile-height 3
+                                        :tile-count 1}
+                          :uv-transforms [nil]}]
+    (-> (tile-map/gen-layer-render-data {(tile-map-common/cell-index 0 0) tile} texture-set-data)
+        :vbuf
+        (vertex-buffer->vertices 5))))
+
+(deftest tile-map-quad-producers-emit-triangles
+  (testing "layer"
+    (let [vertices (layer-vertices false false false)]
+      (is (quad-triangles? vertices))
+      (is (= [[0.0 0.0 0.0 0.0 1.0]
+              [0.0 3.0 0.0 0.0 0.0]
+              [2.0 3.0 0.0 1.0 0.0]
+              [2.0 3.0 0.0 1.0 0.0]
+              [2.0 0.0 0.0 1.0 1.0]
+              [0.0 0.0 0.0 0.0 1.0]]
+             vertices))))
+
+  (testing "layer UV transforms"
+    (doseq [[h-flip v-flip rotate90 expected-uvs]
+            [[true false false [[1.0 1.0] [1.0 0.0] [0.0 0.0] [0.0 0.0] [0.0 1.0] [1.0 1.0]]]
+             [false true false [[0.0 0.0] [0.0 1.0] [1.0 1.0] [1.0 1.0] [1.0 0.0] [0.0 0.0]]]
+             [false false true [[0.0 1.0] [0.0 0.0] [1.0 0.0] [1.0 0.0] [1.0 1.0] [0.0 1.0]]]]]
+      (let [vertices (layer-vertices h-flip v-flip rotate90)]
+        (is (quad-triangles? vertices))
+        (is (= expected-uvs (mapv #(subvec % 3) vertices))))))
+
+  (testing "brush"
+    (let [vbuf (tile-map/gen-brush-vbuf {:width 1
+                                         :height 1
+                                         :tiles [{:tile 0
+                                                  :h-flip false
+                                                  :v-flip false
+                                                  :rotate90 false}]}
+                                        [nil]
+                                        2
+                                        3)]
+      (is (quad-triangles? (vertex-buffer->vertices vbuf 5)))))
+
+  (testing "palette tiles"
+    (let [tile-source-attributes {:width 2
+                                  :height 3
+                                  :tiles-per-column 1
+                                  :tiles-per-row 1}
+          texture-set-data {:uv-transforms [nil]
+                            :texture-set {:tile-count 1}}
+          vbuf (tile-map/gen-palette-tiles-vbuf tile-source-attributes texture-set-data)]
+      (is (quad-triangles? (vertex-buffer->vertices vbuf 5)))))
+
+  (testing "palette grid"
+    (let [vbuf (tile-map/gen-palette-grid-vbuf {:width 2
+                                                :height 3
+                                                :visual-width 2
+                                                :visual-height 3
+                                                :tiles-per-column 1
+                                                :tiles-per-row 1})
+          vertices (vertex-buffer->vertices vbuf 7)]
+      (is (= 24 (count vertices)))
+      (is (every? quad-triangles? (partition 6 vertices))))))
 
 (deftest tile-map-outline
   (testing "shows all layers"
