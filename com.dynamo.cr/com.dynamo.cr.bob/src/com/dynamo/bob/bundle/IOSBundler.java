@@ -338,7 +338,7 @@ public class IOSBundler implements IBundler {
 
         String provisioningProfile = project.option("mobileprovisioning", null);
         String identity = project.option("identity", null);
-        Boolean shouldSign = provisioningProfile != null && identity != null;
+        boolean shouldSign = provisioningProfile != null && identity != null;
 
         // The simulator cannot use device signing; simctl installs ad-hoc signed bundles
         final boolean isSimulator = platform == Platform.Arm64IosSim;

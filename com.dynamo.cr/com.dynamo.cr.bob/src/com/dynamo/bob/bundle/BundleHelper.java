@@ -155,7 +155,7 @@ public class BundleHelper {
     public static String projectNameToBinaryName(String projectName) {
         String projectNameNoAccents = StringUtils.stripAccents(projectName);
         String output = projectNameNoAccents.replaceAll("[^a-zA-Z0-9_]", "");
-        if (output.equals("")) {
+        if (output.isEmpty()) {
             return "dmengine";
         }
         return output;
@@ -555,7 +555,7 @@ public class BundleHelper {
             this.severity = severity == null ? "error" : severity;
             this.resource = resource;
             this.message = message;
-            this.lineNumber = Integer.parseInt(lineNumber.equals("") ? "1" : lineNumber);
+            this.lineNumber = Integer.parseInt(lineNumber.isEmpty() ? "1" : lineNumber);
         }
     };
 
@@ -608,7 +608,7 @@ public class BundleHelper {
             if (m.matches()) {
                 // Groups: resource, line, column, "error", message
                 String severity = m.group(4);
-                if (severity == null || severity.equals(""))
+                if (severity == null || severity.isEmpty())
                     severity = "error";
                 BundleHelper.ResourceInfo info = new BundleHelper.ResourceInfo(severity, m.group(1), m.group(2), m.group(5));
                 issues.add(info);
@@ -630,7 +630,7 @@ public class BundleHelper {
                 if (count+1 < lines.length) {
                     String lineAfter = lines[count+1];
                     m = BundleHelper.resourceIssueLineBeforeRe.matcher(lineAfter);
-                    if (!line.equals("") && !m.matches()) {
+                    if (!line.isEmpty() && !m.matches()) {
                         info.message = info.message + "\n" + lineAfter;
                         count++;
                     }

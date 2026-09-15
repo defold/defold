@@ -164,7 +164,7 @@ public class HTML5Bundler implements IBundler {
         }
 
         // When running "Build HTML and Launch" we need to ignore the archive location prefix/suffix.
-        Boolean localLaunch = project.option("local-launch", "false").equals("true");
+        boolean localLaunch = project.option("local-launch", "false").equals("true");
         if (localLaunch) {
             properties.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", "archive");
             properties.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", "");

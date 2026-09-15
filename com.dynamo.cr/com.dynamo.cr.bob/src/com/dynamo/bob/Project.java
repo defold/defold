@@ -1419,7 +1419,7 @@ public class Project implements AutoCloseable {
 
     private boolean shouldBuildEngine() {
         String str = this.option("build-artifacts", "");
-        return str.equals("") || shouldBuildArtifact("engine");
+        return str.isEmpty() || shouldBuildArtifact("engine");
     }
 
     public void scanJavaClasses() throws IOException, CompileExceptionError {

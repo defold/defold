@@ -293,7 +293,7 @@ public class ArchiveTest {
         ar.read();
         List<ArchiveEntry> entries = ar.getEntries();
 
-        Boolean correctOrder = false;
+        boolean correctOrder = false;
         for(int i=1; i<entries.size(); i++) {
             ArchiveEntry ePrev = entries.get(i-1);
             ArchiveEntry eCurr = entries.get(i);

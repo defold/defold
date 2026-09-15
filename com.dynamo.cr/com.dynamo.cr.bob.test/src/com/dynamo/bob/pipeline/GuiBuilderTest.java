@@ -276,7 +276,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
     private static NodeDesc findNode(Gui.SceneDesc gui, String layoutName, String nodeName) {
         List<NodeDesc> nodesList = List.of();
-        if (layoutName.equals("")) {
+        if (layoutName.isEmpty()) {
             nodesList = gui.getNodesList();
         }
         else {
