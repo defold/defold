@@ -214,7 +214,7 @@ set(_GS_TEST_INCLUDES
   "${CMAKE_CURRENT_BINARY_DIR}")
 
 function(gamesys_configure_common_test target)
-  add_dependencies(${target} gamesys_test_content)
+  add_dependencies(${target} gamesys_test_embeds)
   target_include_directories(${target} PRIVATE ${_GS_TEST_INCLUDES})
   target_compile_definitions(${target} PRIVATE ${_GS_TEST_DEFINES})
   target_link_libraries(${target} PRIVATE ${_GAMESYS_TEST_GAMESYS_LIBS})
@@ -227,6 +227,7 @@ function(gamesys_configure_common_test target)
   defold_target_link_socket(${target} ${TARGET_PLATFORM})
   defold_target_link_app(${target} ${TARGET_PLATFORM})
   defold_register_test_target(${target} ON "${GS_TEST_RUN_DIR}"
+    RUNTIME_DEPENDS gamesys_test_content
     STAGE_FILES
       "build/src/gamesys/test" "build/src/gamesys/test"
       ${_GS_HOST_TEST_STAGE_FILES})
@@ -330,7 +331,6 @@ if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
   defold_create_exported_symbols_file("${_TEST3_EXPORTED_CPP}" "${_TEST3_SYMBOLS}")
 
   defold_add_executable(test_gamesys_http ${TEST_GS_HTTP_SOURCES} ${_TEST3_EXPORTED_CPP})
-  add_dependencies(test_gamesys_http gamesys_http_test_content)
   target_include_directories(test_gamesys_http PRIVATE "${GS_SRC_ROOT}" "${GS_PROTO_DIR}" "${GS_GENERATED_INCLUDE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}")
   target_compile_definitions(test_gamesys_http PRIVATE ${_GS_TEST_DEFINES})
   target_link_libraries(test_gamesys_http PRIVATE gamesys gamesys_gui gamesys_particle gamesys_rig_null gamesys_model_null)
@@ -343,6 +343,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
   defold_target_link_socket(test_gamesys_http ${TARGET_PLATFORM})
   defold_target_link_app(test_gamesys_http ${TARGET_PLATFORM})
   defold_register_test_target(test_gamesys_http FALSE "${GS_TEST_RUN_DIR}"
+    RUNTIME_DEPENDS gamesys_http_test_content
     STAGE_FILES
       "build/src/gamesys/test" "build/src/gamesys/test"
       ${_GS_HOST_TEST_STAGE_FILES})

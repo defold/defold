@@ -175,6 +175,13 @@ When `BUILD_TESTS=ON`, CMake generates the unit test targets during configure:
 `all` target and are only built when requested through `build_tests`,
 `run_tests`, or a direct `test_*`/`run_*` target.
 
+Pass `RUNTIME_DEPENDS <content-target> ...` to `defold_register_test_target`
+for generated assets that are only needed when running a test. `build_tests`
+and all test runners prepare these assets, while a direct binary build can
+compile without waiting for them. Generated headers and sources must remain
+compile dependencies. Xcode iOS app targets also wait for runtime assets
+because their post-build step copies the assets into the app bundle.
+
 ## Solution generation
 
 You can generate a solution for a platform with:
