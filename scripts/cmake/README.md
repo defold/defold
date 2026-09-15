@@ -212,6 +212,12 @@ completed command; a failure stops queued tests and lets active tests finish.
 Device runners, other generators and `run_tests_sequential` retain their
 existing execution order.
 
+Windows CI, detected through `GITHUB_WORKFLOW`, links executables and DLLs with
+`/INCREMENTAL:NO`. Clean CI builds cannot reuse incremental link databases;
+this also avoids CMake's incremental manifest resource/relink passes. Debug
+symbols remain enabled. Local Windows builds keep CMake's incremental-link
+defaults for Debug and RelWithDebInfo.
+
 ## Solution generation
 
 You can generate a solution for a platform with:
