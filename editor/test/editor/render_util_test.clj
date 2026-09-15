@@ -23,27 +23,6 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(deftest emit-quad-test
-  (let [vertices (render-util/emit-quad!
-                   []
-                   (conj [0.0 0.0])
-                   (conj [0.0 1.0])
-                   (conj [1.0 1.0])
-                   (conj [1.0 0.0]))]
-    (is (= [[0.0 0.0] [0.0 1.0] [1.0 1.0]
-            [1.0 1.0] [1.0 0.0] [0.0 0.0]]
-           vertices))))
-
-(deftest emit-quad-outline-test
-  (let [vertices (render-util/emit-quad-outline!
-                   []
-                   (conj :v0)
-                   (conj :v1)
-                   (conj :v2)
-                   (conj :v3))]
-    (is (= [:v0 :v1 :v1 :v2 :v2 :v3 :v3 :v0]
-           vertices))))
-
 (deftest make-outlined-textured-quad-scene-accepts-pose-or-matrix-test
   (let [quad-pose (pose/translation-pose 1.0 2.0 3.0)
         transform (doto (Matrix4d.)

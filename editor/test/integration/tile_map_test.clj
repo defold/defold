@@ -106,6 +106,7 @@
           vertices (vertex-buffer->vertices vbuf 7)]
       (is (= 24 (count vertices)))
       (is (every? quad-triangles? (partition 6 vertices))))))
+
 (deftest tile-map-outline
   (testing "shows all layers"
     (test-util/with-loaded-project
