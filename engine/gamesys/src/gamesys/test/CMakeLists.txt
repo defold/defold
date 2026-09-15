@@ -72,7 +72,7 @@ endforeach()
 add_custom_target(gamesys_host_test_files DEPENDS ${_GS_STAGED_HOST_TEST_PATHS})
 
 # ---------------------------------------------------------------------------
-# Embed resources into headers/sources (used by test_gamesys.cpp)
+# Embed resources into headers/sources (used by the gamesys tests)
 # Generates <path>.embed.h/.embed.cpp with variables NAME[] and NAME_SIZE.
 # ---------------------------------------------------------------------------
 
@@ -241,8 +241,12 @@ endfunction()
 # ---------------------------------------------------------------------------
 set(TEST_GS_SOURCES
   "${GS_TEST_ROOT}/test_gamesys.cpp"
+  "${GS_TEST_ROOT}/test_gamesys_components.cpp"
+  "${GS_TEST_ROOT}/test_gamesys_gui.cpp"
+  "${GS_TEST_ROOT}/test_gamesys_render.cpp"
+  "${GS_TEST_ROOT}/test_gamesys_script.cpp"
 )
-set_source_files_properties("${GS_TEST_ROOT}/test_gamesys.cpp" PROPERTIES OBJECT_DEPENDS "${_EMBED_HEADERS}")
+set_source_files_properties(${TEST_GS_SOURCES} PROPERTIES OBJECT_DEPENDS "${_EMBED_HEADERS}")
 
 set(_TEST1_SYMBOLS ${_COMMON_EXPORTED};ScriptModelExt)
 set(_TEST1_EXPORTED_CPP "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_test_gamesys.cpp")
