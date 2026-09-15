@@ -32,6 +32,8 @@ apply from: '../com.dynamo.cr.bob/basic.gradle'
 // Capture build settings during configuration; task actions must not access Task.project.
 def bobDir = project.bobDir
 def classesDir = project.classesDir
+// Keep compiler outputs separate; classesDir includes the entire build directory.
+def generatedClassesDir = file("${bobDir}/target/generated-classes")
 def dynamoHome = file(project.dynamoHome)
 def hostPlatform = project.hostPlatform
 def python = project.python
@@ -267,27 +269,24 @@ tasks.register('copyDependencies') {
 
 tasks.register('compileGenerated', JavaCompile) {
     dependsOn 'execProtoTasks', 'copyDependencies'
-    mkdir classesDir
     source = fileTree("${bobDir}/generated")
-    destinationDirectory = classesDir
+    destinationDirectory = generatedClassesDir
     include '**/*.java'
     classpath = sourceSets.main.compileClasspath
     options.encoding = 'UTF-8'
     options.compilerArgs << '-g'
-    outputs.dir(classesDir)
 }
 
 tasks.register('compileSrc', JavaCompile) {
     dependsOn 'compileGenerated', 'copyDependencies'
-    source = sourceSets.main.java
+    source = fileTree("${bobDir}/src")
     destinationDirectory = classesDir
-    include '**'
+    include '**/*.java'
     exclude '**/XBoxBundler.java'
     exclude '**/XBoxShaderCompiler.java'
-    classpath = sourceSets.main.compileClasspath
+    classpath = files(generatedClassesDir) + sourceSets.main.compileClasspath
     options.encoding = 'UTF-8'
     options.compilerArgs << '-g'
-    outputs.dir(classesDir)
 }
 
 privateBobPluginModules.each { module ->
@@ -299,7 +298,7 @@ privateBobPluginModules.each { module ->
         source = fileTree(module.sourceDir)
         destinationDirectory = pluginClassesDir
         include '**/*.java'
-        classpath = files(classesDir) + sourceSets.main.compileClasspath
+        classpath = files(classesDir, generatedClassesDir) + sourceSets.main.compileClasspath
         options.encoding = 'UTF-8'
         options.compilerArgs << '-g'
         outputs.dir(pluginClassesDir)
@@ -530,6 +529,7 @@ tasks.register('createBobLightJar', Jar) {
     from(classesDir) {
         exclude 'private_plugins/**'
     }
+    from generatedClassesDir
     from fileTree(bobDir) {
         include 'lib/**/*texc_shared*',
                 'lib/**/*modelc_shared*',
@@ -728,8 +728,9 @@ tasks.register('createBobJar') {
     def bobClassesFileTree = fileTree(classesDir) {
         exclude 'private_plugins/**'
     }
+    def bobGeneratedClassesFileTree = fileTree(generatedClassesDir)
 
-    inputs.files(bobClassesFileTree)
+    inputs.files(bobClassesFileTree, bobGeneratedClassesFileTree)
     inputs.files(bobJarFileTree)
     inputs.file("${bobDir}/tmp/external-libs-builtins.jar")
     inputs.file("${bobDir}/lib/builtins.zip")
@@ -782,6 +783,11 @@ tasks.register('createBobJar') {
                 classesDir.toPath().relativize(sourceFile.toPath()).toString()
             }.each { sourceFile ->
                 addFile(classesDir, sourceFile)
+            }
+            bobGeneratedClassesFileTree.files.sort { sourceFile ->
+                generatedClassesDir.toPath().relativize(sourceFile.toPath()).toString()
+            }.each { sourceFile ->
+                addFile(generatedClassesDir, sourceFile)
             }
             bobJarFileTree.files.sort { sourceFile ->
                 bobDir.toPath().relativize(sourceFile.toPath()).toString()
