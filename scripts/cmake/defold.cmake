@@ -202,11 +202,11 @@ if(NOT TARGET defold_sdk)
   add_library(defold_sdk INTERFACE)
 endif()
 
+# Resolve test selection before checking test-only tool dependencies.
+include(features)
+
 # verify our list of tools (e.g. java, ninja etc)
 include(tools)
-
-# list of toggleable features
-include(features)
 
 # platform specific includes, lib paths, defines etc...
 include(platform)

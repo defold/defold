@@ -335,7 +335,15 @@ jobs:
       # come from env, which a matrix cannot reference, so they are appended here.
       - name: "Build engine"
         if: "!matrix.emulator"
+        env:
+          LIBGL_ALWAYS_SOFTWARE: ${{ runner.os == 'Linux' && '1' || '' }}
+          GALLIUM_DRIVER: ${{ runner.os == 'Linux' && 'llvmpipe' || '' }}
         run: 'ci/ci.sh engine --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'
+      - name: "Upload build reports"
+        if: always() && runner.os == 'Linux' && endsWith(matrix.platform, '-linux')
+        uses: ./.github/actions/upload-build-reports
+        with:
+          platform: ${{ matrix.platform }}
       - name: "Upload engine build for the jobs downstream"
         # A contrib build has no S3 credentials, so bob and the editor pick the engine
         # up from here instead of from the archive. See pr-ok-to-test.yml.
