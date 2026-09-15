@@ -385,6 +385,7 @@ set(_COMMON_EXPORTED
   ScriptLibTileMap)
 
 defold_get_physics_libraries(_GAMESYS_TEST_PHYSICS_LIBS)
+defold_get_font_gen_library(_GAMESYS_TEST_FONT_GEN_LIB)
 defold_get_font_libraries(_GAMESYS_TEST_FONT_LIBS)
 defold_get_gamesys_libraries(_GAMESYS_TEST_GAMESYS_LIBS)
 
@@ -393,9 +394,10 @@ if(DEFOLD_PLATFORM_SUPPORTS_COMPUTE)
 endif()
 
 set(_DEFOLD_TEST_LIBS
+  ${_GAMESYS_TEST_FONT_GEN_LIB}
   testmain test_script dlib mbedtls zip ddf resource gameobject extension script input
   particle rig gui liveupdate profile_null platform_null hid_null
-  render sound_null
+  render render_font_default sound_null
   ${_GAMESYS_TEST_PHYSICS_LIBS}
   ${_GAMESYS_TEST_FONT_LIBS})
 

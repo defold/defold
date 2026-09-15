@@ -26,12 +26,18 @@ struct FontGlyphBankGlyph
 {
     const uint8_t* m_Data;
     uint32_t       m_DataSize;
+    const uint8_t* m_VectorData;
+    uint32_t       m_VectorDataSize;
     uint32_t       m_Codepoint;
     float          m_Width;
     float          m_Advance;
     float          m_LeftBearing;
     float          m_Ascent;
     float          m_Descent;
+    float          m_OutlineWidth;
+    float          m_OutlineLeftBearing;
+    float          m_OutlineAscent;
+    float          m_OutlineDescent;
     uint8_t        m_BitmapFlags;
 };
 
@@ -70,6 +76,8 @@ struct FontGlyphBankProvider
     uint32_t                    m_GlyphChannels;
     float                       m_MaxAscent;
     float                       m_MaxDescent;
+    // Zero keeps bitmap metrics fixed; vector metrics scale from this baked size.
+    float                       m_ReferenceSize;
 };
 
 /*# Creates a prebaked glyph-bank font.

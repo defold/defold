@@ -271,6 +271,7 @@ nodes {
   enabled: false
   visible: false
   material: "first_material"
+  font_size: 24.0
 }
 nodes {
   position {
@@ -638,11 +639,13 @@ layouts {
     overridden_fields: 45
     overridden_fields: 46
     overridden_fields: 47
+    overridden_fields: 52
     text_leading: 1.1
     text_tracking: 0.1
     enabled: false
     visible: false
     material: "second_material"
+    font_size: 36.0
   }
   nodes {
     position {

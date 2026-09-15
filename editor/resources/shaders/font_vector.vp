@@ -1,0 +1,24 @@
+#version 120
+uniform mat4 view_proj;
+attribute vec4 position;
+attribute vec4 texcoord;
+attribute vec4 effect_params;
+attribute vec4 color;
+varying vec2 var_texcoord;
+varying float var_mode;
+varying vec4 var_color;
+varying vec4 var_banding;
+varying vec4 var_glyph;
+varying float var_curve_count;
+void main()
+{
+    float header = floor(position.z + 0.5);
+    var_texcoord = texcoord.xy;
+    var_mode = texcoord.w;
+    var_color = color;
+    var_banding = effect_params;
+    var_glyph = vec4(mod(header, 4096.0), floor(header / 4096.0), 7.0, 7.0);
+    var_curve_count = texcoord.z;
+    // Native vertices keep world Z separate from the numeric glyph address.
+    gl_Position = view_proj * vec4(position.xy, position.w, 1.0);
+}

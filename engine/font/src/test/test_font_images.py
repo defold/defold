@@ -506,8 +506,13 @@ class FontImageReportTest(unittest.TestCase):
                 self.assertTrue(set(report.SOURCES).issubset({c['source'] for c in cases}))
                 self.assertEqual(rich, any(c['markup'] for c in cases))
                 self.assertEqual(full, any(c['source'] == 'arabic' for c in cases))
+                vector = [c for c in cases if c['source'] in report.VECTOR_SOURCES]
+                self.assertEqual(set(report.VECTOR_SOURCES), {c['source'] for c in vector})
+                self.assertTrue(all(c['multi'] for c in vector))
+                self.assertEqual(4 * (4 if rich else 3), len(vector))
                 count += len(cases)
-        self.assertEqual(344, count)
+        self.assertEqual(400, count)
+
 
     def test_failed_comparison_keeps_images_and_passing_cases_stay_quiet(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -543,7 +548,7 @@ class FontImageReportTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
             root=Path(temporary)
             summary=report.build_reports(root/'missing',root/'report',{},False)
-            self.assertEqual(344,summary['failed'])
+            self.assertEqual(400,summary['failed'])
             self.assertEqual(0,summary['completed'])
             self.assertEqual('fail',summary['status'])
             self.assertTrue((root/'report/index.html').exists())
@@ -574,6 +579,7 @@ class BitmapGeneratorCliTest(unittest.TestCase):
                      ('--size', 'nan'), ('--size', '0'), ('--outline', '-1'),
                      ('--face-alpha', '1.1'), ('--size', '40px'), ('--layers', 'both'),
                      ('--outline',), ('--unknown', '1'),
+                     ('--source', 'ttf_vector', '--layers', 'single'),
                      ('--case', 'ttf_sdf_single_default', '--size', '50')):
             with self.subTest(args=args):
                 self.assertEqual(2, self.run_generator(*args).returncode)

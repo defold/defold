@@ -106,6 +106,9 @@ static bool HasMarkupShadow(const TextRenderStyle* style)
 
 static uint8_t GetGlyphLayerMask(const FontLayoutVertexConfig& config, const TextGlyph& glyph)
 {
+    if (config.m_FaceOnly)
+        return FONT_RENDER_LAYER_FACE;
+
     const TextRenderStyle* style = GetGlyphStyle(config.m_Layout, glyph);
     uint8_t                mask = FONT_RENDER_LAYER_FACE;
     const bool             use_rich_text = config.m_Layout->m_UseRichText;
@@ -468,24 +471,12 @@ static const TextGlyphRenderData* GetGlyphRenderData(const FontLayoutVertexConfi
     return data;
 }
 
-struct GlyphLayerRenderData
-{
-    uint32_t m_OutlineColor;
-    uint32_t m_ShadowColor;
-    float    m_SdfOutline;
-    float    m_SdfShadow;
-    float    m_OutlineWidth;
-    float    m_ShadowX;
-    float    m_ShadowY;
-    uint8_t  m_LayerMask;
-};
-
 // Resolves the final outline and shadow values shared by glyph and decoration
 // vertices. Layer presence is derived from the same style flags as metrics.
-static void ResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
-                                        const TextGlyph&              glyph,
-                                        const TextGlyphRenderData&    render_data,
-                                        GlyphLayerRenderData*         layer_data)
+void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
+                                     const TextGlyph&              glyph,
+                                     const TextGlyphRenderData&    render_data,
+                                     FontGlyphLayerRenderData*     layer_data)
 {
     const bool    use_rich_text = config.m_Layout->m_UseRichText;
     const bool    has_base_outline = !use_rich_text &&
@@ -589,7 +580,7 @@ static void ResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
 
 // Builds the shared layer parameters for a resolved glyph or decoration span.
 static void SetVertexLayerParams(const FontLayoutVertexConfig& config,
-                                 const GlyphLayerRenderData&    render_data,
+                                 const FontGlyphLayerRenderData& render_data,
                                  const uint32_t                 face_colors[4],
                                  float                          render_scale,
                                  uint32_t                       layer_count,
@@ -704,8 +695,8 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             uint32_t                   scratch_face_colors[4];
             const uint32_t*            face_colors;
             const TextGlyphRenderData* render_data = GetGlyphRenderData(config, text_glyph, &render_data_cache, &scratch_render_data, scratch_face_colors, &face_colors);
-            GlyphLayerRenderData       layer_data;
-            ResolveGlyphLayerRenderData(config, text_glyph, *render_data, &layer_data);
+            FontGlyphLayerRenderData    layer_data;
+            FontResolveGlyphLayerRenderData(config, text_glyph, *render_data, &layer_data);
             FontGlyphVertex* outline_vertices = (layer_data.m_LayerMask & FONT_RENDER_LAYER_OUTLINE) != 0 && emitted_outlines < metrics.m_OutlineQuadCount ? vertices + outline_vertex_index : 0;
             FontGlyphVertex* shadow_vertices = (layer_data.m_LayerMask & FONT_RENDER_LAYER_SHADOW) != 0 && emitted_shadows < metrics.m_ShadowQuadCount ? vertices + shadow_vertex_index : 0;
 
@@ -809,8 +800,8 @@ uint32_t FontCreateLayoutVertices(const FontLayoutVertexConfig&  config,
             const float           x0 = line_x + decoration_segment.m_X - cached_first_x;
             FontDecorationPattern pattern;
             FontGetDecorationPattern(decoration, decoration_segment, &pattern);
-            GlyphLayerRenderData layer_data;
-            ResolveGlyphLayerRenderData(config, glyph, render_data, &layer_data);
+            FontGlyphLayerRenderData layer_data;
+            FontResolveGlyphLayerRenderData(config, glyph, render_data, &layer_data);
             FontGlyphVertex* outline_vertices = (layer_data.m_LayerMask & FONT_RENDER_LAYER_OUTLINE) != 0 && emitted_outlines < metrics.m_OutlineQuadCount ? vertices + outline_vertex_index : 0;
             FontGlyphVertex* shadow_vertices = (layer_data.m_LayerMask & FONT_RENDER_LAYER_SHADOW) != 0 && emitted_shadows < metrics.m_ShadowQuadCount ? vertices + shadow_vertex_index : 0;
 

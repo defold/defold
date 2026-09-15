@@ -205,10 +205,12 @@ if(FONT_RENDERER_IS_DESKTOP AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
             -C "${FONT_RENDERER_TEST_CLASSES_DIR}" .
             -C "${FONT_TEST_ROOT}/data" NotoSans-Regular.ttf
             -C "${FONT_TEST_ROOT}/data" NotoSansArabic-Regular.ttf
+            -C "${FONT_TEST_ROOT}/data" SourceCodePro-Regular.otf
     DEPENDS font_renderer_jar
             "${FONT_RENDERER_TEST_JAVA}"
             "${FONT_TEST_ROOT}/data/NotoSans-Regular.ttf"
             "${FONT_TEST_ROOT}/data/NotoSansArabic-Regular.ttf"
+            "${FONT_TEST_ROOT}/data/SourceCodePro-Regular.otf"
     COMMENT "Packaging font-renderer-tests.jar")
   add_custom_target(test_font_renderer_java_jar DEPENDS "${FONT_RENDERER_TEST_JAR}")
   add_dependencies(test_font_renderer_java_jar fontc_shared font_renderer_jar)
@@ -298,6 +300,34 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
   endif()
   add_dependencies(build_tests fontviewer)
 endif()
+
+defold_add_executable(test_font_gen "${FONT_TEST_ROOT}/test_font_gen.cpp")
+target_include_directories(test_font_gen PRIVATE "${FONT_SRC_DIR}" "${FONT_ROOT}")
+defold_target_link_libraries(test_font_gen "${TARGET_PLATFORM}"
+  testmain
+  dlib
+  profile_null
+  font_gen
+  font)
+defold_target_link_socket(test_font_gen "${TARGET_PLATFORM}" PRIVATE)
+defold_register_test_target(test_font_gen ON "${FONT_ROOT}")
+
+defold_add_executable(test_font_gen_null "${FONT_TEST_ROOT}/test_font_gen_null.cpp")
+target_include_directories(test_font_gen_null PRIVATE "${FONT_SRC_DIR}" "${FONT_ROOT}")
+defold_target_link_libraries(test_font_gen_null "${TARGET_PLATFORM}"
+  testmain
+  dlib
+  profile_null
+  font_gen_null
+  font)
+defold_target_link_socket(test_font_gen_null "${TARGET_PLATFORM}" PRIVATE)
+defold_register_test_target(test_font_gen_null ON "${FONT_ROOT}")
+
+defold_add_executable(test_font_vector "${FONT_TEST_ROOT}/test_font_vector.cpp")
+font_configure_test(test_font_vector font)
+
+defold_add_executable(test_font_vector_skribidi "${FONT_TEST_ROOT}/test_font_vector.cpp")
+font_configure_test(test_font_vector_skribidi font_skribidi)
 
 if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
   set(_font_image_generated "${CMAKE_CURRENT_BINARY_DIR}/font_image_generated")

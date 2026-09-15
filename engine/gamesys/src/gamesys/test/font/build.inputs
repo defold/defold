@@ -1,9 +1,15 @@
 /font/dyn_glyph_bank_test_1.font
 /font/dyn_negative_ascent.font
 /font/dyn_negative_ascent_empty.font
+/font/dynamic_vector.font
+/font/dynamic_vector_outline.font
 /font/glyph_bank_test_1.font
 /font/glyph_bank_test_2.font
 /font/invalid_material.font
 /font/prewarm_callback_instance_reuse.go
+/font/static_glyph_bank_test_1.font
+/font/static_glyph_bank_test_2.font
+/font/static_vector_outline.font
+/font/static_vector_shadow.font
 /font/valid_font.font
 /font/authored_styles.font

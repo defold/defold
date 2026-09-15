@@ -53,7 +53,7 @@ namespace dmGameSystem
      * Used to retrieve the information of a font.
      * @struct
      * @name FontInfo
-     * @member m_Size [type: uint32_t] The size of the font (in points)
+     * @member m_Size [type: float] The font generation size in pixels
      * @member m_ShadowX [type: float] The shadow distance in X-axis (in pixels)
      * @member m_ShadowY [type: float] The shadow distance in Y-axis (in pixels)
      * @member m_ShadowBlur [type: uint32_t] The shadow blur spread [0.255] (in pixels)
@@ -66,7 +66,7 @@ namespace dmGameSystem
      */
     struct FontInfo
     {
-        uint32_t   m_Size;
+        float      m_Size;
         float      m_ShadowX;
         float      m_ShadowY;
         uint32_t   m_ShadowBlur;
@@ -86,6 +86,13 @@ namespace dmGameSystem
     dmRender::HFontMap ResFontGetHandle(FontResource* font);
 
     /*#
+     * @name ResFontGetShadowMaterial
+     * @param font [type: FontResource*] The font resource
+     * @return result [type: dmRender::HMaterial] Optional material for the separate SDF shadow pass.
+     */
+    dmRender::HMaterial ResFontGetShadowMaterial(FontResource* font);
+
+    /*#
      * @name ResFontGetVersion
      * @param font [type: FontResource*] The font resource
      * @return version [type: uint32_t] Monotonic layout version for the font resource.
@@ -101,7 +108,10 @@ namespace dmGameSystem
      */
     typedef void (*FPrewarmTextCallback)(void* ctx, int result, const char* errmsg);
 
-    /*# Make sure each glyph in the text gets rasterized and put into the glyph cache
+    /*# Make sure each glyph in the text gets generated and put into the glyph cache.
+     * The generation size comes from the compiled font resource. Vector fonts
+     * with outline/shadow SDF effects use the Size authored in the .font file;
+     * curve-only Vector fonts use an internal normalization reference.
      * @name PrewarmText
      * @param font [type: FontResource*] The font resource
      * @param text [type: const char*] The text (utf8)

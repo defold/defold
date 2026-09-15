@@ -12,20 +12,35 @@ def build(bld):
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
+    font_sources = bld.path.ant_glob(['*.cpp'], excl=['fontgen.cpp', 'fontgen_null.cpp', 'fontgen_res_ttf.cpp']) + bld.path.ant_glob(['render/glyph_gen.cpp'])
+
     bld.stlib(features          = 'cxx',
                 includes        = ['.', '..'],
                 target          = 'font',
                 defines         = [],
-                source          = bld.path.ant_glob(['*.cpp']))
+                source          = font_sources)
 
     bld.stlib(features          = 'cxx',
                 includes        = ['.', '..'],
                 target          = 'font_skribidi',
                 defines         = ['FONT_USE_HARFBUZZ',
                                    'FONT_USE_SKRIBIDI'],
-                source          = bld.path.ant_glob(['*.cpp']))
+                source          = font_sources)
+
+    bld.stlib(features = 'cxx',
+              includes = ['.', '..', '../../gamesys/src'],
+              target = 'font_gen',
+              source = ['fontgen.cpp', 'fontgen_res_ttf.cpp'])
+    bld.stlib(features = 'cxx',
+              includes = ['.', '..', '../../gamesys/src'],
+              target = 'font_gen_null',
+              source = ['fontgen_null.cpp'])
+    bld.install_files('${PREFIX}/include/font', 'fontgen.h')
+    bld.install_files('${PREFIX}/include/font/internal', 'render/glyph_gen.h')
 
     bld.install_files('${PREFIX}/include/font', 'font.h')
+    bld.install_files('${PREFIX}/include/font', 'font_vector_slug.h')
+    bld.install_files('${PREFIX}/include/font', 'font_glyphbank.h')
     bld.install_files('${PREFIX}/include/font', 'fontcollection.h')
     bld.install_files('${PREFIX}/include/font', 'text_layout.h')
 

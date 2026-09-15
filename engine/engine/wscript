@@ -142,6 +142,7 @@ def configure(conf):
         gamesys_libs = 'gamesys gamesys_model gamesys_rig script_box2d'.split()
     else:
         gamesys_libs = 'gamesys gamesys_model gamesys_rig script_box2d_defold'.split()
+    gamesys_libs.append('font_gen_null' if 'font_gen' in waflib.Options.options.disable_features else 'font_gen')
     waf_dynamo.static_libs(conf, 'GAMESYS', gamesys_libs)
     conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
     waf_dynamo.static_libs(conf, 'SCRIPT', ['script'])

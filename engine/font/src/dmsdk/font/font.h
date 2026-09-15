@@ -95,6 +95,57 @@ struct FontGlyphBitmap
     uint8_t     m_Flags;
 };
 
+enum FontCurveType
+{
+    FONT_CURVE_MOVE_TO = 0,
+    FONT_CURVE_LINE_TO,
+    FONT_CURVE_QUADRATIC_TO,
+    FONT_CURVE_CLOSE
+};
+
+struct FontCurvePoint
+{
+    float m_X;
+    float m_Y;
+};
+
+struct FontCurveCommand
+{
+    FontCurvePoint  m_Points[2];
+    uint8_t         m_Type;
+    uint8_t         m_Reserved0;
+    uint16_t        m_Reserved1;
+};
+
+struct FontGlyphOutline
+{
+    FontCurveCommand*   m_Commands;
+    uint32_t            m_CommandCount;
+    uint32_t            m_Flags;
+    float               m_Width;        // Unpadded analytical outline width
+    float               m_Height;       // Unpadded analytical outline height
+    float               m_LeftBearing;  // Outline offset from the glyph origin
+    float               m_Ascent;       // Outline extent above the baseline
+    float               m_Descent;      // Positive outline extent below the baseline
+};
+
+/*#
+ * Holds prebaked normalized quadratic curves for a vector glyph.
+ * Every curve contains P0, P1, P2, start tangent angle, and end tangent angle
+ * as eight consecutive float32 values.
+ * @struct
+ * @name FontGlyphVector
+ * @member m_Data [type: const uint8_t*] Encoded curve data, or null when unavailable.
+ * @member m_DataSize [type: uint32_t] Encoded curve data size in bytes.
+ * @member m_CurveCount [type: uint32_t] Number of encoded quadratic curves.
+ */
+struct FontGlyphVector
+{
+    const uint8_t* m_Data;
+    uint32_t       m_DataSize;
+    uint32_t       m_CurveCount;
+};
+
 /*#
  * Represents a glyph.
  * If there's an associated image, it is of size width * height * channels.
@@ -114,7 +165,9 @@ struct FontGlyphBitmap
  */
 struct FontGlyph
 {
-    FontGlyphBitmap m_Bitmap;
+    FontGlyphBitmap     m_Bitmap;
+    FontGlyphOutline    m_Outline;
+    FontGlyphVector     m_Vector;
     uint32_t        m_Codepoint;  // Unicode code point (0 if not available)
     uint32_t        m_GlyphIndex; // glyph index into the font
     float           m_Width;
@@ -245,6 +298,7 @@ uint32_t FontGetGlyphIndex(HFont font, uint32_t codepoint);
  * @name FontGlyphOptions
  * @member m_Scale [type: float] The font scale
  * @member m_GenerateImage [type: bool] If true, generates an SDF image and uses its sampled bounds and origin for glyph dimensions and left bearing. Advances remain unchanged.
+ * @member m_GenerateOutline [type: bool] If true, generates outline data and fills out the glyph.m_Outline structure.
  * @member m_StbttSDFPadding [type: int] The SDF padding value (valid for FONT_TYPE_TTF and FONT_TYPE_OTF fonts)
  * @member m_StbttSDFOnEdgeValue [type: int] Where the edge value is located (valid for FONT_TYPE_TTF and FONT_TYPE_OTF fonts)
  */
@@ -252,6 +306,7 @@ struct FontGlyphOptions
 {
     float m_Scale; // Point to Size scale
     bool  m_GenerateImage;
+    bool  m_GenerateOutline;
 
     // stbtt options (see stbtt_GetGlyphSDF)
     float m_StbttSDFPadding;
@@ -260,11 +315,13 @@ struct FontGlyphOptions
     FontGlyphOptions()
     : m_Scale(1.0f)
     , m_GenerateImage(false)
+    , m_GenerateOutline(false)
     , m_StbttSDFPadding(3)
     , m_StbttSDFOnEdgeValue(190)
     {
     }
 };
+
 
 /*#
  * Get the metrics of a glyph
