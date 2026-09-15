@@ -1396,6 +1396,10 @@ namespace dmGraphics
         context->m_PipelineState     = GetDefaultPipelineState();
         context->m_RenderTargetBound = 0;
         context->m_MainRTBegunThisFrame = 0;
+        context->m_MainMSAAColorNeedsResolve = 0;
+        context->m_CombinedMSAAStoreAndResolveSupport =
+            context->m_Device->supportsFamily(MTL::GPUFamilyApple3) ||
+            context->m_Device->supportsFamily(MTL::GPUFamilyMac2);
         ResetRenderEncoderStateCache(context);
         context->m_ViewportChanged   = true;
         context->m_CullFaceChanged   = true;
@@ -1651,6 +1655,53 @@ namespace dmGraphics
         ResetRenderEncoderStateCache(context);
     }
 
+    static bool ResolveMainMSAAColor(MetalContext* context)
+    {
+        if (!context->m_MainMSAAColorNeedsResolve)
+        {
+            return false;
+        }
+
+        MetalFrameResource& frame = GetCurrentFrameResource(context);
+        assert(!frame.m_RenderCommandEncoder);
+        if (!frame.m_CommandBuffer || !frame.m_MSAAColorTexture || !frame.m_Drawable)
+        {
+            return false;
+        }
+
+        // GPUs without combined MSAA store-and-resolve support need two passes.
+        // The rendering passes store the multisample texture, and this final
+        // pass loads and resolves it into the drawable.
+        MTL::RenderPassDescriptor* rp_desc = MTL::RenderPassDescriptor::alloc()->init();
+        MTL::RenderPassColorAttachmentDescriptor* color_attachment = rp_desc->colorAttachments()->object(0);
+        color_attachment->setTexture(frame.m_MSAAColorTexture);
+        color_attachment->setResolveTexture(frame.m_Drawable->texture());
+        color_attachment->setLoadAction(MTL::LoadActionLoad);
+        color_attachment->setStoreAction(MTL::StoreActionMultisampleResolve);
+
+        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+        MTL::RenderCommandEncoder* encoder = frame.m_CommandBuffer->renderCommandEncoder(rp_desc);
+        if (encoder)
+        {
+            encoder->retain();
+        }
+        pool->release();
+        rp_desc->release();
+
+        if (!encoder)
+        {
+            return false;
+        }
+
+        encoder->endEncoding();
+        encoder->release();
+        context->m_MainMSAAColorNeedsResolve = 0;
+        // MultisampleResolve may discard the multisample texture. A later pass
+        // must not try to load its previous contents.
+        context->m_MainRTBegunThisFrame = 0;
+        return true;
+    }
+
     static void BeginRenderPass(MetalContext* context, HRenderTarget render_target)
     {
         if (context->m_CurrentRenderTarget == render_target && context->m_RenderTargetBound)
@@ -1721,11 +1772,20 @@ namespace dmGraphics
             if (rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID && context->m_MSAASampleCount > 1)
             {
                 colorAttachment->setTexture(frame.m_MSAAColorTexture);
-                colorAttachment->setResolveTexture(tex->m_Texture);
-                // The main render target can be resumed after rendering to an
-                // offscreen target. Preserve its multisample attachment so the
-                // resumed pass can load the pixels written by the previous pass.
-                colorAttachment->setStoreAction(MTL::StoreActionStoreAndMultisampleResolve);
+                if (context->m_CombinedMSAAStoreAndResolveSupport)
+                {
+                    colorAttachment->setResolveTexture(tex->m_Texture);
+                    // The main render target can be resumed after rendering to an
+                    // offscreen target. Preserve its multisample attachment so the
+                    // resumed pass can load the pixels written by the previous pass.
+                    colorAttachment->setStoreAction(MTL::StoreActionStoreAndMultisampleResolve);
+                }
+                else
+                {
+                    // Resolve in a separate pass once rendering to the main target
+                    // is finished.
+                    colorAttachment->setStoreAction(MTL::StoreActionStore);
+                }
             }
             else if (rt->m_Base.m_SampleCount > 1)
             {
@@ -1829,6 +1889,10 @@ namespace dmGraphics
         if (is_main_rt)
         {
             context->m_MainRTBegunThisFrame = 1;
+            if (context->m_MSAASampleCount > 1 && !context->m_CombinedMSAAStoreAndResolveSupport)
+            {
+                context->m_MainMSAAColorNeedsResolve = 1;
+            }
         }
         rt->m_HasPendingClearColor = 0;
         rt->m_HasPendingClearDepth = 0;
@@ -1908,6 +1972,7 @@ namespace dmGraphics
         frame.m_ArgumentBufferPool.Rewind();
         context->m_RenderTargetBound = 0;
         context->m_MainRTBegunThisFrame = 0;
+        context->m_MainMSAAColorNeedsResolve = 0;
         ResetRenderEncoderStateCache(context);
 
         // Setup the initial render pass state
@@ -1958,6 +2023,7 @@ namespace dmGraphics
 
         // End the current render pass
         EndRenderPass(context);
+        ResolveMainMSAAColor(context);
 
         const uint32_t frame_index = context->m_CurrentFrameInFlight;
         MetalFrameResource& frame = context->m_FrameResources[frame_index];
@@ -5446,6 +5512,8 @@ namespace dmGraphics
             source_is_backbuffer = rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID;
         }
 
+        const bool consumed_main_msaa = source_is_backbuffer && ResolveMainMSAAColor(context);
+
         const uint32_t src_row_size = AlignTo(dst_row_size, 256);
         const uint32_t readback_size = src_row_size * height;
         MTL::Buffer* readback_buffer = context->m_Device->newBuffer(readback_size, MTL::ResourceStorageModeShared);
@@ -5525,7 +5593,7 @@ namespace dmGraphics
         readback_buffer->release();
         source_texture->release();
 
-        if (was_rendering && frame.m_CommandBuffer)
+        if (was_rendering && frame.m_CommandBuffer && !consumed_main_msaa)
         {
             BeginRenderPass(context, render_target);
         }
