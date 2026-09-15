@@ -1144,7 +1144,10 @@ class Configuration(object):
         installed_packages = set()
 
         for platform in other_platforms:
-            packages = [package for package in PLATFORM_PACKAGES.get(platform, []) if package not in PACKAGES_HOST]
+            # Bob Light packages LuaJIT for every desktop host directly from ext.
+            packages = [package for package in PLATFORM_PACKAGES.get(platform, [])
+                        if package not in PACKAGES_HOST or
+                        (platform in BOB_TOOL_PLATFORMS and package.startswith('luajit-'))]
             package_paths = make_package_paths(self.defold_root, platform, packages)
             print("Installing %s packages " % platform)
             for path in package_paths:
@@ -2575,13 +2578,14 @@ class Configuration(object):
 
             self.build_tracker.end_component('bob_plugin_%s' % plugin_name, self.host)
 
-    def _run_bob_copy_script(self):
-        """Run com.dynamo.cr.bob/scripts/copy.sh via POSIX sh.
+    def _copy_bob_private_artifacts(self):
+        """Stage private-platform additions; public artifacts are packaged directly.
 
         Use sh (not bash): on Windows, `bash` in PATH is often WSL's stub (no distro).
         Git for Windows provides sh.exe. Avoid shell=True so cmd.exe is not used."""
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        run.env_command(self._form_env(), ['sh', 'scripts/copy.sh'], cwd=bob_dir)
+        if os.path.isfile(join(bob_dir, 'scripts/copy_private.sh')):
+            run.env_command(self._form_env(), ['sh', 'scripts/copy.sh'], cwd=bob_dir)
 
     def build_bob_light(self):
         self.build_tracker.start_component('bob_light', self.host)
@@ -2829,121 +2833,12 @@ class Configuration(object):
         for p in glob(join(self.dynamo_home, 'share', 'java', 'plugins', '*.jar')):
             self.upload_to_archive(p, '%s/plugins/%s' % (full_archive_path, basename(p)))
 
-    def copy_local_bob_artefacts(self):
-        texc_name = format_lib('texc_shared', self.host)
-        modelc_name = format_lib('modelc_shared', self.host)
-        fontc_name = format_lib('fontc_shared', self.host)
-        shaderc_name = format_lib('shaderc_shared', self.host)
-        luajit_dir = tempfile.mkdtemp()
-        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        missing = {}
-        def add_missing(plf, txt):
-            txts = []
-            txts = missing.setdefault(plf, txts)
-            txts = txts.append(txt)
-
-        for plf in [['x86_64-win32', 'x86_64-win32'],
-                    ['x86_64-linux', 'x86_64-linux'],
-                    ['arm64-linux', 'arm64-linux'],
-                    ['x86_64-macos', 'x86_64-macos'],
-                    ['arm64-macos', 'arm64-macos']]:
-            luajit_package = [pkg for pkg in PLATFORM_PACKAGES[plf[0]] if "luajit" in pkg]
-            luajit_path = join(cwd, '../../packages/%s-%s.tar.gz' % (luajit_package[0], plf[0]))
-            if not os.path.exists(luajit_path):
-                add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
-            else:
-                self._extract(luajit_path, luajit_dir)
-                for name in ('luajit-64'):
-                    luajit_exe = format_exes(name, plf[0])[0]
-                    src = join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe))
-                    if not os.path.exists(src):
-                        continue
-                    tgt_dir = join(cwd, 'libexec/%s' % plf[1])
-                    self._mkdirs(tgt_dir)
-                    self._copy(src, join(tgt_dir, luajit_exe))
-
-        # Any shared libraries that we depend on
-        macos_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in [] for plf in [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']]])
-        linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']]])
-        js_files = {}
-        android_files = {'share/java/classes.dex': 'lib/classes.dex',
-                         'ext/share/java/android.jar': 'lib/android.jar', # this should be the stripped one
-                         'ext/share/vkquality/assets/vkqualitydata.vkq': 'lib/vkquality/vkqualitydata.vkq',
-                         'ext/lib/armv7-android/libvkquality.so': 'libexec/armv7-android/libvkquality.so',
-                         'ext/lib/arm64-android/libvkquality.so': 'libexec/arm64-android/libvkquality.so',
-                         'ext/lib/x86_64-android/libvkquality.so': 'libexec/x86_64-android/libvkquality.so'}
-
-        switch_files = {}
-
-        # bob loads these natively on whichever desktop platform it runs on, so it needs
-        # all of them and not just the host's. scripts/copy.sh takes them out of
-        # $DYNAMO_HOME/archive/$SHA1; without an archive they come straight from the
-        # engine builds in $DYNAMO_HOME instead.
-        desktop_native_files = {}
-        for plf in ('x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32'):
-            for lib in ('texc', 'modelc', 'shaderc', 'fontc'):
-                name = format_lib('%s_shared' % lib, plf)
-                desktop_native_files['lib/%s/%s' % (plf, name)] = 'lib/%s/%s' % (plf, name)
-
-        # This dict is being built up and will eventually be used for copying in the end
-        # - "type" - what the files are needed for, for error reporting
-        #   - pairs of src-file -> dst-file
-        artefacts = {'generic': {'share/java/dlib.jar': 'lib/dlib.jar',
-                                 'share/java/fontrenderer.jar': 'lib/fontrenderer.jar',
-                                 'share/java/modelimporter.jar': 'lib/modelimporter.jar',
-                                 'share/java/shaderc.jar': 'lib/shaderc.jar',
-                                 'share/java/texturecompiler.jar': 'lib/texturecompiler.jar',
-                                 'share/builtins.zip': 'lib/builtins.zip',
-                                 'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name),
-                                 'lib/%s/%s' % (self.host, modelc_name): 'lib/%s/%s' % (self.host, modelc_name),
-                                 'lib/%s/%s' % (self.host, fontc_name): 'lib/%s/%s' % (self.host, fontc_name),
-                                 'lib/%s/%s' % (self.host, shaderc_name): 'lib/%s/%s' % (self.host, shaderc_name)},
-                     'desktop-natives': desktop_native_files,
-                     'android-bundling': android_files,
-                     'win32-bundling': {},
-                     'web-bundling': js_files,
-                     'ios-bundling': {},
-                     'osx-bundling': macos_files,
-                     'linux-bundling': linux_files,
-                     'switch-bundling': switch_files}
-        # Add dmengine to 'artefacts' procedurally
-        for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android'], ['x86_64-android', 'x86_64-android']],
-                           'win32-bundling': [['x86_64-win32', 'x86_64-win32']],
-                           'web-bundling': [['wasm-web', 'wasm-web'], ['wasm_pthread-web', 'wasm_pthread-web']],
-                           'ios-bundling': [['arm64-ios', 'arm64-ios'], ['arm64_sim-ios', 'arm64_sim-ios']],
-                           'osx-bundling': [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']],
-                           'linux-bundling': [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']],
-                           'switch-bundling': [['arm64-nx64', 'arm64-nx64']]}.items():
-            # plfs is pairs of src-platform -> dst-platform
-            for plf in plfs:
-                exes = format_exes('dmengine', plf[1]) + format_exes('dmengine_release', plf[1])
-                artefacts[type].update(dict([['bin/%s/%s' % (plf[0], exe), 'libexec/%s/%s' % (plf[1], exe)] for exe in exes]))
-        # Perform the actual copy, or list which files are missing
-        for type, files in artefacts.items():
-            m = []
-            for src, dst in files.items():
-                src_path = join(self.dynamo_home, src)
-                if not os.path.exists(src_path):
-                    m.append(src_path)
-                else:
-                    dst_path = join(cwd, dst)
-                    self._mkdirs(os.path.dirname(dst_path))
-                    self._copy(src_path, dst_path)
-            if m:
-                add_missing(type, m)
-        if missing:
-            print('*** NOTE! There are missing artefacts.')
-            print(json.dumps(missing, indent=2))
-
     def build_bob(self):
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
-        sha1 = self._git_sha1()
         self.install_bob_tool_packages()
-        self._run_bob_copy_script()
-        if not os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            self.copy_local_bob_artefacts()
+        self._copy_bob_private_artifacts()
 
         env = self._form_env()
 

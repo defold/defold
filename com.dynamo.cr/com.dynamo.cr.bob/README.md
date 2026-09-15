@@ -1,5 +1,18 @@
 # Bob the builder
 
+## Packaging
+
+Bob and Bob Light package tools directly from `$DYNAMO_HOME/ext` and use the
+engine helper JARs in `$DYNAMO_HOME/share/java` as compilation dependencies.
+Run `scripts/build.py install_ext` before building Bob Light; this also installs
+LuaJIT for the other desktop platforms.
+
+Full Bob uses engines and builtins from `$DYNAMO_HOME/archive/<current revision>`
+when available, otherwise from the local engine build. Compiler libraries and
+helper JARs prefer local builds, with the archive as a fallback. Public artifacts
+are no longer copied into Bob's `lib` and `libexec` directories. Private-platform
+additions can still be provided by `scripts/copy_private.sh`.
+
 ## Content pipeline
 
 The primary build tool is bob. Bob is used for the editor but also for engine-tests. In the first build-step a standalone version of bob is built. A legacy pipeline, waf/python and some classes from bob.jar, is still used for gamesys and for built-in content. This might be changed in the future but integrating bob with waf 1.5.x is pretty hard as waf 1.5.x is very restrictive where source and built content is located. Built-in content is compiled, via .arc-files, to header-files, installed to $DYNAMO_HOME, etc In other words tightly integrated with waf.
@@ -13,4 +26,3 @@ By convention all graphics resources are explicitly in little-endian and specifi
 ### Updating "Build Report" template
 
 The build report template is a single HTML file found under `com.dynamo.cr/com.dynamo.cr.bob/lib/report_template.html`. Third party JS and CSS libraries used (DataTables.js, Jquery, Bootstrap, D3 and Dimple.js) are concatenated into two HTML inline tags and added to this file. If the libraries need to be updated/changed please use the `inline_libraries.py` script found in `share/report_libs/`.
-
