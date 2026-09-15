@@ -910,6 +910,16 @@ namespace dmGraphics
 
     struct RenderTargetCreationParams
     {
+        RenderTargetCreationParams()
+        : m_SampleCount(0)
+        , m_TextureType(TEXTURE_TYPE_2D)
+        , m_ColorBufferLoadOps()
+        , m_ColorBufferStoreOps()
+        , m_ColorBufferClearValue()
+        , m_DepthTexture(false)
+        , m_StencilTexture(false)
+        {}
+
         TextureCreationParams m_ColorBufferCreationParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureCreationParams m_DepthBufferCreationParams;
         TextureCreationParams m_StencilBufferCreationParams;
