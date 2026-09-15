@@ -1,4 +1,4 @@
-name: "morph_instanced_attr"
+name: "morph_instanced_attr_alt"
 tags: "model"
 vertex_program: "/model/morph_instanced_attr.vp"
 fragment_program: "/model/morph_instanced.fp"
@@ -40,5 +40,5 @@ attributes {
   data_type: TYPE_FLOAT
   coordinate_space: COORDINATE_SPACE_LOCAL
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
-  double_values { v: 0.125 v: 0.25 v: 0.375 v: 0.5 }
+  double_values { v: 0.625 v: 0.75 v: 0.875 v: 1.0 }
 }

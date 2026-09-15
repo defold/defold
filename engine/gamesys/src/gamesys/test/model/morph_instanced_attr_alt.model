@@ -1,0 +1,3 @@
+name: "morph_instanced_attr_alt"
+mesh: "/model/morph_weights_anim.gltf"
+material: "/model/morph_instanced_attr_alt.material"

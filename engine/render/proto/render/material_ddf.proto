@@ -112,4 +112,7 @@ message MaterialDesc
     repeated dmGraphics.VertexAttribute attributes = 11;
     optional string program                        = 12 [(resource)=true, (runtime_only)=true];
     optional PbrParameters pbr_parameters          = 13 [(runtime_only)=true];
+    // Hash of the compiled render state and attribute declarations. Instance
+    // attribute values are excluded because they are written per instance.
+    optional uint64 instancing_compatibility_hash  = 14 [(runtime_only)=true];
 }

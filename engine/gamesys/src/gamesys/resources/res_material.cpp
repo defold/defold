@@ -29,6 +29,19 @@
 
 namespace dmGameSystem
 {
+    void InvalidateMaterialInstancingCompatibility(MaterialResource* resource)
+    {
+        // Runtime material mutations cannot safely retain a compatibility hash
+        // calculated from the compiled descriptor. Fall back to resource identity.
+        uint64_t unique_hash = dmHashBuffer64(&resource, sizeof(resource));
+        unique_hash = unique_hash != 0 ? unique_hash : 1;
+        if (resource->m_InstancingCompatibilityHash != unique_hash)
+        {
+            resource->m_InstancingCompatibilityHash = unique_hash;
+            resource->m_InstancingCompatibilityVersion++;
+        }
+    }
+
     static inline bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
     {
         if (strlen(material_desc->m_Name) == 0)
@@ -110,6 +123,9 @@ namespace dmGameSystem
 
     static void SetMaterial(const char* path, MaterialResource* resource, MaterialResources* resources, dmRenderDDF::MaterialDesc* ddf)
     {
+        resource->m_InstancingCompatibilityHash = ddf->m_InstancingCompatibilityHash;
+        resource->m_InstancingCompatibilityVersion++;
+
         dmhash_t tags[dmRender::MAX_MATERIAL_TAG_COUNT];
         uint32_t tag_count = ddf->m_Tags.m_Count;
 

@@ -11235,6 +11235,7 @@ TEST_F(ModelTest, MorphTargetInstancedWeightsBatch)
         float mtx_world[16];
         float mtx_normal[16];
         float morph_targets_weights[16];
+        float instance_data[4];
     };
 
     dmRender::BufferedRenderBuffer* instance_buffer = 0;
@@ -11256,6 +11257,71 @@ TEST_F(ModelTest, MorphTargetInstancedWeightsBatch)
         found_b |= dmMath::Abs(weights[0] - weights_b[0]) < EPSILON && dmMath::Abs(weights[1] - weights_b[1]) < EPSILON;
         ASSERT_NEAR(0.0f, weights[2], EPSILON);
         ASSERT_NEAR(0.0f, weights[3], EPSILON);
+    }
+    ASSERT_TRUE(found_a);
+    ASSERT_TRUE(found_b);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ModelTest, CompatibleMaterialsShareInstancedBatch)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, "/model/morph_instanced_attr.goc", dmHashString64("/model_a"), 0, Point3(-1, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, "/model/morph_instanced_attr_alt.goc", dmHashString64("/model_b"), 0, Point3(1, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_a);
+    ASSERT_NE((void*)0, go_b);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+
+    uint32_t model_type = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("modelc"));
+    void*    model_world = dmGameObject::GetWorld(m_Collection, model_type);
+    ASSERT_NE((void*)0, model_world);
+
+    uint8_t world_batch_count;
+    uint8_t local_batch_count;
+    uint8_t local_instanced_batch_count;
+    dmGameSystem::GetModelWorldRenderBatchStats(model_world, &world_batch_count, &local_batch_count, &local_instanced_batch_count);
+    ASSERT_EQ(0, world_batch_count);
+    ASSERT_EQ(0, local_batch_count);
+    ASSERT_EQ(1, local_instanced_batch_count);
+
+    struct MorphInstanceData
+    {
+        float mtx_world[16];
+        float mtx_normal[16];
+        float morph_targets_weights[16];
+        float instance_data[4];
+    };
+
+    dmRender::BufferedRenderBuffer* instance_buffer = 0;
+    dmGameSystem::GetModelWorldInstanceRenderBuffer(model_world, &instance_buffer);
+    ASSERT_NE((dmRender::BufferedRenderBuffer*)0, instance_buffer);
+    ASSERT_EQ(1u, instance_buffer->m_Buffers.Size());
+
+    dmGraphics::HVertexBuffer vx_buffer_handle = instance_buffer->m_Buffers[0];
+    dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer_handle;
+    ASSERT_EQ(2u * sizeof(MorphInstanceData), dmGraphics::GetVertexBufferSize(vx_buffer_handle));
+
+    const float expected_a[] = { 0.125f, 0.25f, 0.375f, 0.5f };
+    const float expected_b[] = { 0.625f, 0.75f, 0.875f, 1.0f };
+    const MorphInstanceData* instances = (const MorphInstanceData*) gfx_vx_buffer->m_Buffer;
+    bool found_a = false;
+    bool found_b = false;
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        const float* values = instances[i].instance_data;
+        found_a |= dmMath::Abs(values[0] - expected_a[0]) < EPSILON && dmMath::Abs(values[1] - expected_a[1]) < EPSILON &&
+                   dmMath::Abs(values[2] - expected_a[2]) < EPSILON && dmMath::Abs(values[3] - expected_a[3]) < EPSILON;
+        found_b |= dmMath::Abs(values[0] - expected_b[0]) < EPSILON && dmMath::Abs(values[1] - expected_b[1]) < EPSILON &&
+                   dmMath::Abs(values[2] - expected_b[2]) < EPSILON && dmMath::Abs(values[3] - expected_b[3]) < EPSILON;
     }
     ASSERT_TRUE(found_a);
     ASSERT_TRUE(found_b);
@@ -11397,6 +11463,7 @@ TEST_F(ModelTest, MorphTargetInstancedWeightsClampedPerMesh)
         float mtx_world[16];
         float mtx_normal[16];
         float morph_targets_weights[16];
+        float instance_data[4];
     };
 
     dmRender::BufferedRenderBuffer* instance_buffer = 0;
