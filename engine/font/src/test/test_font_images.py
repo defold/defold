@@ -18,6 +18,7 @@
 
 import base64
 import io
+import hashlib
 import json
 import re
 import shutil
@@ -26,12 +27,54 @@ import tempfile
 import unittest
 from unittest import mock
 from pathlib import Path
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageChops, ImageEnhance, ImageFilter
 import make_report as report
+import font_coverage
 import contextlib
 import os
 import platform
 import subprocess
+
+
+class CoverageTest(unittest.TestCase):
+    def test_rectangle_fractional_pixel_area(self):
+        # A unit-height rectangle starting a quarter-pixel into the image.
+        image = font_coverage.rasterize([(.25, 0, 1.25, 1)], (3, 1), 1)
+        self.assertEqual([191, 64, 0], list(image.getdata()))
+
+    def test_overlapping_contours_do_not_double_count_area(self):
+        commands = []
+        for left, right in ((0, 2), (1, 3)):
+            commands.extend([['M', left, 0], ['L', right, 0], ['L', right, 1], ['L', left, 1], ['Z']])
+        rects = font_coverage.rectangles(commands)
+        self.assertEqual(3, sum((r - l) * (b - t) for l, t, r, b in rects))
+        self.assertEqual([255, 255, 255, 0], list(font_coverage.rasterize(rects, (4, 1), 1).getdata()))
+
+    def test_unsupported_curves_require_an_oracle_update(self):
+        with self.assertRaisesRegex(ValueError, 'straight, axis-aligned'):
+            font_coverage.rectangles([['M', 0, 0], ['Q', 1, 1, 2, 0]])
+
+    def test_quality_accepts_improved_coverage_despite_different_pixels(self):
+        oracle = font_coverage.reference('ttf', 1)
+        stable = oracle.filter(ImageFilter.BoxBlur(4))
+        self.assertNotEqual(oracle.tobytes(), stable.tobytes())
+        case = {'source': 'ttf_sdf', 'edge_scale': 1, 'size': 32}
+        with tempfile.TemporaryDirectory() as directory:
+            quality, failures = font_coverage.compare_quality(oracle, stable, case, Path(directory))
+        self.assertEqual([], failures)
+        self.assertEqual(0, quality['actual']['edge_rmse'])
+        self.assertLess(quality['actual']['edge_rmse'], quality['stable']['edge_rmse'])
+
+    def test_quality_rejects_lost_opacity_blur_and_displacement(self):
+        oracle = font_coverage.reference('ttf', 1)
+        case = {'source': 'ttf_sdf', 'edge_scale': 1, 'size': 32}
+        candidates = (ImageEnhance.Brightness(oracle).enhance(.84),
+                      oracle.filter(ImageFilter.BoxBlur(10)), ImageChops.offset(oracle, 8, 0))
+        with tempfile.TemporaryDirectory() as directory:
+            for candidate in candidates:
+                quality, failures = font_coverage.compare_quality(candidate, oracle, case, Path(directory))
+                self.assertEqual('fail', quality['status'])
+                self.assertTrue(failures)
 
 
 class ReportTest(unittest.TestCase):
@@ -87,6 +130,159 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(100.0, result["whole_likeness_percent"])
         self.assertGreater(result["effect_pixels"]["actual"]["outline"], 0)
         self.assertEqual(reference_bytes, self.expected.read_bytes())
+
+    def test_sdf_edge_width_is_independent_of_reference(self):
+        # Draw a straight edge from its screen-space coverage, independently
+        # of font distance encoding. The renderer samples this at 8x resolution.
+        for full_width, peak, expected in ((2.0, 1.0, 'pass'), (2.0, .75, 'pass'),
+                                           (2.0 / 3.0, 1.0, 'fail'), (4.0, 1.0, 'fail')):
+            image = Image.new('RGB', (128, 64))
+            for x in range(image.width):
+                t = max(0, min(1, .5 + (x / 8 - 4) / full_width))
+                # Thin, downscaled stems can be correct without reaching 90%.
+                alpha = round(255 * min(peak, t * t * (3 - 2 * t)))
+                for y in range(8, 56):
+                    image.putpixel((x, y), (alpha, alpha, alpha))
+            image.save(self.actual)
+            image.save(self.expected)
+            result = self.compare(edge_scale=1, expect_outline=False, background=[0, 0, 0])
+            self.assertEqual(expected, result['status'], result['reason'])
+            self.assertEqual(100, result['likeness_percent'])
+            self.assertIn('actual', result['paths'])
+            self.expected.unlink()
+            self.assertEqual('skipped' if expected == 'pass' else 'fail', self.compare(edge_scale=1)['status'])
+
+    def test_solid_interior_fails_even_with_identical_references(self):
+        for peak, inner_width, expected in ((.844, 2.0, 'fail'), (1.0, 2.0, 'pass'), (1.0, 2.0 / 3.0, 'fail')):
+            image = Image.new('RGB', (128, 64))
+            for x in range(image.width):
+                width = 2.0 if x < 32 else inner_width
+                t = max(0, min(1, .5 + (x / 8 - 4) / width))
+                alpha = round(255 * min(peak, t * t * (3 - 2 * t)))
+                for y in range(8, 56):
+                    image.putpixel((x, y), (alpha, alpha, alpha))
+            image.save(self.actual)
+            image.save(self.expected)
+            result = self.compare(edge_scale=.5, opaque_interior=True, expect_outline=False, background=[0, 0, 0])
+            self.assertEqual(expected, result['status'], result['reason'])
+            self.assertEqual(100, result['likeness_percent'])
+            if expected == 'fail':
+                self.assertIn('SDF interior opacity' if peak < .99 else 'SDF 10%-90% edge width', result['reason'])
+            else:
+                self.assertAlmostEqual(1.2168, result['full_edge_width_pixels'], delta=.1)
+
+    def test_stable_likeness_is_informational_and_images_are_portable(self):
+        self.image(self.actual)
+        self.image(self.expected)
+        stable = self.root / 'stable.png'
+        Image.new('RGB', (128, 64), 'white').save(stable)
+        with Image.open(self.actual) as actual:
+            Image.new('RGB', actual.size, 'white').save(stable)
+        result = self.compare(stable_reference=str(stable))
+        self.assertEqual('pass', result['status'], result['reason'])
+        self.assertEqual(100, result['likeness_percent'])
+        self.assertLess(result['stable_likeness_percent'], 98)
+        destination = self.root / 'historical-comparison'
+        report.build_report([result], destination, {})
+        stable.unlink()
+        for page in (destination / 'index.html', next((destination / 'cases').glob('*/index.html'))):
+            contents = page.read_text()
+            self.assertEqual(3, contents.count('<img '))
+            self.assertIn('<figcaption>Actual</figcaption>', contents)
+            self.assertIn('<figcaption>Reference</figcaption>', contents)
+            self.assertIn('<figcaption>Difference (contrast ×4)</figcaption>', contents)
+            self.assertIn('1.13.1 fixture origin adjusted', contents)
+        copied = next((destination / 'cases').glob('*/stable_reference.png'))
+        self.assertTrue(copied.is_file())
+
+    def test_sdf_reference_difference_and_fourfold_report_zoom(self):
+        def edge(path, width):
+            image = Image.new('RGB', (128, 64))
+            for x in range(image.width):
+                t = max(0, min(1, .5 + (x / 8 - 4) / width))
+                alpha = round(255 * t * t * (3 - 2 * t))
+                for y in range(8, 56):
+                    image.putpixel((x, y), (alpha, alpha, alpha))
+            image.save(path)
+        edge(self.actual, 2 / 3)
+        edge(self.expected, 2)
+        result = self.compare(edge_scale=1, expect_outline=False, background=[0, 0, 0])
+        self.assertEqual('fail', result['status'])
+        self.assertLess(result['likeness_percent'], 98)
+        self.assertIn('SDF edge width', result['reason'])
+        self.assertEqual({'actual', 'reference', 'difference'}, set(result['paths']))
+        output = self.root / 'zoom-report'
+        report.build_report([result], output, {})
+        case_page = next((output / 'cases').glob('*/index.html'))
+        for page in (output / 'index.html', case_page):
+            html = page.read_text()
+            self.assertEqual(3, html.count('class="zoomed" style="width: 512px"'))
+            self.assertIn('image-rendering: pixelated', html)
+            self.assertIn('Reference · native', html)
+
+    def test_quality_failure_is_visible_with_identical_native_references(self):
+        source = font_coverage.reference('ttf', 1)
+        source.point(lambda value: round(value * .84)).save(self.actual)
+        shutil.copyfile(self.actual, self.expected)
+        stable = report.FONT_ROOT / 'src/test/data/reference/1.13.1/full-plain/ttf_sdf_single_edge_one.png'
+        result = self.compare(source='ttf_sdf', size=32, edge_scale=1, stable_reference=str(stable),
+                              expect_outline=False, background=[0, 0, 0])
+        self.assertEqual(100, result['likeness_percent'])
+        self.assertEqual('fail', result['coverage_quality']['status'])
+        self.assertIn('Coverage area_error', result['reason'])
+        destination = self.root / 'quality-failure'
+        report.build_report([result], destination, {})
+        for path in (destination / 'index.html', next((destination / 'cases').glob('*/index.html'))):
+            page = path.read_text()
+            self.assertEqual(3, page.count('<img '))
+            self.assertIn('Independent coverage quality: FAIL', page)
+            self.assertIn('Error (lower is better)', page)
+        self.assertTrue(next((destination / 'cases').glob('*/coverage_reference.png')).is_file())
+
+    def test_sdf_contour_offset_fails_independently_of_likeness_threshold(self):
+        # A translated, sharp synthetic H has perfect shape identity, but the
+        # capture origins still differ. Do not register images to hide this.
+        image = Image.new('RGB', (128, 128))
+        for box in ((24, 16, 40, 112), (80, 16, 96, 112), (24, 56, 96, 72)):
+            image.paste('white', box)
+        image.save(self.actual)
+        shifted = Image.new('RGB', image.size)
+        shifted.paste(image, (6, 2))
+        shifted.save(self.expected)
+        result = self.compare(edge_scale=1, threshold=0, expect_outline=False, background=[0, 0, 0])
+        self.assertEqual('fail', result['status'])
+        self.assertEqual([-6.0, -2.0], result['contour_offset_capture_pixels'])
+        self.assertIn('SDF contour origin differs by (-6, -2)', result['reason'])
+        self.assertNotIn('Foreground likeness', result['reason'])
+
+    def test_stable_sdf_references_preserve_original_edge_coverage(self):
+        reference_root = report.FONT_ROOT / 'src/test/data/reference/1.13.1'
+        provenance = json.loads((reference_root / 'sdf-edge-1.13.1-provenance.json').read_text())
+        geometry = json.loads((report.DATA / 'capture_geometry.json').read_text())
+        self.assertEqual('1.13.1', provenance['version'])
+        self.assertEqual([-1.5, .5], provenance['capture']['origin_adjustment_font_pixels'])
+        expected = set()
+        for full, rich in ((False, False), (False, True), (True, False), (True, True)):
+            configuration = ('full' if full else 'legacy') + ('-rich' if rich else '-plain')
+            for case in report.cases(full, rich):
+                if '_single_edge_' not in case['id']:
+                    continue
+                relative = configuration + '/' + case['id'] + '.png'
+                expected.add(relative)
+                path = reference_root / relative
+                record = provenance['images'][relative]
+                self.assertEqual(record['sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+                with Image.open(path) as image:
+                    self.assertAlmostEqual(.6084, report.sdf_edge_width(image), delta=.08)
+                    capture = geometry[case['id'].replace('_sdf_single', '')]
+                    self.assertEqual((capture['width'], capture['height']), image.size)
+        self.assertEqual(24, len(expected))
+        self.assertEqual(expected, set(provenance['images']))
+
+    def test_sdf_edge_missing_or_blank_capture_is_an_error(self):
+        self.assertEqual('error', self.compare(edge_scale=1)['status'])
+        Image.new('RGB', (64, 64)).save(self.actual)
+        self.assertEqual('error', self.compare(edge_scale=1)['status'])
 
     def test_missing_outline_cannot_hide_in_clear_background(self):
         # The outline is tiny relative to this canvas, so whole-image RMSE alone
@@ -362,14 +558,58 @@ class ReportTest(unittest.TestCase):
         destination = self.root / 'lowest'
         report.build_report(results, destination, {})
         page = (destination / 'index.html').read_text(encoding="utf-8")
-        section = page.split('<h2>Lowest likeness scores</h2><ol>')[1].split('</ol>')[0]
+        section = page.split('<h2>Lowest image likeness scores</h2>')[1].split('<ol>')[1].split('</ol>')[0]
         entries = re.findall(r'<a href="#([^"]+)">([^<]+)</a> — <strong>([^<]+)</strong>', section)
         self.assertEqual(['a', 'b', 'e', 'f', 'c'], [entry[1] for entry in entries])
         self.assertEqual(['8.0000%', '8.0000%', '30.0000%', '60.0000%', '75.0000%'],
                          [entry[2] for entry in entries])
         for anchor, _, _ in entries:
             self.assertIn(f'<article id="{anchor}">', page)
-        self.assertLess(page.index('Lowest likeness scores'), page.index('<article'))
+        self.assertLess(page.index('Lowest image likeness scores'), page.index('<article'))
+
+    def test_edge_failure_is_prominent_when_all_image_scores_are_perfect(self):
+        self.image(self.actual)
+        self.image(self.expected)
+        passed = dict(self.compare(), id='image-comparison')
+        failed = dict(passed, id='sdf-edge', status='fail', likeness_percent=None,
+                      edge_width_pixels=.21, expected_edge_width_pixels=.6084,
+                      reason='SDF edge width 0.2100 px; expected 0.6084 ± 0.08 px')
+        for result in (passed, failed):
+            result['configuration'] = dict(result['configuration'], id=result['id'], full_layout=False, rich_text=True)
+        destination = self.root / 'edge-summary'
+        summary = report.build_report([passed, failed], destination, {
+            'source': 'current', 'expected_cases': [r['configuration'] for r in (passed, failed)]})
+        self.assertEqual('fail', summary['status'])
+        for root in (destination, destination / 'executables/layout0-rich1'):
+            page = (root / 'index.html').read_text(encoding='utf-8')
+            self.assertLess(page.index('<h2>Failing checks'), page.index('<h2>Lowest image likeness'))
+            failures = page.split('<h2>Failing checks</h2>')[1].split('</ul>')[0]
+            self.assertIn('sdf-edge', failures)
+            self.assertIn('0.2100 px; expected 0.6084', failures)
+            self.assertNotIn('image-comparison', failures)
+            self.assertIn('100.0000%', page)
+            self.assertIn('reference-image comparisons only', page)
+            anchor = re.search(r'href="#([^"]+)"', failures).group(1)
+            self.assertIn(f'<article id="{anchor}">', page)
+            markdown = (root / 'summary.md').read_text(encoding='utf-8')
+            self.assertIn('0.2100 px; expected 0.6084', markdown)
+
+    def test_passing_edge_coverage_is_visible_when_likeness_fails(self):
+        self.image(self.actual)
+        self.image(self.expected)
+        result = dict(self.compare(), status='fail', likeness_percent=50.0,
+                      edge_width_pixels=.61, expected_edge_width_pixels=.6084,
+                      edge_width_tolerance_pixels=.08,
+                      reason='Foreground likeness 50.0000% is below 98%')
+        destination = self.root / 'edge-pass-likeness-fail'
+        summary = report.build_report([result], destination, {})
+        self.assertEqual('fail', summary['status'])
+        pages = [destination / 'index.html', *destination.glob('cases/*/index.html')]
+        self.assertEqual(2, len(pages))
+        for path in pages:
+            page = path.read_text(encoding='utf-8')
+            self.assertIn('Edge coverage: PASS — 0.6100 px; expected 0.6084 ± 0.08 px', page)
+            self.assertIn('Foreground likeness 50.0000% is below 98%', page)
 
     def test_zero_duplicate_and_missing_artifacts_never_pass(self):
         self.assertEqual("fail", report.build_report([], self.root / "empty", {})["status"])
@@ -493,7 +733,7 @@ class FontImageReportTest(unittest.TestCase):
                  dict(status='error', reason='Image dimensions differ: actual (10, 10), reference (9, 9)'),
                  dict(status='fail', reason='Foreground likeness 90% is below 95%')])
         self.assertIn('Captures: 3/3 images produced', output.getvalue())
-        self.assertIn('0 passed, 1 visual mismatches, 1 validation errors, 1 skipped', output.getvalue())
+        self.assertIn('0 passed, 1 failed image/quality checks, 1 validation errors, 1 skipped', output.getvalue())
         self.assertNotIn('missing references', output.getvalue())
         self.assertIn('1 image-size mismatches', output.getvalue())
 
@@ -507,7 +747,7 @@ class FontImageReportTest(unittest.TestCase):
                 self.assertEqual(rich, any(c['markup'] for c in cases))
                 self.assertEqual(full, any(c['source'] == 'arabic' for c in cases))
                 count += len(cases)
-        self.assertEqual(344, count)
+        self.assertEqual(392, count)
 
     def test_failed_comparison_keeps_images_and_passing_cases_stay_quiet(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -543,7 +783,7 @@ class FontImageReportTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
             root=Path(temporary)
             summary=report.build_reports(root/'missing',root/'report',{},False)
-            self.assertEqual(344,summary['failed'])
+            self.assertEqual(392,summary['failed'])
             self.assertEqual(0,summary['completed'])
             self.assertEqual('fail',summary['status'])
             self.assertTrue((root/'report/index.html').exists())

@@ -1364,11 +1364,18 @@ static void AccumulateSegmentDistances(const FontSDFSegment& segment, float samp
 #endif
 }
 
+static uint8_t BitmapCoverage(float distance, bool antialias)
+{
+    if (!antialias)
+        return distance >= 0.0f ? 255 : 0;
+    return (uint8_t)(fminf(1.0f, fmaxf(0.0f, 0.5f + distance)) * 255.0f + 0.5f);
+}
+
 static void GenerateDistanceField(const dmArray<FontSDFSegment>& segments,
                                   const dmArray<float>& boundary_transitions,
                                   int32_t origin_x, int32_t origin_y,
                                   uint32_t width, uint32_t height, float maximum_distance_squared,
-                                  float distance_scale, uint8_t on_edge_value, uint8_t* bitmap)
+                                  float distance_scale, const FontSDFParams& params, uint32_t channels, uint8_t* bitmap)
 {
     // Each row is generated in three phases:
     // 1. Collect segments close enough to affect distance and collect their
@@ -1425,8 +1432,8 @@ static void GenerateDistanceField(const dmArray<FontSDFSegment>& segments,
         qsort(crossings.Begin(), crossings.Size(), sizeof(FontSDFCrossing), CompareCrossings);
         for (uint32_t x = 0; x < width; ++x)
         {
-            // Distances outside the spread all encode to the same saturated
-            // value, so there is no need to search beyond this initial limit.
+            // The stored distance range ends at the spread on either side of
+            // the contour; distances beyond it share the endpoint value.
             distances_squared[x] = maximum_distance_squared;
         }
         for (uint32_t i = 0; i < candidate_segments.Size(); ++i)
@@ -1442,13 +1449,22 @@ static void GenerateDistanceField(const dmArray<FontSDFSegment>& segments,
             while (crossing_index < crossings.Size() && crossings[crossing_index].m_X <= point.m_X)
                 winding -= crossings[crossing_index++].m_Direction;
             float distance_squared = distances_squared[x];
-            float distance = sqrtf(distance_squared) * distance_scale;
+            float distance = sqrtf(distance_squared) * (winding != 0 ? 1.0f : -1.0f);
+            if (params.m_OutputBitmap)
+            {
+                // Convert the geometric distance straight to coverage. Encoding
+                // it into an 8-bit SDF first loses precision as padding grows.
+                bitmap[(y * width + x) * channels] = BitmapCoverage(distance, params.m_Antialias);
+                if (channels == 2)
+                    bitmap[(y * width + x) * channels + 1] = BitmapCoverage(distance + params.m_OutlineWidth, params.m_Antialias);
+                continue;
+            }
             // The edge maps to m_OnEdgeValue. Distance raises values inside
             // the non-zero winding fill and lowers values outside it.
-            float value = winding != 0 ? on_edge_value + distance : on_edge_value - distance;
+            float value = params.m_OnEdgeValue + distance * distance_scale;
             if (value < 0.0f) value = 0.0f;
             if (value > 255.0f) value = 255.0f;
-            bitmap[y * width + x] = (uint8_t)value;
+            bitmap[y * width + x] = (uint8_t)(value + 0.5f);
         }
     }
 }
@@ -1459,7 +1475,7 @@ FontResult FontSDFGenerate(const FontOutline* outline, const FontSDFParams* para
     memset(bitmap, 0, sizeof(*bitmap));
     *offset_x = 0;
     *offset_y = 0;
-    if (params->m_Spread == 0)
+    if (!isfinite(params->m_Spread) || params->m_Spread <= 0.0f || params->m_Spread >= (float)INT32_MAX)
         return FONT_RESULT_ERROR;
 
     dmArray<FontSDFSegment> segments;
@@ -1482,33 +1498,39 @@ FontResult FontSDFGenerate(const FontOutline* outline, const FontSDFParams* para
     float min_y = -outline_max_y * params->m_Scale;
     float max_y = -outline_min_y * params->m_Scale;
 
-    int32_t x0 = (int32_t)floorf(min_x) - params->m_Spread;
-    int32_t y0 = (int32_t)floorf(min_y) - params->m_Spread;
-    int32_t x1 = (int32_t)ceilf(max_x) + params->m_Spread;
-    int32_t y1 = (int32_t)ceilf(max_y) + params->m_Spread;
+    // Only the storage border is integral; keep the encoded distance range
+    // consistent with fractional outline widths in the renderer.
+    const int32_t padding = (int32_t)ceilf(params->m_Spread);
+    int32_t x0 = (int32_t)floorf(min_x) - padding;
+    int32_t y0 = (int32_t)floorf(min_y) - padding;
+    int32_t x1 = (int32_t)ceilf(max_x) + padding;
+    int32_t y1 = (int32_t)ceilf(max_y) + padding;
     uint64_t width_64 = (int64_t)x1 - x0;
     uint64_t height_64 = (int64_t)y1 - y0;
+    const uint32_t channels = params->m_OutputBitmap && params->m_OutlineWidth > 0.0f ? 2 : 1;
     uint64_t pixel_count_64 = width_64 * height_64;
-    if (width_64 > UINT32_MAX || height_64 > UINT32_MAX || pixel_count_64 > UINT32_MAX)
+    if (width_64 > UINT32_MAX || height_64 > UINT32_MAX || pixel_count_64 > UINT32_MAX / channels)
         return FONT_RESULT_ERROR;
 
     uint32_t width = (uint32_t)width_64;
     uint32_t height = (uint32_t)height_64;
     uint32_t pixel_count = (uint32_t)pixel_count_64;
-    uint8_t* sdf = (uint8_t*)calloc(pixel_count, 1);
+    uint8_t* sdf = (uint8_t*)calloc(pixel_count, channels);
     if (!sdf)
         return FONT_RESULT_ERROR;
 
-    float pixel_distance_scale = (float)params->m_OnEdgeValue / params->m_Spread;
+    // Match the established shader/compiler contract and preserve enough
+    // interior range for minification at the default edge value (191).
+    float pixel_distance_scale = 0.25f * 255.0f / params->m_Spread;
     float maximum_distance_squared = (float)params->m_Spread * params->m_Spread;
     GenerateDistanceField(segments, boundary_transitions, x0, y0, width, height, maximum_distance_squared,
-                          pixel_distance_scale, params->m_OnEdgeValue, sdf);
+                          pixel_distance_scale, *params, channels, sdf);
 
     bitmap->m_Data = sdf;
-    bitmap->m_DataSize = pixel_count;
+    bitmap->m_DataSize = pixel_count * channels;
     bitmap->m_Width = width;
     bitmap->m_Height = height;
-    bitmap->m_Channels = 1;
+    bitmap->m_Channels = channels;
     bitmap->m_Flags = FONT_GLYPH_BM_FLAG_COMPRESSION_NONE;
     *offset_x = x0;
     *offset_y = y0;
