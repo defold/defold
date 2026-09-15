@@ -919,6 +919,11 @@
 (defn- build-in-progress? []
   @build-in-progress-atom)
 
+(def ^:private bob-task-in-progress-atom (atom false))
+
+(defn- bob-task-in-progress? []
+  @bob-task-in-progress-atom)
+
 (declare async-save!)
 
 (defn- async-reload-on-app-focus? [prefs]
@@ -933,7 +938,7 @@
 
 (defn- can-async-save? []
   (and (disk-availability/available?)
-       (not (bob/build-in-progress?))))
+       (not (bob-task-in-progress?))))
 
 (defn async-reload!
   [app-view changes-view workspace moved-files]
@@ -1646,7 +1651,7 @@
     (PipedOutputStream. in)))
 
 (defn invoke-bob! [app-view project changes-view build-errors-view prefs options commands]
-  (if-not (disk-availability/try-push-busy!)
+  (if-not (compare-and-set! bob-task-in-progress-atom false true)
     {:error (g/error-fatal (localization/message "error.bob.project-operation-in-progress"))}
     (try
       (let [evaluation-context (g/make-evaluation-context)
@@ -1672,7 +1677,7 @@
           (ui/run-now (render-build-error! error)))
         build-results)
       (finally
-        (disk-availability/pop-busy!)))))
+        (reset! bob-task-in-progress-atom false)))))
 
 (defn- build-html5! [app-view project prefs web-server build-errors-view changes-view bob-commands]
   (future/io
@@ -3119,12 +3124,12 @@
                 :text (localization (localization/message "dialog.save-and-upgrade.version-control.info.after-manual"))}]}))
 
 (handler/defhandler :file.save-all :global
-  (enabled? [] (not (bob/build-in-progress?)))
+  (enabled? [] (not (bob-task-in-progress?)))
   (run [app-view changes-view project prefs]
     (async-save! app-view changes-view project prefs project/dirty-save-data)))
 
 (handler/defhandler :file.save-and-upgrade-all :global
-  (enabled? [] (not (bob/build-in-progress?)))
+  (enabled? [] (not (bob-task-in-progress?)))
   (run [app-view changes-view project prefs workspace localization]
     (let [git (g/node-value changes-view :git)]
       (when (and
