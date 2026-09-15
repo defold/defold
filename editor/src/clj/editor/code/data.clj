@@ -22,7 +22,8 @@
             [util.diff :as diff])
   (:import [java.io IOException InputStream Reader Writer]
            [java.nio CharBuffer]
-           [java.util Collections]
+           [java.text BreakIterator]
+           [java.util Collections Locale]
            [java.util.regex MatchResult Pattern]
            [org.apache.commons.io.input ReaderInputStream]))
 
@@ -62,32 +63,72 @@
         (= Character/COMBINING_SPACING_MARK character-type)
         (= Character/ENCLOSING_MARK character-type))))
 
+(defn- neutral-character?
+  "True for an ASCII character that carries no direction of its own - spaces and
+  most punctuation. The bidi algorithm resolves a neutral run between two
+  right-to-left characters as right-to-left, so such a run belongs inside the
+  shaped range rather than between two of them.
+
+  Tabs are excluded: a range must never contain one, since the shaper does not
+  know the editor's tab stops. Quotes are excluded so that two adjacent string
+  literals are never merged into one range - without syntax scopes to consult,
+  the delimiter is what keeps a range inside the string it started in."
+  [character]
+  (case character
+    (\tab \" \' \`) false
+    (not (Character/isLetterOrDigit (unchecked-char character)))))
+
 (defn complex-text-ranges
   "Ranges of the line, as [start end] character offsets, that must be measured
-  and drawn as a shaped unit rather than one character at a time."
+  and drawn as a shaped unit rather than one character at a time.
+
+  A range spans a whole directional stretch, not one word: the spaces and
+  punctuation between two complex characters are absorbed into it, so an Arabic
+  phrase is handed to the shaper intact and comes back with its words in visual
+  order. A letter, a digit or a tab ends the range, which keeps it inside the
+  string or comment the complex text appears in - code outside those is ASCII."
   [^String line]
   (let [line-length (count line)]
     (loop [index 0
+           start -1
+           end -1
            ranges []]
       (if (>= index line-length)
-        ranges
-        (if (simple-character? (.charAt line index))
-          (recur (inc index) ranges)
-          ;; A combining mark on a simple base must be shaped together with it,
-          ;; so the range starts one character earlier in that case. Whitespace
-          ;; is never pulled in: a range must not contain a tab, since the
-          ;; shaper does not know the editor's tab stops.
-          (let [start (if (and (pos? index)
-                               (combining-character? (.charAt line index))
-                               (not (Character/isWhitespace (.charAt line (dec index)))))
-                        (dec index)
-                        index)
-                end (loop [end (inc index)]
-                      (if (and (< end line-length)
-                               (not (simple-character? (.charAt line end))))
-                        (recur (inc end))
-                        end))]
-            (recur end (conj ranges [start end]))))))))
+        (if (neg? start)
+          ranges
+          (conj ranges [start end]))
+        (let [character (.charAt line index)
+              next-index (inc index)]
+          (cond
+            ;; Complex: opens a range, or extends one across any neutrals
+            ;; buffered since the last complex character.
+            (not (simple-character? character))
+            (recur next-index
+                   (if (neg? start)
+                     ;; A combining mark on a simple base must be shaped
+                     ;; together with it, so the range starts one character
+                     ;; earlier - but never on whitespace.
+                     (if (and (pos? index)
+                              (combining-character? character)
+                              (not (Character/isWhitespace (.charAt line (dec index)))))
+                       (dec index)
+                       index)
+                     start)
+                   next-index
+                   ranges)
+
+            ;; Neutral: only joins the range if another complex character
+            ;; follows, so it stays buffered until then.
+            (and (not (neg? start))
+                 (neutral-character? character))
+            (recur next-index start end ranges)
+
+            ;; Anything else ends the range, which stops before the neutrals.
+            (not (neg? start))
+            (recur next-index -1 -1 (conj ranges [start end]))
+
+            :else
+            (recur next-index start end ranges)))))))
 
 (defmacro clamp [value minimum maximum]
   `(max ~minimum (min ~value ~maximum)))
@@ -633,8 +674,8 @@
           (advance-text-impl glyph-metrics tab-stops line index col x)
 
           (< col end)
-          (+ (advance-text-impl glyph-metrics tab-stops line index start x)
-             (complex-text-col->x glyph-metrics (.substring line start end) (- col start)))
+          (+ ^double (advance-text-impl glyph-metrics tab-stops line index start x)
+             ^double (complex-text-col->x glyph-metrics (.substring line start end) (- col start)))
 
           :else
           (recur (inc range-index)
@@ -663,7 +704,7 @@
                   (recur next-col next-x))))
 
             (< x complex-end-x)
-            (+ start (complex-text-x->col glyph-metrics (.substring line start end) (- x complex-start-x)))
+            (+ start ^long (complex-text-x->col glyph-metrics (.substring line start end) (- x ^double complex-start-x)))
 
             :else
             (recur (inc range-index) end complex-end-x)))
@@ -697,7 +738,7 @@
                   (recur next-col next-x))))
 
             (< x complex-end-x)
-            (+ start (complex-text-x->character-col glyph-metrics (.substring line start end) (- x complex-start-x)))
+            (+ start ^long (complex-text-x->character-col glyph-metrics (.substring line start end) (- x ^double complex-start-x)))
 
             :else
             (recur (inc range-index) end complex-end-x)))
@@ -1587,6 +1628,42 @@
             new-col (if (= last-row row) (count (lines last-row)) 0)]
         (->Cursor new-row new-col))
       (->Cursor row new-col))))
+
+(defn- previous-grapheme-boundary
+  ^long [^String line ^long col]
+  (let [iterator (BreakIterator/getCharacterInstance Locale/ROOT)]
+    (.setText iterator line)
+    (let [boundary (.preceding iterator col)]
+      (if (= BreakIterator/DONE boundary) 0 boundary))))
+
+(defn- next-grapheme-boundary
+  ^long [^String line ^long col]
+  (let [iterator (BreakIterator/getCharacterInstance Locale/ROOT)]
+    (.setText iterator line)
+    (let [boundary (.following iterator col)]
+      (if (= BreakIterator/DONE boundary) (count line) boundary))))
+
+(defn- cursor-left-grapheme
+  ^Cursor [lines ^Cursor cursor]
+  (let [adjusted (adjust-cursor lines cursor)
+        row (.row adjusted)
+        col (.col adjusted)]
+    (if (zero? col)
+      (let [new-row (max 0 (dec row))]
+        (->Cursor new-row (if (zero? row) 0 (count (lines new-row)))))
+      (->Cursor row (previous-grapheme-boundary (lines row) col)))))
+
+(defn- cursor-right-grapheme
+  ^Cursor [lines ^Cursor cursor]
+  (let [adjusted (adjust-cursor lines cursor)
+        row (.row adjusted)
+        col (.col adjusted)
+        line (lines row)]
+    (if (= col (count line))
+      (let [last-row (dec (count lines))
+            new-row (min (inc row) last-row)]
+        (->Cursor new-row (if (= last-row row) (count (lines last-row)) 0)))
+      (->Cursor row (next-grapheme-boundary line col)))))
 
 (defn- cursor-prev-word
   ^Cursor [lines ^Cursor cursor]
@@ -2649,8 +2726,11 @@
     [(->CursorRange from to) [""]]))
 
 (defn delete-character-after-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
+  ;; Deletes a whole grapheme cluster, unlike backspace which deletes a single
+  ;; character. Deleting only the base character would orphan its combining
+  ;; marks, which would then attach to the preceding character.
   (let [from (CursorRange->Cursor cursor-range)
-        to (cursor-right lines from)]
+        to (cursor-right-grapheme lines from)]
     [(->CursorRange from to) [""]]))
 
 (defn delete-word-after-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
@@ -3318,8 +3398,8 @@
                       :end cursor-line-end
                       :up cursor-up
                       :down cursor-down
-                      :left cursor-left
-                      :right cursor-right
+                      :left cursor-left-grapheme
+                      :right cursor-right-grapheme
                       :prev-word cursor-prev-word
                       :next-word cursor-next-word
                       :line-start cursor-line-start

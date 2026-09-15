@@ -74,6 +74,22 @@
     (is (= [[1 (inc (count text))]]
            (data/complex-text-ranges (str "x" text "y")))))
 
+  ;; A range spans a whole directional stretch. The spaces between the words of
+  ;; an Arabic phrase are absorbed, so the shaper sees the phrase intact and can
+  ;; order its words right-to-left.
+  (let [phrase "مرحبا بك"]
+    (is (= [[1 (inc (count phrase))]]
+           (data/complex-text-ranges (str "\"" phrase "\"")))))
+  (is (= [[0 7]] (data/complex-text-ranges "ไทย ไทย")))
+
+  ;; A letter, a digit or a tab ends the range, which leaves the neutrals
+  ;; between it and them outside.
+  (is (= [[2 5]] (data/complex-text-ranges "a ไทย b")))
+  (is (= [[0 3] [4 7]] (data/complex-text-ranges "ไทย\tไทย")))
+
+  ;; Quotes end a range too, so two adjacent string literals stay separate.
+  (is (= [[1 4] [9 12]] (data/complex-text-ranges "\"ไทย\" : \"ไทย\"")))
+
   ;; A combining mark on an ASCII base pulls the base into the range.
   (is (= [[0 2]] (data/complex-text-ranges "e\u0301")))
   (is (= [[1 3]] (data/complex-text-ranges "xe\u0301x")))
@@ -93,7 +109,7 @@
 
 (deftest complex-text-character-hover-test
   ;; The shaped range covers the Thai characters, not the surrounding quotes, so
-  ;; the offsets reported by the shaper are relative to col 1.
+  ;; the offsets the shaper reports are relative to col 1.
   (let [line "\"ไทย\""
         layout (layout-info [line] (->ComplexGlyphMetrics 14.0 9.0 6.0))
         x (+ (.x (.canvas layout)) 50.0)]

@@ -83,6 +83,7 @@
            [com.sun.javafx.util Utils]
            [editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect]
            [java.util BitSet Collection]
+           [java.util.concurrent ConcurrentHashMap]
            [java.util.regex Pattern]
            [javafx.beans.binding ObjectBinding]
            [javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty]
@@ -177,7 +178,23 @@
     (.setContent layout text (FontHelper/getNativeFont font))
     layout))
 
-(defonce/record GlyphMetrics [^Font font char-width-cache ^double line-height ^double ascent]
+(def ^:private max-complex-width-cache-size 4096)
+
+(defn- make-complex-width-cache [^Font font]
+  ;; Shaping is the most expensive thing on the paint path - milliseconds for a
+  ;; long line - and a run's width never changes, so each distinct run is
+  ;; measured once. The cache is dropped wholesale when it grows too large
+  ;; rather than evicting, which keeps the lookup free of bookkeeping.
+  (let [cache (ConcurrentHashMap.)]
+    (fn get-complex-width [^String text]
+      (if-some [cached-width (.get cache text)]
+        cached-width
+        (let [width (double (.getWidth (.getBounds (text-layout font text))))]
+          (when (< (.size cache) ^long max-complex-width-cache-size)
+            (.put cache text width))
+          width)))))
+
+(defonce/record GlyphMetrics [^Font font char-width-cache complex-width-cache ^double line-height ^double ascent]
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
@@ -186,7 +203,10 @@
 (extend-type GlyphMetrics
   data/ComplexTextMetrics
   (complex-text-width [this text]
-    (.getWidth (.getBounds (text-layout (.font this) text))))
+    ((.complex-width-cache this) text))
+  ;; The shaper is the authority for caret geometry inside a range: it reports
+  ;; positions in visual order, so the caret runs right-to-left through an
+  ;; Arabic phrase, which is what it should do.
   (complex-text-col->x [this text col]
     (.x ^TextLayout$CaretGeometry$Single
         (.getCaretGeometry (text-layout (.font this) text) col true)))
@@ -204,7 +224,7 @@
                                 FontResource/AA_GREYSCALE)
         line-height (Math/ceil (* (inc (.getLineHeight font-metrics)) line-height-factor))
         ascent (Math/ceil (* (.getAscent font-metrics) line-height-factor))]
-    (->GlyphMetrics font (make-char-width-cache font-strike) line-height ascent)))
+    (->GlyphMetrics font (make-char-width-cache font-strike) (make-complex-width-cache font) line-height ascent)))
 
 (def ^:private default-editor-color-scheme
   (let [foreground-color (Color/valueOf "#DDDDDD")
@@ -405,10 +425,6 @@
                     guide-positions' (conj (into [] (take-while #(< ^double % guide-x)) guide-positions) guide-x)]
                 (recur (inc row) guide-positions')))))))))
 
-(defn- shaped-text-width
-  ^double [^Font font ^String text]
-  (.getWidth (.getBounds (text-layout font text))))
-
 (defn- fill-text!
   "Draws text onto the canvas. In order to support tab stops, we remap the supplied x
   coordinate into document space, then remap back to canvas coordinates when drawing.
@@ -418,8 +434,7 @@
   (let [^Rect canvas-rect (.canvas layout)
         visible-start-x (.x canvas-rect)
         visible-end-x (+ visible-start-x (.w canvas-rect))
-        offset-x (+ visible-start-x (.scroll-x layout))
-        ^Font font (.getFont gc)]
+        offset-x (+ visible-start-x (.scroll-x layout))]
     (loop [^long i start-index
            x (- ^double x offset-x)
            range-index 0]
@@ -451,7 +466,7 @@
                               j
                               (recur (inc j))))))
               next-x (if shaped?
-                       (+ x (shaped-text-width font (.substring text i seg-end)))
+                       (+ x ^double (data/complex-text-width (.glyph layout) (.substring text i seg-end)))
                        (double (data/advance-text layout text i seg-end x)))]
           (cond
             tab?
@@ -566,9 +581,11 @@
               (when (< i line-length)
                 (let [[range-start range-end] (get complex-ranges range-index)]
                   (if (= i range-start)
-                    ;; A shaped range contains no whitespace, but it is not as
-                    ;; wide as its characters' advances. Skip it in one step so
-                    ;; the marks after it stay aligned with the painted text.
+                    ;; Skip the range in one step, by its shaped width, so the
+                    ;; marks after it stay aligned with the painted text. Any
+                    ;; spaces inside it go unmarked: the range is reordered by
+                    ;; the shaper, so their visual positions are not the ones
+                    ;; the advance walk would compute.
                     (when (< (+ x line-x) visible-end-x)
                       (recur false
                              (inc range-index)
