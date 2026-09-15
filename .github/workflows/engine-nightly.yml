@@ -37,7 +37,7 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97, with: { python-version: 3.12} }, # v7.0.0
       { name: 'XCode', uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90, with: { xcode-version: '26.5.0' } }, # v1.7.0
-      { name: 'Install Java', uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v6.0.0
+      { name: 'Install Java', uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v6.0.1
       { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.2
       {
         name: 'Setup dotnet',
@@ -72,7 +72,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97, with: { python-version: 3.12} }, # v7.0.0
-      { name: 'Install Java', uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v6.0.0
+      { name: 'Install Java', uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v6.0.1
       { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.2
       {
         name: 'Setup dotnet',
@@ -111,7 +111,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97, with: { python-version: 3.12} }, # v7.0.0
-      { name: 'Install Java', uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v6.0.0
+      { name: 'Install Java', uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v6.0.1
       { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.2
       {
         name: 'Setup dotnet',
@@ -156,7 +156,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: 'Install Java'
-        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           java-version: '25'
           distribution: 'temurin'
@@ -227,7 +227,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1, with: { ref: '${{env.BUILD_BRANCH}}' } }, # v7.0.1
       { name: 'Install Python', uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97, with: { python-version: 3.12} }, # v7.0.0
-      { name: 'Install Java', uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v6.0.0
+      { name: 'Install Java', uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v6.0.1
       { name: 'Setup Node', uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020, with: { node-version: '22', package-manager-cache: false } }, # v7.0.0
       { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.2
       {
@@ -260,7 +260,7 @@ jobs:
     steps: [
       { name: 'Checkout', uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 }, # v6.0.2
       { name: 'Install Python', uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97, with: { python-version: 3.12} }, # v7.0.0
-      { name: 'Install Java', uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v6.0.0
+      { name: 'Install Java', uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6, with: { java-version: '25', distribution: 'temurin', cache: 'gradle', cache-dependency-path: "com.dynamo.cr/com.dynamo.cr.bob/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties\ncom.dynamo.cr/com.dynamo.cr.bob.test/*.gradle\ncom.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties"} }, # v6.0.1
       { name: 'Install CMake', uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb }, # v4.3.2
       {
         name: 'Setup dotnet',
