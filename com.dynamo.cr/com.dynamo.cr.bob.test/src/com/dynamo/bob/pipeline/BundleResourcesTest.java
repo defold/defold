@@ -114,7 +114,7 @@ public class BundleResourcesTest {
             this.mp = mp;
             this.basePath = basePath;
             if (basePath.startsWith("/")) {
-                this.basePath = basePath.substring(1, basePath.length());
+                this.basePath = basePath.substring(1);
             }
         }
 
@@ -142,7 +142,7 @@ public class BundleResourcesTest {
             if (!first.equals(basePath)) {
                 return false;
             }
-            path = path.substring(basePath.length(), path.length());
+            path = path.substring(basePath.length());
             addDirectory(path);
             return true;
         }
@@ -325,7 +325,7 @@ public class BundleResourcesTest {
 
         Iterator<Map.Entry<Platform, String[]>> it = expected.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<Platform, String[]> entry = (Map.Entry<Platform, String[]>)it.next();
+            Map.Entry<Platform, String[]> entry = it.next();
             Platform expectedPlatform = entry.getKey();
             String[] expectedFiles = entry.getValue();
 

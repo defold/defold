@@ -43,11 +43,10 @@ public class RenderPrototypeBuilderTest extends AbstractProtoBuilderTest {
         addFile("/testDataMigration.vp", srcShader.toString());
         addFile("/testDataMigration.fp", srcShader.toString());
 
-        StringBuilder materialSrc = new StringBuilder();
-        materialSrc.append("name: \"test_material\"\n");
-        materialSrc.append("vertex_program: \"/testDataMigration.vp\"\n");
-        materialSrc.append("fragment_program: \"/testDataMigration.fp\"\n");
-        addFile("/test.material", materialSrc.toString());
+        String materialSrc = "name: \"test_material\"\n" +
+                "vertex_program: \"/testDataMigration.vp\"\n" +
+                "fragment_program: \"/testDataMigration.fp\"\n";
+        addFile("/test.material", materialSrc);
 
         {
             final String srcOneMaterial =

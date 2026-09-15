@@ -650,7 +650,7 @@ public class TextureSetLayout {
         public void debugPrint() {
             System.out.print("SourceImage {\n");
             System.out.printf("    name: %s\n", name);
-            System.out.printf("    rotated: %s\n", rotated?"true":"false");
+            System.out.printf("    rotated: %s\n", Boolean.toString(rotated));
             //System.out.printf("    originalSize: %f, %f\n", originalSize.width, originalSize.height);
             System.out.printf("    pivot: %f, %f\n", pivot.x, pivot.y);
             System.out.printf("    rect: %f, %f, %f, %f\n", rect.x, rect.y, rect.width, rect.height);

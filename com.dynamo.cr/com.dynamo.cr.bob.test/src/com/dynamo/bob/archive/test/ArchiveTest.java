@@ -304,7 +304,7 @@ public class ArchiveTest {
                 if(correctOrder)
                     break;
             }
-            assertEquals(true, correctOrder);
+            assertTrue(correctOrder);
         }
 
         ar.close();

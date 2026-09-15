@@ -142,7 +142,7 @@ public class Task {
     }
 
     public boolean isCacheable() {
-        return builder.params != null ? builder.params.isCacheble() : false;
+        return builder.params != null && builder.params.isCacheble();
     }
 
     /**

@@ -482,8 +482,8 @@ public class JBobTest {
         assertThat(result.size(), is(3));
         assertThat(getResourceString(ResourceUtil.minifyPath("test_0.numberc")), is("10"));
         assertThat(getResourceString(ResourceUtil.minifyPath("test_1.numberc")), is("20"));
-        assertThat(result.get(1).getTask().getProductOf(), is((Task) result.get(0).getTask()));
-        assertThat(result.get(2).getTask().getProductOf(), is((Task) result.get(0).getTask()));
+        assertThat(result.get(1).getTask().getProductOf(), is(result.get(0).getTask()));
+        assertThat(result.get(2).getTask().getProductOf(), is(result.get(0).getTask()));
     }
 
 

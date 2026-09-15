@@ -423,7 +423,7 @@ public class Project implements AutoCloseable {
                         !(is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper")))
-                .collect(Collectors.toList());
+                .toList();
         for (String className : filteredClassNames) {
             try {
                 TimeProfiler.start(className);
@@ -1792,7 +1792,7 @@ public class Project implements AutoCloseable {
                             Files.createDirectories(outputDir.toPath());
                             try {
                                 List<ILuaTranspiler.Issue> issues = transpiler.transpile(new File(getPluginsDirectory()), sourceDir, outputDir);
-                                List<ILuaTranspiler.Issue> errors = issues.stream().filter(issue -> issue.severity == ILuaTranspiler.Severity.ERROR).collect(Collectors.toList());
+                                List<ILuaTranspiler.Issue> errors = issues.stream().filter(issue -> issue.severity == ILuaTranspiler.Severity.ERROR).toList();
                                 if (!errors.isEmpty()) {
                                     MultipleCompileException exception = new MultipleCompileException("Transpilation failed", null);
                                     errors.forEach(issue -> exception.addIssue(issue.severity.ordinal(), getResource(issue.resourcePath), issue.message, issue.lineNumber));

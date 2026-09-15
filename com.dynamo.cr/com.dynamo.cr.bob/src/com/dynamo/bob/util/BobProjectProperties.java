@@ -191,7 +191,7 @@ public class BobProjectProperties {
             try {
                 int indexNum = Integer.parseInt(index);
                 this.valuesArray.put(indexNum, value);
-                this.value = this.valuesArray.values().stream().collect(Collectors.joining(","));
+                this.value = String.join(",", this.valuesArray.values());
             }
             catch (Exception e) {
                 throw new RuntimeException("Can't add element from array property", e);
@@ -204,7 +204,7 @@ public class BobProjectProperties {
         }
 
         public Boolean isPrivate() {
-            return this.isPrivate == null ? false : this.isPrivate;
+            return this.isPrivate != null && this.isPrivate;
         }
 
         // parse string as comma separater list of strings
@@ -555,9 +555,7 @@ public class BobProjectProperties {
         Map<String, ProjectProperty> group = this.properties.get(category);
         if (group != null) {
             ProjectProperty val = group.get(key);
-            if (val != null) {
-                return val;
-            }
+            return val;
         }
         return null;
     }

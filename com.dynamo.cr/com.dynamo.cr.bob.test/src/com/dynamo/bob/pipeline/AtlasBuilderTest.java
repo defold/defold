@@ -44,11 +44,10 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testAtlas() throws Exception {
         addImage("/test.png", 16, 16);
-        StringBuilder src = new StringBuilder();
-        src.append("images: {");
-        src.append("  image: \"/test.png\"");
-        src.append("}");
-        List<Message> outputs = build("/test.atlas", src.toString());
+        String src = "images: {" +
+                "  image: \"/test.png\"" +
+                "}";
+        List<Message> outputs = build("/test.atlas", src);
         TextureSet textureSet = getMessage(outputs, TextureSet.class);
         TextureImage textureImage = (TextureImage)outputs.get(1);
         assertNotNull(textureSet);
@@ -62,19 +61,16 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         addImage("/test1.png", 16, 16);
         addImage("/test2.png", 16, 16);
 
-        StringBuilder src = new StringBuilder();
-        src.append("images: {");
-        src.append("  image: \"/test1.png\"");
-        src.append("}");
+        String src = "images: {" +
+                "  image: \"/test1.png\"" +
+                "}" +
+                "images: {" +
+                "  image: \"/test2.png\"" +
+                "}" +
+                "max_page_width: 16\n" +
+                "max_page_height: 16\n";
 
-        src.append("images: {");
-        src.append("  image: \"/test2.png\"");
-        src.append("}");
-
-        src.append("max_page_width: 16\n");
-        src.append("max_page_height: 16\n");
-
-        List<Message> outputs = build("/test.atlas", src.toString());
+        List<Message> outputs = build("/test.atlas", src);
         TextureSet textureSet = (TextureSet)outputs.get(0);
         TextureImage textureImage1 = (TextureImage)outputs.get(1);
 
@@ -97,40 +93,35 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         addImage("/subfolder1/1.png", 16, 16);
         addImage("/subfolder2/1.png", 16, 16);
 
-        StringBuilder src = new StringBuilder();
-        src.append("images: {");
-        src.append("  image: \"/hat_nrm.png\"");
-        src.append("}");
+        String src = "images: {" +
+                "  image: \"/hat_nrm.png\"" +
+                "}" +
+                "images: {" +
+                "  image: \"/shirt_normal.png\"" +
+                "}" +
+                "animations {" +
+                "id: \"Hello\"" +
+                "  images: {" +
+                "    image: \"/shirt_normal.png\"" +
+                "  }" +
+                "  images: {" +
+                "    image: \"/subfolder1/1.png\"" +
+                "  }" +
+                "}" +
+                "animations {" +
+                "id: \"ValidDuplicates\"" +
+                "  images: {" +
+                "    image: \"/shirt_normal.png\"" +
+                "  }" +
+                "  images: {" +
+                "    image: \"/subfolder2/1.png\"" +
+                "  }" +
+                "}" +
+                "max_page_width: 16\n" +
+                "max_page_height: 16\n" +
+                "rename_patterns: \"_nrm=,_normal=,hat=cat\"\n";
 
-        src.append("images: {");
-        src.append("  image: \"/shirt_normal.png\"");
-        src.append("}");
-
-        src.append("animations {");
-        src.append("id: \"Hello\"");
-        src.append("  images: {");
-        src.append("    image: \"/shirt_normal.png\"");
-        src.append("  }");
-        src.append("  images: {");
-        src.append("    image: \"/subfolder1/1.png\"");
-        src.append("  }");
-        src.append("}");
-
-        src.append("animations {");
-        src.append("id: \"ValidDuplicates\"");
-        src.append("  images: {");
-        src.append("    image: \"/shirt_normal.png\"");
-        src.append("  }");
-        src.append("  images: {");
-        src.append("    image: \"/subfolder2/1.png\"");
-        src.append("  }");
-        src.append("}");
-
-        src.append("max_page_width: 16\n");
-        src.append("max_page_height: 16\n");
-        src.append("rename_patterns: \"_nrm=,_normal=,hat=cat\"\n");
-
-        List<Message> outputs = build("/test.atlas", src.toString());
+        List<Message> outputs = build("/test.atlas", src);
         TextureSet textureSet = (TextureSet)outputs.get(0);
 
         assertNotNull(textureSet);
@@ -206,17 +197,16 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         addImage("/2.png", 16, 6);
 
         // We don't allow duplicate files as single frame animations
-        StringBuilder src = new StringBuilder();
-        src.append("extrude_borders: 0\n");
-        src.append("images: {");
-        src.append("  image: \"/1.png\"");
-        src.append("}");
 
-        src.append("images: {");
-        src.append("  image: \"/2.png\"");
-        src.append("}");
+        String src = "extrude_borders: 0\n" +
+                "images: {" +
+                "  image: \"/1.png\"" +
+                "}" +
+                "images: {" +
+                "  image: \"/2.png\"" +
+                "}";
 
-        List<Message> outputs = build("/test.atlas", src.toString());
+        List<Message> outputs = build("/test.atlas", src);
 
         TextureSet textureSet = (TextureSet)outputs.get(0);
 
@@ -253,29 +243,27 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         addImage("/b/1.png", 16, 16);
         addImage("/b/2.png", 16, 16);
 
-        StringBuilder src = new StringBuilder();
-        src.append("animations: {");
-        src.append("  id: \"a\"");
-        src.append("  images: {");
-        src.append("    image: \"/a/1.png\"");
-        src.append("  }");
-        src.append("  images: {");
-        src.append("    image: \"/a/2.png\"");
-        src.append("  }");
-        src.append("}");
-
-        src.append("animations: {");
-        src.append("  id: \"b\"");
-        src.append("  images: {");
-        src.append("    image: \"/b/1.png\"");
-        src.append("  }");
-        src.append("  images: {");
-        src.append("    image: \"/b/2.png\"");
-        src.append("  }");
-        src.append("}");
+        String src = "animations: {" +
+                "  id: \"a\"" +
+                "  images: {" +
+                "    image: \"/a/1.png\"" +
+                "  }" +
+                "  images: {" +
+                "    image: \"/a/2.png\"" +
+                "  }" +
+                "}" +
+                "animations: {" +
+                "  id: \"b\"" +
+                "  images: {" +
+                "    image: \"/b/1.png\"" +
+                "  }" +
+                "  images: {" +
+                "    image: \"/b/2.png\"" +
+                "  }" +
+                "}";
 
 
-        List<Message> outputs = build("/test.atlas", src.toString());
+        List<Message> outputs = build("/test.atlas", src);
         TextureSet textureSet = (TextureSet)outputs.get(0);
 
         assertNotNull(textureSet);
@@ -317,21 +305,20 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
     public void testAtlasImagePivotVariants() throws Exception {
         addImage("/test_image.png", 16, 16);
 
-        StringBuilder src = new StringBuilder();
-        src.append("margin: 0\n");
-        src.append("extrude_borders: 0\n");
-        src.append("images: {");
-        src.append("  image: \"/test_image.png\"");
-        src.append("}");
-        src.append("animations: {");
-        src.append("  id: \"anim\"");
-        src.append("  images: {");
-        src.append("    image: \"/test_image.png\"");
-        src.append("    pivot_x: 0.0");
-        src.append("  }");
-        src.append("}");
+        String src = "margin: 0\n" +
+                "extrude_borders: 0\n" +
+                "images: {" +
+                "  image: \"/test_image.png\"" +
+                "}" +
+                "animations: {" +
+                "  id: \"anim\"" +
+                "  images: {" +
+                "    image: \"/test_image.png\"" +
+                "    pivot_x: 0.0" +
+                "  }" +
+                "}";
 
-        List<Message> outputs = build("/test.atlas", src.toString());
+        List<Message> outputs = build("/test.atlas", src);
         TextureSet textureSet = (TextureSet)outputs.get(0);
         assertNotNull(textureSet);
 
@@ -354,21 +341,20 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
     public void testAtlasImageTrimModeVariants() throws Exception {
         addImage("/test_image.png", 16, 16);
 
-        StringBuilder src = new StringBuilder();
-        src.append("margin: 0\n");
-        src.append("extrude_borders: 0\n");
-        src.append("images: {");
-        src.append("  image: \"/test_image.png\"");
-        src.append("}");
-        src.append("animations: {");
-        src.append("  id: \"anim\"");
-        src.append("  images: {");
-        src.append("    image: \"/test_image.png\"");
-        src.append("    sprite_trim_mode: SPRITE_TRIM_MODE_4");
-        src.append("  }");
-        src.append("}");
+        String src = "margin: 0\n" +
+                "extrude_borders: 0\n" +
+                "images: {" +
+                "  image: \"/test_image.png\"" +
+                "}" +
+                "animations: {" +
+                "  id: \"anim\"" +
+                "  images: {" +
+                "    image: \"/test_image.png\"" +
+                "    sprite_trim_mode: SPRITE_TRIM_MODE_4" +
+                "  }" +
+                "}";
 
-        List<Message> outputs = build("/test.atlas", src.toString());
+        List<Message> outputs = build("/test.atlas", src);
         TextureSet textureSet = (TextureSet)outputs.get(0);
         assertNotNull(textureSet);
 

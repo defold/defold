@@ -137,7 +137,7 @@ public class HTML5Bundler implements IBundler {
 
         // Check if game has configured a Facebook App ID
         String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
-        properties.put("DEFOLD_HAS_FACEBOOK_APP_ID", facebookAppId != null ? "true" : "false");
+        properties.put("DEFOLD_HAS_FACEBOOK_APP_ID", Boolean.toString(facebookAppId != null));
 
         String engineArgumentsString = projectProperties.getStringValue("html5", "engine_arguments", null);
         List<String> engineArguments = BundleHelper.createArrayFromString(engineArgumentsString);

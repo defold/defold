@@ -175,38 +175,35 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(new String[]{"/test_vp.vp", "/test_fp.fp"}, new String[]{srcShaderStr,srcShaderStr}, "/test.shbundle");
         assertEquals(2, shaderDesc.getShadersCount());
 
-        StringBuilder src = new StringBuilder();
-        src.append("name: \"test_material\"\n");
-        src.append("vertex_program: \"/test_vp.vp\"\n");
-        src.append("fragment_program: \"/test_fp.fp\"\n");
+        String src = "name: \"test_material\"\n" +
+                "vertex_program: \"/test_vp.vp\"\n" +
+                "fragment_program: \"/test_fp.fp\"\n" +
 
-        // these should be migrated
-        src.append("textures: \"tex0\"\n");
-        src.append("textures: \"tex1\"\n");
-        src.append("textures: \"tex2\"\n");
+                // these should be migrated
+                "textures: \"tex0\"\n" +
+                "textures: \"tex1\"\n" +
+                "textures: \"tex2\"\n" +
 
-        // these should not be migrated
-        src.append("textures: \"tex0_sampler\"\n");
-        src.append("textures: \"tex_already_exist_in_samplers\"\n");
-
-        src.append("samplers: {\n");
-        src.append("    name: \"tex0_sampler\"\n");
-        src.append("    wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("    wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("    filter_min: FILTER_MODE_MIN_LINEAR\n");
-        src.append("    filter_mag: FILTER_MODE_MAG_LINEAR\n");
-        src.append("}\n");
-
-        src.append("samplers: {\n");
-        src.append("    name: \"tex_already_exist_in_samplers\"\n");
-        src.append("    wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("    wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("    filter_min: FILTER_MODE_MIN_LINEAR\n");
-        src.append("    filter_mag: FILTER_MODE_MAG_LINEAR\n");
-        src.append("}\n");
+                // these should not be migrated
+                "textures: \"tex0_sampler\"\n" +
+                "textures: \"tex_already_exist_in_samplers\"\n" +
+                "samplers: {\n" +
+                "    name: \"tex0_sampler\"\n" +
+                "    wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n" +
+                "    wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n" +
+                "    filter_min: FILTER_MODE_MIN_LINEAR\n" +
+                "    filter_mag: FILTER_MODE_MAG_LINEAR\n" +
+                "}\n" +
+                "samplers: {\n" +
+                "    name: \"tex_already_exist_in_samplers\"\n" +
+                "    wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n" +
+                "    wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n" +
+                "    filter_min: FILTER_MODE_MIN_LINEAR\n" +
+                "    filter_mag: FILTER_MODE_MAG_LINEAR\n" +
+                "}\n";
 
         addFile("/test.material", "");
-        MaterialDesc material = getMessage(build("/test.material", src.toString()), MaterialDesc.class);
+        MaterialDesc material = getMessage(build("/test.material", src), MaterialDesc.class);
         assertEquals(0, material.getTexturesCount());
         assertEquals(5, material.getSamplersCount());
 

@@ -52,24 +52,23 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         addFile("/vp.vp", ShaderProgramBuilderTest.vp);
         addFile("/fp.fp", ShaderProgramBuilderTest.fp);
         addFile("/material.material", "name: \"material\"\nvertex_program: \"/vp.vp\"\nfragment_program: \"/fp.fp\"");
-        StringBuilder src = new StringBuilder();
-        src.append("\n");
-        src.append("go.property(\"number\", 1)\n");
-        src.append("go.property(\"hash\", hash(\"hash\"))\n");
-        src.append("go.property(\"url\", msg.url())\n");
-        src.append("go.property(\"vec3\", vmath.vector3(1, 2, 3))\n");
-        src.append("go.property(\"vec3empt\", vmath.vector3())\n");
-        src.append("go.property(\"vec3negative\", vmath.vector3(-1))\n");
-        src.append("go.property(\"vec4\", vmath.vector4(4, 5, 6, 7))\n");
-        src.append("go.property(\"quat\", vmath.quat(8, 9, 10, 11))\n");
-        src.append("go.property(\"bool\", true)\n");
-        src.append("go.property(\"text\", \"hello\")\n");
-        src.append("go.property(\"long_text\", [[\nhello\nworld]])\n");
-        src.append("go.property(\"material\", resource.material(\"/material.material\"))\n");
-        src.append("\n");
-        src.append("    go.property(  \"space_number\"  ,  1   )\n");
-        src.append("go.property(\"semi_colon\", 1);\n");
-        LuaModule luaModule = getMessage(build("/test.script", src.toString()), LuaModule.class);
+        String src = "\n" +
+                "go.property(\"number\", 1)\n" +
+                "go.property(\"hash\", hash(\"hash\"))\n" +
+                "go.property(\"url\", msg.url())\n" +
+                "go.property(\"vec3\", vmath.vector3(1, 2, 3))\n" +
+                "go.property(\"vec3empt\", vmath.vector3())\n" +
+                "go.property(\"vec3negative\", vmath.vector3(-1))\n" +
+                "go.property(\"vec4\", vmath.vector4(4, 5, 6, 7))\n" +
+                "go.property(\"quat\", vmath.quat(8, 9, 10, 11))\n" +
+                "go.property(\"bool\", true)\n" +
+                "go.property(\"text\", \"hello\")\n" +
+                "go.property(\"long_text\", [[\nhello\nworld]])\n" +
+                "go.property(\"material\", resource.material(\"/material.material\"))\n" +
+                "\n" +
+                "    go.property(  \"space_number\"  ,  1   )\n" +
+                "go.property(\"semi_colon\", 1);\n";
+        LuaModule luaModule = getMessage(build("/test.script", src), LuaModule.class);
         PropertyDeclarations properties = luaModule.getProperties();
         assertEquals(3, properties.getNumberEntriesCount());
         PropertiesTestUtil.assertNumber(properties, 1, 0);
@@ -110,11 +109,10 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testPropString() throws Exception {
-        StringBuilder src = new StringBuilder();
-        src.append("\n");
-        src.append("go.property(\"string\", \"\")\n");
+        String src = "\n" +
+                "go.property(\"string\", \"\")\n";
 
-        LuaModule luaModule = getMessage(build("/test.script", src.toString()), LuaModule.class);
+        LuaModule luaModule = getMessage(build("/test.script", src), LuaModule.class);
         PropertiesTestUtil.assertText(luaModule.getProperties(), "", 0);
     }
 

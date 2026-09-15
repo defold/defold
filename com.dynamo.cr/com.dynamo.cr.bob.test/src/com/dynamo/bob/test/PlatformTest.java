@@ -52,22 +52,22 @@ public class PlatformTest {
 
     @Test
     public void testPlatformOS() {
-        assertSame(Platform.get("x86_64-win32").getOsID(), PlatformProfile.OS.OS_ID_WINDOWS);
+        assertSame(PlatformProfile.OS.OS_ID_WINDOWS, Platform.get("x86_64-win32").getOsID());
 
-        assertSame(Platform.get("x86_64-macos").getOsID(), PlatformProfile.OS.OS_ID_OSX);
-        assertSame(Platform.get("arm64-macos").getOsID(), PlatformProfile.OS.OS_ID_OSX);
+        assertSame(PlatformProfile.OS.OS_ID_OSX, Platform.get("x86_64-macos").getOsID());
+        assertSame(PlatformProfile.OS.OS_ID_OSX, Platform.get("arm64-macos").getOsID());
 
-        assertSame(Platform.get("arm64-ios").getOsID(), PlatformProfile.OS.OS_ID_IOS);
-        assertSame(Platform.get("arm64_sim-ios").getOsID(), PlatformProfile.OS.OS_ID_IOS);
+        assertSame(PlatformProfile.OS.OS_ID_IOS, Platform.get("arm64-ios").getOsID());
+        assertSame(PlatformProfile.OS.OS_ID_IOS, Platform.get("arm64_sim-ios").getOsID());
 
-        assertSame(Platform.get("armv7-android").getOsID(), PlatformProfile.OS.OS_ID_ANDROID);
-        assertSame(Platform.get("arm64-android").getOsID(), PlatformProfile.OS.OS_ID_ANDROID);
+        assertSame(PlatformProfile.OS.OS_ID_ANDROID, Platform.get("armv7-android").getOsID());
+        assertSame(PlatformProfile.OS.OS_ID_ANDROID, Platform.get("arm64-android").getOsID());
 
-        assertSame(Platform.get("wasm-web").getOsID(), PlatformProfile.OS.OS_ID_WEB);
-        assertSame(Platform.get("wasm_pthread-web").getOsID(), PlatformProfile.OS.OS_ID_WEB);
+        assertSame(PlatformProfile.OS.OS_ID_WEB, Platform.get("wasm-web").getOsID());
+        assertSame(PlatformProfile.OS.OS_ID_WEB, Platform.get("wasm_pthread-web").getOsID());
 
-        assertSame(Platform.get("x86_64-linux").getOsID(), PlatformProfile.OS.OS_ID_LINUX);
-        assertSame(Platform.get("arm64-linux").getOsID(), PlatformProfile.OS.OS_ID_LINUX);
+        assertSame(PlatformProfile.OS.OS_ID_LINUX, Platform.get("x86_64-linux").getOsID());
+        assertSame(PlatformProfile.OS.OS_ID_LINUX, Platform.get("arm64-linux").getOsID());
 
         assertNull(Platform.get(""));
     }

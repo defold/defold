@@ -32,11 +32,10 @@ public class TextureCompressorTest extends AbstractProtoBuilderTest {
     private void ensureBuildProject() throws Exception {
         // We need to build some dummy data
         addImage("/test.png", 16, 16);
-        StringBuilder src = new StringBuilder();
-        src.append("images: {");
-        src.append("  image: \"/test.png\"");
-        src.append("}");
-        build("/test.atlas", src.toString());
+        String src = "images: {" +
+                "  image: \"/test.png\"" +
+                "}";
+        build("/test.atlas", src);
     }
 
     @Test

@@ -53,24 +53,23 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testProps() throws Exception {
         addFile("/test.go", "");
-        StringBuilder src = new StringBuilder();
-        src.append("name: \"main\"\n");
-        src.append("instances {\n");
-        src.append("  id: \"test\"\n");
-        src.append("  prototype: \"/test.go\"\n");
-        src.append("  component_properties {\n");
-        src.append("    id: \"test\"\n");
-        src.append("    properties { id: \"number\" value: \"1\" type: PROPERTY_TYPE_NUMBER }\n");
-        src.append("    properties { id: \"hash\" value: \"hash\" type: PROPERTY_TYPE_HASH }\n");
-        src.append("    properties { id: \"url\" value: \"url\" type: PROPERTY_TYPE_URL }\n");
-        src.append("    properties { id: \"vec3\" value: \"1, 2, 3\" type: PROPERTY_TYPE_VECTOR3 }\n");
-        src.append("    properties { id: \"vec4\" value: \"4, 5, 6, 7\" type: PROPERTY_TYPE_VECTOR4 }\n");
-        src.append("    properties { id: \"quat\" value: \"8, 9, 10, 11\" type: PROPERTY_TYPE_QUAT }\n");
-        src.append("    properties { id: \"bool\" value: \"true\" type: PROPERTY_TYPE_BOOLEAN }\n");
-        src.append("    properties { id: \"text\" value: \"hello\" type: PROPERTY_TYPE_TEXT }\n");
-        src.append("  }\n");
-        src.append("}\n");
-        CollectionDesc collection = getMessage(build("/test.collection", src.toString()), CollectionDesc.class);
+        String src = "name: \"main\"\n" +
+                "instances {\n" +
+                "  id: \"test\"\n" +
+                "  prototype: \"/test.go\"\n" +
+                "  component_properties {\n" +
+                "    id: \"test\"\n" +
+                "    properties { id: \"number\" value: \"1\" type: PROPERTY_TYPE_NUMBER }\n" +
+                "    properties { id: \"hash\" value: \"hash\" type: PROPERTY_TYPE_HASH }\n" +
+                "    properties { id: \"url\" value: \"url\" type: PROPERTY_TYPE_URL }\n" +
+                "    properties { id: \"vec3\" value: \"1, 2, 3\" type: PROPERTY_TYPE_VECTOR3 }\n" +
+                "    properties { id: \"vec4\" value: \"4, 5, 6, 7\" type: PROPERTY_TYPE_VECTOR4 }\n" +
+                "    properties { id: \"quat\" value: \"8, 9, 10, 11\" type: PROPERTY_TYPE_QUAT }\n" +
+                "    properties { id: \"bool\" value: \"true\" type: PROPERTY_TYPE_BOOLEAN }\n" +
+                "    properties { id: \"text\" value: \"hello\" type: PROPERTY_TYPE_TEXT }\n" +
+                "  }\n" +
+                "}\n";
+        CollectionDesc collection = getMessage(build("/test.collection", src), CollectionDesc.class);
         for (InstanceDesc instance : collection.getInstancesList()) {
             for (ComponentPropertyDesc compProp : instance.getComponentPropertiesList()) {
                 PropertyDeclarations properties = compProp.getPropertyDecls();
@@ -89,18 +88,17 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     @Test(expected = CompileExceptionError.class)
     public void testPropInvalidValue() throws Exception {
         addFile("/test.go", "");
-        StringBuilder src = new StringBuilder();
-        src.append("name: \"main\"\n");
-        src.append("instances {\n");
-        src.append("  id: \"test\"\n");
-        src.append("  prototype: \"/test.go\"\n");
-        src.append("  component_properties {\n");
-        src.append("    id: \"test\"\n");
-        src.append("    properties { id: \"number\" value: \"a\" type: PROPERTY_TYPE_NUMBER }\n");
-        src.append("  }\n");
-        src.append("}\n");
+        String src = "name: \"main\"\n" +
+                "instances {\n" +
+                "  id: \"test\"\n" +
+                "  prototype: \"/test.go\"\n" +
+                "  component_properties {\n" +
+                "    id: \"test\"\n" +
+                "    properties { id: \"number\" value: \"a\" type: PROPERTY_TYPE_NUMBER }\n" +
+                "  }\n" +
+                "}\n";
         @SuppressWarnings("unused")
-        CollectionDesc collection = (CollectionDesc)build("/test.collection", src.toString()).get(0);
+        CollectionDesc collection = (CollectionDesc)build("/test.collection", src).get(0);
     }
 
     private void addInstance(StringBuilder src, String id, String prototype, Point3d p, Quat4d r, double s, String ... childIds) {
@@ -478,26 +476,23 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         addFile("/test.atlas", "");
         addFile("build/test.a.texturesetc", "DUMMY_DATA");
 
-        StringBuilder spriteSrc = new StringBuilder();
-        spriteSrc.append("tile_set: \"/test.atlas\"\n");
-        spriteSrc.append("default_animation: \"\"\n");
-        spriteSrc.append("material: \"\"\n");
+        String spriteSrc = "tile_set: \"/test.atlas\"\n" +
+                "default_animation: \"\"\n" +
+                "material: \"\"\n";
 
-        StringBuilder goSrc = new StringBuilder();
-        goSrc.append("embedded_components {\n");
-        goSrc.append("  id: \"sprite\"\n");
-        goSrc.append("  type: \"sprite\"\n");
-        goSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
-        goSrc.append("}\n");
+        String goSrc = "embedded_components {\n" +
+                "  id: \"sprite\"\n" +
+                "  type: \"sprite\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(spriteSrc) + "\"\n" +
+                "}\n";
 
-        StringBuilder src = new StringBuilder();
-        src.append("name: \"main\"\n");
-        src.append("embedded_instances {\n");
-        src.append("  id: \"go\"\n");
-        src.append("  data: \"").append(StringEscapeUtils.escapeJava(goSrc.toString())).append("\"\n");
-        src.append("}\n");
+        String src = "name: \"main\"\n" +
+                "embedded_instances {\n" +
+                "  id: \"go\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(goSrc) + "\"\n" +
+                "}\n";
 
-        List<Message> messages = build("/test.collection", src.toString());
+        List<Message> messages = build("/test.collection", src);
         Assert.assertEquals(5, messages.size());
 
         CollectionDesc collection = getMessage(messages, CollectionDesc.class);
@@ -533,26 +528,24 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         spriteSrc.append("default_animation: \"\"\n");
         spriteSrc.append("material: \"\"\n");
 
-        StringBuilder goSrc = new StringBuilder();
-        goSrc.append("embedded_components {\n");
-        goSrc.append("  id: \"sprite\"\n");
-        goSrc.append("  type: \"sprite\"\n");
-        goSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
-        goSrc.append("}\n");
-        goSrc.append("embedded_components {\n");
-        goSrc.append("  id: \"sprite\"\n");
-        goSrc.append("  type: \"sprite\"\n");
-        goSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
-        goSrc.append("}\n");
+        String goSrc = "embedded_components {\n" +
+                "  id: \"sprite\"\n" +
+                "  type: \"sprite\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(spriteSrc.toString()) + "\"\n" +
+                "}\n" +
+                "embedded_components {\n" +
+                "  id: \"sprite\"\n" +
+                "  type: \"sprite\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(spriteSrc.toString()) + "\"\n" +
+                "}\n";
 
-        StringBuilder src = new StringBuilder();
-        src.append("name: \"main\"\n");
-        src.append("embedded_instances {\n");
-        src.append("  id: \"go\"\n");
-        src.append("  data: \"").append(StringEscapeUtils.escapeJava(goSrc.toString())).append("\"\n");
-        src.append("}\n");
+        String src = "name: \"main\"\n" +
+                "embedded_instances {\n" +
+                "  id: \"go\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(goSrc) + "\"\n" +
+                "}\n";
 
-        List<Message> messages = build("/test.collection", src.toString());
+        List<Message> messages = build("/test.collection", src);
         Assert.assertEquals(5, messages.size());
 
         CollectionDesc collection = getMessage(messages, CollectionDesc.class);
@@ -583,46 +576,40 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         addFile("/test.atlas", "");
         addFile("build/test.a.texturesetc", "DUMMY_DATA");
 
-        StringBuilder spriteSrc = new StringBuilder();
-        spriteSrc.append("tile_set: \"/test.atlas\"\n");
-        spriteSrc.append("default_animation: \"\"\n");
-        spriteSrc.append("material: \"\"\n");
+        String spriteSrc = "tile_set: \"/test.atlas\"\n" +
+                "default_animation: \"\"\n" +
+                "material: \"\"\n";
 
-        StringBuilder goTestSrc = new StringBuilder();
-        goTestSrc.append("embedded_components {\n");
-        goTestSrc.append("  id: \"sprite\"\n");
-        goTestSrc.append("  type: \"sprite\"\n");
-        goTestSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
-        goTestSrc.append("}\n");
+        String goTestSrc = "embedded_components {\n" +
+                "  id: \"sprite\"\n" +
+                "  type: \"sprite\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(spriteSrc) + "\"\n" +
+                "}\n";
 
-        StringBuilder srcTest = new StringBuilder();
-        srcTest.append("name: \"factory_col\"\n");
-        srcTest.append("embedded_instances {\n");
-        srcTest.append("  id: \"go\"\n");
-        srcTest.append("  data: \"").append(StringEscapeUtils.escapeJava(goTestSrc.toString())).append("\"\n");
-        srcTest.append("}\n");
+        String srcTest = "name: \"factory_col\"\n" +
+                "embedded_instances {\n" +
+                "  id: \"go\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(goTestSrc) + "\"\n" +
+                "}\n";
 
-        addFile("/factory.collection", srcTest.toString());
+        addFile("/factory.collection", srcTest);
 
-        StringBuilder collectionfactorySrc = new StringBuilder();
-        collectionfactorySrc.append("prototype: \"/factory.collection\"\n");
-        collectionfactorySrc.append("\"\"\n");
+        String collectionfactorySrc = "prototype: \"/factory.collection\"\n" +
+                "\"\"\n";
 
-        StringBuilder goSrc = new StringBuilder();
-        goSrc.append("embedded_components {\n");
-        goSrc.append("  id: \"collectionfactory\"\n");
-        goSrc.append("  type: \"collectionfactory\"\n");
-        goSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(collectionfactorySrc.toString())).append("\"\n");
-        goSrc.append("}\n");
+        String goSrc = "embedded_components {\n" +
+                "  id: \"collectionfactory\"\n" +
+                "  type: \"collectionfactory\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(collectionfactorySrc) + "\"\n" +
+                "}\n";
 
-        StringBuilder src = new StringBuilder();
-        src.append("name: \"main\"\n");
-        src.append("embedded_instances {\n");
-        src.append("  id: \"go\"\n");
-        src.append("  data: \"").append(StringEscapeUtils.escapeJava(goSrc.toString())).append("\"\n");
-        src.append("}\n");
+        String src = "name: \"main\"\n" +
+                "embedded_instances {\n" +
+                "  id: \"go\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(goSrc) + "\"\n" +
+                "}\n";
 
-        List<Message> mainColmsg = build("/mainf.collection", src.toString());
+        List<Message> mainColmsg = build("/mainf.collection", src);
 
         CollectionDesc collection = getMessage(mainColmsg, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
@@ -654,39 +641,34 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         addFile("/test.atlas", "");
         addFile("build/test.a.texturesetc", "DUMMY_DATA");
 
-        StringBuilder spriteSrc = new StringBuilder();
-        spriteSrc.append("tile_set: \"/test.atlas\"\n");
-        spriteSrc.append("default_animation: \"\"\n");
-        spriteSrc.append("material: \"\"\n");
+        String spriteSrc = "tile_set: \"/test.atlas\"\n" +
+                "default_animation: \"\"\n" +
+                "material: \"\"\n";
 
-        StringBuilder goTestSrc = new StringBuilder();
-        goTestSrc.append("embedded_components {\n");
-        goTestSrc.append("  id: \"sprite\"\n");
-        goTestSrc.append("  type: \"sprite\"\n");
-        goTestSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
-        goTestSrc.append("}\n");
+        String goTestSrc = "embedded_components {\n" +
+                "  id: \"sprite\"\n" +
+                "  type: \"sprite\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(spriteSrc) + "\"\n" +
+                "}\n";
 
-        addFile("/go.go", goTestSrc.toString());
+        addFile("/go.go", goTestSrc);
 
-        StringBuilder goFactorySrc = new StringBuilder();
-        goFactorySrc.append("prototype: \"/go.go\"\n");
-        goFactorySrc.append("\"\"\n");
+        String goFactorySrc = "prototype: \"/go.go\"\n" +
+                "\"\"\n";
 
-        StringBuilder goSrc = new StringBuilder();
-        goSrc.append("embedded_components {\n");
-        goSrc.append("  id: \"factory\"\n");
-        goSrc.append("  type: \"factory\"\n");
-        goSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(goFactorySrc.toString())).append("\"\n");
-        goSrc.append("}\n");
+        String goSrc = "embedded_components {\n" +
+                "  id: \"factory\"\n" +
+                "  type: \"factory\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(goFactorySrc) + "\"\n" +
+                "}\n";
 
-        StringBuilder src = new StringBuilder();
-        src.append("name: \"main\"\n");
-        src.append("embedded_instances {\n");
-        src.append("  id: \"go\"\n");
-        src.append("  data: \"").append(StringEscapeUtils.escapeJava(goSrc.toString())).append("\"\n");
-        src.append("}\n");
+        String src = "name: \"main\"\n" +
+                "embedded_instances {\n" +
+                "  id: \"go\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(goSrc) + "\"\n" +
+                "}\n";
 
-        List<Message> mainColmsg = build("/mainf.collection", src.toString());
+        List<Message> mainColmsg = build("/mainf.collection", src);
 
         CollectionDesc collection = getMessage(mainColmsg, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
@@ -722,48 +704,43 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         addFile("/test.atlas", "");
         addFile("build/test.a.texturesetc", "DUMMY_DATA");
 
-        StringBuilder spriteSrc = new StringBuilder();
-        spriteSrc.append("tile_set: \"/test.atlas\"\n");
-        spriteSrc.append("default_animation: \"\"\n");
-        spriteSrc.append("material: \"\"\n");
+        String spriteSrc = "tile_set: \"/test.atlas\"\n" +
+                "default_animation: \"\"\n" +
+                "material: \"\"\n";
 
-        StringBuilder goTestSrc = new StringBuilder();
-        goTestSrc.append("embedded_components {\n");
-        goTestSrc.append("  id: \"sprite\"\n");
-        goTestSrc.append("  type: \"sprite\"\n");
-        goTestSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
-        goTestSrc.append("}\n");
+        String goTestSrc = "embedded_components {\n" +
+                "  id: \"sprite\"\n" +
+                "  type: \"sprite\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(spriteSrc) + "\"\n" +
+                "}\n";
 
-        addFile("/go.go", goTestSrc.toString());
+        addFile("/go.go", goTestSrc);
 
-        StringBuilder goFactorySrc = new StringBuilder();
-        goFactorySrc.append("prototype: \"/go.go\"\n");
-        goFactorySrc.append("\"\"\n");
+        String goFactorySrc = "prototype: \"/go.go\"\n" +
+                "\"\"\n";
 
-        StringBuilder goSrc = new StringBuilder();
-        goSrc.append("embedded_components {\n");
-        goSrc.append("  id: \"factory\"\n");
-        goSrc.append("  type: \"factory\"\n");
-        goSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(goFactorySrc.toString())).append("\"\n");
-        goSrc.append("}\n");
+        String goSrc = "embedded_components {\n" +
+                "  id: \"factory\"\n" +
+                "  type: \"factory\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(goFactorySrc) + "\"\n" +
+                "}\n";
 
-        addFile("/test1.go", goSrc.toString());
+        addFile("/test1.go", goSrc);
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
         compStorage.add("factoryc", 1);
         compStorage.add("sprite", ComponentsCounter.DYNAMIC_VALUE);
 
-        StringBuilder src = new StringBuilder();
-        src.append("name: \"main\"\n");
-        src.append("instances {\n");
-        src.append("  id: \"go\"\n");
-        src.append("  prototype: \"/test1.go\"\n");
-        src.append("}\n");
-        src.append("instances {\n");
-        src.append("  id: \"go\"\n");
-        src.append("  prototype: \"/test1.go\"\n");
-        src.append("}\n");
+        String src = "name: \"main\"\n" +
+                "instances {\n" +
+                "  id: \"go\"\n" +
+                "  prototype: \"/test1.go\"\n" +
+                "}\n" +
+                "instances {\n" +
+                "  id: \"go\"\n" +
+                "  prototype: \"/test1.go\"\n" +
+                "}\n";
 
-        List<Message> mainColmsg = build("/mainf.collection", src.toString());
+        List<Message> mainColmsg = build("/mainf.collection", src);
 
         CollectionDesc collection = getMessage(mainColmsg, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
@@ -795,40 +772,35 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         addFile("/test.atlas", "");
         addFile("build/test.a.texturesetc", "DUMMY_DATA");
 
-        StringBuilder spriteSrc = new StringBuilder();
-        spriteSrc.append("tile_set: \"/test.atlas\"\n");
-        spriteSrc.append("default_animation: \"\"\n");
-        spriteSrc.append("material: \"\"\n");
+        String spriteSrc = "tile_set: \"/test.atlas\"\n" +
+                "default_animation: \"\"\n" +
+                "material: \"\"\n";
 
-        StringBuilder goTestSrc = new StringBuilder();
-        goTestSrc.append("embedded_components {\n");
-        goTestSrc.append("  id: \"sprite\"\n");
-        goTestSrc.append("  type: \"sprite\"\n");
-        goTestSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
-        goTestSrc.append("}\n");
+        String goTestSrc = "embedded_components {\n" +
+                "  id: \"sprite\"\n" +
+                "  type: \"sprite\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(spriteSrc) + "\"\n" +
+                "}\n";
 
-        addFile("/go.go", goTestSrc.toString());
+        addFile("/go.go", goTestSrc);
 
-        StringBuilder goFactorySrc = new StringBuilder();
-        goFactorySrc.append("prototype: \"/go.go\"\n");
-        goFactorySrc.append("\"\"\n");
+        String goFactorySrc = "prototype: \"/go.go\"\n" +
+                "\"\"\n";
 
-        StringBuilder goSrc = new StringBuilder();
-        goSrc.append("embedded_components {\n");
-        goSrc.append("  id: \"factory\"\n");
-        goSrc.append("  type: \"factory\"\n");
-        goSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(goFactorySrc.toString())).append("\"\n");
-        goSrc.append("\"dynamic_prototype: true\"\n");
-        goSrc.append("}\n");
+        String goSrc = "embedded_components {\n" +
+                "  id: \"factory\"\n" +
+                "  type: \"factory\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(goFactorySrc) + "\"\n" +
+                "\"dynamic_prototype: true\"\n" +
+                "}\n";
 
-        StringBuilder src = new StringBuilder();
-        src.append("name: \"main\"\n");
-        src.append("embedded_instances {\n");
-        src.append("  id: \"go\"\n");
-        src.append("  data: \"").append(StringEscapeUtils.escapeJava(goSrc.toString())).append("\"\n");
-        src.append("}\n");
+        String src = "name: \"main\"\n" +
+                "embedded_instances {\n" +
+                "  id: \"go\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(goSrc) + "\"\n" +
+                "}\n";
 
-        List<Message> mainColmsg = build("/mainf.collection", src.toString());
+        List<Message> mainColmsg = build("/mainf.collection", src);
 
         CollectionDesc collection = getMessage(mainColmsg, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
@@ -851,26 +823,23 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         addFile("/test.atlas", "");
         addFile("build/test.a.texturesetc", "DUMMY_DATA");
 
-        StringBuilder spriteSrc = new StringBuilder();
-        spriteSrc.append("tile_set: \"/test.atlas\"\n");
-        spriteSrc.append("default_animation: \"\"\n");
-        spriteSrc.append("material: \"\"\n");
+        String spriteSrc = "tile_set: \"/test.atlas\"\n" +
+                "default_animation: \"\"\n" +
+                "material: \"\"\n";
 
-        StringBuilder goTestSrc = new StringBuilder();
-        goTestSrc.append("embedded_components {\n");
-        goTestSrc.append("  id: \"sprite\"\n");
-        goTestSrc.append("  type: \"sprite\"\n");
-        goTestSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
-        goTestSrc.append("}\n");
+        String goTestSrc = "embedded_components {\n" +
+                "  id: \"sprite\"\n" +
+                "  type: \"sprite\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(spriteSrc) + "\"\n" +
+                "}\n";
 
-        StringBuilder subCol = new StringBuilder();
-        subCol.append("name: \"factory_sub_col\"\n");
-        subCol.append("embedded_instances {\n");
-        subCol.append("  id: \"go\"\n");
-        subCol.append("  data: \"").append(StringEscapeUtils.escapeJava(goTestSrc.toString())).append("\"\n");
-        subCol.append("}\n");
+        String subCol = "name: \"factory_sub_col\"\n" +
+                "embedded_instances {\n" +
+                "  id: \"go\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(goTestSrc) + "\"\n" +
+                "}\n";
 
-        addFile("/subCol.collection", subCol.toString());
+        addFile("/subCol.collection", subCol);
 
         Point3d p = new Point3d(1.0, 0.0, 0.0);
         Quat4d r = new Quat4d();
@@ -883,25 +852,22 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         addFile("/factory.collection", col.toString());
 
-        StringBuilder collectionfactorySrc = new StringBuilder();
-        collectionfactorySrc.append("prototype: \"/factory.collection\"\n");
-        collectionfactorySrc.append("\"\"\n");
+        String collectionfactorySrc = "prototype: \"/factory.collection\"\n" +
+                "\"\"\n";
 
-        StringBuilder goSrc = new StringBuilder();
-        goSrc.append("embedded_components {\n");
-        goSrc.append("  id: \"collectionfactory\"\n");
-        goSrc.append("  type: \"collectionfactory\"\n");
-        goSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(collectionfactorySrc.toString())).append("\"\n");
-        goSrc.append("}\n");
+        String goSrc = "embedded_components {\n" +
+                "  id: \"collectionfactory\"\n" +
+                "  type: \"collectionfactory\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(collectionfactorySrc) + "\"\n" +
+                "}\n";
 
-        StringBuilder src = new StringBuilder();
-        src.append("name: \"main\"\n");
-        src.append("embedded_instances {\n");
-        src.append("  id: \"go\"\n");
-        src.append("  data: \"").append(StringEscapeUtils.escapeJava(goSrc.toString())).append("\"\n");
-        src.append("}\n");
+        String src = "name: \"main\"\n" +
+                "embedded_instances {\n" +
+                "  id: \"go\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(goSrc) + "\"\n" +
+                "}\n";
 
-        List<Message> mainColmsg = build("/mainf.collection", src.toString());
+        List<Message> mainColmsg = build("/mainf.collection", src);
 
         CollectionDesc collection = getMessage(mainColmsg, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
@@ -940,26 +906,23 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         addFile("/test.atlas", "");
         addFile("build/test.a.texturesetc", "DUMMY_DATA");
 
-        StringBuilder spriteSrc = new StringBuilder();
-        spriteSrc.append("tile_set: \"/test.atlas\"\n");
-        spriteSrc.append("default_animation: \"\"\n");
-        spriteSrc.append("material: \"\"\n");
+        String spriteSrc = "tile_set: \"/test.atlas\"\n" +
+                "default_animation: \"\"\n" +
+                "material: \"\"\n";
 
-        StringBuilder goTestSrc = new StringBuilder();
-        goTestSrc.append("embedded_components {\n");
-        goTestSrc.append("  id: \"sprite\"\n");
-        goTestSrc.append("  type: \"sprite\"\n");
-        goTestSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
-        goTestSrc.append("}\n");
+        String goTestSrc = "embedded_components {\n" +
+                "  id: \"sprite\"\n" +
+                "  type: \"sprite\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(spriteSrc) + "\"\n" +
+                "}\n";
 
-        StringBuilder subCol = new StringBuilder();
-        subCol.append("name: \"sub_col\"\n");
-        subCol.append("embedded_instances {\n");
-        subCol.append("  id: \"go\"\n");
-        subCol.append("  data: \"").append(StringEscapeUtils.escapeJava(goTestSrc.toString())).append("\"\n");
-        subCol.append("}\n");
+        String subCol = "name: \"sub_col\"\n" +
+                "embedded_instances {\n" +
+                "  id: \"go\"\n" +
+                "  data: \"" + StringEscapeUtils.escapeJava(goTestSrc) + "\"\n" +
+                "}\n";
 
-        addFile("/subCol.collection", subCol.toString());
+        addFile("/subCol.collection", subCol);
 
         StringBuilder col = new StringBuilder();
         col.append("name: \"test_col\"\n");
@@ -1005,30 +968,29 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
      */
     @Test
     public void testEmbeddedInstancesOrder() throws Exception {
-        StringBuilder src = new StringBuilder();
-        src.append("name: \"Example\"\n");
-        src.append("scale_along_z: 0\n");
-        src.append("embedded_instances {\n");
-        src.append("  id: \"3\"\n"); // Create the last object in hierarhy the first in the source file
-        src.append("  data: \"\"\n");
-        src.append("}\n");
-        src.append("embedded_instances {\n");
-        src.append("  id: \"0\"\n");
-        src.append("  children: \"1\"\n");
-        src.append("  data: \"\"\n");
-        src.append("}\n");
-        src.append("embedded_instances {\n");
-        src.append("  id: \"1\"\n");
-        src.append("  children: \"2\"\n");
-        src.append("  data: \"\"\n");
-        src.append("}\n");
-        src.append("embedded_instances {\n");
-        src.append("  id: \"2\"\n");
-        src.append("  children: \"3\"\n");
-        src.append("  data: \"\"\n");
-        src.append("}\n");
+        String src = "name: \"Example\"\n" +
+                "scale_along_z: 0\n" +
+                "embedded_instances {\n" +
+                "  id: \"3\"\n" + // Create the last object in hierarhy the first in the source file
+                "  data: \"\"\n" +
+                "}\n" +
+                "embedded_instances {\n" +
+                "  id: \"0\"\n" +
+                "  children: \"1\"\n" +
+                "  data: \"\"\n" +
+                "}\n" +
+                "embedded_instances {\n" +
+                "  id: \"1\"\n" +
+                "  children: \"2\"\n" +
+                "  data: \"\"\n" +
+                "}\n" +
+                "embedded_instances {\n" +
+                "  id: \"2\"\n" +
+                "  children: \"3\"\n" +
+                "  data: \"\"\n" +
+                "}\n";
 
-        CollectionDesc collection = getMessage(build("/test.collection", src.toString()), CollectionDesc.class);
+        CollectionDesc collection = getMessage(build("/test.collection", src), CollectionDesc.class);
         List<GameObject.InstanceDesc> instances = collection.getInstancesList();
 
         Assert.assertEquals("Order of instances should be 0, 1, 2, 3", 4, instances.size());

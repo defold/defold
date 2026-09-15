@@ -514,7 +514,7 @@ public class ExtenderUtil {
 
         Iterator<Map.Entry<String, IResource>> it = from.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
+            Map.Entry<String, IResource> entry = it.next();
             String outputPath = entry.getKey();
             if (!allowOverrides) {
                 if (into.containsKey(outputPath)) {
@@ -591,9 +591,7 @@ public class ExtenderUtil {
         String path = projectProperties.getStringValue(section, key, "");
         if (!path.isEmpty()) {
             IResource resource = project.getResource(path);
-            if (resource.exists()) {
-                return true;
-            }
+            return resource.exists();
         }
         return false;
     }
@@ -1185,7 +1183,7 @@ public class ExtenderUtil {
     public static void writeResourcesToDirectory(Map<String, IResource> resources, File directory) throws IOException {
         Iterator<Map.Entry<String, IResource>> it = resources.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
+            Map.Entry<String, IResource> entry = it.next();
             File outputFile = new File(directory, entry.getKey());
             writeResourceToFile(entry.getValue(), outputFile);
         }
@@ -1200,7 +1198,7 @@ public class ExtenderUtil {
     public static void writeResourcesToZip(Map<String, IResource> resources, ZipOutputStream zipOutputStream) throws IOException {
         Iterator<Map.Entry<String, IResource>> it = resources.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
+            Map.Entry<String, IResource> entry = it.next();
             ZipEntry ze = new ZipEntry(normalize(entry.getKey(), true));
             zipOutputStream.putNextEntry(ze);
             zipOutputStream.write(entry.getValue().getContent());

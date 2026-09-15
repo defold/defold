@@ -601,8 +601,8 @@ public class TextureSetGenerator {
             for (Integer rectIndex : geometryToRectIndex) {
                 rectCount = Math.max(rectCount, rectIndex + 1);
             }
-            layoutSourceImages = new ArrayList<BufferedImage>(Collections.nCopies(rectCount, (BufferedImage)null));
-            layoutSourcePaths = new ArrayList<String>(Collections.nCopies(rectCount, (String)null));
+            layoutSourceImages = new ArrayList<BufferedImage>(Collections.nCopies(rectCount, null));
+            layoutSourcePaths = new ArrayList<String>(Collections.nCopies(rectCount, null));
             for (int i = 0; i < geometryToRectIndex.size(); ++i) {
                 int rectIndex = geometryToRectIndex.get(i);
                 if (layoutSourceImages.get(rectIndex) == null) {

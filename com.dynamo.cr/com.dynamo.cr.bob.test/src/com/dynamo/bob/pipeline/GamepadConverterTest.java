@@ -44,8 +44,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testConvertSdlMappingToGamepadMapsRuntime() throws Exception {
-        String sdl = ""
-                + "03000000000000000000000000000000,Ignored Pad,a:b0,platform:Windows,\n"
+        String sdl = "03000000000000000000000000000000,Ignored Pad,a:b0,platform:Windows,\n"
                 + "03000000000000000000000000000001,Test Pad,a:b0,b:b1,x:b2,y:b3,back:b8,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,leftshoulder:b4,leftstick:b10,lefttrigger:a2,leftx:a0,lefty:a1,rightshoulder:b5,rightstick:b11,righttrigger:b7,rightx:a3,righty:a4,start:b9,platform:Mac OS X,\n";
 
         GamepadMapsRuntime maps = parse(GamepadConverter.convertToRuntimeFormat(sdl, "x86_64-macos"));
@@ -356,8 +355,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testGamepadBuilderCombinesGamepadsAndGamepadDb() throws Exception {
-        String gamepads = ""
-                + "driver {\n"
+        String gamepads = "driver {\n"
                 + "  device: \"Manual Pad\"\n"
                 + "  platform: \"osx\"\n"
                 + "  dead_zone: 0.2\n"
@@ -369,8 +367,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
                 + "  dead_zone: 0.2\n"
                 + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
                 + "}\n";
-        String gamepadDb = ""
-                + "03000000000000000000000000000001,SDL Pad,a:b1,platform:Mac OS X,\n"
+        String gamepadDb = "03000000000000000000000000000001,SDL Pad,a:b1,platform:Mac OS X,\n"
                 + "03000000000000000000000000000002,Ignored SDL Pad,a:b2,platform:Linux,\n";
 
         addFile("/pad.gamepads", gamepads);
@@ -399,8 +396,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testGamepadBuilderWithOnlyGamepadDb() throws Exception {
-        String gamepadDb = ""
-                + "03000000000000000000000000000001,SDL Pad,a:b1,platform:Mac OS X,\n"
+        String gamepadDb = "03000000000000000000000000000001,SDL Pad,a:b1,platform:Mac OS X,\n"
                 + "03000000000000000000000000000002,Ignored SDL Pad,a:b2,platform:Linux,\n";
 
         addFile("/gamecontrollerdb.txt", gamepadDb);
@@ -424,8 +420,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testGamepadBuilderWithOnlyGamepads() throws Exception {
-        String gamepads = ""
-                + "driver {\n"
+        String gamepads = "driver {\n"
                 + "  device: \"Manual Pad\"\n"
                 + "  platform: \"osx\"\n"
                 + "  dead_zone: 0.2\n"

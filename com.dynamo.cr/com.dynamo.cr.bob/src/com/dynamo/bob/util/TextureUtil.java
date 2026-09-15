@@ -218,7 +218,7 @@ public class TextureUtil {
 
                 // Find matching profile name (there could be a reference to an non-existent profile):
                 for (TextureProfile texProfile : textureProfiles.getProfilesList()) {
-                    if (texProfile.getName().toString().equals(pathSettings.getProfile().toString())) {
+                    if (texProfile.getName().equals(pathSettings.getProfile())) {
                         return texProfile;
                     }
                 }

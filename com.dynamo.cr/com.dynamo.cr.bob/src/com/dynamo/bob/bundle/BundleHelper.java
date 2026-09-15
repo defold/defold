@@ -642,7 +642,6 @@ public class BundleHelper {
             if (m.matches()) {
                 // Groups: severity, resource, message
                 issues.add(new BundleHelper.ResourceInfo(m.group(1), m.group(2), "", m.group(3)));
-                continue;
             }
         }
     }
@@ -776,7 +775,6 @@ public class BundleHelper {
 
             if (m.matches()) {
                 allIssues.add( new BundleHelper.ResourceInfo(m.group(1), null, "0", m.group(2)) );
-                continue;
             }
         }
 

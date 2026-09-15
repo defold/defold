@@ -65,7 +65,7 @@ public class IOSBundler implements IBundler {
             ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
             IOUtils.copy(errorIn, errorOut);
             errorIn.close();
-            String errorMessage = new String(errorOut.toByteArray());
+            String errorMessage = errorOut.toString();
 
             int ret = process.waitFor();
             if (ret != 0) {

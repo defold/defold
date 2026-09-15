@@ -486,7 +486,7 @@ public class ConvexHull2D {
         Vector2d[] points = new Vector2d[nplanes];
         Vector2d[] tangents = new Vector2d[nplanes];
 
-        double max_dim = (double)Math.max(width, height);
+        double max_dim = Math.max(width, height);
 
         Vector2d dir = new Vector2d();
         for (int i = 0; i < nplanes; ++i) {
@@ -682,7 +682,6 @@ public class ConvexHull2D {
                 System.out.println("Wrote " + args[1]);
             } catch (IOException e) {
                 System.out.println("Couldn't write image: " + args[1]);
-                return;
             }
         }
     }

@@ -153,7 +153,7 @@ public class AndroidBundler implements IBundler {
         String keystorePassword = getKeystorePassword(project);
         String alias = project.option("keystore-alias", "");
         if (alias.length() == 0) {
-            try (FileInputStream is = new FileInputStream(new File(keystorePath))) {
+            try (FileInputStream is = new FileInputStream(keystorePath)) {
                 KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
                 keystore.load(is, keystorePassword.toCharArray());
                 Enumeration<String> enumeration = keystore.aliases();
@@ -935,7 +935,7 @@ public class AndroidBundler implements IBundler {
             Map<String, Object> propGroup = propertiesMap.get("android");
             if (propGroup != null && propGroup.containsKey("debuggable")) {
                 boolean debuggable = project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG);
-                propGroup.put("debuggable", debuggable ? "true":"false");
+                propGroup.put("debuggable", Boolean.toString(debuggable));
             }
         }
     }

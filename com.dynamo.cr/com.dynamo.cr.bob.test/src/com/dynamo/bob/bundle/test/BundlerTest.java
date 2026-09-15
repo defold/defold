@@ -408,7 +408,7 @@ public class BundlerTest {
             project.scan(scanner, "com.dynamo.bob.pipeline");
 
             setProjectProperties(project);
-            project.setOption("archive", archive ? "true" : "false");
+            project.setOption("archive", Boolean.toString(archive));
 
             List<TaskResult> result = project.build(Progress.discarding(), "clean", "build");
             for (TaskResult taskResult : result) {

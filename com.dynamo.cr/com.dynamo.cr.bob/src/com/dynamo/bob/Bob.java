@@ -927,7 +927,7 @@ public class Bob {
                 project.setOption("architectures", String.join(",", uniqueArchitectures));
 
                 boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
-                project.setOption("liveupdate", shouldPublish ? "true" : "false");
+                project.setOption("liveupdate", Boolean.toString(shouldPublish));
 
                 if (!cmd.hasOption("variant")) {
                     if (cmd.hasOption("debug")) {

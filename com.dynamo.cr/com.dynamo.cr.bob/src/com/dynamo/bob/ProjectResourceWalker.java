@@ -96,7 +96,7 @@ class ProjectResourceWalker {
         List<String> filteredPaths = allResourcePathsCache.parallelStream()
                 .filter(p -> (ext == null || p.endsWith(ext))
                         && (normalizedPath == null || normalizedPath.isEmpty() || p.startsWith(normalizedPath)))
-                .collect(Collectors.toList());
+                .toList();
         result.addAll(filteredPaths);
         TimeProfiler.stop();
     }

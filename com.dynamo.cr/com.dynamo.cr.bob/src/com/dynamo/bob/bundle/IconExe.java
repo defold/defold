@@ -248,7 +248,7 @@ public class IconExe {
 		}
 		for (int i = 0; i < imageResourceDirectoryEntries.length; i++) {
 			if (imageResourceDirectoryEntries[i].DataIsDirectory) {
-				dumpResourceDirectory(raf, imageResourceDirectoryEntries[i].OffsetToDirectory + resourceBase, resourceBase, delta, imageResourceDirectoryEntries[i].Id, level + 1, rt_icon_root ? true : type == RT_ICON);
+				dumpResourceDirectory(raf, imageResourceDirectoryEntries[i].OffsetToDirectory + resourceBase, resourceBase, delta, imageResourceDirectoryEntries[i].Id, level + 1, rt_icon_root || type == RT_ICON);
 			} else {
 				// Resource found
 				/// pResDirEntry->Name
