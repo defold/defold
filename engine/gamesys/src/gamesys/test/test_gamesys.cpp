@@ -441,6 +441,7 @@ TEST_P(ResourceTest, TestPreloadAsync)
 
 class TextureSetResourceTest : public ResourceTest { public: TextureSetResourceTest() { SetContentFolder("textureset"); } };
 class RenderResourceTest : public ResourceTest { public: RenderResourceTest() { SetContentFolder("render"); } };
+class RenderTargetResourceTest : public ResourceTest { public: RenderTargetResourceTest() { SetContentFolder("render_target"); } };
 class DataResourceTest : public ResourceTest { public: DataResourceTest() { SetContentFolder("data"); } };
 class LightResourceTest : public ResourceTest { public: LightResourceTest() { SetContentFolder("light"); } };
 class ResourceFolderTest : public ResourceTest { public: ResourceFolderTest() { SetContentFolder("resource"); } };
@@ -462,6 +463,13 @@ TEST_F(TileGrid3DResourceTest, LoadTileGrid)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.tilemapc", &resource));
     ASSERT_NE((void*) 0, resource);
     dmResource::Release(m_Factory, resource);
+}
+
+TEST_F(RenderTargetResourceTest, InvalidCubemapFailsToLoad)
+{
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::Get(m_Factory, "/render_target/invalid_cubemap.render_targetc", &resource));
+    ASSERT_EQ((void*) 0, resource);
 }
 
 TEST_F(TextureSetResourceTest, TestReloadTextureSet)

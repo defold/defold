@@ -15,6 +15,7 @@
 (ns editor.render-target
   (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
+            [editor.form :as form]
             [editor.graph-util :as gu]
             [editor.localization :as localization]
             [editor.protobuf :as protobuf]
@@ -38,12 +39,18 @@
 (def ^:private depth-stencil-attachment-height-message (localization/message "form.label.render-target.depth-stencil-attachment-height"))
 (def ^:private sample-counts #{1 2 4 8 16})
 (def ^:private sample-count-options (mapv (fn [sample-count] [sample-count (str sample-count)]) (sort sample-counts)))
+(def ^:private texture-type-options [[:type-2d "2D"] [:type-cubemap "Cubemap"]])
 
 (def form-data
   {:navigation false
    :sections
    [{:localization-key "render-target"
-     :fields [{:path [:sample-count]
+     :fields [{:path [:type]
+               :localization-key "render-target.type"
+               :type :choicebox
+               :options texture-type-options
+               :default :type-2d}
+              {:path [:sample-count]
                :localization-key "render-target.sample-count"
                :type :choicebox
                :options sample-count-options
@@ -74,8 +81,9 @@
                :localization-key "render-target.depth-stencil-attachment-texture-storage"
                :type :boolean}]}]})
 
-(g/defnk produce-form-data [_node-id sample-count color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-texture-storage :as args]
-  (let [values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
+(g/defnk produce-form-data [_node-id type sample-count color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-texture-storage :as args]
+  (let [form-data (form/update-form-setting form-data [:sample-count] #(assoc % :disable (= :type-cubemap type)))
+        values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
         (assoc :values form-values)
@@ -84,7 +92,7 @@
                           :clear protobuf-forms-util/clear-form-op}))))
 
 (g/defnk produce-save-value
-  [sample-count color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-format depth-stencil-attachment-texture-storage]
+  [type sample-count color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-format depth-stencil-attachment-texture-storage]
   (let [color-attachments
         (mapv #(protobuf/clear-defaults RenderTarget$RenderTargetDesc$ColorAttachment %)
               color-attachments)
@@ -99,6 +107,7 @@
     (protobuf/make-map-without-defaults RenderTarget$RenderTargetDesc
       :color-attachments color-attachments
       :sample-count sample-count
+      :type type
       :depth-stencil-attachment depth-stencil-attachment)))
 
 (defn build-render-target
@@ -136,9 +145,23 @@
   (when-not (contains? sample-counts (or v 1))
     (localization/message "error.render-target.sample-count-must-be-supported")))
 
+(defn- cubemap-sample-count-error [type sample-count]
+  (when (and (= :type-cubemap type) (> sample-count 1))
+    (localization/message "error.render-target.cubemap-sample-count-must-be-one")))
+
+(defn- cubemap-dimensions-error [type color-attachments depth-width depth-height]
+  (when (= :type-cubemap type)
+    (let [dimensions (cond-> (mapv (juxt :width :height) color-attachments)
+                       (and (pos? depth-width) (pos? depth-height)) (conj [depth-width depth-height]))]
+      (when (or (some (fn [[width height]] (not= width height)) dimensions)
+                (> (count (distinct dimensions)) 1))
+        (localization/message "error.render-target.cubemap-attachments-must-be-square-and-equal")))))
+
 (g/defnode RenderTargetNode
   (inherits resource-node/ResourceNode)
 
+  (property type g/Keyword (default :type-2d)
+            (dynamic visible (g/constantly false)))
   (property sample-count g/Int (default 1)
             (dynamic visible (g/constantly false)))
   (property color-attachments g/Any ; Nil is valid default.
@@ -154,9 +177,13 @@
 
   (output save-value g/Any :cached produce-save-value)
   (output form-data g/Any produce-form-data)
-  (output gpu-texture-generator g/Any (g/constantly texture-util/placeholder-gpu-texture-generator))
+  (output gpu-texture-generator g/Any
+          (g/fnk [type]
+            (case type
+              :type-cubemap texture-util/placeholder-cubemap-gpu-texture-generator
+              texture-util/placeholder-gpu-texture-generator)))
   (output build-targets g/Any :cached produce-build-targets)
-  (output build-errors g/Any (g/fnk [_node-id sample-count color-attachments depth-stencil-attachment-width depth-stencil-attachment-height]
+  (output build-errors g/Any (g/fnk [_node-id type sample-count color-attachments depth-stencil-attachment-width depth-stencil-attachment-height]
                                (g/package-errors _node-id
                                                  (validation/prop-error :fatal _node-id :color-attachments validate-color-attachment-count color-attachments color-attachments-message)
                                                  (into [] (map-indexed
@@ -164,6 +191,10 @@
                                                               (color-attachment->error-values i color-attachment _node-id :color-attachments))
                                                             color-attachments))
                                                  (validation/prop-error :fatal _node-id :sample-count validate-sample-count sample-count (localization/message "form.label.render-target.sample-count"))
+                                                 (when-let [message (cubemap-sample-count-error type sample-count)]
+                                                   (g/->error _node-id :sample-count :fatal sample-count message))
+                                                 (when-let [message (cubemap-dimensions-error type color-attachments depth-stencil-attachment-width depth-stencil-attachment-height)]
+                                                   (g/->error _node-id :type :fatal type message))
                                                  (validation/prop-error :fatal _node-id :depth-stencil-attachment-width validation/prop-negative? depth-stencil-attachment-width depth-stencil-attachment-width-message)
                                                  (validation/prop-error :fatal _node-id :depth-stencil-attachment-height validation/prop-negative? depth-stencil-attachment-height depth-stencil-attachment-height-message)
                                                  (when (and (> depth-stencil-attachment-width 0) (= 0 depth-stencil-attachment-height))
@@ -181,7 +212,8 @@
     (concat
       (gu/set-properties-from-pb-map self RenderTarget$RenderTargetDesc render-target-desc
         color-attachments :color-attachments
-        sample-count :sample-count)
+        sample-count :sample-count
+        type :type)
       (gu/set-properties-from-pb-map self RenderTarget$RenderTargetDesc$DepthStencilAttachment depth-stencil-attachment
         depth-stencil-attachment-width :width
         depth-stencil-attachment-height :height

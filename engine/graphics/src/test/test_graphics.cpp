@@ -2100,6 +2100,58 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
+TEST_F(dmGraphicsTest, TestCubeMapRenderTarget)
+{
+    dmGraphics::RenderTargetCreationParams params = InitializeRenderTargetParams(WIDTH, WIDTH);
+    params.m_TextureType = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+    params.m_SampleCount = 4;
+    params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
+    ASSERT_NE((dmGraphics::HRenderTarget) 0, target);
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_CUBE_MAP, dmGraphics::GetRenderTargetTextureType(m_Context, target));
+    ASSERT_EQ(1u, dmGraphics::GetRenderTargetSampleCount(m_Context, target));
+
+    for (uint32_t face = 0; face < dmGraphics::CUBEMAP_FACE_COUNT; ++face)
+    {
+        dmGraphics::RenderTargetBindingParams binding_params = {};
+        binding_params.m_CubeMapFace = (dmGraphics::CubeMapFace) face;
+        dmGraphics::SetRenderTarget(m_Context, target, binding_params);
+        dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, face + 1, face + 1, face + 1, face + 1, 1.0f, 0);
+    }
+
+    dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+    uint8_t* texture_data = 0;
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, dmGraphics::GetTextureHandle(texture, (void**) &texture_data));
+    const uint32_t face_data_size = m_NullContext->m_CurrentFrameBuffer->m_ColorBufferSize[0];
+    for (uint32_t face = 0; face < dmGraphics::CUBEMAP_FACE_COUNT; ++face)
+    {
+        for (uint32_t byte = 0; byte < face_data_size; ++byte)
+        {
+            ASSERT_EQ(face + 1, texture_data[face * face_data_size + byte]);
+        }
+    }
+
+    const uint32_t non_power_of_two_size = 13;
+    dmGraphics::SetRenderTargetSize(m_Context, target, non_power_of_two_size, non_power_of_two_size);
+    uint32_t target_width, target_height;
+    dmGraphics::GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
+    ASSERT_EQ(non_power_of_two_size, target_width);
+    ASSERT_EQ(non_power_of_two_size, target_height);
+
+    dmGraphics::SetRenderTargetSize(m_Context, target, non_power_of_two_size, non_power_of_two_size + 1);
+    dmGraphics::GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
+    ASSERT_EQ(non_power_of_two_size, target_width);
+    ASSERT_EQ(non_power_of_two_size, target_height);
+
+    dmGraphics::SetRenderTarget(m_Context, 0, 0);
+    dmGraphics::DeleteRenderTarget(m_Context, target);
+
+    params.m_ColorBufferParams[0].m_Height = WIDTH + 1;
+    ASSERT_EQ((dmGraphics::HRenderTarget) 0,
+        dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params));
+}
+
 TEST_F(dmGraphicsTest, TestGetRTAttachment)
 {
     dmGraphics::RenderTargetCreationParams params = InitializeRenderTargetParams(WIDTH, HEIGHT);
