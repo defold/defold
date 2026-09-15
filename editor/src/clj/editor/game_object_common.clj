@@ -26,7 +26,8 @@
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [service.log :as log])
+            [service.log :as log]
+            [util.coll :as coll])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [java.io StringReader]))
 
@@ -115,6 +116,29 @@
       (dissoc :property-resources)
       (protobuf/sanitize-repeated :components sanitize-component-desc)
       (protobuf/sanitize-repeated :embedded-components #(sanitize-embedded-component-desc % ext->embedded-component-resource-type))))
+
+(defn prototype-desc->component-property-descs [prototype-desc]
+  (into []
+        (keep (fn [component-desc]
+                (let [component-id (:id component-desc)
+                      property-descs (:properties component-desc)]
+                  (when (coll/not-empty property-descs)
+                    {:id component-id
+                     :properties property-descs}))))
+        (:components prototype-desc)))
+
+(defn component-property-descs->resources [component-property-descs proj-path->resource]
+  (eduction
+    (mapcat :properties)
+    (map #(dissoc % :id))
+    (distinct)
+    (keep #(properties/property-desc->resource % proj-path->resource))
+    component-property-descs))
+
+(defn prototype-desc->referenced-property-resources [prototype-desc proj-path->resource]
+  (-> prototype-desc
+      prototype-desc->component-property-descs
+      (component-property-descs->resources proj-path->resource)))
 
 (defn any-descs->duplicate-ids [any-instance-descs]
   ;; GameObject$ComponentDesc, GameObject$EmbeddedComponentDesc, GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.

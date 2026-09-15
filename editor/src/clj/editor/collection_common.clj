@@ -111,6 +111,94 @@
       (protobuf/sanitize-repeated :embedded-instances #(sanitize-embedded-instance-desc % ext->embedded-component-resource-type))
       (protobuf/sanitize-repeated :collection-instances sanitize-collection-instance-desc)))
 
+(defn- component-property-desc-overrides-properties? [component-property-desc]
+  (not (coll/empty? (:properties component-property-desc))))
+
+(defn- maybe-instance-property-desc [game-object-instance-id component-property-descs]
+  (when-let [component-property-descs (coll/not-empty (filterv component-property-desc-overrides-properties? component-property-descs))]
+    {:id game-object-instance-id
+     :properties component-property-descs}))
+
+(defn- component-property-descs->component-id->property-descs [component-property-descs]
+  (into {}
+        (keep (fn [component-property-desc]
+                (let [component-id (:id component-property-desc)
+                      property-descs (:properties component-property-desc)]
+                  (when (coll/not-empty property-descs)
+                    (pair component-id property-descs)))))
+        component-property-descs))
+
+(defn- override-property-descs [original-property-descs overridden-property-descs]
+  ;; GameObject$PropertyDescs in map format.
+  (-> (into {}
+            (comp cat
+                  (map (juxt :id identity)))
+            [original-property-descs overridden-property-descs])
+      (vals)
+      (vec)))
+
+(defn- override-component-property-descs [original-component-property-descs override-component-property-descs]
+  ;; Takes two sequences of GameObject$ComponentPropertyDescs in map format, and
+  ;; returns a sequence of GameObject$ComponentPropertyDescs in map format.
+  (mapv (fn [[component-id property-descs]]
+          {:id component-id
+           :properties property-descs})
+        (merge-with override-property-descs
+                    (component-property-descs->component-id->property-descs original-component-property-descs)
+                    (component-property-descs->component-id->property-descs override-component-property-descs))))
+
+(defn- embedded-instance-desc->instance-property-desc [embedded-instance-desc]
+  ;; GameObject$EmbeddedInstanceDesc in map format.
+  (let [game-object-instance-id (:id embedded-instance-desc)
+        component-property-descs (override-component-property-descs
+                                   (game-object-common/prototype-desc->component-property-descs (:data embedded-instance-desc))
+                                   (:component-properties embedded-instance-desc))]
+    (maybe-instance-property-desc game-object-instance-id component-property-descs)))
+
+(defn- instance-desc->instance-property-desc [instance-desc]
+  ;; GameObject$InstanceDesc in map format.
+  (maybe-instance-property-desc (:id instance-desc) (:component-properties instance-desc)))
+
+(defn- collection-instance-desc->instance-property-descs [collection-instance-desc]
+  ;; GameObject$CollectionInstanceDesc in map format.
+  (into []
+        (keep (fn [instance-property-desc]
+                (maybe-instance-property-desc (:id instance-property-desc) (:properties instance-property-desc))))
+        (:instance-properties collection-instance-desc)))
+
+(defn collection-desc->instance-property-descs [collection-desc]
+  (-> []
+      (into (keep instance-desc->instance-property-desc) (:instances collection-desc))
+      (into (keep embedded-instance-desc->instance-property-desc) (:embedded-instances collection-desc))
+      (into (mapcat collection-instance-desc->instance-property-descs) (:collection-instances collection-desc))))
+
+(defn- instance-property-descs->resources [instance-property-descs proj-path->resource]
+  (eduction
+    (map :properties)
+    (mapcat #(game-object-common/component-property-descs->resources % proj-path->resource))
+    (distinct)
+    instance-property-descs))
+
+(defn collection-desc->referenced-property-resources [collection-desc proj-path->resource]
+  ;; This returns a sequence of all distinct resources referenced by
+  ;; GameObject$ComponentPropertyDesc property overrides in the
+  ;; GameObject$CollectionDescs contained GameObject$InstanceDescs,
+  ;; GameObject$EmbeddedInstanceDescs, and GameObject$CollectionInstanceDescs.
+  ;;
+  ;; The resulting resources build targets will be connected to the
+  ;; own-resource-property-build-targets input of our NonEditableCollectionNode.
+  ;;
+  ;; Elsewhere, any referenced collection, game object, and component will have
+  ;; their resource-property-build-targets output connected to our
+  ;; other-resource-property-build-targets input to ensure we have access to the
+  ;; non-overridden resource property dependencies. As a result, our
+  ;; resource-property-build-targets output will include not only our own
+  ;; overrides, but the set union of all original and overridden resource
+  ;; property dependencies. This is also how it works for mutable collections.
+  (-> collection-desc
+      (collection-desc->instance-property-descs)
+      (instance-property-descs->resources proj-path->resource)))
+
 (defonce ^:private default-collection-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc))
 
 (defn collection-dependencies-fn [read-opts owner-resource collection-desc]
@@ -179,15 +267,6 @@
 
 (defn- source-resource-component-property-desc [component-property-desc]
   (protobuf/sanitize-repeated component-property-desc :properties properties/source-resource-go-prop))
-
-(defn override-property-descs [original-property-descs overridden-property-descs]
-  ;; GameObject$PropertyDescs in map format.
-  (-> (into {}
-            (comp cat
-                  (map (juxt :id identity)))
-            [original-property-descs overridden-property-descs])
-      (vals)
-      (vec)))
 
 (defn- flatten-game-object-instance-data [game-object-instance-data collection-instance-id collection-instance-pose child-game-object-instance-id? game-object-instance-id->component-property-descs proj-path->resource-property-build-target]
   (let [{:keys [resource instance-msg pose]} game-object-instance-data
