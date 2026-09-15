@@ -125,6 +125,10 @@ endif()
 
 # Each Bob process owns its project metadata and extracted tools. Limit the
 # number of JVMs competing with compilation for memory on CI runners.
+set(DEFOLD_GAMESYS_BOB_THREADS 2 CACHE STRING "Maximum worker threads per gamesys test content Bob process")
+if(NOT DEFOLD_GAMESYS_BOB_THREADS MATCHES "^[1-9][0-9]*$")
+  message(FATAL_ERROR "DEFOLD_GAMESYS_BOB_THREADS must be a positive integer")
+endif()
 set(_GS_CONTENT_JOB_POOL)
 if(CMAKE_GENERATOR MATCHES "^Ninja")
   set_property(GLOBAL APPEND PROPERTY JOB_POOLS gamesys_test_content=2)
@@ -193,6 +197,7 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
       --build-input-file "${_GS_BOB_STAGE_ROOT}/common_build.inputs"
       --use-uncompressed-lua-source
       --debug-output-spirv true
+      --max-cpu-threads "${DEFOLD_GAMESYS_BOB_THREADS}"
       --platform "${TARGET_PLATFORM}"
       ${_settings_args}
       build
