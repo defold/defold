@@ -97,7 +97,13 @@ if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
       if(NOT TARGET run_tests)
         add_custom_target(run_tests)
       endif()
-      add_dependencies(run_tests generate_font_test_images)
+      defold_add_to_run_tests(run_test_font_images_python RUN_GROUP font
+        COMMAND ${_font_python_command}
+        WORKING_DIRECTORY "${FONT_ROOT}"
+        DEPENDS test_font_bitmap_gen)
+      defold_add_to_run_tests(generate_font_test_images RUN_GROUP font
+        COMMAND ${_font_image_command}
+        DEPENDS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
     endif()
     defold_register_sequential_test_command(font_images COMMAND ${_font_image_command}
       DEPENDS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
@@ -217,17 +223,21 @@ if(FONT_RENDERER_IS_DESKTOP AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
   add_custom_target(test_font_renderer_java_jar DEPENDS "${FONT_RENDERER_TEST_JAR}")
   add_dependencies(test_font_renderer_java_jar fontc_shared font_renderer_jar)
   add_dependencies(build_tests test_font_renderer_java_jar)
+  set(_font_java_command "${Java_JAVA_EXECUTABLE}"
+    --enable-native-access=ALL-UNNAMED
+    "-Djava.library.path=$<TARGET_FILE_DIR:fontc_shared>"
+    -classpath "${FONT_RENDERER_TEST_CLASSPATH}"
+    com.dynamo.bob.font.FontRendererTest)
   add_custom_target(run_test_font_renderer_java
-    COMMAND ${_font_test_runner} "${Java_JAVA_EXECUTABLE}"
-            --enable-native-access=ALL-UNNAMED
-            "-Djava.library.path=$<TARGET_FILE_DIR:fontc_shared>"
-            -classpath "${FONT_RENDERER_TEST_CLASSPATH}"
-            com.dynamo.bob.font.FontRendererTest
+    COMMAND ${_font_test_runner} ${_font_java_command}
     DEPENDS test_font_renderer_java_jar fontc_shared
     WORKING_DIRECTORY "${FONT_ROOT}"
     ${_font_test_run_options}
     COMMENT "Running font-renderer Java tests")
-  add_dependencies(run_tests run_test_font_renderer_java)
+  defold_add_to_run_tests(run_test_font_renderer_java RUN_GROUP font
+    COMMAND ${_font_java_command}
+    WORKING_DIRECTORY "${FONT_ROOT}"
+    DEPENDS test_font_renderer_java_jar fontc_shared)
 endif()
 
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32)$")

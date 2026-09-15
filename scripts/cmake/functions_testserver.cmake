@@ -144,17 +144,18 @@ function(defold_register_test_with_server target platform)
 
   set(_run_target "run_${target}_server")
   defold_test_run_settings(_test_runner _test_run_options shared)
+  set(_test_command ${DEFOLD_ANDROID_TEST_ENV} "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
+    --workdir "${_RUN_DIR_ABS}"
+    --ip "${_SERVER_IP}"
+    --port "${DTS_PORT}"
+    --config "${_CFG_PATH}"
+    ${_ANDROID_ARGS}
+    ${_SERVER_DIR_ARGS}
+    ${_IOS_RUNNER_ARGS}
+    -- "$<TARGET_FILE:${target}>")
   if(NOT TARGET ${_run_target})
     add_custom_target(${_run_target}
-      COMMAND ${_test_runner} ${DEFOLD_ANDROID_TEST_ENV} "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
-        --workdir "${_RUN_DIR_ABS}"
-        --ip "${_SERVER_IP}"
-        --port "${DTS_PORT}"
-        --config "${_CFG_PATH}"
-        ${_ANDROID_ARGS}
-        ${_SERVER_DIR_ARGS}
-        ${_IOS_RUNNER_ARGS}
-        -- "$<TARGET_FILE:${target}>"
+      COMMAND ${_test_runner} ${_test_command}
       DEPENDS ${target} ${_runtime_deps}
       ${_test_run_options}
       COMMAND_EXPAND_LISTS
@@ -184,7 +185,9 @@ function(defold_register_test_with_server target platform)
     if(NOT TARGET run_tests)
       add_custom_target(run_tests)
     endif()
-    add_dependencies(run_tests ${_run_target})
+    defold_add_to_run_tests(${_run_target}
+      COMMAND ${_test_command}
+      DEPENDS ${target} ${_runtime_deps})
   endif()
 endfunction()
 
@@ -286,17 +289,18 @@ function(defold_register_tests_with_server group platform)
   endif()
 
   defold_test_run_settings(_test_runner _test_run_options shared)
+  set(_test_command ${DEFOLD_ANDROID_TEST_ENV} "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
+    --workdir "${_RUN_DIR_ABS}"
+    --ip "${_SERVER_IP}"
+    --port "${DTS_PORT}"
+    --config "${_CFG_PATH}"
+    ${_ANDROID_ARGS}
+    ${_SERVER_DIR_ARGS}
+    ${_IOS_RUNNER_ARGS}
+    -- ${_TEST_EXES})
   if(NOT TARGET ${_run_target})
     add_custom_target(${_run_target}
-      COMMAND ${_test_runner} ${DEFOLD_ANDROID_TEST_ENV} "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
-        --workdir "${_RUN_DIR_ABS}"
-        --ip "${_SERVER_IP}"
-        --port "${DTS_PORT}"
-        --config "${_CFG_PATH}"
-        ${_ANDROID_ARGS}
-        ${_SERVER_DIR_ARGS}
-        ${_IOS_RUNNER_ARGS}
-        -- ${_TEST_EXES}
+      COMMAND ${_test_runner} ${_test_command}
       DEPENDS ${DTS_TARGETS} ${_runtime_deps}
       ${_test_run_options}
       COMMAND_EXPAND_LISTS
@@ -326,6 +330,8 @@ function(defold_register_tests_with_server group platform)
     if(NOT TARGET run_tests)
       add_custom_target(run_tests)
     endif()
-    add_dependencies(run_tests ${_run_target})
+    defold_add_to_run_tests(${_run_target}
+      COMMAND ${_test_command}
+      DEPENDS ${DTS_TARGETS} ${_runtime_deps})
   endif()
 endfunction()
