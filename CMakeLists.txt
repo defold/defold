@@ -100,21 +100,24 @@ if(NOT TARGET_PLATFORM STREQUAL HOST_PLATFORM)
   endif()
   set(_DEFOLD_HOST_TOOLS_SCRIPT "${CMAKE_BINARY_DIR}/run_host_tools.cmake")
   configure_file("${CMAKE_CURRENT_LIST_DIR}/scripts/cmake/host_tools.cmake.in" "${_DEFOLD_HOST_TOOLS_SCRIPT}" @ONLY)
+  # Recurse only through source directories. A recursive CMakeLists.txt glob
+  # also discovers generated copies under build/ and Bob's test staging roots.
   file(GLOB_RECURSE _DEFOLD_HOST_TOOLS_INPUTS CONFIGURE_DEPENDS
-    "${DEFOLD_HOME}/CMakeLists.txt"
     "${DEFOLD_HOME}/scripts/cmake/*.cmake"
-    "${DEFOLD_HOME}/engine/dlib/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/dlib/src/*"
-    "${DEFOLD_HOME}/engine/jni/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/jni/src/*"
-    "${DEFOLD_HOME}/engine/texc/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/texc/src/*"
-    "${DEFOLD_HOME}/engine/modelc/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/modelc/src/*"
-    "${DEFOLD_HOME}/engine/font/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/font/src/*"
-    "${DEFOLD_HOME}/engine/shaderc/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/shaderc/src/*")
+  list(APPEND _DEFOLD_HOST_TOOLS_INPUTS
+    "${DEFOLD_HOME}/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/dlib/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/jni/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/texc/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/modelc/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/font/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/shaderc/CMakeLists.txt")
   set(_DEFOLD_HOST_TOOLS_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/host_tools-$<CONFIG>.stamp")
 
   add_custom_command(
