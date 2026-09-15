@@ -15,7 +15,7 @@
       &-em      { -fx-font-family: "Source Sans Pro Italic"; }
       &-strong  { -fx-font-family: "Source Sans Pro Semibold"; }
       &-strong.md-em { -fx-font-family: "Source Sans Pro Semibold Italic";}
-      &-code    { -fx-font-family: "Dejavu Sans Mono"; -fx-fill: #DDDDDD; }
+      &-code    { -fx-font-family: $default-font-mono; -fx-fill: -df-code-text; }
       &-small   { -fx-fill: -df-text-dark; }
       &-sub     { -fx-font-size: 85%; -fx-translate-y: 3px; }
       &-sup     { -fx-font-size: 85%; -fx-translate-y: -5px; }
@@ -125,7 +125,7 @@
   }
   &-root {
     -fx-padding: 6px 8px;
-    -fx-font-size: 13.5px;
+    -fx-font-size: $md-font-size;
     -md-text-fill: -df-text;
     &.md-page-root {
         -fx-padding: 30px 30px;
