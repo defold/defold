@@ -27,11 +27,11 @@ namespace dmGameObject
 {
     /**
      * Native resolver stored in a script-instance metatable to expose game object ownership.
-     * The resolver must outlive the script context and return false if ownership cannot be resolved.
+     * The resolver must outlive the script context and return INVALID_GAME_OBJECT if ownership cannot be resolved.
      */
     struct ScriptInstanceGameObjectResolver
     {
-        bool (*m_GetGameObject)(void* script_instance, HCollection* out_hcollection, HGameObject* out_hinstance);
+        HInstance (*m_GetInstance)(void* script_instance);
     };
 
     extern const char META_TABLE_GET_GAME_OBJECT[];
@@ -56,7 +56,7 @@ namespace dmGameObject
      * @param L lua-state
      * @return current game object instance
      */
-    HGameObject GetInstanceFromLua(lua_State* L);
+    HInstance GetInstanceFromLua(lua_State* L);
 
     /**
      * Get current game object instance from a script instance of the specified type.
@@ -65,17 +65,7 @@ namespace dmGameObject
      * @param script_instance_type_hash script instance user type
      * @return current game object instance
      */
-    HGameObject GetInstanceFromLua(lua_State* L, uint32_t script_instance_type_hash);
-
-    /**
-     * Get the collection and game object handles associated with the current script instance.
-     * Script instance types that represent game objects provide the corresponding metatable resolver.
-     * @param L lua-state
-     * @param out_hcollection current game object collection, or INVALID_COLLECTION on failure
-     * @param out_hinstance current game object, or INVALID_GAME_OBJECT on failure
-     * @return true if the script instance exposes game object handles
-     */
-    bool GetCollectionAndGameObjectFromLua(lua_State* L, HCollection* out_hcollection, HGameObject* out_hinstance);
+    HInstance GetInstanceFromLua(lua_State* L, uint32_t script_instance_type_hash);
 
     /**
      * Get the current game object collection from the lua state, if any.

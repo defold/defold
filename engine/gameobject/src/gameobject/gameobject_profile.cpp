@@ -39,7 +39,7 @@ static bool IterateCollectionGetNext(SceneNodeIterator* it)
     if (valid) {
         it->m_Node = it->m_NextChild;
         it->m_Node.m_Collection = hcollection;
-        it->m_Node.m_Instance = GetGameObjectHandle(collection->m_Instances[root_level[index]]);
+        it->m_Node.m_Instance = GetInstanceHandle(collection, collection->m_Instances[root_level[index]]);
         it->m_NextChild.m_Node++;
     } else {
         // We're done iterating this collection
@@ -72,31 +72,39 @@ static bool IterateGameObjectGetNext(SceneNodeIterator* it)
     assert(it->m_Parent.m_Type == SCENE_NODE_TYPE_GAMEOBJECT);
 
     Collection* collection = GetCollectionFromHandle(it->m_Parent.m_Collection);
-    Instance* parent = GetGameObjectFromHandle(collection, it->m_Parent.m_Instance);
+    Instance* parent = GetInstanceFromHandle(collection, it->m_Parent.m_Instance);
     if (!parent)
         return false;
 
-    if (it->m_IteratorPhase == 0 && it->m_NextGameObject != INVALID_GAME_OBJECT) {
-        Instance* instance = GetGameObjectFromHandle(collection, it->m_NextGameObject);
-        if (!instance || instance->m_Parent != parent->m_Index)
-            return false;
+    if (it->m_NextChild.m_Type == SCENE_NODE_TYPE_GAMEOBJECT)
+    {
+        uint32_t index = (uint32_t)it->m_NextChild.m_Node;
+        if (index != INVALID_INSTANCE_INDEX)
+        {
+            Instance* instance = collection->m_Instances[index];
+            if (!instance || instance->m_Parent != parent->m_Index)
+                return false;
 
-        it->m_Node = it->m_NextChild;
-        it->m_Node.m_Collection = it->m_Parent.m_Collection;
-        it->m_Node.m_Instance = it->m_NextGameObject;
-        it->m_NextGameObject = instance->m_SiblingIndex == INVALID_INSTANCE_INDEX
-                ? INVALID_GAME_OBJECT
-                : GetGameObjectHandle(collection->m_Instances[instance->m_SiblingIndex]);
+            it->m_Node = it->m_NextChild;
+            it->m_Node.m_Collection = it->m_Parent.m_Collection;
+            it->m_Node.m_Instance = GetInstanceHandle(collection, instance);
+            it->m_NextChild.m_Node = instance->m_SiblingIndex;
 
-        if (it->m_NextGameObject == INVALID_GAME_OBJECT) {
-            it->m_IteratorPhase = 1;
+            if (instance->m_SiblingIndex == INVALID_INSTANCE_INDEX)
+            {
+                it->m_NextChild.m_Type = SCENE_NODE_TYPE_SUBCOMPONENT;
+                it->m_NextChild.m_Node = 0;
+            }
+            return true;
         }
-        return true;
+
+        it->m_NextChild.m_Type = SCENE_NODE_TYPE_SUBCOMPONENT;
+        it->m_NextChild.m_Node = 0;
     }
 
-    it->m_IteratorPhase = 1;
-    if (it->m_NextComponent < parent->m_Prototype->m_ComponentCount) {
-        uint32_t index = it->m_NextComponent;
+    uint32_t next_component = (uint32_t)it->m_NextChild.m_Node;
+    if (next_component < parent->m_Prototype->m_ComponentCount) {
+        uint32_t index = next_component;
         Instance* instance = parent;
         Prototype* prototype = parent->m_Prototype;
 
@@ -139,11 +147,11 @@ static bool IterateGameObjectGetNext(SceneNodeIterator* it)
             it->m_Node.m_Collection = it->m_Parent.m_Collection;
             it->m_Node.m_Instance = it->m_Parent.m_Instance;
 
-            it->m_NextComponent = index + 1;
+            it->m_NextChild.m_Node = index + 1;
             return true;
         } else
         {
-            it->m_NextComponent = prototype->m_ComponentCount;
+            it->m_NextChild.m_Node = prototype->m_ComponentCount;
         }
     }
 
@@ -158,12 +166,8 @@ static void IterateGameObjectChildren(SceneNodeIterator* it, SceneNode* node)
     //it->m_NextChild = *node;
     it->m_NextChild.m_Type = SCENE_NODE_TYPE_GAMEOBJECT;
     Collection* collection = GetCollectionFromHandle(node->m_Collection);
-    Instance* instance = GetGameObjectFromHandle(collection, node->m_Instance);
-    it->m_NextGameObject = instance && instance->m_FirstChildIndex != INVALID_INSTANCE_INDEX
-            ? GetGameObjectHandle(collection->m_Instances[instance->m_FirstChildIndex])
-            : INVALID_GAME_OBJECT;
-    it->m_NextComponent = 0;
-    it->m_IteratorPhase = 0;
+    Instance* instance = GetInstanceFromHandle(collection, node->m_Instance);
+    it->m_NextChild.m_Node = instance ? instance->m_FirstChildIndex : INVALID_INSTANCE_INDEX;
     it->m_FnIterateNext = IterateGameObjectGetNext;
 }
 
@@ -186,7 +190,7 @@ static void IterateComponentNullChildren(struct SceneNodeIterator* it, struct Sc
 static bool ResolveComponentNode(SceneNode* node, ComponentType** out_component_type, Prototype::Component** out_component_prototype)
 {
     Collection* collection = GetCollectionFromHandle(node->m_Collection);
-    Instance* instance = GetGameObjectFromHandle(collection, node->m_Instance);
+    Instance* instance = GetInstanceFromHandle(collection, node->m_Instance);
     if (!instance)
         return false;
 
@@ -243,13 +247,13 @@ static void IterateComponentChildren(SceneNodeIterator* it, SceneNode* node)
 
 // ********************************************************************************************
 
-bool TraverseGetRoot(HContext regist, SceneNode* node)
+bool TraverseGetRoot(HContext gocontext, SceneNode* node)
 {
-    DM_MUTEX_SCOPED_LOCK(regist->m_Mutex);
-    if (regist->m_Collections.Empty())
+    DM_MUTEX_SCOPED_LOCK(gocontext->m_Mutex);
+    if (gocontext->m_Collections.Empty())
         return false;
 
-    Collection* collection = regist->m_Collections[0];
+    Collection* collection = gocontext->m_Collections[0];
     node->m_Node = (uint64_t)collection->m_HCollection;
     node->m_Type = SCENE_NODE_TYPE_COLLECTION;
     node->m_Collection = collection->m_HCollection;
@@ -354,7 +358,7 @@ static bool IterateCollectionPropertiesGetNext(SceneNodePropertyIterator* pit)
     {
         pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_HASH;
         pit->m_Property.m_Value.m_Hash = 0;
-        HCollectionResource resource = collection->m_CollectionResource;
+        CollectionResource* resource = collection->m_CollectionResource;
         if (resource)
             dmResource::GetPath(collection->m_Factory, resource, &pit->m_Property.m_Value.m_Hash);
     }
@@ -401,8 +405,8 @@ static bool IterateGameObjectPropertiesGetNext(SceneNodePropertyIterator* pit)
 
     HCollection hcollection = pit->m_Node->m_Collection;
     Collection* collection = GetCollectionFromHandle(hcollection);
-    HGameObject hinstance = pit->m_Node->m_Instance;
-    Instance* instance = GetGameObjectFromHandle(collection, hinstance);
+    HInstance hinstance = pit->m_Node->m_Instance;
+    Instance* instance = GetInstanceFromHandle(collection, hinstance);
     if (!instance)
         return false;
     if (index < num_properties)

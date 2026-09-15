@@ -21,7 +21,6 @@
 #include <render/render.h>
 #include <script/script.h>
 #include <gameobject/script.h>
-#include <dmsdk/gamesys/script.h>
 #include "gamesys.h"
 #include <gamesys/tile_ddf.h>
 #include <gamesys/physics_ddf.h>
@@ -186,11 +185,12 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HCollection hcollection = dmScript::CheckCollection(L);
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
         TileGridComponent* component;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentFromLua(L, 1, hcollection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, &receiver, 0);
+        dmGameObject::GetComponentFromLua(L, 1, collection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, &receiver, 0);
 
         dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
 
@@ -302,10 +302,11 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HCollection hcollection = dmScript::CheckCollection(L);
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
         TileGridComponent* component;
-        dmGameObject::GetComponentFromLua(L, 1, hcollection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+        dmGameObject::GetComponentFromLua(L, 1, collection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, 0, 0);
 
         dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
         uint32_t layer_index = GetLayerIndex(component, layer_id);
@@ -452,10 +453,11 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HCollection hcollection = dmScript::CheckCollection(L);
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
         TileGridComponent* component;
-        dmGameObject::GetComponentFromLua(L, 1, hcollection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+        dmGameObject::GetComponentFromLua(L, 1, collection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, 0, 0);
 
         dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
         uint32_t layer_index = GetLayerIndex(component, layer_id);
@@ -517,10 +519,11 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HCollection hcollection = dmScript::CheckCollection(L);
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
         TileGridComponent* component;
-        dmGameObject::GetComponentFromLua(L, 1, hcollection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+        dmGameObject::GetComponentFromLua(L, 1, collection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, 0, 0);
 
         int x, y, w, h;
         GetTileGridBounds(component, &x, &y, &w, &h);
@@ -552,11 +555,12 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        dmGameObject::HCollection hcollection = dmScript::CheckCollection(L);
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
         TileGridComponent* component;
         dmMessage::URL receiver;
-        dmGameObject::GetComponentFromLua(L, 1, hcollection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, &receiver, 0);
+        dmGameObject::GetComponentFromLua(L, 1, collection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, &receiver, 0);
 
         dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
         uint32_t layer_index = GetLayerIndex(component, layer_id);

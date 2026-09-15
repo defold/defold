@@ -276,9 +276,8 @@ namespace dmGameSystem
     static int CollectionFactoryComp_Create(lua_State* L)
     {
         int top = lua_gettop(L);
-        dmGameObject::HCollection hcollection;
-        dmGameObject::HGameObject hinstance;
-        dmScript::CheckCollectionAndInstance(L, &hcollection, &hinstance);
+        dmGameObject::HInstance hinstance = dmScript::CheckGOInstance(L);
+        dmGameObject::HCollection hcollection = dmGameObject::GetCollection(hinstance);
 
         CollectionFactoryWorld* world;
         CollectionFactoryComponent* component;
@@ -291,7 +290,7 @@ namespace dmGameSystem
         }
         else
         {
-            position = dmGameObject::GetWorldPosition(hcollection, hinstance);
+            position = dmGameObject::GetWorldPosition(hinstance);
         }
 
         dmVMath::Quat rotation;
@@ -301,7 +300,7 @@ namespace dmGameSystem
         }
         else
         {
-            rotation = dmGameObject::GetWorldRotation(hcollection, hinstance);
+            rotation = dmGameObject::GetWorldRotation(hinstance);
         }
 
         dmGameObject::InstancePropertyContainers props;
@@ -348,7 +347,7 @@ namespace dmGameSystem
         }
         else
         {
-            scale = dmGameObject::GetWorldScale(hcollection, hinstance);
+            scale = dmGameObject::GetWorldScale(hinstance);
         }
 
         dmScript::GetInstance(L);

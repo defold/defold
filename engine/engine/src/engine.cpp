@@ -21,6 +21,7 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/webserver.h>
 #include <dmsdk/gameobject/gameobject.h>
+#include <dmsdk/gameobject/res_collection.h>
 #include <dmsdk/graphics/graphics.h>
 #include <dmsdk/hid/hid.h>
 #include <dmsdk/render/render.h>

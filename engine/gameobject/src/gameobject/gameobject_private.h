@@ -22,6 +22,8 @@
 #include <dlib/mutex.h>
 #include <dlib/transform.h>
 
+#include <dmsdk/gameobject/res_collection.h>
+
 #include "gameobject.h"
 #include "gameobject_props.h"
 #include "component.h"
@@ -126,6 +128,7 @@ namespace dmGameObject
             m_NextToAdd = INVALID_INSTANCE_INDEX;
             m_ToBeDeleted = 0;
             m_ToBeAdded = 0;
+            m_InitSnapshot = 0;
         }
 
         ~Instance()
@@ -160,8 +163,10 @@ namespace dmGameObject
         uint16_t        m_ToBeDeleted : 1;
         // Used for deferred add-to-update
         uint16_t        m_ToBeAdded : 1;
+        // Marks instances that existed when collection initialization began
+        uint16_t        m_InitSnapshot : 1;
         // Padding
-        uint16_t        m_Pad : 3;
+        uint16_t        m_Pad : 2;
 
         // Index to parent
         uint32_t        m_Parent;
@@ -221,7 +226,7 @@ namespace dmGameObject
     const uint32_t MAX_HIERARCHICAL_DEPTH = 128;
     struct Collection
     {
-        Collection(dmResource::HFactory factory, HContext regist, uint32_t max_instances, uint32_t max_input_stack_entries);
+        Collection(dmResource::HFactory factory, HContext gocontext, uint32_t max_instances, uint32_t max_input_stack_entries);
 
         // Resource factory
         dmResource::HFactory     m_Factory;
@@ -232,7 +237,7 @@ namespace dmGameObject
         HCollection              m_HCollection;
 
         // Borrowed pointer to the owning .collectionc resource, if any.
-        HCollectionResource      m_CollectionResource;
+        CollectionResource*      m_CollectionResource;
 
         // Component type specific worlds
         void*                    m_ComponentWorlds[MAX_COMPONENT_TYPES];
@@ -260,10 +265,10 @@ namespace dmGameObject
         dmArray<Matrix4>         m_WorldTransforms;
 
         // Identifier to game-object handle mapping
-        dmHashTable64<HGameObject> m_IDToInstance;
+        dmHashTable64<HInstance> m_IDToInstance;
 
         // Stack keeping track of which instance has the input focus
-        dmArray<HGameObject>     m_InputFocusStack;
+        dmArray<HInstance>       m_InputFocusStack;
 
         // Array of dynamically created resources (i.e runtime-only resources)
         dmArray<dmhash_t>        m_DynamicResources;
@@ -307,9 +312,10 @@ namespace dmGameObject
     Instance* GetInstanceFromIdentifier(Collection* collection, dmhash_t identifier);
 
     Collection* GetCollectionFromHandle(HCollection collection);
-    HGameObject  GetGameObjectHandle(const Instance* instance);
-    Instance*    GetGameObjectFromHandle(Collection* collection, HGameObject hinstance);
-    dmhash_t     GetAbsoluteIdentifier(Instance* instance, const char* identifier);
+    HInstance   GetInstanceHandle(Collection* collection, const Instance* instance);
+    Instance*   GetInstanceFromHandle(HInstance hinstance, Collection** out_collection = 0);
+    Instance*   GetInstanceFromHandle(Collection* collection, HInstance hinstance);
+    dmhash_t    GetAbsoluteIdentifier(Instance* instance, const char* identifier);
 
     PropertyResult GetProperty(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value);
     PropertyResult SetProperty(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, const PropertyVar& value);
@@ -333,7 +339,7 @@ namespace dmGameObject
     Instance* GetParent(Collection* collection, Instance* instance);
     bool IsBone(Instance* instance);
 
-    void CancelAnimations(Collection* collection, HGameObject hinstance);
+    void CancelAnimations(Collection* collection, HInstance hinstance);
     void ReleaseInstanceIndex(uint32_t index, HCollection collection);
     Result SetIdentifier(Collection* collection, Instance* instance, const char* identifier);
     void ReleaseIdentifier(Collection* collection, Instance* instance);
@@ -346,8 +352,8 @@ namespace dmGameObject
     bool IsGameObjectTransformProperty(dmhash_t property_id);
     void DeleteCollection(Collection* collection);
     bool IsCollectionInitialized(Collection* collection);
-    Result AttachCollection(Collection* collection, const char* name, HCollection hcollection);
-    void DetachCollectionForRecreate(Collection* collection);
+    Result AttachCollection(Collection* collection, const char* name);
+    void DetachCollection(Collection* collection, bool unregister_handle);
 
     void* GetResource(Instance* instance);
 

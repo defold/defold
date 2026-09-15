@@ -16,6 +16,7 @@
 
 #include <dlib/path.h>
 #include <dlib/testutil.h>
+#include <dmsdk/gameobject/res_collection.h>
 #include <resource/resource.h>
 
 #include "../gameobject.h"
@@ -80,35 +81,30 @@ public:
 
 TEST_F(IdTest, TestIdentifier)
 {
-    dmGameObject::HGameObject go1 = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::HGameObject go2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance go1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance go2 = dmGameObject::New(m_Collection, "/go.goc");
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go1);
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go2);
 
-    ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(m_Collection, go1));
-    ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(m_Collection, go2));
+    ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go1));
+    ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go2));
 
     dmGameObject::Result r;
     r = dmGameObject::SetIdentifier(m_Collection, go1, "go1");
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
-    ASSERT_NE(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(m_Collection, go1));
-
-    dmGameObject::HRegister legacy_register = m_Register;
-    dmGameObject::HInstance legacy_instance = dmGameObject::GetInstanceFromIdentifier(m_Collection, dmHashString64("go1"));
-    ASSERT_EQ(m_Register, legacy_register);
-    ASSERT_EQ(go1, legacy_instance);
+    ASSERT_NE(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go1));
 
     r = dmGameObject::SetIdentifier(m_Collection, go1, "go1");
     ASSERT_NE(dmGameObject::RESULT_OK, r);
-    ASSERT_NE(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(m_Collection, go1));
+    ASSERT_NE(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go1));
 
     r = dmGameObject::SetIdentifier(m_Collection, go2, "go1");
     ASSERT_EQ(dmGameObject::RESULT_IDENTIFIER_IN_USE, r);
-    ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(m_Collection, go2));
+    ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go2));
 
     r = dmGameObject::SetIdentifier(m_Collection, go2, "go2");
     ASSERT_EQ(dmGameObject::RESULT_OK, r);
-    ASSERT_NE(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(m_Collection, go2));
+    ASSERT_NE(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go2));
 
     r = dmGameObject::SetIdentifier(m_Collection, go2, "go2");
     ASSERT_NE(dmGameObject::RESULT_OK, r);
@@ -119,73 +115,99 @@ TEST_F(IdTest, TestIdentifier)
 
 TEST_F(IdTest, TestHierarchies)
 {
-    dmGameObject::HCollectionResource collection_resource = 0;
+    dmGameObject::CollectionResource* collection_resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/root.collectionc", (void**)&collection_resource));
     dmGameObject::HCollection collection = dmGameObject::GetCollectionFromResource(collection_resource);
     ASSERT_NE(dmGameObject::INVALID_COLLECTION, collection);
     dmhash_t id = dmHashString64("/go");
     dmhash_t sub1_id = dmHashString64("/sub/go1");
     dmhash_t sub2_id = dmHashString64("/sub/go2");
-    dmGameObject::HGameObject instance = dmGameObject::GetGameObjectFromIdentifier(collection, id);
+    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, id);
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
-    dmGameObject::HGameObject sub1_instance = dmGameObject::GetGameObjectFromIdentifier(collection, sub1_id);
+    dmGameObject::HInstance sub1_instance = dmGameObject::GetInstanceFromIdentifier(collection, sub1_id);
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, sub1_instance);
-    dmGameObject::HGameObject sub2_instance = dmGameObject::GetGameObjectFromIdentifier(collection, sub2_id);
+    dmGameObject::HInstance sub2_instance = dmGameObject::GetInstanceFromIdentifier(collection, sub2_id);
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, sub2_instance);
-    ASSERT_EQ(sub1_id, dmGameObject::GetAbsoluteIdentifier(collection, instance, "sub/go1"));
-    ASSERT_EQ(id, dmGameObject::GetAbsoluteIdentifier(collection, sub1_instance, "/go"));
-    ASSERT_EQ(sub2_id, dmGameObject::GetAbsoluteIdentifier(collection, sub1_instance, "go2"));
-    ASSERT_EQ(id, dmGameObject::GetAbsoluteIdentifier(collection, sub2_instance, "/go"));
+    ASSERT_EQ(sub1_id, dmGameObject::GetAbsoluteIdentifier(instance, "sub/go1"));
+    ASSERT_EQ(id, dmGameObject::GetAbsoluteIdentifier(sub1_instance, "/go"));
+    ASSERT_EQ(sub2_id, dmGameObject::GetAbsoluteIdentifier(sub1_instance, "go2"));
+    ASSERT_EQ(id, dmGameObject::GetAbsoluteIdentifier(sub2_instance, "/go"));
     dmResource::Release(m_Factory, collection_resource);
 }
 
 // Tests that recreating a game object with a reused identifier, still gets a new generation number
 TEST_F(IdTest, TestGenerationChangesOnIdentifierReuse)
 {
-    dmGameObject::HGameObject go1 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance go1 = dmGameObject::New(m_Collection, "/go.goc");
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go1);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go1, "go1"));
 
-    dmhash_t id = dmGameObject::GetIdentifier(m_Collection, go1);
-    uint32_t generation1 = dmGameObject::GetGeneration(m_Collection, go1);
+    dmhash_t id = dmGameObject::GetIdentifier(go1);
+    uint32_t generation1 = dmGameObject::GetGeneration(go1);
 
-    ASSERT_EQ(go1, dmGameObject::GetGameObjectFromIdentifier(m_Collection, id));
+    ASSERT_EQ(go1, dmGameObject::GetInstanceFromIdentifier(m_Collection, id));
 
     dmGameObject::Delete(m_Collection, go1, false);
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetGameObjectFromIdentifier(m_Collection, id));
+    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetInstanceFromIdentifier(m_Collection, id));
 
-    dmGameObject::HGameObject go2 = dmGameObject::New(m_Collection, "/go.goc");
+    dmGameObject::HInstance go2 = dmGameObject::New(m_Collection, "/go.goc");
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go2);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go2, "go1"));
 
-    uint32_t generation2 = dmGameObject::GetGeneration(m_Collection, go2);
+    uint32_t generation2 = dmGameObject::GetGeneration(go2);
 
     ASSERT_LT(generation1, generation2);
-    ASSERT_EQ(go2, dmGameObject::GetGameObjectFromIdentifier(m_Collection, id));
+    ASSERT_EQ(go2, dmGameObject::GetInstanceFromIdentifier(m_Collection, id));
 
     dmGameObject::Delete(m_Collection, go2, false);
 }
 
 TEST_F(IdTest, TestPackedHandlesAndStaleGameObject)
 {
-    dmGameObject::HGameObject game_object = dmGameObject::New(m_Collection, 0);
+    const uint64_t instance_index_mask = (1ULL << 20) - 1;
+    const uint64_t collection_index_mask = (1ULL << 12) - 1;
+    dmGameObject::HInstance game_object = dmGameObject::New(m_Collection, 0);
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, game_object);
+    ASSERT_EQ((uint64_t)(m_Collection & 0xffff), (game_object >> 20) & collection_index_mask);
     ASSERT_NE(0U, (uint32_t)(game_object >> 32));
-    ASSERT_EQ((uint32_t)(game_object >> 32), dmGameObject::GetGeneration(m_Collection, game_object));
-    ASSERT_TRUE(dmGameObject::IsValid(m_Collection, game_object));
+    ASSERT_EQ((uint32_t)(game_object >> 32), dmGameObject::GetGeneration(game_object));
+    ASSERT_TRUE(dmGameObject::IsValid(game_object));
 
-    uint32_t index = (uint32_t)game_object;
+    uint32_t index = (uint32_t)(game_object & instance_index_mask);
+    dmGameObject::HInstance zero_generation = (game_object & 0xffffffffULL);
+    ASSERT_EQ(0U, dmGameObject::GetGeneration(zero_generation));
+    ASSERT_FALSE(dmGameObject::IsValid(zero_generation));
+
+    dmGameObject::HInstance max_indices = ((uint64_t)dmGameObject::GetGeneration(game_object) << 32) |
+                                          (collection_index_mask << 20) |
+                                          instance_index_mask;
+    ASSERT_FALSE(dmGameObject::IsValid(max_indices));
+
+    dmGameObject::HInstance maximum_encoding = UINT64_MAX;
+    ASSERT_EQ(UINT32_MAX, dmGameObject::GetGeneration(maximum_encoding));
+    ASSERT_FALSE(dmGameObject::IsValid(maximum_encoding));
+    ASSERT_EQ(dmGameObject::INVALID_COLLECTION, dmGameObject::GetCollection(maximum_encoding));
+
     dmGameObject::Delete(m_Collection, game_object, false);
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_FALSE(dmGameObject::IsValid(m_Collection, game_object));
+    ASSERT_FALSE(dmGameObject::IsValid(game_object));
 
-    dmGameObject::HGameObject replacement = dmGameObject::New(m_Collection, 0);
+    dmGameObject::HInstance replacement = dmGameObject::New(m_Collection, 0);
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, replacement);
-    ASSERT_EQ(index, (uint32_t)replacement);
+    ASSERT_EQ(index, (uint32_t)(replacement & instance_index_mask));
     ASSERT_NE((uint32_t)(game_object >> 32), (uint32_t)(replacement >> 32));
-    ASSERT_FALSE(dmGameObject::IsValid(m_Collection, game_object));
-    ASSERT_TRUE(dmGameObject::IsValid(m_Collection, replacement));
+    ASSERT_FALSE(dmGameObject::IsValid(game_object));
+    ASSERT_TRUE(dmGameObject::IsValid(replacement));
+
+    dmGameObject::SetPosition(replacement, dmVMath::Point3(4.0f, 5.0f, 6.0f));
+    dmGameObject::SetPosition(game_object, dmVMath::Point3(1.0f, 2.0f, 3.0f));
+    dmGameObject::Delete(m_Collection, game_object, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::IsValid(replacement));
+    ASSERT_EQ(4.0f, dmGameObject::GetPosition(replacement).getX());
+    ASSERT_EQ(5.0f, dmGameObject::GetPosition(replacement).getY());
+    ASSERT_EQ(6.0f, dmGameObject::GetPosition(replacement).getZ());
     dmGameObject::Delete(m_Collection, replacement, false);
 }
 
@@ -208,29 +230,37 @@ TEST_F(IdTest, TestWrongCollectionAndStaleCollection)
     ASSERT_NE(0U, first >> 16);
     ASSERT_NE(0U, second >> 16);
 
-    dmGameObject::HGameObject first_object = dmGameObject::New(first, 0);
-    dmGameObject::HGameObject second_object = dmGameObject::New(second, 0);
+    dmGameObject::HInstance first_object = dmGameObject::New(first, 0);
+    dmGameObject::HInstance second_object = dmGameObject::New(second, 0);
     dmhash_t shared_identifier = dmHashString64("shared");
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(first, first_object, shared_identifier));
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(second, second_object, shared_identifier));
-    ASSERT_TRUE(dmGameObject::IsValid(first, first_object));
-    ASSERT_TRUE(dmGameObject::IsValid(second, second_object));
-    ASSERT_FALSE(dmGameObject::IsValid(first, second_object));
-    ASSERT_FALSE(dmGameObject::IsValid(second, first_object));
-    ASSERT_EQ(first_object, dmGameObject::GetGameObjectFromIdentifier(first, shared_identifier));
-    ASSERT_EQ(second_object, dmGameObject::GetGameObjectFromIdentifier(second, shared_identifier));
+    ASSERT_TRUE(dmGameObject::IsValid(first_object));
+    ASSERT_TRUE(dmGameObject::IsValid(second_object));
+    ASSERT_EQ(first, dmGameObject::GetCollection(first_object));
+    ASSERT_EQ(second, dmGameObject::GetCollection(second_object));
+    ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::SetIdentifier(first, second_object, dmHashString64("wrong")));
+    ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::SetIdentifier(second, first_object, dmHashString64("wrong")));
+    dmGameObject::Delete(first, second_object, false);
+    ASSERT_TRUE(dmGameObject::IsValid(second_object));
+    ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::SetParent(first_object, second_object));
+    ASSERT_EQ(first_object, dmGameObject::GetInstanceFromIdentifier(first, shared_identifier));
+    ASSERT_EQ(second_object, dmGameObject::GetInstanceFromIdentifier(second, shared_identifier));
 
     uint16_t first_index = (uint16_t)first;
     uint16_t first_generation = (uint16_t)(first >> 16);
     dmGameObject::DeleteCollection(first);
     dmGameObject::PostUpdate(m_Register);
-    ASSERT_FALSE(dmGameObject::IsValid(first, first_object));
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetGameObjectFromIdentifier(first, shared_identifier));
+    ASSERT_FALSE(dmGameObject::IsValid(first_object));
+    ASSERT_EQ(dmGameObject::INVALID_COLLECTION, dmGameObject::GetCollection(first_object));
+    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetInstanceFromIdentifier(first, shared_identifier));
 
     dmGameObject::HCollection reused = dmGameObject::NewCollection("reused", m_Factory, m_Register, 4, 0);
     ASSERT_EQ(first_index, (uint16_t)reused);
     ASSERT_NE(first_generation, (uint16_t)(reused >> 16));
-    ASSERT_FALSE(dmGameObject::IsValid(first, dmGameObject::New(reused, 0)));
+    dmGameObject::HInstance reused_object = dmGameObject::New(reused, 0);
+    ASSERT_TRUE(dmGameObject::IsValid(reused_object));
+    ASSERT_FALSE(dmGameObject::IsValid(first_object));
 
     dmGameObject::DeleteCollection(reused);
     dmGameObject::DeleteCollection(second);
@@ -240,75 +270,94 @@ TEST_F(IdTest, TestWrongCollectionAndStaleCollection)
 TEST_F(IdTest, TestCollectionGenerationSurvivesContextDestruction)
 {
     dmGameObject::HContext first_context = dmGameObject::NewContext();
+    dmGameObject::Initialize(first_context, m_ScriptContext);
+    dmGameObject::ComponentTypeCreateCtx component_create_ctx = {};
+    component_create_ctx.m_Script = m_ScriptContext;
+    component_create_ctx.m_Register = first_context;
+    component_create_ctx.m_Factory = m_Factory;
+    dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
+    dmGameObject::SortComponentTypes(first_context);
     dmGameObject::HCollection first_collection = dmGameObject::NewCollection("context_lifecycle", m_Factory, first_context, 1, 0);
     ASSERT_NE(dmGameObject::INVALID_COLLECTION, first_collection);
+    dmGameObject::HInstance first_instance = dmGameObject::New(first_collection, 0);
+    ASSERT_TRUE(dmGameObject::IsValid(first_instance));
 
     const uint16_t collection_index = (uint16_t)first_collection;
     const uint16_t collection_generation = (uint16_t)(first_collection >> 16);
     dmGameObject::DeleteContext(first_context);
     ASSERT_EQ((dmGameObject::HContext)0, dmGameObject::GetGameObjectContext(first_collection));
+    ASSERT_FALSE(dmGameObject::IsValid(first_instance));
 
     dmGameObject::HContext second_context = dmGameObject::NewContext();
+    dmGameObject::Initialize(second_context, m_ScriptContext);
+    component_create_ctx.m_Register = second_context;
+    dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
+    dmGameObject::SortComponentTypes(second_context);
     dmGameObject::HCollection second_collection = dmGameObject::NewCollection("context_lifecycle", m_Factory, second_context, 1, 0);
     ASSERT_NE(dmGameObject::INVALID_COLLECTION, second_collection);
     ASSERT_EQ(collection_index, (uint16_t)second_collection);
     ASSERT_NE(collection_generation, (uint16_t)(second_collection >> 16));
     ASSERT_EQ(second_context, dmGameObject::GetGameObjectContext(second_collection));
+    dmGameObject::HInstance second_instance = dmGameObject::New(second_collection, 0);
+    ASSERT_TRUE(dmGameObject::IsValid(second_instance));
+    ASSERT_NE(first_instance, second_instance);
+    ASSERT_FALSE(dmGameObject::IsValid(first_instance));
 
     dmGameObject::DeleteContext(second_context);
 }
 
 TEST_F(IdTest, TestInvalidHandleDefaults)
 {
-    dmGameObject::HGameObject invalid_generation = 1;
-    ASSERT_FALSE(dmGameObject::IsValid(m_Collection, invalid_generation));
-    ASSERT_EQ(0U, dmGameObject::GetIdentifier(m_Collection, invalid_generation));
-    ASSERT_EQ(0U, dmGameObject::GetGeneration(m_Collection, invalid_generation));
+    dmGameObject::HInstance invalid_generation = 1;
+    ASSERT_FALSE(dmGameObject::IsValid(invalid_generation));
+    ASSERT_EQ(0U, dmGameObject::GetIdentifier(invalid_generation));
+    ASSERT_EQ(0U, dmGameObject::GetGeneration(invalid_generation));
+    ASSERT_EQ(dmGameObject::INVALID_COLLECTION, dmGameObject::GetCollection(invalid_generation));
     ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::SetIdentifier(m_Collection, invalid_generation, "invalid"));
 
-    dmVMath::Point3 position = dmGameObject::GetPosition(m_Collection, invalid_generation);
+    dmVMath::Point3 position = dmGameObject::GetPosition(invalid_generation);
     ASSERT_EQ(0.0f, position.getX());
     ASSERT_EQ(0.0f, position.getY());
     ASSERT_EQ(0.0f, position.getZ());
-    dmVMath::Quat rotation = dmGameObject::GetRotation(m_Collection, invalid_generation);
+    dmVMath::Quat rotation = dmGameObject::GetRotation(invalid_generation);
     ASSERT_EQ(0.0f, rotation.getX());
     ASSERT_EQ(0.0f, rotation.getY());
     ASSERT_EQ(0.0f, rotation.getZ());
     ASSERT_EQ(1.0f, rotation.getW());
-    dmVMath::Vector3 scale = dmGameObject::GetScale(m_Collection, invalid_generation);
+    dmVMath::Vector3 scale = dmGameObject::GetScale(invalid_generation);
     ASSERT_EQ(1.0f, scale.getX());
     ASSERT_EQ(1.0f, scale.getY());
     ASSERT_EQ(1.0f, scale.getZ());
-    ASSERT_EQ(1.0f, dmGameObject::GetUniformScale(m_Collection, invalid_generation));
+    ASSERT_EQ(1.0f, dmGameObject::GetUniformScale(invalid_generation));
 
-    dmVMath::Point3 world_position = dmGameObject::GetWorldPosition(m_Collection, invalid_generation);
+    dmVMath::Point3 world_position = dmGameObject::GetWorldPosition(invalid_generation);
     ASSERT_EQ(0.0f, world_position.getX());
     ASSERT_EQ(0.0f, world_position.getY());
     ASSERT_EQ(0.0f, world_position.getZ());
-    dmVMath::Quat world_rotation = dmGameObject::GetWorldRotation(m_Collection, invalid_generation);
+    dmVMath::Quat world_rotation = dmGameObject::GetWorldRotation(invalid_generation);
     ASSERT_EQ(0.0f, world_rotation.getX());
     ASSERT_EQ(0.0f, world_rotation.getY());
     ASSERT_EQ(0.0f, world_rotation.getZ());
     ASSERT_EQ(1.0f, world_rotation.getW());
-    dmVMath::Vector3 world_scale = dmGameObject::GetWorldScale(m_Collection, invalid_generation);
+    dmVMath::Vector3 world_scale = dmGameObject::GetWorldScale(invalid_generation);
     ASSERT_EQ(1.0f, world_scale.getX());
     ASSERT_EQ(1.0f, world_scale.getY());
     ASSERT_EQ(1.0f, world_scale.getZ());
-    ASSERT_EQ(1.0f, dmGameObject::GetWorldUniformScale(m_Collection, invalid_generation));
-    const dmVMath::Matrix4& world_matrix = dmGameObject::GetWorldMatrix(m_Collection, invalid_generation);
+    ASSERT_EQ(1.0f, dmGameObject::GetWorldUniformScale(invalid_generation));
+    const dmVMath::Matrix4& world_matrix = dmGameObject::GetWorldMatrix(invalid_generation);
     ASSERT_EQ(1.0f, world_matrix.getCol0().getX());
     ASSERT_EQ(1.0f, world_matrix.getCol1().getY());
     ASSERT_EQ(1.0f, world_matrix.getCol2().getZ());
     ASSERT_EQ(1.0f, world_matrix.getCol3().getW());
-    dmTransform::Transform world_transform = dmGameObject::GetWorldTransform(m_Collection, invalid_generation);
+    dmTransform::Transform world_transform = dmGameObject::GetWorldTransform(invalid_generation);
     ASSERT_EQ(0.0f, world_transform.GetTranslation().getX());
     ASSERT_EQ(1.0f, world_transform.GetScale().getX());
 
-    dmGameObject::SetPosition(m_Collection, invalid_generation, dmVMath::Point3(1.0f, 2.0f, 3.0f));
-    dmGameObject::SetRotation(m_Collection, invalid_generation, dmVMath::Quat::identity());
-    dmGameObject::SetScale(m_Collection, invalid_generation, 2.0f);
-    dmGameObject::SetScaleXY(m_Collection, invalid_generation, 2.0f, 3.0f);
-    dmGameObject::SetBone(m_Collection, invalid_generation, true);
+    dmGameObject::SetPosition(invalid_generation, dmVMath::Point3(1.0f, 2.0f, 3.0f));
+    dmGameObject::SetRotation(invalid_generation, dmVMath::Quat::identity());
+    dmGameObject::SetScale(invalid_generation, 2.0f);
+    dmGameObject::SetScaleXY(invalid_generation, 2.0f, 3.0f);
+    dmGameObject::SetBone(invalid_generation, true);
     dmGameObject::Delete(m_Collection, invalid_generation, true);
 
     const dmGameObject::HCollection invalid_collection = dmGameObject::INVALID_COLLECTION;
@@ -318,7 +367,7 @@ TEST_F(IdTest, TestInvalidHandleDefaults)
     dmGameObject::HComponent component = (dmGameObject::HComponent)1;
     dmGameObject::HComponentWorld world = (dmGameObject::HComponentWorld)1;
     dmGameObject::InputAction input_action = {};
-    dmGameObject::HGameObject spawned = 1;
+    dmGameObject::HInstance spawned = 1;
     uint16_t component_index = 1;
     dmhash_t component_id = 1;
 
@@ -326,20 +375,20 @@ TEST_F(IdTest, TestInvalidHandleDefaults)
     ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::Spawn(invalid_collection, 0, 0, 0, 0, dmVMath::Point3(), dmVMath::Quat::identity(), dmVMath::Vector3(1.0f)));
     ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::Spawn(invalid_collection, 0, 0, 0, 0, dmVMath::Point3(), dmVMath::Quat::identity(), dmVMath::Vector3(1.0f), &spawned));
     ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, spawned);
-    ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::GetComponentIndex(invalid_collection, invalid_generation, 0, &component_index));
+    ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::GetComponentIndex(invalid_generation, 0, &component_index));
     ASSERT_EQ(0U, component_index);
-    ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::GetComponentId(invalid_collection, invalid_generation, 0, &component_id));
+    ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::GetComponentId(invalid_generation, 0, &component_id));
     ASSERT_EQ(0U, component_id);
-    ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::GetComponent(invalid_collection, invalid_generation, 0, &component_type, &component, &world));
+    ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::GetComponent(invalid_generation, 0, &component_type, &component, &world));
     ASSERT_EQ(0U, component_type);
     ASSERT_EQ((dmGameObject::HComponent)0, component);
     ASSERT_EQ((dmGameObject::HComponentWorld)0, world);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_INVALID_INSTANCE, dmGameObject::GetProperty(invalid_collection, invalid_generation, 0, 0, property_options, property_desc));
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_INVALID_INSTANCE, dmGameObject::SetProperty(invalid_collection, invalid_generation, 0, 0, property_options, dmGameObject::PropertyVar(1.0f)));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_INVALID_INSTANCE, dmGameObject::GetProperty(invalid_generation, 0, 0, property_options, property_desc));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_INVALID_INSTANCE, dmGameObject::SetProperty(invalid_generation, 0, 0, property_options, dmGameObject::PropertyVar(1.0f)));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_INVALID_INSTANCE, dmGameObject::CancelAnimations(invalid_collection, invalid_generation, 0, 0));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_INVALID_INSTANCE, dmGameObject::CancelAnimations(m_Collection, invalid_generation, 0, 1));
-    ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::SetParent(invalid_collection, invalid_generation, dmGameObject::INVALID_GAME_OBJECT));
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetParent(invalid_collection, invalid_generation));
+    ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::SetParent(invalid_generation, dmGameObject::INVALID_GAME_OBJECT));
+    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetParent(invalid_generation));
     ASSERT_EQ(0xFFFFFFFFU, dmGameObject::GetComponentTypeIndex(invalid_collection, 0));
     ASSERT_EQ((dmGameObject::HComponentWorld)0, dmGameObject::GetWorld(invalid_collection, 0));
     ASSERT_EQ((void*)0, dmGameObject::GetContext(invalid_collection, 0));
@@ -366,15 +415,14 @@ TEST_F(IdTest, TestInvalidHandleDefaults)
     ASSERT_EQ((dmGameObject::HContext)0, dmGameObject::GetGameObjectContext(sentinel_index_collection));
     ASSERT_EQ((dmResource::HFactory)0, dmGameObject::GetFactory(zero_generation_collection));
     ASSERT_EQ((dmResource::HFactory)0, dmGameObject::GetFactory(sentinel_index_collection));
-    ASSERT_FALSE(dmGameObject::IsValid(zero_generation_collection, invalid_generation));
-    ASSERT_FALSE(dmGameObject::IsValid(sentinel_index_collection, invalid_generation));
+    ASSERT_FALSE(dmGameObject::IsValid(invalid_generation));
 }
 
 TEST_F(IdTest, TestSceneTraversalRejectsStaleHandles)
 {
-    dmGameObject::HGameObject parent = dmGameObject::New(m_Collection, 0);
-    dmGameObject::HGameObject child = dmGameObject::New(m_Collection, 0);
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(m_Collection, child, parent));
+    dmGameObject::HInstance parent = dmGameObject::New(m_Collection, 0);
+    dmGameObject::HInstance child = dmGameObject::New(m_Collection, 0);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(child, parent));
 
     dmGameObject::SceneNode parent_node = {};
     parent_node.m_Type = dmGameObject::SCENE_NODE_TYPE_GAMEOBJECT;
@@ -402,7 +450,7 @@ TEST_F(IdTest, TestSceneTraversalRejectsStaleHandles)
 
     dmGameObject::HCollection other_collection = dmGameObject::NewCollection("scene_stale_other", m_Factory, m_Register, 1, 0);
     ASSERT_NE(dmGameObject::INVALID_COLLECTION, other_collection);
-    dmGameObject::HGameObject other_object = dmGameObject::New(other_collection, 0);
+    dmGameObject::HInstance other_object = dmGameObject::New(other_collection, 0);
     component_node.m_Instance = other_object;
     component_children = dmGameObject::TraverseIterateChildren(&component_node);
     ASSERT_FALSE(dmGameObject::TraverseIterateNext(&component_children));
@@ -416,22 +464,23 @@ TEST_F(IdTest, TestSceneTraversalRejectsStaleHandles)
 
 TEST_F(IdTest, TestGameObjectsAcrossLegacyIndexBoundary)
 {
-    const uint32_t object_count = 65537;
+    const uint32_t object_count = 100000;
     dmGameObject::HCollection collection = dmGameObject::NewCollection("large", m_Factory, m_Register, object_count, 0);
     ASSERT_NE(dmGameObject::INVALID_COLLECTION, collection);
 
-    dmGameObject::HGameObject first = dmGameObject::INVALID_GAME_OBJECT;
-    dmGameObject::HGameObject low = dmGameObject::INVALID_GAME_OBJECT;
-    dmGameObject::HGameObject boundary = dmGameObject::INVALID_GAME_OBJECT;
-    dmGameObject::HGameObject last = dmGameObject::INVALID_GAME_OBJECT;
+    dmGameObject::HInstance first = dmGameObject::INVALID_GAME_OBJECT;
+    dmGameObject::HInstance low = dmGameObject::INVALID_GAME_OBJECT;
+    dmGameObject::HInstance boundary = dmGameObject::INVALID_GAME_OBJECT;
+    dmGameObject::HInstance above_boundary = dmGameObject::INVALID_GAME_OBJECT;
+    dmGameObject::HInstance last = dmGameObject::INVALID_GAME_OBJECT;
     dmhash_t first_id = dmHashString64("large-first");
     for (uint32_t i = 0; i < object_count; ++i)
     {
         uint32_t identifier_index = dmGameObject::AcquireInstanceIndex(collection);
         ASSERT_EQ(i, identifier_index);
-        dmGameObject::HGameObject game_object = dmGameObject::New(collection, 0);
+        dmGameObject::HInstance game_object = dmGameObject::New(collection, 0);
         ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, game_object);
-        dmGameObject::AssignInstanceIndex(collection, identifier_index, game_object);
+        dmGameObject::AssignInstanceIndex(identifier_index, game_object);
         if (i == 0)
         {
             first = game_object;
@@ -441,41 +490,44 @@ TEST_F(IdTest, TestGameObjectsAcrossLegacyIndexBoundary)
             low = game_object;
         if (i == 65535)
             boundary = game_object;
+        if (i == 65536)
+            above_boundary = game_object;
         if (i == object_count - 1)
             last = game_object;
     }
     ASSERT_EQ(dmGameObject::INVALID_INSTANCE_POOL_INDEX, dmGameObject::AcquireInstanceIndex(collection));
 
-    ASSERT_EQ(65535U, (uint32_t)boundary);
-    ASSERT_EQ(65536U, (uint32_t)last);
-    ASSERT_EQ(first, dmGameObject::GetGameObjectFromIdentifier(collection, first_id));
+    ASSERT_EQ(65535U, (uint32_t)(boundary & ((1ULL << 20) - 1)));
+    ASSERT_EQ(65536U, (uint32_t)(above_boundary & ((1ULL << 20) - 1)));
+    ASSERT_EQ(object_count - 1, (uint32_t)(last & ((1ULL << 20) - 1)));
+    ASSERT_EQ(first, dmGameObject::GetInstanceFromIdentifier(collection, first_id));
 
     // Collection initialization must scan allocated slots, not just the live
     // count. Freeing a low slot must not leave a live high-index object uninitialized.
     dmGameObject::Delete(collection, low, false);
     ASSERT_TRUE(dmGameObject::PostUpdate(collection));
-    ASSERT_FALSE(dmGameObject::IsValid(collection, low));
+    ASSERT_FALSE(dmGameObject::IsValid(low));
     ASSERT_TRUE(dmGameObject::Init(collection));
     dmGameObject::Collection* collection_ptr = dmGameObject::GetCollectionFromHandle(collection);
-    dmGameObject::Instance* last_instance = dmGameObject::GetGameObjectFromHandle(collection_ptr, last);
+    dmGameObject::Instance* last_instance = dmGameObject::GetInstanceFromHandle(collection_ptr, last);
     ASSERT_NE((dmGameObject::Instance*)0, last_instance);
     ASSERT_TRUE(last_instance->m_Initialized);
 
     dmhash_t last_id = dmHashString64("large-last");
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(collection, last, last_id));
-    ASSERT_EQ(last, dmGameObject::GetGameObjectFromIdentifier(collection, last_id));
+    ASSERT_EQ(last, dmGameObject::GetInstanceFromIdentifier(collection, last_id));
 
-    dmGameObject::SetPosition(collection, last, dmVMath::Point3(1.0f, 2.0f, 3.0f));
-    ASSERT_EQ(3.0f, dmGameObject::GetPosition(collection, last).getZ());
-    dmGameObject::SetPosition(collection, first, dmVMath::Point3(10.0f, 0.0f, 0.0f));
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(collection, last, first));
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(collection, boundary, first));
-    ASSERT_EQ(first, dmGameObject::GetParent(collection, last));
-    ASSERT_EQ(first, dmGameObject::GetParent(collection, boundary));
-    ASSERT_EQ(2U, dmGameObject::GetChildCount(collection, first));
+    dmGameObject::SetPosition(last, dmVMath::Point3(1.0f, 2.0f, 3.0f));
+    ASSERT_EQ(3.0f, dmGameObject::GetPosition(last).getZ());
+    dmGameObject::SetPosition(first, dmVMath::Point3(10.0f, 0.0f, 0.0f));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(last, first));
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetParent(boundary, first));
+    ASSERT_EQ(first, dmGameObject::GetParent(last));
+    ASSERT_EQ(first, dmGameObject::GetParent(boundary));
+    ASSERT_EQ(2U, dmGameObject::GetChildCount(first));
 
     dmGameObject::UpdateTransforms(collection);
-    ASSERT_EQ(11.0f, dmGameObject::GetWorldPosition(collection, last).getX());
+    ASSERT_EQ(11.0f, dmGameObject::GetWorldPosition(last).getX());
 
     // Traverse through the public scene API. The collection iterator must be
     // exhausted because it owns the collection lock for its lifetime.
@@ -512,27 +564,28 @@ TEST_F(IdTest, TestGameObjectsAcrossLegacyIndexBoundary)
     // Exercise the deferred-delete list with an index that cannot fit in 16 bits.
     dmGameObject::Delete(collection, last, false);
     ASSERT_TRUE(dmGameObject::PostUpdate(collection));
-    ASSERT_EQ(1U, dmGameObject::GetChildCount(collection, first));
-    ASSERT_EQ(first, dmGameObject::GetParent(collection, boundary));
+    ASSERT_EQ(1U, dmGameObject::GetChildCount(first));
+    ASSERT_EQ(first, dmGameObject::GetParent(boundary));
     uint32_t reused_identifier_index = dmGameObject::AcquireInstanceIndex(collection);
-    ASSERT_EQ(65536U, reused_identifier_index);
+    ASSERT_EQ(object_count - 1, reused_identifier_index);
 
     dmGameObject::HPrototype prototype = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/go.goc", (void**)&prototype));
-    dmGameObject::HGameObject reused = dmGameObject::INVALID_GAME_OBJECT;
+    dmGameObject::HInstance reused = dmGameObject::INVALID_GAME_OBJECT;
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::Spawn(collection, prototype, "/go.goc",
             dmHashString64("/large-reused"), 0, dmVMath::Point3(), dmVMath::Quat::identity(),
             dmVMath::Vector3(1.0f), &reused));
     dmResource::Release(m_Factory, prototype);
-    dmGameObject::AssignInstanceIndex(collection, reused_identifier_index, reused);
-    ASSERT_EQ(65536U, (uint32_t)reused);
+    dmGameObject::AssignInstanceIndex(reused_identifier_index, reused);
+    ASSERT_EQ(object_count - 1, (uint32_t)(reused & ((1ULL << 20) - 1)));
     ASSERT_NE(last, reused);
     ASSERT_EQ(1U, dmGameObject::GetAddToUpdateCount(collection));
     ASSERT_TRUE(dmGameObject::Update(collection, &m_UpdateContext));
     ASSERT_EQ(0U, dmGameObject::GetAddToUpdateCount(collection));
-    ASSERT_FALSE(dmGameObject::IsValid(collection, last));
-    ASSERT_TRUE(dmGameObject::IsValid(collection, boundary));
-    ASSERT_TRUE(dmGameObject::IsValid(collection, reused));
+    ASSERT_FALSE(dmGameObject::IsValid(last));
+    ASSERT_TRUE(dmGameObject::IsValid(boundary));
+    ASSERT_TRUE(dmGameObject::IsValid(above_boundary));
+    ASSERT_TRUE(dmGameObject::IsValid(reused));
 
     dmGameObject::DeleteCollection(collection);
     dmGameObject::PostUpdate(m_Register);

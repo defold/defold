@@ -126,7 +126,7 @@ namespace dmGameSystem
     struct DispatchContext
     {
         PhysicsContextBullet3D* m_PhysicsContext;
-        dmGameObject::HRegister m_Register;
+        dmGameObject::HContext  m_GOContext;
         uint32_t                m_ComponentTypeIndex;
         bool                    m_Success;
     };
@@ -283,7 +283,6 @@ namespace dmGameSystem
         CollisionComponent* component_base = &component->m_BaseComponent;
         component_base->m_Resource         = (CollisionObjectResource*) params.m_Resource;
         component_base->m_Instance         = params.m_Instance;
-        component_base->m_Collection       = params.m_Collection;
         component_base->m_ComponentIndex   = params.m_ComponentIndex;
         component_base->m_AddedToUpdate    = false;
         component_base->m_StartAsEnabled   = true;
@@ -335,7 +334,7 @@ namespace dmGameSystem
             dmhash_t coll_name_hash = dmMessage::GetSocketNameHash(message->m_Sender.m_Socket);
 
             // Target collection which can be different than we are updating for.
-            dmGameObject::HCollection hcollection = dmGameObject::GetCollectionByHash(context->m_Register, coll_name_hash);
+            dmGameObject::HCollection hcollection = dmGameObject::GetCollectionByHash(context->m_GOContext, coll_name_hash);
             if (!hcollection) // if the collection has been removed
                 return;
 
@@ -374,7 +373,7 @@ namespace dmGameSystem
         dispatch_context.m_PhysicsContext = physics_context;
         dispatch_context.m_Success = true;
         dispatch_context.m_ComponentTypeIndex = world->m_ComponentTypeIndex;
-        dispatch_context.m_Register = dmGameObject::GetGameObjectContext(collection);
+        dispatch_context.m_GOContext = dmGameObject::GetGameObjectContext(collection);
 
         dmMessage::HSocket physics_socket;
         physics_socket = dmPhysics::GetSocket3D(physics_context->m_Context);
@@ -521,7 +520,7 @@ namespace dmGameSystem
             return;
         CollisionComponent* component = (CollisionComponent*)user_data;
         dmGameObject::HInstance instance = component->m_Instance;
-        world_transform = dmGameObject::GetWorldTransform(component->m_Collection, instance);
+        world_transform = dmGameObject::GetWorldTransform(instance);
     }
 
     static void SetWorldTransform(void* user_data, const dmVMath::Point3& position, const dmVMath::Quat& rotation)
@@ -530,8 +529,8 @@ namespace dmGameSystem
             return;
         CollisionComponent* component = (CollisionComponent*)user_data;
         dmGameObject::HInstance instance = component->m_Instance;
-        dmGameObject::SetPosition(component->m_Collection, instance, position);
-        dmGameObject::SetRotation(component->m_Collection, instance, rotation);
+        dmGameObject::SetPosition(instance, position);
+        dmGameObject::SetRotation(instance, rotation);
         ++g_NumPhysicsTransformsUpdated;
     }
 

@@ -176,8 +176,7 @@ namespace dmGameSystem
     struct CollisionComponent
     {
         CollisionObjectResource*      m_Resource;
-        dmGameObject::HCollection     m_Collection;
-        dmGameObject::HGameObject     m_Instance;
+        dmGameObject::HInstance       m_Instance;
         uint16_t                      m_Mask;
         uint16_t                      m_ComponentIndex;
         // Tracking initial state.
@@ -319,7 +318,7 @@ namespace dmGameSystem
         ModelContext* model_context);
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
-                                                  dmGameObject::HContext regist,
+                                                  dmGameObject::HContext gocontext,
                                                   dmRender::HRenderContext render_context,
                                                   PhysicsContext* physics_context,
                                                   SpriteContext* sprite_context,

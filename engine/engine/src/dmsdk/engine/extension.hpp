@@ -94,17 +94,25 @@ namespace dmEngine
     /*# get the game object context
      * @name GetGameObjectContext
      * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppFinalize
-     * @return context [type:dmGameObject::HContext] The borrowed engine-owned game object context. Do not pass it to dmGameObject::DeleteContext.
+     * @return context [type:dmGameObject::HContext] The borrowed engine-owned game object context. The caller must not release it.
      */
     dmGameObject::HContext GetGameObjectContext(dmExtension::AppParams* app_params);
 
     /*# get the game object context
-     * Deprecated compatibility name for GetGameObjectContext.
      * @name GetGameObjectRegister
      * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppFinalize
-     * @return context [type:dmGameObject::HContext] The borrowed engine-owned game object context. Do not pass it to dmGameObject::DeleteContext.
+     * @return context [type:dmGameObject::HContext] The borrowed engine-owned game object context. The caller must not release it.
+     * @note Deprecated. Use GetGameObjectContext instead.
      */
-    dmGameObject::HContext GetGameObjectRegister(dmExtension::AppParams* app_params);
+#if defined(_MSC_VER)
+#define DM_ENGINE_DEPRECATED_GAME_OBJECT_REGISTER __declspec(deprecated("Use dmEngine::GetGameObjectContext instead"))
+#elif defined(__GNUC__) || defined(__clang__)
+#define DM_ENGINE_DEPRECATED_GAME_OBJECT_REGISTER __attribute__((deprecated("Use dmEngine::GetGameObjectContext instead")))
+#else
+#define DM_ENGINE_DEPRECATED_GAME_OBJECT_REGISTER
+#endif
+    DM_ENGINE_DEPRECATED_GAME_OBJECT_REGISTER dmGameObject::HContext GetGameObjectRegister(dmExtension::AppParams* app_params);
+#undef DM_ENGINE_DEPRECATED_GAME_OBJECT_REGISTER
 
     /*# get the hid context
      * @name GetHIDContext

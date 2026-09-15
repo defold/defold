@@ -350,18 +350,16 @@ namespace dmGameSystem
     static int Joint_GetBodyA(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        B2DJointMeta* joint_meta = 0;
-        b2Body* body = CheckJoint(L, 1, &joint_meta)->GetBodyA();
-        PushBody(L, body, joint_meta ? joint_meta->m_Collection : 0, GetBodyGameObject(body));
+        b2Body* body = CheckJoint(L, 1)->GetBodyA();
+        PushBody(L, body, GetBodyInstance(body));
         return 1;
     }
 
     static int Joint_GetBodyB(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        B2DJointMeta* joint_meta = 0;
-        b2Body* body = CheckJoint(L, 1, &joint_meta)->GetBodyB();
-        PushBody(L, body, joint_meta ? joint_meta->m_Collection : 0, GetBodyGameObject(body));
+        b2Body* body = CheckJoint(L, 1)->GetBodyB();
+        PushBody(L, body, GetBodyInstance(body));
         return 1;
     }
 

@@ -65,25 +65,11 @@ namespace dmGameObject
     const uint32_t INVALID_INSTANCE_POOL_INDEX = 0xffffffff;
 
     /*#
-     * Game object handle.
-     *
-     * The upper 32 bits contain a generation and the lower 32 bits contain a
-     * collection-local index. A handle is only meaningful together with the
-     * HCollection it was created from.
-     *
-     * @typedef
-     * @name HGameObject
-     */
-    typedef uint64_t HGameObject;
-
-    /*#
-     * Deprecated source-compatibility name for HGameObject.
-     * Native extensions must still be rebuilt because the handle representation
-     * changed from a pointer to a 64-bit value.
+     * Opaque gameobject instance handle
      * @typedef
      * @name HInstance
      */
-    typedef HGameObject HInstance;
+    typedef uint64_t HInstance;
 
     /*#
      * Script handle
@@ -107,93 +93,37 @@ namespace dmGameObject
     typedef struct Context* HContext;
 
     /*#
-     * Deprecated source-compatibility name for HContext.
+     * Deprecated alias for HContext. Use HContext instead.
      * @typedef
      * @name HRegister
+     * @note Deprecated. Use HContext instead.
      */
+#if defined(_MSC_VER)
+    typedef __declspec(deprecated("Use dmGameObject::HContext instead")) HContext HRegister;
+#elif defined(__GNUC__) || defined(__clang__)
+    typedef __attribute__((deprecated("Use dmGameObject::HContext instead"))) HContext HRegister;
+#else
     typedef HContext HRegister;
+#endif
 
     /*#
-     * Gameobject collection handle
-     *
-     * The upper 16 bits contain a generation and the lower 16 bits contain a
-     * process-wide registry index. Zero is invalid.
-     *
-     * A compiled collection loaded through dmResource::Get returns an
-     * HCollectionResource. Convert it with GetCollectionFromResource and retain
-     * the resource pointer for dmResource::Release; do not cast between the two
-     * handle types. Successfully reloading the collection resource replaces its
-     * HCollection, making handles obtained before the reload stale.
-     *
+     * Opaque gameobject collection handle
      * @typedef
      * @name HCollection
      */
     typedef uint32_t HCollection;
 
-    /*# collection resource handle
-     * Opaque pointer returned by dmResource::Get for a compiled collection
-     * resource. The pointer remains valid while the caller holds a resource
-     * reference, including across resource reloads.
-     * @typedef
-     * @name HCollectionResource
-     */
-    typedef struct CollectionResource* HCollectionResource;
-
-    /*# create a game-object system context
-     * @name NewContext
-     * @return context [type: HContext] New caller-owned context. Delete it with DeleteContext.
-     */
-    HContext NewContext();
-
-    /*# delete a game-object system context
-     * Deletes every collection owned by the context before deleting the context.
-     * @name DeleteContext
-     * @param context [type: HContext] Context to delete.
-     */
-    void DeleteContext(HContext context);
-
-    /*# get the context that owns a collection
-     * @name GetGameObjectContext
-     * @param collection [type: HCollection] Collection handle.
-     * @return context [type: HContext] Borrowed owning context, or 0 if the collection handle is invalid or stale. Do not delete the returned context.
-     */
-    HContext GetGameObjectContext(HCollection collection);
-
-    /*# create a game-object system context using the legacy name
-     * @name NewRegister
-     * @return context [type: HContext] New caller-owned context. Delete it with DeleteRegister.
-     */
-    HRegister NewRegister();
-
-    /*# delete a game-object system context using the legacy name
-     * @name DeleteRegister
-     * @param context [type: HContext] Context to delete.
-     */
-    void DeleteRegister(HRegister context);
-
     /*# invalid game object handle
      * @constant
-     * @name dmGameObject::INVALID_GAME_OBJECT [type: dmGameObject::HGameObject]
+     * @name dmGameObject::INVALID_GAME_OBJECT [type: dmGameObject::HInstance]
      */
-    const HGameObject INVALID_GAME_OBJECT = 0;
+    const HInstance INVALID_GAME_OBJECT = 0;
 
     /*# invalid collection handle
      * @constant
      * @name dmGameObject::INVALID_COLLECTION [type: dmGameObject::HCollection]
      */
     const HCollection INVALID_COLLECTION = 0;
-
-    /*# get a collection handle from a collection resource
-     * Converts a live collection resource returned by dmResource::Get into the
-     * numeric collection handle used by the game-object API. The caller retains
-     * ownership of the resource reference and must release the original resource
-     * pointer with dmResource::Release. The returned handle may change when the
-     * resource is reloaded; call this function again after a reload.
-     * @name GetCollectionFromResource
-     * @param resource [type: dmGameObject::HCollectionResource] Live collection resource returned by dmResource::Get.
-     * @return collection [type: dmGameObject::HCollection] Collection handle, or dmGameObject::INVALID_COLLECTION if resource is null.
-     */
-    HCollection GetCollectionFromResource(HCollectionResource resource);
 
     /*#
      * Handle to a list of properties (gameobject_props.h)
@@ -631,7 +561,7 @@ namespace dmGameObject
      * Retrieve the message socket for the specified collection.
      * @name GetMessageSocket
      * @param collection [type: dmGameObject::HCollection] Collection handle
-     * @return socket [type: dmMessage::HSocket] The message socket of the specified collection, or zero if the collection handle is invalid or stale
+     * @return socket [type: dmMessage::HSocket] The message socket of the specified collection, or zero if the collection is invalid or stale
      */
     dmMessage::HSocket GetMessageSocket(HCollection collection);
 
@@ -646,21 +576,28 @@ namespace dmGameObject
      * @param position [type: dmVMath::Vector3] Position of the spawed object
      * @param rotation [type: dmVMath::Quat] Rotation of the spawned object
      * @param scale [type: dmVMath::Vector3] Scale of the spawned object
-     * return instance [type: HGameObject] the spawned instance, 0 at failure
+     * @return instance [type: HInstance] the spawned instance, or dmGameObject::INVALID_GAME_OBJECT at failure
      */
-    HGameObject Spawn(HCollection collection, HPrototype prototype, const char* prototype_name, dmhash_t id,
+    HInstance Spawn(HCollection collection, HPrototype prototype, const char* prototype_name, dmhash_t id,
                       HPropertyContainer properties, const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale);
 
     /*#
+     * Retrieve a collection from the specified instance
+     * @name GetCollection
+     * @param instance [type: dmGameObject::HInstance] Game object instance
+     * @return collection [type: dmGameObject::HCollection] The collection the specified instance belongs to, or dmGameObject::INVALID_COLLECTION if the instance is invalid or stale
+     */
+    HCollection GetCollection(HInstance instance);
+
+    /*#
      * Retrieve a collection by socket name hash
-     * Note: in native extensions, the context can be retrieved during init using dmEngine::GetGameObjectContext(dmExtension::AppParams *params).
-     * The legacy dmEngine::GetGameObjectRegister name remains available as a compatibility alias.
+     * Note: in native extensions, the context can be retrieved during init using dmEngine::GetGameObjectContext(dmExtension::AppParams *params)
      * @name GetCollectionByHash
-     * @param regist [type: dmGameObject::HContext] Game-object system context
+     * @param gocontext [type: dmGameObject::HContext] Game object system context
      * @param socket_name [type: dmhash_t] The socket name
      * @return collection [type: dmGameObject::HCollection] The collection if successful, or dmGameObject::INVALID_COLLECTION otherwise.
      */
-    HCollection GetCollectionByHash(HContext regist, dmhash_t socket_name);
+    HCollection GetCollectionByHash(HContext gocontext, dmhash_t socket_name);
 
     /*#
      * Create a new gameobject instance
@@ -668,18 +605,19 @@ namespace dmGameObject
      * @name New
      * @param collection [type: dmGameObject::HCollection] Gameobject collection
      * @param prototype_name [type: const char*] Prototype file name. May be 0.
-     * @return instance [type: dmGameObject::HGameObject] New gameobject instance, or dmGameObject::INVALID_GAME_OBJECT if an error occured
+     * @return instance [type: dmGameObject::HInstance] New gameobject instance, or dmGameObject::INVALID_GAME_OBJECT if an error occurred
      */
-    HGameObject New(HCollection collection, const char* name);
+    HInstance New(HCollection collection, const char* name);
 
     /*#
      * Delete gameobject instance
      * @name Delete
      * @param collection [type: dmGameObject::HCollection] Gameobject collection
-     * @param instance [type: dmGameObject::HGameObject] Gameobject instance
+     * @param instance [type: dmGameObject::HInstance] Gameobject instance
      * @param recursive [type: bool] If true, delete child hierarchy recursively in child to parent order (leaf first)
+     * @note Invalid, stale, or mismatched collection and instance handles are ignored.
      */
-    void Delete(HCollection collection, HGameObject instance, bool recursive);
+    void Delete(HCollection collection, HInstance instance, bool recursive);
 
     /*#
      * Creates a new unique instance ID and returns its hash.
@@ -692,47 +630,35 @@ namespace dmGameObject
      * Retrieve an instance index from the index pool for the collection.
      * @name AcquireInstanceIndex
      * @param collection [type: dmGameObject::HColleciton] Collection from which to retrieve the instance index.
-     * @return instance [type: uint32_t] index from index pool of collection.
+     * @return instance [type: uint32_t] index from the index pool of collection.
      */
     uint32_t AcquireInstanceIndex(HCollection collection);
 
     /*#
-     * Assign an index to the instance, only if the collection and instance handle pair is valid.
+     * Assign an index to the instance, only if the instance is valid.
      * @name AssignInstanceIndex
-     * @param collection [type: dmGameObject::HCollection] Collection containing the game object.
      * @param index [type: uint32_t] The index to assign.
-     * @param instance [type: dmGameObject::HGameObject] The instance that should be assigned the index.
+     * @param instance [type: dmGameObject::HInstance] The instance that should be assigned the index.
      */
-    void AssignInstanceIndex(HCollection collection, uint32_t index, HGameObject instance);
+    void AssignInstanceIndex(uint32_t index, HInstance instance);
 
     /*# Get instance identifier
      * Get instance identifier
      * @name GetIdentifier
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
-     * @return [type:dmhash_t] Identifier, or zero if the handle pair is invalid.
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return [type:dmhash_t] Identifier, or zero if the instance is invalid or stale.
      */
-    dmhash_t GetIdentifier(HCollection collection, HGameObject instance);
-
-    /*# Get instance generation
-     * Get instance generation counter.
-     * The generation changes whenever a new game object instance is allocated, even if it later reuses the same identifier.
-     * @name GetGeneration
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
-     * @return [type:uint32_t] Generation counter for the instance, or zero if the handle pair is invalid.
-     */
-    uint32_t GetGeneration(HCollection collection, HGameObject instance);
+    dmhash_t GetIdentifier(HInstance instance);
 
     /*#
      * Set instance identifier. Must be unique within the collection.
      * @name SetIdentifier
      * @param collection [type: dmGameObject::HCollection] Collection
-     * @param instance [type: dmGameObject::HGameObject] Instance
+     * @param instance [type: dmGameObject::HInstance] Instance
      * @param identifier [type: dmhash_t] Identifier
      * @return result [type: dmGameObject::Result] RESULT_OK on success, or RESULT_INVALID_INSTANCE if the handle pair is invalid
      */
-    Result SetIdentifier(HCollection collection, HGameObject instance, dmhash_t identifier);
+    Result SetIdentifier(HCollection collection, HInstance instance, dmhash_t identifier);
 
     /*#
      * Get absolute identifier relative to instance. The returned identifier is the
@@ -741,261 +667,233 @@ namespace dmGameObject
      * Example: if the instance is part of a sub-collection in the root-collection
      * named "sub" and id == "a" the returned identifier represents the path "sub.a"
      * @name GetAbsoluteIdentifier
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance to get absolute identifier to
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance to get absolute identifier to
      * @param identifier [type:const char*] Identifier relative to instance
-     * @return [type:dmhash_t] Absolute identifier, or zero if the handle pair or identifier is invalid.
+     * @return [type:dmhash_t] Absolute identifier, or zero if the instance or identifier is invalid.
      */
-    dmhash_t GetAbsoluteIdentifier(HCollection collection, HGameObject instance, const char* identifier);
+    dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* identifier);
 
-    /*# get game object from identifier
-     * @name GetGameObjectFromIdentifier
-     * @param collection [type: dmGameObject::HCollection] Collection
-     * @param identifier [type: dmhash_t] Identifier
-     * @return instance [type: dmGameObject::HGameObject] Instance, or dmGameObject::INVALID_GAME_OBJECT if the instance or collection is not found.
-     */
-    HGameObject GetGameObjectFromIdentifier(HCollection collection, dmhash_t identifier);
-
-    /*# get game object from identifier using the legacy name
+    /*#
+     * Get instance from identifier
      * @name GetInstanceFromIdentifier
      * @param collection [type: dmGameObject::HCollection] Collection
      * @param identifier [type: dmhash_t] Identifier
-     * @return instance [type: dmGameObject::HGameObject] Instance, or dmGameObject::INVALID_GAME_OBJECT if the instance or collection is not found.
+     * @return instance [type: dmGameObject::HInstance] Instance, or dmGameObject::INVALID_GAME_OBJECT if the collection or identifier is not found.
      */
-    HGameObject GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier);
+    HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier);
 
-    /*# test whether a collection and game-object handle identify a live object
+    /*# test whether a game-object handle identifies a live object
      * @name IsValid
-     * @param collection [type: dmGameObject::HCollection] Collection handle.
-     * @param instance [type: dmGameObject::HGameObject] Game-object handle.
-     * @return valid [type: bool] True if the handle pair identifies a live game object.
+     * @param instance [type: dmGameObject::HInstance] Game-object handle.
+     * @return valid [type: bool] True if the handle identifies a live game object.
      */
-    bool IsValid(HCollection collection, HGameObject instance);
+    bool IsValid(HInstance instance);
 
     /*#
      * Get component id from component index.
      * @name GetComponentId
-     * @param collection [type: dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type: dmGameObject::HGameObject] Instance
+     * @param instance [type: dmGameObject::HInstance] Instance
      * @param component_index [type: uint16_t] Component index
-     * @param component_id [type: dmhash_t*] Component id as out-argument. Set to zero if the handle pair is invalid.
-     * @return result [type: dmGameObject::Result] RESULT_OK if the component was found, or RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @param component_id [type: dmhash_t*] Component id as out-argument
+     * @return result [type: dmGameObject::Result] RESULT_OK if the component was found, or RESULT_INVALID_INSTANCE if the instance is invalid or stale
      */
-    Result GetComponentId(HCollection collection, HGameObject instance, uint16_t component_index, dmhash_t* component_id);
+    Result GetComponentId(HInstance instance, uint16_t component_index, dmhash_t* component_id);
 
     /*#
      * Get the component, component type and its world
      * @name GetComponent
-     * @param collection [type: dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type: dmGameObject::HGameObject] Instance
+     * @param instance [type: dmGameObject::HInstance] Instance
      * @param component_id [type: dmhash_t] Component id
-     * @param component_type [type: uint32_t*] (out) Component type. Used for validation. Set to zero if the handle pair is invalid.
-     * @param component [type: HComponent*] (out) The component. Set to zero if the handle pair is invalid.
-     * @param world [type: HComponentWorld*] (out) The component world. May be 0. Set to zero if provided and the handle pair is invalid.
-     * @return result [type: dmGameObject::Result] RESULT_OK if the component was found, or RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @param component_type [type: uint32_t*] (out) Component type. Used for validation.
+     * @param component [type: HComponent*] (out) The component.
+     * @param world [type: HComponentWorld*] (out) The component world. May be 0.
+     * @return result [type: dmGameObject::Result] RESULT_OK if the component was found, or RESULT_INVALID_INSTANCE if the instance is invalid or stale
      */
-    Result GetComponent(HCollection collection, HGameObject instance, dmhash_t component_id, uint32_t* component_type, HComponent* component, HComponentWorld* out_world);
+    Result GetComponent(HInstance instance, dmhash_t component_id, uint32_t* component_type, HComponent* component, HComponentWorld* out_world);
 
     /*# set position
      * Set gameobject instance position
      * @name SetPosition
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
      * @param position [type:dmVMath::Point3] New Position
+     * @note Invalid or stale instances are ignored.
      */
-    void SetPosition(HCollection collection, HGameObject instance, dmVMath::Point3 position);
+    void SetPosition(HInstance instance, dmVMath::Point3 position);
 
     /*# get position
      * Get gameobject instance position
      * @name GetPosition
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
-     * @return [type:dmVMath::Point3] Position, or zero if the handle pair is invalid
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return [type:dmVMath::Point3] Position, or a zero vector if the instance is invalid or stale
      */
-    dmVMath::Point3 GetPosition(HCollection collection, HGameObject instance);
+    dmVMath::Point3 GetPosition(HInstance instance);
 
     /*# set rotation
      * Set gameobject instance rotation
      * @name SetRotation
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
-     * @param rotation [type:dmVMath::Quat] New rotation
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @param rotation [type:dmVmath::Quat] New rotation
+     * @note Invalid or stale instances are ignored.
      */
-    void SetRotation(HCollection collection, HGameObject instance, dmVMath::Quat rotation);
+    void SetRotation(HInstance instance, dmVMath::Quat rotation);
 
     /*# get rotation
      * Get gameobject instance rotation
      * @name GetRotation
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
-     * @return [type:dmVMath::Quat] Rotation, or identity if the handle pair is invalid
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return [type:dmGameObject::Quat] Rotation, or the identity rotation if the instance is invalid or stale
      */
-    dmVMath::Quat GetRotation(HCollection collection, HGameObject instance);
+    dmVMath::Quat GetRotation(HInstance instance);
 
     /*# set uniform scale
      * Set gameobject instance uniform scale
      * @name SetScale
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
      * @param scale [type:float] New uniform scale
+     * @note Invalid or stale instances are ignored.
      */
-    void SetScale(HCollection collection, HGameObject instance, float scale);
+    void SetScale(HInstance instance, float scale);
 
     /*# set scale
      * Set gameobject instance non-uniform scale
      * @name SetScale
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
-     * @param scale [type:dmVMath::Vector3] New non-uniform scale
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @param scale [type:dmVmath::Vector3] New non-uniform scale
+     * @note Invalid or stale instances are ignored.
      */
-    void SetScale(HCollection collection, HGameObject instance, dmVMath::Vector3 scale);
+    void SetScale(HInstance instance, dmVMath::Vector3 scale);
 
     /*# set scale only for X and Y
      * Set gameobject instance x and y scale
      * @name SetScaleXY
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
      * @param scale_x [type: float] New x scale
      * @param scale_y [type: float] New y scale
+     * @note Invalid or stale instances are ignored.
      */
-    void SetScaleXY(HCollection collection, HGameObject instance, float scale_x, float scale_y);
+    void SetScaleXY(HInstance instance, float scale_x, float scale_y);
 
     /*# get uniform scale
      * Get gameobject instance uniform scale
      * @name GetUniformScale
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
-     * @return [type:float] Uniform scale, or 1 if the handle pair is invalid
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return [type:float] Uniform scale, or 1 if the instance is invalid or stale
      */
-    float GetUniformScale(HCollection collection, HGameObject instance);
+    float GetUniformScale(HInstance instance);
 
     /*# get scale
      * Get gameobject instance scale
      * @name GetScale
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
-     * @return [type:dmVMath::Vector3] Non-uniform scale, or unit scale if the handle pair is invalid
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return [type:dmGameObject::Vector3] Non-uniform scale, or a unit vector if the instance is invalid or stale
      */
-    dmVMath::Vector3 GetScale(HCollection collection, HGameObject instance);
+    dmVMath::Vector3 GetScale(HInstance instance);
 
     /*# get world position
      * Get gameobject instance world position
      * @name GetWorldPosition
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
-     * @return [type:dmVMath::Point3] World position, or zero if the handle pair is invalid
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return [type:dmGameObject::Point3] World position, or a zero vector if the instance is invalid or stale
      */
-    dmVMath::Point3 GetWorldPosition(HCollection collection, HGameObject instance);
+    dmVMath::Point3 GetWorldPosition(HInstance instance);
 
     /*# get world rotation
      * Get gameobject instance world rotation
      * @name GetWorldRotation
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
-     * @return [type:dmVMath::Quat] World rotation, or identity if the handle pair is invalid
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return [type:dmGameObject::Quat] World rotation, or the identity rotation if the instance is invalid or stale
      */
-    dmVMath::Quat GetWorldRotation(HCollection collection, HGameObject instance);
+    dmVMath::Quat GetWorldRotation(HInstance instance);
 
     /*# get world scale
      * Get game object instance world transform
      * @name GetWorldScale
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
-     * @return [type:dmVMath::Vector3] World scale, or unit scale if the handle pair is invalid
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return [type:dmGameObject::Vector3] World scale, or a unit vector if the instance is invalid or stale
      */
-    dmVMath::Vector3 GetWorldScale(HCollection collection, HGameObject instance);
+    dmVMath::Vector3 GetWorldScale(HInstance instance);
 
     /*# get world uniform scale
      * Get game object instance uniform scale
      * @name GetWorldUniformScale
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
-     * @return [type:float] World uniform scale, or 1 if the handle pair is invalid
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return [type:float] World uniform scale, or 1 if the instance is invalid or stale
      */
-    float GetWorldUniformScale(HCollection collection, HGameObject instance);
+    float GetWorldUniformScale(HInstance instance);
 
     /*# get world matrix
      * Get game object instance world transform as Matrix4.
-     * @note For a valid handle pair, the returned reference points into collection
-     * storage and remains valid until the collection is destroyed. Its contents
-     * change when transforms are updated or the instance slot is reused.
      * @name GetWorldMatrix
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
-     * @return [type:dmVMath::Matrix4] World transform matrix, or identity if the handle pair is invalid.
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return [type:dmGameObject::Matrix4] World transform matrix, or identity if the instance is invalid or stale.
      */
-    const dmVMath::Matrix4& GetWorldMatrix(HCollection collection, HGameObject instance);
+    const dmVMath::Matrix4& GetWorldMatrix(HInstance instance);
 
     /*# get world transform
      * Get game object instance world transform
      * @name GetWorldTransform
-     * @param collection [type:dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type:dmGameObject::HGameObject] Gameobject instance
-     * @return [type:dmTransform::Transform] World transform, or identity if the handle pair is invalid
+     * @param instance [type:dmGameObject::HInstance] Gameobject instance
+     * @return [type:dmTransform::Transform] World transform, or identity if the instance is invalid or stale
      */
-    dmTransform::Transform GetWorldTransform(HCollection collection, HGameObject instance);
+    dmTransform::Transform GetWorldTransform(HInstance instance);
 
     /*#
      * Set whether the instance should be flagged as a bone.
      * Instances flagged as bones can have their transforms updated in a batch through SetBoneTransforms.
      * Used for animated skeletons.
      * @name SetBone
-     * @param collection [type: HCollection] Collection containing the game object
-     * @param instance [type: HGameObject] Instance
+     * @param instance [type: HInstance] Instance
      * @param bone [type: bool] true if the instance is a bone
+     * @note Invalid or stale instances are ignored.
      */
-    void SetBone(HCollection collection, HGameObject instance, bool bone);
+    void SetBone(HInstance instance, bool bone);
 
     /*#
      * Check whether the instance is flagged as a bone.
      * @name IsBone
-     * @param collection [type: HCollection] Collection containing the game object
-     * @param instance [type: HGameObject] Instance
-     * @return result [type: bool] True if flagged as a bone; false if the handle pair is invalid
+     * @param instance [type: HInstance] Instance
+     * @return result [type: bool] True if flagged as a bone; false if the instance is invalid or stale
      */
-    bool IsBone(HCollection collection, HGameObject instance);
+    bool IsBone(HInstance instance);
 
     /*#
      * Set the local transforms recursively of all instances flagged as bones, starting with component with id.
      * The order of the transforms is depth-first.
      * @name SetBoneTransforms
-     * @param collection [type: HCollection] Collection containing the game object
-     * @param instance [type: HGameObject] First Instance of the hierarchy to set
+     * @param instance [type: HInstance] First Instance of the hierarchy to set
      * @param component_transform [type: dmTransform::Transform] the transform for component root
      * @param transforms [type: dmTransform::Transform*]  Array of transforms to set depth-first for the bone instances
      * @param transform_count [type: uint32_t] Size of the transforms array
-     * @return count [type: uint32_t] Number of instances found, or zero if the handle pair is invalid
+     * @return Number of instances found, or zero if the instance is invalid or stale
      */
-    uint32_t SetBoneTransforms(HCollection collection, HGameObject instance, dmTransform::Transform& component_transform, dmTransform::Transform* transforms, uint32_t transform_count);
+    uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform& component_transform, dmTransform::Transform* transforms, uint32_t transform_count);
 
     /*#
      * Recursively delete all instances flagged as bones under the given parent instance.
      * The order of deletion is depth-first, so that the children are deleted before the parents.
      * @name DeleteBones
-     * @param collection [type: HCollection] Collection containing the game object
-     * @param parent [type: HGameObject] Parent instance of the hierarchy
+     * @param parent [type: HInstance] Parent instance of the hierarchy
+     * @note Invalid or stale instances are ignored.
      */
-    void DeleteBones(HCollection collection, HGameObject parent);
+    void DeleteBones(HInstance parent);
 
-    /*#
+    /*
      * Set parent instance to child
      * @note Instances must belong to the same collection
      * @name SetParent
-     * @param collection [type: dmGameObject::HCollection] Collection containing both game objects
-     * @param child [type: dmGameObject::HGameObject] Child instance
-     * @param parent [type: dmGameObject::HGameObject] Parent instance. If dmGameObject::INVALID_GAME_OBJECT, the child will be detached from its current parent, if any.
-     * @return result [type: dmGameObject::Result] RESULT_OK on success, RESULT_INVALID_INSTANCE if either handle is invalid, or RESULT_MAXIMUM_HIEARCHICAL_DEPTH if parent is at the maximum level
+     * @param child [type: dmGameObject::HInstance] Child instance
+     * @param parent [type: dmGameObject::HInstance] Parent instance. If 0, the child will be detached from its current parent, if any.
+     * @return result [type: dmGameObject::Result] RESULT_OK on success, RESULT_MAXIMUM_HIEARCHICAL_DEPTH if parent is at maximal level, or RESULT_INVALID_INSTANCE if either handle is invalid, stale, or belongs to another collection
      */
-    Result SetParent(HCollection collection, HGameObject child, HGameObject parent);
+    Result SetParent(HInstance child, HInstance parent);
 
-    /*#
+    /*
      * Get parent instance if it exists
      * @name GetParent
-     * @param collection [type: dmGameObject::HCollection] Collection containing the game object
-     * @param instance [type: dmGameObject::HGameObject] Gameobject instance
-     * @return parent [type: dmGameObject::HGameObject] Parent instance, or dmGameObject::INVALID_GAME_OBJECT if the passed instance is invalid or a root
+     * @param instance [type: dmGameObject::HInstance] Gameobject instance
+     * @return parent [type: dmGameObject::HInstance] Parent instance, or dmGameObject::INVALID_GAME_OBJECT if the instance is invalid, stale, or a root
      */
-    HGameObject GetParent(HCollection collection, HGameObject instance);
+    HInstance GetParent(HInstance instance);
 
     /*#
      * Get the component type index
@@ -1065,220 +963,202 @@ namespace dmGameObject
     /*#
      * Retrieve a hash property from a component.
      * @name GetPropertyAsHash
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param out_value [type:dmhash_t*] The retrieved property value
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the out-parameter was written, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
      */
-    PropertyResult GetPropertyAsHash(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmhash_t* out_value);
+    PropertyResult GetPropertyAsHash(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmhash_t* out_value);
 
     /*#
      * Retrieve a float property from a component.
      * @name GetPropertyAsFloat
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param out_value [type:float*] The retrieved property value
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the out-parameter was written, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
      */
-    PropertyResult GetPropertyAsFloat(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, float* out_value);
+    PropertyResult GetPropertyAsFloat(HInstance instance, dmhash_t component_id, dmhash_t property_id, float* out_value);
 
     /*#
      * Retrieve a vector3 property from a component.
      * @name GetPropertyAsVector3
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param out_value [type:dmVMath::Vector3*] The retrieved property value
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the out-parameter was written, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
      */
-    PropertyResult GetPropertyAsVector3(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3* out_value);
+    PropertyResult GetPropertyAsVector3(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3* out_value);
 
     /*#
      * Retrieve a vector4 property from a component.
      * @name GetPropertyAsVector4
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param out_value [type:dmVMath::Vector4*] The retrieved property value
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the out-parameter was written, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
      */
-    PropertyResult GetPropertyAsVector4(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4* out_value);
+    PropertyResult GetPropertyAsVector4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4* out_value);
 
     /*#
      * Retrieve a quaternion property from a component.
      * @name GetPropertyAsQuat
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param out_value [type:dmVMath::Quat*] The retrieved property value
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the out-parameter was written, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
      */
-    PropertyResult GetPropertyAsQuat(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat* out_value);
+    PropertyResult GetPropertyAsQuat(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat* out_value);
 
     /*#
      * Retrieve a boolean property from a component.
      * @name GetPropertyAsBool
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param out_value [type:bool*] The retrieved property value
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the out-parameter was written, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
      */
-    PropertyResult GetPropertyAsBool(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, bool* out_value);
+    PropertyResult GetPropertyAsBool(HInstance instance, dmhash_t component_id, dmhash_t property_id, bool* out_value);
 
     /*#
      * Retrieve a url property from a component.
      * @name GetPropertyAsURL
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param out_value [type:dmMessage::URL*] The retrieved property value
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the out-parameter was written, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
      */
-    PropertyResult GetPropertyAsURL(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL* out_value);
+    PropertyResult GetPropertyAsURL(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL* out_value);
 
     /*#
      * Retrieve a text property from a component.
      * The returned pointer is borrowed from the component and must not be freed. Its lifetime is controlled by the component.
      * @name GetPropertyAsText
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param out_value [type:const char**] The retrieved property value
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the out-parameter was written, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
      */
-    PropertyResult GetPropertyAsText(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, const char** out_value);
+    PropertyResult GetPropertyAsText(HInstance instance, dmhash_t component_id, dmhash_t property_id, const char** out_value);
 
     /*#
      * Retrieve a matrix4 property from a component.
      * @name GetPropertyAsMatrix
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param out_value [type:dmGameObject::Matrix4*] The retrieved property value
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the out-parameter was written, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the out-parameter was written
      */
-    PropertyResult GetPropertyAsMatrix4(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Matrix4* out_value);
+    PropertyResult GetPropertyAsMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Matrix4* out_value);
 
     /*#
      * Sets the value of a hash property on a component.
      * @name SetPropertyFromHash
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmhash_t] Value of the property
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the value could be set, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the value could be set
      */
-    PropertyResult SetPropertyFromHash(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmhash_t value);
+    PropertyResult SetPropertyFromHash(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmhash_t value);
 
     /*#
      * Sets the value of a float property on a component.
      * @name SetPropertyFromHash
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:float] Value of the property
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the value could be set, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the value could be set
      */
-    PropertyResult SetPropertyFromFloat(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, float value);
+    PropertyResult SetPropertyFromFloat(HInstance instance, dmhash_t component_id, dmhash_t property_id, float value);
 
     /*#
      * Sets the value of a vector3 property on a component.
      * @name SetPropertyFromVector3
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmVMath::vector3] Value of the property
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the value could be set, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the value could be set
      */
-    PropertyResult SetPropertyFromVector3(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3 value);
+    PropertyResult SetPropertyFromVector3(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector3 value);
 
     /*#
      * Sets the value of a vector4 property on a component.
      * @name SetPropertyFromVector4
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmVMath::Vector4] Value of the property
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the value could be set, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the value could be set
      */
-    PropertyResult SetPropertyFromVector4(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4 value);
+    PropertyResult SetPropertyFromVector4(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Vector4 value);
 
     /*#
      * Sets the value of a quaternion property on a component.
      * @name SetPropertyFromQuat
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmVMath::Quat] Value of the property
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the value could be set, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the value could be set
      */
-    PropertyResult SetPropertyFromQuat(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat value);
+    PropertyResult SetPropertyFromQuat(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmVMath::Quat value);
 
     /*#
      * Sets the value of a boolean property on a component.
      * @name SetPropertyFromBool
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:bool] Value of the property
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the value could be set, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the value could be set
      */
-    PropertyResult SetPropertyFromBool(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, bool value);
+    PropertyResult SetPropertyFromBool(HInstance instance, dmhash_t component_id, dmhash_t property_id, bool value);
 
     /*#
      * Sets the value of a URL property on a component.
      * @name SetPropertyFromURL
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmMessage::URL] Value of the property
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the value could be set, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the value could be set
      */
-    PropertyResult SetPropertyFromURL(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL value);
+    PropertyResult SetPropertyFromURL(HInstance instance, dmhash_t component_id, dmhash_t property_id, dmMessage::URL value);
 
     /*#
      * Sets the value of a text property on a component.
      * The component must copy the value if it needs to retain it after this function returns.
      * @name SetPropertyFromText
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:const char*] Null-terminated UTF-8 value of the property
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the value could be set, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the value could be set
      */
-    PropertyResult SetPropertyFromText(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, const char* value);
+    PropertyResult SetPropertyFromText(HInstance instance, dmhash_t component_id, dmhash_t property_id, const char* value);
 
     /*#
      * Sets the value of a matrix4 property on a component.
      * @name SetPropertyFromMatrix4
-     * @param collection [type:HCollection] Collection containing the game object
-     * @param instance [type:HGameObject] Instance of the game object
+     * @param instance [type:HInstance] Instance of the game object
      * @param component_id [type:dmhash_t] Id of the component
      * @param property_id [type:dmhash_t] Id of the property
      * @param value [type:dmVMath::Matrix4] Value of the property
-     * @return result [type: dmGameObject::PropertyResult] PROPERTY_RESULT_OK if the value could be set, or PROPERTY_RESULT_INVALID_INSTANCE if the handle pair is invalid
+     * @return PROPERTY_RESULT_OK if the value could be set
      */
-    PropertyResult SetPropertyFromMatrix4(HCollection collection, HGameObject instance, dmhash_t component_id, dmhash_t property_id, const dmVMath::Matrix4& value);
+    PropertyResult SetPropertyFromMatrix4(HInstance instance, dmhash_t component_id, dmhash_t property_id, const dmVMath::Matrix4& value);
 
     // These functions are used for profiling functionality
 
@@ -1319,7 +1199,7 @@ namespace dmGameObject
 
         // set depending on the node type
         HCollection     m_Collection;
-        HGameObject     m_Instance;
+        HInstance       m_Instance;
         ComponentType*  m_ComponentType;
         void*           m_ComponentPrototype;
         void*           m_ComponentWorld;
@@ -1342,19 +1222,16 @@ namespace dmGameObject
         SceneNode           m_Parent;
         SceneNode           m_NextChild;
         FIteratorNext       m_FnIterateNext;    // Specified by each node type we're iterating over
-        HGameObject         m_NextGameObject;
-        uint32_t            m_NextComponent;
-        uint8_t             m_IteratorPhase;
     };
 
     /*#
      * Gets the top node of the whole game (the main collection)
      * @name TraverseGetRoot
-     * @param regist [type:dmGameObject::HContext] the full gameobject register
+     * @param gocontext [type:dmGameObject::HContext] the full gameobject context
      * @param node [type:dmGameObject::SceneNode*] the node to inspect
      * @return result [type:bool] True if successful
      *
-     * @note The dmGameObject::HContext is obtained from `dmEngine::GetGameObjectContext(dmExtension::AppParams)`.
+     * @note The dmGameObject::HContext is obtained from the `dmEngine::GetGameObjectContext(dmExtension::AppParams)`
      * @note Traversing the scene like this is not efficient. These functions are here for inspection and testing purposes only.
      *
      * @examples
@@ -1371,15 +1248,15 @@ namespace dmGameObject
      *     }
      * }
      *
-     * bool OutputScene(HContext regist) {
+     * bool OutputScene(HContext gocontext) {
      *     dmGameObject::SceneNode root;
-     *     if (!dmGameObject::TraverseGetRoot(regist, &root))
+     *     if (!dmGameObject::TraverseGetRoot(gocontext, &root))
      *         return false;
      *     OutputNode(&node);
      * }
      *```
      */
-    bool TraverseGetRoot(HContext regist, SceneNode* node);
+    bool TraverseGetRoot(HContext gocontext, SceneNode* node);
 
     /*#
      * Get a scene node iterator for the nodes' children

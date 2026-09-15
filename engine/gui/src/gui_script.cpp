@@ -1141,9 +1141,8 @@ namespace dmGui
                 return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
             }
 
-            dmGameObject::HCollection hcollection;
-            dmGameObject::HGameObject hinstance;
-            if (!dmGameObject::GetCollectionAndGameObjectFromLua(L, &hcollection, &hinstance))
+            dmGameObject::HInstance hinstance = dmGameObject::GetInstanceFromLua(L);
+            if (!hinstance)
             {
                 return DM_LUA_ERROR("'gui.set()' could not resolve the current game object");
             }
@@ -1151,7 +1150,7 @@ namespace dmGui
             dmhash_t key = 0;
             if (dmGameObject::GetPropertyOptionsKey((dmGameObject::HPropertyOptions)&options_result.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
-                return HandleGoSetResult(L, dmGameObject::PROPERTY_RESULT_INVALID_KEY, hcollection, hinstance, property_hash, target, options_result.m_Options);
+                return HandleGoSetResult(L, dmGameObject::PROPERTY_RESULT_INVALID_KEY, property_hash, hinstance, target, options_result.m_Options);
             }
 
             Result r = DeleteDynamicTexture(scene, key);
@@ -1184,16 +1183,15 @@ namespace dmGui
             {
                 return DM_LUA_ERROR("'gui.set()' can only be used to change a property of the GUI component itself, use 'msg.url()'");
             }
-            dmGameObject::HCollection hcollection;
-            dmGameObject::HGameObject hinstance;
-            if (!dmGameObject::GetCollectionAndGameObjectFromLua(L, &hcollection, &hinstance))
+            dmGameObject::HInstance hinstance = dmGameObject::GetInstanceFromLua(L);
+            if (!hinstance)
             {
                 return DM_LUA_ERROR("'gui.set()' could not resolve the current game object");
             }
-            result = dmGameObject::SetProperty(hcollection, hinstance, target.m_Fragment, property_hash, options_result.m_Options, property_var);
+            result = dmGameObject::SetProperty(hinstance, target.m_Fragment, property_hash, options_result.m_Options, property_var);
             if (result != dmGameObject::PROPERTY_RESULT_OK)
             {
-                return HandleGoSetResult(L, result, hcollection, hinstance, property_hash, target, options_result.m_Options);
+                return HandleGoSetResult(L, result, property_hash, hinstance, target, options_result.m_Options);
             }
             return 0;
         }

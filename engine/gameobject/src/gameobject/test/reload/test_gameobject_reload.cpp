@@ -78,7 +78,7 @@ protected:
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
 
-        m_Register = dmGameObject::NewRegister();
+        m_Register = dmGameObject::NewContext();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
 
         m_Contexts.SetCapacity(7,16);
@@ -129,7 +129,7 @@ protected:
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteRegister(m_Register);
+        dmGameObject::DeleteContext(m_Register);
     }
 
     static dmResource::Result ResReloadTargetCreate(const dmResource::ResourceCreateParams* params);
@@ -277,7 +277,7 @@ void ReloadTest::CompReloadTargetOnReload(const dmGameObject::ComponentOnReloadP
 
 TEST_F(ReloadTest, TestComponentReload)
 {
-    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/component_reload.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_reload.goc");
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     ReloadTargetWorld* world = m_World;
@@ -313,7 +313,7 @@ TEST_F(ReloadTest, TestComponentReload)
 
 TEST_F(ReloadTest, TestComponentReloadScriptFail)
 {
-    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/component_reload_fail.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_reload_fail.goc");
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     dmResource::Result rr = dmResource::ReloadResource(m_Factory, "/component_reload_fail.scriptc", 0);
@@ -324,10 +324,10 @@ TEST_F(ReloadTest, TestComponentReloadScriptFail)
 
 TEST_F(ReloadTest, TestGameObjectReload)
 {
-    dmGameObject::HGameObject go = dmGameObject::New(m_Collection, "/rt.goc");
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/rt.goc");
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
     dmGameObject::SetIdentifier(m_Collection, go, 1);
-    ASSERT_EQ(go, dmGameObject::GetGameObjectFromIdentifier(m_Collection, 1));
+    ASSERT_EQ(go, dmGameObject::GetInstanceFromIdentifier(m_Collection, 1));
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     bool r = dmGameObject::Update(m_Collection, &m_UpdateContext);
@@ -351,7 +351,7 @@ TEST_F(ReloadTest, TestGameObjectReload)
     ASSERT_TRUE(r);
     r = dmGameObject::PostUpdate(m_Collection);
     ASSERT_TRUE(r);
-    ASSERT_EQ(go, dmGameObject::GetGameObjectFromIdentifier(m_Collection, 1));
+    ASSERT_EQ(go, dmGameObject::GetInstanceFromIdentifier(m_Collection, 1));
 
     ASSERT_EQ(1, m_World->m_CreateCount);
     ASSERT_EQ(1, m_World->m_DestroyCount);

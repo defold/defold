@@ -50,19 +50,19 @@
 
 #include <string.h>
 
-static inline dmGameObject::HGameObject Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties,
+static inline dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties,
                                             const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale)
 {
     dmGameObject::HPrototype prototype = 0x0;
     if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
-        dmGameObject::HGameObject result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
+        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
         dmResource::Release(factory, prototype);
         return result;
     }
     return 0x0;
 }
 
-static inline dmGameObject::HGameObject Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id)
+static inline dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id)
 {
     return Spawn(factory, collection, prototype_name, id, 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
 }

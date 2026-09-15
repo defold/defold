@@ -34,28 +34,28 @@
 
 using namespace dmVMath;
 
-static dmGameObject::HGameObject Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties, const Point3& position, const Quat& rotation, const Vector3& scale)
+static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties, const Point3& position, const Quat& rotation, const Vector3& scale)
 {
     dmGameObject::HPrototype prototype = 0x0;
     if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
-        dmGameObject::HGameObject result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
+        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
         dmResource::Release(factory, prototype);
         return result;
     }
     return 0x0;
 }
 
-static dmGameObject::HGameObject FactorySpawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t* out_id)
+static dmGameObject::HInstance FactorySpawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t* out_id)
 {
     uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
     if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
         return 0x0;
 
     dmhash_t id = dmGameObject::CreateInstanceId();
-    dmGameObject::HGameObject instance = Spawn(factory, collection, prototype_name, id, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance instance = Spawn(factory, collection, prototype_name, id, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     if (instance)
     {
-        dmGameObject::AssignInstanceIndex(collection, index, instance);
+        dmGameObject::AssignInstanceIndex(index, instance);
         *out_id = id;
     }
     else
@@ -66,15 +66,15 @@ static dmGameObject::HGameObject FactorySpawn(dmResource::HFactory factory, dmGa
     return instance;
 }
 
-static void PostSetParent(dmGameObject::HCollection collection, dmGameObject::HGameObject child, dmGameObject::HGameObject parent)
+static void PostSetParent(dmGameObject::HCollection collection, dmGameObject::HInstance child, dmGameObject::HInstance parent)
 {
     dmMessage::URL receiver;
     receiver.m_Socket = dmGameObject::GetMessageSocket(collection);
-    receiver.m_Path = dmGameObject::GetIdentifier(collection, child);
+    receiver.m_Path = dmGameObject::GetIdentifier(child);
     receiver.m_Fragment = 0;
 
     dmGameObjectDDF::SetParent ddf;
-    ddf.m_ParentId = parent ? dmGameObject::GetIdentifier(collection, parent) : 0;
+    ddf.m_ParentId = parent ? dmGameObject::GetIdentifier(parent) : 0;
     ddf.m_KeepWorldTransform = 0;
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, dmGameObjectDDF::SetParent::m_DDFDescriptor->m_NameHash,
@@ -87,7 +87,7 @@ static int Lua_Spawn(lua_State* L) {
     dmGameObject::AcquireInstanceIndex(collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
     dmResource::HFactory factory = dmGameObject::GetFactory(collection);
-    dmGameObject::HGameObject spawned = Spawn(factory, collection, prototype, id, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance spawned = Spawn(factory, collection, prototype, id, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     if (spawned == 0x0) {
         luaL_error(L, "failed to spawn");
         return 1;
@@ -112,7 +112,7 @@ protected:
         script_context_params.m_Factory = m_Factory;
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
-        m_Register = dmGameObject::NewRegister();
+        m_Register = dmGameObject::NewContext();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
         m_ModuleContext.m_ScriptContexts.SetCapacity(1);
         m_ModuleContext.m_ScriptContexts.Push(m_ScriptContext);
@@ -178,7 +178,7 @@ protected:
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteRegister(m_Register);
+        dmGameObject::DeleteContext(m_Register);
     }
 
     static dmResource::FResourceCreate          ACreate;
@@ -210,12 +210,12 @@ public:
         return map[TestGameObjectDDF::AResource::m_DDFHash];
     }
 
-    void NotNull(dmGameObject::HGameObject instance) {
+    void NotNull(dmGameObject::HInstance instance) {
         ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
     }
 
-    dmGameObject::HGameObject New(const char* prototype) {
-        dmGameObject::HGameObject go = dmGameObject::New(m_Collection, prototype);
+    dmGameObject::HInstance New(const char* prototype) {
+        dmGameObject::HInstance go = dmGameObject::New(m_Collection, prototype);
         NotNull(go);
         return go;
     }
@@ -232,7 +232,7 @@ public:
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     }
 
-    void Delete(dmGameObject::HGameObject instance) {
+    void Delete(dmGameObject::HInstance instance) {
         dmGameObject::Delete(m_Collection, instance, false);
     }
 };
@@ -328,7 +328,7 @@ dmGameObject::ComponentsUpdate SpawnDeleteTest::AComponentsUpdate         = Gene
 
 TEST_F(SpawnDeleteTest, CollectionInit_ScriptInit_Spawn)
 {
-    dmGameObject::HGameObject go = New("/init_spawn.goc");
+    dmGameObject::HInstance go = New("/init_spawn.goc");
 
     Init();
 
@@ -346,7 +346,7 @@ TEST_F(SpawnDeleteTest, CollectionInit_ScriptInit_Spawn)
 
 TEST_F(SpawnDeleteTest, CollectionUpdate_ScriptInit_Spawn)
 {
-    dmGameObject::HGameObject go = New("/update_init_spawn.goc");
+    dmGameObject::HInstance go = New("/update_init_spawn.goc");
 
     Init();
 
@@ -371,7 +371,7 @@ TEST_F(SpawnDeleteTest, CollectionUpdate_ScriptInit_Spawn)
 
 TEST_F(SpawnDeleteTest, CollectionUpdate_ScriptUpdate_Spawn)
 {
-    dmGameObject::HGameObject go = New("/update_spawn.goc");
+    dmGameObject::HInstance go = New("/update_spawn.goc");
 
     Init();
 
@@ -396,9 +396,9 @@ TEST_F(SpawnDeleteTest, CollectionUpdate_ScriptUpdate_Spawn)
 
 TEST_F(SpawnDeleteTest, CollectionUpdate_ScriptFinal_Spawn)
 {
-    dmGameObject::HGameObject go1 = New("/final_spawn.goc");
+    dmGameObject::HInstance go1 = New("/final_spawn.goc");
     dmGameObject::SetIdentifier(m_Collection, go1, "/target");
-    dmGameObject::HGameObject go2 = New("/update_delete_target.goc");
+    dmGameObject::HInstance go2 = New("/update_delete_target.goc");
 
     Init();
 
@@ -450,9 +450,9 @@ TEST_F(SpawnDeleteTest, CollectionDelete_ScriptFinal_Spawn)
 
 TEST_F(SpawnDeleteTest, CollectionInit_ScriptInit_Delete)
 {
-    dmGameObject::HGameObject go1 = New("/a.goc");
+    dmGameObject::HInstance go1 = New("/a.goc");
     dmGameObject::SetIdentifier(m_Collection, go1, "/target");
-    dmGameObject::HGameObject go2 = New("/init_delete_target.goc");
+    dmGameObject::HInstance go2 = New("/init_delete_target.goc");
 
     Init();
 
@@ -477,9 +477,9 @@ TEST_F(SpawnDeleteTest, CollectionInit_ScriptInit_Delete)
 
 TEST_F(SpawnDeleteTest, CollectionUpdate_ScriptInit_Delete)
 {
-    dmGameObject::HGameObject go1 = New("/a.goc");
+    dmGameObject::HInstance go1 = New("/a.goc");
     dmGameObject::SetIdentifier(m_Collection, go1, "/target");
-    dmGameObject::HGameObject go2 = New("/update_spawn_delete_target.goc");
+    dmGameObject::HInstance go2 = New("/update_spawn_delete_target.goc");
 
     Init();
 
@@ -509,7 +509,7 @@ TEST_F(SpawnDeleteTest, CollectionDelete_ScriptFinal_Delete)
     m_Collection = dmGameObject::NewCollection("collection2", m_Factory, m_Register, 10u, 0x0);
 
     New("/final_delete.goc");
-    dmGameObject::HGameObject go2 = New("/a.goc");
+    dmGameObject::HInstance go2 = New("/a.goc");
     dmGameObject::SetIdentifier(m_Collection, go2, "/target");
 
     Init();
@@ -528,7 +528,7 @@ TEST_F(SpawnDeleteTest, CollectionDelete_ScriptFinal_Delete)
 
 TEST_F(SpawnDeleteTest, CollectionInit_ScriptInit_SpawnDelete)
 {
-    dmGameObject::HGameObject go = New("/init_spawndelete.goc");
+    dmGameObject::HInstance go = New("/init_spawndelete.goc");
 
     Init();
 
@@ -550,7 +550,7 @@ TEST_F(SpawnDeleteTest, CollectionInit_ScriptInit_SpawnDelete)
 
 TEST_F(SpawnDeleteTest, CollectionUpdate_ScriptUpdate_SpawnDelete)
 {
-    dmGameObject::HGameObject go = New("/update_spawndelete.goc");
+    dmGameObject::HInstance go = New("/update_spawndelete.goc");
 
     Init();
 
@@ -576,7 +576,7 @@ TEST_F(SpawnDeleteTest, CollectionUpdate_ScriptUpdate_SpawnDelete)
 
 TEST_F(SpawnDeleteTest, CollectionUpdate_ScriptFinal_SpawnDelete)
 {
-    dmGameObject::HGameObject go = New("/final_spawndelete.goc");
+    dmGameObject::HInstance go = New("/final_spawndelete.goc");
 
     Init();
 
@@ -624,7 +624,7 @@ TEST_F(SpawnDeleteTest, CollectionDelete_ScriptFinal_SpawnDelete)
 
 TEST_F(SpawnDeleteTest, CollectionUpdate_SpawnDeleteMulti)
 {
-    dmGameObject::HGameObject go = New("/spawndelete_multi.goc");
+    dmGameObject::HInstance go = New("/spawndelete_multi.goc");
 
     Init();
 
@@ -653,17 +653,17 @@ TEST_F(SpawnDeleteTest, CollectionUpdate_SpawnDeleteMulti2)
 {
     Init();
 
-    dmGameObject::HGameObject go2 = Spawn(m_Factory, m_Collection, "/a.goc", 2, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go2 = Spawn(m_Factory, m_Collection, "/a.goc", 2, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
 
     Update();
 
     ASSERT_EQ(0u, dmGameObject::GetAddToUpdateCount(m_Collection));
     ASSERT_EQ(0u, dmGameObject::GetRemoveFromUpdateCount(m_Collection));
 
-    dmGameObject::HGameObject go9 = Spawn(m_Factory, m_Collection, "/a.goc", 9, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
-    dmGameObject::HGameObject go3 = Spawn(m_Factory, m_Collection, "/a.goc", 3, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
-    dmGameObject::HGameObject go4 = Spawn(m_Factory, m_Collection, "/a.goc", 4, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
-    dmGameObject::HGameObject go6 = Spawn(m_Factory, m_Collection, "/a.goc", 6, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go9 = Spawn(m_Factory, m_Collection, "/a.goc", 9, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go3 = Spawn(m_Factory, m_Collection, "/a.goc", 3, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go4 = Spawn(m_Factory, m_Collection, "/a.goc", 4, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go6 = Spawn(m_Factory, m_Collection, "/a.goc", 6, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
 
     Delete(go4);
     Delete(go2);
@@ -677,7 +677,7 @@ TEST_F(SpawnDeleteTest, CollectionUpdate_SpawnDeleteMulti2)
     PostUpdate();
     // The linked list should now have been corrupted
     // and the next spawned object won't get added to the AddToUpdate list
-    dmGameObject::HGameObject go10 = Spawn(m_Factory, m_Collection, "/a.goc", 10, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go10 = Spawn(m_Factory, m_Collection, "/a.goc", 10, 0, dmVMath::Point3(0.0f, 0.0f, 0.0f), dmVMath::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
 
     ASSERT_EQ(1u, dmGameObject::GetAddToUpdateCount(m_Collection));
     ASSERT_EQ(0u, dmGameObject::GetRemoveFromUpdateCount(m_Collection));
@@ -711,7 +711,7 @@ TEST_F(SpawnDeleteTest, SetParentDeleteStress)
         if (op == 0)
         {
             dmhash_t id = 0;
-            dmGameObject::HGameObject instance = FactorySpawn(m_Factory, m_Collection, "/a.goc", &id);
+            dmGameObject::HInstance instance = FactorySpawn(m_Factory, m_Collection, "/a.goc", &id);
             if (instance)
             {
                 ids.Push(id);
@@ -721,7 +721,7 @@ TEST_F(SpawnDeleteTest, SetParentDeleteStress)
         {
             state = state * 1664525u + 1013904223u;
             dmhash_t id = ids[state % ids.Size()];
-            dmGameObject::HGameObject instance = dmGameObject::GetGameObjectFromIdentifier(m_Collection, id);
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(m_Collection, id);
             if (instance)
             {
                 Delete(instance);
@@ -733,8 +733,8 @@ TEST_F(SpawnDeleteTest, SetParentDeleteStress)
             dmhash_t child_id = ids[state % ids.Size()];
             state = state * 1664525u + 1013904223u;
             dmhash_t parent_id = ids[state % ids.Size()];
-            dmGameObject::HGameObject child = dmGameObject::GetGameObjectFromIdentifier(m_Collection, child_id);
-            dmGameObject::HGameObject parent = dmGameObject::GetGameObjectFromIdentifier(m_Collection, parent_id);
+            dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(m_Collection, child_id);
+            dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(m_Collection, parent_id);
             // Steer the deterministic random sequence into the same failing deletion path as issue #12247.
             if (i == 1797 && parent)
             {

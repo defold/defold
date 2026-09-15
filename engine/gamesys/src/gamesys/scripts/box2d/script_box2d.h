@@ -25,7 +25,7 @@ namespace dmGameSystem
     float GetInvPhysicsScale();
 
     void  PushWorld(struct lua_State* L, void* world);
-    void  PushBody(struct lua_State* L, void* body, dmGameObject::HCollection collection, dmGameObject::HGameObject game_object);
+    void  PushBody(struct lua_State* L, void* body, dmGameObject::HInstance hinstance);
     void  PushBox2DVersion(struct lua_State* L);
 
     void  ScriptBox2DInitializeBody(struct lua_State* L);

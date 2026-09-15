@@ -55,8 +55,7 @@ namespace dmGameSystem
 
     struct B2DBodyMeta
     {
-        dmGameObject::HCollection m_Collection;
-        dmGameObject::HGameObject m_GameObject;
+        dmGameObject::HInstance m_Instance;
     };
 
     static dmOpaqueHandleContainer<uintptr_t> g_BodyHandles;
@@ -146,7 +145,7 @@ namespace dmGameSystem
         g_BodyHandles.Release(handle);
     }
 
-    static void RegisterBodyHandle(b2Body* body, dmGameObject::HCollection collection, dmGameObject::HGameObject game_object, HOpaqueHandle* out_handle)
+    static void RegisterBodyHandle(b2Body* body, dmGameObject::HInstance hinstance, HOpaqueHandle* out_handle)
     {
         assert(body);
         EnsureBodyHandleCapacity();
@@ -159,9 +158,9 @@ namespace dmGameSystem
             if (body_ptr)
             {
                 B2DBodyMeta* body_meta = g_BodyMeta.Get(*existing_handle);
-                if (body_meta && body_meta->m_GameObject)
+                if (body_meta && body_meta->m_Instance)
                 {
-                    if (!dmGameObject::IsValid(body_meta->m_Collection, body_meta->m_GameObject))
+                    if (!dmGameObject::IsValid(body_meta->m_Instance))
                     {
                         InvalidateBodyHandle(*existing_handle);
                         existing_handle = 0;
@@ -175,14 +174,12 @@ namespace dmGameSystem
                 B2DBodyMeta* body_meta = g_BodyMeta.Get(*existing_handle);
                 if (body_meta)
                 {
-                    body_meta->m_Collection = collection;
-                    body_meta->m_GameObject = game_object;
+                    body_meta->m_Instance = hinstance;
                 }
                 else
                 {
                     B2DBodyMeta new_body_meta = {};
-                    new_body_meta.m_Collection = collection;
-                    new_body_meta.m_GameObject = game_object;
+                    new_body_meta.m_Instance = hinstance;
                     g_BodyMeta.Put(*existing_handle, new_body_meta);
                 }
 
@@ -198,26 +195,25 @@ namespace dmGameSystem
         g_BodyToHandle.Put(key, handle);
 
         B2DBodyMeta body_meta = {};
-        body_meta.m_Collection = collection;
-        body_meta.m_GameObject = game_object;
+        body_meta.m_Instance = hinstance;
         g_BodyMeta.Put(handle, body_meta);
 
         *out_handle = handle;
     }
 
-    static void PushBodyInternal(lua_State* L, void* body, dmGameObject::HCollection collection, dmGameObject::HGameObject game_object)
+    static void PushBodyInternal(lua_State* L, void* body, dmGameObject::HInstance hinstance)
     {
         B2DLuaBody* luabody = (B2DLuaBody*)lua_newuserdata(L, sizeof(B2DLuaBody));
 
-        RegisterBodyHandle((b2Body*)body, collection, game_object, &luabody->m_Handle);
+        RegisterBodyHandle((b2Body*)body, hinstance, &luabody->m_Handle);
 
         luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
         lua_setmetatable(L, -2);
     }
 
-    void PushBody(lua_State* L, void* body, dmGameObject::HCollection collection, dmGameObject::HGameObject game_object)
+    void PushBody(lua_State* L, void* body, dmGameObject::HInstance hinstance)
     {
-        PushBodyInternal(L, body, collection, game_object);
+        PushBodyInternal(L, body, hinstance);
     }
 
     void PushBox2DVersion(lua_State* L)
@@ -340,9 +336,9 @@ namespace dmGameSystem
             return 0;
         }
 
-        if (body_meta->m_GameObject)
+        if (body_meta->m_Instance)
         {
-            if (!dmGameObject::IsValid(body_meta->m_Collection, body_meta->m_GameObject))
+            if (!dmGameObject::IsValid(body_meta->m_Instance))
             {
                 InvalidateBodyHandle(luabody->m_Handle);
                 luaL_error(L, "Cannot get b2body. Has the game object been deleted?");
@@ -369,10 +365,10 @@ namespace dmGameSystem
         B2DLuaBody* luabody = CheckBodyInternal(L, index);
         B2DBodyMeta* body_meta = 0;
         VerifyBodyInternal(L, luabody, &body_meta);
-        return body_meta ? body_meta->m_Collection : 0;
+        return body_meta ? dmGameObject::GetCollection(body_meta->m_Instance) : 0;
     }
 
-    dmGameObject::HGameObject GetBodyGameObject(b2Body* body)
+    dmGameObject::HInstance GetBodyInstance(b2Body* body)
     {
         void* user_data = body->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
         return user_data ? CompCollisionObjectGetInstance(user_data) : dmGameObject::INVALID_GAME_OBJECT;
@@ -400,15 +396,11 @@ namespace dmGameSystem
         return 0;
     }
 
-    // Reuses the collection context from an existing Lua body handle when pushing a related
-    // native body. This keeps new handles tied to the same collection while deriving the
-    // game object handle from the target body when it belongs to a collision object.
     void PushBodyFromReference(lua_State* L, b2Body* body, int reference_index)
     {
         B2DLuaBody* reference_body = CheckBodyInternal(L, reference_index);
-        B2DBodyMeta* body_meta = 0;
-        VerifyBodyInternal(L, reference_body, &body_meta);
-        PushBodyInternal(L, body, body_meta->m_Collection, GetBodyGameObject(body));
+        VerifyBodyInternal(L, reference_body, 0);
+        PushBodyInternal(L, body, GetBodyInstance(body));
     }
 
     static void PushFixtureInfo(lua_State* L, b2Fixture* fixture, int fixture_index)
@@ -613,7 +605,7 @@ namespace dmGameSystem
         {
             if (IsJointTracked(joint_edge->joint))
             {
-                PushJoint(L, joint_edge->joint, body_meta ? body_meta->m_Collection : 0);
+                PushJoint(L, joint_edge->joint, body_meta ? dmGameObject::GetCollection(body_meta->m_Instance) : 0);
                 lua_rawseti(L, -2, joint_index);
                 ++joint_index;
             }

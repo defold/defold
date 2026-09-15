@@ -43,7 +43,7 @@ protected:
         script_context_params.m_Factory = m_Factory;
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
-        m_Register = dmGameObject::NewRegister();
+        m_Register = dmGameObject::NewContext();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
 
         m_Contexts.SetCapacity(7,16);
@@ -86,7 +86,7 @@ protected:
     {
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
-        dmGameObject::DeleteRegister(m_Register);
+        dmGameObject::DeleteContext(m_Register);
         dmResource::DeleteFactory(m_Factory);
     }
 
@@ -117,7 +117,7 @@ static dmResource::Result NullResourceDestroy(const dmResource::ResourceDestroyP
 }
 
 struct ComponentData {
-    dmGameObject::HGameObject m_Child;
+    dmGameObject::HInstance m_Child;
 };
 
 static dmGameObject::CreateResult TestComponentCreate(const dmGameObject::ComponentCreateParams& params)
@@ -126,14 +126,14 @@ static dmGameObject::CreateResult TestComponentCreate(const dmGameObject::Compon
     ComponentData* data = new ComponentData();
 
     data->m_Child = dmGameObject::New(test->m_Collection, 0x0);
-    dmGameObject::Collection* collection = dmGameObject::GetCollectionFromHandle(params.m_Collection);
-    dmGameObject::Instance* child = dmGameObject::GetGameObjectFromHandle(collection, data->m_Child);
-    dmGameObject::Instance* parent = dmGameObject::GetGameObjectFromHandle(collection, params.m_Instance);
+    dmGameObject::Collection* collection = 0;
+    dmGameObject::Instance* parent = dmGameObject::GetInstanceFromHandle(params.m_Instance, &collection);
+    dmGameObject::Instance* child = dmGameObject::GetInstanceFromHandle(collection, data->m_Child);
     if (child == 0x0 || parent == 0x0 || child->m_Index < parent->m_Index) {
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
-    dmGameObject::SetBone(params.m_Collection, data->m_Child, true);
-    dmGameObject::SetParent(params.m_Collection, data->m_Child, params.m_Instance);
+    dmGameObject::SetBone(data->m_Child, true);
+    dmGameObject::SetParent(data->m_Child, params.m_Instance);
 
     *params.m_UserData = (uintptr_t)data;
     return dmGameObject::CREATE_RESULT_OK;
@@ -142,7 +142,7 @@ static dmGameObject::CreateResult TestComponentCreate(const dmGameObject::Compon
 static dmGameObject::CreateResult TestComponentDestroy(const dmGameObject::ComponentDestroyParams& params)
 {
     ComponentData* data = (ComponentData*)*params.m_UserData;
-    dmGameObject::DeleteBones(params.m_Collection, params.m_Instance);
+    dmGameObject::DeleteBones(params.m_Instance);
     delete data;
     return dmGameObject::CREATE_RESULT_OK;
 }
@@ -162,7 +162,7 @@ TEST_F(BonesTest, DeleteBones)
     ASSERT_EQ(0, collection->m_InstanceIndices.Size());
 
     // Create the game object, the component above will create a child bone to that game object, which in turn will get a lower index because of the gap above
-    dmGameObject::HGameObject test_inst = dmGameObject::New(m_Collection, "/test_bones.goc");
+    dmGameObject::HInstance test_inst = dmGameObject::New(m_Collection, "/test_bones.goc");
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, test_inst);
 
     ASSERT_EQ(2, collection->m_InstanceIndices.Size());
@@ -184,7 +184,7 @@ TEST_F(BonesTest, ComponentCreatingInstances)
     m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0x0);
 
     // First create three game objects to create gaps in the instance array
-    dmGameObject::HGameObject tmp_inst[3];
+    dmGameObject::HInstance tmp_inst[3];
     for (int i = 0; i < 3; ++i) {
         tmp_inst[i] = dmGameObject::New(m_Collection, 0x0);
         ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, tmp_inst[i]);
@@ -194,7 +194,7 @@ TEST_F(BonesTest, ComponentCreatingInstances)
     dmGameObject::Delete(m_Collection, tmp_inst[0], false);
 
     // Create the game object, the component above will create a child bone to that game object, which in turn will get a lower index because of the gap above
-    dmGameObject::HGameObject test_inst = dmGameObject::New(m_Collection, "/test_bones.goc");
+    dmGameObject::HInstance test_inst = dmGameObject::New(m_Collection, "/test_bones.goc");
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, test_inst);
 
     dmGameObject::DeleteCollection(m_Collection);

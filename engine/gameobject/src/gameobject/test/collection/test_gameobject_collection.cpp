@@ -22,6 +22,7 @@
 #include <dlib/path.h>
 #include <dlib/testutil.h>
 #include <dlib/time.h>
+#include <dmsdk/gameobject/res_collection.h>
 
 #include "../gameobject.h"
 #include "../gameobject_private.h"
@@ -47,7 +48,7 @@ protected:
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
-        m_Register = dmGameObject::NewRegister();
+        m_Register = dmGameObject::NewContext();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
 
         m_Contexts.SetCapacity(7,16);
@@ -94,7 +95,7 @@ protected:
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteRegister(m_Register);
+        dmGameObject::DeleteContext(m_Register);
     }
 
     // dmResource::Get API but with preloader instead
@@ -121,7 +122,7 @@ protected:
         return r;
     }
 
-    dmResource::Result GetCollectionResource(const char* ref, dmGameObject::HCollectionResource* resource, dmGameObject::HCollection* collection)
+    dmResource::Result GetCollectionResource(const char* ref, dmGameObject::CollectionResource** resource, dmGameObject::HCollection* collection)
     {
         *resource = 0;
         dmResource::Result result = dmResource::Get(m_Factory, ref, (void**)resource);
@@ -129,7 +130,7 @@ protected:
         return result;
     }
 
-    dmResource::Result PreloaderGetCollectionResource(const char* ref, dmGameObject::HCollectionResource* resource, dmGameObject::HCollection* collection)
+    dmResource::Result PreloaderGetCollectionResource(const char* ref, dmGameObject::CollectionResource** resource, dmGameObject::HCollection* collection)
     {
         *resource = 0;
         dmResource::Result result = PreloaderGet(m_Factory, ref, (void**)resource);
@@ -137,7 +138,7 @@ protected:
         return result;
     }
 
-    void ReleaseCollectionResource(dmGameObject::HCollectionResource resource)
+    void ReleaseCollectionResource(dmGameObject::CollectionResource* resource)
     {
         dmResource::Release(m_Factory, resource);
     }
@@ -171,14 +172,14 @@ static dmResource::Result NullResourceDestroy(const dmResource::ResourceDestroyP
 static dmGameObject::CreateResult TestComponentCreate(const dmGameObject::ComponentCreateParams& params)
 {
     // Hard coded for the specific case "CreateCallback" below
-    dmGameObject::HGameObject instance = params.m_Instance;
-    if (dmGameObject::GetIdentifier(params.m_Collection, instance) != dmHashString64("/go2")) {
+    dmGameObject::HInstance instance = params.m_Instance;
+    if (dmGameObject::GetIdentifier(instance) != dmHashString64("/go2")) {
         return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
     }
-    if (dmGameObject::GetWorldPosition(params.m_Collection, instance).getX() != 2.0f) {
+    if (dmGameObject::GetWorldPosition(instance).getX() != 2.0f) {
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
-    if (dmGameObject::GetIdentifier(params.m_Collection, dmGameObject::GetParent(params.m_Collection, instance)) != dmHashString64("/go1")) {
+    if (dmGameObject::GetIdentifier(dmGameObject::GetParent(instance)) != dmHashString64("/go1")) {
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
     return dmGameObject::CREATE_RESULT_OK;
@@ -224,7 +225,7 @@ TEST_F(CollectionTest, Collection)
     for (int i = 0; i < 20; ++i)
     {
         // NOTE: Coll is local and not m_Collection in CollectionTest
-        dmGameObject::HCollectionResource resource;
+        dmGameObject::CollectionResource* resource;
         dmGameObject::HCollection coll;
         dmResource::Result r;
         if (i < 10)
@@ -246,11 +247,11 @@ TEST_F(CollectionTest, Collection)
         ASSERT_EQ(max_instances, internal_collection->m_WorldTransforms.Size());
 
         dmhash_t go01ident = dmHashString64("/go1");
-        dmGameObject::HGameObject go01 = dmGameObject::GetGameObjectFromIdentifier(coll, go01ident);
+        dmGameObject::HInstance go01 = dmGameObject::GetInstanceFromIdentifier(coll, go01ident);
         ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go01);
 
         dmhash_t go02ident = dmHashString64("/go2");
-        dmGameObject::HGameObject go02 = dmGameObject::GetGameObjectFromIdentifier(coll, go02ident);
+        dmGameObject::HInstance go02 = dmGameObject::GetInstanceFromIdentifier(coll, go02ident);
         ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go02);
 
         dmGameObject::Init(coll);
@@ -267,7 +268,7 @@ TEST_F(CollectionTest, Collection)
 TEST_F(CollectionTest, CollectionSpawning)
 {
     // NOTE: Coll is local and not m_Collection in CollectionTest
-    dmGameObject::HCollectionResource resource;
+    dmGameObject::CollectionResource* resource;
     dmGameObject::HCollection coll;
 
     dmResource::Result r = GetCollectionResource("/empty.collectionc", &resource, &coll);
@@ -375,7 +376,7 @@ TEST_F(CollectionTest, CollectionSpawningToFail)
 TEST_F(CollectionTest, CollectionSpawningResults)
 {
     // NOTE: Coll is local and not m_Collection in CollectionTest
-    dmGameObject::HCollectionResource resource;
+    dmGameObject::CollectionResource* resource;
     dmGameObject::HCollection coll;
 
     dmResource::Result r = GetCollectionResource("/empty.collectionc", &resource, &coll);
@@ -418,13 +419,13 @@ TEST_F(CollectionTest, PostCollection)
     for (int i = 0; i < 10; ++i)
     {
         dmResource::Result r;
-        dmGameObject::HCollectionResource resource1;
+        dmGameObject::CollectionResource* resource1;
         dmGameObject::HCollection coll1;
         r = GetCollectionResource("/post1.collectionc", &resource1, &coll1);
         ASSERT_EQ(dmResource::RESULT_OK, r);
         ASSERT_NE(dmGameObject::INVALID_COLLECTION, coll1);
 
-        dmGameObject::HCollectionResource resource2;
+        dmGameObject::CollectionResource* resource2;
         dmGameObject::HCollection coll2;
         r = GetCollectionResource("/post2.collectionc", &resource2, &coll2);
         ASSERT_EQ(dmResource::RESULT_OK, r);
@@ -453,7 +454,7 @@ TEST_F(CollectionTest, CollectionFail)
     for (int i = 0; i < 20; ++i)
     {
         // NOTE: Coll is local and not collection in CollectionTest
-        dmGameObject::HCollectionResource resource;
+        dmGameObject::CollectionResource* resource;
         dmGameObject::HCollection coll;
         dmResource::Result r;
 
@@ -475,7 +476,7 @@ TEST_F(CollectionTest, CollectionComponentFail)
     for (int i = 0; i < 4; ++i)
     {
         // NOTE: Coll is local and not collection in CollectionTest
-        dmGameObject::HCollectionResource resource;
+        dmGameObject::CollectionResource* resource;
         dmGameObject::HCollection coll;
         dmResource::Result r;
         // Test both with normal loading and preloading
@@ -495,7 +496,7 @@ TEST_F(CollectionTest, CollectionInCollection)
     for (int i = 0; i < 20; ++i)
     {
         // NOTE: Coll is local and not collection in CollectionTest
-        dmGameObject::HCollectionResource resource;
+        dmGameObject::CollectionResource* resource;
         dmGameObject::HCollection coll;
         dmResource::Result r;
 
@@ -508,42 +509,42 @@ TEST_F(CollectionTest, CollectionInCollection)
         ASSERT_NE(dmGameObject::INVALID_COLLECTION, coll);
 
         dmhash_t go01ident = dmHashString64("/go1");
-        dmGameObject::HGameObject go01 = dmGameObject::GetGameObjectFromIdentifier(coll, go01ident);
+        dmGameObject::HInstance go01 = dmGameObject::GetInstanceFromIdentifier(coll, go01ident);
         ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go01);
-        ASSERT_NEAR(dmGameObject::GetPosition(coll, go01).getX(), 123.0f, 0.0000f);
+        ASSERT_NEAR(dmGameObject::GetPosition(go01).getX(), 123.0f, 0.0000f);
 
         dmhash_t go02ident = dmHashString64("/go2");
-        dmGameObject::HGameObject go02 = dmGameObject::GetGameObjectFromIdentifier(coll, go02ident);
+        dmGameObject::HInstance go02 = dmGameObject::GetInstanceFromIdentifier(coll, go02ident);
         ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go02);
-        ASSERT_NEAR(dmGameObject::GetPosition(coll, go02).getX(), 456.0f, 0.0000f);
+        ASSERT_NEAR(dmGameObject::GetPosition(go02).getX(), 456.0f, 0.0000f);
 
         ASSERT_NE(go01, go02);
 
         ASSERT_TRUE(dmGameObject::Update(coll, &m_UpdateContext));
 
         dmhash_t parent_sub1_ident = dmHashString64("/sub1/parent");
-        dmGameObject::HGameObject parent_sub1 = dmGameObject::GetGameObjectFromIdentifier(coll, parent_sub1_ident);
+        dmGameObject::HInstance parent_sub1 = dmGameObject::GetInstanceFromIdentifier(coll, parent_sub1_ident);
         ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, parent_sub1);
 
         dmhash_t child_sub1_ident = dmHashString64("/sub1/child");
-        dmGameObject::HGameObject child_sub1 = dmGameObject::GetGameObjectFromIdentifier(coll, child_sub1_ident);
+        dmGameObject::HInstance child_sub1 = dmGameObject::GetInstanceFromIdentifier(coll, child_sub1_ident);
         ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, child_sub1);
 
         dmhash_t parent_sub2_ident = dmHashString64("/sub2/parent");
-        dmGameObject::HGameObject parent_sub2 = dmGameObject::GetGameObjectFromIdentifier(coll, parent_sub2_ident);
+        dmGameObject::HInstance parent_sub2 = dmGameObject::GetInstanceFromIdentifier(coll, parent_sub2_ident);
         ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, parent_sub2);
 
         dmhash_t child_sub2_ident = dmHashString64("/sub2/child");
-        dmGameObject::HGameObject child_sub2 = dmGameObject::GetGameObjectFromIdentifier(coll, child_sub2_ident);
+        dmGameObject::HInstance child_sub2 = dmGameObject::GetInstanceFromIdentifier(coll, child_sub2_ident);
         ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, child_sub2);
 
         // Relative identifiers
-        ASSERT_EQ(dmHashString64("/a"), dmGameObject::GetAbsoluteIdentifier(coll, go01, "a"));
-        ASSERT_EQ(dmHashString64("/a"), dmGameObject::GetAbsoluteIdentifier(coll, go02, "a"));
-        ASSERT_EQ(dmHashString64("/sub1/a"), dmGameObject::GetAbsoluteIdentifier(coll, parent_sub1, "a"));
-        ASSERT_EQ(dmHashString64("/sub2/a"), dmGameObject::GetAbsoluteIdentifier(coll, parent_sub2, "a"));
-        ASSERT_EQ(dmHashString64("/sub1/a"), dmGameObject::GetAbsoluteIdentifier(coll, parent_sub1, "/sub1/a"));
-        ASSERT_EQ(dmHashString64("/sub2/a"), dmGameObject::GetAbsoluteIdentifier(coll, parent_sub2, "/sub2/a"));
+        ASSERT_EQ(dmHashString64("/a"), dmGameObject::GetAbsoluteIdentifier(go01, "a"));
+        ASSERT_EQ(dmHashString64("/a"), dmGameObject::GetAbsoluteIdentifier(go02, "a"));
+        ASSERT_EQ(dmHashString64("/sub1/a"), dmGameObject::GetAbsoluteIdentifier(parent_sub1, "a"));
+        ASSERT_EQ(dmHashString64("/sub2/a"), dmGameObject::GetAbsoluteIdentifier(parent_sub2, "a"));
+        ASSERT_EQ(dmHashString64("/sub1/a"), dmGameObject::GetAbsoluteIdentifier(parent_sub1, "/sub1/a"));
+        ASSERT_EQ(dmHashString64("/sub2/a"), dmGameObject::GetAbsoluteIdentifier(parent_sub2, "/sub2/a"));
 
         bool ret = dmGameObject::Update(coll, &m_UpdateContext);
         ASSERT_TRUE(ret);
@@ -560,7 +561,7 @@ TEST_F(CollectionTest, CollectionInCollectionChildFail)
     for (int i = 0; i < 20; ++i)
     {
         // NOTE: Coll is local and not collection in CollectionTest
-        dmGameObject::HCollectionResource resource;
+        dmGameObject::CollectionResource* resource;
         dmGameObject::HCollection coll;
         dmResource::Result r;
         if (i < 10)
@@ -574,7 +575,7 @@ TEST_F(CollectionTest, CollectionInCollectionChildFail)
 
 TEST_F(CollectionTest, DefaultValues)
 {
-    dmGameObject::HCollectionResource resource;
+    dmGameObject::CollectionResource* resource;
     dmGameObject::HCollection hcollection;
     dmResource::Result r = GetCollectionResource("/defaults.collectionc", &resource, &hcollection);
     ASSERT_EQ(dmResource::RESULT_OK, r);
@@ -583,13 +584,13 @@ TEST_F(CollectionTest, DefaultValues)
     ASSERT_EQ(2U, instance_count);
     for (uint32_t i = 0; i < instance_count; ++i)
     {
-        dmGameObject::HGameObject instance = dmGameObject::GetGameObjectHandle(collection->m_Instances[collection->m_LevelIndices[0][i]]);
+        dmGameObject::HInstance instance = dmGameObject::GetInstanceHandle(collection, collection->m_Instances[collection->m_LevelIndices[0][i]]);
         ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
-        dmVMath::Point3 p = dmGameObject::GetPosition(hcollection, instance);
+        dmVMath::Point3 p = dmGameObject::GetPosition(instance);
         ASSERT_EQ(0.0f, p.getX());
         ASSERT_EQ(0.0f, p.getY());
         ASSERT_EQ(0.0f, p.getZ());
-        dmVMath::Quat r = dmGameObject::GetRotation(hcollection, instance);
+        dmVMath::Quat r = dmGameObject::GetRotation(instance);
         ASSERT_EQ(0.0f, r.getX());
         ASSERT_EQ(0.0f, r.getY());
         ASSERT_EQ(0.0f, r.getZ());
@@ -604,7 +605,7 @@ TEST_F(CollectionTest, CollectionCapacity)
 {
     for (int i = 0; i < 2; ++i)
     {
-        dmGameObject::HCollectionResource resource;
+        dmGameObject::CollectionResource* resource;
         dmGameObject::HCollection coll;
         dmResource::Result r;
         if (i < 1)
@@ -615,10 +616,10 @@ TEST_F(CollectionTest, CollectionCapacity)
         ASSERT_NE(dmGameObject::INVALID_COLLECTION, coll);
 
         dmhash_t go01ident = dmHashString64("/go1");
-        dmGameObject::HGameObject go01 = dmGameObject::GetGameObjectFromIdentifier(coll, go01ident);
+        dmGameObject::HInstance go01 = dmGameObject::GetInstanceFromIdentifier(coll, go01ident);
         ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go01);
         dmhash_t go02ident = dmHashString64("/go2");
-        dmGameObject::HGameObject go02 = dmGameObject::GetGameObjectFromIdentifier(coll, go02ident);
+        dmGameObject::HInstance go02 = dmGameObject::GetInstanceFromIdentifier(coll, go02ident);
         ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go02);
 
         dmGameObject::Init(coll);
@@ -632,7 +633,7 @@ TEST_F(CollectionTest, CollectionCapacity)
     dmGameObject::SetCollectionDefaultCapacity(m_Register, 1);
     for (int i = 0; i < 2; ++i)
     {
-        dmGameObject::HCollectionResource resource;
+        dmGameObject::CollectionResource* resource;
         dmGameObject::HCollection coll;
         dmResource::Result r;
         if (i < 1)
@@ -649,7 +650,7 @@ TEST_F(CollectionTest, CollectionCapacity)
 
 TEST_F(CollectionTest, CreateCallback)
 {
-    dmGameObject::HCollectionResource resource;
+    dmGameObject::CollectionResource* resource;
     dmGameObject::HCollection coll;
     dmResource::Result r = GetCollectionResource("/test_create.collectionc", &resource, &coll);
     ASSERT_EQ(dmResource::RESULT_OK, r);

@@ -25,6 +25,7 @@
 #include <dlib/profile.h>
 
 #include <dmsdk/gameobject/script.h>
+#include <dmsdk/gameobject/res_collection.h>
 
 #include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
@@ -61,8 +62,8 @@ namespace dmGameSystem
     {
         dmMessage::URL                     m_Unloader;
         CollectionProxyResource*           m_Resource;
-        dmGameObject::HCollectionResource  m_CollectionResource;
-        dmGameObject::HGameObject          m_Instance;
+        dmGameObject::CollectionResource*  m_CollectionResource;
+        dmGameObject::HInstance            m_Instance;
         dmCollectionProxyDDF::TimeStepMode m_TimeStepMode;
         float                              m_TimeStepFactor;
         float                              m_AccumulatedTime;
@@ -201,7 +202,7 @@ namespace dmGameSystem
         }
     }
 
-    void UnloadComplete(dmGameObject::HCollection hcollection, CollectionProxyComponent* proxy, dmGameObject::Result result)
+    void UnloadComplete(CollectionProxyComponent* proxy, dmGameObject::Result result)
     {
         proxy->m_Unloaded = 0;
         if (proxy->m_Callback)
@@ -211,9 +212,9 @@ namespace dmGameSystem
         else if (dmMessage::IsSocketValid(proxy->m_Unloader.m_Socket))
         {
             dmMessage::URL sender;
-            sender.m_Socket = dmGameObject::GetMessageSocket(hcollection);
-            sender.m_Path = dmGameObject::GetIdentifier(hcollection, proxy->m_Instance);
-            dmGameObject::GetComponentId(hcollection, proxy->m_Instance, proxy->m_ComponentIndex, &sender.m_Fragment);
+            sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(proxy->m_Instance));
+            sender.m_Path = dmGameObject::GetIdentifier(proxy->m_Instance);
+            dmGameObject::GetComponentId(proxy->m_Instance, proxy->m_ComponentIndex, &sender.m_Fragment);
             dmMessage::Result msg_result = dmMessage::Post(&sender, &proxy->m_Unloader, COLLECTION_PROXY_UNLOADED_HASH, 0, 0, 0, 0, 0);
             if (msg_result != dmMessage::RESULT_OK)
             {
@@ -228,7 +229,7 @@ namespace dmGameSystem
     }
 
 
-    dmhash_t GetCollectionUrlHashFromComponent(const HCollectionProxyWorld world, dmGameObject::HGameObject hinstance, uint32_t index)
+    dmhash_t GetCollectionUrlHashFromComponent(const HCollectionProxyWorld world, dmhash_t instanceId, uint32_t index)
     {
         dmhash_t comp_url_hash = 0;
         for (uint32_t i = 0; i < world->m_Components.Size(); ++i)
@@ -240,7 +241,8 @@ namespace dmGameSystem
                 continue;
             }
 
-            if (c->m_Instance == hinstance && c->m_ComponentIndex == index)
+            dmhash_t component_instance_id = dmGameObject::GetIdentifier(c->m_Instance);
+            if (component_instance_id == instanceId && c->m_ComponentIndex == index)
             {
                 comp_url_hash = dmHashString64(GetCollectionResorcePath(c));
                 break;
@@ -460,7 +462,7 @@ namespace dmGameSystem
             }
             if (proxy->m_Unloaded)
             {
-                UnloadComplete(params.m_Collection, proxy, dmGameObject::RESULT_OK);
+                UnloadComplete(proxy, dmGameObject::RESULT_OK);
             }
         }
         return result;

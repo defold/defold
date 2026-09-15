@@ -47,7 +47,7 @@ protected:
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
-        m_Register = dmGameObject::NewRegister();
+        m_Register = dmGameObject::NewContext();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
 
         m_Contexts.SetCapacity(7,16);
@@ -94,7 +94,7 @@ protected:
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteRegister(m_Register);
+        dmGameObject::DeleteContext(m_Register);
     }
 
     static dmResource::FResourceCreate    ACreate;
@@ -126,8 +126,8 @@ static dmResource::Result NullResourceDestroy(const dmResource::ResourceDestroyP
 static dmGameObject::CreateResult TestComponentCreate(const dmGameObject::ComponentCreateParams& params)
 {
     // Hard coded for the specific case "CreateCallback" below
-    dmGameObject::HGameObject instance = params.m_Instance;
-    if (dmGameObject::GetWorldPosition(params.m_Collection, instance).getX() != 2.0f) {
+    dmGameObject::HInstance instance = params.m_Instance;
+    if (dmGameObject::GetWorldPosition(instance).getX() != 2.0f) {
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
     }
     return dmGameObject::CREATE_RESULT_OK;
@@ -143,11 +143,11 @@ dmResource::FResourceDestroy FactoryTest::ADestroy            = NullResourceDest
 dmGameObject::ComponentCreate FactoryTest::AComponentCreate   = TestComponentCreate;
 dmGameObject::ComponentDestroy FactoryTest::AComponentDestroy = TestComponentDestroy;
 
-static dmGameObject::HGameObject Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties, const Point3& position, const Quat& rotation, const Vector3& scale)
+static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject::HCollection collection, const char* prototype_name, dmhash_t id, dmGameObject::HPropertyContainer properties, const Point3& position, const Quat& rotation, const Vector3& scale)
 {
     dmGameObject::HPrototype prototype = 0x0;
     if (dmResource::Get(factory, prototype_name, (void**)&prototype) == dmResource::RESULT_OK) {
-        dmGameObject::HGameObject result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
+        dmGameObject::HInstance result = dmGameObject::Spawn(collection, prototype, prototype_name, id, properties, position, rotation, scale);
         dmResource::Release(factory, prototype);
         return result;
     }
@@ -163,7 +163,7 @@ TEST_F(FactoryTest, Factory)
         dmhash_t id = dmGameObject::CreateInstanceId();
 
         ASSERT_NE(0u, id);
-        dmGameObject::HGameObject instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(1, 1, 1));
+        dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(1, 1, 1));
         ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
     }
 }
@@ -173,8 +173,8 @@ TEST_F(FactoryTest, FactoryScale)
     dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
     ASSERT_NE(0u, id);
-    dmGameObject::HGameObject instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(2, 2, 2));
-    ASSERT_EQ(2.0f, dmGameObject::GetUniformScale(m_Collection, instance));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(2, 2, 2));
+    ASSERT_EQ(2.0f, dmGameObject::GetUniformScale(instance));
 }
 
 TEST_F(FactoryTest, FactoryProperties)
@@ -216,7 +216,7 @@ TEST_F(FactoryTest, FactoryProperties)
 
     dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
-    dmGameObject::HGameObject instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
 
     dmGameObject::AcquireInstanceIndex(m_Collection);
@@ -240,7 +240,7 @@ TEST_F(FactoryTest, FactoryPropertiesFailUnsupportedType)
 
     dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
-    dmGameObject::HGameObject instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, instance);
 
     dmGameObject::PropertyContainerDestroy(properties);
@@ -259,7 +259,7 @@ TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
 
     dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
-    dmGameObject::HGameObject instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, instance);
 
     dmGameObject::PropertyContainerDestroy(properties);
@@ -269,6 +269,6 @@ TEST_F(FactoryTest, FactoryCreateCallback)
 {
     dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
-    dmGameObject::HGameObject instance = Spawn(m_Factory, m_Collection, "/test_create.goc", id, 0, Point3(2.0f, 0.0f, 0.0f), Quat(), Vector3(2, 2, 2));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_create.goc", id, 0, Point3(2.0f, 0.0f, 0.0f), Quat(), Vector3(2, 2, 2));
     ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
 }

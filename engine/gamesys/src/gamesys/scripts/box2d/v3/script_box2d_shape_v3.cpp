@@ -578,7 +578,7 @@ namespace dmGameSystem
             return luaL_error(L, "Could not resolve shape body owner.");
         }
 
-        PushBody(L, &body, component->m_Collection, component->m_Instance);
+        PushBody(L, &body, component->m_Instance);
         return 1;
     }
 

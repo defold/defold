@@ -265,9 +265,8 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HCollection hcollection;
-        dmGameObject::HGameObject hsender;
-        dmScript::CheckCollectionAndInstance(L, &hcollection, &hsender);
+        dmGameObject::HInstance hsender = dmScript::CheckGOInstance(L);
+        dmGameObject::HCollection hcollection = dmGameObject::GetCollection(hsender);
 
         HFactoryWorld world;
         HFactoryComponent component;
@@ -281,7 +280,7 @@ namespace dmGameSystem
         }
         else
         {
-            position = dmGameObject::GetWorldPosition(hcollection, hsender);
+            position = dmGameObject::GetWorldPosition(hsender);
         }
         dmVMath::Quat rotation;
         if (top >= 3 && !lua_isnil(L, 3))
@@ -290,7 +289,7 @@ namespace dmGameSystem
         }
         else
         {
-            rotation = dmGameObject::GetWorldRotation(hcollection, hsender);
+            rotation = dmGameObject::GetWorldRotation(hsender);
         }
 
         dmGameObject::HPropertyContainer properties = 0;
@@ -316,7 +315,7 @@ namespace dmGameSystem
         }
         else
         {
-            scale = dmGameObject::GetWorldScale(hcollection, hsender);
+            scale = dmGameObject::GetWorldScale(hsender);
         }
 
         dmhash_t id = dmGameObject::CreateInstanceId();
@@ -336,7 +335,7 @@ namespace dmGameSystem
             dmScript::GetInstance(L);
             int ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
-            dmGameObject::HGameObject hinstance;
+            dmGameObject::HInstance hinstance;
             dmGameObject::Result result = CompFactorySpawn(world, component, hcollection,
                                                             id, position, rotation, scale, properties, &hinstance);
 

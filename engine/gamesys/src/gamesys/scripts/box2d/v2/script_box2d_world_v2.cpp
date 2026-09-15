@@ -202,10 +202,7 @@ namespace dmGameSystem
 
     static void PushBodyForBody(lua_State* L, b2Body* body)
     {
-        CollisionComponent*       component = (CollisionComponent*)body->GetUserData();
-        dmGameObject::HCollection hcollection = component ? component->m_Collection : dmGameObject::INVALID_COLLECTION;
-        dmGameObject::HGameObject hinstance = component ? component->m_Instance : dmGameObject::INVALID_GAME_OBJECT;
-        PushBody(L, body, hcollection, hinstance);
+        PushBody(L, body, GetBodyInstance(body));
     }
 
     static void PushFixtureInfo(lua_State* L, b2Fixture* fixture, int32 child_index)
