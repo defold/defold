@@ -419,30 +419,8 @@ tasks.register('compile') {
     dependsOn 'compileBobLight'
 }
 
-tasks.register('createExternalLibsLightJar', Jar) {
-    dependsOn 'compileSrc'
-    archiveFileName = 'external-libs-light.jar'
-    destinationDirectory = file("${bobDir}/tmp")
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-
-    from {
-        bobDependencyJars.collect { zipTree(it) }
-    }
-
-    inputs.files(bobDependencyJars)
-    outputs.file("${bobDir}/tmp/external-libs-light.jar")
-
-    doLast {
-        if (!file("${bobDir}/tmp/external-libs-light.jar").exists()) {
-            throw new RuntimeException("File '${bobDir}/tmp/external-libs-light.jar' was not created")
-        } else {
-            println "external-libs-light.jar successfully created"
-        }
-    }
-}
-
 tasks.register('createBobLightJar', Jar) {
-    dependsOn 'compileBobLight', 'createExternalLibsLightJar', 'createLuaJitShareZip'
+    dependsOn 'compileBobLight', 'createLuaJitShareZip'
     dependsOn privateBobPluginJarTasks
 
     archiveFileName = 'bob-light.jar'
@@ -465,11 +443,12 @@ tasks.register('createBobLightJar', Jar) {
     doFirst { validateArtifacts(true) }
 
     from {
-        zipTree(file("${bobDir}/tmp/external-libs-light.jar"))
+        bobDependencyJars.collect { zipTree(it) }
     } {
         exclude '**/META-INF/**'
     }
 
+    inputs.files(bobDependencyJars)
     outputs.file("${bobDir}/dist/bob-light.jar")
 
     manifest {
