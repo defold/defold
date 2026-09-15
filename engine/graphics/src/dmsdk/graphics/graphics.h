@@ -447,6 +447,80 @@ namespace dmGraphics
         BUFFER_ACCESS_READ_WRITE = 2,
     };
 
+    /*#
+     * Create a shader storage buffer.
+     * Storage buffers are available only when supported by the active graphics
+     * adapter. The size must be non-zero, four-byte aligned, and within the
+     * adapter's supported storage-buffer range.
+     * @name NewStorageBuffer
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param size [type:uint32_t] Buffer size in bytes
+     * @param data [type:const void*] Optional initial data
+     * @param buffer_usage [type:dmGraphics::BufferUsage] CPU update frequency hint
+     * @return buffer [type:dmGraphics::HStorageBuffer] Storage buffer, or 0 when unsupported or invalid
+     */
+    HStorageBuffer NewStorageBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
+
+    /*#
+     * Delete a shader storage buffer.
+     * @name DeleteStorageBuffer
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     */
+    void DeleteStorageBuffer(HContext context, HStorageBuffer storage_buffer);
+
+    /*#
+     * Replace the complete contents and size of a shader storage buffer.
+     * The size follows the same restrictions as `NewStorageBuffer`.
+     * @name SetStorageBufferData
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     * @param size [type:uint32_t] New buffer size in bytes
+     * @param data [type:const void*] Data used to replace the buffer contents
+     * @param buffer_usage [type:dmGraphics::BufferUsage] CPU update frequency hint
+     */
+    void SetStorageBufferData(HContext context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
+
+    /*#
+     * Update a byte range in a shader storage buffer.
+     * The offset and size must be four-byte aligned and the range must fit in
+     * the existing buffer.
+     * @name SetStorageBufferSubData
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     * @param offset [type:uint32_t] Destination byte offset
+     * @param size [type:uint32_t] Number of bytes to update
+     * @param data [type:const void*] Source data
+     */
+    void SetStorageBufferSubData(HContext context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data);
+
+    /*#
+     * Return the logical size of a shader storage buffer in bytes.
+     * @name GetStorageBufferSize
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     * @return size [type:uint32_t] Logical buffer size in bytes
+     */
+    uint32_t GetStorageBufferSize(HContext context, HStorageBuffer storage_buffer);
+
+    /*#
+     * Bind a shader storage buffer to a reflected descriptor set and binding.
+     * The set and binding must match the shader declaration.
+     * @name EnableStorageBuffer
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     * @param set [type:uint32_t] Shader descriptor set
+     * @param binding [type:uint32_t] Shader resource binding
+     */
+    void EnableStorageBuffer(HContext context, HStorageBuffer storage_buffer, uint32_t set, uint32_t binding);
+
+    /*#
+     * Remove all bindings of a shader storage buffer from the graphics context.
+     * @name DisableStorageBuffer
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
+     */
+    void DisableStorageBuffer(HContext context, HStorageBuffer storage_buffer);
 
     /*#
      * Index buffer element types.

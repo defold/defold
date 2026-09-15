@@ -465,6 +465,21 @@ namespace dmGraphics
         return -1;
     }
 
+    static void StorageBufferMemoryBarrier(VkCommandBuffer command_buffer,
+        VkPipelineStageFlags source_stages, VkPipelineStageFlags destination_stages,
+        VkDependencyFlags dependency_flags)
+    {
+        VkMemoryBarrier memory_barrier;
+        memset(&memory_barrier, 0, sizeof(memory_barrier));
+        memory_barrier.sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        memory_barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+
+        vkCmdPipelineBarrier(command_buffer,
+            source_stages, destination_stages, dependency_flags,
+            1, &memory_barrier, 0, 0, 0, 0);
+    }
+
     static bool EndRenderPass(VulkanContext* context)
     {
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
@@ -475,7 +490,16 @@ namespace dmGraphics
             return false;
         }
 
-        vkCmdEndRenderPass(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight]);
+        VkCommandBuffer command_buffer = context->m_MainCommandBuffers[context->m_CurrentFrameInFlight];
+        vkCmdEndRenderPass(command_buffer);
+        if (context->m_StorageBufferGraphicsWritePending)
+        {
+            StorageBufferMemoryBarrier(command_buffer,
+                STORAGE_BUFFER_GRAPHICS_STAGES,
+                STORAGE_BUFFER_GRAPHICS_STAGES | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                0);
+            context->m_StorageBufferGraphicsWritePending = 0;
+        }
         current_rt->m_IsBound = 0;
         context->m_RenderTargetBound = 0;
         return true;
@@ -1463,6 +1487,7 @@ namespace dmGraphics
 
         limits.m_MaxSamplersPerStage            = vk_limits.maxPerStageDescriptorSamplers;
         limits.m_MaxTexturesPerStage            = vk_limits.maxPerStageDescriptorSampledImages;
+        limits.m_MaxStorageBuffersPerStage      = vk_limits.maxPerStageDescriptorStorageBuffers;
         limits.m_MaxVertexAttributes            = vk_limits.maxVertexInputAttributes;
         limits.m_MaxVertexBuffers               = vk_limits.maxVertexInputBindings;
 
@@ -2366,6 +2391,67 @@ bail:
         delete ubo;
     }
 
+    static HStorageBuffer VulkanNewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        if (data)
+            DeviceBufferUploadHelper(context, data, size, 0, buffer);
+        else
+        {
+            VkResult result = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+                size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, buffer);
+            CHECK_VK_ERROR(result);
+        }
+        return (HStorageBuffer) buffer;
+    }
+
+    static void VulkanDisableStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+                if (context->m_CurrentStorageBuffers[set][binding].m_Buffer == storage_buffer)
+                    context->m_CurrentStorageBuffers[set][binding] = StorageBufferBinding();
+    }
+
+    static void VulkanDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        DeviceBuffer* buffer = (DeviceBuffer*) storage_buffer;
+        VulkanDisableStorageBuffer(_context, storage_buffer);
+        if (!buffer->m_Destroyed)
+            DestroyResourceDeferred(context, buffer);
+        delete buffer;
+    }
+
+    static void VulkanSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        DeviceBuffer* buffer = (DeviceBuffer*) storage_buffer;
+        SetDeviceBuffer(context, buffer, size, 0, data);
+    }
+
+    static void VulkanSetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        DeviceBuffer* buffer = (DeviceBuffer*) storage_buffer;
+        assert(offset + size <= buffer->m_Base.m_Size);
+        DeviceBufferUploadHelper((VulkanContext*) _context, data, size, offset, buffer);
+    }
+
+    static uint32_t VulkanGetStorageBufferSize(HContext _context, HStorageBuffer storage_buffer)
+    {
+        return ((DeviceBuffer*) storage_buffer)->m_Base.m_Size;
+    }
+
+    static void VulkanEnableStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding, uint32_t set)
+    {
+        assert(set < MAX_SET_COUNT && binding < MAX_BINDINGS_PER_SET_COUNT);
+        VulkanContext* context = (VulkanContext*) _context;
+        context->m_CurrentStorageBuffers[set][binding].m_Buffer = storage_buffer;
+        context->m_CurrentStorageBuffers[set][binding].m_BufferOffset = 0;
+    }
+
     static HVertexBuffer VulkanNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VulkanContext* context = (VulkanContext*)_context;
@@ -2832,9 +2918,10 @@ bail:
                     break;
                 case BINDING_FAMILY_STORAGE_BUFFER:
                 {
-                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
+                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[res->m_Set][res->m_Binding];
 
                     DeviceBuffer* ssbo_buffer = (DeviceBuffer*) binding.m_Buffer;
+                    assert(ssbo_buffer && "A reflected storage buffer must be bound before drawing or dispatching");
                     TouchResource(context, ssbo_buffer);
                     UpdateUniformBufferDescriptor(context,
                         ssbo_buffer->m_Handle.m_Buffer,
@@ -2965,7 +3052,7 @@ bail:
 
                 case BINDING_FAMILY_STORAGE_BUFFER:
                 {
-                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[next->m_StorageBufferUnit];
+                    const StorageBufferBinding binding = context->m_CurrentStorageBuffers[res->m_Set][res->m_Binding];
                     DeviceBuffer* ssbo_buffer = (DeviceBuffer*) binding.m_Buffer;
                     VkBuffer vk_buffer = ssbo_buffer ? ssbo_buffer->m_Handle.m_Buffer : VK_NULL_HANDLE;
                     dmHashUpdateBuffer64(&hash_state, &vk_buffer, sizeof(vk_buffer));
@@ -3307,6 +3394,13 @@ bail:
         // but vkCmdDrawIndexed only operates with actual offset values into the index buffer
         uint32_t index_offset = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
         vkCmdDrawIndexed(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), index_offset, 0, 0);
+        if (context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
+        {
+            StorageBufferMemoryBarrier(vk_command_buffer,
+                STORAGE_BUFFER_GRAPHICS_STAGES, STORAGE_BUFFER_GRAPHICS_STAGES,
+                VK_DEPENDENCY_BY_REGION_BIT);
+            context->m_StorageBufferGraphicsWritePending = 1;
+        }
     }
 
     static void VulkanDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
@@ -3325,6 +3419,13 @@ bail:
             return;
         }
         vkCmdDraw(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), first, 0);
+        if (context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
+        {
+            StorageBufferMemoryBarrier(vk_command_buffer,
+                STORAGE_BUFFER_GRAPHICS_STAGES, STORAGE_BUFFER_GRAPHICS_STAGES,
+                VK_DEPENDENCY_BY_REGION_BIT);
+            context->m_StorageBufferGraphicsWritePending = 1;
+        }
     }
 
     static void VulkanDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
@@ -3348,6 +3449,13 @@ bail:
             return;
         }
         vkCmdDispatch(vk_command_buffer, group_count_x, group_count_y, group_count_z);
+        if (context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
+        {
+            StorageBufferMemoryBarrier(vk_command_buffer,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                STORAGE_BUFFER_GRAPHICS_STAGES | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                0);
+        }
     }
 
     static bool ValidateShaderModule(VulkanContext* context, ShaderMeta* meta, ShaderModule* shader, ShaderStageFlag stage_flags, char* error_buffer, uint32_t error_buffer_size)
@@ -3732,7 +3840,7 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         VulkanProgram* program = new VulkanProgram;
 
-        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
 
         if (ddf_cp)
         {
@@ -3769,7 +3877,7 @@ bail:
                 return false;
 
             DestroyProgram(_context, program);
-            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
             CreateComputeProgram(context, program, program->m_ComputeModule);
         }
         else
@@ -3780,7 +3888,7 @@ bail:
                 return false;
 
             DestroyProgram(_context, program);
-            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+            CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
             CreateGraphicsProgram(context, program, program->m_VertexModule, program->m_FragmentModule);
         }
 

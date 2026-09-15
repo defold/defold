@@ -101,6 +101,12 @@ namespace dmGraphics
         uint8_t       m_UsedInDraw : 1;
     };
 
+    struct NullStorageBuffer
+    {
+        StorageBuffer m_Base;
+        uint8_t*      m_Buffer;
+    };
+
     struct NullProgram
     {
         Program                    m_BaseProgram;
@@ -130,6 +136,7 @@ namespace dmGraphics
         HTexture                           m_Textures[MAX_TEXTURE_COUNT];
         HVertexBuffer                      m_VertexBuffers[MAX_VERTEX_BUFFERS];
         NullUniformBuffer*                 m_UniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        NullStorageBuffer*                 m_StorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         FrameBuffer                        m_MainFrameBuffer;
         FrameBuffer*                       m_CurrentFrameBuffer;
         NullProgram*                       m_Program;

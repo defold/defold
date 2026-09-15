@@ -390,6 +390,16 @@ JNIEXPORT void JNICALL Java_ShadercJni_SetResourceStageFlags(JNIEnv* env, jclass
     DM_JNI_GUARD_SCOPE_END();
 }
 
+// void SetResourceAccessFlags(HShaderContext context, uint64_t name_hash, uint8_t access_flags);
+JNIEXPORT void JNICALL Java_ShadercJni_SetResourceAccessFlags(JNIEnv* env, jclass cls, jlong context, jlong name_hash, jint access_flags)
+{
+    DM_JNI_GUARD_SCOPE_BEGIN();
+    {
+        dmShaderc::SetResourceAccessFlags((dmShaderc::HShaderContext) context, (uint64_t) name_hash, (uint8_t) access_flags);
+    }
+    DM_JNI_GUARD_SCOPE_END();
+}
+
 static jobject HLSLMergeRootSignatures(JNIEnv* env, jclass cls, jobjectArray shader_results)
 {
     dmShaderc::jni::ScopedContext jni_scope(env);
@@ -492,6 +502,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
         { (char*) "Compile", (char*) "(JJL" CLASS_NAME "$ShaderCompilerOptions;)L" CLASS_NAME "$ShaderCompileResult;", reinterpret_cast<void*>(Java_ShadercJni_Compile)},
         { (char*) "GetReflection", (char*) "(J)L" CLASS_NAME "$ShaderReflection;", reinterpret_cast<void*>(Java_ShadercJni_GetReflection)},
         { (char*) "SetResourceStageFlags", (char*) "(JJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceStageFlags)},
+        { (char*) "SetResourceAccessFlags", (char*) "(JJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceAccessFlags)},
         { (char*) "SetResourceLocation", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceLocation)},
         { (char*) "SetResourceBinding", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceBinding)},
         { (char*) "SetResourceSet", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceSet)},
