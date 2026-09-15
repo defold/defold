@@ -80,6 +80,13 @@ namespace dmGameSystem
                                         dmhash_t id, const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
                                         dmGameObject::HPropertyContainer properties, dmGameObject::HInstance* out_instance)
     {
+        if (!out_instance)
+            return dmGameObject::RESULT_INVALID_OPERATION;
+
+        *out_instance = dmGameObject::INVALID_GAME_OBJECT;
+        if (!dmGameObject::GetGameObjectContext(collection))
+            return dmGameObject::RESULT_INVALID_INSTANCE;
+
         uint32_t index = dmGameObject::AcquireInstanceIndex(collection);
         if (index == dmGameObject::INVALID_INSTANCE_POOL_INDEX)
         {

@@ -786,11 +786,22 @@ end
 -- used to avoid having to reset the same GO between test runs (since set_position
 -- doesn't work for dynamic collision objects).
 local function new_b_obj(self, pos)
+    local old_body
+    if b2d ~= nil then
+        old_body = b2d.get_body(self.b_coll)
+        assert(old_body ~= nil)
+        assert(b2d.body.is_valid(old_body))
+    end
+
     -- delete previous B obj
     go.delete(self.b)
 
     -- yield so we are sure the old B obj is removed
     coroutine.yield()
+
+    if old_body ~= nil then
+        assert(not b2d.body.is_valid(old_body))
+    end
 
     -- spawn a new b object with the factory
     local new_b = factory.create(self.a .. "#factory", pos)
@@ -800,6 +811,14 @@ local function new_b_obj(self, pos)
     local t_url = msg.url(new_b)
     t_url.fragment = "collisionobject"
     self.b_coll = t_url
+
+    if old_body ~= nil then
+        local new_body = b2d.get_body(self.b_coll)
+        assert(new_body ~= nil)
+        assert(new_body ~= old_body)
+        assert(b2d.body.is_valid(new_body))
+        assert(not b2d.body.is_valid(old_body))
+    end
 end
 
 -- joint type enum to string

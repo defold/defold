@@ -193,34 +193,14 @@ namespace dmGameSystem
         return index < 0 ? lua_gettop(L) + index + 1 : index;
     }
 
-    static bool GetCollisionObjectOwner(btCollisionObject* object, dmGameObject::HCollection* collection, dmhash_t* instance_id)
+    static dmGameObject::HInstance GetCollisionObjectOwner(btCollisionObject* object)
     {
         if (!object || !object->getUserPointer())
         {
-            return false;
+            return dmGameObject::INVALID_GAME_OBJECT;
         }
-
-        dmGameObject::HInstance instance = CompCollisionObjectGetInstance(object->getUserPointer());
-        if (!instance)
-        {
-            return false;
-        }
-
-        dmGameObject::HCollection object_collection = dmGameObject::GetCollection(instance);
-        if (!object_collection)
-        {
-            return false;
-        }
-
-        if (collection)
-        {
-            *collection = object_collection;
-        }
-        if (instance_id)
-        {
-            *instance_id = dmGameObject::GetIdentifier(instance);
-        }
-        return true;
+        dmGameObject::HInstance hinstance = CompCollisionObjectGetInstance(object->getUserPointer());
+        return dmGameObject::IsValid(hinstance) ? hinstance : dmGameObject::INVALID_GAME_OBJECT;
     }
 
     static bool IsIgnoredObject(const Bullet3DQueryFilter* filter, const btCollisionObject* object)
@@ -257,7 +237,7 @@ namespace dmGameSystem
         {
             return false;
         }
-        return GetCollisionObjectOwner(object, 0, 0);
+        return GetCollisionObjectOwner(object) != dmGameObject::INVALID_GAME_OBJECT;
     }
 
     static bool HasResultCapacity(uint32_t result_count, int max_results)
@@ -760,7 +740,7 @@ namespace dmGameSystem
             const btCollisionObject* col_obj_0 = col_obj_0_wrapper->getCollisionObject();
             const btCollisionObject* col_obj_1 = col_obj_1_wrapper->getCollisionObject();
             btCollisionObject*       other = (btCollisionObject*)(col_obj_0 == m_QueryObject ? col_obj_1 : col_obj_0);
-            if (other != m_QueryObject && !ContainsObject(*m_Results, other) && GetCollisionObjectOwner(other, 0, 0))
+            if (other != m_QueryObject && !ContainsObject(*m_Results, other) && GetCollisionObjectOwner(other))
             {
                 Bullet3DQueryObjectResult result = { other };
                 ArrayPush(m_Results, result);
@@ -809,7 +789,7 @@ namespace dmGameSystem
             bool                     requested_is_object_0 = col_obj_0 == m_ObjectA;
             const btCollisionObject* object_a = requested_is_object_0 ? col_obj_0 : col_obj_1;
             const btCollisionObject* object_b = requested_is_object_0 ? col_obj_1 : col_obj_0;
-            if (!GetCollisionObjectOwner((btCollisionObject*)object_a, 0, 0) || !GetCollisionObjectOwner((btCollisionObject*)object_b, 0, 0))
+            if (!GetCollisionObjectOwner((btCollisionObject*)object_a) || !GetCollisionObjectOwner((btCollisionObject*)object_b))
             {
                 return 0.0f;
             }
@@ -999,13 +979,12 @@ namespace dmGameSystem
 
     static bool PushCollisionObjectResult(lua_State* L, btCollisionObject* object)
     {
-        dmGameObject::HCollection collection = 0;
-        dmhash_t                  instance_id = 0;
-        if (!GetCollisionObjectOwner(object, &collection, &instance_id))
+        dmGameObject::HInstance hinstance = GetCollisionObjectOwner(object);
+        if (!hinstance)
         {
             return false;
         }
-        PushBullet3DCollisionObject(L, object, collection, instance_id);
+        PushBullet3DCollisionObject(L, object, hinstance);
         return true;
     }
 
@@ -1058,13 +1037,12 @@ namespace dmGameSystem
 
     static bool StoreAsyncCastResult(lua_State* L, const Bullet3DCastResult& result, Bullet3DAsyncCastResult* async_result)
     {
-        dmGameObject::HCollection collection = 0;
-        dmhash_t                  instance_id = 0;
-        if (!GetCollisionObjectOwner(result.m_Object, &collection, &instance_id))
+        dmGameObject::HInstance hinstance = GetCollisionObjectOwner(result.m_Object);
+        if (!hinstance)
         {
             return false;
         }
-        async_result->m_ObjectId = GetOrCreateBullet3DCollisionObjectId(L, result.m_Object, collection, instance_id);
+        async_result->m_ObjectId = GetOrCreateBullet3DCollisionObjectId(L, result.m_Object, hinstance);
 
         async_result->m_Point = result.m_Point;
         async_result->m_Normal = result.m_Normal;
@@ -1107,7 +1085,7 @@ namespace dmGameSystem
         int output_count = 0;
         for (uint32_t i = 0; i < results.Size() && HasResultCapacity(output_count, max_results); ++i)
         {
-            if (GetCollisionObjectOwner(results[i].m_Object, 0, 0))
+            if (GetCollisionObjectOwner(results[i].m_Object))
             {
                 PushCastResult(L, results[i]);
                 lua_rawseti(L, -2, ++output_count);
@@ -1133,7 +1111,7 @@ namespace dmGameSystem
     {
         for (uint32_t i = 0; i < results.Size(); ++i)
         {
-            if (GetCollisionObjectOwner(results[i].m_Object, 0, 0))
+            if (GetCollisionObjectOwner(results[i].m_Object))
             {
                 PushCastResult(L, results[i]);
                 return;
@@ -1171,7 +1149,7 @@ namespace dmGameSystem
         int output_count = 0;
         for (uint32_t i = 0; i < results.Size() && HasResultCapacity(output_count, max_results); ++i)
         {
-            if (GetCollisionObjectOwner(results[i].m_ObjectA, 0, 0) && GetCollisionObjectOwner(results[i].m_ObjectB, 0, 0))
+            if (GetCollisionObjectOwner(results[i].m_ObjectA) && GetCollisionObjectOwner(results[i].m_ObjectB))
             {
                 PushContactResult(L, results[i]);
                 lua_rawseti(L, -2, ++output_count);
@@ -1641,7 +1619,7 @@ namespace dmGameSystem
         const btCollisionObjectArray&      objects = world->getCollisionObjectArray();
         for (int i = 0; i < objects.size() && HasResultCapacity(results.Size(), max_results); ++i)
         {
-            if (GetCollisionObjectOwner(objects[i], 0, 0))
+            if (GetCollisionObjectOwner(objects[i]))
             {
                 Bullet3DQueryObjectResult result = { objects[i] };
                 ArrayPush(&results, result);

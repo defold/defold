@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 
+#include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/path.h>
 #include <dlib/testutil.h>
@@ -43,7 +44,7 @@ protected:
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
-        m_Register = dmGameObject::NewRegister();
+        m_Register = dmGameObject::NewContext();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
 
         m_Contexts.SetCapacity(7,16);
@@ -71,13 +72,13 @@ protected:
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteRegister(m_Register);
+        dmGameObject::DeleteContext(m_Register);
     }
 
 public:
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HRegister m_Register;
+    dmGameObject::HContext m_Register;
     dmGameObject::HCollection m_Collection = 0;
     dmResource::HFactory m_Factory;
     dmGameObject::ModuleContext m_ModuleContext;
@@ -86,11 +87,11 @@ public:
 
 TEST_F(CollectionLimitTest, CreateAndHitLimitAndSetGetPosition)
 {
-    // Max usable index is INVALID_INSTANCE_INDEX - 1
-    const uint32_t max_instances = dmGameObject::INVALID_INSTANCE_INDEX - 1;
+    // Exercise fixed-capacity storage past the old 16-bit instance-index boundary.
+    const uint32_t max_instances = 65537;
 
     m_Collection = dmGameObject::NewCollection("limit_col", m_Factory, m_Register, max_instances, 0x0);
-    ASSERT_NE((void*)0, (void*)m_Collection);
+    ASSERT_NE(dmGameObject::INVALID_COLLECTION, m_Collection);
 
     // Create max_instances objects and set position.x to 1..max_instances
     dmArray<dmGameObject::HInstance> instances;
@@ -98,14 +99,14 @@ TEST_F(CollectionLimitTest, CreateAndHitLimitAndSetGetPosition)
     for (uint32_t i = 0; i < max_instances; ++i)
     {
         dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
-        ASSERT_NE((void*)0, (void*)go);
+        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
         instances.Push(go);
         dmGameObject::SetPosition(go, Point3((float)(i + 1), 0.0f, 0.0f));
     }
 
     // Next creation should fail (buffer full)
     dmGameObject::HInstance overflow = dmGameObject::New(m_Collection, "/go1.goc");
-    ASSERT_EQ((void*)0, (void*)overflow);
+    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, overflow);
 
     // Verify we can read back what we wrote
     for (uint32_t i = 0; i < instances.Size(); ++i)
@@ -113,4 +114,83 @@ TEST_F(CollectionLimitTest, CreateAndHitLimitAndSetGetPosition)
         float expected = (float)(i + 1);
         ASSERT_NEAR(expected, dmGameObject::GetPosition(instances[i]).getX(), 0.0f);
     }
+}
+
+TEST_F(CollectionLimitTest, RejectsCollectionAboveHandleCapacity)
+{
+    m_Collection = dmGameObject::NewCollection("too_large", m_Factory, m_Register, (1U << 20) + 1, 0x0);
+    ASSERT_EQ(dmGameObject::INVALID_COLLECTION, m_Collection);
+}
+
+TEST_F(CollectionLimitTest, CollectionRegistryExhaustion)
+{
+    const uint32_t collection_count = 1U << 12;
+    dmArray<dmGameObject::HCollection> collections;
+    collections.SetCapacity(collection_count);
+
+    for (uint32_t i = 0; i < collection_count; ++i)
+    {
+        char name[32];
+        dmSnPrintf(name, sizeof(name), "registry_%u", i);
+        dmGameObject::HCollection collection = dmGameObject::NewCollection(name, m_Factory, m_Register, 1, 0x0);
+        ASSERT_NE(dmGameObject::INVALID_COLLECTION, collection);
+        ASSERT_LT((uint32_t)(collection & 0xffff), collection_count);
+        collections.Push(collection);
+
+        // Keep the message socket registry from becoming the limiting resource
+        // in this collection-handle registry test.
+        dmGameObject::Collection* internal_collection = dmGameObject::GetCollectionFromHandle(collection);
+        dmMessage::DeleteSocket(internal_collection->m_ComponentSocket);
+        dmMessage::DeleteSocket(internal_collection->m_FrameSocket);
+        internal_collection->m_ComponentSocket = 0;
+        internal_collection->m_FrameSocket = 0;
+    }
+
+    ASSERT_EQ(dmGameObject::INVALID_COLLECTION,
+              dmGameObject::NewCollection("registry_overflow", m_Factory, m_Register, 1, 0x0));
+
+    dmGameObject::HCollection previous_handle = collections[0];
+    dmGameObject::Collection* previous = dmGameObject::GetCollectionFromHandle(previous_handle);
+    dmGameObject::HInstance previous_instance = dmGameObject::New(previous_handle, 0);
+    ASSERT_TRUE(dmGameObject::IsValid(previous_instance));
+
+    dmGameObject::DetachCollection(previous, false);
+    dmGameObject::HCollection replacement_handle = dmGameObject::NewCollection("registry_replacement", m_Factory, m_Register, 1, 0x0, previous_handle);
+    ASSERT_NE(dmGameObject::INVALID_COLLECTION, replacement_handle);
+    ASSERT_EQ((uint16_t)previous_handle, (uint16_t)replacement_handle);
+    ASSERT_NE((uint16_t)(previous_handle >> 16), (uint16_t)(replacement_handle >> 16));
+
+    dmGameObject::Collection* replacement = dmGameObject::GetCollectionFromHandle(replacement_handle);
+    dmGameObject::HInstance replacement_instance = dmGameObject::New(replacement_handle, 0);
+    ASSERT_NE(previous_instance, replacement_instance);
+    ASSERT_TRUE(dmGameObject::IsValid(previous_instance));
+    ASSERT_TRUE(dmGameObject::IsValid(replacement_instance));
+    ASSERT_EQ(previous_handle, dmGameObject::GetCollection(previous_instance));
+    ASSERT_EQ(replacement_handle, dmGameObject::GetCollection(replacement_instance));
+
+    dmGameObject::DeleteCollection(replacement);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::AttachCollection(previous, "registry_0"));
+    ASSERT_TRUE(dmGameObject::IsValid(previous_instance));
+    ASSERT_FALSE(dmGameObject::IsValid(replacement_instance));
+
+    dmGameObject::DetachCollection(previous, false);
+    replacement_handle = dmGameObject::NewCollection("registry_replacement", m_Factory, m_Register, 1, 0x0, previous_handle);
+    ASSERT_NE(dmGameObject::INVALID_COLLECTION, replacement_handle);
+    replacement = dmGameObject::GetCollectionFromHandle(replacement_handle);
+    replacement_instance = dmGameObject::New(replacement_handle, 0);
+    ASSERT_NE(previous_instance, replacement_instance);
+    ASSERT_TRUE(dmGameObject::IsValid(previous_instance));
+    ASSERT_TRUE(dmGameObject::IsValid(replacement_instance));
+    ASSERT_EQ(previous_handle, dmGameObject::GetCollection(previous_instance));
+    ASSERT_EQ(replacement_handle, dmGameObject::GetCollection(replacement_instance));
+    dmGameObject::DeleteCollection(previous);
+    ASSERT_FALSE(dmGameObject::IsValid(previous_instance));
+    ASSERT_TRUE(dmGameObject::IsValid(replacement_instance));
+    collections[0] = replacement_handle;
+
+    for (uint32_t i = 0; i < collections.Size(); ++i)
+    {
+        dmGameObject::DeleteCollection(collections[i]);
+    }
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Register));
 }

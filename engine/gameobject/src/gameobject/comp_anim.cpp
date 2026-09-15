@@ -75,7 +75,7 @@ namespace dmGameObject
         dmArray<Animation>                  m_Animations;
         dmArray<uint16_t>                   m_AnimMap;
         dmIndexPool<uint16_t>               m_AnimMapIndexPool;
-        dmHashTable<uintptr_t, uint16_t>    m_InstanceToIndex;
+        dmHashTable<HInstance, uint16_t>    m_InstanceToIndex;
         dmHashTable<uintptr_t, uint16_t>    m_ListenerInstanceToIndex;
         uint32_t                            m_InUpdate : 1;
     };
@@ -221,7 +221,7 @@ namespace dmGameObject
                     }
                 }
                 // Cancel other currently playing animations
-                uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)anim.m_Instance);
+                uint16_t* head_ptr = world->m_InstanceToIndex.Get(anim.m_Instance);
                 if (head_ptr != 0x0)
                 {
                     uint16_t index = *head_ptr;
@@ -354,7 +354,7 @@ namespace dmGameObject
                         anim->m_Easing.release_callback(&anim->m_Easing);
                     }
                 }
-                uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)anim->m_Instance);
+                uint16_t* head_ptr = world->m_InstanceToIndex.Get(anim->m_Instance);
                 uint16_t* index_ptr = head_ptr;
                 while (*index_ptr != INVALID_INDEX)
                 {
@@ -372,7 +372,7 @@ namespace dmGameObject
                 // Remove instance when the list is empty
                 if (*head_ptr == INVALID_INDEX)
                 {
-                    world->m_InstanceToIndex.Erase((uintptr_t)anim->m_Instance);
+                    world->m_InstanceToIndex.Erase(anim->m_Instance);
                 }
                 // delete the instance from the list
                 anim = &world->m_Animations.EraseSwap(i);
@@ -393,18 +393,25 @@ namespace dmGameObject
         return result;
     }
 
-    static AnimWorld* GetWorld(HCollection hcollection)
+    static AnimWorld* GetWorld(Collection* collection)
     {
+        if (!collection)
+            return 0;
         HResourceType resource_type;
-        dmResource::Result result = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(hcollection), "animc", &resource_type);
+        dmResource::Result result = dmResource::GetTypeFromExtension(collection->m_Factory, "animc", &resource_type);
         assert(result == dmResource::RESULT_OK);
         uint32_t component_index;
-        ComponentType* type = FindComponentType(dmGameObject::GetRegister(hcollection), resource_type, &component_index);
+        ComponentType* type = FindComponentType(collection->m_Register, resource_type, &component_index);
         assert(type != 0x0);
-        return (AnimWorld*)dmGameObject::GetWorld(hcollection, component_index);
+        return (AnimWorld*)collection->m_ComponentWorlds[component_index];
     }
 
-    static bool PlayAnimation(AnimWorld* world, HInstance instance, dmhash_t component_id,
+    static AnimWorld* GetWorld(HCollection hcollection)
+    {
+        return GetWorld(GetCollectionFromHandle(hcollection));
+    }
+
+    static bool PlayAnimation(AnimWorld* world, HInstance hinstance, dmhash_t component_id,
                      dmhash_t property_id,
                      Playback playback,
                      float* value,
@@ -424,7 +431,7 @@ namespace dmGameObject
             return false;
         }
         uint16_t index = world->m_AnimMapIndexPool.Pop();
-        uint16_t* index_ptr = world->m_InstanceToIndex.Get((uintptr_t)instance);
+        uint16_t* index_ptr = world->m_InstanceToIndex.Get(hinstance);
         if (index_ptr == 0x0)
         {
             if (world->m_InstanceToIndex.Full())
@@ -433,7 +440,7 @@ namespace dmGameObject
                 world->m_AnimMapIndexPool.Push(index);
                 return false;
             }
-            world->m_InstanceToIndex.Put((uintptr_t)instance, index);
+            world->m_InstanceToIndex.Put(hinstance, index);
         }
         else
         {
@@ -462,7 +469,7 @@ namespace dmGameObject
         world->m_AnimMap[index] = top;
         animation.m_Index = index;
 
-        animation.m_Instance = instance;
+        animation.m_Instance = hinstance;
         animation.m_ComponentId = component_id;
         animation.m_PropertyId = property_id;
         animation.m_Playback = playback;
@@ -512,11 +519,11 @@ namespace dmGameObject
         return true;
     }
 
-    static bool PlayCompositeAnimation(AnimWorld* world, HInstance instance, dmhash_t component_id,
+    static bool PlayCompositeAnimation(AnimWorld* world, HInstance hinstance, dmhash_t component_id,
             dmhash_t property_id, Playback playback, float duration, float delay, dmEasing::Curve easing, AnimationStopped animation_stopped,
             void* userdata1, void* userdata2)
     {
-        return PlayAnimation(world, instance, component_id, property_id, playback, 0x0, 0, 0, easing,
+        return PlayAnimation(world, hinstance, component_id, property_id, playback, 0x0, 0, 0, easing,
                 duration, delay, animation_stopped, userdata1, userdata2, true);
     }
 
@@ -540,7 +547,7 @@ namespace dmGameObject
         }
     }
 
-    PropertyResult Animate(HCollection collection, HInstance instance, dmhash_t component_id,
+    PropertyResult Animate(HCollection hcollection, HInstance hinstance, dmhash_t component_id,
                      dmhash_t property_id,
                      Playback playback,
                      PropertyVar& to,
@@ -550,13 +557,14 @@ namespace dmGameObject
                      AnimationStopped animation_stopped,
                      void* userdata1, void* userdata2)
     {
-        if (instance == 0)
-            return PROPERTY_RESULT_INVALID_INSTANCE;
         PropertyDesc prop_desc;
         PropertyOptions property_opt;
         AddPropertyOptionsIndex(&property_opt, 0);
 
-        PropertyResult prop_result = GetProperty(instance, component_id, property_id, property_opt, prop_desc);
+        if (hcollection == INVALID_COLLECTION || GetCollection(hinstance) != hcollection)
+            return PROPERTY_RESULT_INVALID_INSTANCE;
+
+        PropertyResult prop_result = GetProperty(hinstance, component_id, property_id, property_opt, prop_desc);
         if (prop_result != PROPERTY_RESULT_OK)
         {
             return prop_result;
@@ -584,11 +592,11 @@ namespace dmGameObject
         {
             return PROPERTY_RESULT_UNSUPPORTED_TYPE;
         }
-        AnimWorld* world = GetWorld(collection);
+        AnimWorld* world = GetWorld(hcollection);
 
         if (element_count > 1)
         {
-            if (!PlayCompositeAnimation(world, instance, component_id, property_id, playback,
+            if (!PlayCompositeAnimation(world, hinstance, component_id, property_id, playback,
                     duration, delay, easing, animation_stopped, userdata1, userdata2))
                 return PROPERTY_RESULT_BUFFER_OVERFLOW;
 
@@ -600,14 +608,14 @@ namespace dmGameObject
                 float* val_ptr = 0x0;
                 if (prop_desc.m_ValuePtr != 0x0)
                     val_ptr = prop_desc.m_ValuePtr + i;
-                if (!PlayAnimation(world, instance, component_id, prop_desc.m_ElementIds[i], playback, val_ptr,
+                if (!PlayAnimation(world, hinstance, component_id, prop_desc.m_ElementIds[i], playback, val_ptr,
                         *(v + i), to.m_V4[i], easing, duration, delay, 0x0, 0x0, 0x0, false))
                     return PROPERTY_RESULT_BUFFER_OVERFLOW;
             }
         }
         else
         {
-            if (!PlayAnimation(world, instance, component_id, property_id, playback, prop_desc.m_ValuePtr,
+            if (!PlayAnimation(world, hinstance, component_id, property_id, playback, prop_desc.m_ValuePtr,
                     (float)prop_desc.m_Variant.m_Number, (float)to.m_Number, easing, duration, delay, animation_stopped,
                     userdata1, userdata2, false))
                 return PROPERTY_RESULT_BUFFER_OVERFLOW;
@@ -615,23 +623,24 @@ namespace dmGameObject
         return PROPERTY_RESULT_OK;
     }
 
-    PropertyResult CancelAnimations(HCollection collection, HInstance instance, dmhash_t component_id,
+    PropertyResult CancelAnimations(HCollection hcollection, HInstance hinstance, dmhash_t component_id,
                      dmhash_t property_id)
     {
-        if (instance == 0)
-            return PROPERTY_RESULT_INVALID_INSTANCE;
-
-        AnimWorld* world = GetWorld(collection);
-        uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)instance);
         if (property_id == 0)
         {
-            StopAnimations(world, head_ptr, component_id, 0);
+            if (hcollection == INVALID_COLLECTION || GetCollection(hinstance) != hcollection)
+                return PROPERTY_RESULT_INVALID_INSTANCE;
+            AnimWorld* world = GetWorld(hcollection);
+            StopAnimations(world, world->m_InstanceToIndex.Get(hinstance), component_id, 0);
             return PROPERTY_RESULT_OK;
         }
+
         PropertyDesc prop_desc;
         PropertyOptions property_opt;
         AddPropertyOptionsIndex(&property_opt, 0);
-        PropertyResult prop_result = GetProperty(instance, component_id, property_id, property_opt, prop_desc);
+        if (hcollection == INVALID_COLLECTION || GetCollection(hinstance) != hcollection)
+            return PROPERTY_RESULT_INVALID_INSTANCE;
+        PropertyResult prop_result = GetProperty(hinstance, component_id, property_id, property_opt, prop_desc);
         if (prop_result != PROPERTY_RESULT_OK)
         {
             return prop_result;
@@ -641,6 +650,9 @@ namespace dmGameObject
         {
             return PROPERTY_RESULT_UNSUPPORTED_TYPE;
         }
+
+        AnimWorld* world = GetWorld(hcollection);
+        uint16_t* head_ptr = world->m_InstanceToIndex.Get(hinstance);
         StopAnimations(world, head_ptr, component_id, property_id);
         if (element_count > 1)
         {
@@ -652,17 +664,16 @@ namespace dmGameObject
         return PROPERTY_RESULT_OK;
     }
 
-    void CancelAnimations(HCollection collection, HInstance instance)
+    static void CancelAnimations(AnimWorld* world, HInstance hinstance)
     {
-        AnimWorld* world = GetWorld(collection);
         // Deferred cancel while in update
         if (world->m_InUpdate)
         {
-            StopAllAnimations(world, world->m_InstanceToIndex.Get((uintptr_t)instance));
+            StopAllAnimations(world, world->m_InstanceToIndex.Get(hinstance));
         }
         else
         {
-            uint16_t* head_ptr = world->m_InstanceToIndex.Get((uintptr_t)instance);
+            uint16_t* head_ptr = world->m_InstanceToIndex.Get(hinstance);
             if (head_ptr != 0x0)
             {
                 uint32_t anim_count = world->m_Animations.Size();
@@ -694,9 +705,21 @@ namespace dmGameObject
                         world->m_AnimMap[anim->m_Index] = anim_index;
                     }
                 }
-                world->m_InstanceToIndex.Erase((uintptr_t)instance);
+                world->m_InstanceToIndex.Erase(hinstance);
             }
         }
+    }
+
+    void CancelAnimations(Collection* collection, HInstance hinstance)
+    {
+        CancelAnimations(GetWorld(collection), hinstance);
+    }
+
+    void CancelAnimations(HCollection hcollection, HInstance hinstance)
+    {
+        Collection* collection = GetCollectionFromHandle(hcollection);
+        if (collection && GetCollection(hinstance) == hcollection)
+            CancelAnimations(collection, hinstance);
     }
 
     static void RemoveAnimationCallback(AnimWorld* world, Animation* anim)
@@ -736,9 +759,11 @@ namespace dmGameObject
 
     }
 
-    void CancelAnimationCallbacks(HCollection collection, void* userdata1)
+    void CancelAnimationCallbacks(HCollection hcollection, void* userdata1)
     {
-        AnimWorld* const world = GetWorld(collection);
+        AnimWorld* const world = GetWorld(hcollection);
+        if (!world)
+            return;
         uint16_t* head_ptr = world->m_ListenerInstanceToIndex.Get((uintptr_t)userdata1);
         if (0x0 != head_ptr)
         {

@@ -78,13 +78,12 @@ static void PostSetParent(dmGameObject::HCollection collection, dmGameObject::HI
     ddf.m_KeepWorldTransform = 0;
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, dmGameObjectDDF::SetParent::m_DDFDescriptor->m_NameHash,
-        (uintptr_t) child, (uintptr_t) dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
+        0, (uintptr_t) dmGameObjectDDF::SetParent::m_DDFDescriptor, &ddf, sizeof(dmGameObjectDDF::SetParent), 0));
 }
 
 static int Lua_Spawn(lua_State* L) {
     const char* prototype = luaL_checkstring(L, 1);
-    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
-    dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+    dmGameObject::HCollection collection = dmGameObject::GetCollectionFromLua(L);
     dmGameObject::AcquireInstanceIndex(collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
     dmResource::HFactory factory = dmGameObject::GetFactory(collection);
@@ -113,7 +112,7 @@ protected:
         script_context_params.m_Factory = m_Factory;
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
-        m_Register = dmGameObject::NewRegister();
+        m_Register = dmGameObject::NewContext();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
         m_ModuleContext.m_ScriptContexts.SetCapacity(1);
         m_ModuleContext.m_ScriptContexts.Push(m_ScriptContext);
@@ -179,7 +178,7 @@ protected:
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteRegister(m_Register);
+        dmGameObject::DeleteContext(m_Register);
     }
 
     static dmResource::FResourceCreate          ACreate;
@@ -195,7 +194,7 @@ public:
 
     dmGameObject::HCollection m_Collection;
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HRegister m_Register;
+    dmGameObject::HContext m_Register;
     dmResource::HFactory m_Factory;
     dmMessage::HSocket m_Socket;
     dmScript::HContext m_ScriptContext;
@@ -212,7 +211,7 @@ public:
     }
 
     void NotNull(dmGameObject::HInstance instance) {
-        ASSERT_NE((void*)0, (void*)instance);
+        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
     }
 
     dmGameObject::HInstance New(const char* prototype) {

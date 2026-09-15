@@ -25,6 +25,17 @@ extern "C"
 
 namespace dmGameObject
 {
+    /**
+     * Native resolver stored in a script-instance metatable to expose game object ownership.
+     * The resolver must outlive the script context and return INVALID_GAME_OBJECT if ownership cannot be resolved.
+     */
+    struct ScriptInstanceGameObjectResolver
+    {
+        HInstance (*m_GetInstance)(void* script_instance);
+    };
+
+    extern const char META_TABLE_GET_GAME_OBJECT[];
+
     /*#
      * Get component user data from lua-argument. This function is typically used from lua-bindings
      * and can only be used from protected lua-calls as luaL_error might be invoked
@@ -37,7 +48,7 @@ namespace dmGameObject
      * @param url will be overwritten with a URL to the component when specified
      * @param world world associated when specified
      */
-    void GetComponentFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, dmGameObject::HComponent* out_user_data, dmMessage::URL* out_url, dmGameObject::HComponentWorld* world);
+    void GetComponentFromLua(lua_State* L, int index, HCollection hcollection, const char* component_ext, dmGameObject::HComponent* out_user_data, dmMessage::URL* out_url, dmGameObject::HComponentWorld* world);
 
     /**
      * Get current game object instance from the lua state, if any.
@@ -49,11 +60,28 @@ namespace dmGameObject
 
     /**
      * Get current game object instance from a script instance of the specified type.
+     * The script instance type must provide a ScriptInstanceGameObjectResolver in META_TABLE_GET_GAME_OBJECT.
      * @param L lua-state
      * @param script_instance_type_hash script instance user type
      * @return current game object instance
      */
     HInstance GetInstanceFromLua(lua_State* L, uint32_t script_instance_type_hash);
+
+    /**
+     * Get the current game object collection from the lua state, if any.
+     * @param L lua-state
+     * @return current game object collection
+     */
+    HCollection GetCollectionFromLua(lua_State* L);
+
+    /**
+     * Get the current game object collection from a script instance of the specified type.
+     * The script instance type must provide a ScriptInstanceGameObjectResolver in META_TABLE_GET_GAME_OBJECT.
+     * @param L lua-state
+     * @param script_instance_type_hash script instance user type
+     * @return current game object collection
+     */
+    HCollection GetCollectionFromLua(lua_State* L, uint32_t script_instance_type_hash);
 
 }
 

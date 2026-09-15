@@ -265,7 +265,7 @@ namespace dmGameSystem
 
         lua_State*              m_LuaState;
         dmResource::HFactory    m_Factory;
-        dmGameObject::HRegister m_Register;
+        dmGameObject::HContext  m_Register;
         dmHID::HContext         m_HidContext;
         dmGraphics::HContext    m_GraphicsContext;
         HJobContext             m_JobContext;
@@ -318,7 +318,7 @@ namespace dmGameSystem
         ModelContext* model_context);
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
-                                                  dmGameObject::HRegister regist,
+                                                  dmGameObject::HContext gocontext,
                                                   dmRender::HRenderContext render_context,
                                                   PhysicsContext* physics_context,
                                                   SpriteContext* sprite_context,

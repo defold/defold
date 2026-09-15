@@ -46,7 +46,6 @@ namespace dmGameSystem
 
     struct GuiComponent
     {
-        struct GuiWorld*        m_World;
         GuiSceneResource*       m_Resource;
         dmGui::HScene           m_Scene;
         dmGameObject::HInstance m_Instance;

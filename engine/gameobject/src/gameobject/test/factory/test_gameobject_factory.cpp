@@ -47,7 +47,7 @@ protected:
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
-        m_Register = dmGameObject::NewRegister();
+        m_Register = dmGameObject::NewContext();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
 
         m_Contexts.SetCapacity(7,16);
@@ -94,7 +94,7 @@ protected:
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteRegister(m_Register);
+        dmGameObject::DeleteContext(m_Register);
     }
 
     static dmResource::FResourceCreate    ACreate;
@@ -105,7 +105,7 @@ protected:
 public:
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HRegister m_Register;
+    dmGameObject::HContext m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmGameObject::ModuleContext m_ModuleContext;
@@ -164,7 +164,7 @@ TEST_F(FactoryTest, Factory)
 
         ASSERT_NE(0u, id);
         dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0, Point3(), Quat(), Vector3(1, 1, 1));
-        ASSERT_NE(0u, (uintptr_t)instance);
+        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
     }
 }
 
@@ -217,12 +217,12 @@ TEST_F(FactoryTest, FactoryProperties)
     dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
-    ASSERT_NE((void*)0, instance);
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
 
     dmGameObject::AcquireInstanceIndex(m_Collection);
     id = dmGameObject::CreateInstanceId();
     instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
-    ASSERT_NE((void*)0, instance);
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
 
     dmGameObject::PropertyContainerDestroy(properties);
 }
@@ -241,7 +241,7 @@ TEST_F(FactoryTest, FactoryPropertiesFailUnsupportedType)
     dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
-    ASSERT_EQ((void*)0, instance);
+    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, instance);
 
     dmGameObject::PropertyContainerDestroy(properties);
 }
@@ -260,7 +260,7 @@ TEST_F(FactoryTest, FactoryPropertiesFailTypeMismatch)
     dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_props.goc", id, properties, Point3(), Quat(), Vector3(2, 2, 2));
-    ASSERT_EQ((void*)0, instance);
+    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, instance);
 
     dmGameObject::PropertyContainerDestroy(properties);
 }
@@ -270,5 +270,5 @@ TEST_F(FactoryTest, FactoryCreateCallback)
     dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test_create.goc", id, 0, Point3(2.0f, 0.0f, 0.0f), Quat(), Vector3(2, 2, 2));
-    ASSERT_NE((void*)0, instance);
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
 }

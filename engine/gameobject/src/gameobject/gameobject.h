@@ -49,68 +49,73 @@ namespace dmGameObject
 
     extern const dmhash_t UNNAMED_IDENTIFIER;
 
-    typedef struct PropertyContainer* HPropertyContainer;
+    /**
+     * Create a game-object system context.
+     * @return New caller-owned context. Delete it with DeleteContext.
+     */
+    HContext NewContext();
 
     /**
-     * Create a new component type register
-     * @param regist Register
-     * @return Register handle
+     * Delete a game-object system context and every collection it owns.
+     * @param gocontext Game-object system context
      */
-    HRegister NewRegister();
+    void DeleteContext(HContext gocontext);
 
     /**
-     * Delete a component type register
-     * @param regist Register to delete
+     * Get the context that owns a collection.
+     * @param collection Collection handle
+     * @return Borrowed owning context, or 0 if the collection handle is invalid or stale
      */
-    void DeleteRegister(HRegister regist);
+    HContext GetGameObjectContext(HCollection collection);
 
     /**
      * Delete a the loaded collections
-     * @param regist the register
+     * @param gocontext Game-object system context
      */
-    void DeleteCollections(HRegister regist);
+    void DeleteCollections(HContext gocontext);
 
     /**
      * Initialize system
+     * @param gocontext Game-object system context
      * @param context Script context
      */
-    void Initialize(HRegister regist, dmScript::HContext context);
+    void Initialize(HContext gocontext, dmScript::HContext context);
 
     /**
-     * Set default capacity of collections in this register. This does not affect existing collections.
-     * @param regist Register
-     * @param capacity Default capacity of collections in this register (0-65534).
+     * Set default capacity of collections in this context. This does not affect existing collections.
+     * @param gocontext Game-object system context
+     * @param capacity Default capacity of collections in this context (1-1048576).
      * @return RESULT_OK on success or RESULT_INVALID_OPERATION if max_count is not within range
      */
-    Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity);
+    Result SetCollectionDefaultCapacity(HContext gocontext, uint32_t capacity);
 
     /**
-     * Get default capacity of collections in this register.
-     * @param regist Register
+     * Get default capacity of collections in this context.
+     * @param gocontext Game-object system context
      * @return Default capacity
      */
-    uint32_t GetCollectionDefaultCapacity(HRegister regist);
+    uint32_t GetCollectionDefaultCapacity(HContext gocontext);
 
-    void SetContextRegistry(HRegister regist, HContextRegistry context_registry);
-    HContextRegistry GetContextRegistry(HRegister regist);
+    void SetContextRegistry(HContext gocontext, HContextRegistry context_registry);
+    HContextRegistry GetContextRegistry(HContext gocontext);
 
     /**
-     * Set default input stack capacity of collections in this register. This does not affect existing collections.
-     * @param regist Register
-     * @param capacity Default capacity of collections in this register.
+     * Set default input stack capacity of collections in this context. This does not affect existing collections.
+     * @param gocontext Game-object system context
+     * @param capacity Default capacity of collections in this context.
      */
-    void SetInputStackDefaultCapacity(HRegister regist, uint32_t capacity);
+    void SetInputStackDefaultCapacity(HContext gocontext, uint32_t capacity);
 
     /**
      * Creates a new gameobject collection
      * @param name Collection name, which must be unique and follow the same naming as for sockets
      * @param factory Resource factory. Must be valid during the life-time of the collection
-     * @param regist Register
+     * @param gocontext Game-object system context
      * @param max_instances Max instances in this collection
      * @param collection_desc description data of collections
      * @return HCollection
      */
-    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances, HCollectionDesc collection_desc);
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HContext gocontext, uint32_t max_instances, HCollectionDesc collection_desc, HCollection replaced_hcollection = INVALID_COLLECTION);
 
     /**
      * Deletes a gameobject collection
@@ -177,6 +182,13 @@ namespace dmGameObject
     Result SetIdentifier(HCollection collection, HInstance instance, const char* identifier);
 
     /**
+     * Get the generation encoded in an instance handle.
+     * @param instance Game object instance
+     * @return Instance generation, or zero for an invalid handle encoding
+     */
+    uint32_t GetInstanceGeneration(HInstance instance);
+
+    /**
      * Get component index from component identifier. This function has complexity O(n), where n is the number of components of the instance.
      * @param instance Instance
      * @param component_id Component id
@@ -221,11 +233,11 @@ namespace dmGameObject
     bool PostUpdate(HCollection collection);
 
     /**
-     * Performs clean up of the register after update, such as deleting all collections scheduled for delete.
-     * @param reg Game object register
+     * Performs clean up of the context after update, such as deleting all collections scheduled for delete.
+     * @param gocontext Game-object system context
      * @return True on success
      */
-    bool PostUpdate(HRegister reg);
+    bool PostUpdate(HContext gocontext);
 
     /**
      * Dispatches input actions to the input focus stacks in the supplied game object collection.
@@ -252,13 +264,6 @@ namespace dmGameObject
      * @return The resource factory bound to the specified instance, via its collection
      */
     dmResource::HFactory GetFactory(HInstance instance);
-
-    /**
-     * Retrieve a register from the specified collection
-     * @param collection Game object collection
-     * @return The register bound to the specified collection
-     */
-    HRegister GetRegister(HCollection collection);
 
     /**
      * Retrieve the frame message socket for the specified collection.
