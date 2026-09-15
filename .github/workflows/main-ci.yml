@@ -273,13 +273,22 @@ jobs:
           # This action keeps the SDK and NDK tree in the Actions cache. A contrib build
           # must not write there - see the cache steps above.
           cache: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch' }}
+      - name: "Start Windows dotnet cache timer"
+        if: matrix.dotnet && runner.os == 'Windows'
+        id: dotnet_cache_timer
+        run: python ci/dotnet_cache_timing.py start --state "$RUNNER_TEMP/defold-dotnet-timing.json"
       - name: "Cache Windows dotnet SDK"
+        id: windows_dotnet_cache
         if: "matrix.dotnet && runner.os == 'Windows' && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           # Cache an isolated installation, without the runner image's other SDKs.
           path: "${{ runner.temp }}/defold-dotnet"
           key: "${{ runner.os }}-${{ runner.arch }}-dotnet-sdk-${{ env.DOTNET_WINDOWS_SDK_VERSION }}-v1"
+      - name: "Record Windows dotnet restore time"
+        if: always() && steps.dotnet_cache_timer.outcome == 'success'
+        id: dotnet_setup_timer
+        run: python ci/dotnet_cache_timing.py setup --state "$RUNNER_TEMP/defold-dotnet-timing.json"
       - name: "Setup dotnet"
         if: matrix.dotnet
         id: setup_dotnet
@@ -290,6 +299,14 @@ jobs:
           # Run setup on cache hits too: it sets PATH, DOTNET_ROOT and the version
           # output used below, and its installer reuses an already installed SDK.
           dotnet-version: "${{ runner.os == 'Windows' && env.DOTNET_WINDOWS_SDK_VERSION || env.DOTNET_CHANNEL }}"
+      - name: "Report Windows dotnet setup timing"
+        if: always() && steps.dotnet_setup_timer.outcome == 'success'
+        env:
+          DOTNET_CACHE_OUTCOME: ${{ steps.windows_dotnet_cache.outcome }}
+          DOTNET_CACHE_HIT: ${{ steps.windows_dotnet_cache.outputs.cache-hit }}
+          DOTNET_SETUP_OUTCOME: ${{ steps.setup_dotnet.outcome }}
+          DOTNET_SDK_VERSION: ${{ steps.setup_dotnet.outputs.dotnet-version || env.DOTNET_WINDOWS_SDK_VERSION }}
+        run: python ci/dotnet_cache_timing.py report --state "$RUNNER_TEMP/defold-dotnet-timing.json"
       - name: "Pin dotnet SDK"
         if: matrix.dotnet
         run: 'echo "{\"sdk\":{\"version\":\"${{ steps.setup_dotnet.outputs.dotnet-version }}\"}}" > global.json'
