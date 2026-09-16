@@ -297,9 +297,9 @@
                           (partial protobuf/read-map-with-defaults ddf-type)
                           (partial protobuf/read-map-without-defaults ddf-type)))
         read-fn (cond->> read-raw-fn
-                  (some? sanitize-fn) (comp sanitize-fn))
+                         (some? sanitize-fn) (comp sanitize-fn))
         write-fn (cond-> (partial protobuf/map->str ddf-type)
-                   (some? pb-encode-fn) (comp pb-encode-fn))
+                         (some? pb-encode-fn) (comp pb-encode-fn))
         search-fn (or search-fn default-ddf-resource-search-fn)
         args (-> args
                  (dissoc :read-defaults :pb-encode-fn)

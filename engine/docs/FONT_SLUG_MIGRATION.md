@@ -1,17 +1,11 @@
 # Slug vector font path
 
-This branch starts at the latest dev commit already merged into the R&D branch
-(`0c9968ea2b5df64a895247dd16230078fc30ce6f`). It carries the production font,
-resource, Bob and shader integration. Fontviewer experiments, benchmark tools,
-reports, radial shadows and dilation experiments remain on `rnd-vector-fonts`.
 The editor includes Vector/SDF mode, Static/Dynamic glyph generation, inferred
 BMFont sizes, and separate label/GUI display sizes. Vector faces do not require
 an authored size; enabled bitmap effects default to a generation size of 15 in
 the editor. Explicit Static choices survive saving and reopening.
 
-Editor builds use the Slug glyph banks and bitmap effects described below.
-Editor previews use the existing SDF renderer at the selected display size;
-they do not yet reproduce Slug's curve rendering or baked bitmap effects.
+Editor builds and previews use the Slug curves and bitmap effects described below.
 
 ## Resources and rendering
 
@@ -61,8 +55,6 @@ into a face mask and the shadow source, preserving the distance field for
 outlines. It then applies three separable box filters to approximate
 a Gaussian shadow. Sliding sums make filtering linear in pixel area, independent
 of blur radius. The authored blur is sigma in glyph pixels, with 3-sigma padding.
-This helper is not the viewer's experimental vector rasterizer, and viewer
-preparation/performance numbers are not measurements of this runtime path.
 
 Effects are baked at the authored font size, outline width and blur radius.
 Scaling or zooming transforms those cached images together with the vector face.
@@ -79,7 +71,6 @@ RGBA16F curves and 131,072 bytes of R32UI band records), plus CPU mirrors.
 Occupied numeric records are counted separately by `m_CurveTexels * 8` and
 `m_BandTexels * 4`; row padding and capacity are additional. Effect bitmaps use
 the font's existing cell atlas, with three bytes per pixel before compression.
-Lower-resolution effects and channel packing are follow-up optimizations.
 
 A failed numeric append preserves previously cached glyphs. Atlas exhaustion
 skips the incoming glyph and schedules a reset for the next frame so existing
@@ -91,18 +82,3 @@ and unsigned R32UI textures. It is not a GLES 2 / WebGL 1 fallback. Sources are
 packaged with builtins, but these materials are excluded from the connect
 archive which explicitly forces GLES 1.00. Compilation alone does not establish
 runtime support on every graphics backend.
-
-## Validation scope
-
-Tests cover static glyph-bank compilation without a source-font dependency,
-bitmap-format markers, distinct curve/bitmap data, 0/4/16px CPU blur preparation,
-cache reuse/overflow, dynamic job lifecycle and static resource loading. The
-static runtime fixture includes a 4px outline contributing to a 16px shadow.
-The CMake Release build and Bob tests are validated; legacy Waf source/library
-lists are updated but a full Waf build has not been run. A static-only gamesys
-test linked with `font_gen_null` passes without the TTF parser or generation
-jobs. Editor font, label, GUI, and save-data integration tests cover property
-defaults, glyph-generation persistence, compiled vector data, and GUI overrides.
-Actual engine GPU performance, Slug editor previews, broader glyph quality and
-non-Metal runtime validation remain separate work. Existing R&D report data has
-not been relabeled as results for this branch.

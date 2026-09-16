@@ -76,13 +76,6 @@ namespace dmGraphics
         char*            m_FlippedEntryPoint = NULL;
     };
 
-    struct WebGPUProgramLayout
-    {
-        uint32_t           m_UnfilterableBindings[MAX_SET_COUNT];
-        WGPUBindGroupLayout m_BindGroupLayouts[MAX_SET_COUNT];
-        WGPUPipelineLayout  m_PipelineLayout;
-    };
-
     struct WebGPUProgram
     {
         WebGPUProgram()
@@ -99,10 +92,6 @@ namespace dmGraphics
         WGPUBindGroup          m_BindGroups[MAX_SET_COUNT];
         WGPUPipelineLayout     m_PipelineLayout;
 
-        // Owns layout handles; m_BindGroupLayouts and m_PipelineLayout alias the active variant.
-        dmArray<WebGPUProgramLayout> m_Layouts;
-        uint32_t               m_UnfilterableBindings[MAX_SET_COUNT];
-        uint64_t               m_LayoutHash;
         uint64_t               m_Hash;
         uint8_t*               m_UniformData;
 
