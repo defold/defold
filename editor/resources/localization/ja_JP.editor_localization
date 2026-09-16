@@ -180,12 +180,6 @@ dialog.build-error.cycle.detail.generic = これは、リソースがループ�
 dialog.clean-build.title = プロジェクトのクリーンビルドを実行しますか？
 dialog.clean-build.header = プロジェクトのクリーンビルドを実行してもよろしいですか？
 
-# Debugging Not Supported Dialog
-
-dialog.debugging-not-supported.title = デバッグはサポートされていません
-dialog.debugging-not-supported.header = このプロジェクトはデバッガーを使用できません
-dialog.debugging-not-supported.content = 共有スクリプト状態を無効にするように設定されています。\n\n異なるスクリプト状態を特に必要としない場合は、game.project 内の script.shared_state プロパティの変更を検討してください。
-
 # Defunload Issues Dialog
 
 dialog.defunload-issues.title = .defunload パターンを修正する
@@ -556,11 +550,8 @@ dialog.bundle.label.platform = プラットフォーム
 dialog.bundle.option.platform.x86_64-linux = X64
 dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-bit
-dialog.bundle.option.platform.x86-win32 = 32-bit
 dialog.bundle.option.identity.none = なし
 dialog.bundle.label.architectures = アーキテクチャ
-dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
-dialog.bundle.option.architecture.x86_64-ios = Simulator (x86_64)
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
@@ -1048,6 +1039,9 @@ operation.drop = 落とす
 operation.paste = 貼り付け
 operation.select = 選択
 operation.tile-map.add-layer = レイヤーを追加
+
+# Font Styles
+
 
 # Scene View Popups
 
@@ -1646,11 +1640,6 @@ form.label.project.particle_fx.max_count = 最大数
 form.help.project.particle_fx.max_count = 読み込まれた各コレクションにおける、パーティクルFXコンポーネントおよび同時実行されるエフェクトインスタンスの最大数です。上限に達すると、新たなコンポーネントやインスタンスを作成できなくなります。この値を増やすと、ビルド時の正確なカウントで必要なコンポーネント容量を特定できない場合、より多くのメモリが消費されます。
 form.label.project.particle_fx.max_emitter_count = 最大エミッター数
 form.help.project.particle_fx.max_emitter_count = 読み込まれた各コレクション内のすべての同時パーティクルFXインスタンスにわたるエミッターの最大合計数。 1 つのエフェクトに複数のエミッタを含めることができます。制限を超えると、コレクションのパーティクルFXレンダー パス全体がスキップされ、警告がログに記録されます。
-
-form.label.project.script = スクリプト
-form.help.project.script = スクリプトシステム設定
-form.label.project.script.shared_state = 共有状態
-form.help.project.script.shared_state = ゲームオブジェクトのスクリプト、GUIスクリプト、およびレンダースクリプトが単一のLuaステートを使用するかどうかを制御します。有効にするとグローバル変数や読み込まれたモジュールのキャッシュが共有され、無効にするとこれらが分離されます。ステートを共有するとメモリ使用量が抑えられ、エディターのデバッガーを使用する際にも必須となります。
 
 form.label.project.sound = サウンド
 form.help.project.sound = サウンド設定
