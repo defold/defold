@@ -80,9 +80,6 @@ allprojects {
     tasks.withType(Copy).configureEach {
         includeEmptyDirs = false
     }
-    tasks.withType(JavaCompile).configureEach {
-        options.incremental = true
-    }
 }
 
 repositories {
@@ -104,6 +101,15 @@ tasks.register('cleanDirs', Delete) {
 
 tasks.named('clean') {
     dependsOn 'cleanDirs'
+}
+
+def cleanTask = tasks.named('clean')
+gradle.taskGraph.whenReady { graph ->
+    // Resolve the actual graph so qualified/default tasks and -x clean work too.
+    boolean cleanBuild = graph.hasTask(cleanTask.get())
+    graph.allTasks.findAll { it instanceof JavaCompile }.each { task ->
+        task.options.incremental = !cleanBuild
+    }
 }
 
 tasks.register('execProtoTasks', GenerateBobProtos) {
