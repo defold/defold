@@ -26,10 +26,13 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.zip.InflaterInputStream;
 
 import org.apache.commons.io.IOUtils;
 import org.junit.Rule;
@@ -41,6 +44,7 @@ import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.BMFont.ChannelData;
 import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.bob.font.Fontc;
+import com.dynamo.bob.font.FontRenderer;
 import com.dynamo.bob.font.Fontc.EditorFontMap;
 import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
 import com.dynamo.font.proto.GlyphBankProto.GlyphBank.Glyph;
@@ -54,6 +58,97 @@ public class FontTest {
 
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    private void assertCompiledSdfEdgeWidth(float scale, float outlineWidth) throws Exception {
+        // Compile the compressed offline glyph bank through Bob's real font
+        // compiler. Native-only glyph-bank snapshots skip this encoding step.
+        FontDesc desc = FontDesc.newBuilder().setFont("Tuffy.ttf").setMaterial("/builtins/fonts/font-df.material")
+                .setSize(32).setCharacters("H").setOutlineWidth(outlineWidth).setOutlineAlpha(0).setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD).build();
+        GlyphBank bank;
+        try (InputStream input = getClass().getResourceAsStream(desc.getFont())) {
+            bank = new Fontc().compileForEditorBuild(input, desc, null, null);
+        }
+        assertEquals(1, bank.getGlyphsCount());
+        assertEquals(1, bank.getGlyphChannels());
+        GlyphBank.Glyph glyph = bank.getGlyphs(0);
+        byte[] payload = bank.getGlyphData().substring((int)glyph.getGlyphDataOffset(),
+                (int)(glyph.getGlyphDataOffset() + glyph.getGlyphDataSize())).toByteArray();
+        byte[] pixels;
+        if (payload[0] == 1) {
+            try (InflaterInputStream input = new InflaterInputStream(new ByteArrayInputStream(payload, 1, payload.length - 1))) {
+                pixels = input.readAllBytes();
+            }
+            for (int i = 1; i < pixels.length; ++i)
+                pixels[i] += pixels[i - 1];
+        } else {
+            assertEquals(0, payload[0]);
+            pixels = java.util.Arrays.copyOfRange(payload, 1, payload.length);
+        }
+        int width = (int)glyph.getWidth() + 2 * (int)bank.getGlyphPadding();
+        int height = glyph.getAscent() + glyph.getDescent() + 2 * (int)bank.getGlyphPadding();
+        assertEquals(width * height, pixels.length);
+        // The H's straight left stem gives a measured distance slope, avoiding
+        // an assumption about which compiler encoding is in use.
+        float distancePerTexel = 0;
+        int row = height / 4;
+        for (int x = 3; x < width; ++x) {
+            int a = Byte.toUnsignedInt(pixels[row * width + x - 1]);
+            int b = Byte.toUnsignedInt(pixels[row * width + x]);
+            if (a > 0 && a < 191 && b >= 191 && b < 255) {
+                // Span three texels toward the outside: stay on the straight
+                // distance ramp while reducing byte-quantization error.
+                int outside = Byte.toUnsignedInt(pixels[row * width + x - 3]);
+                distancePerTexel = (b - outside) / (3.0f * 255.0f);
+                break;
+            }
+        }
+        assertTrue("Expected an unsaturated straight SDF edge", distancePerTexel > 0);
+        FontRenderer.GlyphBankGlyph[] glyphs = {
+            new FontRenderer.GlyphBankGlyph(glyph.getCharacter(), glyph.getWidth(), glyph.getAdvance(), glyph.getLeftBearing(),
+                    glyph.getAscent(), glyph.getDescent(), 0, pixels.length)
+        };
+        FontRenderer.GlyphBank nativeBank = new FontRenderer.GlyphBank(glyphs, pixels, (int)bank.getGlyphPadding(),
+                bank.getGlyphChannels(), bank.getMaxAscent(), bank.getMaxDescent());
+        FontRenderer.Params params = new FontRenderer.Params();
+        params.size = desc.getSize();
+        params.cacheWidth = params.cacheHeight = 128;
+        params.sdfSpread = bank.getSdfSpread();
+        params.sdfOutline = bank.getSdfOutline();
+        params.sdfShadow = bank.getSdfShadow();
+        try (FontRenderer renderer = new FontRenderer("edge.fontc", nativeBank, params)) {
+            FontRenderer.Properties properties = new FontRenderer.Properties();
+            properties.leading = 1;
+            properties.sdfScale = scale;
+            renderer.setProperties(properties);
+            renderer.setText("H");
+            renderer.beginBatch();
+            renderer.generateTexture(0);
+            FontRenderer.VertexBufferRequirements requirements = renderer.getVertexBufferRequirements();
+            assertEquals(6, requirements.vertexCount);
+            ByteBuffer vertices = ByteBuffer.allocateDirect(requirements.byteCount).order(ByteOrder.nativeOrder());
+            float[] transform = {scale, 0, 0, 0, 0, scale, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+            renderer.getVertices(transform, vertices, requirements);
+            // sdf_params.z is at byte 36 in FontGlyphVertex. Use the production
+            // renderer's value, not another copy of its smoothing formula.
+            float transitionWidth = 2 * vertices.getFloat(36) * scale / distancePerTexel;
+            assertEquals("Offline SDF screen-space edge width at scale " + scale, 2.0f, transitionWidth, .05f);
+        }
+    }
+
+    @Test
+    public void testCompiledSdfEdgeAtHalfScale() throws Exception {
+        assertCompiledSdfEdgeWidth(.5f, 0);
+    }
+
+    @Test
+    public void testCompiledSdfEdgeAtOneScale() throws Exception {
+        assertCompiledSdfEdgeWidth(1.0f, 0);
+    }
+
+    @Test
+    public void testCompiledSdfEdgeAtTwoScale() throws Exception {
+        assertCompiledSdfEdgeWidth(2.0f, 0);
+    }
 
     private String copyResourceToDir(String tmpDir, String resName) throws IOException {
         String outputPath = Paths.get(tmpDir, resName).toString();
@@ -99,6 +194,15 @@ public class FontTest {
 
             String actualValue = expected.get(key);
             assertEquals( resValue, actualValue );
+        }
+    }
+
+    @Test
+    public void testCompiledSdfEdgeWithFractionalOutline() throws Exception {
+        for (float outlineWidth : new float[]{.5f, 1.5f}) {
+            for (float scale : new float[]{.5f, 1.0f, 2.0f}) {
+                assertCompiledSdfEdgeWidth(scale, outlineWidth);
+            }
         }
     }
 

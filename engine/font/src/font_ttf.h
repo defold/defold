@@ -19,8 +19,12 @@
 
 #include <dmsdk/font/font.h>
 
+struct FontSDFParams;
+
 HFont FontLoadFromMemoryTTF(const char* name, const void* data, uint32_t data_size, bool allocate);
 
+// Internal image-generation options; the returned bitmap is released with FontFreeGlyph.
+FontResult FontGetGlyphTTF(HFont font, uint32_t glyph_index, const FontGlyphOptions* options, const FontSDFParams* image_params, FontGlyph* glyph);
 bool FontGetGlyphBoxTTF(HFont font, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1);
 FontResult FontGetGlyphSDFMetricsTTF(HFont font, uint32_t glyph_index, float scale, float padding, FontGlyph* glyph);
 
