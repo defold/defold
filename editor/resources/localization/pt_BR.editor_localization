@@ -189,12 +189,6 @@ dialog.clean-build.title = Executar Construção Limpa de Projeto?
 dialog.clean-build.header = Tem certeza que deseja executar uma construção de projeto limpa?
 dialog.clean-build.button.clean = Compilação Limpa
 
-# Debugging Not Supported Dialog
-
-dialog.debugging-not-supported.title = Depuração Não Suportada
-dialog.debugging-not-supported.header = Este projeto não pode ser usado com o depurador
-dialog.debugging-not-supported.content = Está configurado para desabilitar o compartilhamento de estado de scripts.\n\nSe você não precisa de estados de script diferentes, considere mudar a propriedade script.share_state no game.project.
-
 # Defunload Issues Dialog
 
 dialog.defunload-issues.title = Revise Padrões .defunload
@@ -571,11 +565,8 @@ dialog.bundle.label.platform = Plataforma
 dialog.bundle.option.platform.x86_64-linux = X64
 dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-bit
-dialog.bundle.option.platform.x86-win32 = 32-bit
 dialog.bundle.option.identity.none = Nenhum
 dialog.bundle.label.architectures = Arquiteturas
-dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
-dialog.bundle.option.architecture.x86_64-ios = Simulador (x86_64)
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
@@ -1138,6 +1129,9 @@ operation.drop = Descartar
 operation.paste = Colar
 operation.select = Selecionar
 operation.tile-map.add-layer = Adicionar Camada
+
+# Font Styles
+
 
 # Scene View Popups
 
@@ -1815,7 +1809,6 @@ form.label.project.android.input_method = Método de Entrada
 form.label.project.android.immersive_mode = Modo Imersivo
 form.label.project.android.display_cutout = Exibir recorte da tela
 form.label.project.android.debuggable = Depurável
-form.label.project.android.proguard = Configuração ProGuard
 form.label.project.android.extract_native_libs = Extrair Bibliotecas Nativas
 
 form.label.project.html5 = HTML5
@@ -1924,10 +1917,6 @@ form.label.project.particle_fx.max_particle_count = Máximo de Partículas
 form.label.project.particle_fx.max_particle_buffer_count = Máximo de Partículas do Buffer
 form.label.project.particle_fx.max_count = Contagem Máxima
 form.label.project.particle_fx.max_emitter_count = Máximo de Emissores
-
-form.label.project.script = Script
-form.help.project.script = Configurações de script
-form.label.project.script.shared_state = Estado Compartilhado
 
 form.label.project.sound = Som
 form.help.project.sound = Configurações de Som
