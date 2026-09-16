@@ -18,12 +18,13 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.editor-tab :as editor-tab]
+            [editor.scene :as scene]
             [editor.ui :as ui]
             [editor.view :as view]
             [integration.test-util :as test-util])
   (:import [javafx.collections ObservableList]
            [javafx.event Event]
-           [javafx.scene Scene]
+           [javafx.scene Parent Scene]
            [javafx.scene.control SplitPane Tab TabPane]
            [javafx.scene.layout AnchorPane GridPane Region VBox]))
 
@@ -152,6 +153,36 @@
            (is (> (.getHeight (.getLayoutBounds (.getContent first-tab))) (.getHeight first-bounds)))
            (is (> (.getWidth (.getLayoutBounds (.getContent second-tab))) (.getWidth second-bounds)))
            (is (> (.getHeight (.getLayoutBounds (.getContent second-tab))) (.getHeight second-bounds))))))))
+
+;; Verifies that selecting a previously resized scene tab renders at its current
+;; size immediately, preventing one frame that stretches the old scene image.
+(deftest selected-scene-tab-refreshes-after-layout-test
+  @(fx/on-fx-thread
+     (test-util/with-loaded-project
+       (let [rendered-bounds (atom {})]
+         (with-redefs [scene/refresh-scene-view!
+                       (fn [view-id _dt]
+                         (swap! rendered-bounds assoc view-id
+                                (.getLayoutBounds ^Parent (g/node-value view-id :parent))))]
+           (let [tab-pane (TabPane.)
+                 tab-spec (assoc (make-test-tab-spec {}) :view-type {:id :scene})
+                 ^Tab first-tab (app-view/make-editor-tab! app-view test-util/localization (.getTabs tab-pane) tab-spec {})
+                 ^Tab second-tab (app-view/make-editor-tab! app-view test-util/localization (.getTabs tab-pane) tab-spec {})]
+             (Scene. tab-pane)
+             (resize-and-layout! tab-pane 400.0 300.0)
+
+             (doseq [[width height] [[640.0 480.0] [320.0 240.0]]]
+               (.select (.getSelectionModel tab-pane) second-tab)
+               (resize-and-layout! tab-pane width height)
+
+               (let [expected-bounds (.getLayoutBounds (.getContent second-tab))]
+                 (is (not= expected-bounds (.getLayoutBounds (.getContent first-tab))))
+                 (reset! rendered-bounds {})
+                 (.select (.getSelectionModel tab-pane) first-tab)
+
+                 (is (= expected-bounds (.getLayoutBounds (.getContent first-tab))))
+                 (is (= {(editor-tab/view-node-id first-tab) expected-bounds}
+                        @rendered-bounds))))))))))
 
 (deftest open-non-resource-tab-test
   (test-util/with-loaded-project
