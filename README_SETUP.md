@@ -177,7 +177,7 @@ source ~/.zprofile
 
 <details><summary>Manual download...</summary><p>
 
-Download and install the latest JDK 25 (25+36 or later) release from either of these locations:
+Download and install the latest JDK 25 (25.0.4.1+1 or later) release from either of these locations:
 
 * [Adoptium/Temurin](https://github.com/adoptium/temurin25-binaries/releases) - The Adoptium Working Group promotes and supports high-quality runtimes and associated technology for use across the Java ecosystem
 

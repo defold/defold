@@ -114,13 +114,14 @@
   (vec1 page_index))
 
 (shader/defshader vertex-shader
+  (uniform mat4 view_proj)
   (attribute vec4 position)
   (attribute vec2 texcoord0)
   (attribute vec4 color)
   (varying vec2 var_texcoord0)
   (varying vec4 var_color)
   (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq gl_Position (* view_proj position))
     (setq var_texcoord0 texcoord0)
     (setq var_color color)))
 
@@ -132,14 +133,15 @@
     (setq gl_FragColor (* var_color (texture2D texture_sampler var_texcoord0.xy)))))
 
 ; TODO - macro of this
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader))
+(def shader (shader/make-shader ::shader vertex-shader fragment-shader {"view_proj" :view-proj}))
 
 (shader/defshader gui-id-vertex-shader
+  (uniform mat4 view_proj)
   (attribute vec4 position)
   (attribute vec2 texcoord0)
   (varying vec2 var_texcoord0)
   (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq gl_Position (* view_proj position))
     (setq var_texcoord0 texcoord0)))
 
 (shader/defshader gui-id-fragment-shader
@@ -152,14 +154,15 @@
       (setq gl_FragColor id)
       (discard))))
 
-(def id-shader (shader/make-shader ::id-shader gui-id-vertex-shader gui-id-fragment-shader {"id" :id}))
+(def id-shader (shader/make-shader ::id-shader gui-id-vertex-shader gui-id-fragment-shader {"view_proj" :view-proj "id" :id}))
 
 (shader/defshader line-vertex-shader
+  (uniform mat4 view_proj)
   (attribute vec4 position)
   (attribute vec4 color)
   (varying vec4 var_color)
   (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq gl_Position (* view_proj position))
     (setq var_color color)))
 
 (shader/defshader line-fragment-shader
@@ -167,7 +170,7 @@
   (defn void main []
     (setq gl_FragColor var_color)))
 
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
+(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader {"view_proj" :view-proj}))
 
 (defn- ->color-vtx-vb [vs colors vcount]
   (let [vb (->color-vtx vcount)

@@ -79,6 +79,7 @@
   (vec4 color))
 
 (shader/defshader tex-vertex-shader
+  (uniform mat4 view_proj)
   (attribute vec2 position)
   (attribute vec2 texcoord0)
   (attribute vec4 color)
@@ -87,7 +88,7 @@
   (defn void main []
     (setq var_texcoord0 texcoord0)
     (setq var_color color)
-    (setq gl_Position (* gl_ModelViewProjectionMatrix (vec4 position 0.0 1.0)))))
+    (setq gl_Position (* view_proj (vec4 position 0.0 1.0)))))
 
 (shader/defshader tex-fragment-shader
   (varying vec4 var_color)
@@ -96,7 +97,7 @@
   (defn void main []
     (setq gl_FragColor (* (texture2D texture_sampler var_texcoord0.xy) var_color))))
 
-(def tex-shader (shader/make-shader ::tex-shader tex-vertex-shader tex-fragment-shader))
+(def tex-shader (shader/make-shader ::tex-shader tex-vertex-shader tex-fragment-shader {"view_proj" :view-proj}))
 
 ;; Render functions
 

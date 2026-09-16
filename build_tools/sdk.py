@@ -43,7 +43,7 @@ SDK_ROOT=os.path.join(DYNAMO_HOME, 'ext', 'SDKs')
 # If you update editor JDK version, don't forget to update it here too:
 # - /editor/bundle-resources/config at "launcher.jdk" key
 # - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
-VERSION_EDITOR_JDK="25+36"
+VERSION_EDITOR_JDK="25.0.4.1+1"
 
 ## **********************************************************************************************
 # Darwin

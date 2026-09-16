@@ -21,11 +21,8 @@
             [util.coll :as coll :refer [pair]]
             [util.num :as num])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLCapabilities GLContext GLDrawableFactory GLException GLOffscreenAutoDrawable GLProfile]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [java.awt Font]
            [java.nio IntBuffer]
-           [java.util.concurrent.atomic AtomicLong]
-           [javax.vecmath Matrix4d]))
+           [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -194,14 +191,6 @@
 (defn gl-current-program
   ^long [^GL2 gl]
   (gl-get-integer gl GL2/GL_CURRENT_PROGRAM))
-
-(defn text-renderer [font-name font-style font-size]
-  (doto (TextRenderer. (Font. font-name font-style font-size) false false)
-    ;; NOTE: the TextRenderer implementation has two modes, one using
-    ;; vertex arrays and VBOs, and one using immediate mode. This
-    ;; forces the use of the immediate mode implementation as we've
-    ;; seen issues on some platforms with the other one.
-    (.setUseVertexArrays false)))
 
 (defn gl-clear [^GL2 gl r g b a]
   (.glClearColor gl r g b a)
@@ -505,31 +494,9 @@
        (with-gl-bindings ~glsymb ~render-args ~(into [] bound-syms)
          ~@body))))
 
-(defmacro gl-push-matrix [gl & body]
-  `(let [^GL2 gl# ~gl]
-     (try
-       (.glPushMatrix gl#)
-       ~@body
-       (finally
-         (.glPopMatrix gl#)))))
-
-(defn matrix->floats [^Matrix4d mat]
-  (float-array [(.m00 mat) (.m10 mat) (.m20 mat) (.m30 mat)
-                (.m01 mat) (.m11 mat) (.m21 mat) (.m31 mat)
-                (.m02 mat) (.m12 mat) (.m22 mat) (.m32 mat)
-                (.m03 mat) (.m13 mat) (.m23 mat) (.m33 mat)]))
-
-(defn gl-load-matrix-4d [^GL2 gl ^Matrix4d mat]
-  (.glLoadMatrixf gl (matrix->floats mat) 0))
-
-(defn gl-mult-matrix-4d [^GL2 gl ^Matrix4d mat]
-  (.glMultMatrixf gl (matrix->floats mat) 0))
-
 (defmacro color
   ([r g b]        `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0)]))
   ([r g b a]      `(float-array [(/ ~r 255.0) (/ ~g 255.0) (/ ~b 255.0) a])))
-
-(defmacro gl-translate-f [gl x y z]     `(.glTranslatef ~gl ~x ~y ~z))
 
 (defmacro gl-draw-arrays [gl prim-type start count]
   `(.glDrawArrays ~(with-meta gl {:tag `GL}) ~prim-type ~start ~count))
@@ -538,9 +505,6 @@
   `(.glDrawElements ~(with-meta gl {:tag `GL}) ~prim-type ~count ~index-type ~start))
 
 (defmacro gl-uniform-matrix-4fv [gl idx cnt transpose val offset] `(.glUniformMatrix4fv ~gl ~idx ~cnt ~transpose ~val ~offset))
-
-(defmacro glu-ortho [glu region]
-  `(.gluOrtho2D ~glu (double (.left ~region)) (double (.right ~region)) (double (.bottom ~region)) (double (.top ~region))))
 
 (def red                    GL2/GL_RED)
 (def green                  GL2/GL_GREEN)
@@ -569,37 +533,6 @@
 (def linear-mipmap-nearest  GL2/GL_LINEAR_MIPMAP_NEAREST)
 (def nearest-mipmap-linear  GL2/GL_NEAREST_MIPMAP_LINEAR)
 (def linear-mipmap-linear   GL2/GL_LINEAR_MIPMAP_LINEAR)
-
-(defn viewport-array ^"[I" [viewport]
-  (int-array [(:left viewport)
-              (:top viewport)
-              (:right viewport)
-              (:bottom viewport)]))
-
-(defmacro glu-pick-matrix [glu pick-rect viewport]
-  `(let [pick-rect# ~pick-rect]
-     (.gluPickMatrix ~glu
-       (double (:x pick-rect#))
-       (double (- (:bottom ~viewport) (:y pick-rect#)))
-       (double (:width pick-rect#))
-       (double (:height pick-rect#))
-       (viewport-array ~viewport)
-       (int 0))))
-
-(defn overlay
-  ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc]
-   (overlay gl text-renderer chars xloc yloc 1 1 1 1))
-  ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc r g b a]
-   (overlay gl text-renderer chars xloc yloc r g b a 0.0))
-  ([^GL2 gl ^TextRenderer text-renderer ^String chars ^Float xloc ^Float yloc r g b a ^Float rot-z]
-   (gl-push-matrix gl
-                   (.glScaled gl 1 -1 1)
-                   (.glTranslated gl xloc yloc 0)
-                   (.glRotated gl rot-z 0 0 1)
-                   (.setColor text-renderer r g b a)
-                   (.begin3DRendering text-renderer)
-                   (.draw3D text-renderer chars 0.0 0.0 1.0 1.0)
-                   (.end3DRendering text-renderer))))
 
 (defn set-blend-mode [^GL gl blend-mode]
   ;; Assumes pre-multiplied source/destination
