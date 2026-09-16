@@ -25,6 +25,18 @@ paths in `archive-artifacts.json` are shared with Gradle's artifact selection;
 update that list when adding an archived input. Private-platform archive folders
 retain their existing download filters for private copy hooks.
 
+Tool packaging is defined by two additional manifests:
+
+- `tools.json` maps full Bob's JAR entry paths to installed files relative to
+  `$DYNAMO_HOME`. It includes external tools and their supporting libraries/data.
+- `bob-light-tools.json` lists Ant-style JAR path patterns for Bob Light's tools,
+  compiler libraries, and LuaJIT modules. The same allowlist selects private-platform
+  additions. Android bundling tools such as `aapt2` are included only in full Bob.
+
+Compiler libraries still resolve from local engine builds or `archive-artifacts.json`;
+`lib/luajit-share.zip` is generated from the installed LuaJIT modules. Both JAR tasks
+track the manifests as inputs, so changing a list updates the packaged contents.
+
 Both JARs copy dependency entries directly when their compression method matches
 the output, preserving the compressed bytes. Loose files are compressed in
 parallel. `-Pkeep-bob-uncompressed` still stores every entry without compression;

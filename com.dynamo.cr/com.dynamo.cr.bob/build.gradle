@@ -689,6 +689,7 @@ def writeBobArchive = { File outputFile, Collection<File> dependencyJars, Map<St
 
         inputs.files(bobClassesFileTree, bobGeneratedClassesFileTree).ignoreEmptyDirectories()
         inputs.files(bobLightResourceFiles).ignoreEmptyDirectories()
+        inputs.files(bobArtifacts.manifests).withPropertyName('artifactManifests')
         inputs.files { artifactFiles(light).values() }
         inputs.property('artifactPaths', { artifactFiles(light).keySet().sort() })
         inputs.files(dependencyJars)

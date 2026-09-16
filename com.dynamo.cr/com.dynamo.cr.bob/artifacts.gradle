@@ -2,6 +2,7 @@
 // Licensed under the Defold License version 1.0
 
 import groovy.json.JsonSlurper
+import org.apache.tools.ant.types.selectors.SelectorUtils
 
 // Resolve installed artifacts to their paths inside Bob without staging copies.
 def settings = project.bobArtifactSettings
@@ -10,10 +11,18 @@ def dynamoHome = settings.dynamoHome
 def archiveDir = new File(dynamoHome, "archive/${settings.revision}/engine")
 def useArchive = archiveDir.parentFile.isDirectory()
 // Shared with scripts/build.py for Bob downloads and engine JAR uploads.
-def archivePaths = new JsonSlurper().parse(new File(bobDir, 'archive-artifacts.json')) as Set
+def archiveManifest = new File(bobDir, 'archive-artifacts.json')
+def toolsManifest = new File(bobDir, 'tools.json')
+def lightToolsManifest = new File(bobDir, 'bob-light-tools.json')
+def archivePaths = new JsonSlurper().parse(archiveManifest) as Set
+def toolSources = new JsonSlurper().parse(toolsManifest)
+def lightToolIncludes = new JsonSlurper().parse(lightToolsManifest)
+def lightToolPatterns = lightToolIncludes.collect { it.replace('/' as char, File.separatorChar) }
+def isLightTool = { String path ->
+    def platformPath = path.replace('/' as char, File.separatorChar)
+    lightToolPatterns.any { SelectorUtils.matchPath(it, platformPath) }
+}
 def desktopPlatforms = ['x86_64-macos', 'arm64-macos', 'x86_64-linux', 'arm64-linux', 'x86_64-win32']
-def macPlatforms = ['x86_64-macos', 'arm64-macos']
-def androidToolPlatforms = desktopPlatforms - 'arm64-linux'
 
 def libraryName = { String platform, String name ->
     platform.endsWith('win32') ? "${name}.dll" : "lib${name}.${platform.endsWith('macos') ? 'dylib' : 'so'}"
@@ -33,56 +42,25 @@ def engineArtifact = { String localPath, String archivePath ->
 }
 def entries = [:]
 Set<String> managedPaths = []
-def add = { String path, File source, boolean light = false, boolean required = false ->
-    entries[path] = [source: source, light: light, required: required]
+def add = { String path, File source, boolean required = false ->
+    entries[path] = [source: source, light: isLightTool(path), required: required]
 }
 
+toolSources.each { path, source ->
+    add(path, new File(dynamoHome, source), true)
+}
 desktopPlatforms.each { platform ->
-    def exe = platform.endsWith('win32') ? '.exe' : ''
-    ['glslang', 'tint', 'gltf_validator', 'spirv-opt', 'luajit-64', 'lipo'].each { tool ->
-        def name = "${tool}${exe}"
-        add("libexec/${platform}/${name}", new File(dynamoHome, "ext/bin/${platform}/${name}"), tool != 'lipo', true)
-    }
     ['texc', 'modelc', 'shaderc', 'fontc'].each { library ->
         def name = libraryName(platform, "${library}_shared")
         // Match the existing preference for fresh local compiler libraries.
-        add("lib/${platform}/${name}", preferLocal("lib/${platform}/${name}", "${platform}/${name}"), true, useArchive)
+        add("lib/${platform}/${name}", preferLocal("lib/${platform}/${name}", "${platform}/${name}"), useArchive)
     }
 }
-androidToolPlatforms.each { platform ->
-    def exe = platform.endsWith('win32') ? '.exe' : ''
-    ['aapt2', 'oggz-validate', 'strip_android', 'zipalign'].each { tool ->
-        def name = "${tool}${exe}"
-        add("libexec/${platform}/${name}", new File(dynamoHome, "ext/bin/${platform}/${name}"), tool == 'aapt2', true)
-    }
-    ['ogg', 'oggz'].each { library ->
-        // The Windows Ogg packages use a lib prefix too.
-        def name = platform.endsWith('win32') ? "lib${library}.dll" : libraryName(platform, library)
-        add("libexec/${platform}/${name}", new File(dynamoHome, "ext/lib/${platform}/${name}"), false, true)
-    }
-}
-macPlatforms.each { platform ->
-    ['codesign_allocate', 'strip'].each { tool ->
-        add("libexec/${platform}/${tool}", new File(dynamoHome, "ext/bin/${platform}/${tool}"), false, true)
-    }
-}
-['x86_64-linux': ['apkc', 'libc++.so.1'], 'x86_64-win32': ['libwinpthread-1.dll']].each { platform, names ->
-    names.each { name ->
-        add("libexec/${platform}/${name}", new File(dynamoHome, "ext/bin/${platform}/${name}"), false, true)
-    }
-}
-add('libexec/bundletool-all.jar', new File(dynamoHome, 'ext/share/java/bundletool-all.jar'), false, true)
-add('lib/android.jar', new File(dynamoHome, 'ext/share/java/android.jar'), false, true)
-['armv7-android', 'arm64-android', 'x86_64-android'].each { platform ->
-    add("libexec/${platform}/libvkquality.so", new File(dynamoHome, "ext/lib/${platform}/libvkquality.so"), false, true)
-}
-add('lib/vkquality/vkqualitydata.vkq', new File(dynamoHome, 'ext/share/vkquality/assets/vkqualitydata.vkq'), false, true)
-
 def builtinsZip = useArchive ? archivedArtifact('share/builtins.zip') : new File(dynamoHome, 'share/builtins.zip')
 def luaJitShareZip = new File(bobDir, 'tmp/luajit-share.zip')
-add('lib/builtins.zip', builtinsZip, false, true)
-add('lib/luajit-share.zip', luaJitShareZip, true, true)
-add('lib/classes.dex', engineArtifact('share/java/classes.dex', 'arm64-android/classes.dex'), false, useArchive)
+add('lib/builtins.zip', builtinsZip, true)
+add('lib/luajit-share.zip', luaJitShareZip, true)
+add('lib/classes.dex', engineArtifact('share/java/classes.dex', 'arm64-android/classes.dex'), useArchive)
 ['lib/report_template.html', 'lib/time_report_template.html', 'lib/x86_64-linux/libc++.so'].each { path ->
     add(path, new File(bobDir, path))
 }
@@ -106,7 +84,7 @@ enginePlatforms.each { platform ->
             if (!useArchive || archivePaths.contains(archivePath) ||
                     (settings.preferLocalEngines && new File(dynamoHome, localPath).isFile())) {
                 def source = engineArtifact(localPath, archivePath)
-                add(path, source, false, useArchive)
+                add(path, source, useArchive)
             }
         }
     }
@@ -134,14 +112,13 @@ if (settings.privateRoot || new File(bobDir, 'scripts/copy_private.sh').isFile()
         exclude { element -> managedPaths.contains(element.relativePath.pathString) }
     }
 }
-def privateLightFiles = privateFiles.asFileTree.matching {
-    include 'lib/**/*texc_shared*', 'lib/**/*modelc_shared*', 'lib/**/*shaderc_shared*',
-            'lib/**/*fontc_shared*', 'libexec/**/glslang*', 'libexec/**/tint*',
-            'libexec/**/gltf_validator*', 'libexec/**/spirv-opt*', 'libexec/**/luajit*', 'libexec/**/aapt2*'
+def privateLightFiles = lightToolIncludes.isEmpty() ? files() : privateFiles.asFileTree.matching {
+    include(lightToolIncludes)
 }
 
 def engineJars = archivePaths.findAll { it.startsWith('share/java/') && it.endsWith('.jar') }.collectEntries { path ->
     [(new File(path).name): preferLocal(path, path)]
 }
 ext.bobArtifacts = [entries: entries, privateFiles: privateFiles, privateLightFiles: privateLightFiles, engineJars: engineJars,
-                    builtinsZip: builtinsZip, luaJitShareZip: luaJitShareZip]
+                    builtinsZip: builtinsZip, luaJitShareZip: luaJitShareZip,
+                    manifests: [archiveManifest, toolsManifest, lightToolsManifest]]
