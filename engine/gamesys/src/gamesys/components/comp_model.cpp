@@ -535,17 +535,9 @@ namespace dmGameSystem
 
     static void HashInstancingMaterial(HashState32* state, const dmGameSystem::MaterialResource* material)
     {
-        if (material->m_InstancingCompatibilityHash != 0)
-        {
-            dmHashUpdateBuffer32(state, &material->m_InstancingCompatibilityHash, sizeof(material->m_InstancingCompatibilityHash));
-            dmHashUpdateBuffer32(state, material->m_Textures, sizeof(dmGameSystem::TextureResource*)*material->m_NumTextures);
-        }
-        else
-        {
-            // Materials compiled before the compatibility hash was introduced
-            // must retain the conservative resource-identity behavior.
-            HashMaterial(state, material);
-        }
+        assert(material->m_InstancingCompatibilityHash != 0);
+        dmHashUpdateBuffer32(state, &material->m_InstancingCompatibilityHash, sizeof(material->m_InstancingCompatibilityHash));
+        dmHashUpdateBuffer32(state, material->m_Textures, sizeof(dmGameSystem::TextureResource*)*material->m_NumTextures);
     }
 
     static void GetRenderItemMorphWeights(const ModelComponent* component, const MeshRenderItem* render_item, const float** weights_out, uint32_t* weights_count_out)

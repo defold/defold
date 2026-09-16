@@ -7855,6 +7855,21 @@ ResourceFailParams invalid_material_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, jc_test_values_in(invalid_material_resources));
 
+TEST(MaterialResource, InstancingCompatibilityInvalidationVersion)
+{
+    dmGameSystem::MaterialResource material = {};
+    material.m_InstancingCompatibilityHash = 42;
+
+    dmGameSystem::InvalidateMaterialInstancingCompatibility(&material);
+    uint64_t resource_identity_hash = material.m_InstancingCompatibilityHash;
+    ASSERT_NE(0u, resource_identity_hash);
+    ASSERT_EQ(1u, material.m_InstancingCompatibilityVersion);
+
+    dmGameSystem::InvalidateMaterialInstancingCompatibility(&material);
+    ASSERT_EQ(resource_identity_hash, material.m_InstancingCompatibilityHash);
+    ASSERT_EQ(2u, material.m_InstancingCompatibilityVersion);
+}
+
 /* Buffer */
 
 const char* valid_buffer_resources[] = {"/mesh/no_data.bufferc", "/mesh/triangle.bufferc"};

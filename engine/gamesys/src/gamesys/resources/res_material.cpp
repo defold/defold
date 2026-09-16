@@ -31,15 +31,20 @@ namespace dmGameSystem
 {
     void InvalidateMaterialInstancingCompatibility(MaterialResource* resource)
     {
-        // Runtime material mutations cannot safely retain a compatibility hash
-        // calculated from the compiled descriptor. Fall back to resource identity.
-        uint64_t unique_hash = dmHashBuffer64(&resource, sizeof(resource));
-        unique_hash = unique_hash != 0 ? unique_hash : 1;
-        if (resource->m_InstancingCompatibilityHash != unique_hash)
+        // Runtime material mutations cannot safely retain the compatibility hash
+        // calculated from the compiled descriptor. Use the resource identity as a
+        // conservative key: users of this resource may still batch together, but
+        // they can no longer batch with other material resources.
+        uint64_t resource_identity_hash = dmHashBuffer64(&resource, sizeof(resource));
+        resource_identity_hash = resource_identity_hash != 0 ? resource_identity_hash : 1;
+        if (resource->m_InstancingCompatibilityHash != resource_identity_hash)
         {
-            resource->m_InstancingCompatibilityHash = unique_hash;
-            resource->m_InstancingCompatibilityVersion++;
+            resource->m_InstancingCompatibilityHash = resource_identity_hash;
         }
+        // The model component hash also contains mutable material state such as
+        // textures and per-vertex attribute values, so every mutation must cause
+        // existing component hashes to be rebuilt.
+        resource->m_InstancingCompatibilityVersion++;
     }
 
     static inline bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
