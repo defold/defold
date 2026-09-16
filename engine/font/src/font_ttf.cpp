@@ -228,6 +228,16 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
     glyph->m_Ascent = ascent;
     glyph->m_Descent = descent;
 
+    // Bitmap coverage is sampled on the rasterizer's pixel grid. Preserve its
+    // exact origin instead of centering the padded image around outline metrics.
+    // This changes image placement only; text advances remain floating point.
+    if (glyph->m_Bitmap.m_Data)
+    {
+        glyph->m_Width = glyph->m_Bitmap.m_Width;
+        glyph->m_Height = glyph->m_Bitmap.m_Height;
+        glyph->m_LeftBearing = offsetx;
+    }
+
     return FONT_RESULT_OK;
 }
 
@@ -342,7 +352,7 @@ FontResult FontGetGlyphSDFMetricsTTF(HFont hfont, uint32_t glyph_index, float sc
     glyph->m_Width = (float)(x1 - x0);
     glyph->m_Height = (float)(y1 - y0);
     glyph->m_Advance = advance * scale;
-    glyph->m_LeftBearing = left_bearing * scale;
+    glyph->m_LeftBearing = x0;
     glyph->m_Ascent = -y0;
     glyph->m_Descent = y1;
     return FONT_RESULT_OK;

@@ -419,17 +419,18 @@
         rows (:tiles-per-column tile-source-attributes)
         cols (:tiles-per-row tile-source-attributes)]
     (persistent!
-     (reduce (fn [vbuf tile-index]
-               (let [uv (nth uvs tile-index)
-                     [[x0 y0] [x1 y1]] (tile-coords tile-index tile-source-attributes scale)
-                     [[u0 v0] [u1 v1]] (geom/uv-trans uv [[0 0] [1 1]])]
-                 (-> vbuf
-                     (conj! [x0 y0 0.0 u0 v1])
-                     (conj! [x0 y1 0.0 u0 v0])
-                     (conj! [x1 y1 0.0 u1 v0])
-                     (conj! [x1 y0 0.0 u1 v1]))))
-             (->pos-uv-vtx (* 4 rows cols))
-             (range (* rows cols))))))
+      (reduce (fn [vbuf tile-index]
+                (let [uv (nth uvs tile-index)
+                      [[x0 y0] [x1 y1]] (tile-coords tile-index tile-source-attributes scale)
+                      [[u0 v0] [u1 v1]] (geom/uv-trans uv [[0 0] [1 1]])]
+                  (render-util/emit-quad!
+                    vbuf
+                    (conj! [x0 y0 0.0 u0 v1])
+                    (conj! [x0 y1 0.0 u0 v0])
+                    (conj! [x1 y1 0.0 u1 v0])
+                    (conj! [x1 y0 0.0 u1 v1]))))
+              (->pos-uv-vtx (* 6 rows cols))
+              (range (* rows cols))))))
 
 (defn- render-tiles
   [^GL2 gl render-args node-id gpu-texture tile-source-attributes uv-transforms scale-factor]
@@ -438,33 +439,34 @@
         gpu-texture (texture/set-params gpu-texture texture-params)]
     (gl/with-gl-bindings gl render-args [tile-shader vb gpu-texture]
       (shader/set-uniform tile-shader gl "texture_sampler" 0)
-      (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))
 
 (defn gen-tile-outlines-vbuf
   [tile-source-attributes convex-hulls scale]
   (let [rows (:tiles-per-column tile-source-attributes)
         cols (:tiles-per-row tile-source-attributes)]
     (persistent!
-     (reduce (fn [vbuf tile-index]
-               (let [[[x0 y0] [x1 y1]] (tile-coords tile-index tile-source-attributes scale)
-                     {:keys [points collision-group]} (nth convex-hulls tile-index nil)
-                     [cr cg cb ca] (if (seq points)
-                                     (collision-groups/color collision-group)
-                                     [0.15 0.15 0.15 0.15])]
-                 (-> vbuf
-                     (conj! [x0 y0 0.0 cr cg cb ca])
-                     (conj! [x0 y1 0.0 cr cg cb ca])
-                     (conj! [x1 y1 0.0 cr cg cb ca])
-                     (conj! [x1 y0 0.0 cr cg cb ca]))))
-             (->pos-color-vtx (* 4 rows cols))
-             (range (* rows cols))))))
+      (reduce (fn [vbuf tile-index]
+                (let [[[x0 y0] [x1 y1]] (tile-coords tile-index tile-source-attributes scale)
+                      {:keys [points collision-group]} (nth convex-hulls tile-index nil)
+                      [cr cg cb ca] (if (seq points)
+                                      (collision-groups/color collision-group)
+                                      [0.15 0.15 0.15 0.15])]
+                  (render-util/emit-quad-outline!
+                    vbuf
+                    (conj! [x0 y0 0.0 cr cg cb ca])
+                    (conj! [x0 y1 0.0 cr cg cb ca])
+                    (conj! [x1 y1 0.0 cr cg cb ca])
+                    (conj! [x1 y0 0.0 cr cg cb ca]))))
+              (->pos-color-vtx (* 8 rows cols))
+              (range (* rows cols))))))
 
 (defn- render-tile-outlines
   [^GL2 gl render-args node-id tile-source-attributes convex-hulls scale-factor]
   (let [vbuf (gen-tile-outlines-vbuf tile-source-attributes convex-hulls scale-factor)
         vb (vtx/use-with node-id vbuf color-shader)]
     (gl/with-gl-bindings gl render-args [color-shader vb]
-      (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count vbuf)))))
 
 (defn conj-hull-outline!
   [vbuf points rgba]
@@ -866,22 +868,31 @@
         x-border (* scale-x tile-border-size)
         y-border (* scale-y tile-border-size)
         [x y] active-tile
-        w width h height
-        [r g b] (collision-groups/color (collision-group-node->group selected-collision-group-node))
-        a (if (= pass/transparent (:pass render-args)) 0.30 1.0)
-        vbuf (let [x0 (+ (* x (+ x-border w)) x-border)
-                   x1 (+ x0 w)
-                   y0 (+ (* y (+ y-border h)) y-border)
-                   y1 (+ y0 h)]
-               (-> (->pos-color-vtx 4)
-                   (conj! [x0 y0 0.0 r g b a])
-                   (conj! [x0 y1 0.0 r g b a])
-                   (conj! [x1 y1 0.0 r g b a])
-                   (conj! [x1 y0 0.0 r g b a])
-                   (persistent!)))
-        vb (vtx/use-with node-id vbuf color-shader)]
-    (gl/with-gl-bindings gl render-args [color-shader vb]
-      (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
+        w width h height]
+    (let [is-outline (= pass/outline (:pass render-args))
+          [r g b] (collision-groups/color (collision-group-node->group selected-collision-group-node))
+          a (if is-outline 1.0 0.30)
+          vbuf (let [x0 (+ (* x (+ x-border w)) x-border)
+                     x1 (+ x0 w)
+                     y0 (+ (* y (+ y-border h)) y-border)
+                     y1 (+ y0 h)]
+                 (persistent!
+                   (if is-outline
+                     (render-util/emit-quad-outline!
+                       (->pos-color-vtx 8)
+                       (conj! [x0 y0 0.0 r g b a])
+                       (conj! [x0 y1 0.0 r g b a])
+                       (conj! [x1 y1 0.0 r g b a])
+                       (conj! [x1 y0 0.0 r g b a]))
+                     (render-util/emit-quad!
+                       (->pos-color-vtx 6)
+                       (conj! [x0 y0 0.0 r g b a])
+                       (conj! [x0 y1 0.0 r g b a])
+                       (conj! [x1 y1 0.0 r g b a])
+                       (conj! [x1 y0 0.0 r g b a])))))
+          vb (vtx/use-with node-id vbuf color-shader)]
+      (gl/with-gl-bindings gl render-args [color-shader vb]
+        (gl/gl-draw-arrays gl (if is-outline GL2/GL_LINES GL2/GL_TRIANGLES) 0 (count vbuf))))))
 
 (g/defnk produce-tool-renderables
   [_node-id active-tile tile-source-attributes convex-hulls collision-group-node->group selected-collision-group-node]

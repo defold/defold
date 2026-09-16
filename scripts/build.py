@@ -1179,6 +1179,7 @@ class Configuration(object):
         self._install_python_packages([
             'Markdown==3.3.7',
             'Pygments==2.12.0',
+            'Pillow==11.3.0',
             'boto3==1.36.3',
             'protobuf==7.35.1',
             'PyYAML==6.0.3',

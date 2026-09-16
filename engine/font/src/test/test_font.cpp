@@ -589,6 +589,86 @@ TEST(FontOutline, MakeYMonotonic)
     FontFreeGlyphOutline(&outline);
 }
 
+TEST_F(FontTest, BitmapGlyphUsesRasterOriginWithoutRoundingAdvance)
+{
+    // Work Sans A starts at x=1.2 at size 40. Seven pixels of image padding
+    // put its sampled origin at -6, not at a centered fractional SDF bearing.
+    HFont font;
+    LoadFont("src/test/data/WorkSans.ttf", &font);
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(font, 40.0f);
+    params.m_SdfPadding = 7;
+    params.m_OutlineWidth = 4;
+    params.m_OutputBitmap = true;
+    FontGlyph bitmap;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(font, FontGetGlyphIndex(font, 'A'), &params, &bitmap));
+    ASSERT_EQ(-6.0f, bitmap.m_LeftBearing);
+    ASSERT_EQ((float)bitmap.m_Bitmap.m_Width, bitmap.m_Width);
+    ASSERT_EQ((float)bitmap.m_Bitmap.m_Height, bitmap.m_Height);
+    ASSERT_NEAR(26.4f, bitmap.m_Advance, 0.0001f);
+
+    // SDF samples use the same raster origin and retain fractional advances.
+    params.m_OutputBitmap = false;
+    FontGlyph sdf;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(font, FontGetGlyphIndex(font, 'A'), &params, &sdf));
+    ASSERT_EQ(bitmap.m_LeftBearing, sdf.m_LeftBearing);
+    ASSERT_EQ(bitmap.m_Advance, sdf.m_Advance);
+
+    // The public API selects sampled metrics automatically when it generates
+    // an image. Metrics-only queries keep the fractional font bearing.
+    FontGlyphOptions options;
+    options.m_Scale = params.m_Scale;
+    options.m_StbttSDFPadding = params.m_SdfPadding;
+    FontGlyph metrics;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyph(font, 'A', &options, &metrics));
+    ASSERT_EQ((uint8_t*)0, metrics.m_Bitmap.m_Data);
+    ASSERT_NEAR(1.04f, metrics.m_LeftBearing, 0.0001f);
+    ASSERT_EQ(sdf.m_Advance, metrics.m_Advance);
+
+    options.m_GenerateImage = true;
+    FontGlyph image;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyph(font, 'A', &options, &image));
+    ASSERT_NE((uint8_t*)0, image.m_Bitmap.m_Data);
+    ASSERT_EQ((float)image.m_Bitmap.m_Width, image.m_Width);
+    ASSERT_EQ((float)image.m_Bitmap.m_Height, image.m_Height);
+    ASSERT_EQ(sdf.m_LeftBearing, image.m_LeftBearing);
+    ASSERT_EQ(metrics.m_Advance, image.m_Advance);
+    FontFreeGlyph(font, &image);
+    FontFreeGlyph(font, &metrics);
+    FontFreeGlyph(font, &sdf);
+    FontFreeGlyph(font, &bitmap);
+    FontDestroy(font);
+}
+
+TEST_F(FontTest, SdfGlyphPaddingPreservesSamplePosition)
+{
+    // Shaped Arabic lam has tighter curve bounds than its stored glyph box.
+    // Its image width must not influence the placement of existing samples.
+    HFont font;
+    LoadFont("src/test/data/NotoSansArabic-Regular.ttf", &font);
+    FontGlyphGenParams params;
+    params.m_Scale = FontGetScaleFromSize(font, 40.0f);
+    params.m_SdfPadding = 7;
+    FontGlyph first;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(font, 72, &params, &first));
+    params.m_SdfPadding = 8;
+    FontGlyph padded;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(font, 72, &params, &padded));
+
+    // Adding a pixel on each side changes the origin by exactly one pixel,
+    // cancelling the corresponding sample-coordinate change at any text x.
+    ASSERT_EQ(first.m_LeftBearing - 1.0f, padded.m_LeftBearing);
+    ASSERT_EQ(first.m_Ascent + 1.0f, padded.m_Ascent);
+    ASSERT_EQ(first.m_Width + 2.0f, padded.m_Width);
+    ASSERT_EQ((float)first.m_Bitmap.m_Width, first.m_Width);
+    ASSERT_EQ((float)padded.m_Bitmap.m_Width, padded.m_Width);
+    ASSERT_EQ(first.m_Advance, padded.m_Advance);
+    ASSERT_EQ(20.25f + first.m_LeftBearing + 7.0f, 20.25f + padded.m_LeftBearing + 8.0f);
+    FontFreeGlyph(font, &padded);
+    FontFreeGlyph(font, &first);
+    FontDestroy(font);
+}
+
 TEST_F(FontTest, GenerateSdfGlyphWithShadowChannels)
 {
     FontGlyphGenParams params;
@@ -876,6 +956,230 @@ static bool ResolveTestLayoutGlyph(void* context, const TextGlyph&, FontLayoutCa
     return true;
 }
 
+TEST_F(FontTest, FontLayersPreserveInlineStyleOverrides)
+{
+    // Styles carry effect values; the same resolved layout must work with each font layer mask.
+    // No render-mode flag is needed in the inherited default or the inline styles.
+    TextRenderStyle base = {};
+    base.m_Flags = TEXT_RENDER_STYLE_OUTLINE_WIDTH | TEXT_RENDER_STYLE_OUTLINE_ALPHA;
+    base.m_OutlineWidth = 2.0f;
+    base.m_OutlineAlpha = 1.0f;
+    const dmhash_t name = dmHashString64("default");
+    FontCollectionSetNamedStyle(m_FontCollection, name, base, 0, 0);
+
+    // A inherits the blue outline; B changes face color; C reduces outline width;
+    // D/E disable the outline by width/alpha; F changes outline color; G adds a shadow.
+    const char source[] = "A<color=#ff0000>B</color><outline size=1>C</outline><outline size=0>D</outline>"
+                          "<outline alpha=0>E</outline><outline color=#00ff00>F</outline><shadow x=6 alpha=0.5>G</shadow>";
+    HMarkup    markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Width = 1000.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_UseBaseStyle = 1;
+    settings.m_BaseStyle = name;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+
+    FontGlyphGenParams glyph_params;
+    glyph_params.m_Scale = FontGetScaleFromSize(m_Font, settings.m_Size);
+    glyph_params.m_SdfPadding = 6.0f;
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, FontGetGlyphIndex(m_Font, 'A'), &glyph_params, &glyph));
+    TestLayoutCachedGlyph cached = { &glyph };
+
+    FontLayoutVertexConfig config = {};
+    config.m_Layout = layout;
+    config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+    config.m_ResolveGlyphContext = &cached;
+    config.m_Transform = dmVMath::Matrix4::identity();
+    config.m_Width = settings.m_Width;
+    config.m_RecipAtlasWidth = 1.0f / 256.0f;
+    config.m_RecipAtlasHeight = 1.0f / 256.0f;
+    config.m_SdfEdge = 0.75f;
+    config.m_SdfSpread = 6.0f;
+    config.m_OutlineWidth = 2.0f;
+    config.m_SdfOutline = config.m_SdfEdge - (191.0f / 255.0f) * config.m_OutlineWidth / config.m_SdfSpread;
+    config.m_CacheCellMaxAscent = (int32_t)glyph.m_Ascent;
+    config.m_CacheCellPadding = 1;
+    config.m_MetricsFromTtf = true;
+    config.m_IsSdf = true;
+    config.m_ResolveGlyphsForMetrics = true;
+    config.m_FaceColor[0] = config.m_FaceColor[1] = config.m_FaceColor[2] = config.m_FaceColor[3] = 1.0f;
+    config.m_OutlineColor = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    config.m_ShadowColor = dmVMath::Vector4(1.0f);
+
+    // Cover a combined quad, separate outlines, and separate outlines plus shadows.
+    // In particular, G must not create a shadow quad when that layer is absent.
+    const uint8_t layer_masks[] = { FONT_RENDER_LAYER_FACE,
+                                   FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE,
+                                   FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW };
+    for (uint32_t mask_index = 0; mask_index < DM_ARRAY_SIZE(layer_masks); ++mask_index)
+    {
+        config.m_BaseLayerMask = layer_masks[mask_index];
+        // D has no outline geometry. E retains an outline quad with zero opacity.
+        // Only G requests shadow geometry, and only the last mask permits it.
+        const uint32_t outline_quads = mask_index == 0 ? 0 : 6;
+        const uint32_t shadow_quads = mask_index == 2 ? 1 : 0;
+        FontLayoutVertexMetrics metrics;
+        ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+        ASSERT_EQ(7u,            metrics.m_GlyphQuadCount);
+        ASSERT_EQ(7u,            metrics.m_FaceQuadCount);
+        ASSERT_EQ(outline_quads, metrics.m_OutlineQuadCount);
+        ASSERT_EQ(shadow_quads,  metrics.m_ShadowQuadCount);
+
+        FontGlyphVertex vertices[84];
+        ASSERT_EQ((7 + outline_quads + shadow_quads) * 6, FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices)));
+        // Vertices are grouped as shadows, outlines, then faces; each glyph quad uses six vertices.
+        const FontGlyphVertex* faces = vertices + (outline_quads + shadow_quads) * 6;
+        for (uint32_t i = 0; i < 42; ++i)
+        {
+            ASSERT_EQ(1.0f,                          faces[i].m_LayerMasks[0]);
+            ASSERT_EQ(mask_index == 0 ? 1.0f : 0.0f, faces[i].m_LayerMasks[1]);
+            ASSERT_EQ(mask_index == 0 ? 1.0f : 0.0f, faces[i].m_LayerMasks[2]);
+        }
+        // Offsets 0, 6, ..., 36 address A through G. Check that merging preserved
+        // inherited colors, explicit zero values, and the narrower distance field outline.
+        ASSERT_EQ(255u, faces[0].m_OutlineColor[2]);
+        ASSERT_EQ(255u, faces[0].m_OutlineColor[3]);
+        ASSERT_EQ(255u, faces[6].m_FaceColor[0]);
+        ASSERT_EQ(0u,   faces[6].m_FaceColor[1]);
+        ASSERT_EQ(0u,   faces[6].m_FaceColor[2]);
+        ASSERT_GT(faces[12].m_SdfParams[1], faces[0].m_SdfParams[1]);
+        ASSERT_EQ(0u,   faces[18].m_OutlineColor[3]);
+        ASSERT_EQ(0u,   faces[24].m_OutlineColor[3]);
+        ASSERT_EQ(0u,   faces[30].m_OutlineColor[0]);
+        ASSERT_EQ(255u, faces[30].m_OutlineColor[1]);
+        ASSERT_EQ(0u,   faces[30].m_OutlineColor[2]);
+        ASSERT_EQ(127u, faces[36].m_ShadowColor[3]);
+        if (shadow_quads)
+        {
+            ASSERT_EQ(faces[36].m_Position[0] + 6.0f, vertices[0].m_Position[0]);
+            ASSERT_EQ(1.0f, vertices[0].m_LayerMasks[2]);
+        }
+
+        // Bitmap outlines retain their baked width when markup requests a smaller one.
+        config.m_IsSdf = false;
+        ASSERT_EQ((7 + outline_quads + shadow_quads) * 6, FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices)));
+        ASSERT_EQ(faces[0].m_SdfParams[1], faces[12].m_SdfParams[1]);
+        config.m_IsSdf = true;
+    }
+
+    FontFreeGlyph(m_Font, &glyph);
+    TextLayoutRelease(layout);
+}
+
+TEST_F(FontTest, FontLayersPreserveInheritedShadowCoverage)
+{
+    TextRenderStyle base = {};
+    base.m_Flags = TEXT_RENDER_STYLE_OUTLINE_WIDTH | TEXT_RENDER_STYLE_OUTLINE_ALPHA |
+                   TEXT_RENDER_STYLE_SHADOW_ALPHA | TEXT_RENDER_STYLE_SHADOW_BLUR |
+                   TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_Y;
+    base.m_OutlineWidth = 2.0f;
+    base.m_OutlineAlpha = 1.0f;
+    base.m_ShadowAlpha = 1.0f;
+    base.m_ShadowX = -6.0f;
+    base.m_ShadowY = 6.0f;
+    const dmhash_t name = dmHashString64("default");
+    FontCollectionSetNamedStyle(m_FontCollection, name, base, 0, 0);
+    TextRenderStyle explicit_shadow = {};
+    explicit_shadow.m_Flags = TEXT_RENDER_STYLE_SHADOW_BLUR;
+    FontCollectionSetNamedStyle(m_FontCollection, dmHashString64("shadow"), explicit_shadow, 0, 0);
+
+    // A/B/E inherit the font shadow, including through nested face-color markup.
+    // C explicitly requests the same blur as the base; D does so through an object
+    // style. Equal resolved values must not erase these authored overrides.
+    const char source[] = "A<color=#ff0000>B<shadow blur=0>C</shadow></color>"
+                          "<link id=target style=shadow>D</link>E";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Width = 1000.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_UseBaseStyle = 1;
+    settings.m_BaseStyle = name;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+
+    FontGlyphGenParams glyph_params;
+    glyph_params.m_Scale = FontGetScaleFromSize(m_Font, settings.m_Size);
+    glyph_params.m_SdfPadding = 6.0f;
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, FontGetGlyphIndex(m_Font, 'A'), &glyph_params, &glyph));
+    TestLayoutCachedGlyph cached = { &glyph };
+
+    FontLayoutVertexConfig config = {};
+    config.m_Layout = layout;
+    config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+    config.m_ResolveGlyphContext = &cached;
+    config.m_Transform = dmVMath::Matrix4::identity();
+    config.m_Width = settings.m_Width;
+    config.m_RecipAtlasWidth = 1.0f / 256.0f;
+    config.m_RecipAtlasHeight = 1.0f / 256.0f;
+    config.m_SdfEdge = 0.75f;
+    config.m_SdfSpread = 6.0f;
+    config.m_OutlineWidth = 2.0f;
+    config.m_SdfOutline = config.m_SdfEdge - (191.0f / 255.0f) * config.m_OutlineWidth / config.m_SdfSpread;
+    config.m_CacheCellMaxAscent = (int32_t)glyph.m_Ascent;
+    config.m_CacheCellPadding = 1;
+    config.m_MetricsFromTtf = true;
+    config.m_IsSdf = true;
+    config.m_ResolveGlyphsForMetrics = true;
+    config.m_FaceColor[0] = config.m_FaceColor[1] = config.m_FaceColor[2] = config.m_FaceColor[3] = 1.0f;
+    config.m_OutlineColor = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
+    config.m_ShadowColor = dmVMath::Vector4(1.0f);
+    config.m_BaseShadowAlpha = 1.0f;
+    config.m_SdfShadow = 1.0f;
+    config.m_ShadowX = -6.0f;
+    config.m_ShadowY = 6.0f;
+
+    // Exercise both shader types and both compositing modes. The shadow offset
+    // is unchanged; only explicit multi-layer shadows select face coverage.
+    for (uint32_t sdf = 0; sdf < 2; ++sdf)
+    {
+        config.m_IsSdf = sdf != 0;
+        for (uint32_t multi = 0; multi < 2; ++multi)
+        {
+            config.m_BaseLayerMask = multi ? FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW : FONT_RENDER_LAYER_FACE;
+            FontLayoutVertexMetrics metrics;
+            ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+            FontGlyphVertex vertices[90];
+            ASSERT_EQ(multi ? 90u : 30u, FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices)));
+            for (uint32_t i = 0; i < 5; ++i)
+            {
+                const float expected = multi && (i == 2 || i == 3) ? 1.875f : 1.0f;
+                ASSERT_EQ(expected, vertices[i * 6].m_SdfParams[3]);
+                if (multi)
+                {
+                    const FontGlyphVertex& face = vertices[60 + i * 6];
+                    ASSERT_EQ(face.m_Position[0] - 6.0f, vertices[i * 6].m_Position[0]);
+                    ASSERT_EQ(face.m_Position[1] + 6.0f, vertices[i * 6].m_Position[1]);
+                }
+            }
+        }
+    }
+
+    // Removing the object override restores inheritance without reshaping. A
+    // collection revision then rebuilds merged styles while preserving C's override.
+    ASSERT_EQ(1u, TextLayoutSetObjectStyle(layout, dmHashString64("target"), dmHashString64("missing")));
+    base.m_ShadowAlpha = 0.5f;
+    FontCollectionSetNamedStyle(m_FontCollection, name, base, 0, 0);
+    ASSERT_TRUE(TextLayoutRefreshObjectStyles(layout));
+    FontLayoutVertexMetrics metrics;
+    ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+    FontGlyphVertex vertices[90];
+    ASSERT_EQ(90u, FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices)));
+    ASSERT_EQ(1.875f, vertices[12].m_SdfParams[3]);
+    ASSERT_EQ(1.0f,   vertices[18].m_SdfParams[3]);
+    ASSERT_EQ(127u,   vertices[18].m_ShadowColor[3]);
+    FontFreeGlyph(m_Font, &glyph);
+    TextLayoutRelease(layout);
+}
+
 TEST_F(FontTest, LayoutVertexMetricsCompactMarkupLayers)
 {
     const char source[] = "A<outline size=2>B</outline><shadow x=1>C</shadow>D";
@@ -910,7 +1214,8 @@ TEST_F(FontTest, LayoutVertexMetricsCompactMarkupLayers)
     config.m_ShadowBlur = 2.0f;
     config.m_CacheCellMaxAscent = (int32_t)glyph.m_Ascent;
     config.m_CacheCellPadding = 1;
-    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+    // This test exercises compaction of separate layers, so the font must enable all three.
+    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
     config.m_MetricsFromTtf = true;
     config.m_IsSdf = true;
     config.m_ResolveGlyphsForMetrics = true;

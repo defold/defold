@@ -26,6 +26,48 @@
             [support.test-support :as test-support]
             [util.coll :as coll]))
 
+(defn- vertex-buffer->vertices
+  [vertex-buffer]
+  (mapv #(get vertex-buffer %) (range (count vertex-buffer))))
+
+(defn- quad-triangles?
+  [vertices]
+  (and (= 6 (count vertices))
+       (= (nth vertices 2) (nth vertices 3))
+       (= (nth vertices 0) (nth vertices 5))))
+
+(defn- quad-lines?
+  [vertices]
+  (and (= 8 (count vertices))
+       (= (nth vertices 0) (nth vertices 7))
+       (= (nth vertices 1) (nth vertices 2))
+       (= (nth vertices 3) (nth vertices 4))
+       (= (nth vertices 5) (nth vertices 6))))
+
+(deftest tile-source-quad-producers-use-core-topologies
+  (let [tile-source-attributes {:width 2
+                                :height 3
+                                :tiles-per-column 1
+                                :tiles-per-row 1}]
+    (testing "tiles"
+      (let [vertices (-> (tile-source/gen-tiles-vbuf tile-source-attributes [nil] [1.0 1.0])
+                         (vertex-buffer->vertices))]
+        (is (quad-triangles? vertices))
+        (is (= [[3.0 3.0 0.0 0.0 1.0]
+                [3.0 6.0 0.0 0.0 0.0]
+                [5.0 6.0 0.0 1.0 0.0]
+                [5.0 6.0 0.0 1.0 0.0]
+                [5.0 3.0 0.0 1.0 1.0]
+                [3.0 3.0 0.0 0.0 1.0]]
+               vertices))))
+
+    (testing "collision overlays"
+      (let [vertices (-> (tile-source/gen-tile-outlines-vbuf tile-source-attributes [nil] [1.0 1.0])
+                         (vertex-buffer->vertices))]
+        (is (quad-lines? vertices))
+        (is (= (repeat 8 (vec (repeat 4 (float 0.15))))
+               (map #(subvec % 3) vertices)))))))
+
 (deftest tile-source-validation
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/tilesource/valid.tilesource")]
