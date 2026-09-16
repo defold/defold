@@ -1,0 +1,386 @@
+# Key naming convention:
+# 1. Use dot-separated hierarchy (from broad to specific)
+# 2. Use at least 2 dot-separated elements
+# 3. Use lower-cased kebab-case
+# 4. Avoid suffixes baked into the last path element (e.g., -label, -button)
+# 5. For dialog elements, use consistent names: title, header, detail, content
+# 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
+# 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+# 8. Use ellipsis character (…) instead of triple dots (...)
+
+# Localizations of the Welcome dialog
+
+# Welcome -> New Project -> From Template
+
+# Welcome -> New Project -> From Tutorial
+
+# Welcome -> New Project -> From Sample
+
+# Updater
+
+# Bundled release notes shown on first launch of a version and via Help > Release Notes
+
+# Time
+
+# Common dialogs
+
+
+# Error Dialog
+
+
+# Build Error Dialog
+
+
+# Clean Build Dialog
+
+
+# Debugging Not Supported Dialog
+
+
+# Defunload Issues Dialog
+
+
+
+# Launch Failed Dialog
+
+
+# Hot Reload Failed Dialog
+
+
+# GL support error dialog
+
+
+# New folder
+
+
+# Target IP dialog
+
+
+# Search in Files Dialogs
+
+
+# Target Discovery Log Dialog
+
+
+# Generic file/directory dialog titles
+
+
+# Set Custom Resolution dialog
+
+
+# Tracked internal files dialog
+
+
+# Quit Defold dialog
+
+
+# Project directory unavailable dialog
+
+
+# Restart Defold dialog
+
+
+# Save and upgrade file formats dialogs
+
+
+# Plugin load error dialog
+
+
+# Desktop entry dialogs
+
+
+# Texture compressor error dialog
+
+
+# Lua preprocessors error dialog
+
+
+# Lua transpilers error dialog
+
+
+# Diff view dialogs
+
+
+# Fetch libraries dialog
+
+
+# Notification view
+
+
+# Fetch libraries notification
+
+
+# Editor scripts notification
+
+
+# Reload plugins notification
+
+
+# Disabled functionality notification
+
+
+# Open custom editor notifications
+
+
+# Settings notifications
+
+
+# Language server notification
+
+
+# Asset browser notifications
+
+
+# Workspace notifications
+
+
+# Web server notifications
+
+
+# Changes view notifications
+
+
+# Debug view notifications
+
+
+# Target notifications
+
+
+# Form view dialogs
+
+
+# Shared editor settings load error dialog
+
+
+# Updated gitignore dialog
+
+
+# Asset browser reserved targets dialog
+
+
+# Asset deletion dialogs
+
+
+# Rename dialog
+
+
+# Name conflict dialog (appears on conflict during rename)
+
+
+# New file dialog
+
+
+# List dialogs
+
+
+# Open resource dialogs
+
+
+# Loading project dialog
+
+
+# Bundle dialog
+
+
+# Editor panes
+
+
+# Assets
+
+
+# Console
+
+
+# Breakpoints Tab
+
+
+# Changes view
+
+
+# Prefs
+
+
+
+# General tab
+
+# Code tab
+
+# Extensions tab
+
+# Tools
+
+# Dev tab
+
+# Keymap tab
+
+# Progress
+
+
+# Engine targets
+
+
+# Search results: overrides
+
+
+# Menus
+
+
+# Commands
+
+
+
+# Code editor – find bar
+
+
+# About dialog
+
+
+# Overrides
+
+
+# GUI
+
+
+# UI
+
+
+# Editing operations
+
+
+# Scene View Popups
+
+
+# Properties
+
+
+# Properties: universal
+
+
+# Properties: appmanifest
+
+
+# Properties: atlas
+
+
+# Properties: camera
+
+
+# Properties: collection proxy
+
+
+# Properties: collision object
+
+
+# Properties: compute
+
+
+# Properties: cubemap
+
+
+# Properties: factory
+
+
+# Properties: font
+
+
+# Properties: gui
+
+
+# Properties: label
+
+
+# Properties: light
+
+
+# Properties: mesh
+
+
+# Properties: model
+
+
+# Properties: particlefx
+
+
+
+
+# Properties: sound
+
+
+# Properties: sprite
+
+
+# Properties: tile map
+
+
+# Properties: tile source
+
+
+# Outline
+
+
+# Resources
+
+
+
+
+
+# Forms
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Quick Help
+
+
+# Error Messages
