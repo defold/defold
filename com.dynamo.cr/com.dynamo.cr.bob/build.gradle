@@ -340,7 +340,7 @@ tasks.register('compileGenerated', JavaCompile) {
     source = fileTree("${bobDir}/generated")
     destinationDirectory = generatedClassesDir
     include '**/*.java'
-    classpath = sourceSets.main.compileClasspath
+    classpath = fileTree("${bobDir}/lib") { include 'protobuf-java-*.jar' }
     options.encoding = 'UTF-8'
     options.compilerArgs << '-g'
 }
