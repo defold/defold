@@ -21,7 +21,7 @@
 (deftest collision-group-color-test
   (is (= [1.0 1.0 1.0 1.0]
          (collision-groups/color nil)))
-  (is (= [0.5 0.375 1.0 1.0]
+  (is (= [0.5 0.625 1.0 1.0]
          (collision-groups/color "player")))
   (is (not= (collision-groups/color "player")
             (collision-groups/color "enemy"))))
