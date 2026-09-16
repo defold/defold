@@ -175,6 +175,26 @@ When `BUILD_TESTS=ON`, CMake generates the unit test targets during configure:
 `all` target and are only built when requested through `build_tests`,
 `run_tests`, or a direct `test_*`/`run_*` target.
 
+Pass `RUNTIME_DEPENDS <content-target> ...` to `defold_register_test_target`
+for generated assets that are only needed when running a test. `build_tests`
+and all test runners prepare these assets, while a direct binary build can
+compile without waiting for them. Generated headers and sources must remain
+compile dependencies. Xcode test executables retain runtime dependencies
+because Run schemes build the executable directly. iOS app targets also need
+these assets for the post-build step that copies them into the app bundle.
+
+Gamesys test content builds use up to two Bob processes with Ninja. Two
+dependency chains keep queued content visible to Ninja's scheduler so it starts
+alongside compilation. Their target dependencies preserve independent folder
+rebuilds, and separate folder targets avoid waiting for unrelated engine
+libraries. In CI, detected through `GITHUB_WORKFLOW`, each process uses two Bob
+worker threads by default so content builds leave CPU capacity for compilation.
+Set `-DDEFOLD_GAMESYS_BOB_THREADS=<count>` to change this positive CI limit.
+Local builds use Bob's default thread count. Each chain stages the source tree
+once and reuses it between folders, clearing Bob's build metadata before each
+invocation. Folder outputs and extracted tools remain isolated. Other generators
+use one chain and one source copy to bound JVM memory use.
+
 ## Solution generation
 
 You can generate a solution for a platform with:
