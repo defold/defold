@@ -261,9 +261,11 @@ ordinary paths."
                         for common values; defaults to \"plaintext\"
     :build-ext          file extension of a built resource, defaults to :ext's
                         value with appended \"c\"
-    :dependencies-fn    fn of node's :source-value output to a collection of
-                        resource project paths that this node depends on,
-                        affects loading order
+    :dependencies-fn    a function from read-opts, owner-resource and a node's
+                        source-value output to a collection of proj-paths that
+                        this node depends on. Determines the order in which the
+                        nodes are loaded into the graph. See the make-read-opts
+                        function for details.
     :connect-fn         a function from project, new node id and resource to
                         connection transaction steps, invoked when the resource
                         shell is added to the project and before any resource
