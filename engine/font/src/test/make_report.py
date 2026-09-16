@@ -39,6 +39,7 @@ from collections import Counter
 import shlex
 sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "scripts"))
 import likeness
+import font_coverage
 FONT_ROOT = Path(__file__).resolve().parents[2]
 
 try:
@@ -62,6 +63,12 @@ def cases(full, rich):
         result.append(case)
     for source in SOURCES:
         for multi in (False, True): add(source, multi)
+    for source in ('ttf_sdf', 'otf_sdf'):
+        for name, scale in (('half', .5), ('one', 1), ('two', 2)):
+            add(source, False, 'edge_' + name, text='H', size=32, outline=0, outline_alpha=0, edge_scale=scale)
+        add(source, False, 'solid_half', text='H', size=128, outline=0, outline_alpha=0, edge_scale=.5, opaque_interior=True)
+        for width in (.5, 1.5):
+            add(source, False, 'spread_' + str(width).replace('.', '_'), text='H', size=32, outline=width, outline_alpha=0, edge_scale=1)
     effects = dict(face_half=dict(face_alpha=.5), face_zero=dict(face_alpha=0), face_only=dict(outline_alpha=0),
                    width_zero=dict(outline=0), width_two=dict(outline=2), width_eight=dict(outline=8),
                    outline_half=dict(outline_alpha=.5), shadow=dict(shadow_alpha=1,shadow_x=6,shadow_y=-6),
@@ -101,6 +108,7 @@ def generate_cases(output):
             values=[json.dumps(c[k],ensure_ascii=False) for k in ('id','source','text')]
             values += [str(float(c[k]))+'f' for k in ('size','outline','outline_alpha','face_alpha','shadow_alpha','shadow_blur','shadow_x','shadow_y')]
             values += [str(c[k]).lower() for k in ('multi','markup','change')]
+            values += [str(float(c.get('edge_scale', 0)))+'f']
             lines.append('TEST(FontImages_'+c['id']+', Render)\n{\n    const FontImageCase c = { '+', '.join(values)+' };\n    TestFontImage(c);\n}\n')
         lines.append('#endif')
     output.parent.mkdir(parents=True,exist_ok=True); output.write_text('\n'.join(lines)+'\n', encoding="utf-8")
@@ -215,6 +223,36 @@ def validate_capture(actual_path: Path | str, case: dict) -> dict:
         raise ValueError(str(error)) from error
 
 
+def sdf_edge_width(image, upper_alpha=.5):
+    """Measure the first H stem's 10%-50% transition in screen pixels.
+
+    The capture samples at 8x screen resolution using the real SDF shader.
+    The current filter uses a two-pixel full smoothstep band;
+    its 10%-50% span is 0.6084 pixels. This expectation is independent of
+    generated references, the distance encoding and the smoothing formula.
+    Using the outer half avoids requiring thin, downscaled stems to reach 90%.
+    """
+    rgb = image.convert('RGB')
+    bounds = likeness.foreground_mask(rgb, (0, 0, 0)).getbbox()
+    if bounds is None:
+        raise ValueError('Empty SDF edge capture')
+    _, top, _, bottom = bounds
+    widths = []
+    for fraction in (.25, .30, .35):
+        y = top + int((bottom - top) * fraction)
+        row = [rgb.getpixel((x, y))[0] / 255 for x in range(rgb.width)]
+        crossings = []
+        for alpha in (.1, upper_alpha):
+            crossing = next((x + (alpha - a) / (b - a)
+                             for x, (a, b) in enumerate(zip(row, row[1:]))
+                             if a < alpha <= b), None)
+            if crossing is None:
+                raise ValueError(f'SDF stem does not reach {alpha:.0%} opacity')
+            crossings.append(crossing)
+        widths.append((crossings[1] - crossings[0]) / 8)
+    return sum(widths) / len(widths)
+
+
 def compare_case(actual_path: Path | str, expected_path: Path | str, case: dict, report_dir: Path | str) -> dict:
     """Return one result, retaining available artifacts even when comparison fails.
 
@@ -245,6 +283,7 @@ def compare_case(actual_path: Path | str, expected_path: Path | str, case: dict,
         return _json_value(result)
     try:
         actual_path, expected_path = Path(actual_path), Path(expected_path)
+        edge_failures = []
         missing = []
         for key, source, name in (("actual", actual_path, "actual.png"), ("reference", expected_path, "reference.png")):
             if not source.is_file():
@@ -252,6 +291,54 @@ def compare_case(actual_path: Path | str, expected_path: Path | str, case: dict,
             else:
                 _copy_file(source, destination / name)
                 result["paths"][key] = name
+        if case.get('edge_scale') and actual_path.is_file():
+            # A matching baseline with the same broken edge must never pass.
+            with Image.open(actual_path) as actual:
+                if actual.format != "PNG":
+                    raise ValueError("Captures must be PNG images")
+                result["dimensions"] = list(actual.size)
+                width = sdf_edge_width(actual)
+            result['edge_width_pixels'] = width
+            result['expected_edge_width_pixels'] = 0.6084
+            result['edge_width_tolerance_pixels'] = 0.08
+            result['reference_version'] = 'native'
+            result['display_zoom'] = 4
+            if abs(width - 0.6084) > .08:
+                edge_failures.append(f'SDF edge width {width:.4f} px; expected 0.6084 ± 0.08 px (current smoothing contract)')
+            if case.get('opaque_interior'):
+                with Image.open(actual_path) as actual:
+                    peak = actual.convert('L').getextrema()[1] / 255.0
+                    result['interior_opacity'] = peak
+                    if peak < .99:
+                        edge_failures.append(f'SDF interior opacity {peak:.2%}; expected at least 99%')
+                    if peak >= .9:
+                        full_width = sdf_edge_width(actual, .9)
+                        result['full_edge_width_pixels'] = full_width
+                        if abs(full_width - 1.2168) > .1:
+                            edge_failures.append(f'SDF 10%-90% edge width {full_width:.4f} px; expected 1.2168 ± 0.1 px')
+        if case.get('stable_reference') and actual_path.is_file():
+            stable_path = Path(case['stable_reference'])
+            _copy_file(stable_path, destination / 'stable_reference.png')
+            result['paths']['stable_reference'] = 'stable_reference.png'
+            background = _background(case)
+            with Image.open(actual_path) as source_actual, Image.open(stable_path) as source_stable:
+                actual = _rgb(source_actual, background)
+                stable = _rgb(source_stable, background)
+            box = _roi_box(actual, case)
+            if stable.size != actual.size:
+                raise ValueError('1.13.1 comparison dimensions differ from the capture fixture')
+            stable_metrics = likeness.compare(actual, stable, destination / 'stable_difference.png', background, box)
+            result['stable_likeness_percent'] = stable_metrics['likeness_percent']
+            result['paths']['stable_difference'] = 'stable_difference.png'
+            if case.get('edge_scale'):
+                quality, quality_failures = font_coverage.compare_quality(actual, stable, case, destination)
+                result['coverage_quality'] = quality
+                edge_failures.extend(quality_failures)
+                result['paths']['coverage_reference'] = 'coverage_reference.png'
+            result['reference_origin_note'] = (
+                '1.13.1 fixture origin adjusted by -1.5 font px horizontally and +0.5 font px vertically '
+                '(Y up), compensating legacy padding and corner sampling. No image registration or resampling.')
+
         if missing:
             if actual_path.is_file() and not expected_path.is_file():
                 # Missing baselines skip comparison, but must not hide a bad
@@ -260,8 +347,8 @@ def compare_case(actual_path: Path | str, expected_path: Path | str, case: dict,
                     if actual.format != "PNG":
                         raise ValueError("Captures must be PNG images")
                     actual.verify()
-                result["status"] = "skipped"
-                result["reason"] = "; ".join(missing)
+                result["status"] = "fail" if edge_failures else "skipped"
+                result["reason"] = "; ".join(edge_failures + missing)
                 return _json_value(result)
             raise ValueError("; ".join(missing))
 
@@ -296,11 +383,25 @@ def compare_case(actual_path: Path | str, expected_path: Path | str, case: dict,
         result.update(likeness.compare(actual, expected, destination / "difference.png", background, box))
         result["paths"]["difference"] = "difference.png"
 
+
         result["effect_pixels"] = {
             "actual": _effect_pixels(actual_roi, background),
             "reference": _effect_pixels(expected_roi, background),
         }
-        failures = []
+        failures = list(edge_failures)
+        if case.get('edge_scale'):
+            # Check the contour origin separately. Never move image pixels to
+            # maximize likeness: that would hide a broken capture fixture.
+            bounds = [image.convert('L').point(lambda value: 255 if value >= 128 else 0).getbbox()
+                      for image in (actual, expected)]
+            if any(bound is None for bound in bounds):
+                raise ValueError('SDF contour does not reach 50% opacity')
+            a, b = bounds
+            offset = [(a[axis] + a[axis + 2] - b[axis] - b[axis + 2]) / 2 for axis in (0, 1)]
+            result['contour_offset_capture_pixels'] = offset
+            result['contour_offset_tolerance_capture_pixels'] = 1.0
+            if max(abs(value) for value in offset) > 1.0:
+                failures.append(f'SDF contour origin differs by ({offset[0]:g}, {offset[1]:g}) capture px; expected within 1 px')
         if dimensions_differ:
             failures.append(f"Image dimensions differ: actual {actual_size}, reference {expected_size}")
         if result["likeness_percent"] < threshold:
@@ -345,9 +446,10 @@ def _webp_data_url(png_bytes: bytes) -> str:
     return _data_url(output.getvalue(), "image/webp")
 
 
-def _image_html(label: str, path: str | None, root: Path | None = None) -> str:
+def _image_html(label: str, path: str | None, root: Path | None = None, zoom: int = 1, width: int | None = None) -> str:
     if not path:
         return f'<figure><div class="missing">No {_escape(label.lower())} image</div><figcaption>{_escape(label)}</figcaption></figure>'
+    attributes = f' class="zoomed" style="width: {width * zoom}px"' if zoom != 1 and width else ''
     if root is not None:
         # Embed lossless WebP; the comparison captures and references remain PNGs.
         contents = None
@@ -361,9 +463,9 @@ def _image_html(label: str, path: str | None, root: Path | None = None) -> str:
             if contents is not None:
                 download = f'<a download="{_escape(Path(path).name)}" href="{_data_url(contents, "application/octet-stream")}">Download original file</a>'
             return f'<figure><div class="error">Cannot preview {_escape(label.lower())}: {_escape(error)}</div>{download}<figcaption>{_escape(label)}</figcaption></figure>'
-        return f'<figure><img loading="lazy" src="{source}" alt="{_escape(label)}"><figcaption>{_escape(label)}</figcaption></figure>'
+        return f'<figure><img{attributes} loading="lazy" src="{source}" alt="{_escape(label)}"><figcaption>{_escape(label)}</figcaption></figure>'
     href = quote(path, safe="/.-_")
-    return f'<figure><a href="{href}"><img loading="lazy" src="{href}" alt="{_escape(label)}"></a><figcaption>{_escape(label)}</figcaption></figure>'
+    return f'<figure><a href="{href}"><img{attributes} loading="lazy" src="{href}" alt="{_escape(label)}"></a><figcaption>{_escape(label)}</figcaption></figure>'
 
 
 STYLE = """
@@ -375,6 +477,9 @@ a { color: #92c5ff; } h1,h2,h3 { line-height: 1.3; overflow-wrap: anywhere; }
 article { margin: 1rem 0; } .pass { color: #86e3a4; } .fail,.error { color: #ff9b9b; } .skipped { color: #e9cd83; }
 .images { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1rem; }
 figure { margin: 0; min-width: 0; } img { width: 100%; object-fit: contain; background: #202020; }
+.images.zoomed { display: flex; flex-wrap: wrap; align-items: flex-start; }
+.images.zoomed figure { flex: 0 0 auto; max-width: 100%; overflow-x: auto; }
+img.zoomed { max-width: none; image-rendering: pixelated; }
 figcaption { margin-top: .35rem; color: #bac5d5; } .missing { min-height: 6rem; padding: 1rem; border: 1px dashed #566479; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #141820; padding: 1rem; }
 summary { cursor: pointer; padding: .5rem 0; } .reason { overflow-wrap: anywhere; }
@@ -389,6 +494,40 @@ def _case_options_html(configuration: dict) -> str:
     if configuration.get("reproduce_command"):
         contents += f'<details><summary>Reproduce image</summary><pre>{_escape(configuration["reproduce_command"])}</pre></details>'
     return contents
+
+
+def _image_labels(result: dict) -> tuple:
+    return (("actual", "Actual"),
+            ("reference", "Reference" + (" · " + result['reference_version'] if result.get('reference_version') else "")),
+            ("difference", "Difference (contrast ×4)"))
+
+
+def _edge_check_html(result: dict) -> str:
+    width = result.get('edge_width_pixels')
+    if width is None:
+        return ''
+    expected = result['expected_edge_width_pixels']
+    tolerance = result.get('edge_width_tolerance_pixels', 0.08)
+    status = 'pass' if abs(width - expected) <= tolerance else 'fail'
+    body = (f'<p class="{status}">Edge coverage: {status.upper()} — '
+            f'{width:.4f} px; expected {expected:.4f} ± {tolerance:g} px</p>')
+    if result.get('interior_opacity') is not None:
+        opacity = result['interior_opacity']
+        status = 'pass' if opacity >= .99 else 'fail'
+        body += f'<p class="{status}">Solid interior: {status.upper()} — {opacity:.2%}; expected at least 99%</p>'
+    if result.get('full_edge_width_pixels') is not None:
+        width = result['full_edge_width_pixels']
+        status = 'pass' if abs(width - 1.2168) <= .1 else 'fail'
+        body += f'<p class="{status}">10%–90% edge coverage: {status.upper()} — {width:.4f} px; expected 1.2168 ± 0.1 px</p>'
+    if result.get('coverage_quality'):
+        quality = result['coverage_quality']
+        body += f'<p class="{quality["status"]}">Independent coverage quality: {quality["status"].upper()}</p>'
+        body += '<table><tr><th>Error (lower is better)</th><th>Current</th><th>1.13.1</th><th>Allowed increase</th></tr>'
+        for key, label, factor, unit in (('edge_rmse', 'Edge RMS coverage', 100, '%'), ('area_error', 'Stroke area', 100, '%'), ('centroid_error_pixels', 'Center of coverage', 1, ' px')):
+            body += f'<tr><td>{label}</td><td>{quality["actual"][key] * factor:.4f}{unit}</td><td>{quality["stable"][key] * factor:.4f}{unit}</td><td>{quality["tolerances"][key] * factor:g}{unit}</td></tr>'
+        body += '</table>'
+    return body
+
 
 
 def _page(title: str, contents: str) -> str:
@@ -523,10 +662,10 @@ def _build_report(results: list[dict], output_dir: Path | str, metadata: dict) -
         copied_paths = {}
         copy_errors = []
         candidate = bool(result.get("candidate"))
-        for key in ("actual", "reference", "difference"):
+        for key in ("actual", "reference", "difference", "stable_reference", "stable_difference", "coverage_reference"):
             path = result.get("paths", {}).get(key)
             if not path:
-                if result["status"] == "pass" and (key == "actual" or not candidate):
+                if result["status"] == "pass" and key in ("actual", "reference", "difference") and (key == "actual" or not candidate):
                     copy_errors.append(f"Passing case has no {key} image")
                 continue
             source = _artifact_source(result, path, output_dir)
@@ -562,13 +701,19 @@ def _build_report(results: list[dict], output_dir: Path | str, metadata: dict) -
         options = _case_options_html(configuration)
         group = str(configuration.get("scenario", configuration.get("group", "Font rendering")))
         groups[group].append(result)
-        local_images = "".join(_image_html(label, Path(copied_paths[key]).name if key in copied_paths else None) for key, label in (("actual", "Actual"), ("reference", "Reference"), ("difference", "Difference (4×)")))
+        zoom = result.get('display_zoom', 1)
+        image_width = result.get('dimensions', [None])[0]
+        image_class = 'images zoomed' if zoom != 1 else 'images'
+        labels = _image_labels(result)
+        local_images = "".join(_image_html(label, Path(copied_paths[key]).name if key in copied_paths else None, zoom=zoom, width=image_width) for key, label in labels)
         likeness = result.get("likeness_percent")
         score = f"{likeness:.4f}%" if isinstance(likeness, (int, float)) else "—"
         verification = '<p class="error">REFERENCE CANDIDATE — capture checks only; image requires review and acceptance.</p>' if candidate else ""
         extra_links = "".join(f'<a href="{quote(Path(path).name)}">{_escape(key)}</a>' for key, path in extras.items())
-        body = f'<p><a href="../../index.html">All subtests</a></p><h1>{_escape(result["id"])}</h1><p class="{result["status"]}">{result["status"].upper()}{" · likeness " + score if isinstance(likeness, (int, float)) else ""}</p><p class="reason">{_escape(result.get("reason", ""))}</p><div class="images">{local_images}</div><h2>Configuration and comparison</h2><pre>{_escape(json.dumps(result, indent=2, ensure_ascii=False))}</pre><h2>Console log</h2><pre>{_escape(logs or "No console output")}</pre>'
-        body = options + body
+        body = f'<p><a href="../../index.html">All subtests</a></p><h1>{_escape(result["id"])}</h1><p class="{result["status"]}">{result["status"].upper()}{" · likeness " + score if isinstance(likeness, (int, float)) else ""}</p><p class="reason">{_escape(result.get("reason", ""))}</p><div class="{image_class}">{local_images}</div><h2>Configuration and comparison</h2><pre>{_escape(json.dumps(result, indent=2, ensure_ascii=False))}</pre><h2>Console log</h2><pre>{_escape(logs or "No console output")}</pre>'
+        reference_origin = (f'<p>{_escape(result["reference_origin_note"])}</p>'
+                            if result.get('reference_origin_note') else '')
+        body = options + _edge_check_html(result) + reference_origin + body
         body += verification + f'<div class="links">{extra_links}</div>'
         downloads = "".join(_download_html(key, output_dir / path) for key, path in extras.items())
         case_details[result["id"]] = (
@@ -593,13 +738,24 @@ def _build_report(results: list[dict], output_dir: Path | str, metadata: dict) -
     title = str(metadata.get("title", "Font rendering tests"))
     counts = "".join(f'<div class="count">{key.title()}: <strong>{summary[key]}</strong></div>' for key in ("expected", "completed", "passed", "failed", "skipped", "errors"))
     body = f'<h1>{_escape(title)}</h1><p class="{summary["status"]}">{summary["status"].upper()}</p><div class="counts">{counts}</div><div class="links"><a href="results.json">All results (JSON)</a><a href="summary.md">Markdown summary</a></div>'
+    failed_checks = [result for result in results if result['status'] in ('fail', 'error')]
+    if failed_checks or global_errors:
+        body += '<h2>Failing checks</h2><ul>'
+        for result in failed_checks:
+            body += (f'<li class="{result["status"]}"><a href="#{_case_anchor(result)}">{_escape(result["id"])}</a>'
+                     f' — {_escape(result.get("reason") or result["status"].upper())}</li>')
+        body += '</ul>'
+        for error in global_errors:
+            body += f'<p class="error">{_escape(error)}</p>'
     lowest_scores = sorted(
         (result for result in results
          if isinstance(result.get("likeness_percent"), (int, float))
          and math.isfinite(result["likeness_percent"])),
         key=lambda result: (result["likeness_percent"], result["id"]))[:5]
     if lowest_scores:
-        body += '<h2>Lowest likeness scores</h2><ol>'
+        body += ('<h2>Lowest image likeness scores</h2>'
+                 '<p>These percentages measure reference-image comparisons only. '
+                 'Edge width and other validation checks can fail independently of image likeness.</p><ol>')
         for result in lowest_scores:
             body += (f'<li><a href="#{_case_anchor(result)}">{_escape(result["id"])}</a>'
                      f' — <strong>{result["likeness_percent"]:.4f}%</strong></li>')
@@ -611,24 +767,30 @@ def _build_report(results: list[dict], output_dir: Path | str, metadata: dict) -
             state = executable["summary"]
             body += f'<li>{_escape(executable["configuration"])}: {state["passed"]} passed, {state["failed"]} failed, {state["skipped"]} skipped, {state["completed"]}/{state["expected"]} completed</li>'
         body += '</ul>'
-    for error in global_errors:
-        body += f'<p class="error">{_escape(error)}</p>'
     markdown = [f"# {title}", "", f"**{summary['status'].upper()}** — Expected: {expected_count}; completed: {completed}; passed: {passed}; failed: {failed}; skipped: {skipped}; errors: {errors}.", ""]
     markdown.extend(f"- [{item['configuration']}]({item['path']})" for item in executable_reports)
     markdown.extend(f"- {error}" for error in global_errors)
-    markdown.extend(["", "| Subtest | Status | Likeness |", "| --- | --- | --- |"])
+    markdown.extend(["", "Image likeness measures reference-image comparisons only. Edge width and other validation checks can fail independently.",
+                     "", "| Subtest | Status | Image likeness | Result |", "| --- | --- | --- | --- |"])
     for group, cases in groups.items():
         body += f"<h2>{_escape(group)}</h2>"
         for result in cases:
-            options = _case_options_html(result.get("configuration", {}))
+            options = _case_options_html(result.get("configuration", {})) + _edge_check_html(result)
+            if result.get('reference_origin_note'):
+                options += f'<p>{_escape(result["reference_origin_note"])}</p>'
             likeness = result.get("likeness_percent")
             score = f"{likeness:.4f}%" if isinstance(likeness, (int, float)) else "—"
-            images = "".join(_image_html(label, result["paths"].get(key), output_dir) for key, label in (("actual", "Actual"), ("reference", "Reference"), ("difference", "Difference (4×)")))
+            zoom = result.get('display_zoom', 1)
+            image_width = result.get('dimensions', [None])[0]
+            image_class = 'images zoomed' if zoom != 1 else 'images'
+            labels = _image_labels(result)
+            images = "".join(_image_html(label, result["paths"].get(key), output_dir, zoom=zoom, width=image_width) for key, label in labels)
             if result.get("candidate"):
                 images = '<p class="error">REFERENCE CANDIDATE — requires review and acceptance.</p>' + images
-            body += f'<article id="{_case_anchor(result)}"><h3><a href="#{_case_anchor(result)}">{_escape(result["id"])}</a></h3>{options}<p class="{result["status"]}">{result["status"].upper()}{" · likeness " + score if isinstance(likeness, (int, float)) else ""}</p><p class="reason">{_escape(result.get("reason", ""))}</p><div class="images">{images}</div>{case_details[result["id"]]}</article>'
+            body += f'<article id="{_case_anchor(result)}"><h3><a href="#{_case_anchor(result)}">{_escape(result["id"])}</a></h3>{options}<p class="{result["status"]}">{result["status"].upper()}{" · likeness " + score if isinstance(likeness, (int, float)) else ""}</p><p class="reason">{_escape(result.get("reason", ""))}</p><div class="{image_class}">{images}</div>{case_details[result["id"]]}</article>'
             escaped_id = result["id"].replace("\\", "\\\\").replace("|", "\\|").replace("[", "\\[").replace("]", "\\]").replace("\n", " ")
-            markdown.append(f"| [{escaped_id}]({quote(result['report_path'], safe='/.-_')}) | {result['status'].upper()} | {score} |")
+            reason = result.get('reason', '').replace('|', '\\|').replace('\n', ' ')
+            markdown.append(f"| [{escaped_id}]({quote(result['report_path'], safe='/.-_')}) | {result['status'].upper()} | {score} | {reason} |")
     body += f'<details><summary>Run metadata</summary><pre>{_escape(json.dumps(metadata, indent=2, ensure_ascii=False))}</pre></details>'
     (output_dir / "summary.md").write_text("\n".join(markdown) + "\n", encoding="utf8")
     body = body.replace('<a href="results.json">All results (JSON)</a>',
@@ -656,10 +818,16 @@ def build_reports(images, output, binaries, generation_results):
                 reproduce_command=command)
             if case['change']:
                 case['options_description'] += ' · short text/half outline → full text/full outline; shared atlas and GPU resources'
+            if case.get('edge_scale'):
+                case['options_description'] += f" · scale {case['edge_scale']} · edge sampled at 8× · display zoom 4× (nearest neighbour) · native reference and independent coverage checks"
             if name.endswith('_named_style'):
                 case['options_description'] += ' · named style requests 2 px'
                 if 'bitmap' in case['source']:
                     case['options_description'] += ' (baked outline retained)'
+            if case.get('edge_scale'):
+                stable_name = font_coverage.stable_case_name(case)
+                case['stable_reference'] = str(FONT_ROOT/'src/test/data/reference/1.13.1'/configuration/(stable_name+'.png'))
+                case['options_description'] += ' · 1.13.1 comparison is informational; the 98% gate uses reviewed native references'
             expected.append(case)
             result=compare_case(images/configuration/(name+'.png'),
                 FONT_ROOT/'src/test/data/reference'/configuration/(name+'.png'),case,output/'comparisons'/case['id'])
@@ -694,7 +862,7 @@ def print_summary(summary, results):
             errors['other validation errors'] += 1
     mismatches = sum(result['status'] == 'fail' for result in results)
     print(f"Captures: {summary['completed']}/{summary['expected']} images produced")
-    print(f"Comparisons: {summary['passed']} passed, {mismatches} visual mismatches, "
+    print(f"Comparisons: {summary['passed']} passed, {mismatches} failed image/quality checks, "
           f"{summary['errors']} validation errors, {summary.get('skipped', 0)} skipped")
     if errors:
         print('Validation errors: ' + ', '.join(f'{count} {reason}' for reason, count in errors.items()))

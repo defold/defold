@@ -308,6 +308,61 @@ TEST_F(FontTest, LoadOTFAndGenerateGlyph)
     FontDestroy(font);
 }
 
+TEST_F(FontTest, BitmapCoverageDoesNotDependOnPadding)
+{
+    // Extra storage for an outline or shadow must not reduce face/outline
+    // coverage precision. Exercise straight and curved edges at subpixel sizes.
+    const char* fonts[] = { "src/test/data/WorkSans.ttf", "src/test/data/SourceCodePro-Regular.otf" };
+    const char characters[] = { 'H', 'S' };
+    const float outlines[] = { 0.0f, 0.5f, 4.0f, 8.0f };
+    for (uint32_t f = 0; f < DM_ARRAY_SIZE(fonts); ++f)
+    {
+        HFont font;
+        LoadFont(fonts[f], &font);
+        uint32_t maximum_error = 0;
+        for (uint32_t c = 0; c < DM_ARRAY_SIZE(characters); ++c)
+        {
+            for (uint32_t o = 0; o < DM_ARRAY_SIZE(outlines); ++o)
+            {
+                for (uint32_t phase = 0; phase < 8; ++phase)
+                {
+                    FontGlyphGenParams params;
+                    params.m_Scale = FontGetScaleFromSize(font, 32.0f) * (1.0f + phase / 64.0f);
+                    params.m_OutputBitmap = true;
+                    params.m_OutlineWidth = outlines[o];
+                    params.m_SdfPadding = 3.0f + outlines[o];
+                    FontGlyph reference;
+                    uint32_t glyph_index = FontGetGlyphIndex(font, characters[c]);
+                    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(font, glyph_index, &params, &reference));
+                    for (uint32_t extra = 4; extra <= 8; extra += 4)
+                    {
+                        params.m_SdfPadding = 3.0f + outlines[o] + extra;
+                        FontGlyph padded;
+                        ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(font, glyph_index, &params, &padded));
+                        const uint32_t channels = reference.m_Bitmap.m_Channels;
+                        ASSERT_EQ(channels, padded.m_Bitmap.m_Channels);
+                        ASSERT_EQ(reference.m_Bitmap.m_Width + 2 * extra, padded.m_Bitmap.m_Width);
+                        ASSERT_EQ(reference.m_Bitmap.m_Height + 2 * extra, padded.m_Bitmap.m_Height);
+                        for (uint32_t y = 0; y < reference.m_Bitmap.m_Height; ++y)
+                        {
+                            for (uint32_t x = 0; x < reference.m_Bitmap.m_Width * channels; ++x)
+                            {
+                                int a = reference.m_Bitmap.m_Data[y * reference.m_Bitmap.m_Width * channels + x];
+                                int b = padded.m_Bitmap.m_Data[((y + extra) * padded.m_Bitmap.m_Width + extra) * channels + x];
+                                maximum_error = dmMath::Max(maximum_error, (uint32_t)abs(a - b));
+                            }
+                        }
+                        FontFreeGlyph(font, &padded);
+                    }
+                    FontFreeGlyph(font, &reference);
+                }
+            }
+        }
+        EXPECT_LE(maximum_error, 1u);
+        FontDestroy(font);
+    }
+}
+
 TEST_F(FontTest, WorkSansOverlappingKGlyphHasNoBuriedEdges)
 {
     // Work Sans keeps overlapping contours in K. Those overlaps are valid
@@ -331,11 +386,12 @@ TEST_F(FontTest, WorkSansOverlappingKGlyphHasNoBuriedEdges)
     // These pixels lie inside the two overlapping joins. Measuring distance
     // to a buried edge makes the first value too dark, while omitting the
     // exposed intersection point makes it saturate. Both are regressions.
-    ASSERT_GE(glyph.m_Bitmap.m_Data[26 * glyph.m_Bitmap.m_Width + 24], 205u);
-    ASSERT_LE(glyph.m_Bitmap.m_Data[26 * glyph.m_Bitmap.m_Width + 24], 215u);
-    ASSERT_GE(glyph.m_Bitmap.m_Data[37 * glyph.m_Bitmap.m_Width + 13], 197u);
-    ASSERT_LE(glyph.m_Bitmap.m_Data[37 * glyph.m_Bitmap.m_Width + 13], 207u);
-    ASSERT_GE(glyph.m_Bitmap.m_Data[35 * glyph.m_Bitmap.m_Width + 11], 250u);
+    const float distance_scale = 0.25f * 255.0f / params.m_SdfPadding;
+    ASSERT_GE(glyph.m_Bitmap.m_Data[26 * glyph.m_Bitmap.m_Width + 24], (uint8_t)(190.0f + 0.63f * distance_scale));
+    ASSERT_LE(glyph.m_Bitmap.m_Data[26 * glyph.m_Bitmap.m_Width + 24], (uint8_t)(190.0f + 1.06f * distance_scale));
+    ASSERT_GE(glyph.m_Bitmap.m_Data[37 * glyph.m_Bitmap.m_Width + 13], (uint8_t)(190.0f + 0.29f * distance_scale));
+    ASSERT_LE(glyph.m_Bitmap.m_Data[37 * glyph.m_Bitmap.m_Width + 13], (uint8_t)(190.0f + 0.72f * distance_scale));
+    ASSERT_GE(glyph.m_Bitmap.m_Data[35 * glyph.m_Bitmap.m_Width + 11], (uint8_t)(190.0f + 2.52f * distance_scale));
 
     FontFreeGlyph(font, &glyph);
     FontDestroy(font);
@@ -390,10 +446,142 @@ TEST(FontSDF, PreservesSubpixelEdgeDistance)
     ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&outline, &params, &bitmap, &offset_x, &offset_y));
     ASSERT_EQ(-4, offset_x);
     ASSERT_EQ(-8, offset_y);
-    ASSERT_EQ(104u, bitmap.m_Data[6 * bitmap.m_Width + 3]);
-    ASSERT_EQ(136u, bitmap.m_Data[6 * bitmap.m_Width + 4]);
-    ASSERT_EQ(112u, bitmap.m_Data[8 * bitmap.m_Width + 6]);
+    ASSERT_EQ(116u, bitmap.m_Data[6 * bitmap.m_Width + 3]);
+    ASSERT_EQ(132u, bitmap.m_Data[6 * bitmap.m_Width + 4]);
+    ASSERT_EQ(120u, bitmap.m_Data[8 * bitmap.m_Width + 6]);
     FontSDFFree(&bitmap);
+}
+
+TEST(FontSDF, BitmapCoverageMatchesPixelArea)
+{
+    // On a straight edge, the distance ramp is exact pixel-area coverage.
+    // Sweep subpixel placement and outline widths; only the final alpha byte
+    // may be quantized, regardless of the bitmap's storage border.
+    const float outlines[] = { 0.0f, 0.5f, 4.0f, 8.0f };
+    for (uint32_t o = 0; o < DM_ARRAY_SIZE(outlines); ++o)
+    {
+        for (uint32_t phase = 0; phase <= 64; ++phase)
+        {
+            const float left = 4.0f + phase / 64.0f;
+            FontOutlineCommand commands[5] = {};
+            commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+            commands[0].m_Points[0] = { left, 0.0f };
+            commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+            commands[1].m_Points[0] = { 20.0f, 0.0f };
+            commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+            commands[2].m_Points[0] = { 20.0f, 20.0f };
+            commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+            commands[3].m_Points[0] = { left, 20.0f };
+            commands[4].m_Type = FONT_OUTLINE_CLOSE;
+            FontOutline outline = { commands, 5 };
+            for (uint32_t antialias = 0; antialias < 2; ++antialias)
+            {
+                FontSDFParams params = { 1.0f, 3.0f + outlines[o], 191, true, outlines[o], antialias != 0 };
+                FontGlyphBitmap bitmap;
+                int32_t origin_x, origin_y;
+                ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&outline, &params, &bitmap, &origin_x, &origin_y));
+                const uint32_t row = -10 - origin_y;
+                for (uint32_t channel = 0; channel < bitmap.m_Channels; ++channel)
+                {
+                    const float outline_width = channel == 1 ? outlines[o] : 0.0f;
+                    for (uint32_t x = 0; x < bitmap.m_Width; ++x)
+                    {
+                        const float pixel_left = origin_x + (float)x;
+                        const float area = dmMath::Clamp(fminf(pixel_left + 1.0f, 20.0f + outline_width) - fmaxf(pixel_left, left - outline_width), 0.0f, 1.0f);
+                        const float expected = antialias ? area : (pixel_left + 0.5f >= left - outline_width && pixel_left + 0.5f <= 20.0f + outline_width ? 1.0f : 0.0f);
+                        const float actual = bitmap.m_Data[(row * bitmap.m_Width + x) * bitmap.m_Channels + channel] / 255.0f;
+                        ASSERT_NEAR(expected, actual, 0.5f / 255.0f + 0.00001f);
+                    }
+                }
+                FontSDFFree(&bitmap);
+            }
+        }
+    }
+}
+
+TEST(FontSDF, SymmetricDistanceQuantization)
+{
+    FontOutlineCommand commands[5] = {};
+    commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+    commands[0].m_Points[0] = { 0.0f, 0.0f };
+    commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[1].m_Points[0] = { 16.0f, 0.0f };
+    commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[2].m_Points[0] = { 16.0f, 16.0f };
+    commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+    commands[3].m_Points[0] = { 0.0f, 16.0f };
+    commands[4].m_Type = FONT_OUTLINE_CLOSE;
+    FontOutline outline = { commands, 5 };
+    FontSDFParams params = { 1.0f, 3, 191 };
+    FontGlyphBitmap bitmap;
+    int32_t offset_x, offset_y;
+    ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&outline, &params, &bitmap, &offset_x, &offset_y));
+    // Samples half a texel to either side of a straight edge must balance.
+    // Truncating both encoded values systematically erodes the filled shape.
+    EXPECT_EQ(2u * params.m_OnEdgeValue, bitmap.m_Data[8 * bitmap.m_Width + 2] + bitmap.m_Data[8 * bitmap.m_Width + 3]);
+    FontSDFFree(&bitmap);
+}
+
+TEST(FontSDF, OpacityProfilesAtScreenScales)
+{
+    // Wide interiors, thin strokes and convex corners have known signed
+    // distances. Check both halves of the shader transition, not just 10%-50%.
+    const float widths[] = { 16.0f, 1.5f };
+    const float scales[] = { 0.5f, 1.0f, 2.0f };
+    const FontSDFParams params = { 1.0f, 3, 191 };
+    for (uint32_t shape = 0; shape < DM_ARRAY_SIZE(widths); ++shape)
+    {
+        const float left = 0.25f;
+        const float right = left + widths[shape];
+        const float top = -16.25f;
+        const float bottom = -0.25f;
+        FontOutlineCommand commands[5] = {};
+        commands[0].m_Type = FONT_OUTLINE_MOVE_TO;
+        commands[0].m_Points[0] = { left, -bottom };
+        commands[1].m_Type = FONT_OUTLINE_LINE_TO;
+        commands[1].m_Points[0] = { right, -bottom };
+        commands[2].m_Type = FONT_OUTLINE_LINE_TO;
+        commands[2].m_Points[0] = { right, -top };
+        commands[3].m_Type = FONT_OUTLINE_LINE_TO;
+        commands[3].m_Points[0] = { left, -top };
+        commands[4].m_Type = FONT_OUTLINE_CLOSE;
+        FontOutline outline = { commands, 5 };
+        FontGlyphBitmap bitmap;
+        int32_t origin_x, origin_y;
+        ASSERT_EQ(FONT_RESULT_OK, FontSDFGenerate(&outline, &params, &bitmap, &origin_x, &origin_y));
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(scales); ++i)
+        {
+            const float smoothing = 0.25f / (params.m_Spread * scales[i]);
+            float maximum_error = 0.0f;
+            float maximum_opacity = 0.0f;
+            for (uint32_t y = 0; y < bitmap.m_Height; ++y)
+            {
+                for (uint32_t x = 0; x < bitmap.m_Width; ++x)
+                {
+                    const float px = origin_x + (float)x + 0.5f;
+                    const float py = origin_y + (float)y + 0.5f;
+                    const float dx = fmaxf(left - px, px - right);
+                    const float dy = fmaxf(top - py, py - bottom);
+                    const float outside_x = fmaxf(0.0f, dx);
+                    const float outside_y = fmaxf(0.0f, dy);
+                    const float distance = -sqrtf(outside_x * outside_x + outside_y * outside_y) - fminf(0.0f, fmaxf(dx, dy));
+                    const float expected_t = dmMath::Clamp(0.5f + distance * scales[i] * 0.5f, 0.0f, 1.0f);
+                    const float expected = expected_t * expected_t * (3.0f - 2.0f * expected_t);
+                    const float sample = bitmap.m_Data[y * bitmap.m_Width + x] / 255.0f;
+                    const float t = dmMath::Clamp((sample - (0.75f - smoothing)) / (2.0f * smoothing), 0.0f, 1.0f);
+                    const float actual = t * t * (3.0f - 2.0f * t);
+                    maximum_error = fmaxf(maximum_error, fabsf(actual - expected));
+                    maximum_opacity = fmaxf(maximum_opacity, actual);
+                }
+            }
+            // Allow one byte of distance quantization plus the quarter-byte
+            // difference between edge value 191 and the shader threshold 0.75.
+            EXPECT_LE(maximum_error, 0.05f * scales[i]);
+            if (shape == 0)
+                EXPECT_NEAR(1.0f, maximum_opacity, 0.001f);
+        }
+        FontSDFFree(&bitmap);
+    }
 }
 
 TEST(FontSDF, OverlappingContoursMatchBooleanUnion)
@@ -1001,7 +1189,7 @@ TEST_F(FontTest, FontLayersPreserveInlineStyleOverrides)
     config.m_SdfEdge = 0.75f;
     config.m_SdfSpread = 6.0f;
     config.m_OutlineWidth = 2.0f;
-    config.m_SdfOutline = config.m_SdfEdge - (191.0f / 255.0f) * config.m_OutlineWidth / config.m_SdfSpread;
+    config.m_SdfOutline = config.m_SdfEdge - 0.25f * config.m_OutlineWidth / config.m_SdfSpread;
     config.m_CacheCellMaxAscent = (int32_t)glyph.m_Ascent;
     config.m_CacheCellPadding = 1;
     config.m_MetricsFromTtf = true;
@@ -1123,7 +1311,7 @@ TEST_F(FontTest, FontLayersPreserveInheritedShadowCoverage)
     config.m_SdfEdge = 0.75f;
     config.m_SdfSpread = 6.0f;
     config.m_OutlineWidth = 2.0f;
-    config.m_SdfOutline = config.m_SdfEdge - (191.0f / 255.0f) * config.m_OutlineWidth / config.m_SdfSpread;
+    config.m_SdfOutline = config.m_SdfEdge - 0.25f * config.m_OutlineWidth / config.m_SdfSpread;
     config.m_CacheCellMaxAscent = (int32_t)glyph.m_Ascent;
     config.m_CacheCellPadding = 1;
     config.m_MetricsFromTtf = true;
