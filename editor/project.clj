@@ -267,8 +267,7 @@
                                         ;;[refactor-nrepl "2.4.0"] ;; -- this does not seem to work well together with cider-nrepl 0.24.0 so it might be better to just skip.
                                         [com.billpiel/sayid "0.0.18"]]}
                       :release {:jvm-opts ["-Ddefold.build=release" "-Dclojure.spec.compile-asserts=false"]}
-                      :headless {:jvm-opts ["-Dtestfx.robot=glass" "-Dglass.platform=Monocle" "-Dmonocle.platform=Headless" "-Dprism.order=sw"]
-                                 :dependencies [[org.testfx/openjfx-monocle "jdk-12.0.1+2"]]}
+                      :headless {:jvm-opts ["-Dtestfx.robot=glass" "-Dglass.platform=headless" "-Dprism.order=sw"]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
                       :cache-libraries {:jvm-opts ["-Ddefold.cache.libraries=true"]}
                       :portal {:source-paths ["src/portal"]
