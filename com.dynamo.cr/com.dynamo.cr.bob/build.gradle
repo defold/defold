@@ -229,7 +229,8 @@ def privateBobPluginClassPath = privateBobPluginModules.collect { "plugins/${it.
 def privateBobPluginJarTasks = []
 
 ext.bobArtifactSettings = [bobDir: bobDir, dynamoHome: dynamoHome, revision: bobGitRevision,
-                          privateRoot: privatePlatformRoot]
+                          privateRoot: privatePlatformRoot,
+                          preferLocalEngines: project.hasProperty('prefer-local-engines')]
 apply from: '../com.dynamo.cr.bob/artifacts.gradle'
 def bobArtifacts = project.bobArtifacts
 def bobLibraryJars = fileTree("${bobDir}/lib") {

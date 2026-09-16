@@ -28,6 +28,9 @@ def preferLocal = { String localPath, String archivePath ->
     def localFile = new File(dynamoHome, localPath)
     localFile.isFile() || !useArchive ? localFile : archivedArtifact(archivePath)
 }
+def engineArtifact = { String localPath, String archivePath ->
+    useArchive && !settings.preferLocalEngines ? archivedArtifact(archivePath) : preferLocal(localPath, archivePath)
+}
 def entries = [:]
 Set<String> managedPaths = []
 def add = { String path, File source, boolean light = false, boolean required = false ->
@@ -79,15 +82,18 @@ def builtinsZip = useArchive ? archivedArtifact('share/builtins.zip') : new File
 def luaJitShareZip = new File(bobDir, 'tmp/luajit-share.zip')
 add('lib/builtins.zip', builtinsZip, false, true)
 add('lib/luajit-share.zip', luaJitShareZip, true, true)
-add('lib/classes.dex', useArchive ? archivedArtifact('arm64-android/classes.dex') :
-        new File(dynamoHome, 'share/java/classes.dex'), false, useArchive)
+add('lib/classes.dex', engineArtifact('share/java/classes.dex', 'arm64-android/classes.dex'), false, useArchive)
 ['lib/report_template.html', 'lib/time_report_template.html', 'lib/x86_64-linux/libc++.so'].each { path ->
     add(path, new File(bobDir, path))
 }
 
 def enginePlatforms = desktopPlatforms + ['arm64-ios', 'arm64_sim-ios', 'armv7-android', 'arm64-android', 'x86_64-android', 'wasm-web', 'wasm_pthread-web']
+def engines = ['dmengine', 'dmengine_release']
+if (settings.preferLocalEngines) {
+    engines.add('dmengine_headless')
+}
 enginePlatforms.each { platform ->
-    ['dmengine', 'dmengine_release'].each { engine ->
+    engines.each { engine ->
         def names = platform.endsWith('win32') ? ["${engine}.exe"] :
                 platform.endsWith('android') ? ["lib${engine}.so"] :
                 platform.endsWith('web') ? ["${engine}.js", "${engine}.wasm"] : [engine]
@@ -96,8 +102,10 @@ enginePlatforms.each { platform ->
             managedPaths.add(path)
             def stripped = !platform.endsWith('win32') && !platform.endsWith('web') ? 'stripped/' : ''
             def archivePath = "${platform}/${stripped}${name}".toString()
-            if (!useArchive || archivePaths.contains(archivePath)) {
-                def source = useArchive ? archivedArtifact(archivePath) : new File(dynamoHome, "bin/${platform}/${name}")
+            def localPath = "bin/${platform}/${name}".toString()
+            if (!useArchive || archivePaths.contains(archivePath) ||
+                    (settings.preferLocalEngines && new File(dynamoHome, localPath).isFile())) {
+                def source = engineArtifact(localPath, archivePath)
                 add(path, source, false, useArchive)
             }
         }

@@ -15,6 +15,11 @@ helper JARs prefer local builds, with the archive as a fallback. Public artifact
 are no longer copied into Bob's `lib` and `libexec` directories. Private-platform
 additions can still be provided by `scripts/copy_private.sh`.
 
+`scripts/update-editor-binaries.sh` installs Bob with `-Pprefer-local-engines` so
+local engine binaries and `classes.dex` take precedence over a synced archive.
+Platforms without a local engine still use the archive. This also includes local
+headless engines and platforms omitted from `archive-artifacts.json`.
+
 `scripts/build.py sync_archive` downloads Bob's engine inputs from S3. The public
 paths in `archive-artifacts.json` are shared with Gradle's artifact selection;
 update that list when adding an archived input. Private-platform archive folders
