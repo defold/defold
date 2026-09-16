@@ -222,7 +222,6 @@ dialog.new-folder.button.create-folder = Crear carpeta
 
 dialog.target-ip.header = Introduce la dirección IP de destino
 dialog.target-ip.label.ip = Dirección IP de destino
-dialog.target-ip.button.add = Añade IP de destino
 
 # Search in Files Dialogs
 
