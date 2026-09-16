@@ -1,3 +1,10 @@
 name: "morph_instanced_attr_alt"
 mesh: "/model/morph_weights_anim.gltf"
-material: "/model/morph_instanced_attr_alt.material"
+materials {
+  name: "default"
+  material: "/model/morph_instanced_attr_alt.material"
+  textures {
+    sampler: "tex0"
+    texture: "/model/texture_valid_png.png"
+  }
+}

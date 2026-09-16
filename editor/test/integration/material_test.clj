@@ -19,7 +19,8 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util])
+  (:import [com.dynamo.render.proto Material$MaterialDesc]))
 
 (defn- prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
@@ -100,6 +101,14 @@
               :has-parameters true
               :has-emissive-strength true}
              pbr-parameters)))))
+
+(deftest material-build-generates-instancing-compatibility-hash
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/materials/test.material")]
+      (with-open [_ (test-util/build! node-id)]
+        (let [material-desc (Material$MaterialDesc/parseFrom (test-util/node-build-output node-id))]
+          (is (.hasInstancingCompatibilityHash material-desc))
+          (is (not (zero? (.getInstancingCompatibilityHash material-desc)))))))))
 
 (deftest material-combined-shaders
   ;; Test that materials that have the same .vp and .fp pair will reference the same .sp file

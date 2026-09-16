@@ -7858,16 +7858,16 @@ INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, jc_test_values_in(invalid_ma
 TEST(MaterialResource, InstancingCompatibilityInvalidationVersion)
 {
     dmGameSystem::MaterialResource material = {};
-    material.m_InstancingCompatibilityHash = 42;
+    material.m_MaterialHash = 42;
 
-    dmGameSystem::InvalidateMaterialInstancingCompatibility(&material);
-    uint64_t resource_identity_hash = material.m_InstancingCompatibilityHash;
+    dmGameSystem::MarkMaterialResourceDirty(&material);
+    uint64_t resource_identity_hash = material.m_MaterialHash;
     ASSERT_NE(0u, resource_identity_hash);
-    ASSERT_EQ(1u, material.m_InstancingCompatibilityVersion);
+    ASSERT_EQ(1u, material.m_MaterialHashVersion);
 
-    dmGameSystem::InvalidateMaterialInstancingCompatibility(&material);
-    ASSERT_EQ(resource_identity_hash, material.m_InstancingCompatibilityHash);
-    ASSERT_EQ(2u, material.m_InstancingCompatibilityVersion);
+    dmGameSystem::MarkMaterialResourceDirty(&material);
+    ASSERT_EQ(resource_identity_hash, material.m_MaterialHash);
+    ASSERT_EQ(2u, material.m_MaterialHashVersion);
 }
 
 /* Buffer */
@@ -11169,7 +11169,7 @@ TEST_F(ModelTest, MorphTargetInstancedWeightsBatch)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-TEST_F(ModelTest, CompatibleMaterialsShareInstancedBatch)
+TEST_F(ModelTest, CompatibleMaterialsWithSameEffectiveTexturesShareInstancedBatch)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 

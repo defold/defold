@@ -279,6 +279,13 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
                 vertex_program: "/instancing_hash.vp"
                 fragment_program: "/instancing_hash.fp"
                 vertex_space: VERTEX_SPACE_LOCAL
+                samplers {
+                  name: "texture_sampler"
+                  wrap_u: WRAP_MODE_CLAMP_TO_EDGE
+                  wrap_v: WRAP_MODE_CLAMP_TO_EDGE
+                  filter_min: FILTER_MODE_MIN_LINEAR
+                  filter_mag: FILTER_MODE_MAG_LINEAR
+                }
                 attributes {
                   name: "instance_data"
                   vector_type: VECTOR_TYPE_VEC4
@@ -302,9 +309,10 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
                 }
                 """;
         String fragmentShader = """
+                uniform lowp sampler2D texture_sampler;
                 varying mediump vec4 var_data;
                 void main() {
-                    gl_FragColor = var_data;
+                    gl_FragColor = var_data + texture2D(texture_sampler, vec2(0.0)) * 0.000001;
                 }
                 """;
 
@@ -332,6 +340,15 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(instanceA.getInstancingCompatibilityHash(), instanceB.getInstancingCompatibilityHash());
         assertNotEquals(instanceA.getInstancingCompatibilityHash(), vertexA.getInstancingCompatibilityHash());
         assertNotEquals(vertexA.getInstancingCompatibilityHash(), vertexB.getInstancingCompatibilityHash());
+
+        MaterialDesc textureA = instanceA.toBuilder()
+                .setSamplers(0, instanceA.getSamplers(0).toBuilder().setTexture("/texture_a.texturec"))
+                .build();
+        MaterialDesc textureB = instanceA.toBuilder()
+                .setSamplers(0, instanceA.getSamplers(0).toBuilder().setTexture("/texture_b.texturec"))
+                .build();
+        assertEquals(MaterialBuilder.makeInstancingCompatibilityHash(textureA),
+                     MaterialBuilder.makeInstancingCompatibilityHash(textureB));
     }
 
     @Test

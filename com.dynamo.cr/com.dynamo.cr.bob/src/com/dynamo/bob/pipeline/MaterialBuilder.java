@@ -232,14 +232,21 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         }
     }
 
-    static long makeInstancingCompatibilityHash(MaterialDesc material) {
+    public static long makeInstancingCompatibilityHash(MaterialDesc material) {
         MaterialDesc.Builder hashBuilder = material.toBuilder();
 
         // Names and tags affect resource identity and render-list filtering, but not
         // whether two materials can share an instanced draw call.
         hashBuilder.setName("");
         hashBuilder.clearTags();
+        hashBuilder.clearTextures();
         hashBuilder.clearInstancingCompatibilityHash();
+
+        // Texture resources are resolved through material, model and component
+        // overrides at runtime, so only the sampler declarations belong here.
+        for (MaterialDesc.Sampler.Builder sampler : hashBuilder.getSamplersBuilderList()) {
+            sampler.clearTexture();
+        }
 
         // Instance attribute values are written once per instance. Keep the complete
         // declaration in the hash, but allow otherwise identical materials with
