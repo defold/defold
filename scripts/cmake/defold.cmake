@@ -167,10 +167,12 @@ endforeach()
 # optimised configuration flags after CMake has enabled the language
 # toolchains. This keeps asserts enabled in Release/RelWithDebInfo/MinSizeRel
 # builds.
-if(NOT DEFINED CMAKE_PROJECT_TOP_LEVEL_INCLUDES)
-  set(CMAKE_PROJECT_TOP_LEVEL_INCLUDES "")
+if(NOT DEFINED CMAKE_PROJECT_INCLUDE)
+  set(CMAKE_PROJECT_INCLUDE "")
 endif()
-list(APPEND CMAKE_PROJECT_TOP_LEVEL_INCLUDES "${DEFOLD_CMAKE_DIR}/defold_post_project.cmake")
+# TOP_LEVEL_INCLUDES runs before language initialization, when the default
+# compiler flags do not exist yet. Use the hook at the end of project().
+list(APPEND CMAKE_PROJECT_INCLUDE "${DEFOLD_CMAKE_DIR}/defold_post_project.cmake")
 
 defold_log("DEFOLD_HOME: ${DEFOLD_HOME}")
 defold_log("DEFOLD_SDK_ROOT: ${DEFOLD_SDK_ROOT}")
