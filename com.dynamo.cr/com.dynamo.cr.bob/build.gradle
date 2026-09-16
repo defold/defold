@@ -122,7 +122,8 @@ gradle.projectsEvaluated {
             file('../../engine/script/src'), file('../../engine/ddf/src'), file('../../engine/graphics/proto')
     ]).unique()
     def generatedDir = file("${bobDir}/generated")
-    def protoc = file("${dynamoHome}/ext/bin/${hostPlatform}/protoc")
+    def protocName = hostPlatform.endsWith('win32') ? 'protoc.exe' : 'protoc'
+    def protoc = file("${dynamoHome}/ext/bin/${hostPlatform}/${protocName}")
 
     // Each batch generates different Java files. Use Gradle workers so these
     // processes run concurrently within one project and honor --max-workers.
