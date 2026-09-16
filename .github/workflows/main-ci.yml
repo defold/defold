@@ -53,10 +53,9 @@ env:
   SERVICES_GITHUB_TOKEN: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.SERVICES_GITHUB_TOKEN || '' }}
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
   SLACK_WEBHOOK: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.SLACK_WEBHOOK || '' }}
-  DOTNET_CHANNEL: 9.0.1xx
-  # Keep the Windows SDK in DOTNET_CHANNEL's feature band. Bumping this version
-  # also creates a new cache for the installed SDK, including its runtime packs.
-  DOTNET_WINDOWS_SDK_VERSION: 9.0.121
+  # Use the same SDK on every platform. Bumping this version also creates a new
+  # cache for the installed SDK, including its runtime packs.
+  DOTNET_SDK_VERSION: 9.0.121
   # Shared by the Android SDK setup and the emulator the x86_64-android tests run on
   ANDROID_API_LEVEL: "36"
   DM_BOB_JAR: ${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
@@ -273,23 +272,23 @@ jobs:
           # This action keeps the SDK and NDK tree in the Actions cache. A contrib build
           # must not write there - see the cache steps above.
           cache: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch' }}
-      - name: "Cache Windows dotnet SDK"
-        if: "matrix.dotnet && runner.os == 'Windows' && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
+      - name: "Cache dotnet SDK"
+        if: "matrix.dotnet && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           # Cache an isolated installation, without the runner image's other SDKs.
           path: "${{ runner.temp }}/defold-dotnet"
-          key: "${{ runner.os }}-${{ runner.arch }}-dotnet-sdk-${{ env.DOTNET_WINDOWS_SDK_VERSION }}-v1"
+          key: "${{ runner.os }}-${{ runner.arch }}-dotnet-sdk-${{ env.DOTNET_SDK_VERSION }}-v1"
       - name: "Setup dotnet"
         if: matrix.dotnet
         id: setup_dotnet
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         env:
-          DOTNET_INSTALL_DIR: "${{ runner.os == 'Windows' && format('{0}/defold-dotnet', runner.temp) || '' }}"
+          DOTNET_INSTALL_DIR: "${{ runner.temp }}/defold-dotnet"
         with:
           # Run setup on cache hits too: it sets PATH, DOTNET_ROOT and the version
           # output used below, and its installer reuses an already installed SDK.
-          dotnet-version: "${{ runner.os == 'Windows' && env.DOTNET_WINDOWS_SDK_VERSION || env.DOTNET_CHANNEL }}"
+          dotnet-version: "${{ env.DOTNET_SDK_VERSION }}"
       - name: "Pin dotnet SDK"
         if: matrix.dotnet
         run: 'echo "{\"sdk\":{\"version\":\"${{ steps.setup_dotnet.outputs.dotnet-version }}\"}}" > global.json'
