@@ -326,7 +326,6 @@ unset(_DEFOLD_BOB_LIGHT_LIB)
 
 defold_xcode_organize_project()
 defold_finalize_sequential_run_tests()
-defold_finalize_parallel_run_tests()
 
 # ===================== CMake package export =====================
 # Export defold_sdk so external projects can find_package(Defold)

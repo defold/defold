@@ -67,6 +67,15 @@ function(defold_add_to_run_tests run_target)
   set_property(GLOBAL APPEND PROPERTY DEFOLD_PARALLEL_TEST_COMMANDS
     "{\"name\":${_name},\"group\":${_group},\"priority\":${DRT_RUN_PRIORITY},\"cwd\":${_cwd},\"command\":[${_command}]}")
   set_property(GLOBAL APPEND PROPERTY DEFOLD_PARALLEL_TEST_DEPENDENCIES ${DRT_DEPENDS})
+
+  # Finalize after all libraries have registered tests, including when a library
+  # is configured as the top-level project.
+  get_property(_scheduled GLOBAL PROPERTY DEFOLD_PARALLEL_TEST_FINALIZER_SCHEDULED)
+  if(NOT _scheduled)
+    set_property(GLOBAL PROPERTY DEFOLD_PARALLEL_TEST_FINALIZER_SCHEDULED TRUE)
+    cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}"
+      CALL defold_finalize_parallel_run_tests)
+  endif()
 endfunction()
 
 function(_defold_test_json_quote out_var value)
