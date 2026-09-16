@@ -25,6 +25,7 @@
 #include <dlib/time.h>
 #include <dlib/utf8.h>
 
+#include <font/font.h>
 #include <font/fontcollection.h>
 #include <font/text_layout.h>
 #include <render/font/fontmap.h>
@@ -445,7 +446,7 @@ namespace dmGameSystem
 
     static float CalcSdfValue(float padding, float width)
     {
-        return SDF_EDGE_VALUE - 0.25f * width / padding;
+        return SDF_EDGE_VALUE - FONT_SDF_DISTANCE_SCALE * width / padding;
     }
 
     static void SetupParamsBase(dmRenderDDF::FontMap* ddf, dmhash_t name_hash, dmRender::FontMapParams* params)

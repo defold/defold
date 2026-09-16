@@ -19,6 +19,7 @@
 
 #include <dmsdk/dlib/array.h>
 
+#include "font.h"
 #include "font_sdf.h"
 
 // Distance and winding are calculated directly from the y-monotonic Bezier
@@ -1521,7 +1522,7 @@ FontResult FontSDFGenerate(const FontOutline* outline, const FontSDFParams* para
 
     // Match the established shader/compiler contract and preserve enough
     // interior range for minification at the default edge value (191).
-    float pixel_distance_scale = 0.25f * 255.0f / params->m_Spread;
+    float pixel_distance_scale = FONT_SDF_DISTANCE_SCALE * 255.0f / params->m_Spread;
     float maximum_distance_squared = (float)params->m_Spread * params->m_Spread;
     GenerateDistanceField(segments, boundary_transitions, x0, y0, width, height, maximum_distance_squared,
                           pixel_distance_scale, *params, channels, sdf);

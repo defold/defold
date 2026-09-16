@@ -1246,7 +1246,7 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
     const float padding_outline_width = dmMath::Max(base_outline_width, markup_outline_width);
     const float shadow_blur = apply_properties ? viewer->m_Properties.m_ShadowBlur : 0.0f;
     const float padding = 6.0f + padding_outline_width + shadow_blur;
-    const float sdf_distance_scale = 0.25f;
+    const float sdf_distance_scale = FONT_SDF_DISTANCE_SCALE;
     const float sdf_outline = 0.75f - sdf_distance_scale * base_outline_width / padding;
     const float sdf_shadow = shadow_blur > 0.0f ? 0.75f - sdf_distance_scale * shadow_blur / padding : 1.0f;
     // The editable field uses a slightly lower edge threshold and a narrower
@@ -1254,7 +1254,7 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
     const bool    crisp_ui_text = !apply_properties && clip_box.m_Width < WINDOW_WIDTH;
     // Preserve the UI emboldening distance from the original 191/255 encoding.
     const float   sdf_face = 0.75f - (bold ? 0.06f : (crisp_ui_text ? 0.03f : 0.0f)) * sdf_distance_scale / (191.0f / 255.0f);
-    const float   sdf_smoothing = (crisp_ui_text ? 0.125f : 0.25f) / padding;
+    const float   sdf_smoothing = (crisp_ui_text ? 0.5f : 1.0f) * sdf_distance_scale / padding;
     const Vector4 face_color(apply_properties ? viewer->m_Properties.m_FaceColor[0] : 1.0f,
                              apply_properties ? viewer->m_Properties.m_FaceColor[1] : 1.0f,
                              apply_properties ? viewer->m_Properties.m_FaceColor[2] : 1.0f,

@@ -518,9 +518,9 @@ static void TestFontImage(const FontImageCase& c)
     config.m_OutlineWidth = c.m_Outline;
     config.m_SdfSpread = sdf_spread;
     config.m_SdfEdge = .75f;
-    config.m_SdfOutline = .75f - 0.25f * c.m_Outline / sdf_spread;
-    config.m_SdfShadow = c.m_ShadowBlur > 0 ? .75f - 0.25f * c.m_ShadowBlur / sdf_spread : 1;
-    config.m_SdfSmoothing = 0.25f / sdf_spread;
+    config.m_SdfOutline = .75f - FONT_SDF_DISTANCE_SCALE * c.m_Outline / sdf_spread;
+    config.m_SdfShadow = c.m_ShadowBlur > 0 ? .75f - FONT_SDF_DISTANCE_SCALE * c.m_ShadowBlur / sdf_spread : 1;
+    config.m_SdfSmoothing = FONT_SDF_DISTANCE_SCALE / sdf_spread;
     if (c.m_EdgeScale > 0.0f)
     {
         // Sample the screen-space edge at 8x resolution. Only the geometry is

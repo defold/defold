@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "glyph_gen.h"
+#include "../font.h"
 #include "../font_sdf.h"
 #include "../font_ttf.h"
 
@@ -39,7 +40,7 @@ FontGlyphGenParams::FontGlyphGenParams()
 static float CalcSdfValueU8(float padding, float width)
 {
     const float base_edge = SDF_EDGE * 255.0f;
-    const float pixel_dist_scale = 0.25f * 255.0f / padding;
+    const float pixel_dist_scale = FONT_SDF_DISTANCE_SCALE * 255.0f / padding;
     return base_edge - pixel_dist_scale * width;
 }
 
