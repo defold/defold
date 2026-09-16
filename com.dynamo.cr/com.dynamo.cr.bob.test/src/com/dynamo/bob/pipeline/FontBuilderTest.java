@@ -359,6 +359,109 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testGlyphBankHashNormalizesDefaults() {
+        FontDesc implicit = FontDesc.newBuilder()
+            .setFont("/Tuffy.ttf")
+            .setMaterial("/test.material")
+            .setSize(16)
+            .build();
+        FontDesc explicit = implicit.toBuilder()
+            .setAntialias(1)
+            .setOutlineWidth(0.0f)
+            .setShadowBlur(0)
+            .setAllChars(false)
+            .setCacheWidth(0)
+            .setCacheHeight(0)
+            .setCharacters("")
+            .setExtraCharacters("")
+            .setVectorFontMode(VectorFontMode.VECTOR_FONT_MODE_SDF)
+            .build();
+
+        assertEquals(Fontc.FontDescToHash(implicit), Fontc.FontDescToHash(explicit));
+    }
+
+    @Test
+    public void testGlyphBankHashSharesRenderPropertyVariants() throws Exception {
+        FontDesc desc = FontDesc.newBuilder()
+            .setFont("/Tuffy.ttf")
+            .setMaterial("/test-vector.material")
+            .setSize(36)
+            .setCharacters("AB")
+            .setVectorFontMode(VectorFontMode.VECTOR_FONT_MODE_VECTOR)
+            .setRenderMode(FontRenderMode.MODE_MULTI_LAYER)
+            .setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD)
+            .setOutlineWidth(2.0f)
+            .setOutlineAlpha(1.0f)
+            .setShadowBlur(2)
+            .setShadowAlpha(1.0f)
+            .setShadowX(2.0f)
+            .setShadowY(-2.0f)
+            .build();
+        FontDesc variant = desc.toBuilder()
+            .setMaterial("/other.material")
+            .setSdfMaterial("/other-effects.material")
+            .setRuntime(true)
+            .setAlpha(0.25f)
+            .setOutlineAlpha(0.5f)
+            .setShadowAlpha(0.5f)
+            .setShadowX(-6.0f)
+            .setShadowY(6.0f)
+            .addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder()
+                .setName("notice").setMarkup("<color=red>"))
+            .build();
+
+        assertEquals(Fontc.FontDescToHash(desc), Fontc.FontDescToHash(variant));
+        byte[] fontBytes = getProject().getResource("/Tuffy.ttf").getContent();
+        GlyphBank bank = new Fontc().compileForEditorBuild(new ByteArrayInputStream(fontBytes), desc, null, null);
+        GlyphBank variantBank = new Fontc().compileForEditorBuild(new ByteArrayInputStream(fontBytes), variant, null, null);
+        assertEquals(bank, variantBank);
+    }
+
+    @Test
+    public void testGlyphBankHashSharesNonVectorEffectVariants() {
+        for (String font : new String[] { "/Tuffy.ttf", "/bmfont.fnt" }) {
+            FontDesc desc = FontDesc.newBuilder()
+                .setFont(font)
+                .setMaterial("/test.material")
+                .setSize(16)
+                .setOutlineWidth(2.0f)
+                .setShadowBlur(2)
+                .build();
+            FontDesc variant = desc.toBuilder()
+                .setOutlineAlpha(0.5f)
+                .setShadowAlpha(0.5f)
+                .setShadowX(2.0f)
+                .setShadowY(-2.0f)
+                .build();
+
+            assertEquals(Fontc.FontDescToHash(desc), Fontc.FontDescToHash(variant));
+        }
+    }
+
+    @Test
+    public void testGlyphBankHashRetainsRenderMode() {
+        FontDesc singleLayer = FontDesc.newBuilder()
+            .setFont("/Tuffy.ttf")
+            .setMaterial("/test.material")
+            .setSize(16)
+            .build();
+        FontDesc multiLayer = singleLayer.toBuilder().setRenderMode(FontRenderMode.MODE_MULTI_LAYER).build();
+
+        assertNotEquals(Fontc.FontDescToHash(singleLayer), Fontc.FontDescToHash(multiLayer));
+    }
+
+    @Test
+    public void testExtraCharactersHaveSeparateGlyphBanks() throws Exception {
+        String source = "font: \"/Tuffy.ttf\"\nmaterial: \"/test.material\"\nsize: 16\n";
+        List<Message> ordinary = build("/ordinary.font", source);
+        List<Message> extended = build("/extended.font", source + "extra_characters: \"é\"\n");
+
+        assertNotEquals(getFontMap(ordinary).getGlyphBank(), getFontMap(extended).getGlyphBank());
+        assertTrue(getGlyphBank(ordinary).getGlyphsList().stream().noneMatch(glyph -> glyph.getCharacter() == 'é'));
+        assertTrue(getGlyphBank(extended).getGlyphsList().stream().anyMatch(glyph -> glyph.getCharacter() == 'é'));
+    }
+
+    @Test
     public void testVectorAndSdfFontsHaveDifferentGlyphBankHashes() {
         FontDesc sdf = FontDesc.newBuilder()
             .setFont("/Tuffy.ttf")
@@ -392,6 +495,8 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
 
         assertNotEquals(Fontc.FontDescToHash(withoutEffectImage),
                         Fontc.FontDescToHash(withEffectImage));
+        assertEquals(Fontc.FontDescToHash(withEffectImage),
+                     Fontc.FontDescToHash(withEffectImage.toBuilder().setOutlineAlpha(0.5f).build()));
 
         FontDesc withoutShadowImage = withoutEffectImage.toBuilder()
             .setOutlineWidth(0.0f)
@@ -403,6 +508,8 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
             .build();
         assertNotEquals(Fontc.FontDescToHash(withoutShadowImage),
                         Fontc.FontDescToHash(withShadowImage));
+        assertEquals(Fontc.FontDescToHash(withShadowImage),
+                     Fontc.FontDescToHash(withShadowImage.toBuilder().setShadowAlpha(0.5f).build()));
 
         FontDesc shadowWithOutline = withShadowImage.toBuilder().setOutlineWidth(4.0f).setOutlineAlpha(1.0f).build();
         FontDesc shadowWithoutOutline = shadowWithOutline.toBuilder().setOutlineAlpha(0.0f).build();

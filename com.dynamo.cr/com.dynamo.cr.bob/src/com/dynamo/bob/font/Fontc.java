@@ -55,6 +55,7 @@ import com.dynamo.render.proto.Font.FontRenderMode;
 import com.dynamo.render.proto.Font.FontTextureFormat;
 import com.dynamo.render.proto.Font.VectorFontMode;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.TextFormat;
 import org.apache.commons.lang3.StringUtils;
 
@@ -126,22 +127,32 @@ public class Fontc {
     }
 
     public static long FontDescToHash(FontDesc desc) {
-        boolean generateVectorImage = isVectorFont(desc) &&
-            ((desc.getOutlineWidth() > 0.0f && desc.getOutlineAlpha() > 0.0f) ||
-             hasShadow(desc));
-        String result = "" + desc.getFont() + desc.getSize() + desc.getAntialias() + desc.getOutlineWidth() +
-            desc.getShadowBlur() + desc.getCharacters() + desc.getOutputFormat() + desc.getAllChars() +
-            desc.getCacheWidth() + desc.getCacheHeight() + desc.getRenderMode() + desc.getVectorFontMode() +
-            generateVectorImage + (isVectorFont(desc) && desc.getOutlineWidth() > 0 && desc.getOutlineAlpha() > 0) +
-            (isVectorFont(desc) && hasShadow(desc));
-        return MurmurHash.hash64(result);
+        // The caller has already resolved font-property defaults and migrations.
+        // Include every field, making omitted and explicitly assigned defaults equal.
+        FontDesc.Builder builder = desc.toBuilder();
+        for (FieldDescriptor field : desc.getDescriptorForType().getFields()) {
+            if (!field.isRepeated() && !desc.hasField(field))
+                builder.setField(field, desc.getField(field));
+        }
+
+        // These properties affect loading or drawing, not the baked glyph data.
+        builder.clearMaterial().clearSdfMaterial().clearStyles().clearRuntime()
+            .clearAlpha().clearShadowX().clearShadowY();
+        // Preserve glyph-bank sharing: only Vector effect enablement contributes,
+        // not opacity or position. Shadow offsets can enable a zero-blur shadow.
+        boolean vector = isVectorFont(desc);
+        builder.setOutlineAlpha(vector && hasOutline(desc) ? 1.0f : 0.0f)
+            .setShadowAlpha(vector && hasShadow(desc) ? 1.0f : 0.0f);
+
+        // Material is required in a font resource, but excluded from this hash.
+        byte[] bytes = builder.buildPartial().toByteArray();
+        return MurmurHash.hash64(bytes, bytes.length);
     }
 
     public static int GetFontMapLayerMask(FontDesc fontDesc) {
         int mask = LAYER_FACE;
         if (fontDesc.getRenderMode() == FontRenderMode.MODE_MULTI_LAYER) {
-            if (fontDesc.getOutlineAlpha() > 0.0f &&
-                (isBitmapFont(fontDesc) || fontDesc.getOutlineWidth() > 0.0f))
+            if (hasOutline(fontDesc))
                 mask |= LAYER_OUTLINE;
             if (hasShadow(fontDesc))
                 mask |= LAYER_SHADOW;
@@ -180,6 +191,11 @@ public class Fontc {
     private static boolean isVectorFont(FontDesc fontDesc) {
         return !isBitmapFont(fontDesc) &&
                fontDesc.getVectorFontMode() == VectorFontMode.VECTOR_FONT_MODE_VECTOR;
+    }
+
+    private static boolean hasOutline(FontDesc fontDesc) {
+        return fontDesc.getOutlineAlpha() > 0.0f &&
+               (isBitmapFont(fontDesc) || fontDesc.getOutlineWidth() > 0.0f);
     }
 
     private static boolean hasShadow(FontDesc fontDesc) {
@@ -586,7 +602,7 @@ public class Fontc {
         params.shadowBlur = fontDesc.getShadowBlur();
         params.outputBitmap = vectorFont || fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP;
         params.antialias = fontDesc.getAntialias() != 0;
-        params.hasOutline = fontDesc.getOutlineWidth() > 0.0f && fontDesc.getOutlineAlpha() > 0.0f;
+        params.hasOutline = hasOutline(fontDesc);
         params.hasShadow = hasShadow(fontDesc) || (!vectorFont && fontDesc.getShadowBlur() > 0.0f);
         params.vector = vectorFont;
         try (FontRenderer renderer = new FontRenderer(fontDesc.getFont(), fontBytes, params)) {
