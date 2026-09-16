@@ -4,8 +4,10 @@
 
 Bob and Bob Light package tools directly from `$DYNAMO_HOME/ext` and use the
 engine helper JARs in `$DYNAMO_HOME/share/java` as compilation dependencies.
-Run `scripts/build.py install_ext` before building Bob Light; this also installs
-LuaJIT for the other desktop platforms.
+Run `scripts/build.py install_ext` before building Bob or Bob Light. It installs
+the tools packaged for all supported hosts, including LuaJIT. `build_bob` uses
+those installed tools without extracting their packages again; for a fresh
+installation, run `scripts/build.py install_ext build_bob`.
 
 Full Bob uses engines and builtins from `$DYNAMO_HOME/archive/<current revision>`
 when available, otherwise from the local engine build. Compiler libraries and

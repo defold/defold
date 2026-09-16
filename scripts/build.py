@@ -429,27 +429,6 @@ SDK_PIPELINE_TOOL_PLATFORMS = (
     'x86_64-win32'
 )
 
-BOB_TOOL_PACKAGE_PREFIXES = (
-    'aapt2-',
-    'apkc-',
-    'glslang-',
-    'gltf-validator-',
-    'lipo-',
-    'luajit-',
-    'ogg-',
-    'spirv-tools-',
-    'strip_android-',
-    'tint-',
-)
-
-BOB_TOOL_PACKAGES = ('codesign_allocate', 'strip', 'zipalign')
-
-BOB_EXTRA_PLATFORM_PACKAGES = {
-    'armv7-android': ["vkquality-1.1-2642a0d"],
-    'arm64-android': [sdk.ANDROID_PACKAGE, "vkquality-1.1-2642a0d"],
-    'x86_64-android': ["vkquality-1.1-2642a0d"]
-}
-
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
@@ -1014,36 +993,6 @@ class Configuration(object):
             self._extract_zip(file, path)
         else:
             self._extract_tgz(file, path)
-
-    def _is_bob_tool_package(self, package):
-        return package in BOB_TOOL_PACKAGES or package.startswith(BOB_TOOL_PACKAGE_PREFIXES)
-
-    def install_bob_tool_packages(self):
-        def make_package_path(root, platform, package):
-            return join(root, 'packages', package) + '-%s.tar.gz' % platform
-
-        installed_packages = set()
-        for platform in BOB_TOOL_PLATFORMS:
-            packages = [package for package in PLATFORM_PACKAGES.get(platform, []) if self._is_bob_tool_package(package)]
-            packages.extend(BOB_EXTRA_PLATFORM_PACKAGES.get(platform, []))
-            if not packages:
-                continue
-            print("Installing Bob tool packages for %s" % platform)
-            for package in packages:
-                package_path = make_package_path(self.defold_root, platform, package)
-                if package_path in installed_packages:
-                    continue
-                self._extract_tgz(package_path, self.ext)
-                installed_packages.add(package_path)
-
-        for platform, packages in BOB_EXTRA_PLATFORM_PACKAGES.items():
-            print("Installing Bob extra packages for %s" % platform)
-            for package in packages:
-                package_path = make_package_path(self.defold_root, platform, package)
-                if package_path in installed_packages:
-                    continue
-                self._extract_tgz(package_path, self.ext)
-                installed_packages.add(package_path)
 
     def _copy(self, src, dst):
         self._log('Copying %s -> %s' % (src, dst))
@@ -2834,10 +2783,10 @@ class Configuration(object):
             self.upload_to_archive(p, '%s/plugins/%s' % (full_archive_path, basename(p)))
 
     def build_bob(self):
+        """Build Bob using the cross-platform tools already installed by install_ext."""
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
-        self.install_bob_tool_packages()
         self._copy_bob_private_artifacts()
 
         env = self._form_env()
@@ -3947,7 +3896,7 @@ build_editor2    - Build editor
 test_editor2     - Test editor
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
-build_bob        - Build bob with native libraries included for cross platform deployment
+build_bob        - Build bob with native libraries for cross platform deployment (requires install_ext)
 test_bob         - Test bob using an existing com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
 build_bob_light  - Build a lighter version of bob (mostly used for test content during builds)
 archive_bob      - Archive bob to path specified with --archive-path

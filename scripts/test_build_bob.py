@@ -1,6 +1,8 @@
 # Copyright 2020-2026 The Defold Foundation
 # Licensed under the Defold License version 1.0
 
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -9,6 +11,54 @@ from types import SimpleNamespace
 from unittest import mock
 
 import build
+
+
+class BobDependencyTests(unittest.TestCase):
+    def test_install_ext_covers_bob_tools_for_every_public_host_and_target(self):
+        # Bob packages these tools for all desktop hosts, regardless of the
+        # host/target selected when install_ext prepares the dependencies.
+        prefixes = ('aapt2-', 'apkc-', 'glslang-', 'gltf-validator-', 'lipo-',
+                    'luajit-', 'ogg-', 'spirv-tools-', 'strip_android-', 'tint-')
+        names = ('codesign_allocate', 'strip', 'zipalign')
+        required = {
+            f'{package}-{platform}.tar.gz'
+            for platform in build.BOB_TOOL_PLATFORMS
+            for package in build.PLATFORM_PACKAGES[platform]
+            if package.startswith(prefixes) or package in names
+        }
+        required.update(
+            f'{package}-{platform}.tar.gz'
+            for platform in ('armv7-android', 'arm64-android', 'x86_64-android')
+            for package in build.PLATFORM_PACKAGES[platform]
+            if package.startswith('vkquality-'))
+        required.add(f'{build.sdk.ANDROID_PACKAGE}-arm64-android.tar.gz')
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            configuration = build.Configuration.__new__(build.Configuration)
+            configuration.defold_root = str(Path(__file__).resolve().parents[1])
+            configuration.dynamo_home = temporary_directory
+            configuration.ext = str(Path(temporary_directory) / 'ext')
+            configuration.dmsdk = str(Path(temporary_directory) / 'sdk')
+            (Path(temporary_directory) / 'share/proto').mkdir(parents=True)
+            configuration._build_engine_with_waf = lambda: False
+            configuration._install_python_packages = mock.Mock()
+            configuration._copy = mock.Mock()
+            with mock.patch.object(build.build_private, 'get_install_host_packages', return_value=[]), \
+                    mock.patch.object(build.build_private, 'get_install_target_packages', return_value=[]), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                for host in build.BOB_TOOL_PLATFORMS:
+                    for target in build.BASE_PLATFORMS:
+                        with self.subTest(host=host, target=target):
+                            configuration.host = host
+                            configuration.target_platform = target
+                            configuration._extract_tgz = mock.Mock()
+                            configuration.install_ext()
+                            installed = {
+                                Path(call.args[0]).name
+                                for call in configuration._extract_tgz.call_args_list
+                                if call.args[1] == configuration.ext
+                            }
+                            self.assertFalse(required - installed, sorted(required - installed))
 
 
 class BobArchiveTests(unittest.TestCase):
