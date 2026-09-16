@@ -1176,11 +1176,9 @@ property.tooltip = {help, select, none {} other {{help}\n\n}}Disponível como `{
 # Properties: universal
 
 property.blend-mode = Modo de Mesclagem
-property.blend-mode.tooltip = Controla como os pixels deste item combinam com os gráficos atrás dele. **Alfa** dá transparência normal, **Adicionar** iluminações, **Multiplicar** escureces e **Tela** produz um efeito mais luminoso; modos disponíveis dependem do tipo de item.
 property.id = Id
 property.id.tooltip = O identificador usado para abordar esta instância de coleção, objeto do jogo ou componente no tempo de execução. Ele deve ser único entre seus irmãos; juntamente com a hierarquia, ele forma a URL do item.
 property.image = Imagem
-property.image.tooltip = O arquivo de imagem de origem usado para construir este recurso. Em um atlas é uma imagem a ser enpacotada; em uma tile source ele contém a grade de blocos.
 property.material = Material
 property.material.tooltip = O material usado para renderizar este item. Ele define os shaders e suas entradas, então escolha um compatível com a geometria e texturas do item.
 property.name = Nome
@@ -1205,7 +1203,6 @@ property.appmanifest.physics-2d.tooltip = Selecione a implementação Box2D para
 property.appmanifest.physics-3d = Física 3D
 property.appmanifest.physics-3d.tooltip = Incluir o motor de física Bullet 3D. Desative isso quando o projeto não usa física 3D para reduzir o tamanho do motor.
 property.appmanifest.rig+model = Rig + Modelo
-property.appmanifest.rig+model.tooltip = Escolha se deseja incluir a animação de renderização e animação de modelo, somente animação ou nenhuma delas. Excluir uma funcionalidade não utilizada reduz o tamanho do motor.
 property.appmanifest.exclude-record = Excluir Registro
 property.appmanifest.exclude-record.tooltip = Remova o suporte de gravação de vídeo na área de trabalho usado pela mensagem do sistema `start_record`. Ative esta opção quando o projeto não grava vídeos para reduzir o tamanho do motor.
 property.appmanifest.profiler = Perfilador
@@ -1264,7 +1261,6 @@ property.atlas.animation.playback = Reprodução
 property.atlas.animation.playback.tooltip = Escolha se a animação permanece no seu primeiro quadro, reproduz uma única vez, ou faz loop, e se os quadros são executados para frente, para trás ou ping-pong. **Ping Pong Único** para após retornar ao segundo quadro, para evitar repetir o primeiro quadro quando as animações são encadeadas.
 property.atlas.image.id.tooltip = O identificador somente leitura derivado do nome da base da imagem de origem após a aplicação do **Renomear Padrões**. É usado para selecionar a imagem e coincidir com os quadros correspondentes entre atlas diferentes.
 property.atlas.image.pivot = Pivô
-property.atlas.image.pivot.tooltip = O ponto alinhado com a posição do componente quando esta imagem é exibida. `(0, 0)` é o canto superior esquerdo, `(1, 1)` inferior direito e `(0,5, 0,5)` centro; valores fora deste intervalo são permitidos.
 property.atlas.image.sprite-trim-mode = Modo Aparar Sprite
 property.atlas.image.sprite-trim-mode.tooltip = Aproxima a área não transparente da imagem com o número de vértices selecionado ao invés de renderizar seu retângulo completo. Isso pode reduzir overdraw de transparências, mas não pode ser usado com sprites com fatia-9.
 property.atlas.margin = Margem
@@ -1285,17 +1281,13 @@ property.atlas.rename-patterns.tooltip = Padrões `search\=replace` separados po
 property.camera.aspect-ratio = Taxa de Proporção
 property.camera.aspect-ratio.tooltip = **Apenas Perspectiva.** Proporção da largura do frustum à sua altura. Use `1.0` para quadrado, cerca de`1.33` para 4\:3, ou cerca de `1.78` para 16\:9; ignorado quando **Proporção Automática** está habilitada.
 property.camera.fov = FOV
-property.camera.fov.tooltip = **Apenas Perspectivo.** Campo de visão vertical em radianos. Valores maiores mostram mais da cena; por exemplo, 60° é aproximadamente 1,047` radianos.
 property.camera.near-z = Z Próximo
-property.camera.near-z.tooltip = Profundidade de visualização do espaço próximo ao plano de recorte. Geometria fora do intervalo entre **Z Próximo** e **Z Distante** é cortada.
 property.camera.far-z = Z Distante
-property.camera.far-z.tooltip = Profundidade de visualização do espaço distante no plano de recorte. Um intervalo menor entre **Z Próximo** e **Z Distante** melhora a precisão do buffer de profundidade, mas pode cortar a geometria.
 property.camera.auto-aspect-ratio = Taxa de Proporção Automática
 property.camera.auto-aspect-ratio.tooltip = **Apenas Perspectiva.** Calcula a proporção de aspecto da largura e altura da janela atual, em vez de usar **Proporção de Tela**.
 property.camera.orthographic-projection = Projeção Ortográfica
 property.camera.orthographic-projection.tooltip = Usa uma projeção ortográfica, onde os objetos permanecem no mesmo tamanho aparente independentemente da distância da câmera. Comumente usado para cenas 2D.
 property.camera.orthographic-zoom = Zoom Ortográfico
-property.camera.orthographic-zoom.tooltip = **Apenas Ortográfico.** Multiplicador de zoom positivo\: valores acima do zoom `1` e valores abaixo do zoom `1`. Em **Auto Fit** e **Auto Cover**, ele multiplica o zoom calculado automaticamente.
 property.camera.orthographic-mode = Modo de Zoom Ortográfico
 property.camera.orthographic-mode.tooltip = **Somente ortográfico.** **Fixo** usa **Zoom Ortográfico** diretamente. **Auto Fit** mantém a área de design completa visivel e pode mostrar conteúdo extra; **Auto Cover** preenche a janela e pode cortar conteúdo. Modos automáticos usam a altura e largura da tela de `game.project` como tamanho de design.
 
@@ -1313,11 +1305,8 @@ property.collision-object.collision-shape.tooltip = Um mapa de tilemap externo o
 property.collision-object.type = Tipo
 property.collision-object.type.tooltip = Objetos **Dynamic** são simulados, objetos **Kinematic** são movidos e resolvidos pelo seu código, objetos **Static** não se movem, e objetos **Trigger** detectam apenas sobreposições. Disponível como `collision_type` em scripts do editor; prefira ele ao invés de `type`, que pode ser confundido pelo tipo de componente incorporado.
 property.collision-object.mass = Massa
-property.collision-object.mass.tooltip = Massa em quilogramas usados para simular um objeto **Dynamic**. Deve ser maior que zero e é ignorado para outros tipos de objeto.
 property.collision-object.friction = Atrito
-property.collision-object.friction.tooltip = Resistência para deslizar quando objetos estão em contato. `0` não dá atrito; valores até `1` são comunc, e fricção zero em qualquer um dos objetos faz o contato não ter atrito.
 property.collision-object.restitution = Restituição
-property.collision-object.restitution.tooltip = Quanto o objeto quica após uma colisão. `0` não dá nenhum returno e `1` é totalmente elástico; a resposta final também depende da restituição do outro objeto e do motor de física selecionado.
 property.collision-object.linear-damping = Amortecimento Linear
 property.collision-object.linear-damping.tooltip = Reduz gradualmente a velocidade linear mesmo quando o objeto não está em contato com nada. Use valores de `0` a `1` para simular resistências de movimento.
 property.collision-object.angular-damping = Amortecimento Angular
@@ -1327,11 +1316,8 @@ property.collision-object.locked-rotation.tooltip = Impede a simulação da fís
 property.collision-object.bullet = Projétil
 property.collision-object.bullet.tooltip = **Apenas física 2D.** Permite a detecção contínua de colisão para impedir que objetos em movimento rápido passem por outros objetos dinâmicos. Só se aplica quando o **Type** é **Dynamic**.
 property.collision-object.event-collision = Gerar Eventos de Colisão
-property.collision-object.event-collision.tooltip = Gera notificações gerais de colisão sem detalhes do ponto de contato. Desativar isso suprime as mensagens `collision_response` deste objeto; As mensagens colisão são desativada somente quando ambos os objetos a desativam.
 property.collision-object.event-contact = Gerar Eventos de Contato
-property.collision-object.event-contact.tooltip = Gera notificações detalhadas de ponto de contato, incluindo posição, normal, penetração e impulso; vários podem ocorrer para um par de objetos de cada quadro. Desativando ela suprime as mensagens `contact_point_response` deste objeto; As mensagens colisão são desativada somente quando ambos os objetos a desativam.
 property.collision-object.event-trigger = Gerar Eventos de Gatilho
-property.collision-object.event-trigger.tooltip = Gera notificações quando um objeto entra ou sai de um **Trigger**. Desativar ele suprime as mensagens `trigger_response` deste objeto; As mensagens colisão são desativadas somente quando ambos os objetos a desativam.
 property.collision-object.group = Grupo
 property.collision-object.group.tooltip = O grupo de colisão que este objeto pertence. Dois objetos interagem somente quando a **Máscara** de cada objeto inclui o grupo do outro objeto.
 property.collision-object.group.tilemap.tooltip = Não usado quando **Forma de Colisão** é um tilemap; grupos de colisões são definidos pelo tile source do tile map.
@@ -1343,7 +1329,6 @@ property.collision-object.shape.diameter.tooltip = O diâmetro completo de uma e
 property.collision-object.shape.dimensions = Dimensões
 property.collision-object.shape.dimensions.tooltip = A **Largura**, **Altura** e **Profundidade** da forma completa da caixa. **Profundidade** afeta apenas a física 3D, mas todas as dimensões devem ser maiores que zero.
 property.collision-object.shape.height = Altura
-property.collision-object.shape.height.tooltip = **Apenas física 3D.** O comprimento da seção reta de uma cápsula entre suas extremidades arredondadas. Seu comprimento total de ponta a ponta é **Altura + Diametro**.
 
 # Properties: compute
 
@@ -1369,9 +1354,7 @@ property.cubemap.top.tooltip = A imagem mapeada para o lado de cima do cubemap (
 property.factory.prototype = Protótipo
 property.factory.prototype.tooltip = Recurso instanciado por este componente\: um objeto de jogo para uma Fábrica ou uma coleção de uma Fábrica de Coleção. Use com `factory.create()` ou `collectionfactory.create()`.
 property.factory.load-dynamically = Carregar Dinamicamente
-property.factory.load-dynamically.tooltip = Adia o carregando dos recursos do protótipo até que eles sejam necessários, mas ainda os inclui no pacote. Chamar `factory.create()` ou `collectionfactory.create()` os carrega sincronizadamente e pode causar travamento; chame `factory.load()` ou `collectionfactory.load()` primeiro para carregá-los de forma assíncrona.
 property.factory.dynamic-prototype = Protótipo Dinâmico
-property.factory.dynamic-prototype.tooltip = Permite que `fatory.set_prototype()` ou `collectionfactory.set_prototype()` substitua o protótipo durante a execução. Se o protótipo anterior foi carregado com `factory.load()` ou `collectionfactory.load()`, descarregue-o antes de mudar. Isso desabilita a otimização de contagem de componentes para a própria coleção, então usa o máximo de projetos configurados.
 
 # Properties: font
 
@@ -1382,7 +1365,6 @@ property.font.texture.tooltip = A folha de glifos PNG referenciada por este arqu
 property.font.output-format = Formato de Saída
 property.font.output-format.tooltip = **Bitmap** rasteriza os glifos TTF/OTF e é necessário para fontes BMFont (`.fnt`). **Distance Field** armazena dados de distância para dimensionamento mais limpo e requer um material de campo distanciado compatível.
 property.font.render-mode = Modo de Renderização
-property.font.render-mode.tooltip = **Single Layer** renderiza um caractere por caractere. **Multi Layer** renderiza sombra, contorno e face separadamente, impedindo que contornos largos cubram glifos vizinhos e permitindo compensações **Shadow X/Y**.
 property.font.size = Tamanho
 property.font.size.tooltip = Tamanho do glifo alvo em pixels ao gerar a fonte. As fontes de Bitmap parecem melhor perto deste tamanho; fontes de distance field precisam de tamanho suficiente para preservar detalhes da forma quando escalonadas.
 property.font.antialias = Suavização
@@ -1408,7 +1390,6 @@ property.font.cache-height.tooltip = Altura em pixels da textura do cache de gli
 property.font.characters = Caracteres
 property.font.characters.tooltip = Caracteres incluídos ao construir uma fonte offline; limitar este conjunto reduz o tamanho da fonte. Para fontes em tempo de execução, esses caracteres são gerados antes para pré-aquecer o cache de glifos. Limpar o campo restaura ASCII imprimível.
 property.font.all-chars = Todos Caracteres
-property.font.all-chars.tooltip = Para fontes offline, inclui cada glifo da fonte ao invés de apenas **Caracteres**, que pode aumentar muito o tamanho da fonte. Para fontes em tempo de execução, os glifos são gerados sob demanda e habilitam isso para o pré-aquecimento de **Caracteres**.
 
 # Properties: gui
 
@@ -1424,7 +1405,6 @@ property.gui.clipping-inverted.tooltip = Inverte a máscara de estêncil deste n
 property.gui.clipping-mode = Modo de Recorte
 property.gui.clipping-mode.tooltip = **Nenhum** renderiza normalmente. **Stencil** usa a geometria do nó como uma máscara que corta seus nós filhos; a transparência da textura não molda a máscara.
 property.gui.clipping-visible = Recorte Visível
-property.gui.clipping-visible.tooltip = Renderiza o próprio conteúdo do nó de recorte também usa sua geometria para mascarar nós filhos. Desative quando o nó deve agir apenas como uma máscara.
 property.gui.color = Cor
 property.gui.color.tooltip = Define a cor do nó. Na caixa texturada e nos nós de torta, ela é multiplicada pela textura, então o branco deixa a textura inalterada.
 property.gui.current-nodes = Nós Atuais
@@ -1446,7 +1426,6 @@ property.gui.line-break.tooltip = Envolve texto através de várias linhas na la
 property.gui.max-dynamic-textures = Máximo de Texturas Dinâmicas
 property.gui.max-dynamic-textures.tooltip = Número máximo de texturas em tempo de execução rastreadas por este GUI. Isso inclui texturas criadas com `gui.new_texture()` e texturas externas atribuídas ao componente; aumente ao substituir muitas dessas texturas.
 property.gui.max-nodes = Máximo de Nós
-property.gui.max-nodes.tooltip = Número máximo de nós que este GUI pode manter, incluindo nós criados ou clonados em tempo de execução. Mantenha-o acima de **Nóis atuais** com sala suficiente para o maior contador de nó de tempo de execução.
 property.gui.outline = Contorno
 property.gui.outline.tooltip = Define a cor de contorno do texto renderizado por este nó. O recurso de fonte controla a forma e largura geradas do contorno.
 property.gui.outline-alpha = Alfa do Contorno
@@ -1462,7 +1441,6 @@ property.gui.resource.particlefx.tooltip = Seleciona o efeito de partículas exp
 property.gui.pie-fill-angle = Ângulo de Preenchimento
 property.gui.pie-fill-angle.tooltip = Define quanto de um nó torta está preenchido, em graus no sentido anti-horário pelo lado direito do nó.
 property.gui.pivot = Pivô
-property.gui.pivot.tooltip = Define o ponto de referência do nó para posição, rotação, dimensionamento e redimensionamento. Nos nós de texto, os pivôs oeste o texto é alinhado à esquerda, os pivôs leste o alinham à direita, e os restantes alinham ao centro.
 property.gui.script = Script
 property.gui.script.tooltip = Atribui o script GUI que controla a lógica, entrada, mensagens e manipulação de nó desta cena em tempo de execução. Uma cena GUI pode ter apenas um script.
 property.gui.shadow = Sombra
@@ -1476,7 +1454,6 @@ property.gui.slice9.tooltip = Reserva bordas de textura quando um nó caixa é r
 property.gui.texture = Textura
 property.gui.texture.tooltip = Seleciona a imagem ou a animação de flip-book desenhada em um nó de caixa ou torta. A fonte do atlas ou tile deve primeiro ser adicionada sob a seção **Texturas** da cena GUI.
 property.gui.resource.texture = Textura
-property.gui.resource.texture.tooltip = Seleciona o atlas ou a fonte de blocos expostos por esta entrada na seção **Texturas** da cena GUI. Caixa e nós de trota selecionam suas imagens ou animações pelo nome de postagem.
 property.gui.template = Modelo
 property.gui.template.tooltip = Seleciona uma cena de GUI para instanciar como uma hierarquia de nó reutilizável. As propriedades da instância podem substituir os valores de template; a entrada de template em si não existe como um nó em tempo de execução.
 property.gui.text = Texto
@@ -1500,7 +1477,6 @@ property.label.font.tooltip = Seleciona o recurso de fonte usado para renderizar
 property.label.leading = Espaçamento
 property.label.leading.tooltip = Define o espaçamento entre as linhas de texto. `1` é o espaçamento normal da linha e `0` remove o espaçamento.
 property.label.line-break = Quebra de Linha
-property.label.line-break.tooltip = Envolve texto através de várias linhas na largura do **Tamanho** do texto. O texto só pode quebrar onde contém espaços em branco adequados.
 property.label.outline = Contorno
 property.label.pivot = Pivô
 property.label.shadow = Sombra
@@ -1549,7 +1525,6 @@ property.particlefx.space = Espaço de Emissão
 property.particlefx.start-delay = Atraso de Início
 property.particlefx.start-offset = Deslocamento Inicial
 property.particlefx.stretch-with-velocity = Alongar com Velocidade
-property.particlefx.stretch-with-velocity.tooltip = Multiplica **Esticar Y** pela velocidade de partículas, tornando as partículas mais rápidas mais apertadas. Use a orientação **Direção de Movimento** para se esticar com velocidade vetorial.
 property.particlefx.tile-source = Imagem
 property.particlefx.type = Tipo de Emissor
 
@@ -1602,7 +1577,6 @@ property.sprite.playback-rate = Velocidade
 property.sprite.size-mode = Modo de Tamanho
 property.sprite.size-mode.tooltip = **Automático** usa as dimensões da imagem ou da animação selecionada. **Manual** permite um **Tamanho** personalizado e permite o redimensionamento Fatia-9.
 property.sprite.slice9 = Fatia 9
-property.sprite.slice9.tooltip = **Apenas tamanho manual.** Margens de pixels para as bordas **Esquerda**, **Superior**, **Direita** e **Baixo**\: os cantos mantêm seu tamanho enquanto as bordas e o centro se alongam. Aplicado quando **Tamanho** muda, não quando a transformação das mudanças de escala do atlas do **Modo Aparar Sprite** deve ser **Desligado**.
 
 # Properties: tile map
 
@@ -1614,12 +1588,10 @@ property.tile-map.tile-source.tooltip = Tile source que dá imagens de tiles e f
 
 # Properties: tile source
 
-property.tile-source.collision-group.id.tooltip = O nome do grupo de colisões atribuído às formas de tiles selecionadas. Ele é usado para o filtrar colisão e relatado em mensagens e eventos de física.
 property.tile-source.collision = Colisão
 property.tile-source.collision.tooltip = Uma imagem opcional cujos pixels não transparentes geram uma forma de colisão convexa para cada bloco. Deve corresponder às dimensões da imagem de fonte visual; atribua formas geradas aos grupos de colisão na Estrutura.
 property.tile-source.end-tile = Tile Final
 property.tile-source.extrude-borders = Extrudar bordas
-property.tile-source.extrude-borders.tooltip = O número de pixels pelos quais as cores da borda de cada bloco são copiados para fora na textura gerada. Isso ajuda a prevenir ladrilhos vizinhos de transborgar no tile quando amostrado perto de sua borda.
 property.tile-source.flip-horizontal = Inverter Horizontalmente
 property.tile-source.flip-vertical = Inverter Verticalmente
 property.tile-source.fps = FPS
@@ -2119,7 +2091,6 @@ form.label.animationset.animations = Animações
 
 form.label.camera = Câmera
 form.label.camera.aspect-ratio = Taxa de Proporção
-form.help.camera.aspect-ratio = **Apenas Perspectiva.** Define a relação largura-altura do frustum. Por exemplo, `1. ` é um quadrado e `1.7778` é 16\:9. Ignorado quando a **Proporção Automática** estiver habilitada.
 form.label.camera.fov = FOV
 form.label.camera.near-z = Z Próximo
 form.help.camera.near-z = Profundidade de visualização do espaço próximo ao plano de recorte. Geometria fora do intervalo entre **Z Próximo** e **Z Distante** é cortada.
@@ -2132,7 +2103,6 @@ form.help.camera.orthographic-projection = Muda de perspectiva para projeção o
 form.label.camera.orthographic-mode = Modo de Zoom Ortográfico
 form.help.camera.orthographic-mode = **Apenas ortográfico.** Controla como **Zoom Ortográfico** se adapta à janela em relação a `display.width` e `display.height`. **Fixo** usa o zoom diretamente. **Auto Fit** mostra a área completa do design e pode revelar espaço extra. **Auto Cover** preenche o janela e pode cortar o conteúdo.
 form.label.camera.orthographic-zoom = Zoom Ortográfico
-form.help.camera.orthographic-zoom = **Apenas Ortográfico.** Multiplicador de zoom positivo. valores acima do zoom `1.0` e valores abaixo do zoom `1.0`. Em **Auto Fit** e **Auto Cover**, ele multiplica o zoom calculado.
 
 form.label.collectionproxy = Proxy de Coleção
 form.label.collectionproxy.collection = Coleção
