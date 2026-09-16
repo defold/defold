@@ -2,7 +2,8 @@ buildscript {
     dependencies {
         def commonsCompressJars = fileTree("${gradle.gradleHomeDir}/lib") {
             include 'commons-compress-*.jar',
-                    'commons-io-*.jar'
+                    'commons-io-*.jar',
+                    'commons-lang3-*.jar'
         }
         classpath files(commonsCompressJars)
     }
@@ -12,6 +13,7 @@ import org.apache.commons.compress.archivers.zip.ParallelScatterZipCreator
 import org.apache.commons.compress.archivers.zip.Zip64Mode
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
+import org.apache.commons.compress.archivers.zip.ZipFile as RawZipFile
 import org.apache.commons.compress.parallel.InputStreamSupplier
 import org.apache.tools.ant.DirectoryScanner
 import org.apache.tools.ant.types.selectors.SelectorUtils
@@ -23,6 +25,7 @@ import javax.inject.Inject
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.time.LocalDateTime
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.jar.Attributes
@@ -244,14 +247,15 @@ dependencies {
     implementation files("${dynamoHome}/ext/share/java/android.jar")
 }
 
-def artifactFiles = {
+def artifactFiles = { boolean light ->
     Map<String, File> result = [:]
     bobArtifacts.entries.each { path, artifact ->
-        if (artifact.source.isFile()) {
+        if ((!light || artifact.light) && artifact.source.isFile()) {
             result[path] = artifact.source
         }
     }
-    bobArtifacts.privateFiles.files.sort().each { source ->
+    def privateFiles = light ? bobArtifacts.privateLightFiles : bobArtifacts.privateFiles
+    privateFiles.files.sort().each { source ->
         def path = bobDir.toPath().relativize(source.toPath()).toString().replace(File.separatorChar, '/' as char)
         if (!result.containsKey(path)) {
             result[path] = source
@@ -426,73 +430,6 @@ tasks.register('compile') {
     dependsOn 'compileBobLight'
 }
 
-tasks.register('createBobLightJar', Jar) {
-    dependsOn 'compileBobLight', 'createLuaJitShareZip'
-    dependsOn privateBobPluginJarTasks
-
-    archiveFileName = 'bob-light.jar'
-    destinationDirectory = file("${bobDir}/dist")
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-
-    from(classesDir) {
-        include '**/*.class'
-        exclude 'private_plugins/**'
-    }
-    from generatedClassesDir
-    from bobLightResourceFiles
-    bobArtifacts.entries.findAll { path, artifact -> artifact.light }.each { path, artifact ->
-        from({ artifact.source.isFile() ? artifact.source : [] }) {
-            into path.substring(0, path.lastIndexOf('/'))
-            rename { path.substring(path.lastIndexOf('/') + 1) }
-        }
-    }
-    from bobArtifacts.privateLightFiles
-    doFirst { validateArtifacts(true) }
-
-    from {
-        bobDependencyJars.collect { zipTree(it) }
-    } {
-        exclude '**/META-INF/**'
-    }
-
-    inputs.files(bobDependencyJars)
-    outputs.file("${bobDir}/dist/bob-light.jar")
-
-    manifest {
-        def attrs = [
-                'Main-Class': 'com.dynamo.bob.Bob',
-                'Enable-Native-Access': 'ALL-UNNAMED',
-                'is-bob-light': 'true'
-        ]
-        if (privateBobPluginClassPath) {
-            attrs['Class-Path'] = privateBobPluginClassPath
-        }
-        attributes attrs
-    }
-
-    doLast {
-        def hostFontcLibraryNames = [
-                'x86_64-macos': 'libfontc_shared.dylib',
-                'arm64-macos': 'libfontc_shared.dylib',
-                'x86_64-linux': 'libfontc_shared.so',
-                'arm64-linux': 'libfontc_shared.so',
-                'x86_64-win32': 'fontc_shared.dll'
-        ]
-        def hostFontcLibraryName = hostFontcLibraryNames[hostPlatform]
-        if (!hostFontcLibraryName) {
-            throw new GradleException("Unsupported host platform: ${hostPlatform}")
-        }
-        def hostFontcPath = "lib/${hostPlatform}/${hostFontcLibraryName}"
-        def hasHostFontc = false
-        new ZipFile(archiveFile.get().asFile).withCloseable { zipFile ->
-            hasHostFontc = zipFile.getEntry(hostFontcPath) != null
-        }
-        if (!hasHostFontc) {
-            throw new GradleException("bob-light.jar is missing the host font compiler library: ${hostFontcPath}")
-        }
-    }
-}
-
 tasks.register('distBobLight') {
     dependsOn 'compileBobLight', 'createBobLightJar'
 }
@@ -514,24 +451,21 @@ def isMetaInfPath = { String path ->
     return path.startsWith('META-INF/') || path.contains('/META-INF/')
 }
 
-def calculateCrcAndSize = { Closure<InputStream> openStream ->
-    CRC32 crc = new CRC32()
-    long size = 0
-    byte[] buffer = new byte[64 * 1024]
-    openStream.call().withCloseable { InputStream inputStream ->
-        int read
-        while ((read = inputStream.read(buffer)) != -1) {
-            crc.update(buffer, 0, read)
-            size += read
-        }
+def createArchiveEntry = { String path, int method, boolean light ->
+    ZipArchiveEntry entry = new ZipArchiveEntry(path)
+    if (light) {
+        // Match Gradle Jar's reproducible timestamps and default permissions.
+        entry.setTimeLocal(LocalDateTime.of(1980, 2, 1, 0, 0))
+        entry.setUnixMode(path.endsWith('/') ? 040755 : 0100644)
+    } else {
+        entry.setTime(0L)
     }
-    return [crc: crc.value, size: size]
+    entry.setMethod(method)
+    entry
 }
 
-def writeArchiveEntry = { ZipArchiveOutputStream zipOutputStream, String path, byte[] bytes, int method ->
-    ZipArchiveEntry entry = new ZipArchiveEntry(path)
-    entry.setTime(0L)
-    entry.setMethod(method)
+def writeArchiveEntry = { ZipArchiveOutputStream zipOutputStream, String path, byte[] bytes, int method, boolean light ->
+    ZipArchiveEntry entry = createArchiveEntry(path, method, light)
     entry.setSize(bytes.length)
     if (method == ZipArchiveOutputStream.STORED) {
         CRC32 crc = new CRC32()
@@ -554,160 +488,241 @@ def collectParentDirectories = { Set<String> directoryPaths, String path ->
     }
 }
 
-def addParallelArchiveEntry = { ParallelScatterZipCreator creator, Set<String> seenPaths, String path, Closure<InputStream> openStream, Long knownSize, int method ->
-    path = path.replace(File.separatorChar, '/' as char)
-    if (path.length() == 0 || path.endsWith('/') || !seenPaths.add(path)) {
-        return
-    }
-
-    ZipArchiveEntry entry = new ZipArchiveEntry(path)
-    entry.setTime(0L)
-    entry.setMethod(method)
+def addParallelArchiveEntry = { ParallelScatterZipCreator creator, String path, Closure<InputStream> openStream, Long knownSize, int method, boolean light ->
+    ZipArchiveEntry entry = createArchiveEntry(path, method, light)
     if (knownSize != null && knownSize >= 0) {
         entry.setSize(knownSize)
     }
-    if (method == ZipArchiveOutputStream.STORED) {
-        def crcAndSize = calculateCrcAndSize(openStream)
-        entry.setSize(crcAndSize.size)
-        entry.setCompressedSize(crcAndSize.size)
-        entry.setCrc(crcAndSize.crc)
-    }
-
+    // ScatterZipOutputStream calculates size and CRC while reading.
     creator.addArchiveEntry(entry, { openStream.call() } as InputStreamSupplier)
 }
 
-tasks.register('createBobJar') {
-    dependsOn 'compileBobLight', 'createLuaJitShareZip'
-    dependsOn privateBobPluginJarTasks
+def dependencyExcludes = (DirectoryScanner.getDefaultExcludes().toList() + ['tmp/**', 'reports/**']).collect {
+    it.replace('/' as char, File.separatorChar)
+}
+def bobClassesFileTree = fileTree(classesDir) {
+    include '**/*.class'
+    exclude 'private_plugins/**'
+}
+def bobGeneratedClassesFileTree = fileTree(generatedClassesDir)
 
-    // Preserve the former merge task's dependency order and duplicate precedence.
-    Set<File> dependencyJars = new HashSet<>()
-    dependencyJars.addAll(bobAwsJars.files as Set<File>)
-    dependencyJars.addAll(bobDependencyJars.files as Set<File>)
-    def dependencyExcludes = (DirectoryScanner.getDefaultExcludes().toList() + ['tmp/**', 'reports/**']).collect {
-        it.replace('/' as char, File.separatorChar)
+def writeBobArchive = { File outputFile, Collection<File> dependencyJars, Map<String, String> manifestAttributes, boolean light ->
+    validateArtifacts(light)
+    int compressionMethod = keepBobUncompressed ? ZipArchiveOutputStream.STORED : ZipArchiveOutputStream.DEFLATED
+    int threadCount = Math.max(2, Runtime.getRuntime().availableProcessors())
+    def executor = keepBobUncompressed ? null : Executors.newFixedThreadPool(threadCount)
+    def creator = executor == null ? null : new ParallelScatterZipCreator(executor)
+    Set<String> seenPaths = new LinkedHashSet<>()
+    Set<String> directoryPaths = new TreeSet<>()
+    List<RawZipFile> zipFiles = []
+    def zipEntries = []
+    def storedFiles = [:]
+
+    def addFile = { String path, File sourceFile ->
+        if (!sourceFile.isFile()) {
+            return
+        }
+        path = path.replace(File.separatorChar, '/' as char)
+        if (path.startsWith('tmp/') || path == 'tmp' ||
+                (light && (path.startsWith('reports/') || path == 'reports'))) {
+            return
+        }
+        if (!seenPaths.add(path)) {
+            return
+        }
+        collectParentDirectories(directoryPaths, path)
+        if (keepBobUncompressed) {
+            storedFiles[path] = sourceFile
+        } else {
+            addParallelArchiveEntry(creator, path, { new BufferedInputStream(new FileInputStream(sourceFile)) }, sourceFile.length(), compressionMethod, light)
+        }
     }
 
-    def outputFile = file("${bobDir}/dist/bob.jar")
-    def bobClassesFileTree = fileTree(classesDir) {
-        include '**/*.class'
-        exclude 'private_plugins/**'
-    }
-    def bobGeneratedClassesFileTree = fileTree(generatedClassesDir)
-
-    inputs.files(bobClassesFileTree, bobGeneratedClassesFileTree).ignoreEmptyDirectories()
-    inputs.files(bobLightResourceFiles).ignoreEmptyDirectories()
-    inputs.files { artifactFiles().values() }
-    inputs.property('artifactPaths', { artifactFiles().keySet().sort() })
-    inputs.files(dependencyJars)
-    inputs.property('dependencyExcludes', dependencyExcludes)
-    inputs.file(bobArtifacts.builtinsZip)
-    inputs.property('keep-bob-uncompressed', keepBobUncompressed)
-    inputs.property('gradle-version', gradleVersion)
-    inputs.property('created-by', "${System.getProperty('java.version')} (${System.getProperty('java.vendor')})")
-    inputs.property('private-bob-plugin-class-path', privateBobPluginClassPath)
-    outputs.file(outputFile)
-
-    doLast {
-        validateArtifacts(false)
-        int compressionMethod = keepBobUncompressed ? ZipArchiveOutputStream.STORED : ZipArchiveOutputStream.DEFLATED
-        int threadCount = Math.max(2, Runtime.getRuntime().availableProcessors())
-        def executor = Executors.newFixedThreadPool(threadCount)
-        def creator = new ParallelScatterZipCreator(executor)
-        Set<String> seenPaths = new LinkedHashSet<>()
-        Set<String> directoryPaths = new TreeSet<>()
-        List<ZipFile> zipFiles = []
-
-        def addFile = { String path, File sourceFile ->
-            if (!sourceFile.isFile()) {
+    def addZipEntries = { File zipPath, boolean dependencyJar ->
+        RawZipFile zipFile = RawZipFile.builder().setFile(zipPath).get()
+        zipFiles.add(zipFile)
+        // Preserve the former readers' last payload for repeated names within a ZIP.
+        Map<String, ZipArchiveEntry> entriesByName = [:]
+        zipFile.entries.each { zipEntry -> entriesByName[zipEntry.name] = zipEntry }
+        entriesByName.values().each { zipEntry ->
+            if (zipEntry.directory) {
                 return
             }
-            if (path.startsWith("tmp${File.separator}") || path == 'tmp') {
+            // Retain zipTree's default exclusions and the former Jar task's filters.
+            if (dependencyJar) {
+                String entryPath = zipEntry.name.replace('/' as char, File.separatorChar)
+                if (isMetaInfPath(zipEntry.name) || dependencyExcludes.any { SelectorUtils.matchPath(it, entryPath) }) {
+                    return
+                }
+            }
+            String path = zipEntry.name.replace(File.separatorChar, '/' as char)
+            if (path.length() == 0 || !seenPaths.add(path)) {
                 return
             }
             collectParentDirectories(directoryPaths, path)
-            addParallelArchiveEntry(creator, seenPaths, path, { new BufferedInputStream(new FileInputStream(sourceFile)) }, sourceFile.length(), compressionMethod)
+            zipEntries.add([zipFile: zipFile, entry: zipEntry, path: path])
         }
+    }
 
-        def addZipEntries = { File zipPath, boolean dependencyJar ->
-            ZipFile zipFile = new ZipFile(zipPath)
-            zipFiles.add(zipFile)
-            zipFile.entries().toList().each { zipEntry ->
-                def currentEntry = zipEntry
-                if (currentEntry.directory) {
-                    return
-                }
-                // Retain zipTree's default exclusions and the former Jar task's filters.
-                if (dependencyJar) {
-                    String entryPath = currentEntry.name.replace('/' as char, File.separatorChar)
-                    if (isMetaInfPath(currentEntry.name) || dependencyExcludes.any { SelectorUtils.matchPath(it, entryPath) }) {
-                        return
-                    }
-                }
-                collectParentDirectories(directoryPaths, currentEntry.name)
-                addParallelArchiveEntry(creator, seenPaths, currentEntry.name, { zipFile.getInputStream(currentEntry) }, currentEntry.size, compressionMethod)
-            }
+    try {
+        mkdir outputFile.parentFile
+        delete outputFile
+
+        seenPaths.add('META-INF/MANIFEST.MF')
+        if (light) {
+            directoryPaths.add('META-INF/')
         }
-
-        try {
-            mkdir outputFile.parentFile
-            delete outputFile
-
-            seenPaths.add('META-INF/MANIFEST.MF')
-            bobClassesFileTree.files.sort { sourceFile ->
-                classesDir.toPath().relativize(sourceFile.toPath()).toString()
-            }.each { sourceFile ->
-                addFile(classesDir.toPath().relativize(sourceFile.toPath()).toString(), sourceFile)
-            }
-            bobGeneratedClassesFileTree.files.sort { sourceFile ->
-                generatedClassesDir.toPath().relativize(sourceFile.toPath()).toString()
-            }.each { sourceFile ->
-                addFile(generatedClassesDir.toPath().relativize(sourceFile.toPath()).toString(), sourceFile)
-            }
-            bobLightResourceFiles.files.sort().each { sourceFile ->
-                addFile(bobLightResourceRoot.toPath().relativize(sourceFile.toPath()).toString(), sourceFile)
-            }
-            artifactFiles().sort().each { path, sourceFile ->
-                addFile(path, sourceFile)
-            }
-            dependencyJars.each { dependencyJar ->
-                addZipEntries(dependencyJar, true)
-            }
+        bobClassesFileTree.files.sort { sourceFile ->
+            classesDir.toPath().relativize(sourceFile.toPath()).toString()
+        }.each { sourceFile ->
+            addFile(classesDir.toPath().relativize(sourceFile.toPath()).toString(), sourceFile)
+        }
+        bobGeneratedClassesFileTree.files.sort { sourceFile ->
+            generatedClassesDir.toPath().relativize(sourceFile.toPath()).toString()
+        }.each { sourceFile ->
+            addFile(generatedClassesDir.toPath().relativize(sourceFile.toPath()).toString(), sourceFile)
+        }
+        bobLightResourceFiles.files.sort().each { sourceFile ->
+            addFile(bobLightResourceRoot.toPath().relativize(sourceFile.toPath()).toString(), sourceFile)
+        }
+        artifactFiles(light).sort().each { path, sourceFile ->
+            addFile(path, sourceFile)
+        }
+        dependencyJars.each { dependencyJar ->
+            addZipEntries(dependencyJar, true)
+        }
+        if (!light) {
             addZipEntries(bobArtifacts.builtinsZip, false)
+        }
 
-            ZipArchiveOutputStream zipOutputStream = new ZipArchiveOutputStream(outputFile)
-            try {
-                zipOutputStream.setUseZip64(Zip64Mode.AsNeeded)
-                zipOutputStream.setMethod(compressionMethod)
-                def manifestAttributes = [
-                        'Main-Class': 'com.dynamo.bob.Bob',
-                        'Enable-Native-Access': 'ALL-UNNAMED',
-                        'Gradle-Version': gradleVersion,
-                        'Created-By': "${System.getProperty('java.version')} (${System.getProperty('java.vendor')})"
-                ]
-                if (privateBobPluginClassPath) {
-                    manifestAttributes['Class-Path'] = privateBobPluginClassPath
+        ZipArchiveOutputStream zipOutputStream = new ZipArchiveOutputStream(outputFile)
+        try {
+            zipOutputStream.setUseZip64(Zip64Mode.AsNeeded)
+            zipOutputStream.setMethod(compressionMethod)
+            writeArchiveEntry(zipOutputStream, 'META-INF/MANIFEST.MF', createManifestBytes(manifestAttributes), compressionMethod, light)
+            directoryPaths.each { directoryPath ->
+                writeArchiveEntry(zipOutputStream, directoryPath, new byte[0], compressionMethod, light)
+            }
+            if (keepBobUncompressed) {
+                // The seekable output fills in CRC without a pre-read or scatter files.
+                storedFiles.each { path, sourceFile ->
+                    ZipArchiveEntry entry = createArchiveEntry(path, compressionMethod, light)
+                    entry.setSize(sourceFile.length())
+                    entry.setCompressedSize(sourceFile.length())
+                    zipOutputStream.putArchiveEntry(entry)
+                    sourceFile.withInputStream { inputStream -> inputStream.transferTo(zipOutputStream) }
+                    zipOutputStream.closeArchiveEntry()
                 }
-                writeArchiveEntry(zipOutputStream, 'META-INF/MANIFEST.MF', createManifestBytes(manifestAttributes), compressionMethod)
-                directoryPaths.each { directoryPath ->
-                    writeArchiveEntry(zipOutputStream, directoryPath, new byte[0], compressionMethod)
-                }
+            } else {
                 creator.writeTo(zipOutputStream)
-            } finally {
-                zipOutputStream.close()
+            }
+            zipEntries.each { source ->
+                ZipArchiveEntry entry = createArchiveEntry(source.path, compressionMethod, light)
+                entry.setSize(source.entry.size)
+                entry.setCrc(source.entry.crc)
+                if (source.entry.method == compressionMethod) {
+                    // Keep the compressed payload and CRC; only rewrite the ZIP headers.
+                    entry.setCompressedSize(source.entry.compressedSize)
+                    source.zipFile.getRawInputStream(source.entry).withCloseable { inputStream ->
+                        zipOutputStream.addRawArchiveEntry(entry, inputStream)
+                    }
+                } else {
+                    // Honor keep-bob-uncompressed even when the dependency is deflated.
+                    if (compressionMethod == ZipArchiveOutputStream.STORED) {
+                        entry.setCompressedSize(source.entry.size)
+                    }
+                    zipOutputStream.putArchiveEntry(entry)
+                    source.zipFile.getInputStream(source.entry).withCloseable { inputStream ->
+                        inputStream.transferTo(zipOutputStream)
+                    }
+                    zipOutputStream.closeArchiveEntry()
+                }
             }
         } finally {
-            zipFiles.each { zipFile -> zipFile.close() }
+            zipOutputStream.close()
+        }
+    } finally {
+        if (executor != null) {
             executor.shutdown()
             if (!executor.awaitTermination(1, TimeUnit.MINUTES)) {
                 executor.shutdownNow()
             }
         }
+        zipFiles.each { zipFile -> zipFile.close() }
+    }
 
-        if (!outputFile.exists()) {
-            throw new RuntimeException("File '${outputFile}' was not created")
+    if (!outputFile.exists()) {
+        throw new RuntimeException("File '${outputFile}' was not created")
+    } else {
+        println "${outputFile.name} successfully created with raw dependency entries" +
+                (keepBobUncompressed ? ' (uncompressed)' : " and parallel compression (${threadCount} threads)")
+    }
+}
+
+[createBobJar: false, createBobLightJar: true].each { taskName, light ->
+    tasks.register(taskName) {
+        dependsOn 'compileBobLight', 'createLuaJitShareZip'
+        dependsOn privateBobPluginJarTasks
+
+        // Keep each former packager's dependency order and duplicate precedence.
+        Collection<File> dependencyJars
+        if (light) {
+            dependencyJars = bobDependencyJars.files.toList()
         } else {
-            println "bob.jar successfully created with ParallelScatterZipCreator (${threadCount} threads)"
+            dependencyJars = new HashSet<>()
+            dependencyJars.addAll(bobAwsJars.files)
+            dependencyJars.addAll(bobDependencyJars.files)
+        }
+        def outputFile = file("${bobDir}/dist/${light ? 'bob-light' : 'bob'}.jar")
+        def manifestAttributes = [
+                'Main-Class': 'com.dynamo.bob.Bob',
+                'Enable-Native-Access': 'ALL-UNNAMED'
+        ]
+        if (light) {
+            manifestAttributes['is-bob-light'] = 'true'
+        } else {
+            manifestAttributes['Gradle-Version'] = gradleVersion
+            manifestAttributes['Created-By'] = "${System.getProperty('java.version')} (${System.getProperty('java.vendor')})"
+        }
+        if (privateBobPluginClassPath) {
+            manifestAttributes['Class-Path'] = privateBobPluginClassPath
+        }
+
+        inputs.files(bobClassesFileTree, bobGeneratedClassesFileTree).ignoreEmptyDirectories()
+        inputs.files(bobLightResourceFiles).ignoreEmptyDirectories()
+        inputs.files { artifactFiles(light).values() }
+        inputs.property('artifactPaths', { artifactFiles(light).keySet().sort() })
+        inputs.files(dependencyJars)
+        inputs.property('dependencyExcludes', dependencyExcludes)
+        if (!light) {
+            inputs.file(bobArtifacts.builtinsZip)
+        }
+        inputs.property('keep-bob-uncompressed', keepBobUncompressed)
+        inputs.property('gradle-version', gradleVersion)
+        inputs.property('manifestAttributes', manifestAttributes)
+        outputs.file(outputFile)
+
+        doLast {
+            writeBobArchive(outputFile, dependencyJars, manifestAttributes, light)
+            if (light) {
+                def hostFontcLibraryNames = [
+                        'x86_64-macos': 'libfontc_shared.dylib',
+                        'arm64-macos': 'libfontc_shared.dylib',
+                        'x86_64-linux': 'libfontc_shared.so',
+                        'arm64-linux': 'libfontc_shared.so',
+                        'x86_64-win32': 'fontc_shared.dll'
+                ]
+                def hostFontcLibraryName = hostFontcLibraryNames[hostPlatform]
+                if (!hostFontcLibraryName) {
+                    throw new GradleException("Unsupported host platform: ${hostPlatform}")
+                }
+                def hostFontcPath = "lib/${hostPlatform}/${hostFontcLibraryName}"
+                new ZipFile(outputFile).withCloseable { zipFile ->
+                    if (zipFile.getEntry(hostFontcPath) == null) {
+                        throw new GradleException("bob-light.jar is missing the host font compiler library: ${hostFontcPath}")
+                    }
+                }
+            }
         }
     }
 }
