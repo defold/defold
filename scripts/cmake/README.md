@@ -195,6 +195,27 @@ once and reuses it between folders, clearing Bob's build metadata before each
 invocation. Folder outputs and extracted tools remain isolated. Other generators
 use one chain and one source copy to bound JVM memory use.
 
+Native desktop `run_tests` builds its prerequisites, then runs up to two test
+commands concurrently. Set
+`-DDEFOLD_TEST_JOBS=1` to serialize them, or choose another positive worker
+limit. Tests use the `shared` resource group by default, so existing network
+tests and HTTP servers still run one at a time. Independently runnable font,
+sound, texture-codec, gameobject and headless gamesys tests use separate groups.
+Gameobject tests use module-local content and process-local message sockets.
+The headless gamesys suites use null device backends and share a group because
+their resource reload tests modify staged files; gamesys HTTP tests remain in
+the `shared` group. The scheduler only starts a command when its group is free,
+so queued tests do not occupy worker slots.
+The long macOS sound suite has priority to overlap with shared tests. A group
+lock covers the entire command, including server startup and cleanup, and also
+protects individually requested `run_*` targets. `RUN_GROUP <name>` opts a test
+into another group after checking its files, ports and devices are independent.
+`RUN_PRIORITY <integer>` gives long-running tests higher dispatch priority.
+Individual targets still run only the requested test. Output is grouped by
+completed command; a failure stops queued tests and lets active tests finish.
+Device runners, other generators and `run_tests_sequential` retain their
+existing execution order.
+
 ## Solution generation
 
 You can generate a solution for a platform with:
