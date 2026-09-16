@@ -298,7 +298,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testInstancingCompatibilityHash() throws Exception {
+    public void testRenderHash() throws Exception {
         String vertexShader = """
                 attribute highp vec4 position;
                 attribute mediump vec4 instance_data;
@@ -335,11 +335,11 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         MaterialDesc vertexB = getMessage(build("/vertex_b.material", makeInstancingMaterial(
                 "vertex_b", "tag_a", "VERTEX_STEP_FUNCTION_VERTEX", 2.0f)), MaterialDesc.class);
 
-        assertTrue(instanceA.hasInstancingCompatibilityHash());
-        assertNotEquals(0, instanceA.getInstancingCompatibilityHash());
-        assertEquals(instanceA.getInstancingCompatibilityHash(), instanceB.getInstancingCompatibilityHash());
-        assertNotEquals(instanceA.getInstancingCompatibilityHash(), vertexA.getInstancingCompatibilityHash());
-        assertNotEquals(vertexA.getInstancingCompatibilityHash(), vertexB.getInstancingCompatibilityHash());
+        assertTrue(instanceA.hasRenderHash());
+        assertNotEquals(0, instanceA.getRenderHash());
+        assertEquals(instanceA.getRenderHash(), instanceB.getRenderHash());
+        assertNotEquals(instanceA.getRenderHash(), vertexA.getRenderHash());
+        assertNotEquals(vertexA.getRenderHash(), vertexB.getRenderHash());
 
         MaterialDesc textureA = instanceA.toBuilder()
                 .setSamplers(0, instanceA.getSamplers(0).toBuilder().setTexture("/texture_a.texturec"))
@@ -347,8 +347,8 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         MaterialDesc textureB = instanceA.toBuilder()
                 .setSamplers(0, instanceA.getSamplers(0).toBuilder().setTexture("/texture_b.texturec"))
                 .build();
-        assertEquals(MaterialBuilder.makeInstancingCompatibilityHash(textureA),
-                     MaterialBuilder.makeInstancingCompatibilityHash(textureB));
+        assertEquals(MaterialBuilder.makeRenderHash(textureA),
+                     MaterialBuilder.makeRenderHash(textureB));
     }
 
     @Test

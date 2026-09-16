@@ -106,15 +106,15 @@
             (update :program build-resource->fused-build-resource-path))
         ^Material$MaterialDesc material-desc
         (protobuf/map->pb Material$MaterialDesc material-desc-with-fused-build-resource-paths)
-        instancing-compatibility-hash
-        (MaterialBuilder/makeInstancingCompatibilityHash material-desc)
-        material-desc-with-instancing-compatibility-hash
+        render-hash
+        (MaterialBuilder/makeRenderHash material-desc)
+        material-desc-with-render-hash
         (-> material-desc
             (.toBuilder)
-            (.setInstancingCompatibilityHash instancing-compatibility-hash)
+            (.setRenderHash render-hash)
             (.build))]
     {:resource resource
-     :content (.toByteArray material-desc-with-instancing-compatibility-hash)}))
+     :content (.toByteArray material-desc-with-render-hash)}))
 
 (defn- prop-resource-error [_node-id prop-kw prop-value prop-name resource-ext]
   (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))

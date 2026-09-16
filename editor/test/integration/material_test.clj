@@ -102,13 +102,13 @@
               :has-emissive-strength true}
              pbr-parameters)))))
 
-(deftest material-build-generates-instancing-compatibility-hash
+(deftest material-build-generates-render-hash
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/materials/test.material")]
       (with-open [_ (test-util/build! node-id)]
         (let [material-desc (Material$MaterialDesc/parseFrom (test-util/node-build-output node-id))]
-          (is (.hasInstancingCompatibilityHash material-desc))
-          (is (not (zero? (.getInstancingCompatibilityHash material-desc)))))))))
+          (is (.hasRenderHash material-desc))
+          (is (not (zero? (.getRenderHash material-desc)))))))))
 
 (deftest material-combined-shaders
   ;; Test that materials that have the same .vp and .fp pair will reference the same .sp file

@@ -20,7 +20,7 @@
 
 namespace dmGameSystem
 {
-    void MarkMaterialResourceDirty(MaterialResource* resource);
+    void UpdateMaterialHash(MaterialResource* resource);
 
     dmResource::Result ResMaterialCreate(const dmResource::ResourceCreateParams* params);
 

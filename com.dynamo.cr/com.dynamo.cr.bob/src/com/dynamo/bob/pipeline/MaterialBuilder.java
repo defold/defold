@@ -232,7 +232,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         }
     }
 
-    public static long makeInstancingCompatibilityHash(MaterialDesc material) {
+    public static long makeRenderHash(MaterialDesc material) {
         MaterialDesc.Builder hashBuilder = material.toBuilder();
 
         // Names and tags affect resource identity and render-list filtering, but not
@@ -240,7 +240,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         hashBuilder.setName("");
         hashBuilder.clearTags();
         hashBuilder.clearTextures();
-        hashBuilder.clearInstancingCompatibilityHash();
+        hashBuilder.clearRenderHash();
 
         // Texture resources are resolved through material, model and component
         // overrides at runtime, so only the sampler declarations belong here.
@@ -297,7 +297,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
         MaterialDesc materialDesc = finalizeMaterial(materialBuilder, shaderBuilder);
         materialDesc = materialDesc.toBuilder()
-                .setInstancingCompatibilityHash(makeInstancingCompatibilityHash(materialDesc))
+                .setRenderHash(makeRenderHash(materialDesc))
                 .build();
 
         task.output(0).setContent(materialDesc.toByteArray());
@@ -369,7 +369,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
             MaterialDesc materialDesc = finalizeMaterial(materialBuilder, shaderBuilder);
             materialDesc = materialDesc.toBuilder()
-                    .setInstancingCompatibilityHash(makeInstancingCompatibilityHash(materialDesc))
+                    .setRenderHash(makeRenderHash(materialDesc))
                     .build();
             materialDesc.writeTo(output);
         }

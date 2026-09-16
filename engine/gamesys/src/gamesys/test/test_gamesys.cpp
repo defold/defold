@@ -7855,19 +7855,19 @@ ResourceFailParams invalid_material_resources[] =
 };
 INSTANTIATE_TEST_CASE_P(Material, ResourceFailTest, jc_test_values_in(invalid_material_resources));
 
-TEST(MaterialResource, InstancingCompatibilityInvalidationVersion)
+TEST(MaterialResource, UpdateMaterialHash)
 {
     dmGameSystem::MaterialResource material = {};
-    material.m_MaterialHash = 42;
+    material.m_RenderHash = 42;
 
-    dmGameSystem::MarkMaterialResourceDirty(&material);
-    uint64_t resource_identity_hash = material.m_MaterialHash;
-    ASSERT_NE(0u, resource_identity_hash);
-    ASSERT_EQ(1u, material.m_MaterialHashVersion);
+    dmGameSystem::UpdateMaterialHash(&material);
+    uint64_t first_hash = material.m_RenderHash;
+    ASSERT_NE(0u, first_hash);
+    ASSERT_NE(42u, first_hash);
 
-    dmGameSystem::MarkMaterialResourceDirty(&material);
-    ASSERT_EQ(resource_identity_hash, material.m_MaterialHash);
-    ASSERT_EQ(2u, material.m_MaterialHashVersion);
+    dmGameSystem::UpdateMaterialHash(&material);
+    ASSERT_NE(0u, material.m_RenderHash);
+    ASSERT_NE(first_hash, material.m_RenderHash);
 }
 
 /* Buffer */

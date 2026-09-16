@@ -100,7 +100,7 @@ namespace dmGameSystem
         dmhash_t                    m_MorphModelId;
         HComponentRenderConstants   m_RenderConstants; // Used for PBR properties, will be null if PBR data not needed.
         uint32_t                    m_InstanceRenderHash;
-        uint32_t                    m_MaterialHashVersion;
+        uint64_t                    m_MaterialRenderHash;
         uint32_t                    m_BoneIndex;
         uint32_t                    m_MaterialIndex;
         uint16_t                    m_AttributeRenderDataIndex;
@@ -534,8 +534,8 @@ namespace dmGameSystem
 
     static void HashInstancingMaterial(HashState32* state, const dmGameSystem::MaterialResource* material)
     {
-        assert(material->m_MaterialHash != 0);
-        dmHashUpdateBuffer32(state, &material->m_MaterialHash, sizeof(material->m_MaterialHash));
+        assert(material->m_RenderHash != 0);
+        dmHashUpdateBuffer32(state, &material->m_RenderHash, sizeof(material->m_RenderHash));
     }
 
     static void HashEffectiveTextures(HashState32* state, const ModelComponent* component, uint32_t material_index)
@@ -669,7 +669,7 @@ namespace dmGameSystem
             HashRenderItem(&state_clone, world, component, component->m_RenderItems[i]);
             component->m_RenderItems[i].m_InstanceRenderHash = dmHashFinal32(&state_clone);
             MaterialResource* material = GetMaterialResource(component, component->m_Resource, component->m_RenderItems[i].m_MaterialIndex);
-            component->m_RenderItems[i].m_MaterialHashVersion = material->m_MaterialHashVersion;
+            component->m_RenderItems[i].m_MaterialRenderHash = material->m_RenderHash;
         }
 
         component->m_ReHash = 0;
@@ -1137,7 +1137,7 @@ namespace dmGameSystem
             item.m_AttributeRenderDataIndex = ATTRIBUTE_RENDER_DATA_INDEX_UNUSED;
             item.m_DynamicVertexAttributeIndex = INVALID_DYNAMIC_ATTRIBUTE_INDEX;
             item.m_InstanceRenderHash = 0;
-            item.m_MaterialHashVersion = 0;
+            item.m_MaterialRenderHash = 0;
 
             // This model is a child under a bone, but isn't actually skinned
             if (item.m_Model->m_BoneId && bone_id_to_indices)
@@ -2389,7 +2389,7 @@ namespace dmGameSystem
             {
                 MeshRenderItem& render_item = component.m_RenderItems[j];
                 MaterialResource* material = GetMaterialResource(&component, component.m_Resource, render_item.m_MaterialIndex);
-                component.m_ReHash = render_item.m_MaterialHashVersion != material->m_MaterialHashVersion;
+                component.m_ReHash = render_item.m_MaterialRenderHash != material->m_RenderHash;
             }
 
             if (component.m_ReHash || (component.m_RenderConstants && dmGameSystem::AreRenderConstantsUpdated(component.m_RenderConstants)))

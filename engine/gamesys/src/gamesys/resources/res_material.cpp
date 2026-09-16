@@ -29,22 +29,12 @@
 
 namespace dmGameSystem
 {
-    void MarkMaterialResourceDirty(MaterialResource* resource)
+    void UpdateMaterialHash(MaterialResource* resource)
     {
-        // Runtime material mutations cannot safely retain the compatibility hash
-        // calculated from the compiled descriptor. Use the resource identity as a
-        // conservative key: users of this resource may still batch together, but
-        // they can no longer batch with other material resources.
-        uint64_t resource_identity_hash = dmHashBuffer64(&resource, sizeof(resource));
-        resource_identity_hash = resource_identity_hash != 0 ? resource_identity_hash : 1;
-        if (resource->m_MaterialHash != resource_identity_hash)
-        {
-            resource->m_MaterialHash = resource_identity_hash;
-        }
-        // The model component hash also contains mutable material state such as
-        // textures and per-vertex attribute values, so every mutation must cause
-        // existing component hashes to be rebuilt.
-        resource->m_MaterialHashVersion++;
+        // Include the previous render hash so each runtime mutation produces a new
+        // resource-specific value even when the mutation lives inside HMaterial.
+        uint64_t render_hash = dmHashBuffer64(resource, sizeof(*resource));
+        resource->m_RenderHash = render_hash != 0 ? render_hash : 1;
     }
 
     static inline bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
@@ -128,8 +118,11 @@ namespace dmGameSystem
 
     static void SetMaterial(const char* path, MaterialResource* resource, MaterialResources* resources, dmRenderDDF::MaterialDesc* ddf)
     {
-        resource->m_MaterialHash = ddf->m_InstancingCompatibilityHash;
-        resource->m_MaterialHashVersion++;
+        resource->m_RenderHash = ddf->m_RenderHash;
+        resource->m_NumTextures = 0;
+        memset(resource->m_Textures, 0, sizeof(resource->m_Textures));
+        memset(resource->m_TextureResourcePaths, 0, sizeof(resource->m_TextureResourcePaths));
+        memset(resource->m_SamplerNames, 0, sizeof(resource->m_SamplerNames));
 
         dmhash_t tags[dmRender::MAX_MATERIAL_TAG_COUNT];
         uint32_t tag_count = ddf->m_Tags.m_Count;
@@ -351,6 +344,7 @@ namespace dmGameSystem
 
             resource->m_Material = material;
             SetMaterial(params->m_Filename, resource, &resources, ddf);
+            UpdateMaterialHash(resource);
         }
         dmDDF::FreeMessage(ddf);
         return r;
