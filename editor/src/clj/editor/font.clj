@@ -241,10 +241,6 @@
                     (local-scale-from-transform (or world-transform geom/Identity4d)))]
     (Math/max (double sdf-scale) sdf-min-scale)))
 
-(defn- native-sdf-limit
-  ^double [^double padding ^double width]
-  (- 0.75 (* 0.25 (/ width padding))))
-
 (defn- add-sdf-screen-scale
   "Annotate text entries with :sdf-screen-scale when rendering SDF fonts."
   [render-args font-data text-entries]
@@ -1369,23 +1365,19 @@
 
 (defn- make-native-renderer-spec
   ^NativeRendererSpec [font font-desc font-map type use-font-layout use-rich-text runtime-generation]
-  (let [render-params (FontRenderer$Params.)
+  (let [font-desc-pb (protobuf/map->pb Font$FontDesc font-desc)
+        render-params (FontRenderer$Params.)
         measure-params (FontRenderer$Params.)
         output-bitmap (= :defold type)
         shadow-blur (double (:shadow-blur font-desc))
-        outline-width (double (:outline-width font-desc))
-        sdf-padding (+ (double FontRenderer/DEFAULT_SDF_BASE_PADDING)
-                       outline-width
-                       shadow-blur)]
+        outline-width (double (:outline-width font-desc))]
     (set! (.-size render-params) (float (:size font-desc)))
     (set! (.-cacheWidth render-params) (int (:cache-width font-map)))
     (set! (.-cacheHeight render-params) (int (:cache-height font-map)))
     (set! (.-cacheCellPadding render-params) (int (:glyph-padding font-map)))
-    (set! (.-sdfSpread render-params) (float sdf-padding))
-    (set! (.-sdfOutline render-params) (float (native-sdf-limit sdf-padding outline-width)))
-    (set! (.-sdfShadow render-params) (float (if (zero? shadow-blur)
-                                              1.0
-                                              (native-sdf-limit sdf-padding shadow-blur))))
+    (set! (.-sdfSpread render-params) (Fontc/GetFontMapSdfSpread font-desc-pb))
+    (set! (.-sdfOutline render-params) (Fontc/GetFontMapSdfOutline font-desc-pb))
+    (set! (.-sdfShadow render-params) (Fontc/GetFontMapSdfShadow font-desc-pb))
     (set! (.-outlineWidth render-params) (float outline-width))
     (set! (.-shadowBlur render-params) (float shadow-blur))
     (set! (.-shadowX render-params) (float (:shadow-x font-desc)))
@@ -1428,7 +1420,7 @@
                             supported-codepoints
                             supported-codepoint-array
                             use-rich-text
-                            (vec (FontStyles/compileStyles (protobuf/map->pb Font$FontDesc font-desc)))))))
+                            (vec (FontStyles/compileStyles font-desc-pb))))))
 
 (defn- font-compilation-error [node-id font ^Exception error]
   (let [message (.getMessage error)]
