@@ -567,7 +567,7 @@ dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-бит
 dialog.bundle.option.identity.none = Нет
 dialog.bundle.label.architectures = Архитектуры
-dialog.bundle.label.ios-simulator = Эмулятор
+dialog.bundle.label.ios-simulator = Симулятор
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
@@ -1566,7 +1566,7 @@ property.model.mesh.tooltip = Ресурс glTF или GLB, содержащий
 property.model.mesh-name = Меш
 property.model.mesh-name.tooltip = Необязательный исходный меш из выбранной сцены, указанный по имени. Оставьте пустым, чтобы отрисовывать всю сцену. Выбранный меш отрисовывается один раз в локальных координатах меша, без преобразований узлов glTF.
 property.model.skeleton = Скелет
-property.model.skeleton.tooltip = Ресурс glTF или GLB, содержащий иерархию костей, используемую для скелетной анимации. Defold импортирует первый скин из файла; часто это тот же ресурс, который используется для **Scene**.
+property.model.skeleton.tooltip = Ресурс glTF или GLB, содержащий иерархию костей, используемую для скелетной анимации. Defold импортирует первый скин из файла; часто это тот же ресурс, который используется для **Сцены**.
 
 # Properties: particlefx
 
