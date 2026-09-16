@@ -56,6 +56,7 @@
     (persistent! vbuf)))
 
 (shader/defshader pos-norm-vert
+  (uniform mat4 view_proj)
   (uniform mat4 world)
   (attribute vec3 position)
   (attribute vec3 normal)
@@ -64,7 +65,7 @@
   (defn void main []
     (setq vNormal (normalize (* (mat3 (.xyz (nth world 0)) (.xyz (nth world 1)) (.xyz (nth world 2))) normal)))
     (setq vWorld (.xyz (* world (vec4 position 1.0))))
-    (setq gl_Position (* gl_ModelViewProjectionMatrix (vec4 position 1.0)))))
+    (setq gl_Position (* view_proj (vec4 position 1.0)))))
 
 (shader/defshader pos-norm-frag
   (uniform vec3 cameraPosition)
@@ -77,7 +78,7 @@
     (setq gl_FragColor (textureCube envMap refl))))
 
 ; TODO - macro of this
-(def cubemap-shader (shader/make-shader ::cubemap-shader pos-norm-vert pos-norm-frag))
+(def cubemap-shader (shader/make-shader ::cubemap-shader pos-norm-vert pos-norm-frag {"view_proj" :view-proj}))
 
 (defn render-cubemap
   [^GL2 gl render-args camera gpu-texture vertex-binding]
