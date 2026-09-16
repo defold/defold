@@ -9,7 +9,6 @@
 # 8. Use ellipsis character (…) instead of triple dots (...)
 
 # Localizations of the Welcome dialog
-welcome.button.open-from-disk = 開く…
 welcome.button.open-selected = 選択したものを開く
 welcome.button.create-new-project = 新規プロジェクトの作成
 welcome.button.cancel-download = ダウンロードをキャンセル
@@ -72,7 +71,6 @@ welcome.new-project.walking-astronaut-tutorial.description = この初心者用�
 welcome.new-project.movement-tutorial.title = 移動のチュートリアル
 welcome.new-project.movement-tutorial.description = この初心者のチュートリアルでは、ベクターといくつかのシンプルなベクター代数を使用してリアルな動きを作成する方法を学びます。
 welcome.new-project.war-battles-tutorial.title = War Battles チュートリアル
-welcome.new-project.war-battles-tutorial.description = この中級難易度チュートリアルでは、RTSアセットパックに基づいて見下ろし視点のシューティングゲームの基礎を学びます。
 welcome.new-project.colorslide-tutorial.title = Colorslide チュートリアル
 welcome.new-project.colorslide-tutorial.description = この中級難易度チュートリアルでは、ゲーム内の GUI を構築することを学びます。 レベル選択用のGUIスクリーンと、シンプルなマルチレベルのモバイルゲーム用のスタート画面が含まれます。
 
@@ -82,7 +80,6 @@ welcome.new-project.sample-3d-platformer.description = 応答性の高いキャ�
 welcome.new-project.sample-3d-third-person-playground.title = 3人称視点 3D Playground
 welcome.new-project.sample-3d-third-person-playground.description = キーボードまたはマウス/タッチ入力で3Dキャラクターを動かすことができる三人称3Dゲームのサンプルです。 影を使った基本的な3Dセットアップ方法を説明します。
 welcome.new-project.linker-sample-game.title = Linker サンプルゲーム
-welcome.new-project.linker-sample-game.description = 同じ色の魚をリンクするサンプルゲームです。プレイヤーはドラッグしてボードから魚を削除するために操作します。、 魚の長いリンクはポイントのブースターをもたらします。
 welcome.new-project.roids-sample-game.title = Roidsサンプルゲーム
 welcome.new-project.roids-sample-game.description = これは、あなたが宇宙船を操縦し、隕石の嵐を移動し攻撃するサンプルゲームです。
 welcome.new-project.pixel-line-platformer.title = Pixel Lineプラットフォーマー
@@ -96,10 +93,8 @@ welcome.new-project.hud.description = このサンプルは、スコアカウン
 welcome.new-project.level-complete.title = ステージクリア
 welcome.new-project.level-complete.description = ステージをクリアした際に表示されるスコアカウントのサンプルです。
 welcome.new-project.rpg-map-sample.title = RPG マップサンプル
-welcome.new-project.rpg-map-sample.description = プレイヤーが進むと画面がスクロールする、大きなRPG用のマップを作成する方法を示したサンプルです。
 welcome.new-project.shadertoy-sample.title = Shadertoy サンプル
 welcome.new-project.shadertoy-sample.description = このサンプルには、ShadertoyのGLSLシェーダーを、Defold用に変換されたシェーダーが含まれています。 Defoldでの素材やシェーダーとの連携方法を説明します。
-welcome.new-project.3d-treasure-scene.title = 3D宝箱
 welcome.new-project.3d-treasure-scene.description = このサンプルは、アニメーション付きの様式化された3Dシーンを示しています。
 welcome.new-project.perspective-parallax.title = 透視投影カメラでの視差効果
 welcome.new-project.perspective-parallax.description = このサンプルは透視投影カメラで視差効果を実装する例です。
@@ -107,7 +102,6 @@ welcome.new-project.lightning-vfx.title = Lightning VFX
 welcome.new-project.lightning-vfx.description = このサンプルでは、2d 縦スクロールシューティングゲームでの雷エフェクトと、ゲームプレイ中にメッシュコンポーネントを操作する方法を示します。
 
 # Updater
-updater.button.update-available = 利用可能なアップデートあります
 updater.button.restart-to-update = 再起動してアップデート
 updater.download-or-restart-dialog.title = 更新をインストールしますか？
 updater.download-or-restart-dialog.header = アップデートの準備ができていますが、新しいバージョンも利用可能です
@@ -144,8 +138,6 @@ release-notes-tab.title = 更新履歴
 release-notes-tab.tooltip = Defold Release Summary - What''s New in {version}
 
 # Time
-time.vague.unknown = Unknown
-time.vague.just-now = 今すぐ
 time.vague.a-minute-ago = 1分前
 time.vague.a-few-minutes-ago = 数分前
 time.vague.minutes-ago = {count}分前
@@ -187,7 +179,6 @@ dialog.build-error.cycle.detail.generic = これは、リソースがループ�
 
 dialog.clean-build.title = プロジェクトのクリーンビルドを実行しますか？
 dialog.clean-build.header = プロジェクトのクリーンビルドを実行してもよろしいですか？
-dialog.clean-build.button.clean = ビルドを消去
 
 # Debugging Not Supported Dialog
 
@@ -258,7 +249,6 @@ dialog.search-in-files.button.keep-results = 結果を維持
 dialog.target-discovery-log.title = ターゲット ディスカバリー ログ
 dialog.target-discovery-log.header = ターゲット ディスカバリー ログ
 dialog.target-discovery-log.button.clear-log = ログを消去
-dialog.target-discovery-log.button.restart-discovery = ディスカバリーを再開する
 
 # Generic file/directory dialog titles
 
@@ -396,8 +386,6 @@ notification.reload-editor-scripts.action.reload = エディタスクリプト�
 
 # Reload plugins notification
 
-notification.reload-plugins-failed = ネイティブエクステンションプラグインを再読み込みできませんでした。デフォールドを再起動して再読み込みしてください。\n\nファイル\: {file}\n\nOSからの元のエラー\:\n{error}
-notification.reload-plugins-failed.action.restart = Defolを再起動する
 
 # Disabled functionality notification
 
@@ -420,9 +408,7 @@ notification.ensure-exists.reason.folder = 設定されたパスはフォルダ�
 
 # Language server notification
 
-notification.lsp.language-server-missing.prompt = 言語サーバーが {language} 言語に対応していないため、このアクションを実行できません。
 notification.lsp.language-server-missing.action.about = DefoldにおけるLSPについて
-notification.lsp.formatting-failed.prompt = 言語サーバーが応答していないため、 {path} をフォーマットできません。
 
 # Asset browser notifications
 
@@ -738,7 +724,6 @@ prefs.keymap.filter.prompt = キーマップ・フィルター…
 prefs.keymap.command = コマンド
 prefs.keymap.shortcuts = ショートカット
 prefs.keymap.badge.mouse-binding = マウスバインディング
-prefs.keymap.badge.mouse-modifier = マウス補正
 prefs.keymap.context-menu.new-shortcut = 新規ショートカット…
 prefs.keymap.context-menu.reset-to-default = デフォルトに戻す
 prefs.keymap.context-menu.remove = {shortcut}を削除
@@ -764,7 +749,6 @@ prefs.keymap.inherited-from = {context} から継承
 # Progress
 
 progress.ready = 準備完了
-progress.linting = Lining code…
 progress.fetching-engine = エンジンを取得中…
 progress.executing-pre-build-hooks = ビルド前のフックを実行中…
 progress.executing-post-build-hooks = ビルド後のフックを実行中…
@@ -827,9 +811,6 @@ engine.name.with-instance = {name} — インスタンス {instance}
 
 # Search results: overrides
 
-search.overrides.title.all = 全てのプロパティの上書き {qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
-search.overrides.title.list = {list} プロパティの上書き {qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
-search.overrides.title.specific = 特定のプロパティの上書き {qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
 search.column.resource = リソース
 
 # Menus
@@ -966,7 +947,6 @@ command.edit.reorder-up = 上へ移動
 command.edit.reorder-down = 下へ移動
 command.edit.rename = 名前を変更する
 command.edit.pull-up-overrides = プルアップ・オーバーライド
-command.edit.pull-up-overrides.variant.property = {property} を上書きする
 command.edit.push-down-overrides = プッシュダウン・オーバーライド
 command.edit.show-overrides = 上書きを表示…
 command.code.find-next = 次を検索
@@ -977,7 +957,6 @@ command.code.toggle-comment = コメントを切り替え
 command.code.reindent-lines = 行を再インデント
 command.code.format = 書式ドキュメント/選択
 command.code.convert-indentation = インデントを変換
-command.code.convert-indentation.to-tabs = タブに移動
 command.code.convert-indentation.to-two-spaces = 2つのスペース
 command.code.convert-indentation.to-four-spaces = 4つのスペース
 command.code.sort-lines = 行のソート
@@ -998,7 +977,6 @@ command.code.zoom.decrease = フォントサイズを小さくする
 command.code.zoom.reset = フォントサイズをリセットする
 command.debugger.continue = 続ける
 command.debugger.break = ブレーク
-command.debugger.step-over = ステップ実行
 command.debugger.step-out = ステップ・アウト
 command.scene.set-gui-layout = GUIレイアウトを設定
 command.scene.play = 再生
@@ -1232,7 +1210,6 @@ property.collection-proxy.exclude.tooltip = Live Updateコンテンツを公開�
 property.collision-object.collision-shape = 衝突形状
 property.collision-object.collision-shape.tooltip = オブジェクトを定義する外部のタイルマップまたは凸形状。コリジョンオブジェクトの配下に追加されたプリミティブ形状を使用する場合は、この設定を空のままにしてください。
 property.collision-object.type = タイプ
-property.collision-object.type.tooltip = **ダイナミック**オブジェクトはシミュレーションによって制御され、**キネマティック**オブジェクトはユーザーのコードによって移動・処理され、**スタティック**オブジェクトは移動せず、**トリガー**オブジェクトは重なりの検出のみを行います。これらはエディタスクリプト内で `衝突タイプ` として利用可能です。埋め込みコンポーネントの `type` と名前が重複して隠れてしまう可能性がある `type` ではなく、こちらを使用することが推奨されます。
 property.collision-object.mass = 質量
 property.collision-object.mass.tooltip = **ダイナミック**オブジェクトのシミュレーションに使用されるkg単位の質量。値は０より大きくする必要があります。他のタイプのオブジェクトでは無視されます。
 property.collision-object.friction = 摩擦力
@@ -1249,7 +1226,6 @@ property.collision-object.bullet = 弾丸
 property.collision-object.bullet.tooltip = **2D物理演算のみ。** 高速で移動するオブジェクトが他のダイナミックオブジェクトをすり抜けてしまうのを防ぐため、連続衝突判定を有効にします。**タイプ** が **ダイナミック** の場合にのみ適用されます。
 property.collision-object.event-collision = 衝突イベントの生成
 property.collision-object.event-collision.tooltip = 接触点の詳細を含まない、一般的な衝突通知を生成します。これを無効にすると、このオブジェクトの `collision_response` メッセージが抑制されます。中央のリスナーは、双方がこの機能を無効にしている場合にのみ、その相互作用をフィルタリングします。
-property.collision-object.event-contact = 衝突イベントの生成
 property.collision-object.event-contact.tooltip = 位置、法線、貫入量、力積を含む詳細な接触点通知を生成します。毎フレーム、あるオブジェクトのペアに対して複数の通知が発生する可能性があります。この機能を無効にすると、当該オブジェクトの `contact_point_response` メッセージの送信が抑制されます。集中管理されたリスナーによる相互作用のフィルタリングは、両方のオブジェクトでこの機能が無効になっている場合にのみ行われます。
 property.collision-object.event-trigger = トリガーイベントの生成
 property.collision-object.event-trigger.tooltip = オブジェクトが**トリガー**に出入りする際に通知を生成します。これを無効にすると、そのオブジェクトの `trigger_response` メッセージが抑制されます。一元管理されたリスナーは、双方がこの機能を無効にしている場合にのみ、その相互作用をフィルタリングします。
@@ -1282,7 +1258,6 @@ property.cubemap.left = 左側面
 property.cubemap.left.tooltip = キューブマップの左側面（`-X`）の面にマッピングされる画像です。キューブマップは、スカイボックス、反射、ライティングなどのエフェクトのために方向に基づいてサンプリングされます。そのため、６つの面すべての画像は同じサイズである必要があります。
 property.cubemap.right = 右側面
 property.cubemap.right.tooltip = キューブマップの右側面（`+X`）の面にマッピングされる画像です。キューブマップは、スカイボックス、反射、ライティングなどのエフェクトのために方向に基づいてサンプリングされます。そのため、６つの面すべての画像は、同じサイズである必要があります。
-property.cubemap.top = 平面
 property.cubemap.top.tooltip = キューブマップの平面（`+Y`方向）にマッピングされる画像です。キューブマップは、スカイボックス、反射、ライティングなどのエフェクトにおいて、方向に基づいてサンプリングされます。そのため、６つの面すべての画像は、同じサイズである必要があります。
 
 # Properties: factory
@@ -1565,7 +1540,6 @@ outline.gui.layouts = レイアウト
 outline.gui.layers = レイヤー
 outline.gui.materials = マテリアル
 outline.gui.nodes = ノード
-outline.gui.pie = 円グラフ
 outline.gui.template = テンプレート
 outline.gui.text = テキスト
 outline.gui.textures = テクスチャ
@@ -1700,11 +1674,8 @@ form.help.project.display.display_profiles = ディスプレイプロファイ�
 form.label.project.display.dynamic_orientation = 動的向き（Dynamic Orientation）
 form.help.project.display.dynamic_orientation = AndroidおよびiOSのビルドにおいて、縦向きと横向きの両方を使用し、デバイスの回転に合わせて切り替えられるようにします。無効にした場合、サポートされる向きは **Width**（幅）と **Height**（高さ）から推測されます。なお、開発用アプリでは現在、この設定は反映されません。
 form.label.project.display.update_frequency = 更新間隔（Update Frequency）
-form.help.project.display.update_frequency = 希望するゲームループおよびレンダリングのHz単位のレート。`0` を指定すると可変フレームレートになります。`30` などの正の値を指定すると、デバイスがその速度で動作可能な場合にレートがその値に制限されます。
 form.label.project.display.swap_interval = スワップ間隔（Swap Interval）
-form.help.project.display.swap_interval = ディスプレイの画面更新に同期した描画を要求します。`0` は垂直同期を無効にし、`1` は更新ごとに描画を行います。OpenGL では、より大きな値を指定すると間隔がスキップされる場合がありますが、Vulkan や Metal では、0 以外の値はすべて垂直同期を有効にするものとして扱われます。実際の動作は、バックエンドやドライバーに依存します。
 form.label.project.display.vsync = Vsync
-form.help.project.display.vsync = **非推奨の互換性設定です**  無効にすると、実際の **Swap Interval**(スワップ間隔) は強制的に `0` になります。有効にすると、**Swap Interval** の設定に従って動作します。新規プロジェクトでは **Swap Interval** を使用してください。
 form.label.project.display.variable_dt = 変数 DT
 form.help.project.display.variable_dt = **非推奨**  これを有効にすると、ビルドされたプロジェクトは **Vsync** が無効、かつ **Update Frequency** (更新間隔)が `0` に設定された状態となり、従来の可変タイムステップ（variable-timestep）の挙動が再現されます。
 
@@ -1854,5 +1825,5 @@ error.render.and-more = …など
 error.gui.resource-not-found-in-scene = シーンに {type} "{name}" は存在しません。
 error.gui.layer-from-template-not-found-in-scene = テンプレートシーンのレイヤー「{layer}」がシーン内に存在しません。親レイヤーが使用されます。
 error.gui.adjust-mode-stretch-not-supported-for-particlefx = パーティクルFXノードでは、調整モード「Stretch」はサポートされていません。
-error.gui.template-resource-conflicting-values = {{type} "{resource}" のテンプレート間で値が競合しています\: {values}。
+error.gui.template-resource-conflicting-values = {type} "{resource}" のテンプレート間で値が競合しています\: {values}。
 error.gui.max-nodes-exceeded = 実際のノード数 ({count}) が "{property}" ({max}) を超えています。
