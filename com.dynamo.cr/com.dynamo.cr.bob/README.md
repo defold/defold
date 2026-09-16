@@ -13,6 +13,11 @@ helper JARs prefer local builds, with the archive as a fallback. Public artifact
 are no longer copied into Bob's `lib` and `libexec` directories. Private-platform
 additions can still be provided by `scripts/copy_private.sh`.
 
+`scripts/build.py sync_archive` downloads Bob's engine inputs from S3. The public
+paths in `archive-artifacts.json` are shared with Gradle's artifact selection;
+update that list when adding an archived input. Private-platform archive folders
+retain their existing download filters for private copy hooks.
+
 Both JARs copy dependency entries directly when their compression method matches
 the output, preserving the compressed bytes. Loose files are compressed in
 parallel. `-Pkeep-bob-uncompressed` still stores every entry without compression;

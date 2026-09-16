@@ -3504,6 +3504,7 @@ class Configuration(object):
 # ------------------------------------------------------------
 
     def sync_archive(self):
+        """Download Bob's engine inputs; the editor downloads its archives separately."""
         u = urlparse(self.get_archive_path())
         bucket_name = u.hostname
         bucket = s3.get_bucket(bucket_name)
@@ -3520,25 +3521,27 @@ class Configuration(object):
 
         futures = []
         sha1 = self._git_sha1()
-        # Only s3 is supported (scp is deprecated)
-        # The pattern is used to filter out:
-        # * Editor files
-        # * Defold SDK files
-        # * launcher files, used to launch editor2
-        # * rarely used platforms: armv7-android, wasm_pthread-web,
-        #   x86_64-android and arm64_sim-ios
-        # * arm64-linux vanilla engines (keep native compiler libraries)
-        # * headless builds
-        pattern = re.compile(
+        # Keep the public download list aligned with Gradle's packaging inputs.
+        manifest = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.bob', 'archive-artifacts.json')
+        with open(manifest) as f:
+            bob_artifacts = {'engine/' + path for path in json.load(f)}
+
+        # Private copy hooks define their own inputs. Preserve the previous filtering
+        # within private-platform folders, which are absent from the public manifest.
+        private_excludes = re.compile(
             r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$'
             r'|/(armv7-android|wasm_pthread-web|x86_64-android|arm64_sim-ios)(/|$)|headless'
             r'|/arm64-linux/(stripped/)?(lib)?dmengine[^/]*$'
         )
-        prefix = s3.get_archive_prefix(self.get_archive_path(), self._git_sha1())
-        for obj_summary in bucket.objects.filter(Prefix=prefix):
-            rel = os.path.relpath(obj_summary.key, prefix)
+        prefix = s3.get_archive_prefix(self.get_archive_path(), sha1).replace('\\', '/').rstrip('/') + '/'
+        for obj_summary in bucket.objects.filter(Prefix=prefix + 'engine/'):
+            rel = obj_summary.key[len(prefix):]
+            parts = rel.split('/')
+            private_artifact = (len(parts) >= 3 and parts[0] == 'engine' and
+                                parts[1] not in BASE_PLATFORMS and parts[1] != 'share' and
+                                not private_excludes.search(rel))
 
-            if not pattern.search(rel):
+            if not rel.endswith('/') and (rel in bob_artifacts or private_artifact):
                 p = os.path.join(local_dir, sha1, rel)
                 self._mkdirs(os.path.dirname(p))
                 f = Future(self.thread_pool, download, bucket.Object(obj_summary.key), p)
@@ -3937,7 +3940,7 @@ build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk
 install_waf      - Install waf
-sync_archive     - Sync engine artifacts from S3
+sync_archive     - Download engine artifacts needed by Bob from S3
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor

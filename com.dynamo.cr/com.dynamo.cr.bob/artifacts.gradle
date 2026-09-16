@@ -1,12 +1,16 @@
 // Copyright 2020-2026 The Defold Foundation
 // Licensed under the Defold License version 1.0
 
+import groovy.json.JsonSlurper
+
 // Resolve installed artifacts to their paths inside Bob without staging copies.
 def settings = project.bobArtifactSettings
 def bobDir = settings.bobDir
 def dynamoHome = settings.dynamoHome
 def archiveDir = new File(dynamoHome, "archive/${settings.revision}/engine")
 def useArchive = archiveDir.parentFile.isDirectory()
+// Shared with scripts/build.py sync_archive, which downloads these Bob inputs.
+def archivePaths = new JsonSlurper().parse(new File(bobDir, 'archive-artifacts.json')) as Set
 def desktopPlatforms = ['x86_64-macos', 'arm64-macos', 'x86_64-linux', 'arm64-linux', 'x86_64-win32']
 def macPlatforms = ['x86_64-macos', 'arm64-macos']
 def androidToolPlatforms = desktopPlatforms - 'arm64-linux'
@@ -14,9 +18,15 @@ def androidToolPlatforms = desktopPlatforms - 'arm64-linux'
 def libraryName = { String platform, String name ->
     platform.endsWith('win32') ? "${name}.dll" : "lib${name}.${platform.endsWith('macos') ? 'dylib' : 'so'}"
 }
+def archivedArtifact = { String path ->
+    if (!archivePaths.contains(path)) {
+        throw new GradleException("Missing Bob archive artifact in archive-artifacts.json: ${path}")
+    }
+    new File(archiveDir, path)
+}
 def preferLocal = { String localPath, String archivePath ->
     def localFile = new File(dynamoHome, localPath)
-    localFile.isFile() || !useArchive ? localFile : new File(archiveDir, archivePath)
+    localFile.isFile() || !useArchive ? localFile : archivedArtifact(archivePath)
 }
 def entries = [:]
 Set<String> managedPaths = []
@@ -65,17 +75,16 @@ add('lib/android.jar', new File(dynamoHome, 'ext/share/java/android.jar'), false
 }
 add('lib/vkquality/vkqualitydata.vkq', new File(dynamoHome, 'ext/share/vkquality/assets/vkqualitydata.vkq'), false, true)
 
-def builtinsZip = new File(useArchive ? archiveDir : dynamoHome, 'share/builtins.zip')
+def builtinsZip = useArchive ? archivedArtifact('share/builtins.zip') : new File(dynamoHome, 'share/builtins.zip')
 def luaJitShareZip = new File(bobDir, 'tmp/luajit-share.zip')
 add('lib/builtins.zip', builtinsZip, false, true)
 add('lib/luajit-share.zip', luaJitShareZip, true, true)
-add('lib/classes.dex', new File(useArchive ? archiveDir : dynamoHome,
-        useArchive ? 'arm64-android/classes.dex' : 'share/java/classes.dex'), false, useArchive)
+add('lib/classes.dex', useArchive ? archivedArtifact('arm64-android/classes.dex') :
+        new File(dynamoHome, 'share/java/classes.dex'), false, useArchive)
 ['lib/report_template.html', 'lib/time_report_template.html', 'lib/x86_64-linux/libc++.so'].each { path ->
     add(path, new File(bobDir, path))
 }
 
-def archivedEnginePlatforms = ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32', 'arm64-ios', 'arm64-android', 'wasm-web']
 def enginePlatforms = desktopPlatforms + ['arm64-ios', 'arm64_sim-ios', 'armv7-android', 'arm64-android', 'x86_64-android', 'wasm-web', 'wasm_pthread-web']
 enginePlatforms.each { platform ->
     ['dmengine', 'dmengine_release'].each { engine ->
@@ -85,9 +94,10 @@ enginePlatforms.each { platform ->
         names.each { name ->
             def path = "libexec/${platform}/${name}".toString()
             managedPaths.add(path)
-            if (!useArchive || platform in archivedEnginePlatforms) {
-                def stripped = useArchive && !platform.endsWith('win32') && !platform.endsWith('web') ? 'stripped/' : ''
-                def source = useArchive ? new File(archiveDir, "${platform}/${stripped}${name}") : new File(dynamoHome, "bin/${platform}/${name}")
+            def stripped = !platform.endsWith('win32') && !platform.endsWith('web') ? 'stripped/' : ''
+            def archivePath = "${platform}/${stripped}${name}".toString()
+            if (!useArchive || archivePaths.contains(archivePath)) {
+                def source = useArchive ? archivedArtifact(archivePath) : new File(dynamoHome, "bin/${platform}/${name}")
                 add(path, source, false, useArchive)
             }
         }
