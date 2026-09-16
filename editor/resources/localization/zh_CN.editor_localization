@@ -175,12 +175,6 @@ dialog.clean-build.title = 执行纯净构建？
 dialog.clean-build.header = 确定要执行纯净构建吗？
 dialog.clean-build.button.clean = 纯净构建
 
-# Debugging Not Supported Dialog
-
-dialog.debugging-not-supported.title = 不支持调试
-dialog.debugging-not-supported.header = 此项目无法与调试器一起使用
-dialog.debugging-not-supported.content = 配置为禁用共享脚本状态。\n\n除非特别需要不同的脚本状态，否则建议修改 game.project 中的 script.shared_state 属性。
-
 # Defunload Issues Dialog
 
 dialog.defunload-issues.title = 修订 .defunload 模式
@@ -529,11 +523,8 @@ dialog.bundle.label.platform = 平台
 dialog.bundle.option.platform.x86_64-linux = X64
 dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-bit
-dialog.bundle.option.platform.x86-win32 = 32-bit
 dialog.bundle.option.identity.none = None
 dialog.bundle.label.architectures = 架构
-dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
-dialog.bundle.option.architecture.x86_64-ios = 模拟器 (x86_64)
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
@@ -1072,6 +1063,9 @@ operation.paste = 粘贴
 operation.select = 选择
 operation.tile-map.add-layer = 添加图层
 
+# Font Styles
+
+
 # Scene View Popups
 
 
@@ -1557,7 +1551,6 @@ form.label.project.android.input_method = 输入方式
 form.label.project.android.immersive_mode = 沉浸模式
 form.label.project.android.display_cutout = 刘海屏
 form.label.project.android.debuggable = 可调试
-form.label.project.android.proguard = ProGuard 配置
 form.label.project.android.extract_native_libs = 提取原生库
 
 form.label.project.html5 = HTML5
@@ -1659,10 +1652,6 @@ form.label.project.particle_fx.max_particle_count = 最大粒子数量
 form.label.project.particle_fx.max_particle_buffer_count = 最大粒子缓冲区数量
 form.label.project.particle_fx.max_count = 最大数量
 form.label.project.particle_fx.max_emitter_count = 最大发射数量
-
-form.label.project.script = 脚本
-form.help.project.script = 脚本系统设置
-form.label.project.script.shared_state = 共享状态
 
 form.label.project.sound = 音效
 form.help.project.sound = 音效相关设置
