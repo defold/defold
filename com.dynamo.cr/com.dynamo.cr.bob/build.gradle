@@ -190,7 +190,12 @@ sourceSets {
     }
 }
 
-def bobGitRevision = "git -C ${bobDir} log --pretty=%H -n1".execute().text.trim()
+def bobGitRevisionOutput = new ByteArrayOutputStream()
+services.get(ExecOperations).exec {
+    commandLine 'git', '-C', bobDir.absolutePath, 'rev-parse', '--verify', 'HEAD'
+    standardOutput = bobGitRevisionOutput
+}
+def bobGitRevision = bobGitRevisionOutput.toString('UTF-8').trim()
 def privateBobPluginModules = []
 def targetPlatform = (project.findProperty('target-platform') ?: '').toString()
 def privatePlatformRoot = ''
