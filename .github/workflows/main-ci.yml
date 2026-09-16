@@ -470,7 +470,34 @@ jobs:
     if: &if_bob_enabled (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true))
     timeout-minutes: 15
     steps:
-      - *step_checkout
+      - name: "Checkout"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: "${{env.BUILD_BRANCH}}"
+          # Sparse checkout also enables blob filtering, so omitted files are not downloaded.
+          # Keep all packages for install_ext and the protobuf directories from Bob's basic.gradle.
+          # Cone mode retains root files such as VERSION and the Bob test files keep Java cache keys intact.
+          sparse-checkout: |
+            .github
+            ci
+            scripts
+            build_tools
+            share
+            packages
+            com.dynamo.cr/com.dynamo.cr.bob
+            com.dynamo.cr/com.dynamo.cr.bob.test
+            engine/ddf/src
+            engine/engine/proto
+            engine/font/proto
+            engine/gameobject/proto
+            engine/gamesys/proto
+            engine/graphics/proto
+            engine/input/proto
+            engine/particle/proto
+            engine/render/proto
+            engine/resource/proto
+            engine/rig/proto
+            engine/script/src
       - *step_python
       - *step_java
       - name: "Download engine builds"
