@@ -574,7 +574,7 @@ These forms should be quoted, as if they came from a macro."
     (when-let [{:keys [^int program uniform-infos sampler-index->sampler-name sampler-name->uniform-names]}
                (scene-cache/request-object! ::shader request-id gl request-data)]
       (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
-        (when-some [sampler-name (sampler-index->sampler-name sampler-index)]
+        (when-let [sampler-name (get sampler-index->sampler-name sampler-index)]
           (let [uniform-names (sampler-name->uniform-names sampler-name)]
             (try
               (set-sampler-uniform-impl! gl program uniform-infos uniform-names texture-units)
