@@ -81,7 +81,7 @@
 
 (defn- hsc->rgb1 [^double h ^double s ^double c]
   (let [h' (/ h 60.0)
-        x (* (- c) (- 1.0 (Math/abs (- (double (mod h' 2.0)) 1.0))))]
+        x (* c (- 1.0 (Math/abs (- (double (mod h' 2.0)) 1.0))))]
     (cond
       (< h' 1) (vector-of :double c x 0.0)
       (< h' 2) (vector-of :double x c 0.0)
