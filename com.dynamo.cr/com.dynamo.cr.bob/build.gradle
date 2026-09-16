@@ -703,18 +703,12 @@ def writeBobArchive = { File outputFile, Collection<File> dependencyJars, Map<St
         doLast {
             writeBobArchive(outputFile, dependencyJars, manifestAttributes, light)
             if (light) {
-                def hostFontcLibraryNames = [
-                        'x86_64-macos': 'libfontc_shared.dylib',
-                        'arm64-macos': 'libfontc_shared.dylib',
-                        'x86_64-linux': 'libfontc_shared.so',
-                        'arm64-linux': 'libfontc_shared.so',
-                        'x86_64-win32': 'fontc_shared.dll'
-                ]
-                def hostFontcLibraryName = hostFontcLibraryNames[hostPlatform]
-                if (!hostFontcLibraryName) {
+                def hostFontcPath = bobArtifacts.entries.keySet().find { path ->
+                    path.startsWith("lib/${hostPlatform}/") && path.contains('fontc_shared')
+                }
+                if (!hostFontcPath) {
                     throw new GradleException("Unsupported host platform: ${hostPlatform}")
                 }
-                def hostFontcPath = "lib/${hostPlatform}/${hostFontcLibraryName}"
                 new ZipFile(outputFile).withCloseable { zipFile ->
                     if (zipFile.getEntry(hostFontcPath) == null) {
                         throw new GradleException("bob-light.jar is missing the host font compiler library: ${hostFontcPath}")
