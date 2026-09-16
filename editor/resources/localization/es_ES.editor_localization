@@ -78,7 +78,6 @@ welcome.new-project.colorslide-tutorial.title = Tutorial de deslizador de color
 welcome.new-project.sample-3d-platformer.title = Kit de inicio 3D de plataformas
 welcome.new-project.sample-3d-platformer.description = Esto es un ejemplo de plataforma 3D con movimiento de personaje fluido, salto, una cámara de órbita, coleccionables, personajes animados, iluminación y sombras.
 welcome.new-project.sample-3d-third-person-playground.title = Entorno de pruebas 3D en tercera persona
-welcome.new-project.sample-3d-third-person-playground.description = Esto es un ejemplo de juego 3D en tercera persona donde puedes mover un personaje 3D con teclado o ratón/toque táctil. Muestra cómo hacer una configuración básica 3D con shaders.
 welcome.new-project.linker-sample-game.title = Ejemplo de juego de conectar
 welcome.new-project.roids-sample-game.title = Ejemplo de juego de asteroides
 welcome.new-project.roids-sample-game.description = Esto es un ejemplo completo de juego donde diriges una nave espacial y te abres camino disparando a través de una tormenta de meteoros.
@@ -221,7 +220,6 @@ dialog.new-folder.button.create-folder = Crear carpeta
 
 # Target IP dialog
 
-dialog.target-ip.title = Introduce el IP de destino
 dialog.target-ip.header = Introduce la dirección IP de destino
 dialog.target-ip.label.ip = Dirección IP de destino
 dialog.target-ip.button.add = Añade IP de destino
@@ -265,7 +263,6 @@ dialog.tracked-internal-files.content = Parece que los archivos internos como la
 # Quit Defold dialog
 
 dialog.quit-defold.title = ¿Salir de Defold?
-dialog.quit-defold.header = Existen cambios sin guardar ¿Estás seguro de que quieres salir?
 dialog.quit-defold.button.cancel = Cancelar y seguir trabajando
 dialog.quit-defold.button.quit = Salir sin guardar
 
@@ -702,10 +699,6 @@ prefs.label.code.format-on-save = Formatear al guardar
 prefs.help.code.format-on-save = Ejecutar el servidor de formateo de lenguaje en archivos abiertos al guardar
 
 # Extensions tab
-prefs.label.extensions.build-server = Compilar servidor
-prefs.label.extensions.build-server-username = Compilar nombre de usuario de servidor
-prefs.label.extensions.build-server-password = Compilar contraseña de servidor
-prefs.label.extensions.build-server-headers = Compilar cabeceras de servidor
 
 # Tools
 prefs.label.tools.adb-path = Ruta ADB
@@ -728,11 +721,10 @@ prefs.keymap.context-menu.remove = Eliminar {shortcut}
 prefs.keymap.context-menu.add = Añadir {shortcut}
 prefs.keymap.new-shortcut = Nuevo atajo "{shortcut}"
 prefs.keymap.new-shortcut.press-desired-combination = Pulse la combinación de teclas deseada
-prefs.keymap.new-shortcut.commit = Pulsa {enter} para confirmar (commit)
-prefs.keymap.new-shortcut.commit-or-cancel = Pulsa {enter} para confirmar (commit), {escape} de nuevo para cancelar
+prefs.keymap.new-shortcut.commit = Pulsa {enter} para confirmar
+prefs.keymap.new-shortcut.commit-or-cancel = Pulsa {enter} para confirmar, {escape} de nuevo para cancelar
 prefs.keymap.warnings = Avisos\:{warnings}
 prefs.keymap.warning = \n• {warning}
-prefs.keymap.warning.typable = Typable (puede interferir con los campos de texto)
 prefs.keymap.warning.conflicts = Conflictos con {shortcuts}
 prefs.keymap.warning.duplicate = La asignación ya existe, será ignorada
 prefs.keymap.mouse-binding.button.left = Izquierdo
@@ -861,7 +853,6 @@ command.run.select-target.option.new-local-engine = Nuevo motor local
 command.run.stop = Cerrar motor
 command.run.set-instance-count = Cuenta de instancias iniciada
 command.run.set-instance-count.option.count = {count, plural, one {\# instancia} other {\# instancias}}
-command.run.set-target-ip = Introduce el IP de destino
 command.run.show-target-log = Registro de detección de destino
 command.run.open-profiler = Abrir analizador web
 command.run.open-resource-profiler = Abrir analizador de recursos
@@ -1145,7 +1136,6 @@ property.tooltip = {help, select, none {} other {{help}\n\n}}Disponible como `{i
 # Properties: universal
 
 property.blend-mode = Modo de fusión
-property.blend-mode.tooltip = Controla cómo se combinan los píxeles de este elemento con gráficos posteriores. **Alfa** da transparencia normal, **Añadir** abrillanta, **Multiplicar** oscurece y **Pantalla** produce un efecto brillante más suave; los modos disponibles dependen del tipo de elemento.
 property.id = Id
 property.id.tooltip = El identificador utilizado para dirigirse a esta instancia de colección, objeto del juego, o componente en tiempo de ejecución. Debe ser único entre sus hermanos; junto con la jerarquía, forma la URL del elemento.
 property.image = Imagen
@@ -1160,7 +1150,7 @@ property.position = Posición
 property.position.tooltip = La translación a lo largo de los ejes X, Y, y Z, relativos a su padre. Moviendo un padre también mueve sus hijos.
 property.rotation = Rotación
 property.rotation.tooltip = La orientación alrededor de los ejes X, Y, y Z en grados, relativos a su padre. Rotar un padre también rota sus hijos.
-property.scale = Escalar
+property.scale = Escala
 property.scale.tooltip = Multiplica el tamaño del elemento a lo largo de los ejes X, Y, y Z relativos a su padre. Un valor de `1` mantiene la escala original.
 property.size = Tamaño
 property.size.tooltip = El ancho, alto, y si es aplicable, la profundidad del elemento. Cuando es solo de lectura, el tamaño es calculado automáticamente por el contenido del elemento o recursos de renderizado. Para nodos GUI, el tamaño también define los límites usados por interacción de usuario.
