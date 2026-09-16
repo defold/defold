@@ -1339,7 +1339,6 @@ property.cubemap.front.tooltip = A imagem mapeada para o lado da frente do cubem
 property.cubemap.left = Esquerda
 property.cubemap.left.tooltip = A imagem mapeada para o lado esquerdo do cubemap (`-X`). Cubmaps são amostrados por direção para efeitos como skybox, reflexos, e luz; as seis imagens da face devem ter dimensões idênticas.
 property.cubemap.right = Direita
-property.cubemap.right.tooltip = A imagem mapeada para o lado traseiro do cubemap (`+X`). Cubmaps são amostrados por direção para efeitos como skybox, reflexos, e luz; as seis imagens da face devem ter dimensões idênticas.
 property.cubemap.top = Topo
 
 # Properties: factory
