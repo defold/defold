@@ -181,12 +181,6 @@ dialog.build-error.cycle.detail.generic = Esto es causado por dos o más recurso
 # Clean Build Dialog
 
 
-# Debugging Not Supported Dialog
-
-dialog.debugging-not-supported.title = Depuración no soportada
-dialog.debugging-not-supported.header = Este proyecto no se puede utilizar con el depurador
-dialog.debugging-not-supported.content = Está configurado para desactivar el estado del script compartido.\n\nSi no requieres específicamente diferentes estados del script, considera cambiar la propiedad script.shared_state en game.project.
-
 # Defunload Issues Dialog
 
 dialog.defunload-issues.title = Revisar patrones .defunload
@@ -554,11 +548,8 @@ dialog.bundle.label.platform = Plataforma
 dialog.bundle.option.platform.x86_64-linux = X64
 dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-bits
-dialog.bundle.option.platform.x86-win32 = 32-bits
 dialog.bundle.option.identity.none = Ninguna
 dialog.bundle.label.architectures = Arquitecturas
-dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
-dialog.bundle.option.architecture.x86_64-ios = Simulador (x86_64)
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
 dialog.bundle.option.architecture.wasm-web = WebAssembly (Wasm)
@@ -1114,6 +1105,9 @@ operation.paste = Pegar
 operation.select = Seleccionar
 operation.tile-map.add-layer = Agregar capa
 
+# Font Styles
+
+
 # Scene View Popups
 
 scene-popup.reset-defaults-button = Restablecer a predeterminados
@@ -1292,7 +1286,6 @@ property.appmanifest.use-rich-text.tooltip = Incluye análisis de texto enriquec
 
 
 # Forms
-
 
 
 
