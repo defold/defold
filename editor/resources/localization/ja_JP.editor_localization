@@ -1,0 +1,1858 @@
+# Key naming convention:
+# 1. Use dot-separated hierarchy (from broad to specific)
+# 2. Use at least 2 dot-separated elements
+# 3. Use lower-cased kebab-case
+# 4. Avoid suffixes baked into the last path element (e.g., -label, -button)
+# 5. For dialog elements, use consistent names: title, header, detail, content
+# 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
+# 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+# 8. Use ellipsis character (…) instead of triple dots (...)
+
+# Localizations of the Welcome dialog
+welcome.button.open-from-disk = 開く…
+welcome.button.open-selected = 選択したものを開く
+welcome.button.create-new-project = 新規プロジェクトの作成
+welcome.button.cancel-download = ダウンロードをキャンセル
+welcome.recent-projects = 最近のプロジェクト
+welcome.tab.new-project = 新規プロジェクト
+welcome.tab.home = 自分のプロジェクト
+welcome.greeting = ようこそ！Defoldで作業を開始すると、すべての最近のプロジェクトがここに表示されます。
+welcome.downloading-project = {template}… をダウンロード中
+welcome.header.open = 開く
+welcome.header.new-project-from = 作成元
+welcome.tab.templates = テンプレート
+welcome.tab.tutorials = チュートリアル
+welcome.tab.samples = サンプル
+welcome.new-project.default-name = 自分のプロジェクト
+welcome.new-project.title = タイトル
+welcome.new-project.location = 場所
+welcome.open-from-disk.dialog.title = プロジェクトを開く
+welcome.open-from-disk.dialog.filter.defold = Defold プロジェクトファイル
+welcome.new-project.location.dialog.title = 新規プロジェクトの場所を選択
+welcome.new-project.error.no-project-title.title = プロジェクト名がありません
+welcome.new-project.error.no-project-title.header = プロジェクトのタイトルを指定する必要があります
+welcome.new-project.error.invalid-project-title.title = 無効なプロジェクトのタイトル
+welcome.new-project.error.invalid-project-title.header = プロジェクトタイトルの周囲に空白は使用できません
+welcome.new-project.error.conflicting-project-location.title = プロジェクトの場所が競合します
+welcome.new-project.error.conflicting-project-location.header = 空でないフォルダが選択した場所に存在します
+welcome.new-project.error.no-internet-connection.title = インターネットに接続されていません
+welcome.new-project.error.no-internet-connection.header = プロジェクトのコンテンツをダウンロードするにはインターネットに接続する必要があります
+welcome.new-project.error.host-unreachable.title = ホストに接続できません
+welcome.new-project.error.host-unreachable.header = ファイアウォールがネットワーク接続をブロックしている可能性があります
+welcome.new-project.error.host-not-responding.title = ホストが応答しません
+welcome.new-project.error.host-not-responding.header = 接続がタイムアウトしました
+welcome.new-project.error.ssl-connection-error.title = SSL接続エラー
+welcome.new-project.error.ssl-connection-error.header = SSL接続を確立できませんでした
+welcome.new-project.error.ssl-connection-error.common-causes = 一般的な原因は以下の通りです。\:\n • 暗号化された接続をスキャンするように構成されたウイルス対策ソフトウェア\n • 期限切れまたは誤って設定されたサーバー証明書\n • 信頼されていないサーバー証明書\n\n次のFAQが適用される可能性があります 
+welcome.new-project.error.ssl-connection-error.pkix-faq-entry = PKIX パスの構築に失敗
+
+# Welcome -> New Project -> From Template
+welcome.new-project.empty-project.title = 空のプロジェクト
+welcome.new-project.empty-project.description = 完全に空白の状態から始めたい場合は、このテンプレートを選択してください。
+welcome.new-project.mobile-game.title = モバイルゲーム
+welcome.new-project.mobile-game.description = このテンプレートには、モバイルデバイス向けのゲームの構築を開始する場合に便利な設定とアセットが含まれています。
+welcome.new-project.desktop-game.title = デスクトップゲーム
+welcome.new-project.desktop-game.description = このテンプレートには、デスクトップ用のゲームの構築を開始する場合に便利な設定とアセットが含まれています。
+welcome.new-project.poki-html5-game.title = Poki HTML5 ゲーム
+welcome.new-project.poki-html5-game.description = このテンプレートには、デスクトップとモバイルの両方のウェブゲーム用に設計された Poki SDK が含まれています。 また、Poki for Developersプラットフォームに簡単にエクスポートすることもできます。
+welcome.new-project.native-extension.title = ネイティブ拡張機能
+welcome.new-project.native-extension.description = このテンプレートには、ネイティブ拡張機能の作成を開始する場合の基本的なセットアップが含まれています。
+welcome.new-project.basic-3d-project.title = 基本的な3Dプロジェクト
+welcome.new-project.basic-3d-project.description = このテンプレートには、3D レンダリングを行うための基本的な設定が含まれています。
+welcome.new-project.platformer-game.title = プラットフォーマー・ゲーム
+welcome.new-project.platformer-game.description = このテンプレートには、プラットフォーマーゲームの構築を開始する場合の基本的なセットアップが含まれています。
+welcome.new-project.rive-project.title = Riveプロジェクト
+welcome.new-project.rive-project.description = このテンプレートにはrive拡張機能が含まれています。
+
+# Welcome -> New Project -> From Tutorial
+welcome.new-project.side-scroller-tutorial.title = Side Scroller チュートリアル
+welcome.new-project.side-scroller-tutorial.description = この初心者用チュートリアルでは、シンプルなサイドスクロールゲームを改変することによってDefoldでゲームを構築する方法を学ぶことが出来ます。
+welcome.new-project.walking-astronaut-tutorial.title = 見下ろし視点での移動チュートリアル
+welcome.new-project.walking-astronaut-tutorial.description = この初心者用チュートリアルでは、プレーヤーの入力を取得し、キャラクターの動きとアニメーションを作る方法を学びます。 また、ゲームオブジェクト、コンポーネント、コレクションなど、Defoldの中核的なコンセプトについても学びます。
+welcome.new-project.movement-tutorial.title = 移動のチュートリアル
+welcome.new-project.movement-tutorial.description = この初心者のチュートリアルでは、ベクターといくつかのシンプルなベクター代数を使用してリアルな動きを作成する方法を学びます。
+welcome.new-project.war-battles-tutorial.title = War Battles チュートリアル
+welcome.new-project.war-battles-tutorial.description = この中級難易度チュートリアルでは、RTSアセットパックに基づいて見下ろし視点のシューティングゲームの基礎を学びます。
+welcome.new-project.colorslide-tutorial.title = Colorslide チュートリアル
+welcome.new-project.colorslide-tutorial.description = この中級難易度チュートリアルでは、ゲーム内の GUI を構築することを学びます。 レベル選択用のGUIスクリーンと、シンプルなマルチレベルのモバイルゲーム用のスタート画面が含まれます。
+
+# Welcome -> New Project -> From Sample
+welcome.new-project.sample-3d-platformer.title = 3D プラットフォーマー・スターター・キット
+welcome.new-project.sample-3d-platformer.description = 応答性の高いキャラクター移動、ジャンプ、カメラ移動、アイテム、キャラクターアニメーション、照明、シャドウを備えた、すぐにプレイできる3Dプラットフォーマーサンプルです。
+welcome.new-project.sample-3d-third-person-playground.title = 3人称視点 3D Playground
+welcome.new-project.sample-3d-third-person-playground.description = キーボードまたはマウス/タッチ入力で3Dキャラクターを動かすことができる三人称3Dゲームのサンプルです。 影を使った基本的な3Dセットアップ方法を説明します。
+welcome.new-project.linker-sample-game.title = Linker サンプルゲーム
+welcome.new-project.linker-sample-game.description = 同じ色の魚をリンクするサンプルゲームです。プレイヤーはドラッグしてボードから魚を削除するために操作します。、 魚の長いリンクはポイントのブースターをもたらします。
+welcome.new-project.roids-sample-game.title = Roidsサンプルゲーム
+welcome.new-project.roids-sample-game.description = これは、あなたが宇宙船を操縦し、隕石の嵐を移動し攻撃するサンプルゲームです。
+welcome.new-project.pixel-line-platformer.title = Pixel Lineプラットフォーマー
+welcome.new-project.pixel-line-platformer.description = これは、Kenneyが作成したドット絵を使った、完全なプラットフォーマーゲームです。
+welcome.new-project.main-menu-animation.title = メインメニューアニメーション
+welcome.new-project.main-menu-animation.description = メインメニューを表示する際のエフェクトサンプルです。
+welcome.new-project.parallax.title = Parallax 視差
+welcome.new-project.parallax.description = このサンプルでは、ゲームの奥ゆきをシミュレートするために視差効果を使用する方法を示します。
+welcome.new-project.hud.title = HUD
+welcome.new-project.hud.description = このサンプルは、スコアカウントのエフェクト例です。
+welcome.new-project.level-complete.title = ステージクリア
+welcome.new-project.level-complete.description = ステージをクリアした際に表示されるスコアカウントのサンプルです。
+welcome.new-project.rpg-map-sample.title = RPG マップサンプル
+welcome.new-project.rpg-map-sample.description = プレイヤーが進むと画面がスクロールする、大きなRPG用のマップを作成する方法を示したサンプルです。
+welcome.new-project.shadertoy-sample.title = Shadertoy サンプル
+welcome.new-project.shadertoy-sample.description = このサンプルには、ShadertoyのGLSLシェーダーを、Defold用に変換されたシェーダーが含まれています。 Defoldでの素材やシェーダーとの連携方法を説明します。
+welcome.new-project.3d-treasure-scene.title = 3D宝箱
+welcome.new-project.3d-treasure-scene.description = このサンプルは、アニメーション付きの様式化された3Dシーンを示しています。
+welcome.new-project.perspective-parallax.title = 透視投影カメラでの視差効果
+welcome.new-project.perspective-parallax.description = このサンプルは透視投影カメラで視差効果を実装する例です。
+welcome.new-project.lightning-vfx.title = Lightning VFX
+welcome.new-project.lightning-vfx.description = このサンプルでは、2d 縦スクロールシューティングゲームでの雷エフェクトと、ゲームプレイ中にメッシュコンポーネントを操作する方法を示します。
+
+# Updater
+updater.button.update-available = 利用可能なアップデートあります
+updater.button.restart-to-update = 再起動してアップデート
+updater.download-or-restart-dialog.title = 更新をインストールしますか？
+updater.download-or-restart-dialog.header = アップデートの準備ができていますが、新しいバージョンも利用可能です
+updater.download-or-restart-dialog.detail = ダウンロードしたアップデートをインストールするか、新しいアップデートをダウンロードできます
+updater.platform-not-supported-dialog.title = 対応していないプラットフォーム
+updater.platform-not-supported-dialog.header = このプラットフォームの更新はもう提供されていません
+updater.platform-not-supported-dialog.detail = サポートされているプラットフォームは64ビットLinux、macOS、およびWindowsです
+updater.download-dialog.title = 更新をダウンロードしますか？
+updater.download-dialog.header = 新しいバージョンの Defold が利用可能です！
+updater.update-failed.title = 更新に失敗しました
+updater.update-failed.header = アップデートのインストール中にエラーが発生しました
+updater.update-failed.detail = 新しくインストールする必要があります
+updater.dialog.title = アップデートをインストールして再起動しますか？
+updater.dialog.header = ダウンロードしたアップデートをインストールして再起動しますか？
+updater.dialog.button.not-now = 後で
+updater.dialog.button.download = 更新をダウンロード
+updater.dialog.button.install-and-restart = インストールして再起動
+updater.dialog.button.download-newer-version = 最新版をダウンロード
+updater.dialog.button.skip-version = このバージョンをスキップする
+updater.dialog.button.skip-newer-version = 新しいバージョンをスキップする
+updater.release-notes-dialog.title = アップデートが利用できます
+updater.release-notes-dialog.header = Defold Release Summary - What''s New{count, plural, \=1{ in {version}} other{}}
+updater.release-notes-dialog.button.later = 後で
+updater.release-notes-dialog.button.update-now = 今すぐ更新する
+updater.up-to-date-dialog.title = 利用可能なアップデートはありません
+updater.up-to-date-dialog.header = 最新バージョンのDefoldを実行しています
+updater.check-failed-dialog.title = チェックに失敗しました
+updater.check-failed-dialog.header = 更新を確認できませんでした。しばらくしてからもう一度お試しください。
+updater.download-in-progress-dialog.title = アップデートを実行中…
+updater.download-in-progress-dialog.header = Defoldはすでにアップデートをダウンロードしています
+
+# Bundled release notes shown on first launch of a version and via Help > Release Notes
+release-notes-tab.title = 更新履歴
+release-notes-tab.tooltip = Defold Release Summary - What''s New in {version}
+
+# Time
+time.vague.unknown = Unknown
+time.vague.just-now = 今すぐ
+time.vague.a-minute-ago = 1分前
+time.vague.a-few-minutes-ago = 数分前
+time.vague.minutes-ago = {count}分前
+time.vague.half-an-hour-ago = 30分前
+time.vague.an-hour-ago = 1時間前
+time.vague.a-few-hours-ago = 数時間前
+time.vague.hours-ago = {count}時間前
+time.vague.a-day-ago = 1日前
+
+# Common dialogs
+
+dialog.button.close = 閉じる
+dialog.button.quit = 終了する
+dialog.button.open-defold-website = defold.com を開く
+dialog.button.dismiss = 閉じる
+dialog.button.report = 報告する
+dialog.button.disable-scene-editor = シーンエディタを無効にする
+dialog.button.cancel = キャンセル
+dialog.button.delete = 削除
+dialog.button.apply = 適用
+
+# Error Dialog
+
+dialog.error.title = エラー
+dialog.error.header = エラーが発生しました
+dialog.error.footer = この問題を報告し、発生時にどのような操作を行っていたか詳細をお知らせいただくことで、問題の解決にご協力いただけます。
+
+# Build Error Dialog
+
+dialog.build-error.title = ビルドエラー
+dialog.build-error.cycle.header = Cyclic resource dependency detected
+dialog.build-error.cycle.message = {header}. {detail}
+dialog.build-error.cycle.detail.collection = これは、コレクションプロキシまたはコレクションファクトリのいずれかから、ループ内で複数のコレクションが参照されていることが原因です。\n該当するリソースの一つは {resource} です。
+dialog.build-error.cycle.detail.game-object = これは、ゲームオブジェクトファクトリーからループ状に参照されている複数のゲームオブジェクトが原因で発生しています。該当するリソースの一つは {resource} です。
+dialog.build-error.cycle.detail.script = これは、複数のLuaモジュールが互いに依存し合っていることが原因です。該当するリソースの一つは {resource} です。
+dialog.build-error.cycle.detail.generic = これは、リソースがループ状に参照し合っていることが原因です。該当するリソースの一つは {resource} です。
+
+# Clean Build Dialog
+
+dialog.clean-build.title = プロジェクトのクリーンビルドを実行しますか？
+dialog.clean-build.header = プロジェクトのクリーンビルドを実行してもよろしいですか？
+dialog.clean-build.button.clean = ビルドを消去
+
+# Debugging Not Supported Dialog
+
+dialog.debugging-not-supported.title = デバッグはサポートされていません
+dialog.debugging-not-supported.header = このプロジェクトはデバッガーを使用できません
+dialog.debugging-not-supported.content = 共有スクリプト状態を無効にするように設定されています。\n\n異なるスクリプト状態を特に必要としない場合は、game.project 内の script.shared_state プロパティの変更を検討してください。
+
+# Defunload Issues Dialog
+
+dialog.defunload-issues.title = .defunload パターンを修正する
+dialog.defunload-issues.header = アンロードされたリソースへの安全でない参照が見つかりました。
+dialog.defunload-issues.summary = 一つ以上のリソースが、`.defunload` パターンによってアンロードされたリソースへの安全でない参照を保持しています。
+dialog.defunload-issues.advice = 不要なリソースが読み込まれないよう、`.defunload` ファイル内のパターンを修正してください。
+dialog.defunload-issues.report-path = レポートが作成されました：
+dialog.defunload-issues.button.ignore = 無視する
+dialog.defunload-issues.button.open-report = レポートを開く
+dialog.defunload-issues.report-line = {resource} - 未ロードのリソースを参照します：
+dialog.defunload-issues.report.section-loading-resources = \#\#\# 読み込み中のリソース \#\#\#
+dialog.defunload-issues.report.loaded-undesired = `.defunload`パターンに一致する以下のリソースが、必要に応じて読み込まれました：
+
+notification.defunload-issues.action.show-details = 詳細を表示…
+
+# Launch Failed Dialog
+
+dialog.launch-failed.title = 起動に失敗しました
+dialog.launch-failed.header = {engine} の起動に失敗しました
+dialog.launch-failed.detail = エンジンがすでに実行されている場合は、手動でプロセスをシャットダウンしてから再試行してください
+dialog.launch-failed.target.new-local-engine = 新しいローカルエンジン
+
+# Hot Reload Failed Dialog
+
+dialog.hot-reload-failed.title = ホットリロードに失敗しました
+dialog.hot-reload-failed.header = エンジン "{engine}" のリソースを再読み込みできませんでした
+
+# GL support error dialog
+
+dialog.gl-support.title = OpenGLのサポートが不十分です
+dialog.gl-support.header = これは非常によくある問題です。以下の手順が役に立つか試してみてください：
+dialog.gl-support.linux = OpenGL on linux
+dialog.gl-support.gl-gen-buffers = glGenBuffers
+dialog.gl-support.detail = シーン編集を無効にしたまま続行できます。
+
+# New folder
+
+dialog.new-folder.title = 新規フォルダ
+dialog.new-folder.header = 新しいフォルダ名を入力
+dialog.new-folder.label.name = 名前
+dialog.new-folder.label.preview = プレビュー
+dialog.new-folder.button.create-folder = フォルダを作成
+
+# Target IP dialog
+
+dialog.target-ip.title = ターゲットIPを入力してください
+dialog.target-ip.header = ターゲット IP アドレスを入力
+dialog.target-ip.label.ip = ターゲット IP アドレス
+dialog.target-ip.button.add = ターゲット IP を追加
+
+# Search in Files Dialogs
+
+dialog.search-in-files.title = ファイル内検索
+dialog.search-in-files.label.search = 検索パターン（* は任意の文字列に一致）
+dialog.search-in-files.label.types = 検索対象のファイル形式（カンマ区切り）
+dialog.search-in-files.label.include-libraries = ライブラリ内を検索
+dialog.search-in-files.button.keep-results = 結果を維持
+
+# Target Discovery Log Dialog
+
+dialog.target-discovery-log.title = ターゲット ディスカバリー ログ
+dialog.target-discovery-log.header = ターゲット ディスカバリー ログ
+dialog.target-discovery-log.button.clear-log = ログを消去
+dialog.target-discovery-log.button.restart-discovery = ディスカバリーを再開する
+
+# Generic file/directory dialog titles
+
+dialog.directory.title.set-path = パスを設定する
+dialog.directory.title.select = ディレクトリの選択
+dialog.file.title.select = ファイルの選択
+
+# Set Custom Resolution dialog
+
+dialog.custom-resolution.title = 解像度の設定
+dialog.custom-resolution.header = ゲームの解像度を設定
+dialog.custom-resolution.detail = ゲームウィンドウはこのサイズに変更されます
+dialog.custom-resolution.label.width = 幅
+dialog.custom-resolution.label.height = 高さ
+dialog.custom-resolution.button.set-resolution = 解像度の設定
+
+# Tracked internal files dialog
+
+dialog.tracked-internal-files.title = バージョン管理下の内部ファイル
+dialog.tracked-internal-files.header = 内部ファイルがバージョン管理下に配置されました
+dialog.tracked-internal-files.content = ダウンロードされた依存関係やビルドの出力物といった内部ファイルが、バージョン管理の対象に含まれてしまっているようです。\nこれは、`.gitignore` ファイルが適切に設定されていない状態でコミットを行った場合に発生することがあります。\n\nこれを修正するには、`.internal` ディレクトリと `build` ディレクトリを削除するコミットを行い、その後プロジェクトを再度開いてください。
+
+# Quit Defold dialog
+
+dialog.quit-defold.title = 終了しますか？
+dialog.quit-defold.header = 保存されていない変更が存在します。終了してもよろしいですか？
+dialog.quit-defold.button.cancel = キャンセルして続ける
+dialog.quit-defold.button.quit = 保存せずに終了
+
+# Project directory unavailable dialog
+
+dialog.project-directory-unavailable.title = プロジェクトフォルダを利用できません
+dialog.project-directory-unavailable.header = プロジェクトフォルダが見つかりません
+dialog.project-directory-unavailable.content = プロジェクトフォルダがDefoldの外部で移動、名前変更、または削除されました。Defoldを終了する必要があります。保存されていない変更は失われます。
+
+# Restart Defold dialog
+
+dialog.restart-defold.title = Defoldを再起動しますか？
+dialog.restart-defold.header = 未保存の変更があります。Defoldを再起動する前に変更を保存しますか？
+dialog.restart-defold.button.cancel = キャンセル
+dialog.restart-defold.button.save-and-restart = 保存して再起動
+
+# Save and upgrade file formats dialogs
+
+dialog.save-and-upgrade.title.not-safe = ファイル形式のアップグレードは安全ではありません
+dialog.save-and-upgrade.version-control.header = バージョン管理を推奨します
+dialog.save-and-upgrade.version-control.preamble = データ消失の恐れがあるため、ファイル形式のアップグレードは、バージョン管理下にあるプロジェクトに対してのみ実行してください。
+dialog.save-and-upgrade.version-control.info.before-manual = バージョン管理下のプロジェクトでは、変更履歴が保持され、変更内容をサーバーにプッシュすることで他のユーザーと共同作業を行うことができます。\n\nバージョン管理の設定方法については 
+dialog.save-and-upgrade.version-control.info.manual-link = Defoldマニュアル
+dialog.save-and-upgrade.version-control.info.after-manual = .
+dialog.save-and-upgrade.uncommitted.header = 未コミットの変更が検出されました
+dialog.save-and-upgrade.uncommitted.content = データ消失の恐れがあるため、ファイル形式のアップグレードは、クリーンな作業ディレクトリから開始する必要があります。\n\n操作を再試行する前に、ローカルでの変更をコミットすることをお勧めします。
+dialog.save-and-upgrade.confirm.title = ファイル形式をアップグレードして保存しますか？
+dialog.save-and-upgrade.confirm.header = すべてのファイルを最新のファイル形式で再保存しますか？
+dialog.save-and-upgrade.confirm.content = プロジェクト内のファイルは、最新のファイル形式で再保存されます。この操作は元に戻せません。\n\n対象となるファイルが多数に及ぶ可能性があるため、実行前にプロジェクトリーダーと調整を行ってください。
+dialog.save-and-upgrade.button.abort = 中断
+dialog.save-and-upgrade.button.proceed-anyway = 続行
+dialog.save-and-upgrade.button.upgrade-editable-files = 編集可能なファイルをアップグレード
+dialog.save-and-upgrade.button.upgrade-project-files = プロジェクトファイルをアップグレード
+dialog.save-and-upgrade.button.upgrade-all-files = すべてのファイルをアップグレード
+
+# Plugin load error dialog
+
+dialog.plugin-load-error.title = プラグインを読み込めません
+dialog.plugin-load-error.header = エディタプラグイン「{plugin}」は、このエディタのバージョンと互換性がありません。 プロジェクトの依存関係を編集して、適切なバージョンを参照してください。
+
+# Desktop entry dialogs
+
+dialog.desktop-entry.created.title = デスクトップエントリが作成されました
+dialog.desktop-entry.created.header = デスクトップエントリが作成されました！
+dialog.desktop-entry.created.content = システムメニューからDefoldエディタを起動できます。
+dialog.desktop-entry.creation-failed.title = デスクトップエントリの作成に失敗しました
+dialog.desktop-entry.creation-failed.header = デスクトップエントリを作成できませんでした！
+dialog.desktop-entry.creation-failed.content = デスクトップエントリの作成中にエラーが発生しました：\n{error}
+
+# Texture compressor error dialog
+
+dialog.texture-compressor-error.title = プラグインを読み込めません
+dialog.texture-compressor-error.header = テクスチャ圧縮の初期化に失敗しました
+dialog.texture-compressor-error.content = エディタープラグインの以下のクラスは、このバージョンのエディターと互換性がありません：\n\n{classes}\n\nこれらがないと、プロジェクトをビルドできない可能性があります。\n適切なバージョンを参照するように、プロジェクトの依存関係を編集してください。
+
+# Lua preprocessors error dialog
+
+dialog.lua-preprocessors-error.title = プラグインを読み込めません
+dialog.lua-preprocessors-error.content = エディタープラグインの以下のクラスは、このバージョンのエディターと互換性がありません：\n\n{classes}\n\nこれらがないと、プロジェクトをビルドできない可能性があります。\n適切なバージョンを参照するように、プロジェクトの依存関係を編集してください。
+dialog.lua-preprocessors-error.construct.header = Luaプリプロセッサの構築に失敗しました
+dialog.lua-preprocessors-error.initialize.header = Luaプリプロセッサの初期化に失敗しました
+
+# Lua transpilers error dialog
+
+dialog.lua-transpilers-error.title = プラグインを読み込めません
+dialog.lua-transpilers-error.content = エディタープラグインの以下のクラスは、このバージョンのエディターと互換性がありません：\n\n{classes}\n\nこれらがないと、プロジェクトをビルドできない可能性があります。\n適切なバージョンを参照するように、プロジェクトの依存関係を編集してください。
+dialog.lua-transpilers-error.construct.header = Luaトランスパイラの構築に失敗しました
+dialog.lua-transpilers-error.initialize.header = Luaトランスパイラの初期化に失敗しました
+dialog.lua-transpilers-error.generic.header = Luaトランスパイラの読み込みに失敗しました
+
+# Diff view dialogs
+
+dialog.diff-view.title = Diff
+dialog.diff-view.unchanged.title = ファイルは変更されていません
+dialog.diff-view.unchanged.header = ファイルは変更されていません
+dialog.diff-view.binary.title = バイナリファイルの差分を表示できません
+dialog.diff-view.binary.header = バイナリファイルの差分を表示できません
+
+# Fetch libraries dialog
+
+dialog.fetch-libraries.host-unreachable.title = Fetch Failed
+dialog.fetch-libraries.host-unreachable.header = ホストに接続できなかったため、フェッチが中止されました
+dialog.fetch-libraries.host-unreachable.content = 接続できないホスト\: {host}\n\nインターネット接続を確認して、もう一度お試しください。
+
+# Notification view
+
+notification.more = + 他 {count} 件
+
+# Fetch libraries notification
+
+notification.fetch-libraries.changed = プロジェクトの依存関係が変更されました。今すぐライブラリを取得しますか？
+notification.fetch-libraries.problems = 以下の依存関係に問題が見つかりました\:\n{dependencies}
+notification.fetch-libraries.action.fetch = ライブラリの取得
+notification.fetch-libraries.action.open-game-project = game.project を開く
+notification.fetch-libraries.problem.missing = 見つかりません
+notification.fetch-libraries.problem.fetch-failed = Failed to fetch
+notification.fetch-libraries.problem.failed-http-request = フェッチに失敗しました (HTTP {status})
+notification.fetch-libraries.problem.http-connect-timeout = フェッチに失敗しました (接続がタイムアウトしました)
+notification.fetch-libraries.problem.invalid-archive = 有効なDefoldアーカイブではありません
+notification.fetch-libraries.problem.defold-min-version = defold {required} 以降のバージョンが必要です (現行のDefold バージョンは {current}です)。Defoldをアップデートするか、互換性のある古いバージョンの拡張機能を確認してください。
+notification.fetch-libraries.problem.install-failed = インストールに失敗しました
+notification.fetch-libraries.problem.unknown = 未知の問題 — {problem}
+notification.fetch-libraries.dependency-problem = {uri}\: {problem}
+
+# Editor scripts notification
+
+notification.reload-editor-scripts = エディタスクリプトが変更されました。今すぐ再読み込みしますか？
+notification.reload-editor-scripts.action.reload = エディタスクリプトの再読み込み
+
+# Reload plugins notification
+
+notification.reload-plugins-failed = ネイティブエクステンションプラグインを再読み込みできませんでした。デフォールドを再起動して再読み込みしてください。\n\nファイル\: {file}\n\nOSからの元のエラー\:\n{error}
+notification.reload-plugins-failed.action.restart = Defolを再起動する
+
+# Disabled functionality notification
+
+notification.disabled-functionality = エラーが発生したため、一部のエディタ機能が無効になりました。今すぐ有効にするか、エディタを再起動してください。
+notification.disabled-functionality.action.enable = 再有効化
+notification.disabled-functionality.action.restart = 再起動
+
+# Open custom editor notifications
+
+notification.open-custom-editor-failed.error = 外部エディタ「{editor}」を実行できませんでした。\n\nOSからの原因エラー：\n{error}
+notification.open-custom-editor-failed.action.open-preferences = 設定を開く…
+
+# Settings notifications
+
+notification.liveupdate-settings.action.open-game-project = game.project を開く
+notification.liveupdate-settings.unavailable.error = ライブ更新の設定を開けません\: {reason}
+notification.shared-editor-settings.unavailable.error = 共有エディター設定を開けません\: {reason}
+notification.ensure-exists.reason.missing = 設定ファイルがありません。
+notification.ensure-exists.reason.folder = 設定されたパスはフォルダを指定します。
+
+# Language server notification
+
+notification.lsp.language-server-missing.prompt = 言語サーバーが {language} 言語に対応していないため、このアクションを実行できません。
+notification.lsp.language-server-missing.action.about = DefoldにおけるLSPについて
+notification.lsp.formatting-failed.prompt = 言語サーバーが応答していないため、 {path} をフォーマットできません。
+
+# Asset browser notifications
+
+notification.asset-browser.circular-paste.error = フォルダ {source} をそのサブフォルダ {target} に貼り付けることはできません。
+
+# Workspace notifications
+
+notification.resource-collision.directory.warning = フォルダー "{resource}" は、同名のフォルダーを隠蔽しています。
+notification.resource-collision.builtins.warning = フォルダー「{resource}」は、builtins 内の同名のフォルダーを隠蔽しています。
+notification.resource-collision.library.warning = フォルダ「{resource}」は、プロジェクトの依存関係にある同名のフォルダ{library}を隠蔽しています
+
+# Web server notifications
+
+notification.web-server.port-fallback.warning = 要求されたポート {requested} でサーバーを起動できませんでした ({reason})。代わりにフォールバック用ポート {fallback} を使用します。
+
+# Changes view notifications
+
+notification.changes-view.git-error = Gitエラーのため、このプロジェクトではGit機能を利用できません。
+
+# Debug view notifications
+
+notification.debug-view.connect-failed.error = {error}\n\nゲームが実行されており、ネットワーク経由で接続可能であることを確認してください。
+
+# Target notifications
+
+notification.targets.selected-target-unavailable.error = {error}\n\n選択したターゲットは使用できません。
+
+# Form view dialogs
+
+dialog.form-view.directory-not-in-project.title = 無効なディレクトリ
+dialog.form-view.directory-not-in-project.header = そのディレクトリはプロジェクト内に配置されている必要があります。
+dialog.form-view.file-not-in-project.title = 無効なファイル
+dialog.form-view.file-not-in-project.header = そのファイルはプロジェクト内に配置されている必要があります。
+
+# Shared editor settings load error dialog
+
+dialog.shared-editor-settings.load-error.title = 共有エディター設定の読み込みエラー
+dialog.shared-editor-settings.load-error.header = 共有エディター設定ファイルの読み込みに失敗しました。
+dialog.shared-editor-settings.load-error.detail = デフォルト設定に戻ります。ユーザーエクスペリエンスが低下する可能性があります。
+dialog.shared-editor-settings.load-error.content = ファイル： {file}\n\n{error}
+
+# Updated gitignore dialog
+
+dialog.gitignore-updated.title = Updated .gitignore File
+dialog.gitignore-updated.header = Updated .gitignore file
+dialog.gitignore-updated.content = .gitignore ファイルは、ビルド出力ファイルとメタデータファイルを無視するように自動的に更新されました。\n\n次回同期する際には、変更内容と一緒にこのファイルも含めるようにしてください。
+
+# Asset browser reserved targets dialog
+
+dialog.asset-paste-reserved.title = 貼り付けできません
+dialog.asset-paste-reserved.header = 一部のターゲットディレクトリは予約されています
+dialog.asset-paste-reserved.content = 以下のターゲットディレクトリは予約されています：\n{directories}
+
+# Asset deletion dialogs
+
+dialog.asset-delete-single.title = ファイルを削除しますか？
+dialog.asset-delete-single.header = {name}を削除してもよろしいですか？
+dialog.asset-delete-multiple.title = ファイルを削除しますか?
+dialog.asset-delete-multiple.header = これらのファイルを削除してもよろしいですか？
+dialog.asset-delete-multiple.content = 削除しようとしています\:{items}
+dialog.asset-delete-multiple.content.item = \n  • {name}
+
+# Rename dialog
+
+dialog.rename.title = {name}の名前を変更
+dialog.rename.preview = プレビュー
+dialog.rename.button.rename = 名前を変更する
+dialog.rename.label.folder = 新規フォルダー名
+dialog.rename.label.file = 新しいファイル名
+dialog.rename.header.folder = フォルダの名前を変更
+dialog.rename.header.files = {n, plural, one {ファイル} other {\# 個のファイル}} の名前を変更
+dialog.rename.error.reserved-name = {name} という名前は予約されています
+
+# Name conflict dialog (appears on conflict during rename)
+
+dialog.name-conflict.title = 名前の競合
+dialog.name-conflict.button.name-differently = 名前の違い
+dialog.name-conflict.button.overwrite-files = ファイルの上書き
+
+# New file dialog
+
+dialog.new-file.title.file = 新規ファイル
+dialog.new-file.title.resource = 新規 {type}
+dialog.new-file.header.file = ファイル名を入力
+dialog.new-file.header.resource = {type} ファイル名を入力
+dialog.new-file.label.name = 名前
+dialog.new-file.label.location = ロケーション
+dialog.new-file.label.preview = プレビュー
+dialog.new-file.button.create.file = 作成
+dialog.new-file.button.create.resource = {type} を作成
+
+# List dialogs
+
+dialog.select-item.title = 項目を選択
+dialog.select-item.prompt = 入力して絞り込む
+dialog.select-item.button.ok = OK
+dialog.open-assets.title = アセットを開く
+dialog.open-assets.button.ok = 開く
+dialog.referencing-files.title = 参照ファイル
+dialog.referencing-files.button.ok = 開く
+dialog.dependencies.title = 依存関係
+dialog.dependencies.button.ok = 開く
+dialog.add-atlas-images.title = 画像を選択
+dialog.select-game-object-file.title = ゲームオブジェクトファイルを選択
+dialog.select-collection-file.title = コレクションファイルを選択
+dialog.select-component-file.title = コンポーネントファイルを選択
+dialog.select-gui-component.title = {component} を選択
+dialog.select-resource.title = リソースの選択
+dialog.recent-files.title = 最近使用したファイル
+dialog.recent-files.button.ok = 開く
+dialog.jump-to-symbol.title = シンボルへ移動
+dialog.jump-to-symbol.prompt = シンボルを検索…
+dialog.jump-to-symbol.button.ok = OK
+
+# Open resource dialogs
+
+dialog.open-resource.excluded.title = 読み込みから除外されたリソース
+dialog.open-resource.excluded.header = 「.defunload」ファイルによって読み込み対象から除外されたため、「{resource}」を開くことができません。
+dialog.open-resource.unrecognized.title = リソースを開けません
+dialog.open-resource.unrecognized.header = 「{resource}」には認識できないデータが含まれているため、開くことができません。プロジェクトに必要な拡張機能が不足している可能性があります。
+dialog.open-resource.open-file-failed.title = ファイルを開けませんでした
+dialog.open-resource.open-file-failed.header = "{resource}" を開けませんでした
+dialog.open-resource.open-file-failed.detail = OS上でそのファイル形式がアプリケーションに関連付けられていない場合に、この問題が発生することがあります。\n\nOSから返されたエラー\:\n{error}
+
+# Loading project dialog
+
+dialog.loading-project.header = プロジェクトを読み込み中
+
+# Bundle dialog
+
+dialog.bundle.title = バンドルアプリケーション
+dialog.bundle.button.create = バンドルを作成…
+dialog.bundle.hint.select-output-folder = 出力フォルダを選択してください。
+dialog.bundle.header.linux = バンドル Linux アプリケーション
+dialog.bundle.header.macos = バンドル macOS アプリケーション
+dialog.bundle.header.html5 = バンドルHTML5アプリケーション
+dialog.bundle.header.windows = バンドル Windows アプリケーション
+dialog.bundle.header.ios = バンドルiOSアプリケーション
+dialog.bundle.header.android = バンドルAndroidアプリケーション
+dialog.bundle.label.variant = バリアント
+dialog.bundle.option.variant.debug = デバッグ
+dialog.bundle.option.variant.release = リリース
+dialog.bundle.option.variant.headless = ヘッドレス
+dialog.bundle.label.platform = プラットフォーム
+dialog.bundle.option.platform.x86_64-linux = X64
+dialog.bundle.option.platform.arm64-linux = Arm64
+dialog.bundle.option.platform.x86_64-win32 = 64-bit
+dialog.bundle.option.platform.x86-win32 = 32-bit
+dialog.bundle.option.identity.none = なし
+dialog.bundle.label.architectures = アーキテクチャ
+dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
+dialog.bundle.option.architecture.x86_64-ios = Simulator (x86_64)
+dialog.bundle.option.architecture.x86_64-macos = x86_64
+dialog.bundle.option.architecture.arm64-macos = arm64
+dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
+dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + Thread support
+dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
+dialog.bundle.option.architecture.arm64-android = 64-bit (arm64)
+dialog.bundle.option.architecture.x86_64-android = 64-bit (x86_64)
+dialog.bundle.label.sign-application = アプリケーションに署名
+dialog.bundle.label.code-signing-identity = コード署名のID
+dialog.bundle.title.choose-provisioning-profile = プロビジョニングプロファイルを選択
+dialog.bundle.option.on-bundled.install = 接続されたデバイスにインストール
+dialog.bundle.option.on-bundled.launch = インストール済みのアプリを起動
+dialog.bundle.label.android.key-pass = キーパスワード
+dialog.bundle.label.android.bundle-format = バンドル形式
+dialog.bundle.option.bundle-format.apk = APK
+dialog.bundle.option.bundle-format.aab = AAB
+dialog.bundle.title.choose-key-pass = キーパスワードの選択
+dialog.bundle.filter.key-pass = キーのパスワード (*.txt)
+dialog.bundle.hint.android.keystore = キーストアを設定するか、自動生成されたデバッグ用証明書で署名する場合は空欄のままにしてください。
+dialog.bundle.label.texture-compression = テクスチャ圧縮
+dialog.bundle.option.texture-compression.enabled = 有効
+dialog.bundle.option.texture-compression.disabled = 無効
+dialog.bundle.option.texture-compression.editor = エディター設定を使用する
+dialog.bundle.label.with-symbols = デバッグシンボルの生成
+dialog.bundle.label.build-report = ビルド レポートの生成
+dialog.bundle.label.liveupdate = ライブアップデートコンテンツを公開
+dialog.bundle.label.contentless = コンテンツを含まないバンドル
+dialog.bundle.failed.title = バンドル失敗しました
+dialog.bundle.failed.header = プロジェクトのバンドルに失敗しました
+dialog.bundle.failed.hint = ビルドエラーを修正し、もう一度やり直してください
+dialog.bundle.output-directory.title = 出力先ディレクトリ
+dialog.bundle.output-directory.error-file.title = ファイルを上書きできません
+dialog.bundle.output-directory.error-file.header = ディレクトリを作成できません
+dialog.bundle.output-directory.error-file.message = パス「{path}」にディレクトリを作成できません。作成しようとしているディレクトリと同じ名前のファイルが既に存在します
+dialog.bundle.output-directory.overwrite.title = 既存のディレクトリを上書きしますか？
+dialog.bundle.output-directory.overwrite.header = ディレクトリは既に存在します
+dialog.bundle.output-directory.overwrite.message = "{path}" を上書きしますか？
+dialog.bundle.output-directory.button.overwrite = 上書き
+dialog.bundle.error.architectures-required = 少なくとも 1 つのアーキテクチャを選択する必要があります
+dialog.bundle.error.identity.not-found = このコンピュータ上にコード署名用IDが見つかりませんでした。
+dialog.bundle.error.identity.required = アプリケーションに署名するには、コード署名IDを設定する必要があります。
+dialog.bundle.error.provisioning.required = アプリケーションに署名するには、プロビジョニングプロファイルを指定する必要があります。
+dialog.bundle.error.provisioning.invalid = プロビジョニングプロファイルが無効です。
+dialog.bundle.error.provisioning.not-found = プロビジョニングプロファイルが見つかりません。
+dialog.bundle.error.provisioning.not-file = プロビジョニングプロファイルはファイルである必要があります。
+dialog.bundle.error.keystore.not-found = Keystore ファイルが見つかりません
+dialog.bundle.error.keystore.invalid = 無効なKeystore です
+dialog.bundle.error.keystore.required-with-pass = キーストアのパスワードが指定されている場合は、キーストアを設定する必要があります。
+dialog.bundle.error.keystore-pass.not-found = キーストアのパスワードファイルが見つかりません。
+dialog.bundle.error.keystore-pass.invalid = 無効なキーストアパスワードファイルです。
+dialog.bundle.error.keystore-pass.required-with-keystore = キーストアが指定されている場合は、キーストアのパスワードを設定する必要があります。
+dialog.bundle.error.key-pass.not-found = キーパスワードファイルが見つかりません。
+dialog.bundle.error.key-pass.invalid = 無効なキーパスワードファイルです。
+dialog.bundle.error.key-pass.required-with-keystore = キーパスワードが指定されている場合は、キーストアを設定する必要があります。
+dialog.bundle.error.bundle-format.required = バンドル形式が選択されていません
+
+# Editor panes
+
+pane.assets = アセット
+pane.changed-files = 変更されたファイル
+pane.outline = アウトライン
+pane.structure = ストラクチャー
+pane.properties = プロパティ
+pane.console = コンソール
+pane.curve-editor = カーブエディター
+pane.build-errors = ビルドエラー
+pane.search-results = 検索結果
+pane.breakpoints = ブレークポイント
+pane.debugger.call-stack = コールスタック
+pane.debugger.variables = 変数
+
+# Assets
+
+assets.dependencies = 依存関係
+
+# Console
+
+console.button.clear = クリア
+console.button.filter = フィルター
+console.filter.enable-filtering = フィルタリングを有効化
+console.filter.add-filter = フィルタを追加 (例\: text, \!exclude)
+console.search = 検索
+
+# Breakpoints Tab
+
+breakpoints.button.enable-all = すべて有効
+breakpoints.button.disable-all = すべて無効
+breakpoints.button.toggle-all = すべて切り替え
+breakpoints.button.remove-all = 全て消去
+breakpoints.column.enabled = 有効化
+breakpoints.column.line = 行
+breakpoints.column.name = 名前
+breakpoints.column.condition = コンディション
+breakpoints.column.path = パス
+breakpoints.context-menu.remove-selected = 選択したブレークポイントの削除
+breakpoints.context-menu.toggle-selected-enabled = 選択ブレークポイントの切り替え
+breakpoints.context-menu.go-to-line = 行へ移動
+
+# Changes view
+
+changes-view.button.diff = 差分
+changes-view.button.revert = 元に戻す
+dialog.changes-revert.title = 変更を元に戻しますか？
+dialog.changes-revert.header = 選択したファイルの変更を元に戻してもよろしいですか？
+dialog.changes-revert.button.revert-changes = 変更を元に戻す
+
+# Prefs
+
+prefs.dialog.title = 設定
+
+prefs.tab.general = 一般
+prefs.tab.code = コード
+prefs.tab.extensions = 拡張機能
+prefs.tab.tools = ツール
+prefs.tab.dev = 開発
+prefs.tab.keymap = キーマップ
+
+# General tab
+prefs.label.workflow.load-external-changes-on-app-focus = アプリがフォーカスされたときに外部の変更を読み込む
+prefs.label.workflow.save-on-app-focus-lost = アプリのフォーカス喪失時にすべて保存
+prefs.label.bundle.open-output-directory = バンドルターゲットフォルダを開く
+prefs.label.build.open-html5-build = 「HTML5をビルド」の後にブラウザを開く
+prefs.label.build.texture-compression = テクスチャ圧縮を有効にする
+prefs.label.run.quit-on-escape = Escキーでゲームを終了する
+prefs.label.asset-browser.track-active-tab = アセットブラウザでアクティブなタブを追跡する
+prefs.label.build.lint-code = ビルド時にコードをリント
+prefs.label.window.locale = エディタの言語
+prefs.label.run.engine-arguments = エンジンの引数
+prefs.prompt.run.engine-arguments = 1行につき1つの引数
+prefs.help.run.engine-arguments = エディターがビルドおよび実行を行う際、dmengine実行ファイルに渡される引数です。\n１行につき１つの引数を指定してください。例：\n--config\=bootstrap.main_collection\=/my dir/1.collectionc\n--verbose\n--graphics-adapter\=vulkan
+
+# Code tab
+prefs.label.code.custom-editor = カスタムエディタ
+prefs.label.code.open-file = ファイルを開く
+prefs.label.code.open-file-at-line = 指定行でファイルを開く
+prefs.label.code.font.name = コードエディターのフォント（再起動が必要）
+prefs.label.code.zoom-on-scroll = スクロールでズーム
+prefs.label.code.hover = ホバーポップアップ
+prefs.help.code.hover = ホバー時にコードドキュメントのポップアップを表示
+prefs.label.code.auto-closing-parens = 閉じ括弧を自動挿入する
+prefs.label.code.format-on-save = 保存時にフォーマットする
+prefs.help.code.format-on-save = 保存時に開いているファイルに対して言語サーバーのフォーマッタを実行する
+
+# Extensions tab
+prefs.label.extensions.build-server = ビルドサーバー
+prefs.label.extensions.build-server-username = ビルドサーバーのユーザー名
+prefs.label.extensions.build-server-password = ビルドサーバーのパスワード
+prefs.label.extensions.build-server-headers = ビルドサーバーのヘッダー
+
+# Tools
+prefs.label.tools.adb-path = ADBのパス
+prefs.help.tools.adb-path = Androidアプリがバンドルされている場合に、そのインストールや起動に使用される可能性のあるADBコマンドへのパス
+prefs.label.tools.ios-deploy-path = ios デプロイのパス
+prefs.help.tools.ios-deploy-path = iOSアプリをバンドルしてインストールおよび起動する際に使用される可能性のある、ios-deployコマンドへのパス
+
+# Dev tab
+prefs.label.dev.custom-engine = カスタムエンジン
+
+# Keymap tab
+prefs.keymap.filter.prompt = キーマップ・フィルター…
+prefs.keymap.command = コマンド
+prefs.keymap.shortcuts = ショートカット
+prefs.keymap.badge.mouse-binding = マウスバインディング
+prefs.keymap.badge.mouse-modifier = マウス補正
+prefs.keymap.context-menu.new-shortcut = 新規ショートカット…
+prefs.keymap.context-menu.reset-to-default = デフォルトに戻す
+prefs.keymap.context-menu.remove = {shortcut}を削除
+prefs.keymap.context-menu.add = {shortcut}を追加
+prefs.keymap.new-shortcut = 新しい "{shortcut}" ショートカット
+prefs.keymap.new-shortcut.press-desired-combination = 任意のキーの組み合わせを押してください
+prefs.keymap.new-shortcut.commit = {enter} を押してコミット
+prefs.keymap.new-shortcut.commit-or-cancel = {enter} を押してコミット、 {escape} をもう一度でキャンセル
+prefs.keymap.warning = \n• {warning}
+prefs.keymap.warning.typable = 入力可能 (テキスト入力に干渉する可能性があります)
+prefs.keymap.warning.conflicts = {shortcuts} と競合しています
+prefs.keymap.warning.duplicate = バインドが既に存在するので、操作は無視されます
+prefs.keymap.mouse-binding.button.left = 左
+prefs.keymap.mouse-binding.button.middle = 中央
+prefs.keymap.mouse-binding.button.right = 右
+prefs.keymap.mouse-binding.section.button = マウスボタン
+prefs.keymap.mouse-binding.section.modifiers = モディファイアー
+prefs.keymap.context-menu.add-mouse-binding = マウスのバインディングを追加
+prefs.keymap.context-menu.reset-mouse-bindings-to-defaults = デフォルトに戻す
+prefs.keymap.context-menu.edit-modifier = モディファイアを編集
+prefs.keymap.inherited-from = {context} から継承
+
+# Progress
+
+progress.ready = 準備完了
+progress.linting = Lining code…
+progress.fetching-engine = エンジンを取得中…
+progress.executing-pre-build-hooks = ビルド前のフックを実行中…
+progress.executing-post-build-hooks = ビルド後のフックを実行中…
+progress.executing-bundle-hook = バンドルフックを実行中…
+progress.building-project = プロジェクトをビルド中…
+progress.installing-updated-libraries = アップデート済みのライブラリをインストール中…
+progress.initializing-editor = エディタ {lib}を初期化中
+progress.loading-editor = エディタを読み込み中
+progress.loading = 読込中
+progress.loading-resource = {resource} を読み込み中
+progress.processing-resource = {resource} を処理中
+progress.resolving-resource = リゾルブ {resource}
+progress.reading-resource = {resource} を読み込み中
+progress.finalizing = Finalizing…
+progress.saving = 保存中…
+progress.compiling = コンパイル中…
+progress.compiling-resource = {resource}をコンパイル中…
+progress.updating-dependencies = 依存関係を更新中…
+progress.syncing-resources = リソースを同期中…
+progress.loading-project = プロジェクトを読み込み中…
+progress.loading-external-changes = 外部変更を読み込む…
+progress.editor-scripts-reloaded = {time} でエディタスクリプトをリロードしました
+progress.writing-files = ファイルを書き込み中…
+progress.caching-save-results = 保存結果をキャッシュ中…
+progress.reading-timestamps = タイムスタンプを読み込み中…
+progress.building = ビルド中…
+progress.building-resource = {resource}をビルド中
+progress.fetching = {uri}を取得しています
+progress.downloading-update = アップデートをダウンロードしています
+progress.extracting-update = 更新を展開中
+progress.waiting = 待機中
+progress.bundling = バンドル中…
+progress.building-engine = エンジンをビルド中…
+progress.cleaning-engine = エンジンのクリーンアップ中…
+progress.downloading-symbols = シンボルのダウンロード中…
+progress.transpiling-to-lua = Luaへのトランスパイル中…
+progress.reading-tasks = タスクの読み込み中…
+progress.cleaning = クリーンアップ中…
+progress.generating-report = レポートを生成中…
+progress.working = 実行中…
+progress.reading-classes = クラスを読み込み中…
+progress.downloading-archives = {count, plural, one {\# 個のアーカイブ} other {\# 個のアーカイブ}} をダウンロード中…
+progress.downloading-archive = {uri}をダウンロード中…
+progress.launching-engine = エンジンを起動中…
+progress.launched-engine = {engine} を起動しました
+progress.engine-launch-failed = 起動に失敗しました
+progress.rebooting-engine = {engine} を再起動中…
+progress.rebooted-engine = {engine} を再起動しました
+progress.engine-reboot-failed = 再起動に失敗しました
+progress.aborting = 中止しています…
+progress.percentage = {percentage}%
+
+# Engine targets
+
+engine.url.unavailable = エンジンサービスは利用できません
+engine.url.invalid-host = 無効なホスト
+engine.name.local = ローカル {name}
+engine.name.with-url = {name} — {url}
+engine.name.with-instance = {name} — インスタンス {instance}
+
+# Search results: overrides
+
+search.overrides.title.all = 全てのプロパティの上書き {qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.list = {list} プロパティの上書き {qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.specific = 特定のプロパティの上書き {qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { in}}}}{resource, select, none {} other { "{resource}"}}
+search.column.resource = リソース
+
+# Menus
+
+menu.file = ファイル
+menu.project = プロジェクト
+menu.edit = 編集
+menu.debug = デバッグ
+menu.view = 表示
+menu.help = ヘルプ
+
+# Commands
+
+command.tooltip = {command}{shortcut, select, none {} other { ({shortcut})}}
+
+command.file.new = 新規作成…
+command.file.new.option.any-file = ファイル
+command.file.new.any-file = 新規ファイル
+command.file.new-folder = 新規フォルダ
+command.file.open = 開く…
+command.file.open-as = 名前を指定して開く
+command.file.open-as.option.associated-application = 関連するアプリケーション
+command.file.open-as.option.in-custom-editor = {view}をカスタムエディターで開く
+command.file.open-as.option.in-defold-editor = {view} をDefoldで開く
+command.file.open-selected = 開く
+command.file.load-external-changes = 外部変更を読み込む
+command.file.save-all = 全て保存
+command.file.save-and-upgrade-all = ファイル形式をアップグレード…
+command.file.search = ファイル内検索…
+command.file.reopen-recent = 閉じたファイルを再度開く
+command.private.recent-files.option.entry = {path} • {view}
+command.private.recent-files = 最近使用したファイル
+command.private.recent-files.option.more = その他…
+command.window.tab.close = 閉じる
+command.window.tab.close-all = 全て閉じる
+command.window.tab.close-others = 他を閉じる
+command.window.tab.join-groups = タブペインに入る
+command.window.tab.move-to-other-group = 他のタブペインに移動
+command.window.tab.swap-with-other-group = 他のタブペインと入れ替え
+command.file.show-in-assets = アセットブラウザに表示
+command.file.show-in-desktop = デスクトップで表示
+command.file.show-references = 参照ファイル…
+command.file.show-dependencies = 依存関係…
+command.run.hot-reload = ホットリロード
+command.run.select-target = ターゲットを選択
+command.run.select-target.option.all-launched-instances = すべての起動済みインスタンス
+command.run.select-target.option.new-local-engine = 新しいローカルエンジン
+command.run.stop = エンジンを終了
+command.run.set-instance-count = 起動中のインスタンスの数
+command.run.set-instance-count.option.count = {count, plural, one{\# インスタンス} other {\# インスタンス}}
+command.run.set-target-ip = ターゲットIPを入力してください
+command.run.show-target-log = ターゲットディスカバリーログ
+command.run.open-profiler = Webプロファイラを開く
+command.run.open-resource-profiler = リソースプロファイラを開く
+command.run.reset-resolution = シミュレーション済み解像度のリセット
+command.run.set-resolution = 解像度を設定
+command.run.set-resolution.option.android-devices = Androidデバイス
+command.run.set-resolution.option.apple = アップル
+command.run.set-resolution.option.custom-resolution = カスタム解像度…
+command.run.set-resolution.option.ipad = iPad
+command.run.set-resolution.option.iphone = iPhone
+command.run.set-resolution.option.native-resolutions = ネイティブの解像度
+command.run.set-resolution.option.viewport-resolutions = ビューポートの解像度
+command.run.toggle-device-rotated = 回転したデバイス
+command.file.open-liveupdate-settings = ライブアップデートの設定
+command.file.open-project = プロジェクトを開く…
+command.file.open-shared-editor-settings = 共有エディタの設定
+command.app.preferences = 環境設定…
+command.app.quit = 終了
+command.project.build = ビルド
+command.project.clean-build = ビルドを消去
+command.project.build-html5 = HTML5 をビルド
+command.project.clean-build-html5 = HTML5 ビルドをクリア
+command.project.bundle = バンドル
+command.project.bundle-ios = iOS アプリケーション…
+command.project.bundle-android = Androidアプリケーション…
+command.project.bundle-macos = macOSアプリケーション…
+command.project.bundle-windows = Windowsアプリケーション…
+command.project.bundle-linux = Linuxアプリケーション…
+command.project.bundle-html5 = HTML5アプリケーション…
+command.project.rebundle = 再バンドル
+command.project.fetch-libraries = ライブラリの取得
+command.project.reload-editor-scripts = エディタスクリプトの再読み込み
+command.private.clear-override = {property} の上書きをクリア
+command.edit.undo = 元に戻す
+command.edit.redo = やり直し
+command.edit.add-embedded-component = 追加
+command.edit.add-embedded-component.variant.atlas = アニメーションを追加
+command.edit.add-embedded-component.variant.collection = ゲームオブジェクトを追加
+command.edit.add-embedded-component.variant.collision-object = シェイプを追加
+command.edit.add-embedded-component.variant.collision-object.option.box = 四角形
+command.edit.add-embedded-component.variant.collision-object.option.capsule = カプセル
+command.edit.add-embedded-component.variant.collision-object.option.sphere = 球体
+command.edit.add-embedded-component.variant.game-object = コンポーネントを追加
+command.edit.add-embedded-component.variant.gui.option.textures = テクスチャ…
+command.edit.add-embedded-component.variant.gui.option.materials = マテリアル…
+command.edit.add-embedded-component.variant.gui.option.fonts = フォント…
+command.edit.add-embedded-component.variant.gui.option.layer = レイヤー
+command.edit.add-embedded-component.variant.gui.option.particlefx = パーティクルFX…
+command.edit.add-embedded-component.variant.particlefx = エミッターを追加
+command.edit.add-embedded-component.variant.particlefx.option.circle = 円
+command.edit.add-embedded-component.variant.particlefx.option.sphere = 球体
+command.edit.add-embedded-component.variant.particlefx.option.cone = 円錐
+command.edit.add-embedded-component.variant.particlefx.option.2d-cone = 2D円錐
+command.edit.add-embedded-component.variant.particlefx.option.box = ボックス
+command.edit.add-embedded-component.variant.tile-map = レイヤーを追加
+command.edit.add-embedded-component.variant.tile-source = 追加
+command.edit.add-embedded-component.variant.tile-source.option.animation = アニメーション
+command.edit.add-embedded-component.variant.tile-source.option.collision-group = 衝突グループ
+command.edit.add-referenced-component = ファイルから追加
+command.edit.add-referenced-component.variant.atlas = 画像を追加…
+command.edit.add-referenced-component.variant.collection = ゲームオブジェクトファイルを追加
+command.edit.add-referenced-component.variant.game-object = コンポーネントファイルを追加
+command.edit.add-secondary-embedded-component = セカンダリの追加
+command.edit.add-secondary-embedded-component.variant.collection-game-object = ゲームオブジェクトを追加
+command.edit.add-secondary-embedded-component.variant.particlefx = モディファイアを追加
+command.edit.add-secondary-embedded-component.variant.particlefx.option.acceleration = 加速
+command.edit.add-secondary-embedded-component.variant.particlefx.option.drag = 減速
+command.edit.add-secondary-embedded-component.variant.particlefx.option.radial = 放射
+command.edit.add-secondary-embedded-component.variant.particlefx.option.vortex = 渦巻き
+command.edit.add-secondary-referenced-component = ファイルからセカンダリを追加
+command.edit.add-secondary-referenced-component.variant.collection = コレクションファイルを追加
+command.edit.add-secondary-referenced-component.variant.collection-game-object = ゲームオブジェクトファイルを追加
+command.edit.cut = 切り取り
+command.edit.copy = コピー
+command.edit.copy-absolute-path = フルパスをコピー
+command.edit.copy-require-path = 必要なパスのコピー
+command.edit.copy-resource-path = リソースパスをコピー
+command.edit.find = 検索…
+command.edit.paste = 貼り付け
+command.code.select-all = 全て選択
+command.edit.delete = 削除
+command.edit.reorder-up = 上へ移動
+command.edit.reorder-down = 下へ移動
+command.edit.rename = 名前を変更する
+command.edit.pull-up-overrides = プルアップ・オーバーライド
+command.edit.pull-up-overrides.variant.property = {property} を上書きする
+command.edit.push-down-overrides = プッシュダウン・オーバーライド
+command.edit.show-overrides = 上書きを表示…
+command.code.find-next = 次を検索
+command.code.find-previous = 前を検索
+command.code.replace = 置換…
+command.code.replace-next = 次を置換
+command.code.toggle-comment = コメントを切り替え
+command.code.reindent-lines = 行を再インデント
+command.code.format = 書式ドキュメント/選択
+command.code.convert-indentation = インデントを変換
+command.code.convert-indentation.to-tabs = タブに移動
+command.code.convert-indentation.to-two-spaces = 2つのスペース
+command.code.convert-indentation.to-four-spaces = 4つのスペース
+command.code.sort-lines = 行のソート
+command.code.sort-lines.case-sensitive = 行のソート(大文字と小文字を区別)
+command.code.sort-lines.option.case-insensitive = 大文字小文字を区別しない
+command.code.sort-lines.option.case-sensitive = 大文字と小文字を区別
+command.code.duplicate-selection = 選択範囲を複製する
+command.code.split-selection-into-lines = 選択範囲を行に分割
+command.code.goto-definition = 定義へ移動
+command.code.goto-line = 指定の行へ移動…
+command.code.jump-to-symbol = シンボルへ移動…
+command.code.show-references = リファレンスを検索
+command.code.toggle-minimap = ミニマップ
+command.code.toggle-indentation-guides = インデントガイド
+command.code.toggle-visible-whitespace = ホワイトスペースの表示
+command.code.zoom.increase = フォントサイズを大きくする
+command.code.zoom.decrease = フォントサイズを小さくする
+command.code.zoom.reset = フォントサイズをリセットする
+command.debugger.continue = 続ける
+command.debugger.break = ブレーク
+command.debugger.step-over = ステップ実行
+command.debugger.step-out = ステップ・アウト
+command.scene.set-gui-layout = GUIレイアウトを設定
+command.scene.play = 再生
+command.help.open-logs = ログを表示
+command.help.open-documentation = ドキュメント
+command.help.open-forum = サポートフォーラム
+command.help.open-editor-server = エディタサーバーを開く
+command.help.open-asset-portal = アセットを検索
+command.help.report-issue = 問題を報告
+command.help.report-suggestion = 改善提案を送る
+command.app.about = バージョン情報
+command.vcs.diff = 差分を表示
+
+# Code editor – find bar
+
+code.replace.next = 置換
+code.replace.all = すべて置換
+
+# About dialog
+
+dialog.about.label.version = バージョン：
+dialog.about.label.channel = チャンネル：
+dialog.about.label.build-time = ビルド時間：
+dialog.about.label.editor-sha1 = エディターSHA1：
+dialog.about.label.engine-sha1 = エンジンSHA1：
+dialog.about.value.unavailable = 利用不可
+dialog.about.footer.copyright = Copyright © 2009-2025
+dialog.about.footer.foundation = Defold Foundation
+dialog.about.sponsor = Defold Foundation Development Fund
+
+# Overrides
+
+override.aspect.layout = {layout} レイアウト
+override.aspect.layout.kind = {count, plural, other {\# レイアウト}}
+override.aspect.generic.kind = {count, plural, other {\# アスペクト}}
+
+# GUI
+
+gui.layout.default = デフォルト
+
+# UI
+
+ui.combo-box.filter-prompt = 入力して絞り込む
+ui.combo-box.no-items = 利用可能な項目はありません
+ui.combo-box.not-found = 該当する項目は見つかりませんでした
+
+# Editing operations
+
+operation.atlas.add-animation = アニメーションを追加
+operation.atlas.add-images = 画像を追加
+operation.collision-object.add-shape = シェイプを追加
+operation.collection.add-collection = コレクションを追加
+operation.collection.add-game-object = ゲームオブジェクトを追加
+operation.game-object.add-component = コンポーネントを追加
+operation.gui.add-gui-node = GUIノードを追加
+operation.gui.add-layer = レイヤーを追加
+operation.gui.add-layout = レイアウトを追加
+operation.gui.add-resources = {type}を追加
+operation.particlefx.add-emitter = エミッターを追加
+operation.particlefx.add-modifier = モディファイアを追加
+operation.property.clear = {property}を消去
+operation.property.set = {property}を設定
+operation.scene.move = 移動
+operation.scene.rotate = 回転
+operation.scene.scale = スケール
+operation.cut = 切り取り
+operation.delete = 削除
+operation.drop = 落とす
+operation.paste = 貼り付け
+operation.select = 選択
+operation.tile-map.add-layer = レイヤーを追加
+
+# Scene View Popups
+
+scene-popup.reset-defaults-button = デフォルトに戻す
+scene-popup.grid.plane = 平面
+scene-popup.grid.color = 色
+scene-popup.scene-visibility.gui-bounds = GUIバウンズ
+scene-popup.scene-visibility.gui-shapes = GUIシェイプ
+scene-popup.scene-visibility.gui-particle-effects = GUIパーティクルエフェクト
+scene-popup.scene-visibility.gui-spine-scenes = GUI Spineシーン
+scene-popup.scene-visibility.gui-text = GUI テキスト
+scene-popup.scene-visibility.particle-effects = パーティクルエフェクト
+scene-popup.scene-visibility.skeletons = スケルトン
+scene-popup.scene-visibility.spine-scenes = Spineシーン
+scene-popup.scene-visibility.sprites = スプライト
+scene-popup.scene-visibility.text = テキスト
+scene-popup.scene-visibility.tile-maps = タイルマップ
+scene-popup.scene-visibility.component-guides = コンポーネントガイド
+scene-popup.scene-visibility.scene-visibility-bounds = シーンの可視範囲
+
+# Properties
+
+property.tooltip = {help, select, none {} other {{help}\n\n}}エディタスクリプトでは `{id}` として利用可能です。
+
+# Properties: universal
+
+property.blend-mode = Blend Mode
+property.blend-mode.tooltip = このアイテムのピクセルを背面のグラフィックとどのように合成するかを制御します。**Alpha**は通常の透明度を適用し、**Add**は明るく、**Multiply**は暗くし、**Screen**はより柔らかな明るさの効果を生み出します。利用可能なモードはアイテムの種類によって異なります。
+property.id = Id
+property.id.tooltip = 実行時にこのコレクションインスタンス、ゲームオブジェクト、またはコンポーネントを特定するために使用される識別子です。これは兄弟要素の中で一意である必要があり、階層構造と組み合わさることで、そのアイテムのURLを構成します。
+property.image = Image
+property.image.tooltip = このリソースの構築に使用されたソース画像ファイルです。アトラスの場合はパッキング対象となる単一の画像であり、タイルソースの場合はタイルのグリッドを含む画像となります。
+property.material = Material
+property.material.tooltip = このアイテムの描画に使用されるマテリアルです。シェーダーとその入力内容を定義するため、アイテムのジオメトリやテクスチャと互換性のあるものを選択してください。
+property.name = Name
+property.name.tooltip = このエントリやリソースを識別するための名前です。他のエントリやランタイムAPIから参照する必要がある場合は、一意で内容が分かりやすい名前を使用してください。
+property.path = Path
+property.path.tooltip = この参照されたコレクション、ゲームオブジェクト、またはコンポーネントのプロトタイプとして使用されるプロジェクトリソースです。プロトタイプへの変更はすべてのインスタンスに反映されますが、インスタンス固有のプロパティのオーバーライドはローカルに維持されます。
+property.position = Position
+property.position.tooltip = 親に対する、X、Y、およびZ軸に沿ったアイテムの位置。親を移動させると、その子も移動します。
+property.rotation = Rotation
+property.rotation.tooltip = 親要素を基準とした、X、Y、およびZ軸周りでのオブジェクトの度単位の向き。親要素を回転させると、その子要素も回転します。
+property.scale = スケール
+property.scale.tooltip = 親に対するX、Y、Z軸方向のサイズを乗算します。値が `1` の場合、元のスケールが維持されます。
+property.size = サイズ
+property.size.tooltip = 項目の幅、高さ、および該当する場合は奥行きです。読み取り専用の場合、サイズは項目のコンテンツやレンダリングリソースから自動的に計算されます。GUIノードの場合、サイズは入力の当たり判定に使用される範囲も定義します。
+property.url = URL
+property.url.tooltip = 階層構造と **Id** から導出される、読み取り専用のランタイムアドレスです。これはゲームオブジェクトやコンポーネントを指し示すほか、コレクションインスタンスのコンテンツのアドレスプレフィックスとしても機能します。
+
+# Properties: appmanifest
+
+property.appmanifest.physics-2d = 2D物理演算
+property.appmanifest.physics-2d.tooltip = 組み込むBox2Dの実装を選択するか、**None**を選択して2D物理演算を削除し、エンジンのサイズを削減してください。Box2D 3は従来の実装とは挙動が異なる場合があるため、既存のプロジェクトでは物理演算の調整が必要になる可能性があります。
+property.appmanifest.physics-3d = 3D物理演算
+property.appmanifest.physics-3d.tooltip = Bullet 3D物理エンジンを含めます。プロジェクトで3D物理演算を使用しない場合は、エンジンサイズを削減するためにこれを無効にしてください。
+property.appmanifest.rig+model = リグ+モデル
+property.appmanifest.rig+model.tooltip = モデルのレンダリングとリグアニメーションの両方を含めるか、リグ機能のみを含めるか、あるいはそのどちらも含めないかを選択します。使用しない機能を除外することで、エンジンのサイズを削減できます。
+property.appmanifest.exclude-record = 録画機能の除外
+property.appmanifest.exclude-record.tooltip = `start_record` システムメッセージで使用されるデスクトップ動画録画機能を削除します。ゲームプレイを録画しないプロジェクトで、エンジンサイズを削減したい場合に有効にしてください。
+property.appmanifest.profiler = プロファイラ
+property.appmanifest.profiler.tooltip = プロファイラ機能を含めるビルド構成を選択します。「Debug Only」はリリースビルドから除外し、「None」は完全に除外します。「Always」はリリースビルドにも含めます。
+property.appmanifest.exclude-sound = 音声を除外する
+property.appmanifest.exclude-sound.tooltip = エンジンからすべての音声再生機能を取り除きます。プロジェクトで音声を再生しない場合にのみ有効にしてください。
+property.appmanifest.exclude-gui = GUIを除外する
+property.appmanifest.exclude-gui.tooltip = エンジンからGUIリソース、コンポーネント、およびLuaサポートを削除します。プロジェクトでGUIシーンやスクリプトを使用しない場合にのみ、これを有効にしてください。
+property.appmanifest.exclude-particle-fx = パーティクルエフェクトを除外する
+property.appmanifest.exclude-particle-fx.tooltip = パーティクルエフェクトのリソース、コンポーネント、およびLuaサポートを削除します。これはGUIシーン内のパーティクルノードを含みます。パーティクルノードを含まないGUIシーンは引き続きサポートされます。
+property.appmanifest.exclude-tilemap = タイルマップを除外する
+property.appmanifest.exclude-tilemap.tooltip = エンジンからタイルマップのリソース、コンポーネント、およびLuaサポートを削除します。プロジェクトでタイルマップを使用しない場合にのみ有効にしてください。
+property.appmanifest.exclude-sound-decoder-wav = サウンドデコーダーを除外する： WAV
+property.appmanifest.exclude-sound-decoder-wav.tooltip = `.wav` 音声リソースのサポートを削除します。プロジェクトでWAV音声を再生しない場合にのみ有効にしてください。
+property.appmanifest.exclude-sound-decoder-ogg = サウンドデコーダーを除外する：OGG
+property.appmanifest.exclude-sound-decoder-ogg.tooltip = Ogg Vorbis音声リソースのサポートを削除します。プロジェクトで `.ogg` 音声が再生されない場合にのみ有効にしてください。
+property.appmanifest.include-sound-decoder-opus = サウンドデコーダーを含める：Opus
+property.appmanifest.include-sound-decoder-opus.tooltip = Ogg Opusサウンドリソースのサポートを含めます。Opusデコーダはデフォルトでは除外されていますが、`.opus`オーディオを再生するには必要です。
+property.appmanifest.exclude-input = 入力を除外する
+property.appmanifest.exclude-input.tooltip = エンジンからすべての入力処理を削除します。キーボード、マウス、タッチ、ゲームパッド、その他の入力を使用しないプロジェクトでのみ有効にしてください。
+property.appmanifest.exclude-liveupdate = ライブアップデートを除外する
+property.appmanifest.exclude-liveupdate.tooltip = 初期バンドルから除外されたリソースをマウントするために使用されるライブアップデート機能を削除します。プロジェクトがライブアップデートコンテンツをダウンロードおよびマウントしない場合にのみ、これを有効にしてください。
+property.appmanifest.exclude-image = 画像を除外する
+property.appmanifest.exclude-image.tooltip = エンジンから `image` Lua モジュールを削除します。プロジェクトのスクリプトで画像の読み込みや画像データ関連の機能を使用しない場合にのみ、これを有効にしてください。
+property.appmanifest.exclude-types = Typesを除外する
+property.appmanifest.exclude-types.tooltip = エンジンから `types` Lua モジュールを削除します。プロジェクトのスクリプトでその型チェック機能を使用しない場合にのみ、これを有効にしてください。
+property.appmanifest.exclude-basis-transcoder = Basisトランスコーダーを除外
+property.appmanifest.exclude-basis-transcoder.tooltip = Basis Universalテクスチャトランスコーダーを削除します。Basis Universal圧縮を使用するテクスチャプロファイルが一切ない場合にのみ有効にしてください。
+property.appmanifest.use-android-support-lib = Androidサポートライブラリを使用する
+property.appmanifest.use-android-support-lib.tooltip = AndroidX ではなく、非推奨の Androidサポートライブラリ を使用します。AndroidX に移行していないレガシーな依存関係に対してのみ、これを有効にしてください。
+property.appmanifest.graphics = グラフィックス
+property.appmanifest.graphics.tooltip = WindowsおよびLinuxのビルドに含めるグラフィックスバックエンドを選択します。OpenGLとVulkanの両方を含めることで、優先されるバックエンドが利用できない場合のフォールバックが可能になりますが、エンジンのサイズは増加します。
+property.appmanifest.graphics-osx = グラフィックス (macOS)
+property.appmanifest.graphics-osx.tooltip = MacOSビルドに含めるグラフィックスバックエンドを選択します。デフォルトはVulkanですが、複合的な選択肢を選ぶとフォールバック用のバックエンドも含まれるため、エンジンのサイズが増加します。
+property.appmanifest.graphics-ios = グラフィックス (iOS)
+property.appmanifest.graphics-ios.tooltip = iOSビルドに含めるグラフィックスバックエンドを選択します。デフォルトはOpenGLです。複合オプションを選択するとフォールバック用のバックエンドが含まれますが、エンジンのサイズは増加します。
+property.appmanifest.graphics-android = グラフィックス (Android)
+property.appmanifest.graphics-android.tooltip = Androidビルドに含めるグラフィックスバックエンドを選択します。デフォルトでは両方が含まれ、Vulkanが利用可能な場合はVulkanが優先され、利用できない場合はOpenGL ESにフォールバックします。
+property.appmanifest.graphics-web = グラフィックス (HTML5)
+property.appmanifest.graphics-web.tooltip = HTML5ビルドに含めるグラフィックスバックエンドを選択します。デフォルトはWebGLですが、WebGLとWebGPUの両方を含めるとフォールバックが可能になる一方、エンジンサイズが増加します。
+property.appmanifest.use-font-layout = フルテキストレイアウトシステムを使用する
+property.appmanifest.use-font-layout.tooltip = TrueTypeフォントから実行時にSDFフォントを生成するために必要な、フルテキストレイアウトシステムを組み込みます。実行時のグリフ・ラスタライズには `game.project` で `font.runtime_generation` を有効にする必要もあり、これにより右から左へ記述するテキストなどの機能がサポートされます。
+property.appmanifest.use-rich-text = リッチテキストを使用する
+property.appmanifest.use-rich-text.tooltip = ラベルやGUIテキストに対して、リッチテキストの解析およびスタイル効果を有効にします。これを無効にするとエンジンサイズを削減できますが、マークアップはプレーンテキストとして表示されるようになります。
+
+# Properties: atlas
+
+property.atlas.animation.id.tooltip = コンポーネントやランタイムアニメーションAPIでこのフリップブックアニメーションを選択するために使用される識別子です。アトラス内で一意である必要があります。
+property.atlas.animation.fps = FPS
+property.atlas.animation.fps.tooltip = アニメーションの再生速度をフレーム毎秒で表示します。値が大きいほど、フレームがより早く表示されます。
+property.atlas.animation.flip-horizontal = 左右反転
+property.atlas.animation.flip-horizontal.tooltip = 再生中、すべてのアニメーションフレームを左右反転させます。
+property.atlas.animation.flip-vertical = 上下反転
+property.atlas.animation.flip-vertical.tooltip = 再生中、すべてのアニメーションフレームを垂直方向に反転させます。
+property.atlas.animation.playback = 再生
+property.atlas.animation.playback.tooltip = アニメーションを最初のフレームで停止させるか、１回再生するか、ループさせるかを選択します。また、フレームの再生方向を順方向、逆方向、または往復のいずれかに設定します。１往復させる「Once Ping Pong」では、アニメーションを連続して再生する際に最初のフレームが繰り返されるのを防ぐため、２番目のフレームに戻った時点で停止します。
+property.atlas.image.id.tooltip = 「リネームパターン」を適用した後の、元画像のベース名から生成される読み取り専用の識別子です。画像の選択や、アトラス間での対応するフレームの照合に使用されます。
+property.atlas.image.pivot = ピボット
+property.atlas.image.pivot.tooltip = 画像が表示される際、コンポーネントの位置と合わせる点です。`(0, 0)` は左上、`(1, 1)` は右下、`(0.5, 0.5)` は中央を表し、この範囲外の値を指定することも可能です。
+property.atlas.image.sprite-trim-mode = スプライトトリムモード
+property.atlas.image.sprite-trim-mode.tooltip = スプライトを完全な矩形として描画する代わりに、指定した数の頂点を用いて、画像の不透明な領域を近似します。これにより透明部分のオーバードローを削減できますが、slice-9スプライトでは使用できません。
+property.atlas.margin = マージン
+property.atlas.margin.tooltip = アトラス・テクスチャ内で、パッキングされた画像の間に挿入されるピクセル数。
+property.atlas.inner-padding = 内部パディング
+property.atlas.inner-padding.tooltip = 各画像をアトラスにパッキングする際、その周囲に追加される空のピクセル数。
+property.atlas.extrude-borders = 境界の押し出し
+property.atlas.extrude-borders.tooltip = 各画像の端にあるピクセルを外側へコピーする回数です。これにより、シェーダーが画像の端付近をサンプリングする際、隣接する画像の色が混入するのを防ぎます。
+property.atlas.max-page-width = 最大ページ幅
+property.atlas.max-page-height = 最大ページ高さ
+property.atlas.max-page-size = 最大ページサイズ
+property.atlas.max-page-size.tooltip = 複数ページ構成のアトラスにおける、各ページの最大幅と高さです。ページングを有効にするには、両方の値を０より大きく設定してください。また、このアトラスを使用するコンポーネントでは、ページング対応アトラス用のマテリアルを使用する必要があります。
+property.atlas.rename-patterns = リネームパターン
+property.atlas.rename-patterns.tooltip = 各画像のベース名に適用される、カンマ区切りの「検索文字列\=置換文字列」パターンです。例えば `hat\=cat,_normal\=` と指定すると、`hat_normal` は `cat` に変更されます。対応するフレームが複数のアトラスにまたがっている場合などに、こうした名前の対応付けが役立ちます。
+
+# Properties: camera
+
+property.camera.aspect-ratio = アスペクト比
+property.camera.aspect-ratio.tooltip = **透視投影のみ**。 ビュー・フラスタムの幅と高さの比率です。正方形の場合は `1.0`、4\:3の場合は約 `1.33`、16\:9の場合は約 `1.78` を使用します。**自動アスペクト比**が有効な場合、この設定は無視されます。
+property.camera.fov = FOV
+property.camera.fov.tooltip = **透視投影のみ**。 ラジアン単位の垂直視野角。値を大きくすると、より広い範囲のシーンが表示されます。例えば、60度は約 `1.047` ラジアンです。
+property.camera.near-z = Near Z
+property.camera.near-z.tooltip = ニアクリッピング面の、ビュー空間における符号付き深度。**Near Z** と **Far Z** の範囲外にあるジオメトリはクリップされます。
+property.camera.far-z = Far Z
+property.camera.far-z.tooltip = 遠方クリッピング面の、ビュー空間における符号付き深度値。**Near Z** と **Far Z** の間隔を狭くすると深度バッファの精度は向上しますが、ジオメトリがクリップされる可能性があります。
+property.camera.auto-aspect-ratio = 自動アスペクト比
+property.camera.auto-aspect-ratio.tooltip = **透視投影のみ** 。**アスペクト比**を使用する代わりに、現在のウィンドウの幅と高さからアスペクト比を計算します。
+property.camera.orthographic-projection = 正投影
+property.camera.orthographic-projection.tooltip = 正投影を使用します。カメラからの距離に関係なく、オブジェクトの見かけのサイズは一定に保たれます。主に2Dシーンで使用されます。
+property.camera.orthographic-zoom = 正投影ズーム
+property.camera.orthographic-zoom.tooltip = **正投影のみ**。 正のズーム倍率を指定します。値が `1` より大きいとズームイン、`1` より小さいとズームアウトします。**Auto Fit**や **Auto Cover**を使用している場合、この値は自動計算されたズーム倍率に乗算されます。
+property.camera.orthographic-mode = 正投影ズームモード
+property.camera.orthographic-mode.tooltip = **正投影のみ**。 **Fixed**は**正投影ズーム**を直接使用します。**Auto Fit**はデザイン領域全体を表示し続けるため、余分なコンテンツが表示される場合があります。**Auto Cover**はウィンドウを埋めるように表示するため、コンテンツが切り取られる場合があります。自動モードでは、`game.project`で設定された表示幅と高さがデザインサイズとして使用されます。
+
+# Properties: collection proxy
+
+property.collection-proxy.collection = コレクション
+property.collection-proxy.collection.tooltip = コレクションは独立したゲームワールドとして読み込まれます。読み込み後、必要に応じて `enable` が最初に初期化を行います。アンロード時には、必要に応じて `unload` が最初に終了処理を行います。手動制御用に、明示的なライフサイクルメッセージも引き続き利用可能です。
+property.collection-proxy.exclude = 除外する
+property.collection-proxy.exclude.tooltip = Live Updateコンテンツを公開する際、このプロキシのコンテンツ（特定の除外プロキシに固有ではないリソースを含む）をメインバンドルから除外します。読み込み前に、必要なコンテンツをマウントしてください。なお、「Build and Run」では除外されません。
+
+# Properties: collision object
+
+property.collision-object.collision-shape = 衝突形状
+property.collision-object.collision-shape.tooltip = オブジェクトを定義する外部のタイルマップまたは凸形状。コリジョンオブジェクトの配下に追加されたプリミティブ形状を使用する場合は、この設定を空のままにしてください。
+property.collision-object.type = タイプ
+property.collision-object.type.tooltip = **ダイナミック**オブジェクトはシミュレーションによって制御され、**キネマティック**オブジェクトはユーザーのコードによって移動・処理され、**スタティック**オブジェクトは移動せず、**トリガー**オブジェクトは重なりの検出のみを行います。これらはエディタスクリプト内で `衝突タイプ` として利用可能です。埋め込みコンポーネントの `type` と名前が重複して隠れてしまう可能性がある `type` ではなく、こちらを使用することが推奨されます。
+property.collision-object.mass = 質量
+property.collision-object.mass.tooltip = **ダイナミック**オブジェクトのシミュレーションに使用されるkg単位の質量。値は０より大きくする必要があります。他のタイプのオブジェクトでは無視されます。
+property.collision-object.friction = 摩擦力
+property.collision-object.friction.tooltip = 物体が接触している際の滑りに対する抵抗です。`0` は摩擦がないことを意味し、通常は `1` までの値が用いられます。いずれかの物体の摩擦がゼロであれば、その接触は摩擦なしとなります。
+property.collision-object.restitution = 反発
+property.collision-object.restitution.tooltip = 衝突後に物体がどれだけ跳ね返るかを表します。`0`は跳ね返りなし、`1`は完全弾性となります。最終的な挙動は、衝突相手の物体の反発係数や、使用する物理エンジンによっても変化します。
+property.collision-object.linear-damping = 線形減衰
+property.collision-object.linear-damping.tooltip = 物体が何にも接触していない状態でも、線速度を徐々に減少させます。空気抵抗などの抵抗をシミュレートするには、`0` から `1` の範囲の値を指定してください。
+property.collision-object.angular-damping = 角減衰
+property.collision-object.angular-damping.tooltip = 徐々に角速度を低下させ、何ものとも接触していない状態であっても物体の回転を遅くします。
+property.collision-object.locked-rotation = 回転の固定
+property.collision-object.locked-rotation.tooltip = 物理シミュレーションによって、力や衝突に応じて衝突オブジェクトが回転するのを防ぎます。
+property.collision-object.bullet = 弾丸
+property.collision-object.bullet.tooltip = **2D物理演算のみ。** 高速で移動するオブジェクトが他のダイナミックオブジェクトをすり抜けてしまうのを防ぐため、連続衝突判定を有効にします。**タイプ** が **ダイナミック** の場合にのみ適用されます。
+property.collision-object.event-collision = 衝突イベントの生成
+property.collision-object.event-collision.tooltip = 接触点の詳細を含まない、一般的な衝突通知を生成します。これを無効にすると、このオブジェクトの `collision_response` メッセージが抑制されます。中央のリスナーは、双方がこの機能を無効にしている場合にのみ、その相互作用をフィルタリングします。
+property.collision-object.event-contact = 衝突イベントの生成
+property.collision-object.event-contact.tooltip = 位置、法線、貫入量、力積を含む詳細な接触点通知を生成します。毎フレーム、あるオブジェクトのペアに対して複数の通知が発生する可能性があります。この機能を無効にすると、当該オブジェクトの `contact_point_response` メッセージの送信が抑制されます。集中管理されたリスナーによる相互作用のフィルタリングは、両方のオブジェクトでこの機能が無効になっている場合にのみ行われます。
+property.collision-object.event-trigger = トリガーイベントの生成
+property.collision-object.event-trigger.tooltip = オブジェクトが**トリガー**に出入りする際に通知を生成します。これを無効にすると、そのオブジェクトの `trigger_response` メッセージが抑制されます。一元管理されたリスナーは、双方がこの機能を無効にしている場合にのみ、その相互作用をフィルタリングします。
+property.collision-object.group = グループ
+property.collision-object.group.tooltip = このオブジェクトが属する衝突グループです。各オブジェクトの**マスク**に相手のオブジェクトのグループが含まれている場合にのみ、それらのオブジェクトは相互に作用します。
+property.collision-object.group.tilemap.tooltip = **衝突形状** がタイルマップである場合は使用されません。衝突グループは、そのタイルマップのタイルソースによって定義されます。
+property.collision-object.mask = マスク
+property.collision-object.mask.tooltip = このオブジェクトが相互作用可能なカンマで区切られた衝突グループ。双方が互いのグループを自身のマスクに含めている必要があります。マスクが空の場合、何とも衝突しません。
+property.collision-object.shape.id.tooltip = コリジョンオブジェクト内における、この埋め込みシェイプの識別子です。`physics.get_shape()` や `physics.set_shape()` などのAPIと併用することで、実行時にシェイプの状態を確認したり、サイズを変更したりできます。
+property.collision-object.shape.diameter = 直径
+property.collision-object.shape.diameter.tooltip = 球体の全直径、またはカプセルの丸みを帯びた断面の直径。０より大きい値である必要があります。
+property.collision-object.shape.dimensions = 寸法
+property.collision-object.shape.dimensions.tooltip = ボックス形状の**幅**、**高さ**、**奥行き**の全体サイズです。**奥行き**は3D物理演算にのみ影響しますが、すべての寸法は０より大きい値である必要があります。
+property.collision-object.shape.height = 高さ
+property.collision-object.shape.height.tooltip = **3D物理演算のみ。** カプセルの両端の半球状部分に挟まれた、直線部分の長さです。両端を含めた全長は **「高さ」＋「直径」** となります。
+
+# Properties: compute
+
+property.compute.compute-program = 計算プログラム
+
+# Properties: cubemap
+
+property.cubemap.back = 背面
+property.cubemap.back.tooltip = キューブマップの背面（`-Z`）側にマッピングされる画像です。キューブマップは、スカイボックス、反射、ライティングなどのエフェクトのために方向に基づいてサンプリングされます。そのため、６つの面すべての画像は、同じ寸法である必要があります。
+property.cubemap.bottom = 下面
+property.cubemap.bottom.tooltip = キューブマップの下面（`-Y`方向）にマッピングされる画像です。キューブマップは、スカイボックス、反射、ライティングなどのエフェクトにおいて、方向に基づいてサンプリングされます。そのため、６つの面すべての画像は、同じサイズである必要があります。
+property.cubemap.front = 正面
+property.cubemap.front.tooltip = キューブマップの正面（`+Z`）の面にマッピングされる画像です。キューブマップは、スカイボックス、反射、ライティングなどのエフェクトのために方向に基づいてサンプリングされます。そのため、６つの面すべての画像は、同じサイズである必要があります。
+property.cubemap.left = 左側面
+property.cubemap.left.tooltip = キューブマップの左側面（`-X`）の面にマッピングされる画像です。キューブマップは、スカイボックス、反射、ライティングなどのエフェクトのために方向に基づいてサンプリングされます。そのため、６つの面すべての画像は同じサイズである必要があります。
+property.cubemap.right = 右側面
+property.cubemap.right.tooltip = キューブマップの右側面（`+X`）の面にマッピングされる画像です。キューブマップは、スカイボックス、反射、ライティングなどのエフェクトのために方向に基づいてサンプリングされます。そのため、６つの面すべての画像は、同じサイズである必要があります。
+property.cubemap.top = 平面
+property.cubemap.top.tooltip = キューブマップの平面（`+Y`方向）にマッピングされる画像です。キューブマップは、スカイボックス、反射、ライティングなどのエフェクトにおいて、方向に基づいてサンプリングされます。そのため、６つの面すべての画像は、同じサイズである必要があります。
+
+# Properties: factory
+
+property.factory.prototype = プロトタイプ
+property.factory.prototype.tooltip = このコンポーネントによってインスタンス化されるリソース：Factory用のゲームオブジェクト、またはCollection Factory用のコレクション。`factory.create()` または `collectionfactory.create()` でスポーンさせます。
+property.factory.load-dynamically = 動的読み込み
+property.factory.load-dynamically.tooltip = プロトタイプの各リソースの読み込みを、実際に必要になるまで延期します。ただし、リソース自体はバンドルに含まれます。`factory.create()` や `collectionfactory.create()` を呼び出すとリソースが同期的に読み込まれ、処理の「ひっかかり」が生じる可能性があります。そのため、事前に `factory.load()` や `collectionfactory.load()` を呼び出し、非同期で読み込んでおくようにしてください。
+property.factory.dynamic-prototype = 動的プロトタイプ
+property.factory.dynamic-prototype.tooltip = `factory.set_prototype()` または `collectionfactory.set_prototype()` を使用して、実行時にプロトタイプを置き換えることができます。以前のプロトタイプが `factory.load()` や `collectionfactory.load()` で読み込まれていた場合は、切り替え前にそれをアンロードしてください。これにより、そのコレクションにおけるコンポーネント数の最適化が無効化され、プロジェクト設定の最大値が適用されるようになります。
+
+# Properties: font
+
+property.font.font = フォント
+property.font.font.tooltip = ソースフォントをTrueType (`.ttf`)、OpenType (`.otf`)、または BMFont (`.fnt`) ファイルの中から選択します。
+property.font.texture = テクスチャ
+property.font.texture.tooltip = このBMFont（`.fnt`）ファイルが参照するPNGグリフシートです。テクスチャは同じフォルダに配置し、BMFontで指定されたファイル名と一致させる必要があります。
+property.font.output-format = 出力フォーマット
+property.font.output-format.tooltip = **Bitmap**はTTF/OTFのグリフをラスタライズするもので、BMFont（`.fnt`）ソースを使用する際に必要となります。**Distance Field**はよりきれいにスケーリングを行うため、エッジまでの距離データを保持するためのものです。対応するディスタンスフィールド・マテリアルを必要とします。
+property.font.render-mode = レンダリングモード
+property.font.render-mode.tooltip = **Single Layer**は、１文字につき１つの四角形をレンダリングします。一方、**Multi Layer**は影、輪郭、文字本体を個別にレンダリングするため、太い輪郭が隣接するグリフを覆ってしまうのを防ぎ、**Shadow X/Y**によるオフセット設定も可能になります。
+property.font.size = サイズ
+property.font.size.tooltip = フォント生成時のターゲットとなるピクセル単位のグリフサイズ。ビットマップフォントはこのサイズ付近で最も美しく表示されますが、ディスタンスフィールドフォントの場合は、拡大時に形状の細部を維持するために十分なサイズが必要です。
+property.font.antialias = アンチエイリアス
+property.font.antialias.tooltip = フォントをラスタライズする際、グリフの輪郭を滑らかにします。ピクセル単位で正確なフォント描画を行う場合は、無効にしてください。
+property.font.alpha = 透明度
+property.font.alpha.tooltip = 生成されるグリフ面の不透明度を `0`（透明）から `1`（不透明）の範囲で制御します。
+property.font.outline-alpha = 輪郭透明度
+property.font.outline-alpha.tooltip = 生成される輪郭線の不透明度を `0`（透明）から `1`（不透明）の範囲で制御します。輪郭線を無効にするには `0` を指定してください。
+property.font.outline-width = 輪郭幅
+property.font.outline-width.tooltip = 生成されるグリフの輪郭線のピクセル単位幅。輪郭線を表示しない場合は `0` を指定してください。
+property.font.shadow-alpha = 影の透明度
+property.font.shadow-alpha.tooltip = 生成される影の不透明度を `0`（透明）から `1`（不透明）の範囲で制御します。影を無効にするには `0` を指定してください。
+property.font.shadow-blur = 影のぼかし
+property.font.shadow-blur.tooltip = 生成される影を柔らかくします。ビットマップ出力の場合はブラーパスの回数となり、ディスタンスフィールド出力の場合はピクセル単位のブラー幅となります。
+property.font.shadow-x = 影のXオフセット
+property.font.shadow-x.tooltip = 生成される影の水平方向のピクセル単位オフセット。これは**マルチレイヤー**モードでのグリフ描画にのみ影響します。
+property.font.shadow-y = 影のYオフセット
+property.font.shadow-y.tooltip = 生成される影の垂直方向のピクセル単位オフセット。グリフの描画に影響するのは、**マルチレイヤー** モードの場合のみです。
+property.font.cache-width = キャッシュ幅
+property.font.cache-width.tooltip = 描画に使用するグリフキャッシュテクスチャのピクセル単位幅。キャッシュのセルが不足する場合は値を増やしてください。「0」にすると自動サイズ調整が使用されます。
+property.font.cache-height = キャッシュ高さ
+property.font.cache-height.tooltip = 描画に使用するグリフキャッシュテクスチャのピクセル単位高さ。キャッシュのセルが不足する場合は値を増やしてください。「0」にすると自動サイズ調整が使用されます。
+property.font.characters = 文字
+property.font.characters.tooltip = オフラインフォントの構築時に含める文字です。このセットを制限することで、フォントサイズを削減できます。ランタイムフォントの場合、これらの文字はグリフキャッシュを事前に準備するためにあらかじめ生成されます。フィールドを空にすると、印刷可能なASCII文字の状態に戻ります。
+property.font.all-chars = 全文字
+property.font.all-chars.tooltip = オフラインフォントの場合、指定された「文字」だけでなくソース内のすべてのグリフが含まれるようになり、フォントサイズが大幅に増加する可能性があります。ランタイムフォントの場合、グリフは必要に応じて生成されるため、このオプションを有効にすると「文字」の事前生成がスキップされます。
+
+# Properties: gui
+
+property.gui.id.tooltip = `gui.get_node()` でこのノードを特定するために使用される識別子です。GUIシーン内で一意である必要があります。テンプレートインスタンス由来のノードには、テンプレートノードの **Id** とスラッシュが接頭辞として付加されます。
+property.gui.adjust-mode = 調整モード
+property.gui.adjust-mode.tooltip = 異なる画面サイズに合わせてノードの境界が調整される際、ノードのコンテンツがどのように適応するかを制御します。「フィット」は境界内でアスペクト比を維持し、「ズーム」はアスペクト比を維持したまま境界を覆うように表示し、「ストレッチ」は境界全体を埋めるように引き伸ばします。「調整の基準」が「Disabled」に設定されている場合、この設定は無視されます。なお、ParticleFXノードは「ストレッチ」をサポートしていません。
+property.gui.adjust-reference = アジャスト設定
+property.gui.adjust-reference.tooltip = ノードを調整するときに使用するサイズを選択します。 **ノードごと** は、親の調整されたサイズ、またはルート ノードのシーンを使用します。 **無効** は調整をオフにします。 **ルート (非推奨)** は、すべてのノードのシーン サイズを使用します。
+property.gui.alpha = 透明度
+property.gui.alpha.tooltip = ノードの不透明度を「0」(透明) から「1」(不透明)まで制御します。 **アルファの継承** が有効な場合、この値は親のアルファで乗算されます。
+property.gui.clipping-inverted = クリッピングの反転
+property.gui.clipping-inverted.tooltip = このノードのステンシルマスクを反転させ、子ノードがノードの形状の内側ではなく外側に描画されるようにします。
+property.gui.clipping-mode = クリッピングモード
+property.gui.clipping-mode.tooltip = **None**：通常通り描画されます。 **Stencil**：ノードのジオメトリをマスクとして使用し、子ノードをクリップします。テクスチャの透明度はマスクの形状に影響しません。
+property.gui.clipping-visible = クリッピング表示
+property.gui.clipping-visible.tooltip = クリッピングノード自身のコンテンツを描画すると同時に、その形状を使って子ノードをマスクします。ノードをマスクとしてのみ機能させる場合は、この機能を無効にしてください。
+property.gui.color = 色
+property.gui.color.tooltip = ノードの色を設定します。テクスチャ付きのボックスノードや円グラフノードでは、テクスチャの色と乗算されるため、白に設定するとテクスチャの色は変化しません。
+property.gui.current-nodes = 現在のノード
+property.gui.current-nodes.tooltip = これは、現在のGUIシーンで定義されているノード数です。**Max Nodes**（最大ノード数）を設定する際の基準として使用し、実行時に作成または複製されるノードのための余地を確保してください。
+property.gui.enabled = Enabled
+property.gui.enabled.tooltip = 無効化されたノードは描画やアニメーションが行われず、`gui.pick_node()` で選択することもできません。非表示のノードをアクティブかつ選択可能な状態に保つ必要がある場合は、代わりに **Visible** を使用してください。
+property.gui.font = フォント
+property.gui.font.tooltip = このテキストノードの描画に使用するフォントを選択します。フォントは、あらかじめGUIシーンの**フォント**セクションに追加しておく必要があります。
+property.gui.resource.font = フォント
+property.gui.resource.font.tooltip = GUIシーンの**Fonts**セクションにある、このエントリーが提供するフォントリソースを選択します。テキストノードは、その**Name**によってこのエントリーを選択します。
+property.gui.inherit-alpha = 透明度を継承する
+property.gui.inherit-alpha.tooltip = このノードの透明度に親ノードの透明度を乗算します。親ノードをフェードアウトさせる際に、このノードも同様にフェードアウトさせたい場合に有効にしてください。
+property.gui.inner-radius = 内側半径
+property.gui.inner-radius.tooltip = パイノードの中心にある空洞部分の半径を、X軸に沿って設定します。塗りつぶされたパイにする場合は `0` を使用し、値を大きくするとリング状になります。
+property.gui.layer = レイヤー
+property.gui.layer.tooltip = ノードをGUIレイヤーに割り当てます。このレイヤーの描画順序は、通常のノードや階層構造の描画順序よりも優先されます。レイヤーが設定されていない場合、親のレイヤー設定を継承するか、名前付きレイヤーよりも先に描画されるデフォルトのレイヤーが使用されます。
+property.gui.line-break = 改行
+property.gui.line-break.tooltip = ノードの幅に合わせてテキストを複数行に折り返します。テキストは、適切な空白が含まれる箇所でのみ改行されます。
+property.gui.max-dynamic-textures = 最大動的テクスチャ数
+property.gui.max-dynamic-textures.tooltip = このGUIで追跡されるランタイムテクスチャの最大数です。これには、`gui.new_texture()` で作成されたテクスチャや、コンポーネントに割り当てられた外部テクスチャが含まれます。そのようなテクスチャを多数入れ替える場合は、この値を増やしてください。
+property.gui.max-nodes = 最大ノード数
+property.gui.max-nodes.tooltip = 実行時に作成または複製されるノードを含め、このGUIが保持できるノードの最大数です。実行時の最大ノード数に対して十分な余裕を持たせ、**Current Nodes**（現在のノード数）よりも大きい値に設定してください。
+property.gui.outline = アウトライン
+property.gui.outline.tooltip = このノードによって描画されるテキストの輪郭色を設定します。輪郭の形状や幅は、フォントリソースによって制御されます。
+property.gui.outline-alpha = アウトラインアルファ
+property.gui.outline-alpha.tooltip = テキストの輪郭の不透明度を `0`（透明）から `1`（不透明）の範囲で制御します。
+property.gui.outer-bounds = 外形範囲
+property.gui.outer-bounds.tooltip = パイノードの外側の形状を選択します。「楕円（Ellipse）」は外側の半径に沿った形状となり、「長方形（Rectangle）」はノードのバウンディングボックスに合わせてパイを拡張します。
+property.gui.perimeter-vertices = 外周の頂点数
+property.gui.perimeter-vertices.tooltip = パイノードの360度全周に使用される頂点の数。値を大きくすると曲線のエッジは滑らかになりますが、ジオメトリの量は増加します。有効な値の範囲は `4`～`1000` です。
+property.gui.particlefx = パーティクルFX
+property.gui.particlefx.tooltip = このGUIノードがスクリーン空間で再生するパーティクルエフェクトを選択します。このエフェクトは、あらかじめGUIシーンの **ParticleFX** セクションに追加しておく必要があります。
+property.gui.resource.particlefx = パーティクルFX
+property.gui.resource.particlefx.tooltip = GUIシーンの **ParticleFX** セクションにあるこのエントリーによって公開されるパーティクルエフェクトを選択します。ParticleFXノードは、**Name**（名前）によってこのエントリーを選択します。
+property.gui.pie-fill-angle = パイノード塗りつぶし角度
+property.gui.pie-fill-angle.tooltip = パイノードの塗りつぶし量を、ノードの右側を起点として反時計回りの角度で設定します。
+property.gui.pivot = ピボット
+property.gui.pivot.tooltip = 位置、回転、拡大縮小、およびサイズ変更を行う際の、ノードの基準点を設定します。テキストノードの場合、西のピボットはテキストを左揃えにし、東のピボットは右揃えにします。その他のピボットはテキストを中央揃えにします。
+property.gui.script = スクリプト
+property.gui.script.tooltip = 実行時に、このシーンのロジック、入力、メッセージ、およびノー​​ド操作を制御するGUIスクリプトを割り当てます。GUIシーンには1つのスクリプトを割り当てることができます。
+property.gui.shadow = シャドウ
+property.gui.shadow.tooltip = このノードによって描画されるテキストの影の色を設定します。影がどのように生成・描画されるかは、フォントリソースとフォントマテリアルによって決まります。
+property.gui.shadow-alpha = シャドウアルファ
+property.gui.shadow-alpha.tooltip = テキストの影の不透明度を `0`（透明）から `1`（不透明）の範囲で制御します。
+property.gui.size-mode = サイズモード
+property.gui.size-mode.tooltip = **Auto**(自動)は、割り当てられた画像またはアニメーションフレームのサイズを使用します。テクスチャがない場合は、編集可能な**Size**(サイズ)が使用されます。**Manual**(マニュアル)は、レンダリングおよび入力の判定において、常に**Size**(サイズ)を使用します。
+property.gui.slice9 = スライス 9
+property.gui.slice9.tooltip = ボックスノードのサイズを変更する際、テクスチャの境界を維持します。拡大・縮小されない余白をピクセル単位で「左」「上」「右」「下」に設定します。これにより、角は固定されたまま、辺と中央部分が引き伸ばされます。
+property.gui.texture = テクスチャ
+property.gui.texture.tooltip = ボックスノードやパイノードに描画する画像、またはフリップブックアニメーションを選択します。あらかじめ、GUIシーンの **Textures** （テクスチャ）セクションにアトラスまたはタイルソースを追加しておく必要があります。
+property.gui.resource.texture = テクスチャ
+property.gui.resource.texture.tooltip = GUIシーンの**Textures**（テクスチャ）セクションにおいて、このエントリーが公開するアトラスまたはタイルソースを選択します。ボックスノードやパイノードでは、エントリー名を使用してその画像やアニメーションを選択します。
+property.gui.template = テンプレート
+property.gui.template.tooltip = 再利用可能なノード階層としてインスタンス化するGUIシーンを選択します。インスタンスのプロパティでテンプレートの値を上書きできますが、テンプレートのエントリ自体は実行時のノードとしては存在しません。
+property.gui.text = テキスト
+property.gui.text.tooltip = このテキストノードに表示されるテキストです。実行時に `gui.set_text()` で変更できます。
+property.gui.text-leading = 行間
+property.gui.text-leading.tooltip = テキストの行間隔を調整します。「1」は標準の行間隔、「0」は行間隔をなくした状態です。
+property.gui.text-tracking = 文字間隔
+property.gui.text-tracking.tooltip = 文字間の間隔を調整します。デフォルトの「0」では、追加の文字間隔は適用されません。
+property.gui.visible = 表示
+property.gui.x-anchor = Xアンカー
+property.gui.x-anchor.tooltip = 親要素やシーンのサイズが変更された際の水平方向の配置を制御します。「Left」(左)および「Right」(右)は、その端からの相対的な距離（比率）を維持してピボットを配置します。「None」(なし)は、調整後の中心を基準にピボットを配置します。
+property.gui.y-anchor = Yアンカー
+property.gui.y-anchor.tooltip = 親要素やシーンのサイズが変更された際の垂直方向の配置を制御します。「Top」(上)および「Bottom」(下)は、その端からの相対的な距離（比率）を維持してピボットを配置します。「None」(なし)は、調整後の中心を基準にピボットを配置します。
+
+# Properties: label
+
+property.label.color = 色
+property.label.color.tooltip = テキストのRGBA色を設定します。不透明度を調整するには、アルファチャンネルを使用してください。
+property.label.font = フォント
+property.label.font.tooltip = ラベルの描画に使用するフォントリソースを選択します。ラベルのマテリアルは、ビットマップ、ディスタンスフィールド、BMFontといったフォントタイプと互換性がある必要があります。
+property.label.leading = 行間
+property.label.leading.tooltip = テキストの行間隔を調整します。「1」は標準の行間隔、「0」は間隔なしの状態になります。
+property.label.line-break = 改行
+property.label.line-break.tooltip = ラベルの **Size**（幅）に合わせて、テキストを複数行に折り返します。テキストは、適切な空白が含まれる箇所でのみ改行されます。
+property.label.outline = アウトライン
+property.label.outline.tooltip = テキストの輪郭のRGBA色を設定します。生成される輪郭の形状や幅はフォントリソースによって決まります。この色のアルファ値を `0` に設定すると、輪郭は非表示になります。
+property.label.pivot = ピボット
+property.label.pivot.tooltip = ラベルの基準点とテキストの配置を設定します。「West」(西)は左揃え、「East」(東)は右揃えの基準となり、それ以外は中央揃えとなります。
+property.label.shadow = シャドウ
+property.label.shadow.tooltip = テキストの影のRGBA色を設定します。影の定義はフォントリソースで行われますが、実際に描画されるかどうかはマテリアルによって決まります。デフォルトでは影は無効になっています。
+property.label.size = サイズ
+property.label.size.tooltip = ラベルのテキストの境界ボックスを設定します。**Line Break**（改行）が有効な場合、幅によってテキストの折り返し位置が決まります。
+property.label.text = テキスト
+property.label.text.tooltip = このラベルに表示されるテキストです。実行時に `label.set_text()` で変更できます。
+property.label.tracking = トラッキング
+property.label.tracking.tooltip = 文字間の間隔を調整します。デフォルトの「0」では、文字間隔の追加調整は行われません。
+
+# Properties: light
+
+property.light.color = 色
+property.light.color.tooltip = ライトのRGBカラーを設定します。アルファチャンネルは無視されます。
+property.light.intensity = 輝度
+property.light.intensity.tooltip = ライトの色の寄与を乗算します。寄与をなくすには `0` を使用します。最終的なライトデータがサーフェスにどのように影響するかは、マテリアルシェーダーによって決定されます。
+property.light.range = レンジ
+property.light.range.tooltip = ワールド単位でのポイントライトまたはスポットライトの半径です。有効範囲は、ゲームオブジェクトのワールドスケールにおける各軸の絶対値のうち、最小のものによって乗算されます。
+property.light.inner-cone-angle = 内側のコーン角度
+property.light.inner-cone-angle.tooltip = スポットライトが最大強度を維持する範囲の度単位の角度。値は `0` から **Outer Cone Angle**（外側コーン角度）の間である必要があります。
+property.light.outer-cone-angle = 外側のコーン角度
+property.light.outer-cone-angle.tooltip = スポットライトの外側の境界を定義する度単位の角度。光は内側のコーンと外側のコーンの間で減衰します。有効な値の範囲は `0` ～ `180` であり、**Inner Cone Angle**（内側コーンの角度）未満にすることはできません。
+
+# Properties: mesh
+
+property.mesh.normal-stream.tooltip = 頂点法線を含むバッファストリームを選択します。値を指定しない場合は `normal` (ノーマル)という名前のストリームが使用されます。マテリアルで **World Space**(ワールド空間)を使用する場合、エンジンが法線を正しく変換できるように、ストリームを明示的に選択する必要があります。
+property.mesh.position-stream = ポジションストリーム
+property.mesh.position-stream.tooltip = 頂点位置を含むバッファストリームを選択します。値を指定しない場合は `position` (位置)という名前のストリームが使用されます。マテリアルで **World Space** (ワールド空間)を使用する場合、エンジンが正しく変換を行えるように、ストリームを明示的に選択する必要があります。
+property.mesh.primitive-type = プリミティブタイプ
+property.mesh.primitive-type.tooltip = 連続する頂点がどのようにジオメトリを形成するかを制御します。「Lines（線）」は独立した頂点のペアを使用し、「Triangles（三角形）」は独立した三つの頂点のグループを使用します。一方、「Triangle Strip（トライアングルストリップ）」は、最初の二つの頂点以降、頂点が追加されるごとに三角形を形成します。
+
+# Properties: model
+
+
+# Properties: particlefx
+
+property.particlefx.category.particle-life = パーティクル時間
+
+property.particlefx.id.tooltip = エミッター識別子です。実行時にParticleFXのレンダリング定数やエミッターのプロパティを設定・リセットする際、特定のエミッターを対象とするために使用します。
+property.particlefx.animation = アニメーション
+property.particlefx.animation.tooltip = 各パーティクルに描画する画像またはフリップブックアニメーションを、**Image**(画像)から選択します。
+property.particlefx.duration = 持続時間
+property.particlefx.duration.tooltip = エミッターが停止またはループするまでにパーティクルを生成する秒数です。**±** の値は、その範囲内で実際の継続時間をランダムに変動させます。
+property.particlefx.inherit-velocity = 継承速度
+property.particlefx.inherit-velocity.tooltip = エミッターの速度を新しく生成されるパーティクルに加算します。放出空間が **World**（ワールド）の場合に有効です。値が `0` の場合は速度を継承せず、`1` の場合はすべて継承します。
+property.particlefx.material = マテリアル
+property.particlefx.material.tooltip = このエミッターから放出されるパーティクルのシェーディングとレンダリングに使用するマテリアルを選択します。そのマテリアルのシェーダー、サンプラー、および頂点属性は、パーティクルのレンダリングに適したものである必要があります。
+property.particlefx.max-particle-count = パーティクル最大数
+property.particlefx.max-particle-count.tooltip = このエミッター内で同時に存在できるパーティクルの最大数です。上限に達している間、新しいパーティクルの生成はスキップされます。上限値を高く設定すると、より多くのメモリが確保されます。
+property.particlefx.mode = プレイモード
+property.particlefx.mode.tooltip = **Once**（一回）は、**Duration**（継続時間）が経過すると放出を停止します。**Loop**（ループ）は、その時間が経過するたびにエミッターのタイムラインを再開させます。
+property.particlefx.particle-orientation = パーティクルの向き
+property.particlefx.particle-orientation.tooltip = パーティクルの回転を制御します。**Default**（デフォルト）はエミッターの向きから開始し、**Initial Direction**（初期方向）は放出方向に一度だけ合わせ、**Movement Direction**（移動方向）は速度に追従し、**Angular Velocity**（角速度）は角速度プロパティを使用して回転します。
+property.particlefx.pivot = ピボット
+property.particlefx.pivot.tooltip = 回転やスケーリングを行う前の位置を基準として、各パーティクルの画像をオフセットします。`(0, 0, 0)` は画像を中央に配置し、XまたはYの値を正にすると、画像は右または上に移動します。
+property.particlefx.size-mode = サイズモード
+property.particlefx.size-mode.tooltip = 再生中のフリップブックアニメーションにおいて、**Auto**(自動)は各フレームのソースサイズを使用し、**Initial Size**(初期サイズ)を無視します。一方、**Manual**(マニュアル)は**Initial Size**(初期サイズ)を使用してパーティクルのサイズを制御します。
+property.particlefx.space = エミッション空間
+property.particlefx.space.tooltip = **World**(ワールド)は、生成されたパーティクルを後続のエミッターの動きとは無関係に保ちます。**Emitter**(エミッター)は、パーティクルを移動および回転するエミッターに対して相対的に保持します。
+property.particlefx.start-delay = 開始遅延
+property.particlefx.start-delay.tooltip = エミッターがパーティクルの生成を開始するまでに待機する秒数です。**±** の値は、実際の遅延時間をその範囲内でランダムに変動させます。
+property.particlefx.start-offset = 開始オフセット
+property.particlefx.start-offset.tooltip = エフェクトが実際に表示される前にシミュレーションを行い、あらかじめ動作させておきます。有効なオフセットは、エミッターの最大パーティクル寿命までに制限されます。
+property.particlefx.stretch-with-velocity = 速度に応じたストレッチ
+property.particlefx.stretch-with-velocity.tooltip = **Stretch Y** (ストレッチY) にパーティクルの速度を乗算し、速度が速いパーティクルほど引き伸ばされるようにします。**Movement Direction**（移動方向）の向き設定を使用すると、その引き伸ばしを速度ベクトルに合わせることができます。
+property.particlefx.tile-source = 画像
+property.particlefx.tile-source.tooltip = パーティクル画像やフリップブックアニメーションを供給するアトラスまたはタイルソースを選択します。
+property.particlefx.type = エミッタータイプ
+property.particlefx.type.tooltip = エミッターのスポーン形状と放出方向を設定します。**Circle**(円)と**Sphere**(球体)は外側に向かって放出し、**2D Cone**(2D 円錐)と **Cone** (円錐)は頂点から放出し、 **Box**(ボックス)はローカルY軸に沿って放出します。
+
+property.particlefx.emitter-key-particle-alpha = 初期アルファ
+property.particlefx.emitter-key-particle-alpha.tooltip = 各パーティクルの生成時にアルファの色合い（Alpha tint）が割り当てられます。これは **Spread** によってランダムに変化させたり、エミッターの存続期間にわたってカーブに沿って変化させたりすることが可能です。なお、パーティクルの寿命に応じた **Alpha** カーブの値は、後からこれに乗算されます。
+property.particlefx.emitter-key-particle-angular-velocity = 初期角速度
+property.particlefx.emitter-key-particle-angular-velocity.tooltip = 初期回転速度（単位：度/秒）。**Spread**（拡散）やエミッターの経過時間によって変化し、**Particle Orientation**（パーティクルの向き）が **Angular Velocity**（角速度）に設定されている場合に使用されます。
+property.particlefx.emitter-key-particle-blue = 初期ブルー
+property.particlefx.emitter-key-particle-blue.tooltip = 各パーティクルの生成時に青色の色味が割り当てられます。この値は **Spread**（拡散）によってランダムに変化させたり、エミッターの存続期間にわたってカーブに沿って変化させたりすることが可能です。その後、パーティクルの寿命に応じた **Blue** (ブルー)カーブの値がこれに乗算されます。
+property.particlefx.emitter-key-particle-green = 初期グリーン
+property.particlefx.emitter-key-particle-green.tooltip = 各パーティクルの生成時に緑色の色味が割り当てられます。この値は**Spread**（拡散）によってランダムに変化させたり、エミッターの動作期間にわたってカーブに沿って変化させたりすることが可能です。その後、パーティクルの寿命に応じた**Green**(グリーン)カーブの値が乗算されます。
+property.particlefx.emitter-key-particle-life-time = パーティクル時間
+property.particlefx.emitter-key-particle-life-time.tooltip = 生成された各パーティクルの生存時間（秒数）。**Spread**（拡散）によってパーティクルごとにランダムに変動させたり、エミッターの動作期間にわたってカーブに沿って変化させたりすることが可能です。
+property.particlefx.emitter-key-particle-red = 初期レッド
+property.particlefx.emitter-key-particle-red.tooltip = 各パーティクルの生成時に赤色の色味が割り当てられます。この値は **Spread**（拡散）によってランダムに変化させたり、エミッターの継続時間に合わせてカーブに沿って変化させたりすることが可能です。その後、パーティクルの寿命に応じた **Red** (レッド)カーブの値が乗算されます。
+property.particlefx.emitter-key-particle-rotation = 初期回転
+property.particlefx.emitter-key-particle-rotation.tooltip = 各パーティクルが生成される際に割り当てられる回転角（度数）。**Spread**（スプレッド）によってランダムに変化させたり、エミッターの動作期間にわたってカーブに沿って変化させたりすることができます。
+property.particlefx.emitter-key-particle-size = 初期サイズ
+property.particlefx.emitter-key-particle-size.tooltip = 各パーティクルが生成される際に割り当てられる基本サイズです。「スプレッド」やエミッターの経過時間に応じてランダムに変化させることができますが、「Size Mode」(サイズモード)が「Auto」(自動)に設定されている場合は無視されます。
+property.particlefx.emitter-key-particle-speed = 初速度
+property.particlefx.emitter-key-particle-speed.tooltip = 発射方向に沿った、１ 秒あたりのシーン単位での初期速度。 **スプレッド** によってランダムに変化し、エミッタの継続時間にわたって曲線に従うことができます。
+property.particlefx.emitter-key-particle-stretch-factor-x = 初期ストレッチ X
+property.particlefx.emitter-key-particle-stretch-factor-x.tooltip = 各パーティクルが生成される際に適用される初期の水平方向の引き伸ばしです。この値は、**スプレッド**やエミッターの経過時間に応じてランダムに変化させることができ、さらにパーティクルの寿命に沿った **ストレッチ X** カーブの値が加算されます。
+property.particlefx.emitter-key-particle-stretch-factor-y = 初期ストレッチ Y
+property.particlefx.emitter-key-particle-stretch-factor-y.tooltip = 各パーティクルが生成される際に適用される初期の垂直方向の引き伸ばしです。この値は「スプレッド」やエミッターの経過時間に応じてランダムに変化し、さらにパーティクルの寿命に沿った「ストレッチ Y」カーブの値が加算されます。
+property.particlefx.emitter-key-size-x = エミッターサイズ X
+property.particlefx.emitter-key-size-x.tooltip = ボックスや2Dコーンの幅、あるいは円、球、3Dコーンの直径です。パーティクルごとに**スプレッド**に応じて変化させたり、エミッターの動作期間にわたってカーブに沿って変化させたりすることができます。
+property.particlefx.emitter-key-size-y = エミッターサイズ Y
+property.particlefx.emitter-key-size-y.tooltip = ボックス、2Dコーン、または3Dコーンの高さです。円形および球形の放射源では使用されません。パーティクルごとの**スプレッド**や、放射源の経過時間に応じて変化させることができます。
+property.particlefx.particle-key-alpha = アルファ
+property.particlefx.particle-key-alpha.tooltip = 各パーティクルの初期アルファ値を、正規化された寿命に応じて乗算します。`1`から`0`へ変化するカーブを使用すると、パーティクルをフェードアウトさせることができます。
+property.particlefx.particle-key-angular-velocity = 角速度
+property.particlefx.particle-key-angular-velocity.tooltip = 各パーティクルの正規化された寿命にわたって、**Initial Angular Velocity**（初期角速度）を乗算します。**Particle Orientation**（パーティクルの向き）が **Angular Velocity**（角速度）に設定されている場合に使用されます。
+property.particlefx.particle-key-blue = ブルー
+property.particlefx.particle-key-blue.tooltip = 各パーティクルの初期の青色味を、正規化された寿命にわたって乗算します。
+property.particlefx.particle-key-green = グリーン
+property.particlefx.particle-key-green.tooltip = 各パーティクルの初期の緑色成分を、正規化された寿命にわたって乗算します。
+property.particlefx.particle-key-red = レッド
+property.particlefx.particle-key-red.tooltip = 各パーティクルの初期の赤色成分を、正規化された寿命にわたって乗算します。
+property.particlefx.particle-key-rotation.tooltip = 各パーティクルの正規化された寿命にわたって適用される度単位の回転オフセット。これは** Initial Rotation** (初期回転)に加算されますが、**Angular Velocity**  (角速度)による向きの制御とは併用されません。
+property.particlefx.particle-key-scale = スケール
+property.particlefx.particle-key-scale.tooltip = 各パーティクルの正規化された生存期間に適用されるスケール倍率です。カーブを調整して、パーティクルの経時的な拡大や縮小を制御します。
+property.particlefx.particle-key-stretch-factor-x = ストレッチX
+property.particlefx.particle-key-stretch-factor-x.tooltip = 各パーティクルの正規化された寿命にわたり、**Initial Stretch X** (初期ストレッチX)に水平方向のストレッチが加算されます。
+property.particlefx.particle-key-stretch-factor-y = ストレッチY
+property.particlefx.particle-key-stretch-factor-y.tooltip = 各パーティクルの正規化された寿命にわたり、**Initial Stretch Y**(初期ストレッチY) に垂直方向のストレッチが加算されます。**Stretch With Velocity** (速度に応じたストレッチ)が有効な場合、パーティクルの速度によってもこのストレッチがスケーリングされます。
+
+# Properties: sound
+
+
+# Properties: sprite
+
+
+# Properties: tile map
+
+
+# Properties: tile source
+
+property.tile-source.fps = FPS
+
+# Outline
+
+outline.camera = カメラ
+outline.collection = コレクション
+outline.collection-proxy = コレクションプロキシ
+outline.collision-object = 衝突オブジェクト
+outline.game-object = ゲームオブジェクト
+outline.gui.box = 四角形
+outline.gui.fonts = フォント
+outline.gui.layouts = レイアウト
+outline.gui.layers = レイヤー
+outline.gui.materials = マテリアル
+outline.gui.nodes = ノード
+outline.gui.pie = 円グラフ
+outline.gui.template = テンプレート
+outline.gui.text = テキスト
+outline.gui.textures = テクスチャ
+outline.non-editable-collection = 編集不可能なコレクション
+outline.non-editable-game-object = 編集不可能なゲームオブジェクト
+outline.particlefx = パーティクルエフェクト
+outline.sound = 音声
+outline.tile-map = タイルマップ
+outline.tile-source = タイルソース
+
+# Resources
+
+resource.view.scene = シーン
+resource.view.html = HTML
+resource.view.form = フォーム
+resource.view.code = コード
+resource.view.text = テキスト
+
+
+resource.type.animationset = アニメーションセット
+resource.type.appmanifest = アプリマニフェスト
+resource.type.atlas = アトラス
+resource.type.buffer = バッファー
+resource.type.c = C
+resource.type.camera = カメラ
+resource.type.collection = コレクション
+resource.type.collection.non-editable = 編集不可能なコレクション
+resource.type.collectionfactory = コレクションファクトリー
+resource.type.collectionproxy = コレクションプロキシ
+resource.type.collisionobject = 衝突オブジェクト
+resource.type.cpp = C++
+resource.type.custom = リソース
+resource.type.data = データ
+resource.type.cubemap = キューブ マップ
+resource.type.xml = XML
+
+
+# Forms
+
+
+
+
+form.label.project.bootstrap.main_collection = Main Collection
+form.help.project.bootstrap.main_collection = アプリケーションの起動時にエンジンが読み込み、初期化を行う `.collection` リソースのことです。例として `/main/main.collection`のようになります。このリソースに含まれるゲームオブジェクトやコンポーネントが、実行時の初期ワールドを構成します。
+
+form.label.project.project.minimum_log_level = 最小ログレベル
+form.help.project.project.minimum_log_level = ログに記録される最低限の重大度です。選択したレベルを下回るメッセージは記録されず、そのレベル以上のメッセージが記録されます。
+
+form.label.project.android = Android
+form.help.project.android = Android関連設定
+form.label.project.android.app_icon_36x36 = App Icon 36x36
+form.help.project.android.app_icon_36x36 = **ldpi**デバイス（密度0.75倍）のランチャーアイコンとして使用される36x36のPNG画像です。設定されていない場合、Defoldは設定済みのAndroidアプリ用アイコンのうち最大のもの、または組み込みのアイコンを拡大・縮小して使用します。
+form.label.project.android.app_icon_48x48 = App Icon 48x48
+form.help.project.android.app_icon_48x48 = **mdpi**デバイス（密度1倍）でランチャーアイコンとして使用される48x48のPNG画像です。設定されていない場合、Defoldは構成されたAndroidアプリ用アイコンのうち最大のもの、または組み込みのアイコンを拡大・縮小して使用します。
+form.help.project.android.app_icon_72x72 = **hdpi**デバイス（密度1.5倍）でランチャーアイコンとして使用される72x72のPNG画像です。設定されていない場合、Defoldは設定済みのAndroidアプリ用アイコンのうち最大のもの、または組み込みのアイコンを拡大・縮小して使用します。
+form.label.project.android.app_icon_96x96 = App Icon 96x96
+form.help.project.android.app_icon_96x96 = **xhdpi**デバイス（密度2倍）でランチャーアイコンとして使用される96x96のPNG画像です。設定されていない場合、Defoldは設定されたAndroidアプリ用アイコンのうち最大のもの、または組み込みのアイコンを拡大・縮小して使用します。
+
+
+
+
+
+
+
+
+
+
+form.label.project.label = ラベル
+form.help.project.label = ラベル設定
+form.label.project.label.max_count = 最大数
+form.help.project.label.max_count = 読み込まれた各コレクションにおけるラベルコンポーネントの最大数。この上限を超えてラベルを作成しようとすると失敗し、エラーがログに記録されます。ビルド時の正確なカウントで必要な容量を特定できない場合に限り、この値を大きく設定すると、より多くのメモリが確保されます。
+form.label.project.label.subpixels = サブピクセル
+form.help.project.label.subpixels = ラベルを小数の位置に描画できるかどうかを制御します。無効にすると、各ラベルのワールド空間におけるXおよびY座標は、カメラ投影の前に整数単位へと切り捨てられます。これによりテキストをピクセルに合わせやすくなりますが、カメラの端数単位の動きまでは補正されません。
+form.label.project.light.max_count = 最大数
+form.help.project.light.max_count = 読み込まれた各コレクションにおけるライトコンポーネントの最大容量、および読み込まれたコレクション全体での非環境光（non-ambient light）の最大レンダリングインスタンス数が設定されます。環境光は、そのライトが属するコレクションのコンポーネント容量のみを消費します。設定値を大きくするとコンポーネントおよびレンダリングバッファの容量が確保されますが、容量が上限に達している状態でライトを作成しようとすると失敗します。
+
+form.label.project.mesh = メッシュ
+form.help.project.mesh = メッシュ設定
+form.label.project.mesh.max_count = 最大数
+form.help.project.mesh.max_count = 読み込まれたコレクションごとのメッシュコンポーネントの最大数です。ビルド時の解析で正確な数が特定できない場合、Defoldはこの上限に基づいてストレージを事前確保します。値を大きくすると、より多くのメモリが使用されます。容量がいっぱいの状態でメッシュを作成しようとすると失敗し、エラーがログに記録されます。
+
+form.label.project.model = モデル
+form.help.project.model = モデル設定
+form.label.project.model.max_count = 最大数
+form.help.project.model.max_count = 読み込まれた1つのコレクションにおけるモデルコンポーネントの最大数です。動的なファクトリーコンテンツによってビルド時に正確な数を把握できない場合、Defoldはこの容量を事前に割り当てます。設定値が低すぎるとコンポーネントを追加できなくなり、逆に不必要に高い値を設定するとメモリ消費量が増加します。
+form.label.project.model.split_meshes = メッシュ分割
+form.help.project.model.split_meshes = これを有効にすると、ビルド時に16ビットの頂点インデックスの制限に収まるよう、必要に応じてインポートされたメッシュが分割されます。これにより、制約のあるグラフィックス環境との互換性は向上しますが、分割されたメッシュの数が増えることでドローコールが増加する可能性があります。
+form.label.project.model.max_bone_matrix_texture_width = ボーン行列テクスチャの最大幅
+form.help.project.model.max_bone_matrix_texture_width = GPUスキニングを行うモデルコンポーネント用のボーン行列を格納する、コレクション単位の **RGBA32F** テクスチャの最大幅（ピクセル単位）。テクスチャは必要に応じて、この値およびGPUの制限に達するまで拡張されます。「キャッシュサイズ不足（cache-too-small）」の警告が表示された場合はいずれかの次元の値を大きくしてください。ただし、実際のテクスチャサイズが大きくなると、より多くのメモリが消費される点にご注意ください。
+form.label.project.model.max_bone_matrix_texture_height = ボーン行列テクスチャの最大高さ
+form.help.project.model.max_bone_matrix_texture_height = GPUスキニングを行うモデルコンポーネント用のボーン行列を格納する、コレクション単位の **RGBA32F** テクスチャの最大高さ（ピクセル単位）。テクスチャは必要に応じて、この値およびGPUの制限に達するまで拡張されます。「キャッシュサイズ不足（cache-too-small）」の警告が表示された場合はいずれかの寸法を大きくしてください。ただし、実際のテクスチャサイズが大きくなると、より多くのメモリが消費される点に注意してください。
+form.label.project.model.max_morph_target_texture_width = モーフターゲットテクスチャの最大幅
+form.help.project.model.max_morph_target_texture_width = 生成される各モーフターゲットテクスチャ配列の最大幅（ピクセル単位）。2の累乗の値を指定してください。計算されたレイアウトは、設定された寸法とターゲットGPUの最大テクスチャサイズの双方に収まる必要があります。収まらない場合、モデルのビルドや読み込みを行うことができません。
+form.label.project.model.max_morph_target_texture_height = モーフターゲットテクスチャの最大高さ
+form.help.project.model.max_morph_target_texture_height = 生成される各モーフターゲットテクスチャ配列の最大高さ（ピクセル単位）。2の累乗の値を指定してください。計算されたレイアウトは、設定された寸法とターゲットGPUの最大テクスチャサイズの双方に収まる必要があります。収まらない場合、モデルのビルドや読み込みを行うことができません。
+
+form.label.project.particle_fx = パーティクルFX
+form.help.project.particle_fx = パーティクルFX設定
+form.label.project.particle_fx.max_particle_count = パーティクル最大数
+form.help.project.particle_fx.max_particle_count = 読み込まれた各コレクションにおいて描画されるParticleFX(パーティクルFX)の粒子の最大総数です。この上限を超えた粒子は描画されず、警告が生成されます。GPUメモリ使用量は、実際に描画される粒子のデータ量に応じて、この上限に達するまで増加します。エミッターごとの「Max Particle Count（最大パーティクル数）」は、そのエミッターが生成する粒子数を個別に制限します。
+form.label.project.particle_fx.max_particle_buffer_count = パーティクルバッファー最大数
+form.help.project.particle_fx.max_particle_buffer_count = 各GPUアップロードの前に頂点データへ変換されるパーティクル用の、コレクション単位のスクラッチ容量。上限は **Max Particle Count**(パーティクル最大数）です。値を小さくするとCPUスクラッチバッファの使用量は減りますが、アップロード回数が増える可能性があります。なお、この設定は生存中のパーティクルの総数には影響しません。
+form.label.project.particle_fx.max_count = 最大数
+form.help.project.particle_fx.max_count = 読み込まれた各コレクションにおける、パーティクルFXコンポーネントおよび同時実行されるエフェクトインスタンスの最大数です。上限に達すると、新たなコンポーネントやインスタンスを作成できなくなります。この値を増やすと、ビルド時の正確なカウントで必要なコンポーネント容量を特定できない場合、より多くのメモリが消費されます。
+form.label.project.particle_fx.max_emitter_count = 最大エミッター数
+form.help.project.particle_fx.max_emitter_count = 読み込まれた各コレクション内のすべての同時パーティクルFXインスタンスにわたるエミッターの最大合計数。 1 つのエフェクトに複数のエミッタを含めることができます。制限を超えると、コレクションのパーティクルFXレンダー パス全体がスキップされ、警告がログに記録されます。
+
+form.label.project.script = スクリプト
+form.help.project.script = スクリプトシステム設定
+form.label.project.script.shared_state = 共有状態
+form.help.project.script.shared_state = ゲームオブジェクトのスクリプト、GUIスクリプト、およびレンダースクリプトが単一のLuaステートを使用するかどうかを制御します。有効にするとグローバル変数や読み込まれたモジュールのキャッシュが共有され、無効にするとこれらが分離されます。ステートを共有するとメモリ使用量が抑えられ、エディターのデバッガーを使用する際にも必須となります。
+
+form.label.project.sound = サウンド
+form.help.project.sound = サウンド設定
+form.label.project.sound.gain = ゲイン
+form.help.project.sound.gain = Master gainとはすべての音声出力に適用される音量です。`0`は無音、`1`は増幅・減衰なしのユニティゲインとなります。
+form.label.project.sound.use_linear_gain = 線形ゲインを使用
+form.help.project.sound.use_linear_gain = ゲイン値の混合方法を制御します。有効にすると、マスター、グループ、コンポーネント、およびインスタンスのゲインが線形に掛け合わされます。無効にすると、指数曲線が適用され、「0.5」という値がおよそ半分の音量として聞こえるようになります。オプションのOpenALバックエンドでは、常に線形ゲインが使用されます。
+form.label.project.sound.max_sound_data = 最大サウンドリソース数
+form.help.project.sound.max_sound_data = 同時に読み込み可能な固有のサウンドリソースの最大数です。サウンドデータ用のスロットが不足しているというエラーがエンジンから報告された場合は、この値を増やしてください。ただし、値を大きくすると、より多くのメモリが確保されます。
+form.label.project.sound.max_sound_buffers = 最大サウンドバッファ
+
+
+
+
+form.label.project.display.samples = サンプル
+form.help.project.display.samples = レンダリングされたエッジを滑らかにするために使用されるアンチエイリアスサンプルの数。`0` に設定するとアンチエイリアスが無効になります。
+form.label.project.display.fullscreen = フルスクリーン
+form.help.project.display.fullscreen = アプリケーションをウィンドウではなくフルスクリーンで起動します。ボーダーレスかどうかを含む正確なフルスクリーンモードは、デスクトッププラットフォームやグラフィックスバックエンドによって異なります。
+form.label.project.display.display_profiles = ディスプレイプロファイル
+form.help.project.display.display_profiles = ディスプレイプロファイルは、画面サイズ、向き、デバイスモデルに応じて適切なGUIレイアウトを選択するために使用されるリソースです。
+form.label.project.display.dynamic_orientation = 動的向き（Dynamic Orientation）
+form.help.project.display.dynamic_orientation = AndroidおよびiOSのビルドにおいて、縦向きと横向きの両方を使用し、デバイスの回転に合わせて切り替えられるようにします。無効にした場合、サポートされる向きは **Width**（幅）と **Height**（高さ）から推測されます。なお、開発用アプリでは現在、この設定は反映されません。
+form.label.project.display.update_frequency = 更新間隔（Update Frequency）
+form.help.project.display.update_frequency = 希望するゲームループおよびレンダリングのHz単位のレート。`0` を指定すると可変フレームレートになります。`30` などの正の値を指定すると、デバイスがその速度で動作可能な場合にレートがその値に制限されます。
+form.label.project.display.swap_interval = スワップ間隔（Swap Interval）
+form.help.project.display.swap_interval = ディスプレイの画面更新に同期した描画を要求します。`0` は垂直同期を無効にし、`1` は更新ごとに描画を行います。OpenGL では、より大きな値を指定すると間隔がスキップされる場合がありますが、Vulkan や Metal では、0 以外の値はすべて垂直同期を有効にするものとして扱われます。実際の動作は、バックエンドやドライバーに依存します。
+form.label.project.display.vsync = Vsync
+form.help.project.display.vsync = **非推奨の互換性設定です**  無効にすると、実際の **Swap Interval**(スワップ間隔) は強制的に `0` になります。有効にすると、**Swap Interval** の設定に従って動作します。新規プロジェクトでは **Swap Interval** を使用してください。
+form.label.project.display.variable_dt = 変数 DT
+form.help.project.display.variable_dt = **非推奨**  これを有効にすると、ビルドされたプロジェクトは **Vsync** が無効、かつ **Update Frequency** (更新間隔)が `0` に設定された状態となり、従来の可変タイムステップ（variable-timestep）の挙動が再現されます。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+form.label.input-binding.key-trigger = キートリガー
+form.help.input-binding.key-trigger = 物理キーボードの単一のキーを、`on_input()` を通じて入力フォーカスを持つスクリプトやGUIスクリプトに送信される「名前付きアクション」に割り当てます。キーアクションは `pressed`（押下）、`released`（解放）、`repeated`（リピート）の状態を報告します。入力された文字が必要な場合は、代わりにテキストトリガー（Text Triggers）を使用してください。
+form.label.input-binding.key-trigger.input = Input
+form.label.input-binding.key-trigger.action = Action
+form.help.input-binding.mouse-trigger = マウスボタンやホイールの操作を、`on_input()` を通じて通知される名前付きアクションに割り当てます。ボタン操作では `pressed`（押下）、`released`（解放）、`repeated`（リピート）が通知され、ホイール操作では `value`（値）が通知されます。マウスの移動は特定のアクションに割り当てられませんが（`action_id` は `nil` となります）、マウスに関連するトリガーが少なくとも１つ存在する場合にのみイベントが発行されます。
+form.label.input-binding.mouse-trigger.input = Input
+form.label.input-binding.mouse-trigger.action = Action
+form.label.input-binding.gamepad-trigger = ゲームパッドトリガー
+form.help.input-binding.gamepad-trigger = 標準的なゲームパッドのボタン、スティックの方向、トリガー、接続イベント、またはRaw入力（未加工の入力）を、`on_input()` を通じて通知される名前付きアクションに割り当てます。ハードウェアはプロジェクトのゲームパッド・マッピングによって正規化されますが、未認識のコントローラーの場合は「接続（Connected）」「切断（Disconnected）」「Raw」のイベントのみが提供されます。`action.gamepad` は、入力元のコントローラーを識別します。
+form.label.input-binding.gamepad-trigger.input = Input
+form.label.input-binding.gamepad-trigger.action = Action
+form.label.input-binding.touch-trigger = タッチトリガー
+form.help.input-binding.touch-trigger = `TOUCH_MULTI` を、`on_input()` を介して配信される名前付きアクションにマッピングします。この際、現在アクティブなすべてのタッチポイントが `action.touch` に格納されます。iOS、Android、およびモバイル向け HTML5 で利用可能です。シングルタッチの設定はここには含まれません。`MOUSE_BUTTON_LEFT` または `MOUSE_BUTTON_1` をバインドするとシングルタッチは自動的に設定されるため、マルチタッチには別のアクション名を使用する必要があります。
+form.label.input-binding.touch-trigger.input = Input
+form.label.input-binding.touch-trigger.action = Action
+form.label.input-binding.text-trigger = テキストトリガー
+form.help.input-binding.text-trigger = 確定されたテキストやIMEによる入力中のテキストを、`on_input()` を通じて渡される名前付きアクションに割り当てます。「Text」と「Marked Text」のいずれも、そのテキストを `action.text` に格納します。これらのアクションでは、`pressed`、`released`、`repeated`、`value` といった通常のフィールドは省略されます。物理キーについては、キートリガーを使用してください。
+form.label.input-binding.text-trigger.input = Input
+form.label.input-binding.text-trigger.action = Action
+
+form.label.gamepads = ゲームパッド
+form.label.gamepads.driver = ゲームパッド
+form.help.gamepads.driver = 特定のゲームパッドモデルをDefoldの入力にマッピングします。「Platform（プラットフォーム）」はビルド時にマッピングをフィルタリングし、「Device（デバイス）」は実行時にコントローラーを識別します。「Dead zone（デッドゾーン）」はスティックの微細な動きをフィルタリングし、「Map（マップ）」は生の操作入力を割り当てます。一致するコントローラーがない場合、「Connected（接続）」、「Disconnected（切断）」、および「Raw（生入力）」のフォールバックアクションのみが利用可能となります。
+
+
+
+
+
+
+
+form.label.material.attributes.value = 値
+form.label.material.attributes.normalize = 正規化
+form.label.material.vertex-constants = 頂点定数
+
+
+# Quick Help
+
+
+# Error Messages
+error.engine.url-not-reported-in-time = 15秒以内にエンジンサービスのURLが報告されませんでした。ゲームはまだ実行中である可能性があります。
+error.assigned-image-has-internal-errors = 割り当てられた画像に内部エラーがあります。
+error.sampler-not-defined-in-material = マテリアル内で「{sampler}」が定義されていません。ラベルのコンテキストメニューから「オーバーライドの解除(Clear Override)」コマンドを使用して、このプロパティを削除してください。シェーダーにそのサンプラーが必要な場合は、マテリアルに不足しているサンプラーを追加してください。
+error.light.invalid-source = ライトファイルを解析できませんでした。テキスト形式を修正するか、変更を元に戻してください。
+error.sound.invalid-ogg-file = 無効なOggファイルです。
+error.sound.invalid-ogg-file-details = 無効なOggファイル（oggz-validate）：\n{output}
+error.sound.could-not-read-audio-file = 音声ファイル {resource} を読み込めませんでした。
+error.unknown-source = 不明なソース
+error.game-project.gamepad-database-must-be-txt = input.gamepad_database は .txt ファイルを参照する必要があります。
+error.unspecified-property = 「{property}」を指定する必要があります。
+error.mesh.stream-must-be-specified-for-world-vertex-space = 「頂点空間(Vertex Space)」設定がワールド空間であるマテリアルを使用する場合、"{property}" を指定する必要があります。
+error.mesh.stream-not-found-in-buffer = 指定されたバッファ内でストリーム "{stream}" が見つかりませんでした。
+error.tile-map.tiles-outside-tile-source-range = タイルマップが、このタイルソースの範囲外にあるタイルを使用しています（ソース内のタイル数：{count}、使用されているタイルのインデックス：{index}）。
+error.tile-source.more-than-max-collision-groups-in-use = {max}個を超える衝突グループ(collision groups)が使用されています。
+error.tile-source.tile-outside-range = 「{property}」はタイル範囲（1-{max}）の範囲外です。
+error.tile-source.tile-data-could-not-be-generated-due-to-invalid-values = 無効な値が含まれているため、タイルデータを生成できませんでした。
+error.tile-source.image-and-collision-dimensions-must-match = 「画像(Image)」と「衝突判定(Collision)」は同じサイズである必要があります（{image_width}x{image_height} 対 {collision_width}x{collision_height}）。
+error.tile-source.total-width-exceeds-image-width = 合計幅（「タイル幅」＋「タイルマージン」）が「画像(Image)」の幅よりも大きい（{total_width} 対 {image_width}）。
+error.tile-source.total-height-exceeds-image-height = 合計の高さ（「タイル高さ」＋「タイル余白」）が、「画像(Image)」の高さよりも大きくなっています（{total_height} 対 {image_height}）。
+error.property-contains-url-prohibited-characters = 「{property}」には、"\#" や "\:" などの特殊なURL記号を含めないでください。
+error.property-cannot-start-or-end-with-space = 「{property}」は、スペース文字で開始または終了してはなりません。
+error.property-cannot-contain-nul = 「{property}」に NUL 文字を含めることはできません。
+error.property-cannot-be-negative = 「{property}」を負の値にすることはできません。
+error.property-must-be-greater-than-zero = 「{property}」は0より大きい必要があります。
+error.property-must-be-at-least = 「{property}」は {min} 以上である必要があります。
+error.property-must-be-at-most = 「{property}」は {max} 以下である必要があります。
+error.render-target.color-attachments-cannot-exceed = 「{property}」は、{max}個を超えるカラーアタッチメントを持つことはできません。
+error.render-target.sample-count-must-be-supported = サンプル数は、1、2、4、8、または16のいずれかでなければなりません。
+error.render-target.color-attachment-width-must-be-greater-than-zero = カラーアタッチメント(Color attachment) {index} の幅は 0 より大きくなければなりません。
+error.render-target.color-attachment-height-must-be-greater-than-zero = カラーアタッチメント(Color attachment) {index} の高さは 0 より大きくなければなりません。
+error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is = 不適切な深度(depth)/ステンシルアタッチメント(stencil attachment)：幅は0より大きいですが、高さが0です。
+error.render-target.depth-stencil-width-must-be-greater-than-zero-if-height-is = 不適切な深度(depth)/ステンシルアタッチメント(stencil attachment)：高さは0より大きいが、幅が0です。
+error.collision-object-shape-dimensions-must-be-greater-than-zero = すべての寸法は0より大きくなければなりません。
+error.collision-object-has-no-shapes = 衝突オブジェクト(Collision Object)に形状がありません。
+error.collision-shape-conflict = 埋め込みシェイプ(embedded shapes)を、参照されているコリジョンシェイプ(Collision Shape)と組み合わせることはできません。いずれか一方を削除してください。
+error.collision-object-shape-not-supported-in-physics = {physics} 物理演算(physics)では、{shape} 形状(shapes)はサポートされていません。
+error.texture-profiles.format-not-supported-by-texture-compressor = テクスチャ形式(Texture format)は、テクスチャ圧縮ツール(texture compressor)でサポートされていません。
+error.texture-profiles.preset-not-supported-by-texture-compressor = テクスチャプリセット(Texture preset)は、テクスチャコンプレッサー(texture compressor)でサポートされていません。
+error.property-cannot-exceed = 「{property}」は {value} を超えることはできません。
+error.property-must-be-between = 「{property}」は {min} から {max} の間でなければなりません。
+error.attribute-components-must-be-between = 頂点属性(vertex attribute)「{attribute}」のコンポーネントは、{min} から {max} の範囲内でなければなりません。
+error.vertex-attribute = 頂点属性(Vertex attribute) "{attribute}"\: {error}
+error.vertex-attribute-normalize-float-data-type = 頂点属性(Vertex attribute)「{attribute}」は、Floatデータ型で正規化（Normalize）を使用しています。
+error.atlas-page-count-cannot-exceed = アトラスのページ数（{count}）は、1アトラスあたり{max}ページを超えることはできません。game.projectの「ランタイム(Runtime)」>「シェーダー設定(Shader settings)」において、GLES 2.0のサポートを無効にする必要があります
+error.cubemap-image-sizes-differ = キューブマップの画像サイズが異なります\:\n{right} \= {right_size}\n{left} \= {left_size}\n{top} \= {top_size}\n{bottom} \= {bottom_size}\n{front} \= {front_size}\n{back} \= {back_size}。
+error.lua-preprocessing-failed = Luaのプリプロセッシングに失敗しました。\n{error}
+error.go-property-disallowed = このファイルタイプでは go.property を使用できません。
+error.transpiler-compilation-failed = コンパイルに失敗しました\: {error}
+error.animation-set-build-failed = {resource} のビルドに失敗しました\: {error}
+error.bob.project-operation-in-progress = 別のプロジェクト操作が既に進行中です
+error.bob.failed-to-save-project = Bobを呼び出す前に、プロジェクトの保存に失敗しました。
+error.blend-mode-add-alpha-replaced = `{old}` は非推奨であり、Defold はプリマルチプライドアルファを使用しているため、`{new}` と全く同じように動作します。代わりに `{new}` を選択してください。
+error.duplicate-instance-id = 「{id}」は別のインスタンスによって使用されています。
+error.non-unique-ids = 以下のIDは一意ではありません\: {ids}。
+error.only-components-allowed = 「{property}」にはコンポーネントのみが許可されています。「{ext}」はコンポーネントではありません。
+error.property-resource-not-found = {property} "{resource}" が見つかりませんでした。
+error.property-resource-is-a-folder = {property} "{resource}" はファイルではなく、フォルダーです。
+error.property-resource-is-a-broken-symlink = {property} シンボリックリンク "{resource}" は、存在しないパス "{path}" を指しています。
+error.resource-not-found = 「{resource}」が見つかりませんでした。
+error.resource-is-a-broken-symlink = シンボリックリンク「{resource}」は、存在しないパス「{path}」を指しています。
+error.resource-not-loaded = ファイル「{resource}」を読み込めませんでした。
+error.resource-not-loaded-with-error = ファイル "{resource}" を読み込めませんでした\: {error}
+error.resource-assignment-not-of-type = プロパティ「{property}」「{resource}」は型「{type}」ではありません。
+error.no-file-extension = ファイル拡張子なし
+error.material-not-defined-in-mesh = 「{material}」はメッシュ内で定義されていません。ラベルのコンテキストメニューから「オーバーライドをクリア(Clear Override)」コマンドを使用して、そのプロパティを削除してください。
+error.material-expects-paged-atlas = マテリアルはペ​​ージ化さされたアトラスを想定していますが、選択された {property} はページ化されていません。
+error.material-does-not-support-paged-atlases = マテリアルはペ​​ージ化されたアトラスをサポートしていませんが、選択された {property} はページ化されています。
+error.material-max-page-count-insufficient = 選択された {property} のページ数に対して、そのマテリアルの「最大ページ数(Max Page Count)」が不足しています。
+error.model-unsupported-file-format = {property}「{resource}」は、サポートされていない形式 {format} です。Defoldは、{property} に対して {supported_formats} 形式のファイルのみをサポートしています。
+error.model-load-failed = ファイル「{file}」の読み込みに失敗しました\: {error}
+error.animation-not-found = "{property}" 内に "{animation}" が見つかりませんでした。
+error.buffer-syntax-error = バッファファイルに構文エラーがあります。
+error.editor-extension-compilation-failed = エディター拡張をコンパイルできませんでした。
+error.font-bitmap-generation-failed = フォントからビットマップを生成できませんでした。{error}
+error.font.rich-text-outline-and-shadow-not-supported-by-bmfont = リッチテキストのアウトラインおよびシャドウタグは、BMFontフォントではサポートされていません。
+error.font.no-reserved-data-for-rich-text-outlines = このフォントにはリッチテキストのアウトライン用データが含まれていないため、アウトラインは描画されません。
+error.font.bitmap-shadow-blur-includes-outline = このビットマップフォントの影のぼかし処理にはアウトラインも含まれますが、アウトラインタグを使用せずに影を適用したリッチテキストは、くっきりと描画されます。
+error.font.per-span-shadow-blur-not-supported-by-bitmap-fonts = スパンごとの影のぼかしはビットマップフォントではサポートされていません。影には、利用可能なビットマップの被覆範囲が使用されます。
+error.font.per-span-outline-size-fixed-for-bitmap-fonts = ビットマップフォントの場合、アウトラインのサイズはスパンごとに固定されており、フォントリソースによって確保された幅がアウトラインに使用されます。
+error.font.rich-text-outline-exceeds-reserved-width = 要求されたリッチテキストのアウトラインが、フォントリソースによって確保された幅を超えているため、その範囲内に収まるよう制限されます。
+error.font.no-reserved-distance-field-data-for-rich-text-shadow-blur = このフォントには、リッチテキストのシャドウのぼかし用に確保されたディスタンスフィールド・データが含まれていないため、シャドウはくっきりと描画されます。
+error.at-line = {line}行目\: {error}
+error.render.title = レンダリングエラー\:
+error.render.unknown-resource = 不明
+error.render.and-more = …など
+error.gui.resource-not-found-in-scene = シーンに {type} "{name}" は存在しません。
+error.gui.layer-from-template-not-found-in-scene = テンプレートシーンのレイヤー「{layer}」がシーン内に存在しません。親レイヤーが使用されます。
+error.gui.adjust-mode-stretch-not-supported-for-particlefx = パーティクルFXノードでは、調整モード「Stretch」はサポートされていません。
+error.gui.template-resource-conflicting-values = {{type} "{resource}" のテンプレート間で値が競合しています\: {values}。
+error.gui.max-nodes-exceeded = 実際のノード数 ({count}) が "{property}" ({max}) を超えています。
