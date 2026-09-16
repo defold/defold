@@ -7,9 +7,7 @@ set(SDK_TEST_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 get_filename_component(SDK_ROOT "${SDK_TEST_ROOT}/../.." ABSOLUTE)
 set(SDK_SRC_DIR "${SDK_ROOT}/src")
 set(SDK_INSTALLED_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/sdk/include")
-set(SDK_EXTRA_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/extra")
 set(SDK_GENERATED_TEST_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
-file(MAKE_DIRECTORY "${SDK_EXTRA_INCLUDE_DIR}")
 file(MAKE_DIRECTORY "${SDK_GENERATED_TEST_DIR}")
 
 function(sdk_write_if_different path content)
@@ -27,7 +25,8 @@ function(sdk_apply_header_test_settings target)
   target_include_directories(${target} PRIVATE
     "${SDK_INSTALLED_INCLUDE_DIR}"
     "${SDK_SRC_DIR}"
-    "${SDK_EXTRA_INCLUDE_DIR}"
+    # Resolve DDF headers from their source and build directories. Installed
+    # copies appear after configuration and would force another CMake run.
     "${DEFOLD_HOME}/engine/ddf/src"
     "${DEFOLD_DDF_BINARY_DIR}"
     "${DEFOLD_GAMEOBJECT_BINARY_DIR}"
@@ -131,6 +130,7 @@ function(sdk_apply_header_test_settings target)
     defold_apply_platform_sdk_header_test_settings(${target})
   endif()
   foreach(_sdk_header_dependency IN ITEMS
+      ddf_generated_sources
       dlib_sdk_headers
       engine_sdk_headers
       extension_sdk_headers
@@ -153,16 +153,6 @@ function(sdk_apply_header_test_settings target)
   endforeach()
   set_target_properties(${target} PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endfunction()
-
-file(GLOB_RECURSE SDK_EXTRA_HEADERS CONFIGURE_DEPENDS
-  "${DEFOLD_INCLUDE_DIR}/*ddf*.h"
-  "${DEFOLD_INCLUDE_DIR}/res_*.h")
-foreach(_extra_header IN LISTS SDK_EXTRA_HEADERS)
-  file(RELATIVE_PATH _extra_relative "${DEFOLD_INCLUDE_DIR}" "${_extra_header}")
-  get_filename_component(_extra_relative_dir "${SDK_EXTRA_INCLUDE_DIR}/${_extra_relative}" DIRECTORY)
-  file(MAKE_DIRECTORY "${_extra_relative_dir}")
-  configure_file("${_extra_header}" "${SDK_EXTRA_INCLUDE_DIR}/${_extra_relative}" COPYONLY)
-endforeach()
 
 add_library(test_sdk_lib STATIC EXCLUDE_FROM_ALL "${SDK_TEST_ROOT}/test_sdk_lib.cpp")
 sdk_apply_header_test_settings(test_sdk_lib)

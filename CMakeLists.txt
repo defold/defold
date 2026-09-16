@@ -100,16 +100,22 @@ if(NOT TARGET_PLATFORM STREQUAL HOST_PLATFORM)
   endif()
   set(_DEFOLD_HOST_TOOLS_SCRIPT "${CMAKE_BINARY_DIR}/run_host_tools.cmake")
   configure_file("${CMAKE_CURRENT_LIST_DIR}/scripts/cmake/host_tools.cmake.in" "${_DEFOLD_HOST_TOOLS_SCRIPT}" @ONLY)
-  # Recurse only through source directories. A recursive CMakeLists.txt glob
-  # also discovers generated copies under build/ and Bob's test staging roots.
-  file(GLOB_RECURSE _DEFOLD_HOST_TOOLS_INPUTS CONFIGURE_DEPENDS
+  # Restrict the globs themselves to source inputs: filtering afterwards still
+  # lets CONFIGURE_DEPENDS detect generated Python bytecode as a glob change.
+  set(_DEFOLD_HOST_TOOLS_INPUT_PATTERNS
     "${DEFOLD_HOME}/scripts/cmake/*.cmake"
-    "${DEFOLD_HOME}/engine/dlib/src/*"
-    "${DEFOLD_HOME}/engine/jni/src/*"
-    "${DEFOLD_HOME}/engine/texc/src/*"
-    "${DEFOLD_HOME}/engine/modelc/src/*"
-    "${DEFOLD_HOME}/engine/font/src/*"
-    "${DEFOLD_HOME}/engine/shaderc/src/*")
+    "${DEFOLD_HOME}/scripts/cmake/*.in"
+    "${DEFOLD_HOME}/scripts/cmake/*.py")
+  foreach(_host_lib IN ITEMS dlib jni texc modelc font shaderc)
+    foreach(_source_pattern IN ITEMS
+        *.c *.cc *.cpp *.cxx *.h *.hh *.hpp *.hxx *.inc *.inl
+        *.m *.mm *.s *.S *.java *.py *.cs *.csproj *.js *.cmake CMakeLists.txt)
+      list(APPEND _DEFOLD_HOST_TOOLS_INPUT_PATTERNS
+        "${DEFOLD_HOME}/engine/${_host_lib}/src/${_source_pattern}")
+    endforeach()
+  endforeach()
+  file(GLOB_RECURSE _DEFOLD_HOST_TOOLS_INPUTS CONFIGURE_DEPENDS
+    ${_DEFOLD_HOST_TOOLS_INPUT_PATTERNS})
   list(APPEND _DEFOLD_HOST_TOOLS_INPUTS
     "${DEFOLD_HOME}/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/dlib/CMakeLists.txt"
@@ -131,6 +137,9 @@ if(NOT TARGET_PLATFORM STREQUAL HOST_PLATFORM)
   unset(_DEFOLD_HOST_TOOLS_CONFIGURE_ARGS)
   unset(_DEFOLD_HOST_TOOLS_BUILD_ARGS)
   unset(_DEFOLD_HOST_TOOLS_INPUTS)
+  unset(_DEFOLD_HOST_TOOLS_INPUT_PATTERNS)
+  unset(_host_lib)
+  unset(_source_pattern)
   unset(_DEFOLD_HOST_TOOLS_SCRIPT)
   unset(_DEFOLD_HOST_TOOLS_STAMP)
   unset(_DEFOLD_HOST_TOOLS_PATH)
