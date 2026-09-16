@@ -681,6 +681,101 @@ TEST_F(ScriptMsgTest, TestPost)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+static void DispatchCallbackFallback(dmMessage::Message* message, void* user_ptr)
+{
+    ASSERT_EQ((uintptr_t)0, message->m_Descriptor);
+    lua_State* L = (lua_State*)user_ptr;
+    dmScript::PushHash(L, message->m_Id);
+    lua_setglobal(L, "received_message_id");
+    if (message->m_DataSize > 0)
+        dmScript::PushTable(L, (const char*)message->m_Data, message->m_DataSize);
+    else
+        lua_newtable(L);
+    lua_setglobal(L, "received_message");
+}
+
+// Verifies that invalid protobuf data is delivered as a Lua table with the original message id
+// and values, without a protobuf descriptor, and that subsequent valid protobuf messages still work.
+TEST_F(ScriptMsgTest, TestPostDDFFallback)
+{
+    int top = lua_gettop(L);
+    struct TestCase
+    {
+        const char* m_MessageId;
+        const char* m_Data;
+        const char* m_Check;
+    };
+    const TestCase cases[] = {
+        // Uses fallback: the required uint_value field is missing.
+        {"sub_msg", "{}",
+            "assert(next(received_message) == nil)"},
+        // Uses fallback: custom fields do not supply the required uint_value.
+        {"sub_msg", "{custom = 'value', nested = {number = 42}}",
+            "assert(received_message.custom == 'value')\n"
+            "assert(received_message.nested.number == 42)\n"
+            "assert(received_message.uint_value == nil)"},
+        // Uses fallback: remaining required fields, starting with vec3_value, are missing.
+        {"msg", "{uint_value = 1, int_value = -2, string_value = 'partial'}",
+            "assert(received_message.uint_value == 1)\n"
+            "assert(received_message.int_value == -2)\n"
+            "assert(received_message.string_value == 'partial')\n"
+            "assert(received_message.vec3_value == nil)"},
+        // Uses fallback: uint_value cannot be converted from this string to a number.
+        {"sub_msg", "{uint_value = 'custom'}",
+            "assert(received_message.uint_value == 'custom')"},
+        // Uses fallback: the nested item is missing string_required.
+        {"repeated_container", "{items = {{string_optional = 'nested'}}}",
+            "assert(#received_message.items == 1)\n"
+            "assert(received_message.items[1].string_optional == 'nested')\n"
+            "assert(received_message.items[1].string_required == nil)"},
+    };
+
+    for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+    {
+        char program[1024];
+        dmSnPrintf(program, sizeof(program), "msg.post('#', hash('%s'), %s)", cases[i].m_MessageId, cases[i].m_Data);
+        ASSERT_TRUE(dmScriptTest::RunString(L, program));
+        ASSERT_EQ(1u, dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackFallback, L));
+        dmSnPrintf(program, sizeof(program), "assert(received_message_id == hash('%s'))\n%s", cases[i].m_MessageId, cases[i].m_Check);
+        ASSERT_TRUE(dmScriptTest::RunString(L, program));
+        ASSERT_EQ(top, lua_gettop(L));
+    }
+
+    // A failed conversion must not affect subsequent valid protobuf messages.
+    ASSERT_TRUE(dmScriptTest::RunString(L, "msg.post('#', 'sub_msg', {uint_value = 7})"));
+    uint32_t test_value = 0;
+    ASSERT_EQ(1u, dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackDDF, &test_value));
+    ASSERT_EQ(7u, test_value);
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+// Verifies that omitting data for a protobuf message with required fields uses the fallback,
+// preserving the message id and delivering an empty message without a protobuf descriptor.
+TEST_F(ScriptMsgTest, TestPostDDFWithoutData)
+{
+    int top = lua_gettop(L);
+    ASSERT_TRUE(dmScriptTest::RunString(L, "msg.post('#', 'sub_msg')"));
+    ASSERT_EQ(1u, dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackFallback, L));
+    ASSERT_TRUE(dmScriptTest::RunString(L,
+        "assert(received_message_id == hash('sub_msg'))\n"
+        "assert(next(received_message) == nil)"));
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+// Verifies that unsupported values and oversized tables still raise table serialization errors
+// after protobuf conversion fails, and that no message is posted.
+TEST_F(ScriptMsgTest, TestPostDDFFallbackInvalidTable)
+{
+    int top = lua_gettop(L);
+    ASSERT_TRUE(dmScriptTest::RunString(L,
+        "local ok, err = pcall(msg.post, '#', 'sub_msg', {custom = function() end})\n"
+        "assert(not ok and err:find('unsupported value type in table', 1, true))\n"
+        "ok, err = pcall(msg.post, '#', 'sub_msg', {custom = string.rep('x', 2048)})\n"
+        "assert(not ok and err:find('too small for table', 1, true))"));
+    ASSERT_EQ(0u, dmMessage::Consume(m_DefaultURL.m_Socket));
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 TEST_F(ScriptMsgTest, TestFailPost)
 {
     int top = lua_gettop(L);
