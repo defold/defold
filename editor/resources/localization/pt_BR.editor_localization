@@ -137,7 +137,7 @@ updater.up-to-date-dialog.header = Você está executando a versão mais recente
 updater.check-failed-dialog.title = Falha na Verificação
 updater.check-failed-dialog.header = Não foi possível buscar atualizações. Tente novamente mais tarde.
 updater.download-in-progress-dialog.title = Atualização em Andamento
-updater.download-in-progress-dialog.header = Defender já está baixando uma atualização
+updater.download-in-progress-dialog.header = Defold já está baixando uma atualização
 
 # Bundled release notes shown on first launch of a version and via Help > Release Notes
 release-notes-tab.title = Notas da Versão
@@ -1341,7 +1341,6 @@ property.cubemap.left.tooltip = A imagem mapeada para o lado esquerdo do cubemap
 property.cubemap.right = Direita
 property.cubemap.right.tooltip = A imagem mapeada para o lado traseiro do cubemap (`+X`). Cubmaps são amostrados por direção para efeitos como skybox, reflexos, e luz; as seis imagens da face devem ter dimensões idênticas.
 property.cubemap.top = Topo
-property.cubemap.top.tooltip = A imagem mapeada para o lado de cima do cubemap (`+Y`). Cubmaps são amostrados por direção para efeitos como skybox, reflexos, e luz; as seis imagens da face devem ter dimensões idênticas.
 
 # Properties: factory
 
@@ -1532,9 +1531,7 @@ property.particlefx.emitter-key-particle-rotation = Rotação Inicial
 property.particlefx.emitter-key-particle-size = Tamanho Inicial
 property.particlefx.emitter-key-particle-speed = Velocidade Inicial
 property.particlefx.emitter-key-particle-stretch-factor-x = Alongamento Inicial X
-property.particlefx.emitter-key-particle-stretch-factor-x.tooltip = Distorção horizontal inicial atribuído quando cada partícula é gerada. Ela pode variar aleatoriamente por **Spread** e pelo tempo de emissão; a curva de **Esticar X** adiciona a ela.
 property.particlefx.emitter-key-particle-stretch-factor-y = Alongamento Inicial Y
-property.particlefx.emitter-key-particle-stretch-factor-y.tooltip = Distorção vertical inicial atribuído quando cada partícula é gerada. Ela pode variar aleatoriamente por **Spread** e pelo tempo de emissão; a curva de **Esticar Y** adiciona a ela.
 property.particlefx.emitter-key-size-x = Tamanho do Emissor X
 property.particlefx.emitter-key-size-y = Tamanho do Emissor Y
 property.particlefx.emitter-key-size-z = Tamanho do Emissor Z
@@ -1549,9 +1546,7 @@ property.particlefx.particle-key-red = Vermelho
 property.particlefx.particle-key-rotation = Rotação
 property.particlefx.particle-key-scale = Escala
 property.particlefx.particle-key-stretch-factor-x = Esticar X
-property.particlefx.particle-key-stretch-factor-x.tooltip = Distorção horizontal adicionada a *Alongamento Inicial X* sobre o tempo de vida de cada partícula.
 property.particlefx.particle-key-stretch-factor-y = Esticar Y
-property.particlefx.particle-key-stretch-factor-y.tooltip = Distorção vertical adicionado ao **Alongamento inicial Y** sobre o tempo de vida normalizado de cada partícula. Quando **Alongar com Velocidade** está habilitado, a velocidade de partículas também escala este alongamento.
 
 # Properties: sound
 
