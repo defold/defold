@@ -92,21 +92,25 @@ def sign_windows_file(options, file):
     env = os.environ.copy()
     env['CLOUDSDK_PYTHON'] = sys.executable
 
-    run.env_command(env, [
-        gcloud,
-        'auth',
-        'activate-service-account',
-        '--key-file', options.gcloud_keyfile], silent = True)
+    # Parallel gcloud.CMD invocations can collide on a shared temporary file.
+    # Keep authentication and token capture together; Jsign only needs the
+    # captured token and can sign separate executables concurrently.
+    with ExclusiveFileLock(_codesigning_lock_path()):
+        run.env_command(env, [
+            gcloud,
+            'auth',
+            'activate-service-account',
+            '--key-file', options.gcloud_keyfile], silent = True)
 
-    # Capture the token ourselves so we can strip any stray lines emitted by the Windows
-    # Microsoft Store shim when `python.exe` is missing (it writes that warning to stdout).
-    token_proc = subprocess.run(
-        [gcloud, 'auth', 'print-access-token'],
-        stdout = subprocess.PIPE,
-        stderr = subprocess.PIPE,
-        check = False,
-        text = True,
-        env = env)
+        # Capture the token ourselves so we can strip any stray lines emitted by the Windows
+        # Microsoft Store shim when `python.exe` is missing (it writes that warning to stdout).
+        token_proc = subprocess.run(
+            [gcloud, 'auth', 'print-access-token'],
+            stdout = subprocess.PIPE,
+            stderr = subprocess.PIPE,
+            check = False,
+            text = True,
+            env = env)
     if token_proc.returncode != 0:
         log("gcloud auth print-access-token failed with exit code %d" % token_proc.returncode)
         if token_proc.stderr:
@@ -156,10 +160,7 @@ def sign_macos_file(options, file):
 
 def sign_file(platform, options, file):
     if _platform_is_windows(platform):
-        # Signing steps can run in parallel from the same build directory
-        # On Windows, gcloud.CMD is not safe in that situation and collides on tmpfile
-        with ExclusiveFileLock(_codesigning_lock_path()):
-            sign_windows_file(options, file)
+        sign_windows_file(options, file)
 
     if _platform_is_macos(platform):
         sign_macos_file(options, file)
