@@ -1747,11 +1747,15 @@ class Configuration(object):
         run.shell_command("%s %s" % (strip, path))
         return True
 
+    def _bob_archive_artifacts(self):
+        manifest = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.bob', 'archive-artifacts.json')
+        with open(manifest) as f:
+            return json.load(f)
+
     def archive_engine(self):
         sha1 = self._git_sha1()
         full_archive_path = join(sha1, 'engine', self.target_platform).replace('\\', '/')
         share_archive_path = join(sha1, 'engine', 'share').replace('\\', '/')
-        java_archive_path = join(sha1, 'engine', 'share', 'java').replace('\\', '/')
         dynamo_home = self.dynamo_home
         self.full_archive_path = full_archive_path
 
@@ -1819,12 +1823,10 @@ class Configuration(object):
             self.upload_to_archive(join(dynamo_home, 'share', zip_arch), '%s/%s' % (share_archive_path, zip_arch))
 
         if self.target_platform in ['x86_64-linux']:
-            # NOTE: It's arbitrary for which platform we archive dlib.jar. Currently set to linux 64-bit
-            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
-            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'modelimporter.jar'), '%s/modelimporter.jar' % (java_archive_path))
-            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'fontrenderer.jar'), '%s/fontrenderer.jar' % (java_archive_path))
-            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'texturecompiler.jar'), '%s/texturecompiler.jar' % (java_archive_path))
-            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'shaderc.jar'), '%s/shaderc.jar' % (java_archive_path))
+            # Archive the platform-independent JARs once, from the Linux build.
+            for path in self._bob_archive_artifacts():
+                if path.startswith('share/java/') and path.endswith('.jar'):
+                    self.upload_to_archive(join(dynamo_home, path), join(sha1, 'engine', path).replace('\\', '/'))
 
         if 'android' in self.target_platform:
             files = [
@@ -3471,9 +3473,7 @@ class Configuration(object):
         futures = []
         sha1 = self._git_sha1()
         # Keep the public download list aligned with Gradle's packaging inputs.
-        manifest = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.bob', 'archive-artifacts.json')
-        with open(manifest) as f:
-            bob_artifacts = {'engine/' + path for path in json.load(f)}
+        bob_artifacts = {'engine/' + path for path in self._bob_archive_artifacts()}
 
         # Private copy hooks define their own inputs. Preserve the previous filtering
         # within private-platform folders, which are absent from the public manifest.

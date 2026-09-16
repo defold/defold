@@ -9,7 +9,7 @@ def bobDir = settings.bobDir
 def dynamoHome = settings.dynamoHome
 def archiveDir = new File(dynamoHome, "archive/${settings.revision}/engine")
 def useArchive = archiveDir.parentFile.isDirectory()
-// Shared with scripts/build.py sync_archive, which downloads these Bob inputs.
+// Shared with scripts/build.py for Bob downloads and engine JAR uploads.
 def archivePaths = new JsonSlurper().parse(new File(bobDir, 'archive-artifacts.json')) as Set
 def desktopPlatforms = ['x86_64-macos', 'arm64-macos', 'x86_64-linux', 'arm64-linux', 'x86_64-win32']
 def macPlatforms = ['x86_64-macos', 'arm64-macos']
@@ -132,8 +132,8 @@ def privateLightFiles = privateFiles.asFileTree.matching {
             'libexec/**/gltf_validator*', 'libexec/**/spirv-opt*', 'libexec/**/luajit*', 'libexec/**/aapt2*'
 }
 
-def engineJars = settings.engineJarNames.collectEntries { name ->
-    [(name): preferLocal("share/java/${name}", "share/java/${name}")]
+def engineJars = archivePaths.findAll { it.startsWith('share/java/') && it.endsWith('.jar') }.collectEntries { path ->
+    [(new File(path).name): preferLocal(path, path)]
 }
 ext.bobArtifacts = [entries: entries, privateFiles: privateFiles, privateLightFiles: privateLightFiles, engineJars: engineJars,
                     builtinsZip: builtinsZip, luaJitShareZip: luaJitShareZip]
