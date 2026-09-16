@@ -278,20 +278,17 @@ jobs:
         with:
           # Cache an isolated installation, without the runner image's other SDKs.
           path: "${{ runner.temp }}/defold-dotnet"
-          key: "${{ runner.os }}-${{ runner.arch }}-dotnet-sdk-${{ env.DOTNET_SDK_VERSION }}-v1"
+          # v2 drops the unrelated LTS runtime installed by setup-dotnet.
+          key: "${{ runner.os }}-${{ runner.arch }}-dotnet-sdk-${{ env.DOTNET_SDK_VERSION }}-v2"
       - name: "Setup dotnet"
         if: matrix.dotnet
-        id: setup_dotnet
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         env:
           DOTNET_INSTALL_DIR: "${{ runner.temp }}/defold-dotnet"
-        with:
-          # Run setup on cache hits too: it sets PATH, DOTNET_ROOT and the version
-          # output used below, and its installer reuses an already installed SDK.
-          dotnet-version: "${{ env.DOTNET_SDK_VERSION }}"
+        # Run on cache hits too to set PATH and DOTNET_ROOT for subsequent steps.
+        run: python ci/setup_dotnet.py
       - name: "Pin dotnet SDK"
         if: matrix.dotnet
-        run: 'echo "{\"sdk\":{\"version\":\"${{ steps.setup_dotnet.outputs.dotnet-version }}\"}}" > global.json'
+        run: 'echo "{\"sdk\":{\"version\":\"${{ env.DOTNET_SDK_VERSION }}\"}}" > global.json'
       # macOS installs the signing certificate into the keychain instead of passing a platform.
       - name: "Install dependencies"
         if: runner.os == 'macOS'
