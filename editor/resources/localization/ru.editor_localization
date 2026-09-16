@@ -189,12 +189,6 @@ dialog.clean-build.title = Выполнить чистую сборку прое
 dialog.clean-build.header = Вы уверены, что хотите выполнить чистую сборку проекта?
 dialog.clean-build.button.clean = Чистая сборка
 
-# Debugging Not Supported Dialog
-
-dialog.debugging-not-supported.title = Отладка не поддерживается
-dialog.debugging-not-supported.header = Этот проект нельзя использовать с отладчиком
-dialog.debugging-not-supported.content = В проекте отключено объединённое состояние скриптов.\n\nЕсли вам не требуется раздельное состояние скриптов, измените параметр script.shared_state в файле game.project.
-
 # Defunload Issues Dialog
 
 dialog.defunload-issues.title = Пересмотрите шаблоны .defunload
@@ -422,7 +416,7 @@ notification.ensure-exists.reason.folder = указанный путь ссыл�
 
 notification.lsp.language-server-missing.prompt = Невозможно выполнить это действие, потому что для языка {language} не запущен сервер LSP.
 notification.lsp.language-server-missing.action.about = Подробнее об LSP в Defold
-notification.lsp.formatting-failed.prompt = Невозможно отформатировать {path} , потому что не ответил ни один языковой сервер.
+notification.lsp.formatting-failed.prompt = Невозможно отформатировать {path}, потому что не ответил ни один языковой сервер.
 
 # Asset browser notifications
 
@@ -571,11 +565,9 @@ dialog.bundle.label.platform = Платформа
 dialog.bundle.option.platform.x86_64-linux = X64
 dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-бит
-dialog.bundle.option.platform.x86-win32 = 32-бит
 dialog.bundle.option.identity.none = Нет
 dialog.bundle.label.architectures = Архитектуры
-dialog.bundle.option.architecture.arm64-ios = 64-бит (arm64)
-dialog.bundle.option.architecture.x86_64-ios = Симулятор (x86_64)
+dialog.bundle.label.ios-simulator = Эмулятор
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
@@ -853,6 +845,7 @@ menu.edit = Правка
 menu.debug = Отладка
 menu.view = Вид
 menu.help = Справка
+menu.dock.new-window = Новое окно
 
 # Commands
 
@@ -936,7 +929,12 @@ command.edit.add-embedded-component.variant.collection = Добавить игр
 command.edit.add-embedded-component.variant.collision-object = Добавить форму
 command.edit.add-embedded-component.variant.collision-object.option.box = Прямоугольник
 command.edit.add-embedded-component.variant.collision-object.option.capsule = Капсула
+command.edit.add-embedded-component.variant.collision-object.option.circle = Круг
+command.edit.add-embedded-component.variant.collision-object.option.hull = Оболочка
+command.edit.add-embedded-component.variant.collision-object.option.mesh = Меш
+command.edit.add-embedded-component.variant.collision-object.option.rectangle = Прямоугольник
 command.edit.add-embedded-component.variant.collision-object.option.sphere = Сфера
+command.edit.add-embedded-component.variant.font = Добавить стиль
 command.edit.add-embedded-component.variant.game-object = Добавить компонент
 command.edit.add-embedded-component.variant.gui.option.textures = Текстуры…
 command.edit.add-embedded-component.variant.gui.option.materials = Материалы…
@@ -1120,6 +1118,7 @@ operation.atlas.move-pivot-point = Переместить опорную точ�
 operation.collision-object.add-shape = Добавить форму
 operation.collection.add-collection = Добавить коллекцию
 operation.collection.add-game-object = Добавить игровой объект
+operation.font.add-style = Добавить стиль шрифта
 operation.game-object.add-component = Добавить компонент
 operation.gui.add-gui-node = Добавить GUI-элемент
 operation.gui.add-layer = Добавить слой
@@ -1138,6 +1137,11 @@ operation.drop = Переместить
 operation.paste = Вставить
 operation.select = Выделить
 operation.tile-map.add-layer = Добавить слой
+
+# Font Styles
+
+font.style.default = (по умолчанию)
+scene.font.style = Стиль\: {style}
 
 # Scene View Popups
 
@@ -1344,6 +1348,10 @@ property.collision-object.shape.dimensions = Размер
 property.collision-object.shape.dimensions.tooltip = Полные **Ширина**, **Высота** и **Глубина** формы-параллелепипеда. **Глубина** влияет только на 3D-физику, но каждый размер должен быть больше нуля.
 property.collision-object.shape.height = Высота
 property.collision-object.shape.height.tooltip = **Только для 3D-физики.** Длина прямой части капсулы между скруглёнными концами. Полная длина от края до края равна **Высота + Диаметр**.
+property.collision-object.shape.mesh-scene = Сцена
+property.collision-object.shape.mesh-scene.tooltip = Сцена glTF или GLB, содержащая меш коллизий.
+property.collision-object.shape.mesh = Меш
+property.collision-object.shape.mesh.tooltip = Исходный меш с именем из выбранной сцены.
 
 # Properties: compute
 
@@ -1409,6 +1417,10 @@ property.font.characters = Символы
 property.font.characters.tooltip = Символы, включаемые при сборке офлайн-шрифта; ограничение этого набора уменьшает размер шрифта. Для шрифтов времени выполнения эти символы создаются заранее, чтобы прогреть кэш глифов. Очистка поля восстанавливает печатные символы ASCII.
 property.font.all-chars = Все символы
 property.font.all-chars.tooltip = Для офлайн-шрифтов включает все глифы из источника вместо одних лишь **Символов**, что может значительно увеличить размер шрифта. Для шрифтов времени выполнения глифы создаются по запросу, и включение этого параметра пропускает прогрев символов из поля **Символы**.
+property.font.style = Стиль
+property.font.style.tooltip = Базовый стиль выбранного шрифта. Оставьте пустым, чтобы не использовать базовый стиль. Встроенная разметка переопределяет выбранный стиль.
+property.font.markup = Разметка
+property.font.markup.tooltip = Открывающие теги форматированного текста, определяющие этот стиль. Поддерживаются свойства отрисовки, эффекты, подчёркивание и зачёркивание.
 
 # Properties: gui
 
@@ -1547,10 +1559,14 @@ property.model.create-go-bones = Создавать GO для костей
 property.model.create-go-bones.tooltip = Создаёт во время выполнения игровой объект для каждой кости скелета, позволяя, например, прикрепить оружие к кости руки. Созданные игровые объекты можно найти с помощью `model.get_go()`; они учитываются в лимите игровых объектов коллекции.
 property.model.default-animation = Анимация по умолчанию
 property.model.default-animation.tooltip = Анимация из **Анимаций**, которая запускается автоматически вместе с моделью. Оставьте поле пустым, если анимацию следует запускать явно с помощью `model.play_anim()`.
+property.model.scene = Сцена
+property.model.scene.tooltip = Ресурс glTF или GLB, содержащий видимую геометрию модели. Морф-таргеты импортируются вместе со сценой.
 property.model.mesh = Меш
 property.model.mesh.tooltip = Ресурс glTF или GLB, содержащий видимую геометрию модели. Морф-цели импортируются вместе с мешем.
+property.model.mesh-name = Меш
+property.model.mesh-name.tooltip = Необязательный исходный меш из выбранной сцены, указанный по имени. Оставьте пустым, чтобы отрисовывать всю сцену. Выбранный меш отрисовывается один раз в локальных координатах меша, без преобразований узлов glTF.
 property.model.skeleton = Скелет
-property.model.skeleton.tooltip = Ресурс glTF или GLB, содержащий иерархию костей для скелетной анимации. Defold импортирует первый скин из файла; часто это тот же ресурс, который используется для **Меша**.
+property.model.skeleton.tooltip = Ресурс glTF или GLB, содержащий иерархию костей, используемую для скелетной анимации. Defold импортирует первый скин из файла; часто это тот же ресурс, который используется для **Scene**.
 
 # Properties: particlefx
 
@@ -1722,6 +1738,7 @@ outline.camera = Камера
 outline.collection = Коллекция
 outline.collection-proxy = Прокси коллекции
 outline.collision-object = Объект коллизий
+outline.font.styles = Стили
 outline.game-object = Игровой объект
 outline.gui.box = Прямоугольник
 outline.gui.fonts = Шрифты
@@ -1970,8 +1987,8 @@ form.label.project.android.display_cutout = Область выреза
 form.help.project.android.display_cutout = Позволяет полноэкранному содержимому заходить в области вырезов дисплея, например чёлок и отверстий для камеры. В Android 15/API 35 и новее такое поведение может быть обязательным. Используйте `window.get_safe_area()`, чтобы важные элементы интерфейса находились внутри безопасной области.
 form.label.project.android.debuggable = Возможность отладки
 form.help.project.android.debuggable = Задаёт `android\:debuggable` в манифесте, позволяя таким инструментам, как профилировщики и отладчики Android Studio, исследовать приложение и его файлы. Оставляйте отключённым для релизных сборок, если это явно не требуется.
-form.label.project.android.proguard = Конфигурация ProGuard
-form.help.project.android.proguard = Пользовательские правила `.pro`, используемые при сокращении и обфускации Java-кода в сборке Android. Добавьте правила сохранения для кода, доступного через рефлексию или JNI, чтобы он не был удалён или переименован. Оставьте пустым, если правила для проекта не нужны.
+form.label.project.android.r8_keep_rules = Правила R8 Keep
+form.help.project.android.r8_keep_rules = Файл `.keep`, включающий уменьшение размера, оптимизацию и обфускацию Android-сборки с помощью R8. Выбранный файл задаёт полный набор правил проекта; перед внесением изменений скопируйте встроенный `dmengine.keep`. Оставьте пустым, чтобы получить финальную сборку без уменьшения размера.
 form.label.project.android.extract_native_libs = Извлекать библиотеки
 form.help.project.android.extract_native_libs = Определяет, извлекает ли Android нативные библиотеки из пакета при установке. Если параметр отключён, библиотеки остаются несжатыми и загружаются непосредственно из пакета; это необходимо для совместимости с устройствами, использующими страницы памяти размером 16 КБ.
 
@@ -1997,6 +2014,8 @@ form.label.project.html5.engine_arguments = Аргументы движка
 form.help.project.html5.engine_arguments = Разделённые запятыми аргументы движка, передаваемые при запуске. Чтобы переопределить значение конфигурации, используйте `--config\=section.key\=value`.
 form.label.project.html5.wasm_streaming = Потоковый WASM
 form.help.project.html5.wasm_streaming = Компилирует WebAssembly по мере загрузки, ускоряя запуск и снижая пиковое потребление памяти. Сервер должен отдавать файлы `.wasm` с типом `application/wasm`. Если потоковая загрузка не сработает, загрузчик переключится на обычную загрузку.
+form.label.project.html5.verify_downloaded_file_size = Проверять размер загруженного файла
+form.help.project.html5.verify_downloaded_file_size = Проверяет, что размер каждого загруженного файла бандла совпадает с его размером на момент сборки, и не запускает игру, если это не так. Отключайте эту проверку только в том случае, если сервер, прокси-сервер или CDN изменяет отдаваемые файлы, из-за чего меняется их размер. Перед тем как сообщить об ошибке проверки, файл всегда повторно загружается ещё несколько раз.
 form.label.project.html5.show_fullscreen_button = Кнопка полного экрана
 form.help.project.html5.show_fullscreen_button = Показывает кнопку полноэкранного режима под canvas во встроенной HTML-оболочке. В пользовательской оболочке этот параметр можно использовать как условие Mustache.
 form.label.project.html5.show_made_with_defold = Показ «Made with Defold»
@@ -2006,9 +2025,9 @@ form.help.project.html5.show_console_banner = При запуске движка
 form.label.project.html5.scale_mode = Режим масштабирования
 form.help.project.html5.scale_mode = Управляет изменением размера canvas. **Downscale Fit** сохраняет соотношение сторон и только уменьшает изображение. **Fit** сохраняет соотношение сторон и может уменьшать или увеличивать изображение. **Stretch** заполняет страницу и может искажать изображение. **No Scale** сохраняет размеры, заданные в настройках дисплея.
 form.label.project.html5.retry_count = Число попыток
-form.help.project.html5.retry_count = Число повторных попыток загрузить файл бандла после сетевой ошибки, не считая первоначального запроса.
+form.help.project.html5.retry_count = Количество повторных попыток после сетевой ошибки или HTTP-ответа с ошибкой при загрузке файлов бандла. Первоначальный запрос не учитывается.
 form.label.project.html5.retry_time = Пауза между попытками
-form.help.project.html5.retry_time = Задержка в секундах перед повторной загрузкой файла бандла после сетевой ошибки.
+form.help.project.html5.retry_time = Задержка в секундах перед повторной попыткой загрузить файл бандла после сетевой ошибки или неудачной проверки.
 form.label.project.html5.transparent_graphics_context = Прозрачный контекст
 form.help.project.html5.transparent_graphics_context = Запрашивает альфа-канал для графического контекста HTML5, чтобы страница была видна сквозь прозрачные пиксели canvas. Игра также должна рендерить прозрачные пиксели.
 
@@ -2146,11 +2165,6 @@ form.help.project.particle_fx.max_count = Максимальное число к
 form.label.project.particle_fx.max_emitter_count = Макс. число эмиттеров
 form.help.project.particle_fx.max_emitter_count = Максимальное общее число эмиттеров во всех одновременно работающих экземплярах ParticleFX в каждой загруженной коллекции. Один эффект может содержать несколько эмиттеров. При превышении предела весь проход отрисовки ParticleFX для коллекции пропускается, а в журнал выводится предупреждение.
 
-form.label.project.script = Скрипты
-form.help.project.script = Настройки системы скриптов
-form.label.project.script.shared_state = Общее состояние Lua
-form.help.project.script.shared_state = Определяет, используют ли скрипты игровых объектов, GUI-скрипты и скрипт рендеринга одно состояние Lua. Если настройка включена, глобальные переменные и кэши загруженных модулей общие, а если выключена — изолированы. Общее состояние использует меньше памяти и необходимо для отладчика редактора.
-
 form.label.project.sound = Звук
 form.help.project.sound = Настройки звука
 form.label.project.sound.gain = Усиление
@@ -2220,11 +2234,11 @@ form.help.project.display.display_profiles = Ресурс профилей ди�
 form.label.project.display.dynamic_orientation = Автоориентация
 form.help.project.display.dynamic_orientation = Позволяет сборкам для Android и iOS использовать портретную и альбомную ориентации и переключаться между ними при повороте устройства. Если параметр отключён, поддерживаемая ориентация определяется по **Ширине** и **Высоте**. Приложение для разработки пока не учитывает этот параметр.
 form.label.project.display.update_frequency = Частота обновления
-form.help.project.display.update_frequency = Желаемая частота игрового цикла и рендеринга в герцах. `0` включает переменную частоту кадров; положительное значение, например `30`, ограничивает частоту, если устройство способно работать с такой скоростью.
+form.help.project.display.update_frequency = Желаемая частота игрового цикла и отрисовки в герцах. `0` использует переменную частоту кадров. На платформах, где Defold управляет циклом приложения, положительное значение использует синхронизацию по таймеру и устанавливает **Интервал смены кадров** в `0`; заданный интервал восстанавливается, если снова установить здесь `0`. Значение `dt` при обновлении может изменяться с учётом прошедшего времени. Это не относится к `fixed_update()`.
 form.label.project.display.swap_interval = Интервал смены кадров
-form.help.project.display.swap_interval = Задаёт вывод кадров относительно частоты обновления дисплея. `0` отключает вертикальную синхронизацию, а `1` выводит кадр при каждом обновлении. В OpenGL большие значения могут пропускать интервалы, тогда как Vulkan и Metal считают любое ненулевое значение включением вертикальной синхронизации. Фактическое поведение зависит от бэкенда и драйвера.
+form.help.project.display.swap_interval = Задаёт интервал вывода кадров относительно частоты обновления дисплея. `0` запрашивает отключение вертикальной синхронизации, а `1` — вывод при каждом обновлении. OpenGL может поддерживать большие значения интервала, тогда как Vulkan и Metal воспринимают любое ненулевое значение как включение вертикальной синхронизации. DX12 ограничивает интервал значениями от `0` до `4`. Синхронизация по таймеру на стороне движка временно запрашивает интервал `0`. Фактическое поведение зависит от графического бэкенда, платформы и драйвера.
 form.label.project.display.vsync = VSync
-form.help.project.display.vsync = **Устаревший параметр совместимости.** При отключении устанавливает эффективный **Интервал смены кадров** в `0`; при включении поведение определяется параметром **Интервал смены кадров**. В новых проектах используйте **Интервал смены кадров**.
+form.help.project.display.vsync = **Эта настройка устарела и сохранена только для обратной совместимости.** Если отключена, принудительно устанавливает запрашиваемый **интервал смены кадров** в `0`; если включена, запрашиваемое поведение определяется параметром **Интервал смены кадров**. Синхронизация по таймеру на стороне движка также запрашивает интервал `0`. Для новых проектов используйте **Интервал смены кадров**.
 form.label.project.display.variable_dt = Переменное Δt
 form.help.project.display.variable_dt = **Устаревший параметр.** При включении в собранном проекте отключается **VSync**, а **Частота обновления** устанавливается в `0`, что воспроизводит прежнее поведение с переменным шагом времени.
 form.label.project.display.display_device_info = Инфо об устройстве
@@ -2237,7 +2251,7 @@ form.help.project.engine.run_while_iconified = Продолжает обновл
 form.label.project.engine.fixed_update_frequency = Частота обновлений
 form.help.project.engine.fixed_update_frequency = Задаёт частоту фиксированных обновлений в Гц. Она управляет `fixed_update(self, dt)` и физикой, когда включён параметр **Использовать фиксированный шаг времени**. `0` отключает фиксированные обновления.
 form.label.project.engine.max_time_step = Максимальный шаг
-form.help.project.engine.max_time_step = Ограничивает `dt`, передаваемый обычным функциям обновления после медленного или приостановленного кадра. Не ограничивает фиксированный `dt`, передаваемый в `fixed_update()`; лишнее прошедшее время отбрасывается.
+form.help.project.engine.max_time_step = Ограничивает прошедшее время, учитываемое обычными обновлениями, в секундах. Избыточное время задержки отбрасывается, а не компенсируется позже. Синхронизация по таймеру на стороне движка использует большее из этого ограничения и запрашиваемого интервала кадра, поэтому при низком ограничении частоты кадров `dt` может превышать это значение. Параметр не ограничивает шаг времени, передаваемый в `fixed_update()`.
 
 form.label.project.font = Шрифт
 form.help.project.font = Параметры шрифта
@@ -2713,6 +2727,13 @@ error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is =
 error.render-target.depth-stencil-width-must-be-greater-than-zero-if-height-is = Некорректный depth/stencil-буфер\: высота больше нуля, но ширина равна нулю.
 error.collision-object-shape-dimensions-must-be-greater-than-zero = Все размеры должны быть больше нуля.
 error.collision-object-has-no-shapes = В объекте коллизий нет форм.
+error.collision-object-mesh-shape-scene-required = Выберите сцену glTF или GLB для формы «Меш» или «Оболочка».
+error.collision-object-mesh-shape-no-named-meshes = В выбранной сцене нет мешей с именами.
+error.collision-object-mesh-shape-mesh-required = Выберите меш из сцены.
+error.collision-object-mesh-shape-mesh-missing = Меш «{mesh}» больше не существует в выбранной сцене или его имя неоднозначно.
+error.collision-object-mesh-shape-triangle-topology-required = Выбранный меш содержит примитив, не являющийся треугольником.
+error.collision-object-mesh-shape-empty = Выбранный меш не содержит треугольников.
+error.collision-object-hull-shape-empty = Выбранный меш не содержит вершин.
 error.collision-shape-conflict = Нельзя одновременно использовать встроенные формы и свойство «Форма столкновения». Удалите что-то одно.
 error.collision-object-shape-not-supported-in-physics = Формы «{shape}» не поддерживаются в физике {physics}.
 error.texture-profiles.format-not-supported-by-texture-compressor = Компрессор текстур не поддерживает формат текстуры.
@@ -2749,10 +2770,16 @@ error.material-does-not-support-paged-atlases = Материал не подде
 error.material-max-page-count-insufficient = Значение «Макс. страницы атласа» в материале недостаточно для количества страниц в выбранном свойстве {property}.
 error.model-unsupported-file-format = Значение свойства {property} «{resource}» имеет неподдерживаемый формат {format}. Defold поддерживает только файлы {supported_formats} для свойства {property}.
 error.model-load-failed = Не удалось загрузить файл «{file}»\:\n{error}
+error.model-mesh-selection-file-type = Меш доступен только для сцен glTF и GLB.
+error.model-mesh-selection-name-required = У выбранного индекса меша нет имени.
+error.model-mesh-selection-missing = Меш «{mesh}» не найден в сцене.
 error.animation-not-found = В значении свойства «{property}» не найдена анимация «{animation}».
 error.buffer-syntax-error = Синтаксическая ошибка в файле буфера.
 error.editor-extension-compilation-failed = Не удалось скомпилировать расширение редактора.
 error.font-bitmap-generation-failed = Не удалось сгенерировать растровое изображение из шрифта. {error}
+error.font.style-not-found = Стиль шрифта «{style}» не существует.
+error.font.invalid-style-name = Имена стилей должны быть уникальными и непустыми; имя default зарезервировано.
+error.font.authored-default-style = Стиль default создаётся автоматически и не может содержать разметку.
 error.font.rich-text-outline-and-shadow-not-supported-by-bmfont = Теги обводки и тени форматированного текста не поддерживаются шрифтами BMFont.
 error.font.no-reserved-data-for-rich-text-outlines = В этом шрифте не зарезервированы данные для обводки форматированного текста; обводка отображаться не будет.
 error.font.bitmap-shadow-blur-includes-outline = Размытие тени этого растрового шрифта включает его обводку; фрагменты тени форматированного текста без тега обводки отображаются без размытия.
