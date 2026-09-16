@@ -4287,19 +4287,19 @@
                 :grid-pane/row 3
                 :grid-pane/halignment :right}]}]}]}]}]}}))
 
-(defn- create-breakpoint-editor! [view-node canvas ^Tab tab]
+(defn- create-breakpoint-editor! [view-node canvas]
   (let [state (atom nil)
-        timer (ui/->timer
-                10
-                "breakpoint-code-editor-timer"
-                (fn [_ _ _]
-                  (when (and (.isSelected tab) (not (ui/ui-disabled?)))
-                    (g/with-auto-evaluation-context evaluation-context
-                      (reset! state
-                              (when-let [edited-breakpoint (g/node-value view-node :edited-breakpoint evaluation-context)]
-                                {:edited-breakpoint edited-breakpoint
-                                 :gutter-metrics (g/node-value view-node :gutter-metrics evaluation-context)
-                                 :layout (g/node-value view-node :layout evaluation-context)}))))))]
+        dispose-timer!
+        (ui/node-timer!
+          canvas 10 "breakpoint-code-editor-timer"
+          (fn [_elapsed-time]
+            (when-not (ui/ui-disabled?)
+              (g/with-auto-evaluation-context evaluation-context
+                (reset! state
+                        (when-let [edited-breakpoint (g/node-value view-node :edited-breakpoint evaluation-context)]
+                          {:edited-breakpoint edited-breakpoint
+                           :gutter-metrics (g/node-value view-node :gutter-metrics evaluation-context)
+                           :layout (g/node-value view-node :layout evaluation-context)}))))))]
     (fx/mount-renderer
       state
       (fx/create-renderer
@@ -4336,9 +4336,8 @@
         :middleware (comp
                       fxui/wrap-dedupe-desc
                       (fx/wrap-map-desc #(breakpoint-editor-view canvas %)))))
-    (ui/timer-start! timer)
     (fn dispose-breakpoint-editor! []
-      (ui/timer-stop! timer)
+      (dispose-timer!)
       (reset! state nil))))
 
 (defn- make-view! [parent resource-node opts]
@@ -4377,11 +4376,6 @@
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node localization)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node localization)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node editable localization)
-        repainter (ui/->timer "repaint-code-editor-view"
-                              (fn [_ elapsed-time _]
-                                (when (and (.isSelected tab) (not (ui/ui-disabled?)))
-                                  (repaint-view! view-node elapsed-time {:cursor-visible true :editable editable}))))
-        dispose-breakpoint-editor! (create-breakpoint-editor! view-node canvas tab)
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :editable editable
                      :app-view app-view
@@ -4469,14 +4463,21 @@
       (let [^Stage stage (g/node-value app-view :stage)
             ^Scene scene (.getScene stage)
             focus-owner-property (.focusOwnerProperty scene)
-            focus-change-listener (make-focus-change-listener view-node grid canvas)]
+            focus-change-listener (make-focus-change-listener view-node grid canvas)
+            dispose-breakpoint-editor! (create-breakpoint-editor! view-node canvas)
+            dispose-repainter!
+            (ui/node-timer!
+              canvas nil "repaint-code-editor-view"
+              (fn [elapsed-time]
+                (when-not (ui/ui-disabled?)
+                  (repaint-view! view-node elapsed-time {:cursor-visible true :editable editable}))))]
         (.addListener focus-owner-property focus-change-listener)
 
         ;; Remove callbacks when our tab is closed.
         (ui/on-closed! tab (fn [_]
                              (lsp/close-view! lsp view-node)
                              (ui/kill-event-dispatch! canvas)
-                             (ui/timer-stop! repainter)
+                             (dispose-repainter!)
                              (dispose-breakpoint-editor!)
                              (dispose-goto-line-bar! goto-line-bar)
                              (dispose-find-bar! find-bar)
@@ -4490,11 +4491,7 @@
                              (.removeListener visible-whitespace-property visible-whitespace-setter)
                              (.removeListener focus-owner-property focus-change-listener)))))
 
-    ;; Start repaint timer.
-    (ui/timer-start! repainter)
-    ;; Initial draw
-    (ui/run-later (repaint-view! view-node 0 {:cursor-visible true :editable editable})
-                  (ui/run-later (slog/smoke-log "code-view-visible")))
+    (ui/run-later (slog/smoke-log "code-view-visible"))
     view-node))
 
 (def ^:private fundamental-read-only-handlers
