@@ -177,6 +177,8 @@
   (output shader-source-info g/Any :cached produce-shader-source-info))
 
 (defn- shader-dependencies [read-opts owner-resource lines]
+  ;; In the editor, we depend on the #included .glsl modules, but when built,
+  ;; their text becomes inlined into the owner-resource.
   (if-not (:include-editor-dependencies read-opts)
     []
     (let [resolve-proj-path-fn (:resolve-proj-path-fn read-opts)]
