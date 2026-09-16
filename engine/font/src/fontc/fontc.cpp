@@ -1723,8 +1723,12 @@ FontRendererResult FontcGetVectorTextures(HFontRenderer renderer, uint64_t known
     curves->m_Height = dmMath::Max(1u, (data.m_Curves.Size() / 4 + FONT_VECTOR_SLUG_WIDTH - 1) / FONT_VECTOR_SLUG_WIDTH);
     bands->m_Height = dmMath::Max(1u, (data.m_Bands.Size() + FONT_VECTOR_SLUG_WIDTH - 1) / FONT_VECTOR_SLUG_WIDTH);
     curves->m_Channels = bands->m_Channels = 4;
-    curves->m_PixelCount = curves->m_Width * curves->m_Height * 4 * sizeof(uint16_t);
-    bands->m_PixelCount = bands->m_Width * bands->m_Height * 4 * sizeof(float);
+    const uint64_t curve_bytes = (uint64_t)curves->m_Width * curves->m_Height * 4 * sizeof(uint16_t);
+    const uint64_t band_bytes = (uint64_t)bands->m_Width * bands->m_Height * 4 * sizeof(float);
+    if (curve_bytes > UINT32_MAX || band_bytes > UINT32_MAX)
+        return FONT_RENDERER_RESULT_OUT_OF_MEMORY;
+    curves->m_PixelCount = (uint32_t)curve_bytes;
+    bands->m_PixelCount = (uint32_t)band_bytes;
     curves->m_Pixels = (uint8_t*)calloc(1, curves->m_PixelCount);
     bands->m_Pixels = (uint8_t*)calloc(1, bands->m_PixelCount);
     if (!curves->m_Pixels || !bands->m_Pixels)
