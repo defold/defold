@@ -2739,7 +2739,89 @@ protected:
             MarkupDestroy(document);
         return count;
     }
+
+    void RenderWithoutPrewarm(const char* path, bool effects)
+    {
+        HFont font = FontLoadFromPath(path);
+        ASSERT_NE((HFont)0, font);
+        HFontCollection collection = FontCollectionCreate();
+        FontCollectionAddFont(collection, font);
+        dmRender::FontMapParams params;
+        params.m_FontCollection = collection;
+        params.m_Size = 36;
+        params.m_IsDynamic = 1;
+        params.m_CacheWidth = params.m_CacheHeight = 64;
+        params.m_CacheMaxWidth = params.m_CacheMaxHeight = 512;
+        params.m_CacheCellWidth = params.m_CacheCellHeight = 0;
+        params.m_CacheCellMaxAscent = 0;
+        params.m_VectorBitmapEffects = effects;
+        params.m_GlyphChannels = effects ? 3 : 1;
+        params.m_LayerMask = effects ? 7 : 1;
+        params.m_OutlineWidth = effects ? 2.0f : 0.0f;
+        params.m_OutlineAlpha = params.m_ShadowAlpha = effects ? 1.0f : 0.0f;
+        params.m_ShadowBlur = effects ? 2.0f : 0.0f;
+        params.m_SdfSpread = effects ? 11.0f : 3.0f;
+        dmRender::HFontMap map = dmRender::NewFontMap(m_Context, m_GraphicsContext, params);
+        ASSERT_TRUE(dmRender::SetFontMapMaterial(map, m_Material));
+        dmRender::DrawTextParams draw;
+        draw.m_Text = "Wi";
+        draw.m_Width = 128.0f;
+        draw.m_FaceColor = draw.m_OutlineColor = draw.m_ShadowColor = Vector4(1.0f);
+        for (uint32_t frame = 0; frame < 3; ++frame)
+        {
+            dmRender::ClearRenderObjects(m_Context);
+            dmRender::RenderListBegin(m_Context);
+            dmRender::DrawText(m_Context, map, 0, 0, 0, draw);
+            dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+            dmRender::RenderListEnd(m_Context);
+            dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+        }
+        const dmRender::FontDefaultVertex* vertices = (const dmRender::FontDefaultVertex*)m_Context->m_TextContext.m_ClientBuffer;
+        uint32_t visible_vertices = 0;
+        for (uint32_t i = 0; i < m_Context->m_TextContext.m_VertexIndex; ++i)
+            visible_vertices += vertices[i].m_VectorColor[3] != 0;
+        EXPECT_EQ(effects ? 36u : 12u, visible_vertices);
+        EXPECT_GT(map->m_CacheCellCount, 0u);
+
+        if (effects)
+        {
+            // A taller glyph in a later batch must not recreate the texture
+            // already captured by the earlier batch in this render dispatch.
+            const dmGraphics::HTexture texture = map->m_VectorSdfTexture;
+            dmRender::ClearRenderObjects(m_Context);
+            m_Context->m_RenderObjects.SetCapacity(3);
+            dmRender::RenderListBegin(m_Context);
+            draw.m_RenderOrder = 0;
+            dmRender::DrawText(m_Context, map, 0, 0, 1, draw);
+            draw.m_RenderOrder = 1;
+            draw.m_Text = "\xc3\x85"; // A with ring above.
+            dmRender::DrawText(m_Context, map, 0, 0, 2, draw);
+            draw.m_RenderOrder = 2;
+            draw.m_Text = "Wi";
+            dmRender::DrawText(m_Context, map, 0, 0, 3, draw);
+            dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+            dmRender::RenderListEnd(m_Context);
+            dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+            EXPECT_TRUE(map->m_IsCacheSizeDirty);
+            EXPECT_EQ(texture, map->m_VectorSdfTexture);
+        }
+        dmRender::ClearRenderObjects(m_Context);
+        dmRender::DeleteFontMap(map);
+        FontDestroy(font);
+    }
 };
+
+TEST_F(VectorFontTest, DynamicFaceWithoutPrewarm)
+{
+    RenderWithoutPrewarm("../font/src/test/data/vera_mo_bd.ttf", false);
+    RenderWithoutPrewarm("../font/src/test/data/SourceCodePro-Regular.otf", false);
+}
+
+TEST_F(VectorFontTest, DynamicEffectsWithoutPrewarm)
+{
+    RenderWithoutPrewarm("../font/src/test/data/vera_mo_bd.ttf", true);
+    RenderWithoutPrewarm("../font/src/test/data/SourceCodePro-Regular.otf", true);
+}
 
 TEST_F(VectorFontTest, TruncationPreservesBufferBounds)
 {

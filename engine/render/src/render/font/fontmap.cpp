@@ -1285,6 +1285,23 @@ namespace dmRender
         if (font_map->m_SlugResetPending && frame != font_map->m_SlugOverflowFrame)
             ResetVectorCache(font_map);
 
+        if (font_map->m_IsVector)
+        {
+            // Synchronous Vector generation has no AddGlyphByIndex callback to
+            // initialize an empty cache or grow cells for newly requested glyphs.
+            uint16_t width = dmMath::Max((uint16_t)8, (uint16_t)glyph->m_Bitmap.m_Width);
+            uint16_t height = dmMath::Max((uint16_t)8, (uint16_t)glyph->m_Bitmap.m_Height);
+            if (width > font_map->m_CacheCellWidth || height > font_map->m_CacheCellHeight)
+            {
+                font_map->m_CacheCellWidth = dmMath::Max(width, font_map->m_CacheCellWidth);
+                font_map->m_CacheCellHeight = dmMath::Max(height, font_map->m_CacheCellHeight);
+                font_map->m_IsCacheSizeDirty = 1;
+            }
+            // Keep the current atlas intact until the next render dispatch.
+            if (font_map->m_IsCacheSizeDirty)
+                return 0;
+        }
+
         if (font_map->m_CacheCellCount == 0)
             return 0;
 
@@ -1333,18 +1350,6 @@ namespace dmRender
         {
             uint32_t glyph_image_width = glyph->m_Bitmap.m_Width;
             uint32_t glyph_image_height = glyph->m_Bitmap.m_Height;
-            if (UsesVectorSdfShadow(font_map) &&
-                (glyph_image_width > font_map->m_CacheCellWidth ||
-                 glyph_image_height > font_map->m_CacheCellHeight ||
-                 glyph->m_Ascent > font_map->m_CacheCellMaxAscent))
-            {
-                font_map->m_CacheCellWidth = dmMath::Max(font_map->m_CacheCellWidth, (uint16_t)glyph_image_width);
-                font_map->m_CacheCellHeight = dmMath::Max(font_map->m_CacheCellHeight, (uint16_t)glyph_image_height);
-                font_map->m_CacheCellMaxAscent = dmMath::Max(font_map->m_CacheCellMaxAscent, (int32_t)glyph->m_Ascent);
-                font_map->m_IsCacheSizeDirty = 1;
-                return 0;
-            }
-
             cache_glyph->m_Glyph = glyph;
             cache_glyph->m_GlyphKey = glyph_key;
             cache_glyph->m_Frame = frame;

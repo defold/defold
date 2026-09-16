@@ -711,10 +711,8 @@ namespace dmRender
     static void CreateFontRenderBatch(HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         const TextEntry& first_te = *(TextEntry*) buf[*begin].m_UserData;
-        // Cache updates may recreate textures. Resolve once before either pass
-        // stores texture handles so the shadow render object cannot be
-        // invalidated while the face object is being prepared.
-        UpdateCacheTexture(first_te.m_FontMap);
+        if (!first_te.m_FontMap->m_IsVector)
+            UpdateCacheTexture(first_te.m_FontMap);
         if (first_te.m_ShadowMaterial)
         {
             // Vector outlines and shadows use the same runtime SDF texture and
@@ -736,6 +734,14 @@ namespace dmRender
         switch (params.m_Operation)
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
+                // Vector glyphs are generated synchronously while making vertices.
+                // Apply pending growth before any batch captures texture handles.
+                for (uint32_t i = 0; i < text_context.m_TextEntries.Size(); ++i)
+                {
+                    HFontMap font_map = text_context.m_TextEntries[i].m_FontMap;
+                    if (font_map->m_IsVector)
+                        UpdateCacheTexture(font_map);
+                }
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
                 if (text_context.m_VerticesFlushed != text_context.m_VertexIndex)
