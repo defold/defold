@@ -192,8 +192,10 @@ def upload_release_asset(release, token, filepath, name, max_attempts = 5):
             log("Uploading to GitHub %s (asset %s, attempt %d/%d)" % (upload_url, name, attempt, max_attempts))
             # Reopen the file so retries always send the entire asset.
             with open(filepath, 'rb') as data:
+                # Requests also uses the connect timeout while sending the body.
+                # Allow large uploads five minutes for blocked writes and response reads.
                 response = requests.post(upload_url, params = {"name": name}, data = data,
-                                         headers = upload_headers, timeout = (10, 300))
+                                         headers = upload_headers, timeout = (300, 300))
             response.raise_for_status()
             asset = response.json()
             if asset.get("state") == "uploaded" and asset.get("size") == expected_size:
