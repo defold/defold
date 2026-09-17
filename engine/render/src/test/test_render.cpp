@@ -2895,6 +2895,14 @@ TEST_F(VectorFontTest, RichTextPreservesCornerColorsAndAnimatedOffsets)
     ASSERT_GT(before[0].m_VectorColor[0], before[2].m_VectorColor[0]);
     ASSERT_LT(before[0].m_VectorColor[2], before[2].m_VectorColor[2]);
     ASSERT_EQ(0, memcmp(before[0].m_VectorColor, before[1].m_VectorColor, 4));
+    ASSERT_EQ(6u, Render("<gradient tl=#ff0000 tr=#00ff00 bl=#0000ff br=#ffff00 fit=glyph>A</gradient>", true, before, 6));
+    const uint8_t corner_colors[6][4] = {
+        { 0, 0, 255, 255 }, { 255, 0, 0, 255 }, { 255, 255, 0, 255 },
+        { 255, 255, 0, 255 }, { 255, 0, 0, 255 }, { 0, 255, 0, 255 }
+    };
+    for (uint32_t i = 0; i < 6; ++i)
+        ASSERT_EQ(0, memcmp(corner_colors[i], before[i].m_VectorColor, 4));
+
     const char* source = "<shake hz=20 amplitude=0.3>A</shake>";
     ASSERT_EQ(6u, Render(source, true, before, 6));
     ASSERT_EQ(6u, Render(source, true, after, 6, 0.25f));

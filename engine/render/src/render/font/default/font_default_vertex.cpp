@@ -186,6 +186,7 @@ static void OutputGlyphVector(uint32_t vertexindex,
                               float shadow_blur,
                               float layer_mode,
                               const Vector4& color,
+                              const uint32_t* face_colors,
                               GlyphVertex* vertices)
 {
     GlyphVertex& v1 = vertices[vertexindex];
@@ -221,13 +222,27 @@ static void OutputGlyphVector(uint32_t vertexindex,
         v.m_SdfParams[1] = use_sdf_shadow ? sdf_outline : height; \
         v.m_SdfParams[2] = use_sdf_shadow ? sdf_smoothing : curve_texel_stride; \
         v.m_SdfParams[3] = use_sdf_shadow ? sdf_shadow : sdf_spread; \
-        v.m_LayerMasks[0] = use_sdf_shadow ? 1.0f : 0.0f; \
-        SetVectorColor(v, color);
+        v.m_LayerMasks[0] = use_sdf_shadow ? 1.0f : 0.0f;
 
     SET_VECTOR_VERTEX(v1, texcoord_min_x, texcoord_min_y)
     SET_VECTOR_VERTEX(v2, texcoord_min_x, texcoord_max_y)
     SET_VECTOR_VERTEX(v3, texcoord_max_x, texcoord_min_y)
     SET_VECTOR_VERTEX(v6, texcoord_max_x, texcoord_max_y)
+
+    if (face_colors)
+    {
+        memcpy(v1.m_VectorColor, &face_colors[0], sizeof(uint32_t));
+        memcpy(v2.m_VectorColor, &face_colors[2], sizeof(uint32_t));
+        memcpy(v3.m_VectorColor, &face_colors[1], sizeof(uint32_t));
+        memcpy(v6.m_VectorColor, &face_colors[3], sizeof(uint32_t));
+    }
+    else
+    {
+        SetVectorColor(v1, color);
+        memcpy(v2.m_VectorColor, v1.m_VectorColor, sizeof(v1.m_VectorColor));
+        memcpy(v3.m_VectorColor, v1.m_VectorColor, sizeof(v1.m_VectorColor));
+        memcpy(v6.m_VectorColor, v1.m_VectorColor, sizeof(v1.m_VectorColor));
+    }
 
     if (use_sdf_shadow && banding)
     {
@@ -355,6 +370,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
     TextLayoutGetBounds(layout, &layout_width, &layout_height);
     const float layout_y = OffsetLayoutY(te.m_VAlign, te.m_Height, layout_height);
     const uint32_t line_count = TextLayoutGetLineCount(layout);
+    float sdf_atlas_width = 0.0f;
+    float sdf_atlas_height = 0.0f;
 
     for (uint32_t i = 0; i < line_count; ++i)
     {
@@ -469,16 +486,19 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
             float sdf_v1 = 0.0f;
             if (use_sdf_effect)
             {
-                float atlas_width = (float)dmGraphics::GetTextureWidth(font_map->m_GraphicsContext,
-                                                                       font_map->m_VectorSdfTexture);
-                float atlas_height = (float)dmGraphics::GetTextureHeight(font_map->m_GraphicsContext,
-                                                                         font_map->m_VectorSdfTexture);
+                if (sdf_atlas_width == 0.0f)
+                {
+                    // Cache growth is applied before vertex generation, so these dimensions
+                    // stay fixed for this text. Face-only text never needs the effect atlas.
+                    sdf_atlas_width = (float)dmGraphics::GetTextureWidth(font_map->m_GraphicsContext, font_map->m_VectorSdfTexture);
+                    sdf_atlas_height = (float)dmGraphics::GetTextureHeight(font_map->m_GraphicsContext, font_map->m_VectorSdfTexture);
+                }
                 // Use texel edges: pixel centers then map to texel centers
                 // without stretching the generated field by a texel.
-                sdf_u0 = (cache_glyph->m_X + bitmap_border) / atlas_width;
-                sdf_v0 = (cache_glyph->m_Y + bitmap_border) / atlas_height;
-                sdf_u1 = (cache_glyph->m_X + glyph->m_Bitmap.m_Width - bitmap_border) / atlas_width;
-                sdf_v1 = (cache_glyph->m_Y + glyph->m_Bitmap.m_Height - bitmap_border) / atlas_height;
+                sdf_u0 = (cache_glyph->m_X + bitmap_border) / sdf_atlas_width;
+                sdf_v0 = (cache_glyph->m_Y + bitmap_border) / sdf_atlas_height;
+                sdf_u1 = (cache_glyph->m_X + glyph->m_Bitmap.m_Width - bitmap_border) / sdf_atlas_width;
+                sdf_v1 = (cache_glyph->m_Y + glyph->m_Bitmap.m_Height - bitmap_border) / sdf_atlas_height;
                 shadow_texcoord_min_x = 0.0f;
                 shadow_texcoord_min_y = 0.0f;
                 shadow_texcoord_max_x = 1.0f;
@@ -529,6 +549,7 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   font_map->m_ShadowBlur * font_scale,
                                   use_sdf_shadow ? 2.0f : 0.0f,
                                   shadow_color,
+                                  0,
                                   vertices);
             }
 
@@ -600,11 +621,14 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   0.0f,
                                   1.0f,
                                   outline_color,
+                                  0,
                                   vertices);
             }
 
             if (emit_face)
             {
+                uint32_t colors[4];
+                FontPackGlyphFaceColors(render_data.m_FaceColors, colors);
                 OutputGlyphVector(glyph_face_vertexindex,
                                   te.m_Transform,
                                   x,
@@ -643,12 +667,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
                                   0.0f,
                                   0.0f,
                                   face_color,
+                                  colors,
                                   vertices);
-                uint32_t colors[4];
-                FontPackGlyphFaceColors(render_data.m_FaceColors, colors);
-                const uint32_t corners[6] = { 0, 2, 1, 1, 2, 3 };
-                for (uint32_t vertex = 0; vertex < 6; ++vertex)
-                    memcpy(vertices[glyph_face_vertexindex + vertex].m_VectorColor, &colors[corners[vertex]], sizeof(uint32_t));
             }
         }
     }
