@@ -2900,13 +2900,12 @@ namespace dmGameSystem
 
     static Vector3 UpdateIKInstanceCallback(dmRig::IKTarget* ik_target)
     {
-        ModelComponent* component = (ModelComponent*)ik_target->m_UserPtr;
-        dmhash_t target_instance_id = ik_target->m_UserHash;
-        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), target_instance_id);
-        if(target_instance == 0x0)
+        dmGameObject::HInstance target_instance = (dmGameObject::HInstance)ik_target->m_UserHash;
+        if (!dmGameObject::IsValid(target_instance))
         {
-            // instance have been removed, disable animation
-            dmLogError("Could not get IK position for target %s, removed?", dmHashReverseSafe64(target_instance_id))
+            // The retained target has been removed. Do not silently retarget a
+            // new game object that happens to reuse the same identifier.
+            dmLogError("Could not get IK position for removed target game object");
             ik_target->m_Callback = 0x0;
             ik_target->m_Mix = 0x0;
             return Vector3(0.0f);
@@ -2921,10 +2920,15 @@ namespace dmGameSystem
         if (!target) {
             return false;
         }
+        dmGameObject::HInstance target_instance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), instance_id);
+        if (!target_instance)
+        {
+            return false;
+        }
         target->m_Callback = UpdateIKInstanceCallback;
         target->m_Mix = mix;
-        target->m_UserPtr = component;
-        target->m_UserHash = instance_id;
+        target->m_UserPtr = 0;
+        target->m_UserHash = target_instance;
 
         return true;
     }

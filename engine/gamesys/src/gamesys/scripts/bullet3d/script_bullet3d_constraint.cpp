@@ -304,13 +304,13 @@ namespace dmGameSystem
             return;
         }
 
-        dmGameObject::HInstance instance = CompCollisionObjectGetInstance(body->getUserPointer());
-        if (!instance)
+        dmGameObject::HInstance hinstance = CompCollisionObjectGetInstance(body->getUserPointer());
+        if (!hinstance)
         {
             lua_pushnil(L);
             return;
         }
-        PushBullet3DCollisionObject(L, body, dmGameObject::GetCollection(instance), dmGameObject::GetIdentifier(instance));
+        PushBullet3DCollisionObject(L, body, hinstance);
     }
 
     static bool CheckBoolean(lua_State* L, int index, const char* name)
@@ -431,14 +431,14 @@ namespace dmGameSystem
         {
             return 0;
         }
-        dmGameObject::HInstance instance = CompCollisionObjectGetInstance(body->getUserPointer());
-        if (!instance)
+        dmGameObject::HInstance hinstance = CompCollisionObjectGetInstance(body->getUserPointer());
+        if (!hinstance)
         {
             return 0;
         }
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
-        uint32_t                  component_type_index = dmGameObject::GetComponentTypeIndex(collection, COLLISION_OBJECT_EXT_HASH);
-        return dmGameObject::GetWorld(collection, component_type_index);
+        dmGameObject::HCollection hcollection = dmGameObject::GetCollection(hinstance);
+        uint32_t                  component_type_index = dmGameObject::GetComponentTypeIndex(hcollection, COLLISION_OBJECT_EXT_HASH);
+        return dmGameObject::GetWorld(hcollection, component_type_index);
     }
 
     static void RegisterBodyState(btDiscreteDynamicsWorld* world, btRigidBody* body)

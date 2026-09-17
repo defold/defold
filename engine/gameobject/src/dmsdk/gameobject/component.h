@@ -760,7 +760,7 @@ namespace dmGameObject
      * @name ComponentTypeCreateCtx
      * @member m_Config [type: dmConfigFile::HConfig] The config file
      * @member m_Factory [type: dmResource::HFactory] The resource factory
-     * @member m_Register [type: dmGameObject::HRegister] The game object registry
+     * @member m_Register [type: dmGameObject::HContext] The game object system context
      * @member m_Script [type: dmScript::HContext] The shared script context
      * @member m_Contexts [type: dmHashTable64<void*>] Mappings between names and contexts
      * @member m_Impl [type: dmGameObject::ComponentTypeCreateCtxImpl*] Opaque implementation data
@@ -769,7 +769,7 @@ namespace dmGameObject
         ComponentTypeCreateCtxImpl* m_Impl;
         dmConfigFile::HConfig       m_Config; // deprecated
         dmResource::HFactory        m_Factory; // deprecated
-        dmGameObject::HRegister     m_Register; // deprecated
+        dmGameObject::HContext      m_Register; // deprecated
         dmScript::HContext          m_Script; // deprecated
         dmHashTable64<void*>        m_Contexts; // deprecated
     };
@@ -789,8 +789,10 @@ namespace dmGameObject
 
     /**
      * Register a new component type (Internal)
-     * @param regist Gameobject register
-     * @param type Collection of component type registration data
+     * @param desc Component type descriptor
+     * @param name Component type name
+     * @param create_fn Component type creation function
+     * @param destroy_fn Component type destruction function
      * @return RESULT_OK on success
      */
     Result RegisterComponentTypeDescriptor(ComponentTypeDescriptor* desc, const char* name, ComponentTypeCreateFunction create_fn, ComponentTypeDestroyFunction destroy_fn);

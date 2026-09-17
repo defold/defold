@@ -23,6 +23,14 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/hid/hid.h>
 
+#if defined(_MSC_VER)
+#define DM_GAMEOBJECT_DEPRECATED(message) __declspec(deprecated(message))
+#elif defined(__GNUC__) || defined(__clang__)
+#define DM_GAMEOBJECT_DEPRECATED(message) __attribute__((deprecated(message)))
+#else
+#define DM_GAMEOBJECT_DEPRECATED(message)
+#endif
+
 // Winuser.h defines MAX_TOUCH_COUNT to 256, which clashes with dmHID::MAX_TOUCH_COUNT.
 #ifdef MAX_TOUCH_COUNT
 #undef MAX_TOUCH_COUNT
@@ -65,11 +73,11 @@ namespace dmGameObject
     const uint32_t INVALID_INSTANCE_POOL_INDEX = 0xffffffff;
 
     /*#
-     * Gameobject instance handle
+     * Opaque gameobject instance handle
      * @typedef
      * @name HInstance
      */
-    typedef struct Instance* HInstance;
+    typedef uint64_t HInstance;
 
     /*#
      * Script handle
@@ -86,18 +94,40 @@ namespace dmGameObject
     typedef struct ScriptInstance* HScriptInstance;
 
     /*#
-     * Collection register.
+     * Game object system context.
      * @typedef
-     * @name HRegister
+     * @name HContext
      */
-    typedef struct Register* HRegister;
+    typedef struct Context* HContext;
 
     /*#
-     * Gameobject collection handle
+     * Deprecated alias for HContext. Use HContext instead.
+     * @typedef
+     * @name HRegister
+     * @note Deprecated. Use HContext instead.
+     */
+    typedef DM_GAMEOBJECT_DEPRECATED("Use dmGameObject::HContext instead") HContext HRegister;
+
+    /*#
+     * Opaque gameobject collection handle.
+     * This is not a collection resource pointer. Load collection resources into
+     * a CollectionResource* and use GetCollectionFromResource to obtain this handle.
      * @typedef
      * @name HCollection
      */
-    typedef struct CollectionHandle* HCollection;
+    typedef uint32_t HCollection;
+
+    /*# invalid game object handle
+     * @constant
+     * @name dmGameObject::INVALID_GAME_OBJECT [type: dmGameObject::HInstance]
+     */
+    const HInstance INVALID_GAME_OBJECT = 0;
+
+    /*# invalid collection handle
+     * @constant
+     * @name dmGameObject::INVALID_COLLECTION [type: dmGameObject::HCollection]
+     */
+    const HCollection INVALID_COLLECTION = 0;
 
     /*#
      * Handle to a list of properties (gameobject_props.h)
@@ -187,6 +217,7 @@ namespace dmGameObject
      * @member dmGameObject::RESULT_INVALID_PROPERTIES
      * @member dmGameObject::RESULT_UNABLE_TO_CREATE_COMPONENTS
      * @member dmGameObject::RESULT_UNABLE_TO_INIT_INSTANCE
+     * @member dmGameObject::RESULT_INVALID_INSTANCE
      * @member dmGameObject::RESULT_UNKNOWN_ERROR
      */
     enum Result
@@ -207,6 +238,7 @@ namespace dmGameObject
         RESULT_INVALID_PROPERTIES = -13,   //!< RESULT_INVALID_PROPERTIES
         RESULT_UNABLE_TO_CREATE_COMPONENTS = -14,   //!< RESULT_UNABLE_TO_CREATE_COMPONENTS
         RESULT_UNABLE_TO_INIT_INSTANCE = -15,   //!< RESULT_UNABLE_TO_INIT_INSTANCE
+        RESULT_INVALID_INSTANCE = -16,          //!< RESULT_INVALID_INSTANCE
         RESULT_UNKNOWN_ERROR = -1000,       //!< RESULT_UNKNOWN_ERROR
     };
 
@@ -533,7 +565,7 @@ namespace dmGameObject
      * Retrieve the message socket for the specified collection.
      * @name GetMessageSocket
      * @param collection [type: dmGameObject::HCollection] Collection handle
-     * @return socket [type: dmMessage::HSocket] The message socket of the specified collection
+     * @return socket [type: dmMessage::HSocket] The message socket of the specified collection, or zero if the collection is invalid or stale
      */
     dmMessage::HSocket GetMessageSocket(HCollection collection);
 
@@ -548,7 +580,7 @@ namespace dmGameObject
      * @param position [type: dmVMath::Vector3] Position of the spawed object
      * @param rotation [type: dmVMath::Quat] Rotation of the spawned object
      * @param scale [type: dmVMath::Vector3] Scale of the spawned object
-     * return instance [type: HInstance] the spawned instance, 0 at failure
+     * @return instance [type: HInstance] the spawned instance, or dmGameObject::INVALID_GAME_OBJECT at failure
      */
     HInstance Spawn(HCollection collection, HPrototype prototype, const char* prototype_name, dmhash_t id,
                       HPropertyContainer properties, const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale);
@@ -557,19 +589,19 @@ namespace dmGameObject
      * Retrieve a collection from the specified instance
      * @name GetCollection
      * @param instance [type: dmGameObject::HInstance] Game object instance
-     * @return collection [type: dmGameObject::HInstance] The collection the specified instance belongs to
+     * @return collection [type: dmGameObject::HCollection] The collection the specified instance belongs to, or dmGameObject::INVALID_COLLECTION if the instance is invalid or stale
      */
     HCollection GetCollection(HInstance instance);
 
     /*#
      * Retrieve a collection by socket name hash
-     * Note: in native extensions, the register can be retrieved during init using dmEngine::GetGameObjectRegister(dmExtension::AppParams *params)
+     * Note: in native extensions, the context can be retrieved during init using dmEngine::GetGameObjectContext(dmExtension::AppParams *params)
      * @name GetCollectionByHash
-     * @param regist [type: dmGameObject::HRegister] Register
+     * @param gocontext [type: dmGameObject::HContext] Game object system context
      * @param socket_name [type: dmhash_t] The socket name
-     * @return collection [type: dmGameObject::HCollection] The collection if successful. 0 otherwise.
+     * @return collection [type: dmGameObject::HCollection] The collection if successful, or dmGameObject::INVALID_COLLECTION otherwise.
      */
-    HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name);
+    HCollection GetCollectionByHash(HContext gocontext, dmhash_t socket_name);
 
     /*#
      * Create a new gameobject instance
@@ -577,7 +609,7 @@ namespace dmGameObject
      * @name New
      * @param collection [type: dmGameObject::HCollection] Gameobject collection
      * @param prototype_name [type: const char*] Prototype file name. May be 0.
-     * @return instance [type: dmGameObject::HInstance] New gameobject instance. NULL if any error occured
+     * @return instance [type: dmGameObject::HInstance] New gameobject instance, or dmGameObject::INVALID_GAME_OBJECT if an error occurred
      */
     HInstance New(HCollection collection, const char* name);
 
@@ -587,6 +619,7 @@ namespace dmGameObject
      * @param collection [type: dmGameObject::HCollection] Gameobject collection
      * @param instance [type: dmGameObject::HInstance] Gameobject instance
      * @param recursive [type: bool] If true, delete child hierarchy recursively in child to parent order (leaf first)
+     * @note Invalid, stale, or mismatched collection and instance handles are ignored.
      */
     void Delete(HCollection collection, HInstance instance, bool recursive);
 
@@ -606,7 +639,7 @@ namespace dmGameObject
     uint32_t AcquireInstanceIndex(HCollection collection);
 
     /*#
-     * Assign an index to the instance, only if the instance is not null.
+     * Assign an index to the instance, only if the instance is valid.
      * @name AssignInstanceIndex
      * @param index [type: uint32_t] The index to assign.
      * @param instance [type: dmGameObject::HInstance] The instance that should be assigned the index.
@@ -617,18 +650,18 @@ namespace dmGameObject
      * Get instance identifier
      * @name GetIdentifier
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:dmhash_t] Identifier. dmGameObject::UNNAMED_IDENTIFIER if not set.
+     * @return [type:dmhash_t] Identifier, or zero if the instance is invalid or stale.
      */
     dmhash_t GetIdentifier(HInstance instance);
 
     /*# Get instance generation
-     * Get instance generation counter.
-     * The generation changes whenever a new game object instance is allocated, even if it later reuses the same identifier.
+     * Get the generation encoded in an instance handle.
      * @name GetGeneration
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:uint32_t] Generation counter for the instance.
+     * @return generation [type:uint32_t] Generation counter for the instance.
+     * @note Deprecated. Use IsValid to test whether an instance is still alive.
      */
-    uint32_t GetGeneration(HInstance instance);
+    DM_GAMEOBJECT_DEPRECATED("Use dmGameObject::IsValid instead") uint32_t GetGeneration(HInstance instance);
 
     /*#
      * Set instance identifier. Must be unique within the collection.
@@ -636,7 +669,7 @@ namespace dmGameObject
      * @param collection [type: dmGameObject::HCollection] Collection
      * @param instance [type: dmGameObject::HInstance] Instance
      * @param identifier [type: dmhash_t] Identifier
-     * @return result [type: dmGameObject::Result]  RESULT_OK on success
+     * @return result [type: dmGameObject::Result] RESULT_OK on success, or RESULT_INVALID_INSTANCE if the handle pair is invalid
      */
     Result SetIdentifier(HCollection collection, HInstance instance, dmhash_t identifier);
 
@@ -649,7 +682,7 @@ namespace dmGameObject
      * @name GetAbsoluteIdentifier
      * @param instance [type:dmGameObject::HInstance] Gameobject instance to get absolute identifier to
      * @param identifier [type:const char*] Identifier relative to instance
-     * @return [type:dmhash_t] Absolute identifier.
+     * @return [type:dmhash_t] Absolute identifier, or zero if the instance or identifier is invalid.
      */
     dmhash_t GetAbsoluteIdentifier(HInstance instance, const char* identifier);
 
@@ -658,9 +691,16 @@ namespace dmGameObject
      * @name GetInstanceFromIdentifier
      * @param collection [type: dmGameObject::HCollection] Collection
      * @param identifier [type: dmhash_t] Identifier
-     * @return instance [type: dmGameObject::HInstance] Instance. NULL if instance isn't found.
+     * @return instance [type: dmGameObject::HInstance] Instance, or dmGameObject::INVALID_GAME_OBJECT if the collection or identifier is not found.
      */
     HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier);
+
+    /*# test whether a game-object handle identifies a live object
+     * @name IsValid
+     * @param instance [type: dmGameObject::HInstance] Game-object handle.
+     * @return valid [type: bool] True if the handle identifies a live game object.
+     */
+    bool IsValid(HInstance instance);
 
     /*#
      * Get component id from component index.
@@ -668,7 +708,7 @@ namespace dmGameObject
      * @param instance [type: dmGameObject::HInstance] Instance
      * @param component_index [type: uint16_t] Component index
      * @param component_id [type: dmhash_t*] Component id as out-argument
-     * @return result [type: dmGameObject::Result] RESULT_OK if the component was found
+     * @return result [type: dmGameObject::Result] RESULT_OK if the component was found, or RESULT_INVALID_INSTANCE if the instance is invalid or stale
      */
     Result GetComponentId(HInstance instance, uint16_t component_index, dmhash_t* component_id);
 
@@ -680,7 +720,7 @@ namespace dmGameObject
      * @param component_type [type: uint32_t*] (out) Component type. Used for validation.
      * @param component [type: HComponent*] (out) The component.
      * @param world [type: HComponentWorld*] (out) The component world. May be 0.
-     * @return result [type: dmGameObject::Result] RESULT_OK if the component was found
+     * @return result [type: dmGameObject::Result] RESULT_OK if the component was found, or RESULT_INVALID_INSTANCE if the instance is invalid or stale
      */
     Result GetComponent(HInstance instance, dmhash_t component_id, uint32_t* component_type, HComponent* component, HComponentWorld* out_world);
 
@@ -689,6 +729,7 @@ namespace dmGameObject
      * @name SetPosition
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
      * @param position [type:dmVMath::Point3] New Position
+     * @note Invalid or stale instances are ignored.
      */
     void SetPosition(HInstance instance, dmVMath::Point3 position);
 
@@ -696,7 +737,7 @@ namespace dmGameObject
      * Get gameobject instance position
      * @name GetPosition
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:dmVMath::Point3] Position
+     * @return [type:dmVMath::Point3] Position, or a zero vector if the instance is invalid or stale
      */
     dmVMath::Point3 GetPosition(HInstance instance);
 
@@ -705,6 +746,7 @@ namespace dmGameObject
      * @name SetRotation
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
      * @param rotation [type:dmVmath::Quat] New rotation
+     * @note Invalid or stale instances are ignored.
      */
     void SetRotation(HInstance instance, dmVMath::Quat rotation);
 
@@ -712,7 +754,7 @@ namespace dmGameObject
      * Get gameobject instance rotation
      * @name GetRotation
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:dmGameObject::Quat] rotation
+     * @return [type:dmGameObject::Quat] Rotation, or the identity rotation if the instance is invalid or stale
      */
     dmVMath::Quat GetRotation(HInstance instance);
 
@@ -721,6 +763,7 @@ namespace dmGameObject
      * @name SetScale
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
      * @param scale [type:float] New uniform scale
+     * @note Invalid or stale instances are ignored.
      */
     void SetScale(HInstance instance, float scale);
 
@@ -729,6 +772,7 @@ namespace dmGameObject
      * @name SetScale
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
      * @param scale [type:dmVmath::Vector3] New non-uniform scale
+     * @note Invalid or stale instances are ignored.
      */
     void SetScale(HInstance instance, dmVMath::Vector3 scale);
 
@@ -738,6 +782,7 @@ namespace dmGameObject
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
      * @param scale_x [type: float] New x scale
      * @param scale_y [type: float] New y scale
+     * @note Invalid or stale instances are ignored.
      */
     void SetScaleXY(HInstance instance, float scale_x, float scale_y);
 
@@ -745,7 +790,7 @@ namespace dmGameObject
      * Get gameobject instance uniform scale
      * @name GetUniformScale
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:float] Uniform scale
+     * @return [type:float] Uniform scale, or 1 if the instance is invalid or stale
      */
     float GetUniformScale(HInstance instance);
 
@@ -753,7 +798,7 @@ namespace dmGameObject
      * Get gameobject instance scale
      * @name GetScale
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:dmGameObject::Vector3] Non-uniform scale
+     * @return [type:dmGameObject::Vector3] Non-uniform scale, or a unit vector if the instance is invalid or stale
      */
     dmVMath::Vector3 GetScale(HInstance instance);
 
@@ -761,7 +806,7 @@ namespace dmGameObject
      * Get gameobject instance world position
      * @name GetWorldPosition
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:dmGameObject::Point3] World position
+     * @return [type:dmGameObject::Point3] World position, or a zero vector if the instance is invalid or stale
      */
     dmVMath::Point3 GetWorldPosition(HInstance instance);
 
@@ -769,7 +814,7 @@ namespace dmGameObject
      * Get gameobject instance world rotation
      * @name GetWorldRotation
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:dmGameObject::Quat] World rotation
+     * @return [type:dmGameObject::Quat] World rotation, or the identity rotation if the instance is invalid or stale
      */
     dmVMath::Quat GetWorldRotation(HInstance instance);
 
@@ -777,7 +822,7 @@ namespace dmGameObject
      * Get game object instance world transform
      * @name GetWorldScale
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:dmGameObject::Vector3] World scale
+     * @return [type:dmGameObject::Vector3] World scale, or a unit vector if the instance is invalid or stale
      */
     dmVMath::Vector3 GetWorldScale(HInstance instance);
 
@@ -785,7 +830,7 @@ namespace dmGameObject
      * Get game object instance uniform scale
      * @name GetWorldUniformScale
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:float] World uniform scale
+     * @return [type:float] World uniform scale, or 1 if the instance is invalid or stale
      */
     float GetWorldUniformScale(HInstance instance);
 
@@ -793,7 +838,7 @@ namespace dmGameObject
      * Get game object instance world transform as Matrix4.
      * @name GetWorldMatrix
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:dmGameObject::Matrix4] World transform matrix.
+     * @return [type:dmGameObject::Matrix4] World transform matrix, or identity if the instance is invalid or stale.
      */
     const dmVMath::Matrix4& GetWorldMatrix(HInstance instance);
 
@@ -801,7 +846,7 @@ namespace dmGameObject
      * Get game object instance world transform
      * @name GetWorldTransform
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
-     * @return [type:dmTransform::Transform] World transform
+     * @return [type:dmTransform::Transform] World transform, or identity if the instance is invalid or stale
      */
     dmTransform::Transform GetWorldTransform(HInstance instance);
 
@@ -812,6 +857,7 @@ namespace dmGameObject
      * @name SetBone
      * @param instance [type: HInstance] Instance
      * @param bone [type: bool] true if the instance is a bone
+     * @note Invalid or stale instances are ignored.
      */
     void SetBone(HInstance instance, bool bone);
 
@@ -819,7 +865,7 @@ namespace dmGameObject
      * Check whether the instance is flagged as a bone.
      * @name IsBone
      * @param instance [type: HInstance] Instance
-     * @return result [type: bool] True if flagged as a bone
+     * @return result [type: bool] True if flagged as a bone; false if the instance is invalid or stale
      */
     bool IsBone(HInstance instance);
 
@@ -831,7 +877,7 @@ namespace dmGameObject
      * @param component_transform [type: dmTransform::Transform] the transform for component root
      * @param transforms [type: dmTransform::Transform*]  Array of transforms to set depth-first for the bone instances
      * @param transform_count [type: uint32_t] Size of the transforms array
-     * @return Number of instances found
+     * @return Number of instances found, or zero if the instance is invalid or stale
      */
     uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform& component_transform, dmTransform::Transform* transforms, uint32_t transform_count);
 
@@ -840,6 +886,7 @@ namespace dmGameObject
      * The order of deletion is depth-first, so that the children are deleted before the parents.
      * @name DeleteBones
      * @param parent [type: HInstance] Parent instance of the hierarchy
+     * @note Invalid or stale instances are ignored.
      */
     void DeleteBones(HInstance parent);
 
@@ -849,7 +896,7 @@ namespace dmGameObject
      * @name SetParent
      * @param child [type: dmGameObject::HInstance] Child instance
      * @param parent [type: dmGameObject::HInstance] Parent instance. If 0, the child will be detached from its current parent, if any.
-     * @return result [type: dmGameObject::Result] RESULT_OK on success. RESULT_MAXIMUM_HIEARCHICAL_DEPTH if parent at maximal level
+     * @return result [type: dmGameObject::Result] RESULT_OK on success, RESULT_MAXIMUM_HIEARCHICAL_DEPTH if parent is at maximal level, or RESULT_INVALID_INSTANCE if either handle is invalid, stale, or belongs to another collection
      */
     Result SetParent(HInstance child, HInstance parent);
 
@@ -857,7 +904,7 @@ namespace dmGameObject
      * Get parent instance if it exists
      * @name GetParent
      * @param instance [type: dmGameObject::HInstance] Gameobject instance
-     * @return parent [type: dmGameObject::HInstance] Parent instance. NULL if passed instance is root
+     * @return parent [type: dmGameObject::HInstance] Parent instance, or dmGameObject::INVALID_GAME_OBJECT if the instance is invalid, stale, or a root
      */
     HInstance GetParent(HInstance instance);
 
@@ -1193,11 +1240,11 @@ namespace dmGameObject
     /*#
      * Gets the top node of the whole game (the main collection)
      * @name TraverseGetRoot
-     * @param regist [type:dmGameObject::HRegister] the full gameobject register
-     * @param node [type:dmGameObject::HRegister] the node to inspect
+     * @param gocontext [type:dmGameObject::HContext] the full gameobject context
+     * @param node [type:dmGameObject::SceneNode*] the node to inspect
      * @return result [type:bool] True if successful
      *
-     * @note The dmGameObject::HRegister is obtained from the `dmEngine::GetGameObjectRegister(dmExtension::AppParams)`
+     * @note The dmGameObject::HContext is obtained from the `dmEngine::GetGameObjectContext(dmExtension::AppParams)`
      * @note Traversing the scene like this is not efficient. These functions are here for inspection and testing purposes only.
      *
      * @examples
@@ -1214,15 +1261,15 @@ namespace dmGameObject
      *     }
      * }
      *
-     * bool OutputScene(HRegister regist) {
+     * bool OutputScene(HContext gocontext) {
      *     dmGameObject::SceneNode root;
-     *     if (!dmGameObject::TraverseGetRoot(regist, &root))
+     *     if (!dmGameObject::TraverseGetRoot(gocontext, &root))
      *         return false;
      *     OutputNode(&node);
      * }
      *```
      */
-    bool TraverseGetRoot(HRegister regist, SceneNode* node);
+    bool TraverseGetRoot(HContext gocontext, SceneNode* node);
 
     /*#
      * Get a scene node iterator for the nodes' children
@@ -1370,5 +1417,7 @@ namespace dmGameObject
      */
     bool TraverseIteratePropertiesNext(SceneNodePropertyIterator* it);
 }
+
+#undef DM_GAMEOBJECT_DEPRECATED
 
 #endif // DMSDK_GAMEOBJECT_H

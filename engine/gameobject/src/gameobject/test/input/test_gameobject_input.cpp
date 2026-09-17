@@ -47,7 +47,7 @@ protected:
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
-        m_Register = dmGameObject::NewRegister();
+        m_Register = dmGameObject::NewContext();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
 
         m_Contexts.SetCapacity(7,16);
@@ -91,7 +91,7 @@ protected:
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteRegister(m_Register);
+        dmGameObject::DeleteContext(m_Register);
     }
 
     static dmResource::Result ResInputTargetCreate(const dmResource::ResourceCreateParams* params);
@@ -107,7 +107,7 @@ public:
 
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HRegister m_Register;
+    dmGameObject::HContext m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmGameObject::ModuleContext m_ModuleContext;
@@ -165,7 +165,7 @@ dmGameObject::InputResult InputTest::CompInputTargetOnInput(const dmGameObject::
 TEST_F(InputTest, TestComponentInput)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_input.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
 
@@ -200,7 +200,7 @@ TEST_F(InputTest, TestComponentInput)
 TEST_F(InputTest, TestComponentInput2)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_input2.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
 
@@ -218,7 +218,7 @@ TEST_F(InputTest, TestComponentInput2)
 TEST_F(InputTest, TestComponentInput3)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_input3.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
 
@@ -237,7 +237,7 @@ TEST_F(InputTest, TestComponentInput3)
 TEST_F(InputTest, TestComponentInput4)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_input4.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
 
@@ -261,7 +261,7 @@ TEST_F(InputTest, TestComponentInput4)
 TEST_F(InputTest, TextComponentTextInput)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_text_input.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
 
@@ -288,7 +288,7 @@ TEST_F(InputTest, TextComponentTextInput)
 TEST_F(InputTest, TestDeleteFocusInstance)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_input.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
 
     dmGameObject::AcquireInputFocus(m_Collection, go);
 

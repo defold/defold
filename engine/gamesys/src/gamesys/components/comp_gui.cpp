@@ -32,6 +32,7 @@
 #include <render/display_profiles.h>
 #include <render/font/font_renderer.h>
 #include <gameobject/component.h>
+#include <gameobject/script.h>
 #include <gameobject/gameobject_ddf.h> // dmGameObjectDDF enable/disable
 #include <gamesys/atlas_ddf.h>
 #include <dmsdk/gamesys/resources/res_font.h>
@@ -88,6 +89,11 @@ namespace dmGameSystem
     static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
     static void PrepareGuiNodeTextLayout(dmGui::HScene scene, dmGui::HNode node);
     static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type);
+
+    static inline GuiWorld* GetGuiWorld(dmGui::HScene scene)
+    {
+        return (GuiWorld*)dmGui::GetSceneCustomNodeCallbackContext(scene);
+    }
 
     static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
     static void                  DeleteTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, dmGui::HTextureSource texture_source);
@@ -967,10 +973,10 @@ namespace dmGameSystem
 
             case dmGuiDDF::NodeDesc::TYPE_CUSTOM:
             {
-                GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+                GuiWorld* gui_world = GetGuiWorld(scene);
                 uint32_t custom_type = dmGui::GetNodeCustomType(scene, n);
                 void* custom_node_data = dmGui::GetNodeCustomData(scene, n);
-                const CompGuiNodeType* node_type = GetCompGuiCustomType(component->m_World->m_CompGuiContext, custom_type);
+                const CompGuiNodeType* node_type = GetCompGuiCustomType(gui_world->m_CompGuiContext, custom_type);
 
                 if (node_type->m_SetNodeDesc)
                 {
@@ -1370,7 +1376,6 @@ namespace dmGameSystem
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
 
         GuiComponent* gui_component = new GuiComponent();
-        gui_component->m_World = gui_world;
         gui_component->m_Resource = scene_resource;
         gui_component->m_Instance = params.m_Instance;
         gui_component->m_Material = 0;
@@ -1398,7 +1403,7 @@ namespace dmGameSystem
         scene_params.m_DestroyCustomNodeCallback = &DestroyCustomNodeCallback;
         scene_params.m_CloneCustomNodeCallback = &CloneCustomNodeCallback;
         scene_params.m_UpdateCustomNodeCallback = &UpdateCustomNodeCallback;
-        scene_params.m_CreateCustomNodeCallbackContext = gui_component;
+        scene_params.m_CreateCustomNodeCallbackContext = gui_world;
         scene_params.m_PrepareNodeTextLayoutCallback = &PrepareGuiNodeTextLayout;
         scene_params.m_GetResourceCallback = GetSceneResourceByHash;
         scene_params.m_GetResourceCallbackContext = gui_component;
@@ -2938,7 +2943,6 @@ namespace dmGameSystem
                                                             dmImage::Type type, dmImage::CompressionType compression_type, const void* data, uint32_t data_size)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
-
         char resource_path[dmResource::RESOURCE_PATH_MAX];
         dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
 
@@ -3087,8 +3091,8 @@ namespace dmGameSystem
 
     static void* CreateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type)
     {
-        GuiComponent* gui_component = (GuiComponent*)context;
-        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
+        GuiWorld* gui_world = (GuiWorld*)context;
+        CompGuiContext* gui_context = gui_world->m_CompGuiContext;
 
         CompGuiNodeContext ctx;
 
@@ -3098,8 +3102,8 @@ namespace dmGameSystem
 
     static void* CloneCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data)
     {
-        GuiComponent* gui_component = (GuiComponent*)context;
-        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
+        GuiWorld* gui_world = (GuiWorld*)context;
+        CompGuiContext* gui_context = gui_world->m_CompGuiContext;
 
         CompGuiNodeContext ctx;
 
@@ -3116,8 +3120,8 @@ namespace dmGameSystem
 
     static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data)
     {
-        GuiComponent* gui_component = (GuiComponent*)context;
-        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
+        GuiWorld* gui_world = (GuiWorld*)context;
+        CompGuiContext* gui_context = gui_world->m_CompGuiContext;
 
         const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
         if (!type->m_Destroy)
@@ -3137,8 +3141,8 @@ namespace dmGameSystem
 
     static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt)
     {
-        GuiComponent* gui_component = (GuiComponent*)context;
-        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
+        GuiWorld* gui_world = (GuiWorld*)context;
+        CompGuiContext* gui_context = gui_world->m_CompGuiContext;
 
         const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
         if (!type->m_Update)
@@ -3529,11 +3533,22 @@ namespace dmGameSystem
     }
 
     // Callback used to integrate GUI scenes with game objects
-    uintptr_t GuiGetUserDataCallback(dmGui::HScene scene)
+    static uintptr_t GuiGetUserDataCallback(dmGui::HScene scene)
     {
-        GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
-        return (uintptr_t)component->m_Instance;
+        return (uintptr_t)dmGui::GetSceneUserData(scene);
     }
+
+    static dmGameObject::HInstance GuiScriptInstanceGetGameObject(void* script_instance)
+    {
+        dmGui::HScene scene = (dmGui::HScene)script_instance;
+        if (!scene)
+            return dmGameObject::INVALID_GAME_OBJECT;
+
+        GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        return component ? component->m_Instance : dmGameObject::INVALID_GAME_OBJECT;
+    }
+
+    static dmGameObject::ScriptInstanceGameObjectResolver g_GuiScriptInstanceGameObjectResolver = { GuiScriptInstanceGetGameObject };
 
     // Callback used to integrate GUI scenes with game objects
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path)
@@ -3995,6 +4010,9 @@ namespace dmGameSystem
                                    GuiResolvePathCallback,
                                    (dmGui::GetTextMetricsCallback) GuiGetTextMetricsCallback);
         dmGui::InitializeScript(gui_context->m_ScriptContext);
+        dmGui::SetScriptInstanceMetaData(gui_context->m_ScriptContext,
+                                         dmGameObject::META_TABLE_GET_GAME_OBJECT,
+                                         &g_GuiScriptInstanceGameObjectResolver);
 
         ComponentTypeSetPrio(type, 300);
 
