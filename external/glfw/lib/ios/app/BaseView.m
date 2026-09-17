@@ -65,7 +65,7 @@ NSString *const FAKE_STRING = @"Abcd";
     {
         displayLink = [[[UIScreen mainScreen] displayLinkWithTarget:self selector:@selector(newFrame)] retain];
         [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
-        displayLink.frameInterval = 1;
+        // The default display-link cadence is one callback per display frame.
 
         [self setupView];
     }

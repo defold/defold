@@ -43,6 +43,7 @@ namespace dmPlatform
 
     void FocusWindowNative(HWindow window)
     {
+        // GLFW activates the application too, including unbundled engine launches.
         glfwFocusWindow(window->m_Window);
     }
 

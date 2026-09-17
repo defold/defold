@@ -49,7 +49,7 @@ public class ShaderUtil {
         {
             public int    version;
             public String profile;
-        };
+        }
 
         public static class GLSLCompileResult
         {

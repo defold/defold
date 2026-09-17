@@ -24,7 +24,6 @@ import java.nio.ByteOrder;
 import java.util.EnumSet;
 
 import com.defold.extension.pipeline.texture.*;
-import com.defold.extension.pipeline.texture.TestTextureCompressor;
 import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;
 import org.junit.Test;

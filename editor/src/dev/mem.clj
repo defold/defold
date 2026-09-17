@@ -14,6 +14,7 @@
 
 (ns mem
   (:require [dynamo.graph :as g]
+            [internal.graph.types :as gt]
             [util.coll :as coll :refer [pair]])
   (:import [clojure.lang Keyword Symbol]
            [internal.node NodeTypeRef]
@@ -248,7 +249,7 @@
   the system graph in the format [byte-size node-type-kw]. The list is sorted by
   total bytes allocated in descending order."
   []
-  (->> (:graphs @g/*the-system*)
-       (vals)
-       (coll/mapcat #(vals (:nodes %)))
+  (->> (g/now)
+       gt/nodes
+       coll/vals
        (size-report #(:k (g/node-type %)) [NodeTypeRef])))

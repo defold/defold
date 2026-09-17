@@ -58,7 +58,7 @@ public class OpusBuilder extends CopyBuilder{
             }
         } catch (IOException exc) {
             throw new CompileExceptionError(input, 0, 
-                String.format("Cannot copy opus(ogg) file to further process", new String(exc.getMessage())));
+                String.format("Cannot copy opus(ogg) file to further process", exc.getMessage()));
         }
         Result result = Exec.execResult(oggzValidateExePath, tmpOggFile.getAbsolutePath());
 
@@ -75,7 +75,7 @@ public class OpusBuilder extends CopyBuilder{
         super.build(task);
 
         boolean soundStreaming = project.getProjectProperties().getBooleanValue("sound", "stream_enabled", false); // if no value set use old hardcoded path (backward compatability)
-        boolean compressSounds = soundStreaming ? false : true; // We want to be able to read directly from the files as-is (without compression)
+        boolean compressSounds = !soundStreaming; // We want to be able to read directly from the files as-is (without compression)
         for(IResource res : task.getOutputs()) {
             if (!compressSounds) {
                 project.addOutputFlags(res.getAbsPath(), Project.OutputFlags.UNCOMPRESSED);

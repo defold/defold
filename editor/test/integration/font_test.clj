@@ -254,11 +254,19 @@
     (is (s/includes? (test-util/localization (g/error-message unreserved-blur-error)) "no reserved distance-field data"))
     (is (nil? overridden-unreserved-blur-error))))
 
-(deftest native-sdf-limit-test
-  (let [native-sdf-limit (ns-resolve 'editor.font 'native-sdf-limit)]
-    (is (= 0.75 (native-sdf-limit 3.0 0.0)))
-    (is (< (native-sdf-limit 6.0 2.0)
-           (native-sdf-limit 6.0 1.0)))))
+(deftest native-preview-sdf-params-match-compiled-font
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")]
+      (doseq [[outline-width shadow-blur] [[0.0 0] [0.5 0] [1.5 2] [2.375 4]]]
+        (testing (str "outline width " outline-width ", shadow blur " shadow-blur)
+          (g/transact {:undoable false}
+            [(g/set-property font-node :outline-width outline-width)
+             (g/set-property font-node :shadow-blur shadow-blur)])
+          (let [font-map (g/valid-node-value font-node :font-map)
+                ^FontRenderer$Params render-params (get-in font-map [:native-renderer-spec :render-params])]
+            (is (= (:sdf-spread font-map) (.-sdfSpread render-params)))
+            (is (= (:sdf-outline font-map) (.-sdfOutline render-params)))
+            (is (= (:sdf-shadow font-map) (.-sdfShadow render-params)))))))))
 
 (deftest static-native-preview-character-set
   (test-util/with-loaded-project
@@ -662,12 +670,14 @@
       (is (g/error-fatal? (g/node-value node :build-targets))))))
 
 (deftest default-style-markup-follows-font-settings
+  ;; The read-only default markup is derived from font properties. Single Layer fonts
+  ;; must expose the same inherited effects as Multi Layer fonts in the editor.
   (test-util/with-loaded-project
     (let [node (test-util/resource-node project "/editor1/test.font")
           default-node (:node-id (first (g/node-value node :style-infos)))
           original-markup "<outline size=1.0 alpha=0.1><shadow x=1.0 y=2.0 blur=1.0 alpha=0.5>"
           updated-markup "<outline size=2.375 alpha=0.12345679><shadow x=-1.25 y=2.5 blur=0.0 alpha=0.375>"]
-      (is (= "" (g/node-value default-node :markup)))
+      (is (= original-markup (g/node-value default-node :markup)))
       (g/set-property! node :render-mode :mode-multi-layer)
       (is (= original-markup (get-in (g/node-value default-node :_properties) [:properties :markup :value])))
       (is (true? (get-in (g/node-value default-node :_properties) [:properties :markup :read-only?])))
@@ -679,6 +689,8 @@
                    (g/set-property node :shadow-blur 0)
                    (g/set-property node :shadow-alpha 0.375)])
       (is (= updated-markup (g/node-value default-node :markup)))
+      ;; Save only the default style's name. Its generated properties should compile
+      ;; identically to an authored style containing the displayed markup.
       (let [saved (g/node-value node :save-value)
             [generated copied] (mapv protobuf/pb->map-with-defaults
                                      (FontStyles/compileStyles
@@ -687,12 +699,16 @@
                                                                {:name "copy" :markup updated-markup}]))))]
         (is (= {:name "default"} (first (:styles saved))))
         (is (= (dissoc generated :name :name-hash) (dissoc copied :name :name-hash))))
+      ;; Property history must invalidate the derived markup rather than leave stale effects.
       (g/undo! :undo/global)
       (is (= original-markup (g/node-value default-node :markup)))
       (g/redo! :undo/global)
       (is (= updated-markup (g/node-value default-node :markup)))
       (test-util/with-prop [node :render-mode :mode-single-layer]
-        (is (= "" (g/node-value default-node :markup))))
+        (doseq [output-format [:type-bitmap :type-distance-field]]
+          (test-util/with-prop [node :output-format output-format]
+            (is (= updated-markup (g/node-value default-node :markup))))))
+      ;; Disabling both effects removes their markup without deleting the default style.
       (g/transact [(g/set-property node :outline-alpha 0)
                    (g/set-property node :shadow-alpha 0)])
       (is (= "" (g/node-value default-node :markup)))

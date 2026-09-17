@@ -389,7 +389,7 @@
 
 (defn- attach-collision-group-node
   [self collision-group-node]
-  (let [project (project/get-project self)]
+  (let [project (project/get-project)]
     (concat
      (g/connect collision-group-node :_node-id self :nodes)
      (g/connect collision-group-node :node-outline self :child-outlines)
@@ -426,17 +426,18 @@
         rows (:tiles-per-column tile-source-attributes)
         cols (:tiles-per-row tile-source-attributes)]
     (persistent!
-     (reduce (fn [vbuf tile-index]
-               (let [uv (nth uvs tile-index)
-                     [[x0 y0] [x1 y1]] (tile-coords tile-index tile-source-attributes scale)
-                     [[u0 v0] [u1 v1]] (geom/uv-trans uv [[0 0] [1 1]])]
-                 (-> vbuf
-                     (conj! [x0 y0 0.0 u0 v1])
-                     (conj! [x0 y1 0.0 u0 v0])
-                     (conj! [x1 y1 0.0 u1 v0])
-                     (conj! [x1 y0 0.0 u1 v1]))))
-             (->pos-uv-vtx (* 4 rows cols))
-             (range (* rows cols))))))
+      (reduce (fn [vbuf tile-index]
+                (let [uv (nth uvs tile-index)
+                      [[x0 y0] [x1 y1]] (tile-coords tile-index tile-source-attributes scale)
+                      [[u0 v0] [u1 v1]] (geom/uv-trans uv [[0 0] [1 1]])]
+                  (render-util/emit-quad!
+                    vbuf
+                    (conj! [x0 y0 0.0 u0 v1])
+                    (conj! [x0 y1 0.0 u0 v0])
+                    (conj! [x1 y1 0.0 u1 v0])
+                    (conj! [x1 y0 0.0 u1 v1]))))
+              (->pos-uv-vtx (* 6 rows cols))
+              (range (* rows cols))))))
 
 (defn- render-tiles
   [^GL2 gl render-args node-id gpu-texture tile-source-attributes uv-transforms scale-factor]
@@ -445,35 +446,36 @@
         gpu-texture (texture/set-params gpu-texture texture-params)]
     (gl/with-gl-bindings gl render-args [tile-shader vb gpu-texture]
       (shader/set-uniform tile-shader gl "texture_sampler" 0)
-      (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))
 
 (defn gen-tile-outlines-vbuf
   [tile-source-attributes convex-hulls scale collision-groups-data]
   (let [rows (:tiles-per-column tile-source-attributes)
         cols (:tiles-per-row tile-source-attributes)]
     (persistent!
-     (reduce (fn [vbuf tile-index]
-               (let [[[x0 y0] [x1 y1]] (tile-coords tile-index tile-source-attributes scale)
-                     {:keys [points collision-group]} (nth convex-hulls tile-index nil)
-                     [cr cg cb ca] (if (seq points)
-                                     (if collision-group
-                                       (collision-groups/color collision-groups-data collision-group)
-                                       [1.0 1.0 1.0 1.0])
-                                     [0.15 0.15 0.15 0.15])]
-                 (-> vbuf
-                     (conj! [x0 y0 0.0 cr cg cb ca])
-                     (conj! [x0 y1 0.0 cr cg cb ca])
-                     (conj! [x1 y1 0.0 cr cg cb ca])
-                     (conj! [x1 y0 0.0 cr cg cb ca]))))
-             (->pos-color-vtx (* 4 rows cols))
-             (range (* rows cols))))))
+      (reduce (fn [vbuf tile-index]
+                (let [[[x0 y0] [x1 y1]] (tile-coords tile-index tile-source-attributes scale)
+                      {:keys [points collision-group]} (nth convex-hulls tile-index nil)
+                      [cr cg cb ca] (if (seq points)
+                                      (if collision-group
+                                        (collision-groups/color collision-groups-data collision-group)
+                                        [1.0 1.0 1.0 1.0])
+                                      [0.15 0.15 0.15 0.15])]
+                  (render-util/emit-quad-outline!
+                    vbuf
+                    (conj! [x0 y0 0.0 cr cg cb ca])
+                    (conj! [x0 y1 0.0 cr cg cb ca])
+                    (conj! [x1 y1 0.0 cr cg cb ca])
+                    (conj! [x1 y0 0.0 cr cg cb ca]))))
+              (->pos-color-vtx (* 8 rows cols))
+              (range (* rows cols))))))
 
 (defn- render-tile-outlines
   [^GL2 gl render-args node-id tile-source-attributes convex-hulls scale-factor collision-groups-data]
   (let [vbuf (gen-tile-outlines-vbuf tile-source-attributes convex-hulls scale-factor collision-groups-data)
         vb (vtx/use-with node-id vbuf color-shader)]
     (gl/with-gl-bindings gl render-args [color-shader vb]
-      (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count vbuf)))))
 
 (defn conj-hull-outline!
   [vbuf points rgba]
@@ -873,21 +875,30 @@
         y-border (* scale-y tile-border-size)
         [x y] active-tile
         w width h height]
-    (let [[r g b] (collision-groups/node->color collision-groups-data selected-collision-group-node)
-          a (if (= pass/transparent (:pass render-args)) 0.30 1.0)
+    (let [is-outline (= pass/outline (:pass render-args))
+          [r g b] (collision-groups/node->color collision-groups-data selected-collision-group-node)
+          a (if is-outline 1.0 0.30)
           vbuf (let [x0 (+ (* x (+ x-border w)) x-border)
                      x1 (+ x0 w)
                      y0 (+ (* y (+ y-border h)) y-border)
                      y1 (+ y0 h)]
-                 (-> (->pos-color-vtx 4)
-                     (conj! [x0 y0 0.0 r g b a])
-                     (conj! [x0 y1 0.0 r g b a])
-                     (conj! [x1 y1 0.0 r g b a])
-                     (conj! [x1 y0 0.0 r g b a])
-                     (persistent!)))
+                 (persistent!
+                   (if is-outline
+                     (render-util/emit-quad-outline!
+                       (->pos-color-vtx 8)
+                       (conj! [x0 y0 0.0 r g b a])
+                       (conj! [x0 y1 0.0 r g b a])
+                       (conj! [x1 y1 0.0 r g b a])
+                       (conj! [x1 y0 0.0 r g b a]))
+                     (render-util/emit-quad!
+                       (->pos-color-vtx 6)
+                       (conj! [x0 y0 0.0 r g b a])
+                       (conj! [x0 y1 0.0 r g b a])
+                       (conj! [x1 y1 0.0 r g b a])
+                       (conj! [x1 y0 0.0 r g b a])))))
           vb (vtx/use-with node-id vbuf color-shader)]
       (gl/with-gl-bindings gl render-args [color-shader vb]
-        (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
+        (gl/gl-draw-arrays gl (if is-outline GL2/GL_LINES GL2/GL_TRIANGLES) 0 (count vbuf))))))
 
 (g/defnk produce-tool-renderables
   [_node-id active-tile tile-source-attributes convex-hulls collision-groups-data selected-collision-group-node]
@@ -1006,7 +1017,7 @@
 
 (defn- make-animation-node [self _project select-fn animation]
   {:pre [(map? animation)]} ; Tile$Animation in map format.
-  (g/make-nodes (g/node-id->graph-id self) [animation-node TileAnimationNode]
+  (g/make-nodes [animation-node TileAnimationNode]
     (gu/set-properties-from-pb-map animation-node Tile$Animation animation
       id :id
       start-tile :start-tile
@@ -1020,13 +1031,11 @@
     (when select-fn
       (select-fn [animation-node]))))
 
-(defn- make-collision-group-node [self project select-fn collision-group]
-  (g/make-nodes
-   (g/node-id->graph-id self)
-   [collision-group-node [CollisionGroupNode :id collision-group]]
-   (attach-collision-group-node self collision-group-node)
-   (when select-fn
-     (select-fn [collision-group-node]))))
+(defn- make-collision-group-node [self select-fn collision-group]
+  (g/make-nodes [collision-group-node [CollisionGroupNode :id collision-group]]
+    (attach-collision-group-node self collision-group-node)
+    (when select-fn
+      (select-fn [collision-group-node]))))
 
 (defn- make-convex-hulls
   [{:keys [convex-hulls convex-hull-points] :as tile-set}]
@@ -1062,7 +1071,7 @@
 
         collision-group-nodes-tx-data
         (into []
-              (mapcat (partial make-collision-group-node self project nil))
+              (mapcat (partial make-collision-group-node self nil))
               (apply sorted-set (:collision-groups tile-set)))]
 
     (concat
@@ -1098,15 +1107,15 @@
     :flip-vertical 0))
 
 (defn add-animation-node! [self select-fn]
-  (g/transact (make-animation-node self (project/get-project self) select-fn new-animation-defaults)))
+  (g/transact (make-animation-node self (project/get-project) select-fn new-animation-defaults)))
 
 (defn add-collision-group-node!
   [self select-fn]
-  (let [project (project/get-project self)
+  (let [project (project/get-project)
         collision-groups-data (g/node-value project :collision-groups-data)
         id (id/gen "collision_group" (collision-groups/collision-groups collision-groups-data))]
     (g/transact
-      (make-collision-group-node self project select-fn id))))
+      (make-collision-group-node self select-fn id))))
 
 (defn- selection->tile-source [selection evaluation-context]
   (handler/adapt-single selection TileSourceNode evaluation-context))

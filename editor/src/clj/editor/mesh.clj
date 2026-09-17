@@ -442,7 +442,7 @@
   (property textures resource/ResourceVec ; Nil is valid default.
             (value (gu/passthrough texture-resources))
             (set (fn [evaluation-context self old-value new-value]
-                   (let [project (project/get-project (:basis evaluation-context) self)
+                   (let [project (project/get-project (:basis evaluation-context))
                          connections [[:resource :texture-resources]
                                       [:build-targets :dep-build-targets]
                                       [:gpu-texture-generator :gpu-texture-generators]]]

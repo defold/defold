@@ -128,11 +128,12 @@
   (vec4 color))
 
 (shader/defshader line-vertex-shader
+  (uniform mat4 view_proj)
   (attribute vec4 position)
   (attribute vec4 color)
   (varying vec4 var_color)
   (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq gl_Position (* view_proj position))
     (setq var_color color)))
 
 (shader/defshader line-fragment-shader
@@ -140,19 +141,20 @@
   (defn void main []
     (setq gl_FragColor var_color)))
 
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
+(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader {"view_proj" :view-proj}))
 
 (shader/defshader line-id-vertex-shader
+  (uniform mat4 view_proj)
   (attribute vec4 position)
   (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
+    (setq gl_Position (* view_proj position))))
 
 (shader/defshader line-id-fragment-shader
   (uniform vec4 id)
   (defn void main []
     (setq gl_FragColor id)))
 
-(def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"id" :id}))
+(def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"view_proj" :view-proj "id" :id}))
 
 (defn- curve->pb-spline-points [curve]
   (->> curve
@@ -1178,21 +1180,20 @@
 
 (defn- make-modifier
   [parent-id modifier node-outline-key]
-  (let [graph-id (g/node-id->graph-id parent-id)]
-    (g/make-nodes graph-id [mod-node [ModifierNode :node-outline-key node-outline-key]]
-      (gu/set-properties-from-pb-map mod-node Particle$Modifier modifier
-        position :position
-        rotation :rotation
-        type :type
-        use-direction (protobuf/int->boolean :use-direction))
-      (into []
-            (mapcat (fn [property]
-                      (case (:key property)
-                        :modifier-key-magnitude (g/set-property mod-node :magnitude (pb-property->curve-spread property))
-                        :modifier-key-max-distance (g/set-property mod-node :max-distance (pb-property->curve property))
-                        nil)))
-            (:properties modifier))
-      (attach-modifier parent-id mod-node false))))
+  (g/make-nodes [mod-node [ModifierNode :node-outline-key node-outline-key]]
+    (gu/set-properties-from-pb-map mod-node Particle$Modifier modifier
+      position :position
+      rotation :rotation
+      type :type
+      use-direction (protobuf/int->boolean :use-direction))
+    (into []
+          (mapcat (fn [property]
+                    (case (:key property)
+                      :modifier-key-magnitude (g/set-property mod-node :magnitude (pb-property->curve-spread property))
+                      :modifier-key-max-distance (g/set-property mod-node :max-distance (pb-property->curve property))
+                      nil)))
+          (:properties modifier))
+    (attach-modifier parent-id mod-node false)))
 
 (defn- add-modifier-handler [parent-id type select-fn]
   (when-some [modifier (get-in mod-types [type :template])]
@@ -1241,11 +1242,10 @@
   ([self emitter]
    (make-emitter self emitter nil false))
   ([self emitter select-fn resolve-id?]
-   (let [project (project/get-project self)
+   (let [project (project/get-project)
          workspace (project/workspace project)
-         graph-id (g/node-id->graph-id self)
          resolve-resource #(workspace/resolve-workspace-resource workspace %)]
-     (g/make-nodes graph-id [emitter-node EmitterNode]
+     (g/make-nodes [emitter-node EmitterNode]
        (gu/set-properties-from-pb-map emitter-node Particle$Emitter emitter
          position :position
          rotation :rotation
@@ -1313,7 +1313,6 @@
                :command :edit.add-embedded-component
                :user-data {:emitter-type type}})
             emitter-types))))
-
 
 ;;--------------------------------------------------------------------
 ;; Manipulators

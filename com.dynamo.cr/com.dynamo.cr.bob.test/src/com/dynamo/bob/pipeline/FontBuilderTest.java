@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -23,6 +24,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Collections;
 import java.util.List;
 
@@ -100,6 +103,8 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testSingleLayerDefaultStyle() throws Exception {
+        // An empty generated default suppressed the font's effects in both output formats.
+        // Omitted render_mode covers legacy resources; it must behave like explicit Single Layer.
         for (String outputFormat : new String[] { "TYPE_BITMAP", "TYPE_DISTANCE_FIELD" }) {
             for (String renderMode : new String[] { "", "render_mode: MODE_SINGLE_LAYER\n" }) {
                 String source = "font: \"/Tuffy.ttf\"\nmaterial: \"/test.material\"\nsize: 16\ncharacters: \"A\"\n"
@@ -108,9 +113,74 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                         + "shadow_x: 2.125\nshadow_y: -1.625\nshadow_blur: 1\n";
                 FontMap compiled = getFontMap(build("/single-layer.font", source));
                 assertEquals(1, compiled.getLayerMask());
-                assertEquals(0, compiled.getStyles(0).getFlags());
                 assertEquals(1.375f, compiled.getOutlineWidth(), 0.0f);
                 assertEquals(1, compiled.getShadowBlur());
+                com.dynamo.render.proto.Font.CompiledStyle defaults = compiled.getStyles(0);
+                assertEquals(1.375f, defaults.getOutlineWidth(), 0.0f);
+                assertEquals(0.3725f, defaults.getOutlineAlpha(), 0.0f);
+                assertEquals(0.6235f, defaults.getShadowAlpha(), 0.0f);
+
+                FontRenderer.Params params = new FontRenderer.Params();
+                params.size = 16.0f;
+                params.cacheWidth = 128;
+                params.cacheHeight = 128;
+                params.outputBitmap = outputFormat.equals("TYPE_BITMAP");
+                params.hasOutline = true;
+                params.hasShadow = true;
+                params.outlineWidth = compiled.getOutlineWidth();
+                params.shadowBlur = compiled.getShadowBlur();
+                params.shadowX = compiled.getShadowX();
+                params.shadowY = compiled.getShadowY();
+                params.sdfSpread = 6.0f;
+                try (FontRenderer renderer = new FontRenderer("Tuffy.ttf", getProject().getResource("/Tuffy.ttf").getContent(), params)) {
+                    renderer.setStyle(defaults.getNameHash(), com.dynamo.bob.font.FontStyles.toNativeStyle(defaults));
+                    FontRenderer.Properties properties = new FontRenderer.Properties();
+                    properties.width = 128.0f;
+                    properties.height = 64.0f;
+                    properties.leading = 1.0f;
+                    properties.sdfScale = 1.0f;
+                    properties.outlineColor = new float[] {0.0f, 0.0f, 1.0f, 1.0f};
+                    properties.baseStyle = defaults.getNameHash();
+                    properties.useBaseStyle = true;
+                    renderer.setProperties(properties);
+                    renderer.setText("A");
+                    renderer.beginBatch();
+                    renderer.generateTexture(0);
+                    FontRenderer.VertexBufferRequirements requirements = renderer.getVertexBufferRequirements();
+                    // Restoring the effects must keep one quad, not add outline and shadow quads.
+                    assertEquals(6, requirements.vertexCount);
+                    ByteBuffer vertices = ByteBuffer.allocateDirect(requirements.byteCount).order(ByteOrder.nativeOrder());
+                    float[] transform = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+                    renderer.getVertices(transform, vertices, requirements);
+                    // FontGlyphVertex has a 56-byte stride: outline RGBA at 20, shadow RGBA at 24,
+                    // and face/outline/shadow masks at 44. Alpha comparisons allow one byte of quantization.
+                    for (int i = 0; i < requirements.vertexCount; ++i) {
+                        int offset = i * 56;
+                        assertEquals(0, Byte.toUnsignedInt(vertices.get(offset + 20)));
+                        assertEquals(0, Byte.toUnsignedInt(vertices.get(offset + 21)));
+                        assertEquals(255, Byte.toUnsignedInt(vertices.get(offset + 22)));
+                        assertEquals(0.3725f * 255, Byte.toUnsignedInt(vertices.get(offset + 23)), 1.0f);
+                        assertEquals(0.6235f * 255, Byte.toUnsignedInt(vertices.get(offset + 27)), 1.0f);
+                        assertEquals(1.0f, vertices.getFloat(offset + 44), 0.0f);
+                        assertEquals(1.0f, vertices.getFloat(offset + 48), 0.0f);
+                        assertEquals(1.0f, vertices.getFloat(offset + 52), 0.0f);
+                    }
+
+                    // Without a base style, font opacity comes from draw properties. Applying the
+                    // generated default must produce identical geometry, colors and SDF thresholds,
+                    // including ignoring shadow X/Y offsets in the combined quad.
+                    properties.useBaseStyle = false;
+                    properties.outlineColor[3] = defaults.getOutlineAlpha();
+                    properties.baseShadowAlpha = defaults.getShadowAlpha();
+                    renderer.setProperties(properties);
+                    renderer.beginBatch();
+                    renderer.generateTexture(0);
+                    FontRenderer.VertexBufferRequirements legacyRequirements = renderer.getVertexBufferRequirements();
+                    assertEquals(requirements.vertexCount, legacyRequirements.vertexCount);
+                    ByteBuffer legacyVertices = ByteBuffer.allocateDirect(legacyRequirements.byteCount);
+                    renderer.getVertices(transform, legacyVertices, legacyRequirements);
+                    assertEquals(legacyVertices.flip(), vertices.flip());
+                }
             }
         }
     }
@@ -176,12 +246,11 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testTTF() throws Exception {
 
-        StringBuilder src = new StringBuilder();
-        src.append("font: \"/Tuffy.ttf\"\n");
-        src.append("material: \"/test.material\"\n");
-        src.append("size: 16\n");
+        String src = "font: \"/Tuffy.ttf\"\n" +
+                "material: \"/test.material\"\n" +
+                "size: 16\n";
 
-        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
+        FontMap fontMap = getFontMap(build("/test.font", src));
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
     }
 
@@ -199,14 +268,13 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
 
     @Test(timeout = 3000)
     public void testTTFAllCharsBuildPerformance() throws Exception {
-        StringBuilder src = new StringBuilder();
-        src.append("font: \"/Tuffy.ttf\"\n");
-        src.append("material: \"/test.material\"\n");
-        src.append("size: 16\n");
-        src.append("output_format: TYPE_DISTANCE_FIELD\n");
-        src.append("all_chars: true\n");
+        String src = "font: \"/Tuffy.ttf\"\n" +
+                "material: \"/test.material\"\n" +
+                "size: 16\n" +
+                "output_format: TYPE_DISTANCE_FIELD\n" +
+                "all_chars: true\n";
 
-        List<Message> buildResults = build("/all-chars.font", src.toString());
+        List<Message> buildResults = build("/all-chars.font", src);
         FontMap fontMap = getFontMap(buildResults);
         GlyphBank glyphBank = null;
         for (Message message : buildResults) {
@@ -216,10 +284,10 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
             }
         }
 
-        assertTrue(fontMap != null);
+        assertNotNull(fontMap);
         assertTrue(fontMap.getAllChars());
         assertTrue(fontMap.getGlyphBank().endsWith(".glyph_bankc"));
-        assertTrue(glyphBank != null);
+        assertNotNull(glyphBank);
         assertEquals(1499, glyphBank.getGlyphsCount());
     }
 
@@ -228,13 +296,12 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         getProject().setOption("font-runtime-generation", "true");
         addFile("/Test.otf", getFile("/Tuffy.ttf"));
 
-        StringBuilder src = new StringBuilder();
-        src.append("font: \"/Test.otf\"\n");
-        src.append("material: \"/test.material\"\n");
-        src.append("size: 16\n");
-        src.append("output_format: TYPE_DISTANCE_FIELD\n");
+        String src = "font: \"/Test.otf\"\n" +
+                "material: \"/test.material\"\n" +
+                "size: 16\n" +
+                "output_format: TYPE_DISTANCE_FIELD\n";
 
-        addFile("/test.font", src.toString());
+        addFile("/test.font", src);
         getProject().setInputs(Collections.singletonList("/test.font"));
         List<TaskResult> results = getProject().build(Progress.discarding(), "build");
         assertTrue(results.stream().allMatch(TaskResult::isOk));
@@ -247,7 +314,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                 }
             }
         }
-        assertTrue(fontMap != null);
+        assertNotNull(fontMap);
         assertEquals("/Test.otf", fontMap.getFont());
         assertTrue(fontMap.getGlyphBank().isEmpty());
     }
@@ -255,11 +322,10 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testFNT() throws Exception {
 
-        StringBuilder src = new StringBuilder();
-        src.append("font: \"/bmfont.fnt\"\n");
-        src.append("material: \"/test.material\"\n");
-        src.append("size: 16\n");
-        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
+        String src = "font: \"/bmfont.fnt\"\n" +
+                "material: \"/test.material\"\n" +
+                "size: 16\n";
+        FontMap fontMap = getFontMap(build("/test.font", src));
 
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
     }
@@ -277,7 +343,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
             if (message instanceof GlyphBank)
                 glyphBank = (GlyphBank)message;
         }
-        assertTrue(glyphBank != null);
+        assertNotNull(glyphBank);
         assertEquals(-3, glyphBank.getCacheCellMaxAscent());
         assertEquals(-3, GlyphBank.parseFrom(glyphBank.toByteArray()).getCacheCellMaxAscent());
         assertEquals(5, glyphBank.getCacheCellHeight());
@@ -300,7 +366,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
             if (message instanceof GlyphBank)
                 glyphBank = GlyphBank.parseFrom(message.toByteArray());
         }
-        assertTrue(glyphBank != null);
+        assertNotNull(glyphBank);
         assertEquals(9.0f, glyphBank.getMaxAscent(), 0.0f);
         assertEquals(0.0f, glyphBank.getMaxDescent(), 0.0f);
         assertEquals(-7, glyphBank.getGlyphs(0).getDescent());
@@ -333,7 +399,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                 renderer.setProperties(properties);
                 renderer.setText("A");
                 renderer.beginBatch();
-                assertTrue(renderer.generateTexture(0).pixels != null);
+                assertNotNull(renderer.generateTexture(0).pixels);
             }
         }
     }
@@ -342,11 +408,10 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     public void testInvalidFNTReportsCompileException() throws Exception {
         addFile("/invalid.fnt", "invalid");
 
-        StringBuilder src = new StringBuilder();
-        src.append("font: \"/invalid.fnt\"\n");
-        src.append("material: \"/test.material\"\n");
-        src.append("size: 16\n");
-        addFile("/invalid.font", src.toString());
+        String src = "font: \"/invalid.fnt\"\n" +
+                "material: \"/test.material\"\n" +
+                "size: 16\n";
+        addFile("/invalid.font", src);
 
         Task task = getProject().createTask(getProject().getResource("/invalid.font"), GlyphBankBuilder.class);
         try {
@@ -361,14 +426,13 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testFNTSubDir() throws Exception {
         byte[] toff_file = getFile("/bmfont.png");
-        assertTrue(toff_file != null);
+        assertNotNull(toff_file);
         addFile("/subdir/bmfont.png", toff_file);
 
-        StringBuilder src = new StringBuilder();
-        src.append("font: \"/bmfont.fnt\"\n");
-        src.append("material: \"/test.material\"\n");
-        src.append("size: 16\n");
-        FontMap fontMap = getFontMap(build("/subdir/test.font", src.toString()));
+        String src = "font: \"/bmfont.fnt\"\n" +
+                "material: \"/test.material\"\n" +
+                "size: 16\n";
+        FontMap fontMap = getFontMap(build("/subdir/test.font", src));
 
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
     }
@@ -376,25 +440,22 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testFNTGlpyBankPath() throws Exception {
 
-        StringBuilder srcOne = new StringBuilder();
-        srcOne.append("font: \"/bmfont.fnt\"\n");
-        srcOne.append("material: \"/test.material\"\n");
-        srcOne.append("size: 16\n");
+        String srcOne = "font: \"/bmfont.fnt\"\n" +
+                "material: \"/test.material\"\n" +
+                "size: 16\n";
 
-        StringBuilder srcTwo = new StringBuilder();
-        srcTwo.append("font: \"/bmfont.fnt\"\n");
-        srcTwo.append("material: \"/test2.material\"\n");
-        srcTwo.append("size: 16\n");
+        String srcTwo = "font: \"/bmfont.fnt\"\n" +
+                "material: \"/test2.material\"\n" +
+                "size: 16\n";
 
-        StringBuilder srcThree = new StringBuilder();
-        srcThree.append("font: \"/bmfont.fnt\"\n");
-        srcThree.append("material: \"/test2.material\"\n");
-        srcThree.append("size: 16\n");
-        srcThree.append("shadow_x: 1337.0\n");
+        String srcThree = "font: \"/bmfont.fnt\"\n" +
+                "material: \"/test2.material\"\n" +
+                "size: 16\n" +
+                "shadow_x: 1337.0\n";
 
-        FontMap fontMapOne   = getFontMap(build("/test1.font", srcOne.toString()));
-        FontMap fontMapTwo   = getFontMap(build("/test2.font", srcTwo.toString()));
-        FontMap fontMapThree = getFontMap(build("/test3.font", srcThree.toString()));
+        FontMap fontMapOne   = getFontMap(build("/test1.font", srcOne));
+        FontMap fontMapTwo   = getFontMap(build("/test2.font", srcTwo));
+        FontMap fontMapThree = getFontMap(build("/test3.font", srcThree));
 
         assertEquals(fontMapOne.getGlyphBank(), fontMapTwo.getGlyphBank());
         assertEquals(fontMapOne.getGlyphBank(), fontMapThree.getGlyphBank());

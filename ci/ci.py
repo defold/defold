@@ -192,13 +192,15 @@ def install_linux(args):
         "libxrandr-dev",
         "libopenal-dev",
         "libgl1-mesa-dev",
+        "libgl1-mesa-dri",
         "libglw1-mesa-dev",
         "openssl",
         "tofrodos",
         "tree",
         "valgrind",
         "uuid-dev",
-        "xvfb"
+        "xvfb",
+        "xauth"
     ]
     aptget(" ".join(packages))
 
