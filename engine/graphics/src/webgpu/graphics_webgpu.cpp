@@ -1032,8 +1032,7 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
         if(texture->m_TextureView) {
             depthstencil_desc.format            = texture->m_Format;
 #if defined(DM_GRAPHICS_WEBGPU2)
-            if(context->m_CurrentPipelineState.m_WriteDepth && context->m_CurrentPipelineState.m_DepthTestEnabled)
-                depthstencil_desc.depthWriteEnabled = WGPUOptionalBool_True;
+            depthstencil_desc.depthWriteEnabled = context->m_CurrentPipelineState.m_WriteDepth && context->m_CurrentPipelineState.m_DepthTestEnabled ? WGPUOptionalBool_True : WGPUOptionalBool_False;
 #else
             depthstencil_desc.depthWriteEnabled = context->m_CurrentPipelineState.m_WriteDepth && context->m_CurrentPipelineState.m_DepthTestEnabled;
 #endif
@@ -1142,6 +1141,22 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
     return pipeline;
 }
 
+#if defined(DM_GRAPHICS_DAWN)
+static void WebGPUSetSwapInterval(HContext _context, uint32_t swap_interval)
+{
+    WebGPUContext* context = (WebGPUContext*)_context;
+    WGPUPresentMode present_mode = swap_interval == 0 && context->m_ImmediatePresentModeSupported
+        ? WGPUPresentMode_Immediate : WGPUPresentMode_Fifo;
+    if (context->m_PresentMode != present_mode)
+    {
+        context->m_PresentMode = present_mode;
+        // Reconfigure in BeginFrame, after the current surface texture has
+        // been presented and released.
+        context->m_SwapIntervalChanged = 1;
+    }
+}
+#endif
+
 static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t height)
 {
     // configure
@@ -1156,7 +1171,7 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
         surface_conf.format                   = context->m_Format;
         surface_conf.width                    = width;
         surface_conf.height                   = height;
-        surface_conf.presentMode              = WGPUPresentMode_Fifo;
+        surface_conf.presentMode              = context->m_PresentMode;
 #if defined(__EMSCRIPTEN__)
         // Match the WebGL canvas policy controlled by
         // html5.transparent_graphics_context. Explicitly selecting opaque is
@@ -1169,7 +1184,12 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
             : WGPUCompositeAlphaMode_Premultiplied;
 #endif
         wgpuSurfaceConfigure(context->m_Surface, &surface_conf);
+        context->m_SwapIntervalChanged = 0;
     }
+
+    // A presentation-mode change does not require new render attachments.
+    if (context->m_MainRenderTarget && context->m_MainRenderTarget->m_Width == width && context->m_MainRenderTarget->m_Height == height)
+        return;
 
     // rendertarget
     if (!context->m_MainRenderTarget)
@@ -1290,6 +1310,9 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
         context->m_Queue = wgpuDeviceGetQueue(context->m_Device);
 
         bool surface_initialized = false;
+#if defined(DM_GRAPHICS_DAWN) && defined(DM_PLATFORM_MACOS)
+        context->m_Surface = WebGPUCreateSurfaceMacOS(context);
+#else
         {
 #if defined(DM_GRAPHICS_WEBGPU2)
             WGPUSurfaceDescriptor surface_desc = WGPU_SURFACE_DESCRIPTOR_INIT;
@@ -1308,6 +1331,7 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
 #endif
             context->m_Surface = wgpuInstanceCreateSurface(context->m_Instance, &surface_desc);
         }
+#endif
 
         if (!context->m_Surface)
         {
@@ -1322,6 +1346,13 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
             {
                 context->m_Format = capabilities.formats[0];
                 surface_initialized = context->m_Format != WGPUTextureFormat_Undefined;
+#if defined(DM_GRAPHICS_DAWN)
+                for (size_t i = 0; i < capabilities.presentModeCount; ++i)
+                {
+                    if (capabilities.presentModes[i] == WGPUPresentMode_Immediate)
+                        context->m_ImmediatePresentModeSupported = 1;
+                }
+#endif
             }
             wgpuSurfaceCapabilitiesFreeMembers(capabilities);
             if (!surface_initialized)
@@ -1354,70 +1385,6 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
     }
     context->m_InitComplete = true;
 }
-
-#ifndef __EMSCRIPTEN__
-static WGPUAdapter RequestAdapter(WGPUInstance instance)
-{
-    auto onAdapterRequestEnded = [](WGPURequestAdapterStatus status, WGPUAdapter adapter, const char* message, void* pUserData)
-    {
-        if (status == WGPURequestAdapterStatus_Success)
-        {
-            *(WGPUAdapter*)(pUserData) = adapter;
-        }
-        else
-        {
-            dmLogError("Could not get WebGPU adapter: %s", message);
-        }
-    };
-
-    WGPUAdapter adapter;
-
-    WGPURequestAdapterCallbackInfo requestAdapterCallbackInfo = WGPU_REQUEST_ADAPTER_CALLBACK_INFO_INIT;
-    requestAdapterCallbackInfo.mode                           = WGPUCallbackMode_WaitAnyOnly;
-    requestAdapterCallbackInfo.callback                       = (WGPURequestAdapterCallback)&onAdapterRequestEnded;
-    requestAdapterCallbackInfo.userdata1                      = (void*)&adapter;
-
-    wgpuInstanceRequestAdapter(instance, nullptr, requestAdapterCallbackInfo);
-    return adapter;
-}
-
-static WGPUDevice RequestDevice(WGPUAdapter& adapter)
-{
-    auto onDeviceRequestEnded = [](WGPURequestDeviceStatus status, WGPUDevice device, const char* message, void* pUserData)
-    {
-        if (status == WGPURequestDeviceStatus_Success)
-        {
-            *(WGPUDevice*)(pUserData) = device;
-        }
-        else
-        {
-            dmLogError("Could not get WebGPU device: %s", message);
-        }
-    };
-
-    WGPUDevice device;
-
-    WGPURequestDeviceCallbackInfo requestDeviceCallbackInfo = WGPU_REQUEST_DEVICE_CALLBACK_INFO_INIT;
-    requestDeviceCallbackInfo.mode                          = WGPUCallbackMode_AllowProcessEvents;
-    requestDeviceCallbackInfo.callback                      = (WGPURequestDeviceCallback)&onDeviceRequestEnded;
-    requestDeviceCallbackInfo.userdata1                     = (void*)&device;
-
-    WGPUDeviceDescriptor descriptor = WGPU_DEVICE_DESCRIPTOR_INIT;
-
-    WGPUFeatureName features[16];
-    descriptor.requiredFeatures = features;
-    if (wgpuAdapterHasFeature(adapter, WGPUFeatureName_TextureCompressionBC))
-        features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionBC;
-    if (wgpuAdapterHasFeature(adapter, WGPUFeatureName_TextureCompressionASTC))
-        features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionASTC;
-
-    wgpuAdapterRequestDevice(adapter, &descriptor, requestDeviceCallbackInfo);
-
-    //wgpuAdapterRequestDevice(adapter, nullptr, onDeviceRequestEnded, (void*)&device);
-    return device;
-}
-#endif
-
 
 #if defined(DM_GRAPHICS_WEBGPU2)
 static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message, void* userdata, void *)
@@ -1498,6 +1465,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     context->m_CurrentScratchUniforms.m_Allocs.SetCapacity(32);
 
     context->m_CurrentPipelineState = GetDefaultPipelineState();
+    context->m_PresentMode = WGPUPresentMode_Fifo;
 
     SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
     SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
@@ -1531,22 +1499,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
         return false;
     }
 
-#if defined(DM_GRAPHICS_DAWN)
-    context->m_Adapter = RequestAdapter(context->m_Instance);
-    if (!context->m_Adapter)
-    {
-        dmLogError("Failed to request adapter!");
-        return false;
-    }
-
-    context->m_Device = RequestDevice(context->m_Adapter);
-    if (!context->m_Device)
-    {
-        dmLogError("Failed to request device!");
-        return false;
-    }
-
-#elif defined(DM_GRAPHICS_WEBGPU2)
+#if defined(DM_GRAPHICS_WEBGPU2)
     WGPURequestAdapterCallbackInfo requestAdapterCallbackInfo = WGPU_REQUEST_ADAPTER_CALLBACK_INFO_INIT;
     requestAdapterCallbackInfo.mode                           = WGPUCallbackMode_WaitAnyOnly;
     requestAdapterCallbackInfo.callback                       = instanceRequestAdapterCallback;
@@ -2219,7 +2172,7 @@ static void WebGPUBeginFrame(HContext _context)
     {
         const uint32_t window_width = GetWindowWidth(_context);
         const uint32_t window_height = GetWindowHeight(_context);
-        if (!context->m_MainRenderTarget || window_width != context->m_MainRenderTarget->m_Width || window_height != context->m_MainRenderTarget->m_Height) // (re)create
+        if (!context->m_MainRenderTarget || context->m_SwapIntervalChanged || window_width != context->m_MainRenderTarget->m_Width || window_height != context->m_MainRenderTarget->m_Height) // (re)create
             WebGPUConfigure(context, window_width, window_height);
         WebGPUTexture* textureDepthStencil = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_MainRenderTarget->m_Base.m_TextureDepthStencil);
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -2377,7 +2330,9 @@ static void WebGPUFlip(HContext _context)
             context->m_CurrentScratchUniforms.m_Alloc = 0;
         }
     }
+#if defined(__EMSCRIPTEN__)
     dmPlatform::SwapBuffers(context->m_BaseContext.m_Window);
+#endif
 }
 
 static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size_t offset, void const* data, size_t size)
@@ -4814,5 +4769,8 @@ static GraphicsAdapterFunctionTable WebGPURegisterFunctionTable()
 {
     GraphicsAdapterFunctionTable fn_table = {};
     DM_REGISTER_GRAPHICS_FUNCTION_TABLE(fn_table, WebGPU);
+#if defined(DM_GRAPHICS_DAWN)
+    DM_REGISTER_GRAPHICS_FUNCTION(fn_table, WebGPU, SetSwapInterval);
+#endif
     return fn_table;
 }
