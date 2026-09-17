@@ -13,7 +13,7 @@
 # specific language governing permissions and limitations under the License.
 
 from threading import Thread
-from socketserver import ThreadingMixIn
+from socketserver import TCPServer, ThreadingMixIn
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 import time
@@ -105,7 +105,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
-    """ """
+    def server_bind(self):
+        # HTTPServer resolves the bound address with getfqdn(), which can wait
+        # for DNS timeouts on CI hosts. The test server only needs its address.
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
 
 
 class Server(Thread):
