@@ -1053,9 +1053,9 @@ class Configuration(object):
         self._log('Copying %s -> %s' % (src, dst))
         shutil.copytree(src, dst)
 
-    def _download(self, url):
+    def _download(self, url, cache_root=None):
         self._log('Downloading %s' % (url))
-        path = http_cache.download(url, lambda count, total: self._log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
+        path = http_cache.download(url, lambda count, total: self._log('Downloading %s %.2f%%' % (url, 100 * count / float(total))), cache_root=cache_root)
         if not path:
             self._log('Downloading %s failed' % (url))
         return path

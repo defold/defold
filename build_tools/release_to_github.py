@@ -12,6 +12,7 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from log import log
 from string import Template
@@ -23,8 +24,11 @@ import re
 import run
 import s3
 import subprocess
+import tempfile
 import urllib
 from urllib.parse import urlparse
+
+ASSET_TRANSFER_WORKERS = 3
 
 def get_current_repo():
     # git@github.com:defold/defold.git
@@ -151,7 +155,7 @@ def release(config, tag_name, release_sha, s3_release, release_name=None, body=N
     for asset in release.get("assets", []):
         log("Found old asset: %s %s" % (asset.get("name"), asset.get("id")))
 
-    log("Uploading artifacts to GitHub from S3")
+    log("Uploading artifacts to GitHub from S3 (%d workers)" % ASSET_TRANSFER_WORKERS)
     base_url = "https://" + urlparse(config.archive_path).hostname
 
     def is_editor_file(path):
@@ -206,20 +210,34 @@ def release(config, tag_name, release_sha, s3_release, release_name=None, body=N
         download_url = base_url + path
         urls.add(download_url)
 
-    for download_url in urls:
-        filepath = config._download(download_url)
-        filename = re.sub(r'https://%s/archive/(.*?)/' % config.archive_path, '', download_url)
-        basename = os.path.basename(filename)
-        name = filename
-        if is_main_file(download_url):
-            name = basename
-        elif is_platform_file(download_url): # For the executable files
-            name = convert_to_platform_name(download_url)
+    def upload_asset(download_url):
+        # Keep each file outside the shared cache so another download cannot evict
+        # it while an upload or a retry is still reading it.
+        with tempfile.TemporaryDirectory(prefix='defold-release-') as cache_root:
+            filepath = config._download(download_url, cache_root=cache_root)
+            filename = re.sub(r'https://%s/archive/(.*?)/' % config.archive_path, '', download_url)
+            basename = os.path.basename(filename)
+            name = filename
+            if is_main_file(download_url):
+                name = basename
+            elif is_platform_file(download_url): # For the executable files
+                name = convert_to_platform_name(download_url)
 
-        response = github.upload_release_asset(release, config.github_token, filepath, name)
-        if not response:
-            log("Unable to upload GitHub release asset %s for %s" % (name, tag_name))
-            exit(1)
+            response = github.upload_release_asset(release, config.github_token, filepath, name)
+            if not response:
+                log("Unable to upload GitHub release asset %s for %s" % (name, tag_name))
+                exit(1)
+
+    with ThreadPoolExecutor(max_workers=ASSET_TRANSFER_WORKERS) as executor:
+        transfers = [executor.submit(upload_asset, url) for url in sorted(urls)]
+        try:
+            for transfer in as_completed(transfers):
+                transfer.result()
+        finally:
+            # Stop queued work on failure; wait for running transfers before the
+            # release job can finish and relinquish its channel lock.
+            for transfer in transfers:
+                transfer.cancel()
 
     log("Released Defold %s to GitHub" % tag_name)
 
