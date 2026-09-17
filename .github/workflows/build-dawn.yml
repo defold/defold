@@ -5,9 +5,18 @@ on:
     branches:
       - webgpu-dawn-support
   workflow_dispatch:
+    inputs:
+      push_changes:
+        type: boolean
+        description: Commit rebuilt packages to the selected branch
+        default: false
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -98,3 +107,53 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 7
+
+  push-packages:
+    if: ${{ github.ref_type == 'branch' && (github.event_name == 'push' || inputs.push_changes) }}
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout built revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Download artifacts to packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: dawn-*
+          path: packages
+          merge-multiple: true
+
+      - name: Check package sizes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for package in packages/dawn-*.tar.gz; do
+            size=$(wc -c < "$package")
+            if [ "$size" -gt 104857600 ]; then
+              echo "::error::$package exceeds GitHub's 100 MiB file limit ($size bytes)"
+              exit 1
+            fi
+          done
+
+      - name: Commit package updates
+        shell: bash
+        env:
+          BUILD_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          git config user.email "services@defold.se"
+          git config user.name "Defold Services"
+          git add packages/dawn-*.tar.gz
+
+          if git diff --cached --quiet; then
+            echo "No package changes to commit"
+            exit 0
+          fi
+
+          git commit -m "packages: update Dawn"
+          git push origin "HEAD:refs/heads/$BUILD_BRANCH"

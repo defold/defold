@@ -12,6 +12,13 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64-macos|arm64-linux|x86_64-linux|x86_64-wi
   message(FATAL_ERROR "Unsupported Dawn platform: ${TARGET_PLATFORM}")
 endif()
 
+if(TARGET_PLATFORM STREQUAL "x86_64-win32")
+  find_program(DAWN_STRIP_EXECUTABLE NAMES llvm-strip
+               HINTS "$ENV{ProgramFiles}/LLVM/bin" REQUIRED)
+else()
+  set(DAWN_STRIP_EXECUTABLE "${CMAKE_STRIP}")
+endif()
+
 if(DEFOLD_EXTERNAL_INSTALL_PREFIX)
   set(CMAKE_INSTALL_PREFIX "${DEFOLD_EXTERNAL_INSTALL_PREFIX}" CACHE PATH "External package install prefix" FORCE)
 endif()
@@ -86,15 +93,14 @@ endif()
 add_custom_target(dawn ALL DEPENDS webgpu_dawn)
 
 install(FILES "$<TARGET_FILE:webgpu_dawn>" DESTINATION "lib/${TARGET_PLATFORM}")
-if(TARGET_PLATFORM STREQUAL "arm64-macos")
-  # Strip debug information from the packaged copy, preserving linker symbols
-  # and the original build library for local debugging.
-  install(CODE "
-    execute_process(
-      COMMAND \"${CMAKE_STRIP}\" -S \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/lib/${TARGET_PLATFORM}/$<TARGET_FILE_NAME:webgpu_dawn>\"
-      COMMAND_ERROR_IS_FATAL ANY)
-  ")
-endif()
+# Strip debug information from the packaged copy, preserving linker symbols
+# and the original build library for local debugging. llvm-strip supports MSVC
+# COFF archives; macOS and Linux use their toolchain's strip executable.
+install(CODE "
+  execute_process(
+    COMMAND \"${DAWN_STRIP_EXECUTABLE}\" -S \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/lib/${TARGET_PLATFORM}/$<TARGET_FILE_NAME:webgpu_dawn>\"
+    COMMAND_ERROR_IS_FATAL ANY)
+")
 install(DIRECTORY "${dawn_SOURCE_DIR}/include/webgpu" DESTINATION include)
 install(FILES "${dawn_BINARY_DIR}/gen/include/webgpu/webgpu_cpp_chained_struct.h"
         DESTINATION include/webgpu)

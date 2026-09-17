@@ -30,6 +30,8 @@ on Ubuntu). Windows builds target the Windows 10 API (`WINVER` and
 `_WIN32_WINNT` set to `0x0A00`) and use the static MSVC runtime and HWND surfaces;
 optional UWP/WinUI surface support is disabled. The API target is set for the
 standalone Dawn package through `DEFOLD_WIN32_WINNT`.
+Windows packaging also requires LLVM's `llvm-strip`, available on `PATH` or in
+`%ProgramFiles%/LLVM/bin`; `DAWN_STRIP_EXECUTABLE` can override its location.
 
 `build_external` installs the packaged host `protoc` tool if it is missing, so
 the commands below also work before the first `install_ext`.
@@ -37,9 +39,14 @@ the commands below also work before the first `install_ext`.
 The **Build Dawn** GitHub Actions workflow builds all four
 platforms and uploads the package archives as artifacts, retained for seven days.
 It uses `build_external --package=dawn`; `build_ext` does not build Dawn.
-Pushes to `webgpu-dawn-support` trigger the workflow so it can run before merging.
-Manual dispatch is also supported once the workflow exists on the repository's
-default branch.
+Pushes to `webgpu-dawn-support` build and commit the packages back to the branch
+after all four platforms succeed. Manual dispatch is also supported once the
+workflow exists on the repository's default branch; enable `push_changes` to
+commit the packages to the selected branch, as with the LuaJIT and Protobuf
+workflows. The commit job rejects packages above GitHub's 100 MiB file limit,
+skips unchanged packages, and uses a normal push from the built revision so it
+cannot overwrite a branch that has advanced. Its GitHub token push does not
+trigger another build.
 CI caches the pinned Dawn sources and downloaded dependencies separately from
 compiler results, which use sccache and GitHub's cache storage. CMake configures
 a fresh build tree on each runner. The first run still downloads dependencies
@@ -53,8 +60,8 @@ and compiles the library; later runs can reuse matching compiler results.
 
 These commands produce `packages/dawn-6bab1bd-arm64-macos.tar.gz` and install
 the library to `ext/lib/arm64-macos/libwebgpu_dawn.a` and the headers to
-`ext/include`. The macOS package strips debug information while preserving the
-symbols needed for linking; the library in the build directory retains its
+`ext/include`. All Dawn packages strip debug information while preserving the
+symbols needed for linking; the libraries in the build directories retain their
 debug information. Repeated package builds reuse downloaded sources and compiled
 objects. `build_ext` does not configure or build Dawn.
 
