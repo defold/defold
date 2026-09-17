@@ -3516,7 +3516,8 @@ class Configuration(object):
 
         # The CI release job holds the channel lock for this check and all publication
         # below. Public channel metadata must be checked before even moving the tag.
-        if not build_private.is_repo_private() and release_to_github.is_stale_release(self, self._git_sha1()):
+        release_sha1 = self._git_sha1()
+        if not build_private.is_repo_private() and release_to_github.is_stale_release(self, release_sha1):
             self._set_release_output(False)
             return
 
@@ -3527,17 +3528,13 @@ class Configuration(object):
             tag_name = self.create_tag()
             self.push_tag(tag_name)
 
-        if tag_name is not None:
-            pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
-            releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
-        else:
-            releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
+        # Publish the checked-out build directly; the tag was just created above,
+        # so selecting artifacts does not require fetching historical tags.
+        releases = [s3.get_single_release(self.get_archive_path(), tag_name or self.version, release_sha1)]
 
-        if not releases:
+        if not releases[0]['files']:
             self._log('Unable to find any releases')
             sys.exit(1)
-
-        release_sha1 = releases[0]['sha1']
 
         if sys.stdin.isatty():
             sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.channel))

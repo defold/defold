@@ -778,7 +778,6 @@ jobs:
         with:
           # Waiting for the release lock must not switch a dispatch to a newer branch tip.
           ref: "${{ needs.build-bob.outputs.sha }}"
-          fetch-tags: true
       - name: "Cache Defold downloads"
         # *should_release, plus the cache rule above.
         if: steps.release.outputs.should_release == 'true' && github.event_name != 'repository_dispatch'
