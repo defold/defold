@@ -1,30 +1,65 @@
 # External
 
-`./scripts/build.py build_ext` builds source dependencies (Bullet, and Dawn on macOS)
+`./scripts/build.py build_ext` builds source dependencies (currently Bullet)
 with the regular Defold CMake toolchain and installs them into
 `tmp/dynamo_home/ext`. Run it after `install_ext`, before the first engine
 build, and whenever these sources or the toolchain change. Use `--platform`
 for cross-compilation. Repeated calls reuse the CMake build directory.
 `distclean` removes these build caches as well as the installed SDK.
 
-Dawn is pinned in `external/dawn/CMakeLists.txt`. The first macOS build downloads
-its sources and dependencies and builds a static library with the Metal backend.
-Tests, samples, and command-line tools are disabled. Sources and objects are
-cached under `external/build/<platform>`. The library
-is installed as `ext/lib/<platform>/libwebgpu_dawn.a`, with headers under
-`ext/include`. Both `arm64-macos` and `x86_64-macos` are supported.
+The other external libraries are distributed as packages. Rebuild those with
+`build_external`, which writes archives under `defold/packages`.
+
+Dawn is a desktop package built by `build_external`, with its revision pinned in
+`external/dawn/CMakeLists.txt`. The first build downloads its sources and
+dependencies and builds a static library with the native backend. Tests, samples,
+and command-line tools are disabled. Sources and objects are cached under
+`external/dawn/build/<platform>`. Supported platforms and backends are:
+
+| Platforms | Dawn backend |
+| --- | --- |
+| `arm64-macos` | Metal |
+| `arm64-linux`, `x86_64-linux` | Vulkan, with X11 and Wayland surfaces |
+| `x86_64-win32` | Direct3D 11 and 12 |
+
+Unfiltered `build_external` runs skip Dawn on other platforms. Linux builds
+require the X11 and Wayland development headers (`libx11-dev`, `libwayland-dev`
+on Ubuntu). Windows builds use the static MSVC runtime.
+
+`build_external` installs the packaged host `protoc` tool if it is missing, so
+the commands below also work before the first `install_ext`.
+
+The manually triggered **Build Dawn** GitHub Actions workflow builds all four
+platforms and uploads the package archives as artifacts, retained for seven days.
+It uses `build_external --package=dawn`; `build_ext` does not build Dawn.
 
 ```sh
 ./scripts/build.py shell
-./scripts/build.py build_ext --platform=arm64-macos
+./scripts/build.py build_external --package=dawn --platform=arm64-macos
+./scripts/build.py install_ext --platform=arm64-macos
+```
+
+These commands produce `packages/dawn-6bab1bd-arm64-macos.tar.gz` and install
+the library to `ext/lib/arm64-macos/libwebgpu_dawn.a` and the headers to
+`ext/include`. The macOS package strips debug information while preserving the
+symbols needed for linking; the library in the build directory retains its
+debug information. Repeated package builds reuse downloaded sources and compiled
+objects. `build_ext` does not configure or build Dawn.
+
+To build the engine with Dawn on macOS, run this in the same build shell:
+
+```sh
 ./scripts/build.py build_engine --platform=arm64-macos -- --with-webgpu
 ```
 
-`build_ext` reports configure (including downloads), build, and install times.
-Repeated builds reuse the downloaded sources and compiled objects.
+The native graphics regression test draws with depth writes both enabled and
+disabled, fails on WebGPU validation errors, and checks runtime swap-interval
+changes against the Metal layer. After building the `test_app_graphics` target,
+run it from the repository root:
 
-The other external libraries are distributed as packages. Rebuild those with
-`build_external`, which writes archives under `defold/packages`.
+```sh
+DEFOLD_TEST_AUTO_EXIT=1 ./engine/graphics/build/arm64-macos/src/test/test_app_graphics webgpu
+```
 
 # Modifications
 
