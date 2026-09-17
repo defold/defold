@@ -53,6 +53,9 @@ struct ImageJNI {
     jfieldID mimeType;
     jfieldID buffer;
     jfieldID index;
+    jfieldID bufferIndex;
+    jfieldID bufferOffset;
+    jfieldID bufferSize;
 };
 struct SamplerJNI {
     jclass cls;
@@ -291,6 +294,9 @@ struct SceneJNI {
 struct OptionsJNI {
     jclass cls;
     jfieldID dummy;
+    jfieldID loadMaterialsOnly;
+    jfieldID loadMeshMetadata;
+    jfieldID skipImageData;
 };
 struct TypeInfos {
     Vector3JNI m_Vector3JNI;

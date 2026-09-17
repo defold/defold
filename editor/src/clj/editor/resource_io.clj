@@ -24,7 +24,8 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (defn file-not-found-error [node-id label severity resource]
-  (let [symlink-target-pathname (some-> resource path/symlink-target path/absolute str)
+  (let [symlink-target-pathname (when (resource/symlink? resource)
+                                (some-> resource path/symlink-target path/absolute str))
         path (resource/proj-path resource)
         message (if symlink-target-pathname
                   (localization/message "error.resource-is-a-broken-symlink" {"resource" path "path" symlink-target-pathname})
