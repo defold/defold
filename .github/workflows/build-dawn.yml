@@ -65,10 +65,11 @@ jobs:
         run: |
           set -euo pipefail
           ./scripts/build.py --save-env-path=ci/env.sh save_env
-          ORIGINAL_PATH="$PATH"
+          # save_env exports ORIGINAL_PATH on Windows; keep the Bash path separately.
+          DAWN_BUILD_PATH="$PATH"
           source ci/env.sh
           if [ "$RUNNER_OS" == "Windows" ]; then
-            export PATH="$ORIGINAL_PATH:$DYNAMO_HOME/ext/bin"
+            export PATH="$DAWN_BUILD_PATH:$DYNAMO_HOME/ext/bin"
           fi
           ./scripts/build.py build_external --package=dawn --platform="$BUILD_PLATFORM_NAME"
 
