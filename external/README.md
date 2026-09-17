@@ -13,8 +13,10 @@ The other external libraries are distributed as packages. Rebuild those with
 Dawn is a desktop package built by `build_external`, with its revision pinned in
 `external/dawn/CMakeLists.txt`. The first build downloads its sources and
 dependencies and builds a static library with the native backend. Tests, samples,
-and command-line tools are disabled. Sources and objects are cached under
-`external/dawn/build/<platform>`. Supported platforms and backends are:
+and command-line tools are disabled. Shader input is limited to WGSL, with only
+the MSL, SPIR-V, or HLSL output writer needed by the platform enabled. Sources
+and objects are cached under `external/dawn/build/<platform>`. Supported
+platforms and backends are:
 
 | Platforms | Dawn backend |
 | --- | --- |
@@ -35,6 +37,10 @@ It uses `build_external --package=dawn`; `build_ext` does not build Dawn.
 Pushes to `webgpu-dawn-support` trigger the workflow so it can run before merging.
 Manual dispatch is also supported once the workflow exists on the repository's
 default branch.
+CI caches the pinned Dawn sources and downloaded dependencies separately from
+compiler results, which use sccache and GitHub's cache storage. CMake configures
+a fresh build tree on each runner. The first run still downloads dependencies
+and compiles the library; later runs can reuse matching compiler results.
 
 ```sh
 ./scripts/build.py shell

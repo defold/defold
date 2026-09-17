@@ -18,9 +18,16 @@ include(FetchContent)
 
 # Keep the WebGPU API in sync with the revision used by the graphics backend.
 set(DAWN_REVISION 6bab1bd9fd23c03ab2b0f26e9b489e0b6b1844f2)
+set(_dawn_source_dir "${CMAKE_CURRENT_BINARY_DIR}/sources/${DAWN_REVISION}")
+# Reuse sources restored by CI without restoring a compiler-specific build tree.
+# The revision in the directory name prevents reuse after a Dawn revision change.
+if(NOT FETCHCONTENT_SOURCE_DIR_DAWN AND EXISTS "${_dawn_source_dir}/CMakeLists.txt")
+  set(FETCHCONTENT_SOURCE_DIR_DAWN "${_dawn_source_dir}")
+endif()
 FetchContent_Declare(dawn
   URL "https://codeload.github.com/google/dawn/tar.gz/${DAWN_REVISION}"
   URL_HASH SHA256=189bb28e49a3e59423a66d3418899032f7d5ab2fec721ebf3dfbcbc219af750b
+  SOURCE_DIR "${_dawn_source_dir}"
   EXCLUDE_FROM_ALL)
 
 set(BUILD_SHARED_LIBS OFF)
@@ -44,17 +51,28 @@ set(DAWN_USE_GLFW OFF)
 set(TINT_BUILD_TESTS OFF)
 set(TINT_BUILD_CMD_TOOLS OFF)
 set(TINT_BUILD_GLSL_VALIDATOR OFF)
+# Defold supplies WGSL. Only build the output writer required by each backend.
+set(TINT_BUILD_WGSL_READER ON)
+set(TINT_BUILD_WGSL_WRITER OFF)
+set(TINT_BUILD_SPV_READER OFF)
+set(TINT_BUILD_GLSL_WRITER OFF)
+set(TINT_BUILD_MSL_WRITER OFF)
+set(TINT_BUILD_SPV_WRITER OFF)
+set(TINT_BUILD_HLSL_WRITER OFF)
 
 if(TARGET_PLATFORM MATCHES "macos$")
   set(DAWN_ENABLE_METAL ON)
+  set(TINT_BUILD_MSL_WRITER ON)
   set(CMAKE_OSX_DEPLOYMENT_TARGET "${SDK_VERSION_MACOSX_MIN}")
 elseif(TARGET_PLATFORM MATCHES "linux$")
   set(DAWN_ENABLE_VULKAN ON)
+  set(TINT_BUILD_SPV_WRITER ON)
   set(DAWN_USE_X11 ON)
   set(DAWN_USE_WAYLAND ON)
 elseif(TARGET_PLATFORM STREQUAL "x86_64-win32")
   set(DAWN_ENABLE_D3D11 ON)
   set(DAWN_ENABLE_D3D12 ON)
+  set(TINT_BUILD_HLSL_WRITER ON)
 endif()
 
 FetchContent_MakeAvailable(dawn)

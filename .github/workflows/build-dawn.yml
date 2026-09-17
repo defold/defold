@@ -28,6 +28,7 @@ jobs:
     env:
       BUILD_PLATFORM_NAME: ${{ matrix.platform }}
       CMAKE_BUILD_PARALLEL_LEVEL: 3
+      SCCACHE_GHA_ENABLED: 'true'
     steps:
       - name: Checkout repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -46,6 +47,17 @@ jobs:
       - name: Install CMake and Ninja
         uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.3.4
 
+      - name: Install compiler cache
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: v0.16.0
+
+      - name: Cache Dawn sources and dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: external/dawn/build/${{ matrix.platform }}/sources
+          key: dawn-sources-v1-${{ matrix.platform }}-${{ hashFiles('external/dawn/CMakeLists.txt') }}
+
       - name: Setup MSVC
         if: runner.os == 'Windows'
         uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
@@ -62,6 +74,11 @@ jobs:
 
       - name: Build Dawn package
         shell: bash
+        env:
+          CMAKE_C_COMPILER_LAUNCHER: sccache
+          CMAKE_CXX_COMPILER_LAUNCHER: sccache
+          CMAKE_OBJC_COMPILER_LAUNCHER: sccache
+          CMAKE_OBJCXX_COMPILER_LAUNCHER: sccache
         run: |
           set -euo pipefail
           ./scripts/build.py --save-env-path=ci/env.sh save_env
