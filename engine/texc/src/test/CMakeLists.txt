@@ -11,4 +11,5 @@ defold_target_link_libraries(test_texc "${TARGET_PLATFORM}"
   profile_null
   basis_encoder
   astcenc)
-defold_register_test_target(test_texc ON "${TEXC_ROOT}")
+# Texture codec tests use memory and their own fixtures, without shared devices or ports.
+defold_register_test_target(test_texc ON "${TEXC_ROOT}" RUN_GROUP texc)
