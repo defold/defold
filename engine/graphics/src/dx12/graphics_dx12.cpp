@@ -1076,7 +1076,11 @@ namespace dmGraphics
             {
                 DX12Texture* texture_depth_stencil = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, current_rt->m_TextureDepthStencil);
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COMMON));
-                texture_depth_stencil->m_ResourceStates[0] = D3D12_RESOURCE_STATE_COMMON;
+                const uint32_t subresource_count = current_rt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+                for (uint32_t i = 0; i < subresource_count; ++i)
+                {
+                    texture_depth_stencil->m_ResourceStates[i] = D3D12_RESOURCE_STATE_COMMON;
+                }
             }
         }
 
@@ -1155,9 +1159,13 @@ namespace dmGraphics
 
                     if (attachment->m_ResourceStates[0] != D3D12_RESOURCE_STATE_RENDER_TARGET)
                     {
-                        // Transition the first mipmap into a render target
+                        // Render-target attachments have one mipmap. Cubemap attachments transition all six array slices.
                         context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(attachment->m_Resource, attachment->m_ResourceStates[0], D3D12_RESOURCE_STATE_RENDER_TARGET));
-                        attachment->m_ResourceStates[0] = D3D12_RESOURCE_STATE_RENDER_TARGET;
+                        const uint32_t subresource_count = brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+                        for (uint32_t subresource = 0; subresource < subresource_count; ++subresource)
+                        {
+                            attachment->m_ResourceStates[subresource] = D3D12_RESOURCE_STATE_RENDER_TARGET;
+                        }
                     }
                     num_attachments++;
                 }
@@ -1201,7 +1209,11 @@ namespace dmGraphics
             if (texture_depth_stencil && texture_depth_stencil->m_Resource && texture_depth_stencil->m_ResourceStates[0] != D3D12_RESOURCE_STATE_DEPTH_WRITE)
             {
                 context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture_depth_stencil->m_Resource, texture_depth_stencil->m_ResourceStates[0], D3D12_RESOURCE_STATE_DEPTH_WRITE));
-                texture_depth_stencil->m_ResourceStates[0] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+                const uint32_t subresource_count = brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+                for (uint32_t subresource = 0; subresource < subresource_count; ++subresource)
+                {
+                    texture_depth_stencil->m_ResourceStates[subresource] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+                }
             }
         }
 
@@ -2867,13 +2879,16 @@ namespace dmGraphics
                     {
                         frame_resources.m_ScratchBuffer.AllocateTexture2D(context, pipeline_type, texture, i);
 
-                        // Transition all mipmaps into pixel read state
-                        for (int i = 0; i < texture->m_Base.m_MipMapCount; ++i)
+                        // Render-target cubemaps have one mipmap and six array slices. Other textures track one state per mipmap.
+                        const bool cubemap_render_target = texture->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP &&
+                            (texture->m_ResourceDesc.Flags & (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET | D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL));
+                        const uint32_t subresource_count = cubemap_render_target ? CUBEMAP_FACE_COUNT : texture->m_Base.m_MipMapCount;
+                        for (uint32_t subresource = 0; subresource < subresource_count; ++subresource)
                         {
-                            if (texture->m_ResourceStates[i] != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+                            if (texture->m_ResourceStates[subresource] != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
                             {
-                                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture->m_Resource, texture->m_ResourceStates[i], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, (UINT) i));
-                                texture->m_ResourceStates[i] = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+                                context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture->m_Resource, texture->m_ResourceStates[subresource], D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, subresource));
+                                texture->m_ResourceStates[subresource] = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
                             }
                         }
                     }
@@ -3493,8 +3508,12 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
                 );
                 CHECK_HR_ERROR(hr);
 
-                // Initial state (no mipmaps)
-                new_texture_color->m_ResourceStates[0] = D3D12_RESOURCE_STATE_COMMON;
+                new_texture_color->m_ResourceDesc = texture_desc;
+                const uint32_t subresource_count = brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+                for (uint32_t subresource = 0; subresource < subresource_count; ++subresource)
+                {
+                    new_texture_color->m_ResourceStates[subresource] = D3D12_RESOURCE_STATE_COMMON;
+                }
                 new_texture_color->m_Base.m_Format      = color_buffer_params.m_Format;
                 SetTextureResourceSize(&new_texture_color->m_Base, sizeof(DX12Texture));
 
@@ -3589,7 +3608,12 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
                 DM_IID_PPV_ARGS(&texture_depth_stencil_ptr->m_Resource)
             );
             CHECK_HR_ERROR(hr);
-            texture_depth_stencil_ptr->m_ResourceStates[0] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+            texture_depth_stencil_ptr->m_ResourceDesc = ds_desc;
+            const uint32_t subresource_count = brt->m_TextureType == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+            for (uint32_t subresource = 0; subresource < subresource_count; ++subresource)
+            {
+                texture_depth_stencil_ptr->m_ResourceStates[subresource] = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+            }
             texture_depth_stencil_ptr->m_Base.m_Format      = rt->m_Base.m_DepthStencilTextureParams.m_Format;
             SetTextureResourceSize(&texture_depth_stencil_ptr->m_Base, sizeof(DX12Texture));
 

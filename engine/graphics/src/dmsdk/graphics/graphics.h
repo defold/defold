@@ -662,8 +662,18 @@ namespace dmGraphics
 
     /*#
      * Cubemap faces
+     *
+     * The six face values are contiguous, zero-based, and may be used as array indices.
+     * `CUBEMAP_FACE_COUNT` is the number of cubemap faces and is not a valid face.
      * @enum
      * @name CubeMapFace
+     * @member CUBEMAP_FACE_POSITIVE_X Positive X face (array index 0)
+     * @member CUBEMAP_FACE_NEGATIVE_X Negative X face (array index 1)
+     * @member CUBEMAP_FACE_POSITIVE_Y Positive Y face (array index 2)
+     * @member CUBEMAP_FACE_NEGATIVE_Y Negative Y face (array index 3)
+     * @member CUBEMAP_FACE_POSITIVE_Z Positive Z face (array index 4)
+     * @member CUBEMAP_FACE_NEGATIVE_Z Negative Z face (array index 5)
+     * @member CUBEMAP_FACE_COUNT Number of cubemap faces
      */
     enum CubeMapFace
     {
@@ -939,6 +949,13 @@ namespace dmGraphics
         uint8_t               m_StencilTexture : 1;
     };
 
+    /*#
+     * Render target binding parameters.
+     * @struct
+     * @name RenderTargetBindingParams
+     * @member m_TransientBufferTypes [type:uint32_t] BufferType bit mask identifying attachments whose contents may be discarded after the render pass
+     * @member m_CubeMapFace [type:dmGraphics::CubeMapFace] Cubemap face to bind. For non-cubemap render targets this must remain `CUBEMAP_FACE_POSITIVE_X`, which is also the zero-initialized default
+     */
     struct RenderTargetBindingParams
     {
         uint32_t    m_TransientBufferTypes;
@@ -1594,6 +1611,7 @@ namespace dmGraphics
     void DeleteRenderTarget(HContext context, HRenderTarget render_target);
 
     /*#
+     * Convenience overload for binding a render target with transient attachment flags.
      * @name SetRenderTarget
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param render_target [type:dmGraphics::HRenderTarget]
@@ -1602,7 +1620,7 @@ namespace dmGraphics
     void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
 
     /*#
-     * Set render target with binding parameters.
+     * Bind a render target with generic binding parameters.
      * @name SetRenderTarget
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param render_target [type:dmGraphics::HRenderTarget]

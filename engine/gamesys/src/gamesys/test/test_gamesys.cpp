@@ -472,6 +472,30 @@ TEST_F(RenderTargetResourceTest, InvalidCubemapFailsToLoad)
     ASSERT_EQ((void*) 0, resource);
 }
 
+TEST_F(RenderTargetResourceTest, InvalidCubemapFailsToReload)
+{
+    const char* valid_path = "/render_target/valid.render_targetc";
+    dmGameSystem::RenderTargetResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, valid_path, (void**) &resource));
+    ASSERT_NE((void*) 0, resource);
+
+    dmGraphics::HRenderTarget original_render_target = resource->m_RenderTarget;
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, original_render_target));
+
+    char invalid_host_path[256];
+    dmTestUtil::MakeHostPathf(invalid_host_path, sizeof(invalid_host_path), "build/src/gamesys/test/%s/render_target/invalid_cubemap.render_targetc", GetContentFolder());
+    uint32_t invalid_data_size = 0;
+    uint8_t* invalid_data = dmTestUtil::ReadFile(invalid_host_path, &invalid_data_size);
+    ASSERT_NE((uint8_t*) 0, invalid_data);
+
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::SetResource(m_Factory, dmHashString64(valid_path), invalid_data, invalid_data_size));
+    dmMemory::AlignedFree(invalid_data);
+
+    ASSERT_EQ(original_render_target, resource->m_RenderTarget);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, resource->m_RenderTarget));
+    dmResource::Release(m_Factory, resource);
+}
+
 TEST_F(TextureSetResourceTest, TestReloadTextureSet)
 {
     const char* texture_set_path_a   = "/textureset/valid_a.t.texturesetc";

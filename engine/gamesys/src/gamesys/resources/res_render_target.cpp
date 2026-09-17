@@ -287,12 +287,18 @@ namespace dmGameSystem
         GetRenderTargetParams(ddf, buffer_type_flags, rt_params);
         dmDDF::FreeMessage(ddf);
 
+        dmGraphics::HRenderTarget new_render_target = dmGraphics::NewRenderTarget(graphics_context, buffer_type_flags, rt_params);
+        if (!new_render_target)
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
         if (rt_resource->m_RenderTarget)
         {
             dmGraphics::DeleteRenderTarget(graphics_context, rt_resource->m_RenderTarget);
         }
 
-        rt_resource->m_RenderTarget              = dmGraphics::NewRenderTarget(dmRender::GetGraphicsContext(render_context), buffer_type_flags, rt_params);
+        rt_resource->m_RenderTarget = new_render_target;
 
         // Clear out any existing resources and recreate new ones for the updated resource.
         for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
