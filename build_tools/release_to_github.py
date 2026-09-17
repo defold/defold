@@ -18,7 +18,6 @@ from string import Template
 import base64
 import github
 import json
-import mimetypes
 import os
 import re
 import run
@@ -128,17 +127,9 @@ def release(config, tag_name, release_sha, s3_release, release_name=None, body=N
         log("Unable to update GitHub release for %s" % (config.version))
         exit(1)
 
-    # remove existing uploaded assets (It's not currently possible to update a release asset
-    prev_assets = {}
     for asset in release.get("assets", []):
-        prev_assets[asset.get("name")] = asset
         log("Found old asset: %s %s" % (asset.get("name"), asset.get("id")))
 
-    # upload_url is a Hypermedia link (https://developer.github.com/v3/#hypermedia)
-    # Example: https://uploads.github.com/repos/defold/defold/releases/25677114/assets{?name,label}
-    # Can be parsed and expanded using: https://pypi.org/project/uritemplate/
-    # for now we ignore this and fix it ourselves (note this may break if GitHub
-    # changes the way uploads are done)
     log("Uploading artifacts to GitHub from S3")
     base_url = "https://" + urlparse(config.archive_path).hostname
 
@@ -194,35 +185,20 @@ def release(config, tag_name, release_sha, s3_release, release_name=None, body=N
         download_url = base_url + path
         urls.add(download_url)
 
-    upload_url = release.get("upload_url").replace("{?name,label}", "?name=%s")
-
     for download_url in urls:
         filepath = config._download(download_url)
         filename = re.sub(r'https://%s/archive/(.*?)/' % config.archive_path, '', download_url)
         basename = os.path.basename(filename)
-        # file stream upload to GitHub
-        with open(filepath, 'rb') as f:
-            content_type,_ = mimetypes.guess_type(basename)
-            headers = { "Content-Type": content_type or "application/octet-stream" }
-            name = filename
-            if is_main_file(download_url):
-                name = basename
-            elif is_platform_file(download_url): # For the executable files
-                name = convert_to_platform_name(download_url)
+        name = filename
+        if is_main_file(download_url):
+            name = basename
+        elif is_platform_file(download_url): # For the executable files
+            name = convert_to_platform_name(download_url)
 
-            # Since there is no way to update an asset, we need to remove it first.
-            old_asset = prev_assets.get(name, None)
-            if old_asset is not None:
-                asset_url = old_asset.get("url")
-                log("Deleting %s -  %s" % (old_asset.get("id"), old_asset.get("name")))
-                github.delete(asset_url, config.github_token)
-
-            url = upload_url % (name)
-            log("Uploading to GitHub " + url)
-            response = github.post(url, config.github_token, data = f, headers = headers)
-            if not response:
-                log("Unable to upload GitHub release asset %s for %s" % (name, tag_name))
-                exit(1)
+        response = github.upload_release_asset(release, config.github_token, filepath, name)
+        if not response:
+            log("Unable to upload GitHub release asset %s for %s" % (name, tag_name))
+            exit(1)
 
     log("Released Defold %s to GitHub" % tag_name)
 
