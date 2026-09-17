@@ -238,6 +238,7 @@ PACKAGES_MACOS_X86_64=[
     "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
+    "dawn-6bab1bd",
     "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
@@ -472,13 +473,14 @@ ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics font 
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
 EXTERNAL_WAF_LIBS = "glfw opus".split()
-EXTERNAL_CMAKE_LIBS = "box2d box2d_v2 vkquality skribidi".split()
+EXTERNAL_CMAKE_LIBS = "box2d box2d_v2 vkquality skribidi dawn".split()
 EXTERNAL_LIBS = EXTERNAL_WAF_LIBS + EXTERNAL_CMAKE_LIBS
 EXTERNAL_PACKAGE_VERSIONS = {
     "box2d": "3.1.0",
     "box2d_v2": "2.2.1",
     "vkquality": "1.1-2642a0d",
     "skribidi": "a4a2f5",
+    "dawn": "6bab1bd",
 }
 EXTERNAL_PACKAGE_NAMES = {
     "box2d_v2": "box2d_defold",
@@ -2742,6 +2744,9 @@ class Configuration(object):
             if lib == 'vkquality' and self.target_platform not in ('armv7-android', 'arm64-android', 'x86_64-android') and not self.external_package:
                 self._log("Skipping vkquality for non-Android platform: %s" % self.target_platform)
                 continue
+            if lib == 'dawn' and self.target_platform not in ('arm64-macos', 'arm64-linux', 'x86_64-linux', 'x86_64-win32') and not self.external_package:
+                self._log("Skipping dawn for unsupported platform: %s" % self.target_platform)
+                continue
             self._build_external_lib_cmake(lib, self.target_platform)
 
     def _build_external_lib_cmake(self, lib, platform):
@@ -2759,6 +2764,15 @@ class Configuration(object):
 
         if not os.path.exists(join(source_dir, 'CMakeLists.txt')):
             self.fatal("CMake external package '%s' is missing CMakeLists.txt" % lib)
+
+        # The shared CMake toolchain needs host protoc even when the package
+        # itself has no protobuf sources. Bootstrap it before install_ext.
+        protoc = 'protoc.exe' if self.host.endswith('-win32') else 'protoc'
+        if not os.path.exists(join(self.ext, 'bin', self.host, protoc)):
+            protobuf_package = next(package for package in PLATFORM_PACKAGES[self.host]
+                                    if package.startswith('protobuf-'))
+            protobuf_path = join(self.defold_root, 'packages', '%s-%s.tar.gz' % (protobuf_package, self.host))
+            self._extract_tgz(protobuf_path, self.ext)
 
         if os.path.exists(install_dir):
             shutil.rmtree(install_dir)
@@ -4037,7 +4051,7 @@ Commands:
 distclean        - Removes DYNAMO_HOME and engine/external build caches
 clean            - Remove generated engine build outputs without removing DYNAMO_HOME
 install_ext      - Install external packages
-build_ext        - Build and install source dependencies with CMake (Bullet, and Dawn on macOS)
+build_ext        - Build and install source dependencies with CMake (currently Bullet)
 build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk

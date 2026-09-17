@@ -1,3 +1,19 @@
+cmake_minimum_required(VERSION 4.0)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../scripts/cmake")
+set(BUILD_TESTS OFF)
+include(defold)
+
+project(dawn_external LANGUAGES ${DEFOLD_LANGUAGE_LIST})
+
+if(NOT TARGET_PLATFORM MATCHES "^(arm64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")
+  message(FATAL_ERROR "Unsupported Dawn platform: ${TARGET_PLATFORM}")
+endif()
+
+if(DEFOLD_EXTERNAL_INSTALL_PREFIX)
+  set(CMAKE_INSTALL_PREFIX "${DEFOLD_EXTERNAL_INSTALL_PREFIX}" CACHE PATH "External package install prefix" FORCE)
+endif()
+
 include(FetchContent)
 
 # Keep the WebGPU API in sync with the revision used by the graphics backend.
@@ -11,11 +27,16 @@ set(BUILD_SHARED_LIBS OFF)
 set(DAWN_FETCH_DEPENDENCIES ON)
 set(DAWN_BUILD_MONOLITHIC_LIBRARY STATIC)
 set(DAWN_ENABLE_INSTALL OFF)
-set(DAWN_ENABLE_METAL ON)
+set(DAWN_ENABLE_METAL OFF)
+set(DAWN_ENABLE_D3D11 OFF)
+set(DAWN_ENABLE_D3D12 OFF)
 set(DAWN_ENABLE_NULL OFF)
 set(DAWN_ENABLE_VULKAN OFF)
+set(DAWN_ENABLE_SPIRV_VALIDATION OFF)
 set(DAWN_ENABLE_DESKTOP_GL OFF)
 set(DAWN_ENABLE_OPENGLES OFF)
+set(DAWN_USE_X11 OFF)
+set(DAWN_USE_WAYLAND OFF)
 set(DAWN_BUILD_TESTS OFF)
 set(DAWN_BUILD_SAMPLES OFF)
 set(DAWN_BUILD_PROTOBUF OFF)
@@ -23,12 +44,35 @@ set(DAWN_USE_GLFW OFF)
 set(TINT_BUILD_TESTS OFF)
 set(TINT_BUILD_CMD_TOOLS OFF)
 set(TINT_BUILD_GLSL_VALIDATOR OFF)
-set(CMAKE_OSX_DEPLOYMENT_TARGET "${SDK_VERSION_MACOSX_MIN}")
+
+if(TARGET_PLATFORM MATCHES "macos$")
+  set(DAWN_ENABLE_METAL ON)
+  set(CMAKE_OSX_DEPLOYMENT_TARGET "${SDK_VERSION_MACOSX_MIN}")
+elseif(TARGET_PLATFORM MATCHES "linux$")
+  set(DAWN_ENABLE_VULKAN ON)
+  set(DAWN_USE_X11 ON)
+  set(DAWN_USE_WAYLAND ON)
+elseif(TARGET_PLATFORM STREQUAL "x86_64-win32")
+  set(DAWN_ENABLE_D3D11 ON)
+  set(DAWN_ENABLE_D3D12 ON)
+endif()
 
 FetchContent_MakeAvailable(dawn)
+if(TARGET_PLATFORM STREQUAL "x86_64-win32")
+  set_target_properties(webgpu_dawn PROPERTIES PREFIX "lib")
+endif()
 add_custom_target(dawn ALL DEPENDS webgpu_dawn)
 
 install(FILES "$<TARGET_FILE:webgpu_dawn>" DESTINATION "lib/${TARGET_PLATFORM}")
+if(TARGET_PLATFORM STREQUAL "arm64-macos")
+  # Strip debug information from the packaged copy, preserving linker symbols
+  # and the original build library for local debugging.
+  install(CODE "
+    execute_process(
+      COMMAND \"${CMAKE_STRIP}\" -S \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/lib/${TARGET_PLATFORM}/$<TARGET_FILE_NAME:webgpu_dawn>\"
+      COMMAND_ERROR_IS_FATAL ANY)
+  ")
+endif()
 install(DIRECTORY "${dawn_SOURCE_DIR}/include/webgpu" DESTINATION include)
 install(FILES "${dawn_BINARY_DIR}/gen/include/webgpu/webgpu_cpp_chained_struct.h"
         DESTINATION include/webgpu)
