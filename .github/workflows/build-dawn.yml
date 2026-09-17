@@ -1,0 +1,79 @@
+name: Build Dawn
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Dawn (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: arm64-macos
+            runner: macos-26
+          - platform: arm64-linux
+            runner: ubuntu-22.04-arm
+          - platform: x86_64-linux
+            runner: ubuntu-22.04
+          - platform: x86_64-win32
+            runner: windows-2025-vs2026
+    runs-on: ${{ matrix.runner }}
+    env:
+      BUILD_PLATFORM_NAME: ${{ matrix.platform }}
+      CMAKE_BUILD_PARALLEL_LEVEL: 3
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Java
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          java-version: '25'
+          distribution: temurin
+
+      - name: Install CMake and Ninja
+        uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.3.4
+
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
+        with:
+          arch: x64
+
+      - name: Install dependencies
+        shell: bash
+        run: ci/ci.sh install --platform="$BUILD_PLATFORM_NAME"
+
+      - name: Install Linux window-system headers
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y libx11-dev libwayland-dev
+
+      - name: Build Dawn package
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/build.py --save-env-path=ci/env.sh save_env
+          ORIGINAL_PATH="$PATH"
+          source ci/env.sh
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            export PATH="$ORIGINAL_PATH:$DYNAMO_HOME/ext/bin"
+          fi
+          ./scripts/build.py build_external --package=dawn --platform="$BUILD_PLATFORM_NAME"
+
+      - name: Archive Dawn package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dawn-${{ matrix.platform }}
+          path: packages/dawn-*-${{ matrix.platform }}.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
