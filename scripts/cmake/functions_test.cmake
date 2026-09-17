@@ -123,8 +123,8 @@ endfunction()
 #   - RUN_GROUP: independently runnable resource group (default shared).
 #                Native Ninja tests in the same group remain serialized.
 #   - RUN_PRIORITY: higher values start first when their resource group is free.
-#   - RUNTIME_DEPENDS: content targets required by build_tests and test runners,
-#                      without delaying compilation of the test executable
+#   - RUNTIME_DEPENDS: content targets required by build_tests and test runners;
+#                      IDE builds also prepare them with the test executable
 #   - STAGE_FILES: optional flattened list of SOURCE TARGET pairs for test
 #                  runtime staging. Platform-specific runners decide if/how
 #                  these files are uploaded or otherwise prepared.
@@ -624,9 +624,10 @@ function(defold_register_test_target target_name)
   set_property(TARGET ${target_name} PROPERTY DEFOLD_TEST_RUNTIME_DEPENDENCIES "${DEFOLD_TEST_RUNTIME_DEPENDS}")
   if(DEFOLD_TEST_RUNTIME_DEPENDS)
     add_dependencies(build_tests ${DEFOLD_TEST_RUNTIME_DEPENDS})
-    # Xcode Run schemes build the executable directly, bypassing run_* targets.
+    # Xcode Run schemes and Visual Studio startup projects build the executable
+    # directly, bypassing run_* targets.
     # iOS resource staging also runs in the executable's POST_BUILD step.
-    if(CMAKE_GENERATOR STREQUAL "Xcode")
+    if(CMAKE_GENERATOR STREQUAL "Xcode" OR DEFOLD_MSVC_IDE_SOLUTION)
       add_dependencies(${target_name} ${DEFOLD_TEST_RUNTIME_DEPENDS})
     endif()
   endif()
