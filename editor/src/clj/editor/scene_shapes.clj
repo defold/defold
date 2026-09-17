@@ -25,7 +25,8 @@
             [editor.gl.vertex2 :as vtx]
             [editor.graphics.types :as graphics.types]
             [editor.math :as math]
-            [editor.scene-picking :as scene-picking])
+            [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders])
   (:import [com.jogamp.opengl GL2]
            [javax.vecmath Point4d]))
 
@@ -37,27 +38,7 @@
   ;; the capsule shape.
   (vec4 position))
 
-(shader/defshader vertex-shader
-  (uniform mat4 world_view_proj)
-  (uniform vec4 point_scale)
-  (uniform vec4 point_offset_by_w)
-  (attribute vec4 position)
-  (defn void main []
-    (setq vec3 point
-          (+ (* position.xyz
-                point_scale.xyz)
-             (* position.w
-                point_offset_by_w.xyz)))
-    (setq gl_Position
-          (* world_view_proj
-             (vec4 point 1.0)))))
-
-(shader/defshader fragment-shader
-  (uniform vec4 color) ; `color` also used in selection pass to render picking id
-  (defn void main []
-    (setq gl_FragColor color)))
-
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader {"world_view_proj" :world-view-proj}))
+(def shader shaders/scene-shape-local-space)
 
 (def box-lines
   {:primitive-type GL2/GL_LINES

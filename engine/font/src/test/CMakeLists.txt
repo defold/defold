@@ -7,6 +7,9 @@ set(FONT_TEST_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(FONT_ROOT "${FONT_TEST_ROOT}/../..")
 set(FONT_SRC_DIR "${FONT_ROOT}/src")
 
+# Font tests and image generation share fixtures and report outputs, but no devices or ports.
+defold_test_run_settings(_font_test_runner _font_test_run_options font)
+
 function(font_configure_test target font_target)
   target_include_directories(${target} PRIVATE
     "${FONT_TEST_ROOT}"
@@ -30,6 +33,7 @@ function(font_configure_test target font_target)
     set(run OFF)
   endif()
   defold_register_test_target(${target} ${run} "${FONT_ROOT}"
+    RUN_GROUP font
     STAGE_FILES
       "src/test/data" "src/test/data")
 endfunction()
@@ -73,19 +77,19 @@ if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
     "FONT_BITMAP_GENERATOR=$<TARGET_FILE:test_font_bitmap_gen>"
     "${_font_report_python}" "${FONT_TEST_ROOT}/test_font_images.py")
   add_custom_target(run_test_font_images_python
-    COMMAND ${_font_python_command}
+    COMMAND ${_font_test_runner} ${_font_python_command}
     DEPENDS test_font_bitmap_gen
     WORKING_DIRECTORY "${FONT_ROOT}"
-    USES_TERMINAL COMMENT "Testing font image reporting and generator options")
+    ${_font_test_run_options} COMMENT "Testing font image reporting and generator options")
   defold_register_sequential_test_command(font_images_python COMMAND ${_font_python_command}
     DEPENDS test_font_bitmap_gen)
   set(_font_image_command "${CMAKE_COMMAND}" "-DFONT_ROOT=${FONT_ROOT}" "-DPYTHON=${_font_report_python}"
     "-DLEGACY_RICH=$<TARGET_FILE:test_font_bitmap_gen>" "-DFULL_RICH=$<TARGET_FILE:test_font_bitmap_gen_skribidi>"
     "-DLEGACY_PLAIN=$<TARGET_FILE:test_font_bitmap_gen_plain>" "-DFULL_PLAIN=$<TARGET_FILE:test_font_bitmap_gen_skribidi_plain>"
     -P "${FONT_TEST_ROOT}/run_font_images.cmake")
-  add_custom_target(generate_font_test_images COMMAND ${_font_image_command}
+  add_custom_target(generate_font_test_images COMMAND ${_font_test_runner} ${_font_image_command}
     DEPENDS run_test_font_images_python test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain
-    USES_TERMINAL COMMENT "Rendering the font-library image matrix")
+    ${_font_test_run_options} COMMENT "Rendering the font-library image matrix")
   # Keep the manual target available on every desktop. GitHub CI runs the
   # automatic screenshot comparisons only on native Linux engine builds.
   if(NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$")
@@ -93,7 +97,13 @@ if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
       if(NOT TARGET run_tests)
         add_custom_target(run_tests)
       endif()
-      add_dependencies(run_tests generate_font_test_images)
+      defold_add_to_run_tests(run_test_font_images_python RUN_GROUP font
+        COMMAND ${_font_python_command}
+        WORKING_DIRECTORY "${FONT_ROOT}"
+        DEPENDS test_font_bitmap_gen)
+      defold_add_to_run_tests(generate_font_test_images RUN_GROUP font
+        COMMAND ${_font_image_command}
+        DEPENDS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
     endif()
     defold_register_sequential_test_command(font_images COMMAND ${_font_image_command}
       DEPENDS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
@@ -115,7 +125,7 @@ defold_target_link_libraries(test_markup_null "${TARGET_PLATFORM}"
   font
   font_richtext_null)
 defold_target_link_socket(test_markup_null "${TARGET_PLATFORM}" PRIVATE)
-defold_register_test_target(test_markup_null ON "${FONT_ROOT}")
+defold_register_test_target(test_markup_null ON "${FONT_ROOT}" RUN_GROUP font)
 
 if(FONT_RENDERER_IS_DESKTOP)
   defold_add_executable(test_fontc_markup_api "${FONT_TEST_ROOT}/test_fontc_markup_api.cpp")
@@ -129,7 +139,7 @@ if(FONT_RENDERER_IS_DESKTOP)
     BUILD_WITH_INSTALL_RPATH ON
     INSTALL_RPATH "$<TARGET_FILE_DIR:fontc_shared>")
   defold_target_link_socket(test_fontc_markup_api "${TARGET_PLATFORM}" PRIVATE)
-  defold_register_test_target(test_fontc_markup_api ON "${CMAKE_CURRENT_BINARY_DIR}/../..")
+  defold_register_test_target(test_fontc_markup_api ON "${CMAKE_CURRENT_BINARY_DIR}/../.." RUN_GROUP font)
 endif()
 
 defold_add_executable(benchmark_text_layout
@@ -217,17 +227,21 @@ if(FONT_RENDERER_IS_DESKTOP AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
   add_custom_target(test_font_renderer_java_jar DEPENDS "${FONT_RENDERER_TEST_JAR}")
   add_dependencies(test_font_renderer_java_jar fontc_shared font_renderer_jar)
   add_dependencies(build_tests test_font_renderer_java_jar)
+  set(_font_java_command "${Java_JAVA_EXECUTABLE}"
+    --enable-native-access=ALL-UNNAMED
+    "-Djava.library.path=$<TARGET_FILE_DIR:fontc_shared>"
+    -classpath "${FONT_RENDERER_TEST_CLASSPATH}"
+    com.dynamo.bob.font.FontRendererTest)
   add_custom_target(run_test_font_renderer_java
-    COMMAND "${Java_JAVA_EXECUTABLE}"
-            --enable-native-access=ALL-UNNAMED
-            "-Djava.library.path=$<TARGET_FILE_DIR:fontc_shared>"
-            -classpath "${FONT_RENDERER_TEST_CLASSPATH}"
-            com.dynamo.bob.font.FontRendererTest
+    COMMAND ${_font_test_runner} ${_font_java_command}
     DEPENDS test_font_renderer_java_jar fontc_shared
     WORKING_DIRECTORY "${FONT_ROOT}"
-    USES_TERMINAL
+    ${_font_test_run_options}
     COMMENT "Running font-renderer Java tests")
-  add_dependencies(run_tests run_test_font_renderer_java)
+  defold_add_to_run_tests(run_test_font_renderer_java RUN_GROUP font
+    COMMAND ${_font_java_command}
+    WORKING_DIRECTORY "${FONT_ROOT}"
+    DEPENDS test_font_renderer_java_jar fontc_shared)
 endif()
 
 if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32)$")

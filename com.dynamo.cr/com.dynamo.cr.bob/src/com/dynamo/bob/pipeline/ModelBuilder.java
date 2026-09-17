@@ -144,7 +144,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
             rigBuilder.setSkeleton(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getSkeleton(), ".skeletonc"));
         }
 
-        if (modelDescBuilder.getAnimations().equals("")) {
+        if (modelDescBuilder.getAnimations().isEmpty()) {
             // No animations
         }
         else if(modelDescBuilder.getAnimations().endsWith(".animationset")) {

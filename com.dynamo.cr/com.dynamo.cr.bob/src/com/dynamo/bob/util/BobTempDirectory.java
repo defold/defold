@@ -51,7 +51,7 @@ public class BobTempDirectory implements AutoCloseable {
         }
 
         String envValue = System.getenv(KEEP_TEMP_ENV);
-        return envValue != null && ("1".equals(envValue) || "true".equalsIgnoreCase(envValue));
+        return ("1".equals(envValue) || "true".equalsIgnoreCase(envValue));
     }
 
     public synchronized File createTempFile(String prefix, String suffix) throws IOException {

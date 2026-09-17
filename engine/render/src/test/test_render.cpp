@@ -1984,6 +1984,32 @@ TEST_F(dmRenderTest, DrawTextStoresFaceAndShadowMaterials)
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
 }
 
+TEST_F(dmRenderTest, SdfEdgeTransitionWidth)
+{
+    // Both native generation and legacy banks use the same distance encoding.
+    const float distance_per_texel = 1.0f / 12.0f;
+    m_SystemFontMap->m_IsSdf = true;
+    m_SystemFontMap->m_SdfSpread = 3.0f;
+    m_SystemFontMap->m_OutlineWidth = 0.0f;
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+
+    dmRender::TextEntry te = {};
+    te.m_Transform = Matrix4::identity();
+    te.m_FaceColor = COLOR_WHITE_RGBA;
+    te.m_Leading = 1.0f;
+    te.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+    const float scales[] = { 0.5f, 1.0f, 2.0f };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(scales); ++i)
+    {
+        FontGlyphVertex vertices[6];
+        ASSERT_EQ(DM_ARRAY_SIZE(vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, "H", te, scales[i], 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices)));
+        float width = 2.0f * vertices[0].m_SdfParams[2] * scales[i] / distance_per_texel;
+        // The selected filter has a two-screen-pixel smoothstep band.
+        EXPECT_NEAR(2.0f, width, 0.05f);
+    }
+}
+
 TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLayout)
 {
     const char* text = "Hello World Bonanza";
@@ -2269,7 +2295,7 @@ TEST_F(dmRenderTest, MarkupOutlineSizeZeroDisablesAndOversizeClamps)
     ASSERT_EQ(1.0f, zero_vertices[0].m_LayerMasks[0]);
     ASSERT_EQ(0.0f, zero_vertices[0].m_LayerMasks[1]);
     ASSERT_EQ(1.0f, oversize_vertices[0].m_LayerMasks[1]);
-    ASSERT_NEAR(0.75f - (191.0f / 255.0f) * 4.0f / 8.0f, oversize_vertices[0].m_SdfParams[1], EPSILON);
+    ASSERT_NEAR(0.75f - 0.25f * 4.0f / 8.0f, oversize_vertices[0].m_SdfParams[1], EPSILON);
 
     TextLayoutRelease(zero_layout);
     TextLayoutRelease(oversize_layout);
@@ -2388,7 +2414,7 @@ TEST_F(dmRenderTest, MarkupBitmapShadowDoesNotRevealUntaggedOutline)
     m_SystemFontMap->m_SdfSpread = old_sdf_spread;
 
     ASSERT_EQ(1.875f, outlined_shadow_vertices[0].m_SdfParams[3]);
-    ASSERT_NEAR(0.75f - (191.0f / 255.0f) * 2.0f / 8.0f, face_shadow_vertices[0].m_SdfParams[3], EPSILON);
+    ASSERT_NEAR(0.75f - 0.25f * 2.0f / 8.0f, face_shadow_vertices[0].m_SdfParams[3], EPSILON);
 
     TextLayoutRelease(layout);
     MarkupDestroy(markup);
@@ -2496,7 +2522,7 @@ TEST_F(dmRenderTest, MarkupShadowUsesFontBlurWhenOmitted)
     m_SystemFontMap->m_IsSdf = old_is_sdf;
 
     ASSERT_EQ(1.0f, vertices[0].m_LayerMasks[2]);
-    ASSERT_NEAR(1.5f + 0.5f * (0.75f - (191.0f / 255.0f) * 4.0f / 8.0f), vertices[0].m_SdfParams[3], EPSILON);
+    ASSERT_NEAR(1.5f + 0.5f * (0.75f - 0.25f * 4.0f / 8.0f), vertices[0].m_SdfParams[3], EPSILON);
     ASSERT_EQ(vertices[6].m_Position[0] + 1.0f, vertices[0].m_Position[0]);
 
     TextLayoutRelease(layout);
@@ -2952,8 +2978,8 @@ TEST_F(dmRenderTest, MarkupShadowBlurClampsToBakedCapacity)
     m_SystemFontMap->m_SdfShadow = old_sdf_shadow;
     m_SystemFontMap->m_IsSdf = old_is_sdf;
 
-    ASSERT_NEAR(1.5f + 0.5f * (0.75f - (191.0f / 255.0f) * 2.0f / 8.0f), reduced_sdf_shadow, EPSILON);
-    ASSERT_NEAR(1.5f + 0.5f * (0.75f - (191.0f / 255.0f) * 4.0f / 8.0f), clamped_sdf_shadow, EPSILON);
+    ASSERT_NEAR(1.5f + 0.5f * (0.75f - 0.25f * 2.0f / 8.0f), reduced_sdf_shadow, EPSILON);
+    ASSERT_NEAR(1.5f + 0.5f * (0.75f - 0.25f * 4.0f / 8.0f), clamped_sdf_shadow, EPSILON);
     ASSERT_EQ(1.875f, no_capacity_sdf_shadow);
 
     TextLayoutRelease(layout);

@@ -416,9 +416,7 @@ static void TestFontImage(const FontImageCase& c)
     FontGlyphGenParams params;
     params.m_Scale = FontGetScaleFromSize(source, c.m_Size);
     const float sdf_spread = 3 + c.m_Outline + c.m_ShadowBlur;
-    // Match runtime single-layer SDF generation in 1.13.1: glyph padding
-    // excludes blur, while shader thresholds retain the full spread.
-    params.m_SdfPadding = !bitmap && !c.m_Multi ? 3 + c.m_Outline : sdf_spread;
+    params.m_SdfPadding = sdf_spread;
     params.m_OutlineWidth = c.m_Outline;
     params.m_OutputBitmap = bitmap;
     params.m_HasOutline = c.m_Outline > 0;
@@ -456,6 +454,14 @@ static void TestFontImage(const FontImageCase& c)
     TextLayoutSettings settings = {};
     settings.m_Size = c.m_Size;
     FontImageCaptureGeometry geometry = arabic ? g_Capture_arabic : paragraph ? g_Capture_english : g_Capture_single_line;
+    if (c.m_EdgeScale > 0.0f)
+    {
+        const FontImageCaptureGeometry ttf[] = { g_Capture_ttf_edge_half, g_Capture_ttf_edge_one, g_Capture_ttf_edge_two };
+        const FontImageCaptureGeometry otf[] = { g_Capture_otf_edge_half, g_Capture_otf_edge_one, g_Capture_otf_edge_two };
+        const float capture_scale = c.m_EdgeScale * c.m_Size / 32.0f;
+        uint32_t index = capture_scale < 1.0f ? 0 : (capture_scale == 1.0f ? 1 : 2);
+        geometry = strncmp(c.m_Source, "otf", 3) == 0 ? otf[index] : ttf[index];
+    }
     settings.m_Width = geometry.m_LayoutWidth;
     settings.m_Leading = 1;
     settings.m_LineBreak = paragraph;
@@ -569,9 +575,17 @@ static void TestFontImage(const FontImageCase& c)
     config.m_OutlineWidth = c.m_Outline;
     config.m_SdfSpread = sdf_spread;
     config.m_SdfEdge = .75f;
-    config.m_SdfOutline = .75f - (191.0f / 255) * c.m_Outline / sdf_spread;
-    config.m_SdfShadow = c.m_ShadowBlur > 0 ? .75f - (191.0f / 255) * c.m_ShadowBlur / sdf_spread : 1;
-    config.m_SdfSmoothing = .25f / sdf_spread;
+    config.m_SdfOutline = .75f - FONT_SDF_DISTANCE_SCALE * c.m_Outline / sdf_spread;
+    config.m_SdfShadow = c.m_ShadowBlur > 0 ? .75f - FONT_SDF_DISTANCE_SCALE * c.m_ShadowBlur / sdf_spread : 1;
+    config.m_SdfSmoothing = FONT_SDF_DISTANCE_SCALE / sdf_spread;
+    if (c.m_EdgeScale > 0.0f)
+    {
+        // Sample the screen-space edge at 8x resolution. Only the geometry is
+        // magnified; the smoothing still belongs to the requested screen scale.
+        // This makes a subpixel transition measurable without resizing a PNG.
+        config.m_Transform = dmVMath::Matrix4::scale(dmVMath::Vector3(8.0f * c.m_EdgeScale));
+        config.m_SdfSmoothing /= c.m_EdgeScale;
+    }
     config.m_ShadowX = c.m_ShadowX;
     config.m_ShadowY = c.m_ShadowY;
     config.m_ShadowBlur = c.m_ShadowBlur;
@@ -613,8 +627,8 @@ static void TestFontImage(const FontImageCase& c)
     if (strcmp(c.m_Name, "manual") == 0)
     {
         // Manual inputs can exceed the frozen matrix's effect margins.
-        geometry.m_OriginX = dmMath::Max(geometry.m_OriginX, (uint32_t)ceilf(c.m_Outline + c.m_ShadowBlur + fabsf(c.m_ShadowX) + 4));
-        geometry.m_OriginTop = dmMath::Max(geometry.m_OriginTop, (uint32_t)ceilf(c.m_Outline + c.m_ShadowBlur + fabsf(c.m_ShadowY) + 4));
+        geometry.m_OriginX = dmMath::Max(geometry.m_OriginX, (int32_t)ceilf(c.m_Outline + c.m_ShadowBlur + fabsf(c.m_ShadowX) + 4));
+        geometry.m_OriginTop = dmMath::Max(geometry.m_OriginTop, (int32_t)ceilf(c.m_Outline + c.m_ShadowBlur + fabsf(c.m_ShadowY) + 4));
         float layout_width, layout_height;
         TextLayoutGetBounds(layout, &layout_width, &layout_height);
         width = dmMath::Max(width, (uint32_t)ceilf(layout_width + 2 * geometry.m_OriginX + c.m_Outline + fabsf(c.m_ShadowX)));
@@ -625,7 +639,7 @@ static void TestFontImage(const FontImageCase& c)
     for (uint32_t i = 0; i < vertices.Size(); ++i)
     {
         vertices[i].m_Position[0] += geometry.m_OriginX;
-        vertices[i].m_Position[1] += height - geometry.m_OriginTop;
+        vertices[i].m_Position[1] += (float)height - geometry.m_OriginTop;
     }
     dmGraphics::TextureCreationParams creation;
     creation.m_Width = atlas_width;
@@ -677,7 +691,7 @@ static void TestFontImage(const FontImageCase& c)
         for (uint32_t i = 0; i < previous_vertices.Size(); ++i)
         {
             previous_vertices[i].m_Position[0] += geometry.m_OriginX;
-            previous_vertices[i].m_Position[1] += height - geometry.m_OriginTop;
+            previous_vertices[i].m_Position[1] += (float)height - geometry.m_OriginTop;
             previous_outline |= previous_vertices[i].m_OutlineColor[3] == 127;
         }
         ASSERT_TRUE(previous_outline);
@@ -699,7 +713,7 @@ static void TestFontImage(const FontImageCase& c)
         for (uint32_t i = 0; i < vertices.Size(); ++i)
         {
             vertices[i].m_Position[0] += geometry.m_OriginX;
-            vertices[i].m_Position[1] += height - geometry.m_OriginTop;
+            vertices[i].m_Position[1] += (float)height - geometry.m_OriginTop;
         }
         ASSERT_EQ(expected_vertices, dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex)));
         dmGraphics::SetVertexBufferData(buffer, vertices.Size() * sizeof(FontGlyphVertex), vertices.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
@@ -715,7 +729,7 @@ static void TestFontImage(const FontImageCase& c)
     dmGraphics::DeleteTexture(g_ImageContext, texture);
     dmGraphics::DeleteRenderTarget(g_ImageContext, target);
     char metadata[1024];
-    dmSnPrintf(metadata, sizeof(metadata), "{\"backend\":\"opengl\",\"source\":\"render-target\",\"glyphs\":%u,\"lines\":%u,\"vertices\":%u,\"layers\":%u,\"width\":%u,\"height\":%u,\"origin_x\":%u,\"origin_top\":%u,\"layout_width\":%u,\"font_ascent\":%.9g,\"font_descent\":%.9g,\"outline_data\":%s,\"atlas_width\":%u,\"atlas_height\":%u,\"atlas_hash\":\"%016llx\",\"vertex_hash\":\"%016llx\"}",
+    dmSnPrintf(metadata, sizeof(metadata), "{\"backend\":\"opengl\",\"source\":\"render-target\",\"glyphs\":%u,\"lines\":%u,\"vertices\":%u,\"layers\":%u,\"width\":%u,\"height\":%u,\"origin_x\":%d,\"origin_top\":%d,\"layout_width\":%u,\"font_ascent\":%.9g,\"font_descent\":%.9g,\"outline_data\":%s,\"atlas_width\":%u,\"atlas_height\":%u,\"atlas_hash\":\"%016llx\",\"vertex_hash\":\"%016llx\"}",
         TextLayoutGetGlyphCount(layout), TextLayoutGetLineCount(layout), metrics.m_VertexCount, metrics.m_LayerCount,
         width, height, geometry.m_OriginX, geometry.m_OriginTop, geometry.m_LayoutWidth,
         FontGetAscent(font, FontGetScaleFromSize(font, c.m_Size)), FontGetDescent(font, FontGetScaleFromSize(font, c.m_Size)), outline_data ? "true" : "false",
@@ -744,7 +758,7 @@ static void TestFontImage(const FontImageCase& c)
 
 #include "font_image_cases.inc"
 
-static FontImageCase g_ManualCase = { "manual", "ttf_sdf", "ABCDEFGabcdefg 0123456789", 40, 4, 1, 1, 0, 0, 0, 0, false, false, false };
+static FontImageCase g_ManualCase = { "manual", "ttf_sdf", "ABCDEFGabcdefg 0123456789", 40, 4, 1, 1, 0, 0, 0, 0, false, false, false, 0 };
 
 TEST(FontBitmapManual, Render)
 {

@@ -259,11 +259,19 @@
     (is (s/includes? (test-util/localization (g/error-message unreserved-blur-error)) "no reserved distance-field data"))
     (is (nil? overridden-unreserved-blur-error))))
 
-(deftest native-sdf-limit-test
-  (let [native-sdf-limit (ns-resolve 'editor.font 'native-sdf-limit)]
-    (is (= 0.75 (native-sdf-limit 3.0 0.0)))
-    (is (< (native-sdf-limit 6.0 2.0)
-           (native-sdf-limit 6.0 1.0)))))
+(deftest native-preview-sdf-params-match-compiled-font
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")]
+      (doseq [[outline-width shadow-blur] [[0.0 0] [0.5 0] [1.5 2] [2.375 4]]]
+        (testing (str "outline width " outline-width ", shadow blur " shadow-blur)
+          (g/transact {:undoable false}
+            [(g/set-property font-node :outline-width outline-width)
+             (g/set-property font-node :shadow-blur shadow-blur)])
+          (let [font-map (g/valid-node-value font-node :font-map)
+                ^FontRenderer$Params render-params (get-in font-map [:native-renderer-spec :render-params])]
+            (is (= (:sdf-spread font-map) (.-sdfSpread render-params)))
+            (is (= (:sdf-outline font-map) (.-sdfOutline render-params)))
+            (is (= (:sdf-shadow font-map) (.-sdfShadow render-params)))))))))
 
 (deftest static-native-preview-character-set
   (test-util/with-loaded-project

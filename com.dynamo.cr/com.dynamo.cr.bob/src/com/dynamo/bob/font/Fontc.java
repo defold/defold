@@ -210,8 +210,7 @@ public class Fontc {
     }
 
     private static float calculateNativeSdfLimit(float padding, float width) {
-        float baseEdge = sdfEdge * 255.0f;
-        return (baseEdge - (FontRenderer.DEFAULT_SDF_EDGE_VALUE / padding) * width) / 255.0f;
+        return sdfEdge - 0.25f * width / padding;
     }
 
     private ArrayList<Integer> getRequestedCharacters() {

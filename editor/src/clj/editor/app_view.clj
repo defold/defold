@@ -58,6 +58,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.icons :as icons]
             [editor.keymap :as keymap]
+            [editor.launcher :as launcher]
             [editor.library :as library]
             [editor.live-update-settings :as live-update-settings]
             [editor.localization :as localization]
@@ -105,10 +106,8 @@
             [util.profiler :as profiler]
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
-           [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
-           [java.lang.management ManagementFactory]
            [java.net SocketTimeoutException URL]
            [java.time LocalTime]
            [java.time.format DateTimeFormatter]
@@ -663,23 +662,6 @@
     (let [^Stage main-stage (ui/main-stage)]
       (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST)))))
 
-(defn- start-launcher! []
-  (if (system/defold-dev?)
-    (apply process/start!
-           {:dir (System/getProperty "user.dir")
-            :out :inherit
-            :err :inherit}
-           (str (io/file (System/getProperty "java.home") "bin" (if (os/is-win32?) "java.exe" "java")))
-           (into (vec (.getInputArguments (ManagementFactory/getRuntimeMXBean)))
-                 ["-cp" (System/getProperty "java.class.path") "com.defold.editor.Main"]))
-    (let [resources-path (system/defold-resourcespath)]
-      (process/start!
-        {:dir (.getCanonicalFile
-                (case (.getOs (Platform/getHostPlatform))
-                  "macos" (io/file resources-path "../../")
-                  ("linux" "win32") (io/file resources-path)))}
-        (system/defold-launcherpath)))))
-
 (defn store-window-dimensions [^Stage stage prefs]
   (let [dims    {:x           (.getX stage)
                  :y           (.getY stage)
@@ -919,6 +901,11 @@
 (defn- build-in-progress? []
   @build-in-progress-atom)
 
+(def ^:private bob-task-in-progress-atom (atom false))
+
+(defn- bob-task-in-progress? []
+  @bob-task-in-progress-atom)
+
 (declare async-save!)
 
 (defn- async-reload-on-app-focus? [prefs]
@@ -933,7 +920,7 @@
 
 (defn- can-async-save? []
   (and (disk-availability/available?)
-       (not (bob/build-in-progress?))))
+       (not (bob-task-in-progress?))))
 
 (defn async-reload!
   [app-view changes-view workspace moved-files]
@@ -1646,7 +1633,7 @@
     (PipedOutputStream. in)))
 
 (defn invoke-bob! [app-view project changes-view build-errors-view prefs options commands]
-  (if-not (disk-availability/try-push-busy!)
+  (if-not (compare-and-set! bob-task-in-progress-atom false true)
     {:error (g/error-fatal (localization/message "error.bob.project-operation-in-progress"))}
     (try
       (let [evaluation-context (g/make-evaluation-context)
@@ -1672,7 +1659,7 @@
           (ui/run-now (render-build-error! error)))
         build-results)
       (finally
-        (disk-availability/pop-busy!)))))
+        (reset! bob-task-in-progress-atom false)))))
 
 (defn- build-html5! [app-view project prefs web-server build-errors-view changes-view bob-commands]
   (future/io
@@ -1988,7 +1975,7 @@
   (run [] (ui/reload-root-styles!)))
 
 (handler/defhandler :file.open-project :global
-  (run [] (start-launcher!)))
+  (run [] (launcher/start!)))
 
 (handler/register-menu! ::menubar
   [{:label (localization/message "menu.file")
@@ -3075,7 +3062,7 @@
 (defn- restart-defold! [^Stage stage prefs]
   (store-window-state! stage prefs)
   (ui/close! stage)
-  (start-launcher!))
+  (launcher/start!))
 
 (handler/defhandler :app.restart :global
   (run [app-view changes-view project prefs localization]
@@ -3119,12 +3106,12 @@
                 :text (localization (localization/message "dialog.save-and-upgrade.version-control.info.after-manual"))}]}))
 
 (handler/defhandler :file.save-all :global
-  (enabled? [] (not (bob/build-in-progress?)))
+  (enabled? [] (not (bob-task-in-progress?)))
   (run [app-view changes-view project prefs]
     (async-save! app-view changes-view project prefs project/dirty-save-data)))
 
 (handler/defhandler :file.save-and-upgrade-all :global
-  (enabled? [] (not (bob/build-in-progress?)))
+  (enabled? [] (not (bob-task-in-progress?)))
   (run [app-view changes-view project prefs workspace localization]
     (let [git (g/node-value changes-view :git)]
       (when (and

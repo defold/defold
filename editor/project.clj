@@ -91,7 +91,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.10.361"
+                     [cljfx "1.10.362"
                       :exclusions [org.clojure/clojure
                                    org.openjfx/javafx-base
                                    org.openjfx/javafx-graphics
@@ -277,7 +277,7 @@
                                :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading"]
                                :injections [(require 'editor.reveal)]
                                :dependencies [[vlaaad/reveal "1.3.312"]
-                                              [org.openjfx/javafx-web "25"]]
+                                              [org.openjfx/javafx-web "27"]]
                                :repl-options {:nrepl-middleware [vlaaad.reveal.nrepl/middleware]}}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]
@@ -297,49 +297,49 @@
                       :no-spec-asserts {:jvm-opts ["-Dclojure.spec.compile-asserts=false"]}
                       :performance [:no-decorated-exceptions :no-schemas :no-spec-asserts]
                       :16gb {:jvm-opts ["-Xmx16g"]}
-                      :x86_64-linux {:dependencies [[org.openjfx/javafx-base "25" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-controls "25" :classifier "linux" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-graphics "25" :classifier "linux" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-media "25" :classifier "linux" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-fxml "25" :classifier "linux" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                    [org.openjfx/javafx-swing "25" :classifier "linux" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :x86_64-linux {:dependencies [[org.openjfx/javafx-base "27" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-controls "27" :classifier "linux" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-graphics "27" :classifier "linux" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-media "27" :classifier "linux" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-fxml "27" :classifier "linux" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                    [org.openjfx/javafx-swing "27" :classifier "linux" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
                                      :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-linux/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:dll|dylib)$"]
                                      :uberjar-name "editor-x86_64-linux-standalone.jar"}
-                      :x86_64-win32 {:dependencies [[org.openjfx/javafx-base "25" :classifier "win" :exclusions [org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-controls "25" :classifier "win" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-graphics "25" :classifier "win" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-media "25" :classifier "win" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-fxml "25" :classifier "win" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                    [org.openjfx/javafx-swing "25" :classifier "win" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :x86_64-win32 {:dependencies [[org.openjfx/javafx-base "27" :classifier "win" :exclusions [org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-controls "27" :classifier "win" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-graphics "27" :classifier "win" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-media "27" :classifier "win" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-fxml "27" :classifier "win" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                    [org.openjfx/javafx-swing "27" :classifier "win" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
                                      :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-win32/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:so|dylib)$"]
                                      :uberjar-name "editor-x86_64-win32-standalone.jar"}
-                      :x86_64-macos {:dependencies [[org.openjfx/javafx-base "25" :classifier "mac" :exclusions [org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-controls "25" :classifier "mac" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-graphics "25" :classifier "mac" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-media "25" :classifier "mac" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-fxml "25" :classifier "mac" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                    [org.openjfx/javafx-swing "25" :classifier "mac" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :x86_64-macos {:dependencies [[org.openjfx/javafx-base "27" :classifier "mac" :exclusions [org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-controls "27" :classifier "mac" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-graphics "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-media "27" :classifier "mac" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-fxml "27" :classifier "mac" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                    [org.openjfx/javafx-swing "27" :classifier "mac" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
                                      :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:so|dll)$"]
                                      :uberjar-name "editor-x86_64-macos-standalone.jar"}
-                      :arm64-macos {:dependencies [[org.openjfx/javafx-base "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-base]]
-                                                   [org.openjfx/javafx-controls "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                   [org.openjfx/javafx-graphics "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                   [org.openjfx/javafx-media "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                   [org.openjfx/javafx-fxml "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                   [org.openjfx/javafx-swing "25" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :arm64-macos {:dependencies [[org.openjfx/javafx-base "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-base]]
+                                                   [org.openjfx/javafx-controls "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                   [org.openjfx/javafx-graphics "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                   [org.openjfx/javafx-media "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                   [org.openjfx/javafx-fxml "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                   [org.openjfx/javafx-swing "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!arm64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                          #"^[^/]+\.(?:so|dll)$"]
                                     :uberjar-name "editor-arm64-macos-standalone.jar"}
                       :dev     {:dependencies      [;; generic javafx dep picks up natives for the current platform
-                                                    [org.openjfx/javafx-base "25"]
-                                                    [org.openjfx/javafx-controls "25"]
-                                                    [org.openjfx/javafx-graphics "25"]
-                                                    [org.openjfx/javafx-media "25"]
-                                                    [org.openjfx/javafx-fxml "25"]
-                                                    [org.openjfx/javafx-swing "25"]
+                                                    [org.openjfx/javafx-base "27"]
+                                                    [org.openjfx/javafx-controls "27"]
+                                                    [org.openjfx/javafx-graphics "27"]
+                                                    [org.openjfx/javafx-media "27"]
+                                                    [org.openjfx/javafx-fxml "27"]
+                                                    [org.openjfx/javafx-swing "27"]
                                                     [nrepl/nrepl "1.7.0"]
                                                     [cider/cider-nrepl "0.62.2"]
                                                     [com.clojure-goes-fast/clj-async-profiler "2.0.0-beta1"]

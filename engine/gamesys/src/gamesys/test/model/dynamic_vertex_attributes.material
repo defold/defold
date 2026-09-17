@@ -12,3 +12,50 @@ attributes {
     v: 1.0
   }
 }
+attributes {
+  name: "custom_transform"
+  vector_type: VECTOR_TYPE_MAT4
+  double_values {
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "custom_mat3"
+  vector_type: VECTOR_TYPE_MAT3
+  double_values {
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 1.0
+  }
+}
+attributes {
+  name: "custom_mat2"
+  vector_type: VECTOR_TYPE_MAT2
+  double_values {
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 1.0
+  }
+}

@@ -232,7 +232,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     params.m_ShadowX = c.m_ShadowX;
     params.m_ShadowY = c.m_ShadowY;
     params.m_SdfSpread = 3 + c.m_Outline + ceilf(3 * c.m_ShadowBlur);
-    params.m_SdfOutline = .75f - (191.0f / 255) * c.m_Outline / params.m_SdfSpread;
+    params.m_SdfOutline = .75f - FONT_SDF_DISTANCE_SCALE * c.m_Outline / params.m_SdfSpread;
     params.m_SdfShadow = .75f;
     params.m_IsDynamic = !baked;
     dmRender::HFontMap map = resources.m_Map = dmRender::NewFontMap(render, context, params);

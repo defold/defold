@@ -19,13 +19,14 @@
 #include <dlib/array.h>
 #include <graphics/graphics.h>
 
-// Fixed capture coordinates shared with the patched-stable fixture generator.
+// Fixed capture coordinates shared with the reference fixtures.
+// Origins may lie outside the target when capturing a tight glyph rectangle.
 struct FontImageCaptureGeometry
 {
     uint32_t m_Width;
     uint32_t m_Height;
-    uint32_t m_OriginX;
-    uint32_t m_OriginTop;
+    int32_t  m_OriginX;
+    int32_t  m_OriginTop;
     uint32_t m_LayoutWidth;
 };
 
@@ -33,6 +34,12 @@ extern const FontImageCaptureGeometry g_Capture_single_line;
 extern const FontImageCaptureGeometry g_Capture_vector;
 extern const FontImageCaptureGeometry g_Capture_english;
 extern const FontImageCaptureGeometry g_Capture_arabic;
+extern const FontImageCaptureGeometry g_Capture_ttf_edge_half;
+extern const FontImageCaptureGeometry g_Capture_ttf_edge_one;
+extern const FontImageCaptureGeometry g_Capture_ttf_edge_two;
+extern const FontImageCaptureGeometry g_Capture_otf_edge_half;
+extern const FontImageCaptureGeometry g_Capture_otf_edge_one;
+extern const FontImageCaptureGeometry g_Capture_otf_edge_two;
 
 struct FontImageCase
 {
@@ -50,6 +57,7 @@ struct FontImageCase
     bool  m_Multi;
     bool  m_Markup;
     bool  m_Change;
+    float m_EdgeScale; // Nonzero selects an 8x edge capture at this screen scale.
 };
 
 // Test-only bridge to the production Vector backend. The graphics context is borrowed.

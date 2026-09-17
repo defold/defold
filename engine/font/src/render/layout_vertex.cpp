@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "layout_vertex.h"
+#include "../font.h"
 #include "text_layout.h"
 
 #include <string.h>
@@ -504,7 +505,7 @@ void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
         if (config.m_SdfSpread > 0.0f &&
             (config.m_BaseLayerMask != FONT_RENDER_LAYER_FACE || width < config.m_OutlineWidth))
         {
-            layer_data->m_SdfOutline = config.m_SdfEdge - (191.0f / 255.0f) * width / config.m_SdfSpread;
+            layer_data->m_SdfOutline = config.m_SdfEdge - FONT_SDF_DISTANCE_SCALE * width / config.m_SdfSpread;
         }
         layer_data->m_OutlineWidth = width * glyph.m_RenderScale;
     }
@@ -513,7 +514,7 @@ void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
         float width = config.m_OutlineWidth;
         if (width <= 0.0f && config.m_SdfSpread > 0.0f)
         {
-            width = dmMath::Max(0.0f, config.m_SdfEdge - config.m_SdfOutline) * config.m_SdfSpread / (191.0f / 255.0f);
+            width = dmMath::Max(0.0f, config.m_SdfEdge - config.m_SdfOutline) * config.m_SdfSpread / FONT_SDF_DISTANCE_SCALE;
         }
         layer_data->m_OutlineWidth = width * glyph.m_RenderScale;
     }
@@ -558,7 +559,7 @@ void FontResolveGlyphLayerRenderData(const FontLayoutVertexConfig& config,
         else if (!use_baked_shadow && config.m_SdfSpread > 0.0f)
         {
             const float blur = dmMath::Min(requested_blur, config.m_ShadowBlur);
-            layer_data->m_SdfShadow = config.m_SdfEdge - (191.0f / 255.0f) * blur / config.m_SdfSpread;
+            layer_data->m_SdfShadow = config.m_SdfEdge - FONT_SDF_DISTANCE_SCALE * blur / config.m_SdfSpread;
         }
 
         // Rich distance-field shadows are derived from face distance, not the

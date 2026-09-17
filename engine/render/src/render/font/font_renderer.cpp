@@ -34,6 +34,7 @@
 #include "font_renderer_api.h"      // for the font renderer backend api
 
 #include <dmsdk/font/text_layout.h>
+#include <font/font.h>
 #include <font_render.h>
 #include <font/render/glyph_vertex.h>
 #include <font/render/layout_vertex.h>
@@ -476,7 +477,7 @@ namespace dmRender
         config.m_DecorationV = decoration_cache ? (decoration_cache->m_Y + 0.5f) * recip_h : 0.0f;
         config.m_SdfEdge = 0.75f;
         config.m_SdfOutline = font_map->m_SdfOutline;
-        config.m_SdfSmoothing = 0.25f / (font_map->m_SdfSpread * sdf_scale);
+        config.m_SdfSmoothing = FONT_SDF_DISTANCE_SCALE / (font_map->m_SdfSpread * sdf_scale);
         config.m_SdfShadow = font_map->m_SdfShadow;
         config.m_SdfSpread = font_map->m_SdfSpread;
         config.m_OutlineWidth = font_map->m_OutlineWidth;

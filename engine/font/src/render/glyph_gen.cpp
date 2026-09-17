@@ -13,6 +13,9 @@
 // specific language governing permissions and limitations under the License.
 
 #include "glyph_gen.h"
+#include "../font.h"
+#include "../font_sdf.h"
+#include "../font_ttf.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -35,10 +38,10 @@ FontGlyphGenParams::FontGlyphGenParams()
 {
 }
 
-static float CalcSdfValueU8(float padding, float width, uint8_t edge_value)
+static float CalcSdfValueU8(float padding, float width)
 {
     const float base_edge = SDF_EDGE * 255.0f;
-    const float pixel_dist_scale = (float)edge_value / padding;
+    const float pixel_dist_scale = FONT_SDF_DISTANCE_SCALE * 255.0f / padding;
     return base_edge - pixel_dist_scale * width;
 }
 
@@ -197,7 +200,17 @@ FontResult FontGenerateGlyph(HFont font, uint32_t glyph_index, const FontGlyphGe
     options.m_StbttSDFPadding = params->m_SdfPadding;
     options.m_StbttSDFOnEdgeValue = params->m_SdfEdgeValue;
 
-    FontResult result = FontGetGlyphByIndex(font, glyph_index, &options, glyph);
+    FontResult result;
+    if (params->m_OutputBitmap && (FontGetType(font) == FONT_TYPE_TTF || FontGetType(font) == FONT_TYPE_OTF))
+    {
+        FontSDFParams image_params = { params->m_Scale, params->m_SdfPadding, params->m_SdfEdgeValue,
+                                       true, params->m_OutlineWidth, params->m_Antialias };
+        result = FontGetGlyphTTF(font, glyph_index, &options, &image_params, glyph);
+    }
+    else
+    {
+        result = FontGetGlyphByIndex(font, glyph_index, &options, glyph);
+    }
     if (result != FONT_RESULT_OK || glyph->m_Bitmap.m_Data == 0)
         return result;
 
@@ -241,7 +254,7 @@ static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* param
     const uint32_t height = glyph->m_Bitmap.m_Height;
     const bool     has_outline_data = params->m_OutlineWidth > 0.0f;
     const uint32_t channels = FontGetGlyphChannelCount(params->m_OutputBitmap, has_outline_data, params->m_HasShadow, params->m_ShadowBlur);
-    if (channels == 1 && !params->m_OutputBitmap)
+    if (channels == 1 && !outline_sdf)
         return FONT_RESULT_OK;
     const uint64_t pixel_count = (uint64_t)width * height * channels;
     if (pixel_count > UINT32_MAX)
@@ -258,21 +271,24 @@ static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* param
         return FONT_RESULT_ERROR;
     }
 
-    const float pixel_dist_scale = (float)params->m_SdfEdgeValue / params->m_SdfPadding;
-    const float outline_edge = CalcSdfValueU8(params->m_SdfPadding, params->m_OutlineWidth, params->m_SdfEdgeValue);
+    const float pixel_dist_scale = FONT_SDF_DISTANCE_SCALE * 255.0f / params->m_SdfPadding;
+    const float outline_edge = CalcSdfValueU8(params->m_SdfPadding, params->m_OutlineWidth);
+    const uint32_t source_channels = glyph->m_Bitmap.m_Channels;
     for (uint32_t y = 0; y < height; ++y)
     {
         for (uint32_t x = 0; x < width; ++x)
         {
-            const uint8_t  value = glyph->m_Bitmap.m_Data[y * width + x];
+            const uint8_t  value = glyph->m_Bitmap.m_Data[(y * width + x) * source_channels];
             const uint32_t offset = (y * width + x) * channels;
             if (params->m_OutputBitmap)
             {
-                const uint8_t face_coverage = SdfCoverage(value, params->m_SdfEdgeValue, pixel_dist_scale, params->m_Antialias);
+                const uint8_t face_coverage = outline_sdf ? SdfCoverage(value, params->m_SdfEdgeValue, pixel_dist_scale, params->m_Antialias) : value;
                 rgb[offset + 0] = face_coverage;
                 if (channels == 3)
                 {
-                    const uint8_t outline_coverage = has_outline_data ? SdfCoverage(value, outline_edge, pixel_dist_scale, params->m_Antialias) : 0;
+                    const uint8_t outline_coverage = !has_outline_data ? 0 : outline_sdf
+                        ? SdfCoverage(value, outline_edge, pixel_dist_scale, params->m_Antialias)
+                        : glyph->m_Bitmap.m_Data[(y * width + x) * source_channels + 1];
                     // Vector outlines keep the distance field so the shader
                     // can reconstruct coverage at the final screen scale.
                     rgb[offset + 1] = outline_sdf ? value : outline_coverage;

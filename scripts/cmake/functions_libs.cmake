@@ -448,11 +448,15 @@ function(defold_attach_local_include target)
   # Add include directory for compilation
   target_include_directories(${target} PRIVATE "${_inc_dir}")
 
-  # Add headers to the target's sources so IDEs show them.
-  file(GLOB_RECURSE _headers CONFIGURE_DEPENDS
-       "${_inc_dir}/*.h" "${_inc_dir}/*.hpp" "${_inc_dir}/*.hh" "${_inc_dir}/*.hxx" "${_inc_dir}/*.inl" "${_inc_dir}/*.inc")
-  if(_headers)
-    target_sources(${target} PRIVATE ${_headers})
+  # IDE projects need headers in their source tree. Command-line generators
+  # track included headers through compiler dependencies, without regenerating
+  # the build graph when installation adds SDK headers to this directory.
+  if(CMAKE_GENERATOR MATCHES "Xcode|Visual Studio")
+    file(GLOB_RECURSE _headers CONFIGURE_DEPENDS
+         "${_inc_dir}/*.h" "${_inc_dir}/*.hpp" "${_inc_dir}/*.hh" "${_inc_dir}/*.hxx" "${_inc_dir}/*.inl" "${_inc_dir}/*.inc")
+    if(_headers)
+      target_sources(${target} PRIVATE ${_headers})
+    endif()
   endif()
 endfunction()
 
