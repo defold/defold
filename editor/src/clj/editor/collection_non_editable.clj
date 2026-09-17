@@ -322,23 +322,23 @@
   (output node-outline outline/OutlineData produce-node-outline)
   (output scene g/Any produce-scene))
 
-(defn- sanitize-non-editable-collection [workspace collection-desc]
+(defn- sanitize-non-editable-collection [workspace read-opts owner-resource collection-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
-    (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type)))
+    (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type read-opts owner-resource)))
 
 (defn- string-encode-non-editable-collection [workspace collection-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
 
-(defn- load-non-editable-collection [_project self resource collection-desc]
+(defn- load-non-editable-collection [_load-opts {:keys [owner-resource] self :node-id collection-desc :source-value}]
   ;; Validate the collection-desc.
   ;; We want to throw an exception if we encounter corrupt data to ensure our
   ;; node gets marked defective at load-time.
   (doseq [embedded-instance-desc (:embedded-instances collection-desc)]
-    (collection-string-data/verify-string-decoded-embedded-instance-desc! embedded-instance-desc resource)
+    (collection-string-data/verify-string-decoded-embedded-instance-desc! embedded-instance-desc owner-resource)
     (let [prototype-desc (:data embedded-instance-desc)]
       (doseq [embedded-component-desc (:embedded-components prototype-desc)]
-        (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc resource))))
+        (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc owner-resource))))
 
   (g/set-property self :collection-desc collection-desc))
 

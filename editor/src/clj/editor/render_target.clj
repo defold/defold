@@ -173,7 +173,7 @@
                                                    (g/->error _node-id :depth-stencil-attachment-height :fatal depth-stencil-attachment-height
                                                               (localization/message "error.render-target.depth-stencil-width-must-be-greater-than-zero-if-height-is")))))))
 
-(defn load-render-target [_project self _resource render-target-desc]
+(defn load-render-target [_load-opts {self :node-id render-target-desc :source-value}]
   {:pre [(map? render-target-desc)]} ; RenderTarget$RenderTargetDesc in map format.
   ;; Inject any missing defaults into the stripped pb-map for form-view editing.
   (let [render-target-desc (protobuf/inject-defaults RenderTarget$RenderTargetDesc render-target-desc)
@@ -190,7 +190,7 @@
 
 (def ^:private default-pb-depth-stencil-attachment (protobuf/required-field-defaults RenderTarget$RenderTargetDesc$DepthStencilAttachment))
 
-(defn- sanitize-render-target [render-target-desc]
+(defn- sanitize-render-target [_read-opts _owner-resource render-target-desc]
   {:pre [(map? render-target-desc)]} ; RenderTarget$RenderTargetDesc in map format.
   (-> render-target-desc
       (update :depth-stencil-attachment fn/or default-pb-depth-stencil-attachment)))

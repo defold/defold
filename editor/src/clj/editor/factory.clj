@@ -87,12 +87,12 @@
          [(resource/proj-path prototype)])]))
 
 (defn load-factory
-  [factory-type _project self resource any-factory-desc]
+  [factory-type _load-opts {:keys [owner-resource] self :node-id any-factory-desc :source-value}]
   {:pre [(contains? factory-types factory-type)
          (map? any-factory-desc)]} ; GameSystem$FactoryDesc or GameSystem$CollectionFactoryDesc in map format.
   (let [pb-class (:pb-type (get factory-types factory-type))
         basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+        resolve-resource #(workspace/resolve-resource basis owner-resource %)]
     (into [(g/set-property self :factory-type factory-type)]
           (gu/set-properties-from-pb-map self pb-class any-factory-desc
             prototype (resolve-resource :prototype)

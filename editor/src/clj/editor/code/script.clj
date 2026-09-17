@@ -754,7 +754,7 @@
       cat
       (distinct))))
 
-(defn- additional-load-fn [project self _resource]
+(defn- additional-load-fn [{:keys [project]} {self :node-id}]
   (g/with-auto-evaluation-context evaluation-context
     (let [code-preprocessors (project/code-preprocessors project evaluation-context)
           script-intelligence (project/script-intelligence project evaluation-context)]

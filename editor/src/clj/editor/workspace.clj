@@ -270,12 +270,22 @@ ordinary paths."
                         connection transaction steps, invoked when the resource
                         shell is added to the project and before any resource
                         load-fns run
-    :load-fn            a function from project, new node id and resource to
-                        transaction step, invoked on loading the resource of
-                        the type; default editor.placeholder-resource/load-node
-    :read-fn            a fn from clojure.java.io/reader-able object (e.g.
-                        a resource or a Reader) to a data structure
-                        representation of the resource (a source value)
+    :load-fn            a function from load-opts and node-load-info to
+                        transaction steps, invoked on loading the resource. The
+                        load-opts map is shared across a load batch and contains
+                        :project. The node-load-info is returned by
+                        editor.defold-project/read-node-load-info and includes
+                        :node-id, :owner-resource, :resource and, when read,
+                        :source-value. Resolve paths against :owner-resource;
+                        read contents from :resource. For embedded resources,
+                        :owner-resource is the containing file resource and
+                        :resource is the MemoryResource being loaded.
+    :read-fn            a fn from read-opts, owner-resource and a readable to a
+                        source-value. The readable can be a resource, stream or
+                        reader. Embedded values retain their containing resource
+                        as owner; ownerless templates use nil. Protobuf readers
+                        also apply the registered :sanitize-fn.
+                        See make-read-opts for details about read-opts.
     :write-fn           a fn from a data representation of the resource
                         (a save-value) to string
     :source-value-fn    a fn from a save-value to whatever you want to cache as
@@ -594,9 +604,11 @@ ordinary paths."
      (let [{:keys [read-fn write-fn]} resource-type]
        (if (and read-fn write-fn)
          ;; Sanitize the template.
-         (write-fn
-           (with-open [reader (io/reader resource)]
-             (read-fn reader)))
+         (let [read-opts (make-read-opts basis workspace)
+               owner-resource (when (resource/resource? resource) resource)]
+           (write-fn
+             (with-open [reader (io/reader resource)]
+               (read-fn read-opts owner-resource reader))))
 
          ;; Just read the file as-is.
          (with-open [reader (io/reader resource)]

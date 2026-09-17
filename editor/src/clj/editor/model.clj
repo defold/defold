@@ -678,9 +678,9 @@
   (when (migrated? model-node-id model-desc evaluation-context)
     (g/flag-nodes-as-migrated! evaluation-context [model-node-id])))
 
-(defn load-model [_project self resource {:keys [materials] :as model-desc}]
+(defn load-model [_load-opts {:keys [owner-resource] self :node-id {:keys [materials] :as model-desc} :source-value}]
   (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+        resolve-resource #(workspace/resolve-resource basis owner-resource %)]
     (concat
       (gu/set-properties-from-pb-map self ModelProto$ModelDesc model-desc
         name :name
@@ -702,7 +702,7 @@
         materials)
       (g/callback-ec detect-and-flag-migrated! self model-desc))))
 
-(defn- sanitize-model [{:keys [material textures materials] :as model-desc}]
+(defn- sanitize-model [_read-opts _owner-resource {:keys [material textures materials] :as model-desc}]
   {:pre [(map? model-desc)]} ; ModelProto$ModelDesc in map format.
   (-> model-desc
       (dissoc :material :textures)

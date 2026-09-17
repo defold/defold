@@ -4207,7 +4207,7 @@
 (def ^:private default-font-proj-path "/builtins/fonts/default.font")
 (def ^:private default-material-proj-path (protobuf/default Gui$SceneDesc :material))
 
-(defn load-gui-scene [project self resource scene]
+(defn load-gui-scene [{:keys [project]} {:keys [owner-resource resource] self :node-id scene :source-value}]
   {:pre [(map? scene)]} ; Gui$SceneDesc in map format.
   (let [workspace (resource/workspace resource)
         basis (g/now)
@@ -4279,7 +4279,7 @@
                                               (pair importing-id nil))))]
                     (when (pos? (count imported-id->prop->override))
                       (pair importing-id imported-id->prop->override))))))
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+        resolve-resource #(workspace/resolve-resource basis owner-resource %)]
     (concat
       ;; TODO(save-value-cleanup): We could use set-properties-from-pb-map when setting Gui$NodeDesc properties as well.
       (gu/set-properties-from-pb-map self Gui$SceneDesc scene
@@ -4566,7 +4566,7 @@
       (dissoc :spine-scene)
       (assoc :path (:spine-scene spine-scene-desc))))
 
-(defn- sanitize-scene [workspace scene]
+(defn- sanitize-scene [workspace _read-opts _owner-resource scene]
   (let [resource-types (workspace/get-resource-type-map workspace :editable)
         gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
         spine-scene-descs (mapv spine-scene-desc->resource-desc

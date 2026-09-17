@@ -45,13 +45,13 @@
    [:resource-property-build-targets :other-resource-property-build-targets]
    [:scene :referenced-component-scenes]])
 
-(defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data project]
+(defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data {:keys [project] :as load-opts} owner-resource]
   (let [embedded-resource-ext (:type embedded-component-resource-data)
         embedded-resource-pb-map (:data embedded-component-resource-data)
         embedded-resource (project/make-embedded-resource project :non-editable embedded-resource-ext embedded-resource-pb-map)
         embedded-resource-node-type (project/resource-node-type embedded-resource)]
     (g/make-nodes [embedded-resource-node-id [embedded-resource-node-type :resource embedded-resource]]
-      (project/load-embedded-resource-node project embedded-resource-node-id embedded-resource embedded-resource-pb-map)
+      (project/load-embedded-resource-node load-opts owner-resource embedded-resource-node-id embedded-resource embedded-resource-pb-map)
       (gu/connect-existing-outputs embedded-resource-node-type embedded-resource-node-id host-node-id embedded-component-connections))))
 
 (g/defnk produce-embedded-component-resource-data->scene-index [embedded-component-resource-data->index resource]
@@ -101,10 +101,12 @@
 
 (defn data->index-setter [evaluation-context self new-value old-sources-input-label add-resource-node-fn]
   (let [basis (:basis evaluation-context)
-        project (project/get-project basis)]
+        owner-resource (resource-node/owner-resource basis self)
+        load-opts (g/tx-cached-value! evaluation-context [:load-opts]
+                    (project/make-load-opts (project/get-project basis)))]
     (into (delete-connected-nodes-tx-data basis self old-sources-input-label)
           (mapcat (fn [[data]]
-                    (add-resource-node-fn self data project)))
+                    (add-resource-node-fn self data load-opts owner-resource)))
           (sort-by val new-value))))
 
 (defn connect-referenced-resources-tx-data [evaluation-context self new-value old-sources-input-label resource-connections]
@@ -328,20 +330,20 @@
   (output node-outline outline/OutlineData produce-node-outline)
   (output scene g/Any produce-scene))
 
-(defn- sanitize-non-editable-game-object [workspace prototype-desc]
+(defn- sanitize-non-editable-game-object [workspace read-opts owner-resource prototype-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
-    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type)))
+    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type read-opts owner-resource)))
 
 (defn- string-encode-non-editable-game-object [workspace prototype-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (collection-string-data/string-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
 
-(defn- load-non-editable-game-object [_project self resource prototype-desc]
+(defn- load-non-editable-game-object [_load-opts {:keys [owner-resource] self :node-id prototype-desc :source-value}]
   ;; Validate the prototype-desc.
   ;; We want to throw an exception if we encounter corrupt data to ensure our
   ;; node gets marked defective at load-time.
   (doseq [embedded-component-desc (:embedded-components prototype-desc)]
-    (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc resource))
+    (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc owner-resource))
 
   (g/set-property self :prototype-desc prototype-desc))
 

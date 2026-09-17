@@ -1214,12 +1214,11 @@
             mod-types))))
 
 (defn- make-emitter
-  ([self emitter]
-   (make-emitter self emitter nil false))
-  ([self emitter select-fn resolve-id?]
-   (let [project (project/get-project)
-         workspace (project/workspace project)
-         resolve-resource #(workspace/resolve-workspace-resource workspace %)]
+  ([self owner-resource emitter]
+   (make-emitter self owner-resource emitter nil false))
+  ([self owner-resource emitter select-fn resolve-id?]
+   (let [basis (g/now)
+         resolve-resource #(workspace/resolve-resource basis owner-resource %)]
      (g/make-nodes [emitter-node EmitterNode]
        (gu/set-properties-from-pb-map emitter-node Particle$Emitter emitter
          position :position
@@ -1265,11 +1264,13 @@
 
 (defn- add-emitter-handler [self type select-fn]
   (when-let [resource (io/resource emitter-template)]
-    (let [emitter (protobuf/read-map-without-defaults Particle$Emitter resource)]
+    (let [basis (g/now)
+          owner-resource (resource-node/owner-resource basis self)
+          emitter (protobuf/read-map-without-defaults Particle$Emitter resource)]
       (g/transact
         (concat
           (g/operation-label (localization/message "operation.particlefx.add-emitter"))
-          (make-emitter self (assoc emitter :type type) select-fn true))))))
+          (make-emitter self owner-resource (assoc emitter :type type) select-fn true))))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection evaluation-context] (selection->particlefx selection evaluation-context))
@@ -1338,12 +1339,12 @@
                       :emitter-key-size-y new-y
                       :emitter-key-size-z new-z)}))
 
-(defn load-particle-fx [project self _resource pb]
+(defn load-particle-fx [{:keys [project]} {:keys [owner-resource] self :node-id pb :source-value}]
   (concat
     (g/connect project :settings self :project-settings)
     (g/connect project :default-tex-params self :default-tex-params)
     (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
-    (map (partial make-emitter self)
+    (map (partial make-emitter self owner-resource)
          (:emitters pb))
     (map (partial make-modifier self)
          (:modifiers pb)
@@ -1371,7 +1372,7 @@
   ;; the editor?
   (update modifier :properties #(or (not-empty %) (get-in mod-types [(:type modifier) :template :properties]))))
 
-(defn- sanitize-particle-fx [particle-fx]
+(defn- sanitize-particle-fx [_read-opts _owner-resource particle-fx]
   ;; Particle$ParticleFX in map format.
   (-> particle-fx
       (protobuf/sanitize-repeated :emitters sanitize-emitter)

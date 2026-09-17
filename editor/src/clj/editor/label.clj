@@ -349,10 +349,10 @@
   (output gpu-texture g/Any :cached (g/fnk [_node-id gpu-texture tex-params]
                                       (texture/set-params gpu-texture tex-params))))
 
-(defn load-label [_project self resource label]
+(defn load-label [_load-opts {:keys [owner-resource] self :node-id label :source-value}]
   {:pre [(map? label)]} ; Label$LabelDesc in map format.
   (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+        resolve-resource #(workspace/resolve-resource basis owner-resource %)]
     (gu/set-properties-from-pb-map self Label$LabelDesc label
       text :text
       style :style
@@ -369,7 +369,7 @@
       font (resolve-resource :font)
       material (resolve-resource :material))))
 
-(defn- sanitize-label [label-desc]
+(defn- sanitize-label [_read-opts _owner-resource label-desc]
   (let [legacy-scale-v3 (some-> label-desc :scale protobuf/vector4->vector3)
         sanitized-label (protobuf/sanitize label-desc :size protobuf/sanitize-required-vector4-zero-as-vector3)
         sanitized-label (if (scene/significant-scale? legacy-scale-v3)

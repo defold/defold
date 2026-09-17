@@ -166,9 +166,9 @@
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn- load-render [_project self resource render-ddf]
+(defn- load-render [_load-opts {:keys [owner-resource] self :node-id render-ddf :source-value}]
   (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)
+        resolve-resource #(workspace/resolve-resource basis owner-resource %)
         {script-path :script render-resources :render-resources} render-ddf]
     (concat
       (g/set-property self :script (resolve-resource script-path))
@@ -176,7 +176,7 @@
         (let [render-resource (resolve-resource path)]
           (make-named-render-resource-node self name render-resource))))))
 
-(defn- sanitize-render [render-ddf]
+(defn- sanitize-render [_read-opts _owner-resource render-ddf]
   (let [migrated-materials (mapv (fn [material-desc]
                                    {:name (:name material-desc)
                                     :path (:material material-desc)})

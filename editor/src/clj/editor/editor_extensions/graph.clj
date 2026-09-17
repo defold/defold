@@ -1013,14 +1013,14 @@
       attachment)))
 
 (defmulti create-extra-nodes
-  (fn create-extra-nodes-dispatch-fn [evaluation-context _rt _project _workspace _attachment node-id]
+  (fn create-extra-nodes-dispatch-fn [evaluation-context _rt _project _workspace _attachment _parent-node-id node-id]
     (g/node-type-kw (:basis evaluation-context) node-id)))
 
-(defmethod create-extra-nodes :default [_evaluation-context _rt _project _workspace _attachment _node-id])
+(defmethod create-extra-nodes :default [_evaluation-context _rt _project _workspace _attachment _parent-node-id _node-id])
 
 (defn- construct-and-init-attachment [rt project workspace attachment parent-node-id child-node-id]
   (concat
-    (g/expand-ec create-extra-nodes rt project workspace attachment child-node-id)
+    (g/expand-ec create-extra-nodes rt project workspace attachment parent-node-id child-node-id)
     (g/expand-ec init-attachment-without-list-properties rt project workspace attachment parent-node-id child-node-id)))
 
 (defn- add-child-attachments [evaluation-context rt project workspace attachment node-id]

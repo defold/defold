@@ -494,10 +494,10 @@
                                                         (update :properties into p)
                                                         (update :display-order into (map first p)))))))
 
-(defn- load-mesh [_project self resource pb]
+(defn- load-mesh [_load-opts {:keys [owner-resource] self :node-id pb :source-value}]
   {:pre [(map? pb)]} ; MeshProto$MeshDesc in map format.
   (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)
+        resolve-resource #(workspace/resolve-resource basis owner-resource %)
         resolve-resources #(mapv resolve-resource %)]
     (gu/set-properties-from-pb-map self MeshProto$MeshDesc pb
       primitive-type :primitive-type

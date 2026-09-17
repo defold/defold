@@ -553,17 +553,17 @@
 
 (def ^:private default-material-proj-path (protobuf/default Tile$TileGrid :material))
 
-(defn- sanitize-tile-map [{:keys [material] :as tile-grid}]
+(defn- sanitize-tile-map [_read-opts _owner-resource {:keys [material] :as tile-grid}]
   {:pre [(map? tile-grid)]} ; Tile$TileGrid in map format.
   (cond-> tile-grid
           (nil? material)
           (assoc :material default-material-proj-path)))
 
 (defn- load-tile-map
-  [project self resource tile-grid]
+  [{:keys [project]} {:keys [owner-resource] self :node-id tile-grid :source-value}]
   {:pre [(map? tile-grid)]} ; Tile$TileGrid in map format.
   (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+        resolve-resource #(workspace/resolve-resource basis owner-resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (gu/set-properties-from-pb-map self Tile$TileGrid tile-grid

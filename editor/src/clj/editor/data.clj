@@ -113,10 +113,11 @@
             (data-desc-pb-map->data-desc data-desc-pb-map)))
 
         ddf-sanitize-fn
-        (if-not sanitize-fn
-          data-desc-pb-map->data-desc-with-defaults
-          (fn ddf-sanitize-fn [data-desc-pb-map]
-            (sanitize-fn (data-desc-pb-map->data-desc-with-defaults data-desc-pb-map))))
+        (fn ddf-sanitize-fn [read-opts owner-resource data-desc-pb-map]
+          (let [data-desc (data-desc-pb-map->data-desc-with-defaults data-desc-pb-map)]
+            (if-not sanitize-fn
+              data-desc
+              (sanitize-fn read-opts owner-resource data-desc))))
 
         ddf-pb-encode-fn
         (if-not pb-encode-fn

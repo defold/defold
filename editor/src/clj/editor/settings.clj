@@ -286,9 +286,9 @@
                 project-meta-info (settings-core/merge-meta-infos project-meta-info)
                 (and ext-meta-info (= "project" (resource/type-ext owner-resource))) (settings-core/merge-meta-infos ext-meta-info))))))
 
-(defn load-settings-node [project owner-resource-node self resource raw-settings initial-meta-info resource-setting-connections]
+(defn load-settings-node [project owner-resource-node self owner-resource raw-settings initial-meta-info resource-setting-connections]
   (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)
+        resolve-resource #(workspace/resolve-resource basis owner-resource %)
         meta-info (-> (settings-core/add-meta-info-for-unknown-settings initial-meta-info raw-settings)
                       (update :settings settings-core/resolve-resource-settings :default resolve-resource))
         meta-settings (:settings meta-info)
@@ -325,14 +325,14 @@
   (input settings-map g/Any)
   (output settings-map g/Any (gu/passthrough settings-map)))
 
-(defn- load-simple-settings-resource-node [meta-info project self resource source-value]
+(defn- load-simple-settings-resource-node [meta-info {:keys [project]} {:keys [owner-resource source-value] self :node-id}]
   (concat
     (g/make-nodes [settings-node SettingsNode]
       (g/connect settings-node :_node-id self :nodes)
       (g/connect settings-node :save-value self :save-value)
       (g/connect settings-node :form-data self :form-data)
       (g/connect settings-node :settings-map self :settings-map)
-      (load-settings-node project self settings-node resource source-value meta-info nil))))
+      (load-settings-node project self settings-node owner-resource source-value meta-info nil))))
 
 (defn register-simple-settings-resource-type [workspace & {:keys [ext label icon meta-info]}]
   (resource-node/register-settings-resource-type workspace

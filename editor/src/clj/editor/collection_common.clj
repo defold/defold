@@ -72,11 +72,11 @@
       (protobuf/sanitize-repeated :children)
       (game-object-common/sanitize-component-property-descs-at-key component-property-descs-key)))
 
-(defn- sanitize-embedded-game-object-data [embedded-instance-desc ext->embedded-component-resource-type]
+(defn- sanitize-embedded-game-object-data [embedded-instance-desc ext->embedded-component-resource-type read-opts owner-resource]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (try
     (let [unsanitized-prototype-desc (protobuf/str->map-without-defaults GameObject$PrototypeDesc (:data embedded-instance-desc))
-          sanitized-prototype-desc (game-object-common/sanitize-prototype-desc unsanitized-prototype-desc ext->embedded-component-resource-type)]
+          sanitized-prototype-desc (game-object-common/sanitize-prototype-desc unsanitized-prototype-desc ext->embedded-component-resource-type read-opts owner-resource)]
       (assoc embedded-instance-desc
         :data sanitized-prototype-desc))
     (catch Exception error
@@ -89,10 +89,10 @@
   (-> instance-desc
       (sanitize-any-instance-desc :component-properties)))
 
-(defn- sanitize-embedded-instance-desc [embedded-instance-desc ext->embedded-component-resource-type]
+(defn- sanitize-embedded-instance-desc [embedded-instance-desc ext->embedded-component-resource-type read-opts owner-resource]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (cond-> (sanitize-any-instance-desc embedded-instance-desc :component-properties)
-          (string? (:data embedded-instance-desc)) (sanitize-embedded-game-object-data ext->embedded-component-resource-type)))
+          (string? (:data embedded-instance-desc)) (sanitize-embedded-game-object-data ext->embedded-component-resource-type read-opts owner-resource)))
 
 (defn- sanitize-collection-instance-desc [collection-instance-desc]
   ;; GameObject$CollectionInstanceDesc in map format.
@@ -100,7 +100,7 @@
       (sanitize-any-instance-desc-scale)
       (protobuf/sanitize-repeated :instance-properties #(game-object-common/sanitize-component-property-descs-at-key % :properties))))
 
-(defn sanitize-collection-desc [collection-desc ext->embedded-component-resource-type]
+(defn sanitize-collection-desc [collection-desc ext->embedded-component-resource-type read-opts owner-resource]
   {:pre [(map? collection-desc)
          (ifn? ext->embedded-component-resource-type)]}
   ;; GameObject$CollectionDesc in map format.
@@ -108,7 +108,7 @@
       (assoc :scale-along-z (:scale-along-z collection-desc scale-along-z-default)) ; Keep this field around even though it is optional - we may want to change its default.
       (dissoc :component-types :property-resources)
       (protobuf/sanitize-repeated :instances sanitize-instance-desc)
-      (protobuf/sanitize-repeated :embedded-instances #(sanitize-embedded-instance-desc % ext->embedded-component-resource-type))
+      (protobuf/sanitize-repeated :embedded-instances #(sanitize-embedded-instance-desc % ext->embedded-component-resource-type read-opts owner-resource))
       (protobuf/sanitize-repeated :collection-instances sanitize-collection-instance-desc)))
 
 (defn- component-property-desc-overrides-properties? [component-property-desc]
