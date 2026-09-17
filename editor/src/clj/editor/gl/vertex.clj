@@ -446,15 +446,15 @@ the `do-gl` macro from `editor.gl`."
      :semantic-type (graphics.types/infer-semantic-type name-key)}))
 
 (defn- vertex-locate-attribs
-  [^GL2 gl shader attribs]
+  [shader attribs]
   (let [attribute-infos (e/map fake-attribute-info attribs)]
-    (shader/attribute-locations shader gl attribute-infos)))
+    (shader/attribute-locations shader attribute-infos)))
 
 (defn- vertex-attrib-pointers
   [^GL2 gl shader attribs]
   (let [offsets (reductions + 0 (attribute-sizes attribs))
         ^int stride (vertex-size attribs)
-        attribute-locations (vertex-locate-attribs gl shader attribs)]
+        attribute-locations (vertex-locate-attribs shader attribs)]
     (mapv (fn [^long offset attrib ^long loc]
             (when (not= -1 loc)
               (let [[_nm ^int sz tp & more] attrib
@@ -481,13 +481,13 @@ the `do-gl` macro from `editor.gl`."
   (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)]
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
     (let [attributes (:attributes (.layout vertex-buffer))
-          attrib-locs (vertex-locate-attribs gl shader attributes)]
+          attrib-locs (vertex-locate-attribs shader attributes)]
       (vertex-attrib-pointers gl shader attributes)
       (vertex-enable-attribs gl attrib-locs))))
 
 (defn- unbind-vertex-buffer-with-shader! [^GL2 gl ^PersistentVertexBuffer vertex-buffer shader]
   (let [attributes (:attributes (.layout vertex-buffer))
-        attrib-locs (vertex-locate-attribs gl shader attributes)]
+        attrib-locs (vertex-locate-attribs shader attributes)]
     (vertex-disable-attribs gl attrib-locs)
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)))
 

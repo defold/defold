@@ -24,7 +24,7 @@
   (::vertex-description editor-shader))
 
 (defn- with-vertex-description [shader]
-  (let [attribute-reflection-infos (shader/attribute-reflection-infos shader nil)
+  (let [attribute-reflection-infos (shader/attribute-reflection-infos shader)
         vertex-description (graphics.types/make-vertex-description attribute-reflection-infos)]
     (assoc shader ::vertex-description vertex-description)))
 

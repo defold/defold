@@ -45,8 +45,8 @@
 (def max-array-samplers ShaderUtil$Common/MAX_ARRAY_SAMPLERS)
 
 (defonce/protocol ShaderVariables
-  (attribute-reflection-infos [this gl])
-  (attribute-locations [this gl attribute-infos])
+  (attribute-reflection-infos [this])
+  (attribute-locations [this attribute-infos])
   (set-uniform [this gl name val])
   (set-uniform-array [this gl name count val]))
 
@@ -194,6 +194,8 @@
 ;; shader transpiler instead, we don't need to feed it into the scene cache
 ;; request in order to get it from the OpenGL context. It could reside in the
 ;; ShaderLifecycle beside the attribute-reflection-infos.
+;; TODO(instancing): Move the uniform values from ShaderLifecycle into a
+;; separate GLBinding.
 (defonce/record ^:private ShaderRequestData
   [shader-type+source-pairs
    location+attribute-name-pairs
@@ -225,10 +227,10 @@
     (.glUseProgram ^GL2 gl 0))
 
   ShaderVariables
-  (attribute-reflection-infos [_this _gl]
+  (attribute-reflection-infos [_this]
     attribute-reflection-infos)
 
-  (attribute-locations [_this _gl attribute-infos]
+  (attribute-locations [_this attribute-infos]
     (reduce
       (fn [attribute-locations attribute-info]
         (if-let [location (name-key->attribute-location (:name-key attribute-info))]

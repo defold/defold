@@ -146,7 +146,7 @@
         scene-infos (:scene-infos user-data)
         pass (:pass render-args)
         {:keys [blend-mode material-attribute-infos shader]} user-data
-        shader-attribute-reflection-infos (shader/attribute-reflection-infos shader gl)
+        shader-attribute-reflection-infos (shader/attribute-reflection-infos shader)
         combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos :coordinate-space-world)
         has-semantic-type-world-matrix (some #(= :semantic-type-world-matrix (:semantic-type %)) combined-attribute-infos)
         has-semantic-type-normal-matrix (some #(= :semantic-type-normal-matrix (:semantic-type %)) combined-attribute-infos)

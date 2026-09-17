@@ -296,7 +296,7 @@
         ^Buffer buf (.buf vbuf)
         shader (:shader data)
         attribute-infos (:attributes (.vertex-description vbuf))
-        attribute-locations (shader/attribute-locations shader gl attribute-infos)
+        attribute-locations (shader/attribute-locations shader attribute-infos)
         gl-usage (gl.types/usage-gl-usage (.usage vbuf))]
     (assert (flipped? vbuf) "VertexBuffer must be flipped before use.")
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
