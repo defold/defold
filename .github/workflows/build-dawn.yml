@@ -1,4 +1,5 @@
 name: Build Dawn
+run-name: Build Dawn (${{ github.ref_type == 'branch' && (github.event_name == 'push' || inputs.push_changes) && 'commit packages' || 'artifacts only' }})
 
 on:
   push:
@@ -9,13 +10,14 @@ on:
       push_changes:
         type: boolean
         description: Commit rebuilt packages to the selected branch
-        default: false
+        default: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Artifact-only runs must not cancel runs that will commit the packages.
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'push' || inputs.push_changes }}
   cancel-in-progress: true
 
 jobs:

@@ -41,12 +41,13 @@ platforms and uploads the package archives as artifacts, retained for seven days
 It uses `build_external --package=dawn`; `build_ext` does not build Dawn.
 Pushes to `webgpu-dawn-support` build and commit the packages back to the branch
 after all four platforms succeed. Manual dispatch is also supported once the
-workflow exists on the repository's default branch; enable `push_changes` to
-commit the packages to the selected branch, as with the LuaJIT and Protobuf
-workflows. The commit job rejects packages above GitHub's 100 MiB file limit,
-skips unchanged packages, and uses a normal push from the built revision so it
-cannot overwrite a branch that has advanced. Its GitHub token push does not
-trigger another build.
+workflow exists on the repository's default branch. Manual runs commit packages
+by default; disable `push_changes` to upload artifacts without committing them.
+The run title identifies which mode was selected. Artifact-only runs do not
+cancel runs that will commit packages. The commit job rejects packages above
+GitHub's 100 MiB file limit, skips unchanged packages, and uses a normal push
+from the built revision so it cannot overwrite a branch that has advanced.
+Its GitHub token push does not trigger another build.
 CI caches the pinned Dawn sources and downloaded dependencies separately from
 compiler results, which use sccache and GitHub's cache storage. CMake configures
 a fresh build tree on each runner. The first run still downloads dependencies
