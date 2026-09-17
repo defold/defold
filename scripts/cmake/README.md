@@ -195,6 +195,20 @@ passed after the `--` separator.
 Note that for e.g. Android, the CMakeLists.txt _is_ the solution.
 
 
+## Windows CI linking and signing
+
+Windows CI, detected through `GITHUB_WORKFLOW`, links executables and DLLs with
+`/INCREMENTAL:NO`. Clean CI builds cannot reuse incremental link databases;
+this also avoids CMake's incremental manifest resource/relink passes. Debug
+symbols remain enabled. Local Windows builds keep CMake's incremental-link
+defaults for Debug and RelWithDebInfo.
+
+For signed Windows engine binaries, CI also reports the linker's elapsed time
+separately from signing. Each signing report includes time waiting for the
+shared gcloud lock, authentication, token retrieval, the combined signing and
+timestamp operation, and the total signing duration. These timings help identify
+which stage dominates the end of the build.
+
 ## Folder structures
 
 CMake outputs into different folder structures than before, so make not of any previous assumptions that may be stored in helper scripts etc.
