@@ -92,8 +92,30 @@ jobs:
   #
   # Each is defined at its first use; grep for '&<name>' to find it.
 
+  resolve-build:
+    runs-on: ubuntu-22.04
+    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'skip-ci-') && !startsWith(github.head_ref, 'DEFEDIT-'))
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.build_commit.outputs.sha }}
+    steps:
+      - name: "Resolve build commit"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # A repository dispatch may select another ref. Other events already have
+          # an immutable commit; do not resolve their branch again after queueing.
+          ref: "${{ github.event_name == 'repository_dispatch' && (github.event.client_payload.sha || env.BUILD_BRANCH) || github.event.pull_request.head.sha || github.sha }}"
+          sparse-checkout: "/VERSION"
+          sparse-checkout-cone-mode: false
+      - name: "Record build commit"
+        id: build_commit
+        run: |
+          sha=$(git rev-parse HEAD)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
   # ---- BUILD ENGINE VERSIONS ------------------
   bld-eng:
+    needs: [resolve-build]
     # One job for every engine platform. A row is a platform: its runner, its timeout, the
     # extra ci.sh flags it needs, and flags selecting the toolchains to install. The check
     # names are pinned to the ones the separate bld-eng-* jobs produced, so branch
@@ -203,7 +225,7 @@ jobs:
         name: "Checkout"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: "${{env.BUILD_BRANCH}}"
+          ref: "${{ needs.resolve-build.outputs.sha }}"
       - &step_cache_dcache
         name: "Cache Defold downloads"
         # No cache for a contrib build, and none for a repository dispatch: that always
@@ -395,6 +417,7 @@ jobs:
           payload: '{"channel":"#defold-alarms-build","text":"<!here> *${{ job.status }}*: ${{ github.workflow }} / ${{ github.job }}${{ matrix.platform && format('' / {0}'', matrix.platform) || '''' }}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Open run> · <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"}'
 
   bld-eng-private:
+    needs: [resolve-build]
     # One job for the three private console platforms. They differ only in the private
     # repository to dispatch to and the targets to build, so the display name is pinned to
     # the historical per-platform job names and the targets ride in matrix.platform, which
@@ -428,7 +451,7 @@ jobs:
       - name: "Checkout CI scripts"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: "${{env.BUILD_BRANCH}}"
+          ref: "${{ needs.resolve-build.outputs.sha }}"
           path: ci-check
           sparse-checkout: "/ci/"
           sparse-checkout-cone-mode: false
@@ -467,7 +490,7 @@ jobs:
             --ref "${{ matrix.ref }}" \
             -f public_repo="${{ github.repository }}" \
             -f public_branch="$public_branch" \
-            -f public_sha="${{ github.event.client_payload.sha || github.event.pull_request.head.sha || github.sha }}" \
+            -f public_sha="${{ needs.resolve-build.outputs.sha }}" \
             -f source_run_id="${{ github.run_id }}" \
             -f source_run_attempt="${{ github.run_attempt }}" \
             -f request_id="$request_id" \
@@ -486,17 +509,12 @@ jobs:
   # ---- BUILD BOB AND SDK ------------------
 
   build-bob:
-    needs: [bld-eng]
+    needs: [resolve-build, bld-eng]
     runs-on: ubuntu-22.04
     if: &if_bob_enabled (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true))
     timeout-minutes: 15
-    outputs:
-      sha: ${{ steps.build_commit.outputs.sha }}
     steps:
       - *step_checkout
-      - name: "Record build commit"
-        id: build_commit
-        run: 'echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"'
       - *step_python
       - *step_java
       - name: "Download engine builds"
@@ -531,7 +549,7 @@ jobs:
       - *step_notify
 
   test-bob:
-    needs: [build-bob]
+    needs: [resolve-build, build-bob]
     runs-on: ubuntu-22.04
     if: *if_bob_enabled
     timeout-minutes: 15
@@ -558,7 +576,7 @@ jobs:
       - *step_notify
 
   build-sdk:
-    needs: [bld-eng]
+    needs: [resolve-build, bld-eng]
     runs-on: ubuntu-22.04
     # The SDK is merged from the per-platform SDK archives on S3. A contrib build never
     # writes them, so there is nothing to merge.
@@ -576,6 +594,7 @@ jobs:
   # ---- BUILD EDITOR ------------------
 
   gen-release-notes:
+    needs: [resolve-build]
     runs-on: ubuntu-22.04
     if: github.event_name != 'pull_request'
     timeout-minutes: 30
@@ -617,7 +636,7 @@ jobs:
     # keeps working; the platform-specific steps are guarded on runner.os rather than on
     # the platform, so a new runner needs no new branch here.
     name: "${{ matrix.name }}"
-    needs: [build-bob, gen-release-notes]
+    needs: [resolve-build, build-bob, gen-release-notes]
     runs-on: ${{ matrix.runner }}
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     timeout-minutes: 60
@@ -730,12 +749,12 @@ jobs:
       - *step_notify
 
   test-editor-linux:
-    needs: [build-bob, build-sdk]
+    needs: [resolve-build, build-bob, build-sdk]
     runs-on: ubuntu-22.04
     # build-sdk is skipped for a contrib build, which would skip this job as well. Every
     # other reason for build-sdk not succeeding - including a skip_sdk dispatch - still
     # skips this job, as it did before.
-    if: ${{ !cancelled() && needs.build-bob.result == 'success' && (needs.build-sdk.result == 'success' || (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))) }}
+    if: ${{ !cancelled() && needs.resolve-build.result == 'success' && needs.build-bob.result == 'success' && (needs.build-sdk.result == 'success' || (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))) }}
     timeout-minutes: 60
     steps:
       - *step_checkout
@@ -754,7 +773,7 @@ jobs:
       - *step_notify
 
   release:
-    needs: [build-bob, build-editor, test-editor-linux, test-bob]
+    needs: [resolve-build, build-editor, test-editor-linux, test-bob]
     runs-on: ubuntu-22.04
     # Each release branch publishes to its own channel: master -> stable, beta -> beta,
     # dev -> alpha. Manual alpha releases share dev's lock regardless of source branch.
@@ -777,7 +796,7 @@ jobs:
       - name: "Checkout CI scripts"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: "${{ needs.build-bob.outputs.sha }}"
+          ref: "${{ needs.resolve-build.outputs.sha }}"
           path: ci-check
           sparse-checkout: "/ci/"
           sparse-checkout-cone-mode: false
@@ -791,7 +810,7 @@ jobs:
         if: &should_release steps.release.outputs.should_release == 'true'
         with:
           # Waiting for the release lock must not switch a dispatch to a newer branch tip.
-          ref: "${{ needs.build-bob.outputs.sha }}"
+          ref: "${{ needs.resolve-build.outputs.sha }}"
           # Release publishes existing S3 artifacts; only tooling and metadata are needed.
           # Keep sass.clj because it contributes to the shared download-cache key.
           sparse-checkout: |

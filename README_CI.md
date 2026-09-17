@@ -10,6 +10,13 @@ The Defold CI jobs are divided into three main categories, each represented by a
 
 The workflow files listed above sets up the jobs and distributes them to multiple workers to build, test and release the engine and/or editor. The bulk of the work is done in the [ci.py](/ci/ci.py) script.
 
+`Main` resolves one commit in `resolve-build` before starting the build jobs. Every
+public build, test, release-note, and publication job uses that SHA; private builds
+receive it as `public_sha`. Push and manual workflow runs use their event's commit,
+while repository dispatches resolve the requested SHA or branch once. Branch names
+still select release channels. Publication checks that all editor download bundles
+exist for that commit and channel before changing tags or channel pointers.
+
 ## How to trigger builds manually
 
 You can use the `ci/trigger-build.py` script to manually trigger a build using the `Main` workflow:
