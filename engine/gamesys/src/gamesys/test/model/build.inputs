@@ -3,6 +3,7 @@
 /model/empty_texture.model
 /model/invalid_material.model
 /model/morph_instanced_attr.go
+/model/morph_instanced_attr_alt.go
 /model/morph_instanced_legacy.go
 /model/morph_mixed_targets_attr.go
 /model/morph_mixed_targets_legacy.go

@@ -1,4 +1,4 @@
-name: "morph_instanced_attr"
+name: "morph_instanced_attr_alt"
 tags: "model"
 vertex_program: "/model/morph_instanced_attr.vp"
 fragment_program: "/model/morph_instanced.fp"
@@ -16,7 +16,7 @@ samplers {
   wrap_v: WRAP_MODE_CLAMP_TO_EDGE
   filter_min: FILTER_MODE_MIN_LINEAR
   filter_mag: FILTER_MODE_MAG_LINEAR
-  texture: "/model/fox_texture.png"
+  texture: "/model/texture_valid_png.png"
 }
 attributes {
   name: "mtx_world"
@@ -48,5 +48,5 @@ attributes {
   data_type: TYPE_FLOAT
   coordinate_space: COORDINATE_SPACE_LOCAL
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
-  double_values { v: 0.125 v: 0.25 v: 0.375 v: 0.5 }
+  double_values { v: 0.625 v: 0.75 v: 0.875 v: 1.0 }
 }

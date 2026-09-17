@@ -100,6 +100,7 @@ namespace dmGameSystem
         dmhash_t                    m_MorphModelId;
         HComponentRenderConstants   m_RenderConstants; // Used for PBR properties, will be null if PBR data not needed.
         uint32_t                    m_InstanceRenderHash;
+        uint32_t                    m_MaterialHashVersion;
         uint32_t                    m_BoneIndex;
         uint32_t                    m_MaterialIndex;
         uint16_t                    m_AttributeRenderDataIndex;
@@ -529,7 +530,30 @@ namespace dmGameSystem
     static void HashMaterial(HashState32* state, const dmGameSystem::MaterialResource* material)
     {
         dmHashUpdateBuffer32(state, &material->m_Material, sizeof(material->m_Material));
-        dmHashUpdateBuffer32(state, material->m_Textures, sizeof(dmGameSystem::TextureResource*)*material->m_NumTextures);
+    }
+
+    static void HashInstancingMaterial(HashState32* state, const dmGameSystem::MaterialResource* material)
+    {
+        assert(material->m_MaterialHash != 0);
+        dmHashUpdateBuffer32(state, &material->m_MaterialHash, sizeof(material->m_MaterialHash));
+    }
+
+    static void HashEffectiveTextures(HashState32* state, const ModelComponent* component, uint32_t material_index)
+    {
+        MaterialResource* material = GetMaterialResource(component, component->m_Resource, material_index);
+        const MaterialInfo* material_info = &component->m_Resource->m_Materials[material_index];
+
+        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            TextureResource* texture_resource = component->m_Textures[i];
+            if (!texture_resource)
+            {
+                texture_resource = GetTextureFromSamplerNameHash(material_info, material, i, material->m_SamplerNames[i]);
+            }
+
+            dmGraphics::HTexture texture = texture_resource ? texture_resource->m_Texture : 0;
+            dmHashUpdateBuffer32(state, &texture, sizeof(texture));
+        }
     }
 
     static void GetRenderItemMorphWeights(const ModelComponent* component, const MeshRenderItem* render_item, const float** weights_out, uint32_t* weights_count_out)
@@ -563,14 +587,15 @@ namespace dmGameSystem
         MaterialResource* material_res =  GetMaterialResource(component, component->m_Resource, item.m_MaterialIndex);
         dmRender::HMaterial material = material_res->m_Material;
         dmGraphics::HVertexDeclaration instance_vx_decl = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
-
-        // Include material textures in the hash
         MaterialInfo* material_info = &component->m_Resource->m_Materials[item.m_MaterialIndex];
-        dmHashUpdateBuffer32(state, material_info->m_Textures, sizeof(dmGameSystem::MaterialTextureInfo) * material_info->m_TexturesCount);
+
+        HashEffectiveTextures(state, component, item.m_MaterialIndex);
 
         // Local space + instancing
         if (dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && instance_vx_decl)
         {
+            HashInstancingMaterial(state, material_res);
+
             // We need to hash the mesh pointer for instance grouping
             dmHashUpdateBuffer32(state, item.m_Mesh, sizeof(*item.m_Mesh));
 
@@ -591,12 +616,6 @@ namespace dmGameSystem
                     GetRenderItemMorphWeights(component, &item, &weights, &weights_count);
                     dmHashUpdateBuffer32(state, weights, sizeof(float) * weights_count);
                 }
-            }
-
-            // If we use an override material, we don't need to hash the override values
-            if (component->m_Material && component->m_Material->m_Material == material)
-            {
-                return;
             }
 
             dmGraphics::VertexAttributeInfos material_infos;
@@ -627,7 +646,7 @@ namespace dmGameSystem
         }
         else
         {
-            HashMaterial(state, material_info->m_Material);
+            HashMaterial(state, material_res);
         }
     }
 
@@ -637,15 +656,6 @@ namespace dmGameSystem
         HashState32 state;
         bool reverse = false;
         dmHashInit32(&state, reverse);
-
-        // The unused slots should be 0
-        // Note: In the future, we want the textures so be set on a per-material basis
-        dmHashUpdateBuffer32(&state, component->m_Textures, DM_ARRAY_SIZE(component->m_Textures));
-
-        if (component->m_Material)
-        {
-            HashMaterial(&state, component->m_Material);
-        }
 
         if (component->m_RenderConstants)
         {
@@ -658,6 +668,8 @@ namespace dmGameSystem
             dmHashClone32(&state_clone, &state, false);
             HashRenderItem(&state_clone, world, component, component->m_RenderItems[i]);
             component->m_RenderItems[i].m_InstanceRenderHash = dmHashFinal32(&state_clone);
+            MaterialResource* material = GetMaterialResource(component, component->m_Resource, component->m_RenderItems[i].m_MaterialIndex);
+            component->m_RenderItems[i].m_MaterialHashVersion = material->m_MaterialHashVersion;
         }
 
         component->m_ReHash = 0;
@@ -1125,6 +1137,7 @@ namespace dmGameSystem
             item.m_AttributeRenderDataIndex = ATTRIBUTE_RENDER_DATA_INDEX_UNUSED;
             item.m_DynamicVertexAttributeIndex = INVALID_DYNAMIC_ATTRIBUTE_INDEX;
             item.m_InstanceRenderHash = 0;
+            item.m_MaterialHashVersion = 0;
 
             // This model is a child under a bone, but isn't actually skinned
             if (item.m_Model->m_BoneId && bone_id_to_indices)
@@ -1588,8 +1601,11 @@ namespace dmGameSystem
         {
             MeshRenderItem* instance_render_item = (MeshRenderItem*) buf[*i].m_UserData;
             ModelComponent* instance_component   = instance_render_item->m_Component;
+            uint32_t instance_material_index     = instance_render_item->m_MaterialIndex;
+            dmRender::HMaterial instance_material = GetRenderMaterial(render_context_material, instance_component, instance_component->m_Resource, instance_material_index);
+            bool instance_material_has_morph_target_weights_attribute = dmRender::GetMaterialHasMorphTargetWeightsAttribute(instance_material);
 
-            if (render_context_material_custom_attributes || render_material_has_morph_target_weights_attribute || instance_render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
+            if (render_context_material_custom_attributes || instance_material_has_morph_target_weights_attribute || instance_render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
             {
                 // The overridden material from the render script might be setup with custom vertex attributes,
                 // while the component material might not. In this case, we need to setup the attribute render data
@@ -1609,12 +1625,12 @@ namespace dmGameSystem
                         instance_component,
                         instance_render_item,
                         render_context,
-                        render_material,
-                        instance_component->m_Resource->m_Materials[material_index].m_Attributes,
-                        instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
+                        instance_material,
+                        instance_component->m_Resource->m_Materials[instance_material_index].m_Attributes,
+                        instance_component->m_Resource->m_Materials[instance_material_index].m_AttributeCount,
                         attribute_rd);
 
-                FillMaterialAttributeInfos(render_material, attribute_rd->m_InstanceVertexDeclaration, &material_infos);
+                FillMaterialAttributeInfos(instance_material, attribute_rd->m_InstanceVertexDeclaration, &material_infos);
 
                 if (attribute_infos == 0)
                 {
@@ -1623,11 +1639,11 @@ namespace dmGameSystem
 
                 FillAttributeInfos(&world->m_DynamicVertexAttributePool,
                             instance_render_item->m_DynamicVertexAttributeIndex,
-                            instance_component->m_Resource->m_Materials[material_index].m_Attributes,
-                            instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
+                            instance_component->m_Resource->m_Materials[instance_material_index].m_Attributes,
+                            instance_component->m_Resource->m_Materials[instance_material_index].m_AttributeCount,
                             &material_infos,
                             attribute_infos,
-                            GetRenderMaterialCoordinateSpace(render_material));
+                            GetRenderMaterialCoordinateSpace(instance_material));
 
                 if (instance_render_item->m_DynamicVertexAttributesDirty)
                 {
@@ -1636,8 +1652,8 @@ namespace dmGameSystem
                         &material_infos,
                         attribute_infos,
                         instance_render_item,
-                        instance_component->m_Resource->m_Materials[material_index].m_Attributes,
-                        instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
+                        instance_component->m_Resource->m_Materials[instance_material_index].m_Attributes,
+                        instance_component->m_Resource->m_Materials[instance_material_index].m_AttributeCount,
                         attribute_rd);
                 }
 
@@ -1657,7 +1673,7 @@ namespace dmGameSystem
 
                 instance_write_ptr = WriteMeshAttributes(world, render_context, instance_render_item, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attribute_infos, instance_write_ptr, 1);
             }
-            else if (IsRenderItemSkinned(instance_component, render_item))
+            else if (IsRenderItemSkinned(instance_component, instance_render_item))
             {
                 assert(dmGraphics::GetVertexDeclarationStride(world->m_InstanceVertexDeclarationSkinned) == sizeof(ModelSkinnedInstanceData));
                 ModelSkinnedInstanceData* instance_data         = (ModelSkinnedInstanceData*) instance_write_ptr;
@@ -1682,7 +1698,7 @@ namespace dmGameSystem
                     instance_data->m_AnimationData = dmVMath::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
                 }
 
-                SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, instance_component->m_Instance);
+                SetupSkinnedMatrixCache(ro, instance_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, instance_component->m_Instance);
                 instance_write_ptr += sizeof(ModelSkinnedInstanceData);
             }
             else
@@ -2368,6 +2384,13 @@ namespace dmGameSystem
 
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
+
+            for (uint32_t j = 0; j < component.m_RenderItems.Size() && !component.m_ReHash; ++j)
+            {
+                MeshRenderItem& render_item = component.m_RenderItems[j];
+                MaterialResource* material = GetMaterialResource(&component, component.m_Resource, render_item.m_MaterialIndex);
+                component.m_ReHash = render_item.m_MaterialHashVersion != material->m_MaterialHashVersion;
+            }
 
             if (component.m_ReHash || (component.m_RenderConstants && dmGameSystem::AreRenderConstantsUpdated(component.m_RenderConstants)))
             {
