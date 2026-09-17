@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 4.0)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../scripts/cmake")
 set(BUILD_TESTS OFF)
+# Use Windows 10 SDK declarations for Dawn's Direct3D backends.
+set(DEFOLD_WIN32_WINNT 0x0A00)
 include(defold)
 
 project(dawn_external LANGUAGES ${DEFOLD_LANGUAGE_LIST})
