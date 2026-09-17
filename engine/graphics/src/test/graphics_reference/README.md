@@ -3,7 +3,8 @@
 These are actual GPU captures, visually reviewed on 2026-09-17. Ordinary
 test runs only read them. There is deliberately no reference-update switch.
 References use Metal except `stencil_faces`, which uses OpenGL: Metal's
-current face-specific state produces an incorrect blank image. The five
+face-specific state produced an incorrect blank image when the references
+were captured. The subsequent Metal fix matches that unchanged reference. The five
 advanced stencil references and the cubemap also match independently specified expected pixels in
 `test_graphics_images.py`, and OpenGL and Vulkan agree with those pixels.
 
@@ -42,10 +43,11 @@ clear pixels surrounding it. All images are opaque and top-down.
 | `cubemap` | Creates a real 16×16 RGBA cubemap and uploads six faces in +X, -X, +Y, -Y, +Z, -Z order. Direction sampling renders a cross with +Y above; -X, +Z, +X, -Z across; -Y below. Distinct colors, axis labels, an upper-left white marker and a lower-right dark marker expose missing/swapped faces, rotation and mirroring. Uses nearest filtering and explicit mip level 0, with each texel displayed as 3×3 pixels. |
 
 Before the repeated render, stencil cases overwrite a larger region with 1.
-The subsequent clear must remove that stale mask. Metal's first basic/nested
-images are correct, but the repeated render currently differs and fails the
-capture. The nested reference is the independently verified first image;
-accepting that reference does not exempt the repeated-render failure.
+The subsequent clear must remove that stale mask. The initial test-feature
+commit exposed Metal losing the basic/nested masks on the repeated render:
+its clear pipeline replaced the active GPU pipeline without invalidating the
+cached binding. The subsequent Metal fix restores the draw pipeline after
+clear. The nested reference remains the independently verified first image.
 Failures retain the second image as `<case>.png.repeated.png`; the report
 shows the first and repeated images with their difference.
 
@@ -111,11 +113,13 @@ against RGB (37, 73, 109). Rendering defects remain failures, including
 the known DX12 stencil defect; there are no expected-failure exemptions.
 Readback diagnostics compare the whole image and require identical pixels.
 
-Validation on the capture host: all nine cases pass on OpenGL and Vulkan
-through MoltenVK with 100% reference likeness. Metal fails the
-basic/nested repeated-render checks and the separate-face image comparison
-(about 59.96% likeness); its other cases pass. These remain ordinary failures,
-without expected-failure exemptions or backend-specific draw workarounds.
+Validation on the capture host: all nine cases pass on Metal, OpenGL and
+Vulkan through MoltenVK with 100% reference likeness: 27 passed, 0 failed,
+9 unavailable WebGPU skips. The initial feature commit `f8f0eabf25` retained
+three Metal failures: basic/nested repeated rendering and separate-face
+stencil state (about 59.96% likeness). Invalidating the pipeline cache after
+clear and removing the offscreen front/back stencil swap fixes those failures
+without changing the tests, references or comparison threshold.
 Each case also checks a 13-pixel-wide subregion and rendering after readback.
 The cubemap matches its expected pixels and Metal reference at 100% on all
 three available backends. Viewport and depth/stencil continuation probes pass

@@ -2183,7 +2183,9 @@ namespace dmGraphics
         enc->setCullMode(MTL::CullModeNone);
         enc->drawPrimitives(MTL::PrimitiveTypeTriangle, (uint32_t) 0, (uint32_t) 3);
 
-        // Refresh culling after this call
+        // Clear binds its own pipeline outside DrawSetup's cache. The next
+        // draw must restore its render and depth/stencil pipeline state.
+        context->m_CurrentPipeline = 0;
         context->m_CullFaceChanged = true;
     }
 
@@ -2930,18 +2932,10 @@ namespace dmGraphics
                 back->setReadMask(pipeline_state.m_StencilCompareMask);
                 back->setWriteMask(pipeline_state.m_StencilWriteMask);
 
-                if (rt->m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
-                {
-                    ds->setFrontFaceStencil(front);
-                    ds->setBackFaceStencil(back);
-                }
-                else
-                {
-                    // Offscreen rendering has the opposite effective winding,
-                    // matching the cull-face adjustment in DrawSetup().
-                    ds->setFrontFaceStencil(back);
-                    ds->setBackFaceStencil(front);
-                }
+                // Stencil faces follow the encoder's front-facing winding on
+                // both offscreen and backbuffer targets.
+                ds->setFrontFaceStencil(front);
+                ds->setBackFaceStencil(back);
                 front->release();
                 back->release();
             }
