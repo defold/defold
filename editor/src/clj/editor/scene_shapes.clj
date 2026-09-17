@@ -311,12 +311,12 @@
   {:name-key :position
    :semantic-type :semantic-type-position})
 
-(defn- geometry-vertex-binding [gl {:keys [position-buffer vbuf vertex-binding]}]
+(defn- geometry-vertex-binding [{:keys [position-buffer vbuf vertex-binding]}]
   (or vertex-binding
       (when position-buffer
         (attribute/make-attribute-buffer-binding
           position-buffer
-          (first (shader/attribute-locations shader gl [position-attribute-info]))))
+          (first (shader/attribute-locations shader [position-attribute-info]))))
       (vtx/use-with (System/identityHashCode vbuf) vbuf shader)))
 
 (defn render-lines [^GL2 gl render-args renderables _num-renderables]
@@ -337,7 +337,7 @@
                               0))
         point-scale (:point-scale user-data no-point-scale)
         point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
-        vertex-binding (geometry-vertex-binding gl geometry)]
+        vertex-binding (geometry-vertex-binding geometry)]
     (gl/with-gl-bindings gl render-args [shader vertex-binding]
       (shader/set-uniform shader gl "point_scale" point-scale)
       (shader/set-uniform shader gl "point_offset_by_w" point-offset-by-w)
@@ -373,7 +373,7 @@
                               0))
         point-scale (:point-scale user-data no-point-scale)
         point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
-        vertex-binding (geometry-vertex-binding gl geometry)
+        vertex-binding (geometry-vertex-binding geometry)
         bindings (cond-> [shader vertex-binding]
                    index-buffer (conj index-buffer))]
     (gl/with-gl-bindings gl render-args bindings
@@ -414,7 +414,7 @@
                               0))
         point-scale (:point-scale user-data no-point-scale)
         point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
-        vertex-binding (geometry-vertex-binding gl geometry)]
+        vertex-binding (geometry-vertex-binding geometry)]
     (gl/with-gl-bindings gl render-args [shader vertex-binding]
       (.glPointSize gl point-size)
       (shader/set-uniform shader gl "point_scale" point-scale)
