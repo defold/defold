@@ -185,14 +185,6 @@
     "shaders/selection-attribute.vp"
     "shaders/selection-attribute.fp"))
 
-(def selection-color-world-space
-  (editor-shader
-    {:coordinate-space :coordinate-space-world
-     :uniforms {"mtx_world_view_proj" :view-proj
-                "color" :id-color}}
-    "shaders/uniform-color.vp"
-    "shaders/uniform-color.fp"))
-
 (def selection-attribute-world-space
   (editor-shader
     {:coordinate-space :coordinate-space-world
@@ -215,6 +207,14 @@
      :uniforms {"mtx_world_view_proj" :view-proj}}
     "shaders/selection-attribute-paged.vp"
     "shaders/selection-attribute-paged.fp"))
+
+(def selection-color-world-space
+  (editor-shader
+    {:coordinate-space :coordinate-space-world
+     :uniforms {"mtx_world_view_proj" :view-proj
+                "color" :id-color}}
+    "shaders/uniform-color.vp"
+    "shaders/uniform-color.fp"))
 
 (def selection-instance-local-space
   (editor-shader
