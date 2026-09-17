@@ -599,7 +599,18 @@ jobs:
     if: github.event_name != 'pull_request'
     timeout-minutes: 30
     steps:
-      - *step_checkout
+      - name: "Checkout"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: "${{ needs.pin-build-commit.outputs.sha }}"
+          # Release notes only need the generator, its helpers, and existing notes.
+          sparse-checkout: |
+            /VERSION
+            /ci/
+            /scripts/
+            /build_tools/
+            /releasenotes/
+          sparse-checkout-cone-mode: false
       - *step_python
       - name: "Install Python dependencies"
         run: "pip install requests"
