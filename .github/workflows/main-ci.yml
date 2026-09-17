@@ -420,7 +420,8 @@ jobs:
         with:
           ref: "${{env.BUILD_BRANCH}}"
           path: ci-check
-          sparse-checkout: "ci"
+          sparse-checkout: "/ci/"
+          sparse-checkout-cone-mode: false
       - name: "Check private platform changes"
         id: private_changes
         shell: bash
@@ -766,7 +767,8 @@ jobs:
         with:
           ref: "${{ needs.build-bob.outputs.sha }}"
           path: ci-check
-          sparse-checkout: "ci"
+          sparse-checkout: "/ci/"
+          sparse-checkout-cone-mode: false
       - name: "Check release branch"
         id: release
         run: |-
@@ -778,6 +780,20 @@ jobs:
         with:
           # Waiting for the release lock must not switch a dispatch to a newer branch tip.
           ref: "${{ needs.build-bob.outputs.sha }}"
+          # Release publishes existing S3 artifacts; only tooling and metadata are needed.
+          # Keep sass.clj because it contributes to the shared download-cache key.
+          sparse-checkout: |
+            /VERSION
+            /ci/
+            /scripts/
+            /build_tools/
+            /packages/python/
+            /packages/boto3_data/
+            /releasenotes/
+            /share/
+            /editor/tasks/leiningen/sass.clj
+          # Cone mode would also include the large archives directly under packages/.
+          sparse-checkout-cone-mode: false
       - name: "Cache Defold downloads"
         # *should_release, plus the cache rule above.
         if: steps.release.outputs.should_release == 'true' && github.event_name != 'repository_dispatch'
