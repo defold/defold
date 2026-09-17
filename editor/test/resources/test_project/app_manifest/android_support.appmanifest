@@ -26,15 +26,6 @@ platforms:
             libs: []
             linkFlags: []
 
-    js-web:
-        context:
-            excludeLibs: []
-            excludeJsLibs: []
-            excludeSymbols: []
-            symbols: []
-            libs: []
-            linkFlags: []
-
     wasm-web:
         context:
             excludeLibs: []
@@ -48,14 +39,6 @@ platforms:
         context:
             excludeLibs: []
             excludeJsLibs: []
-            excludeSymbols: []
-            symbols: []
-            libs: []
-            linkFlags: []
-
-    x86-win32:
-        context:
-            excludeLibs: []
             excludeSymbols: []
             symbols: []
             libs: []
@@ -89,6 +72,16 @@ platforms:
             linkFlags: []
             jetifier: false
 
+    x86_64-android:
+        context:
+            excludeLibs: []
+            excludeJars: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            linkFlags: []
+            jetifier: false
+
     armv7-ios:
         context:
             excludeLibs: []
@@ -107,7 +100,7 @@ platforms:
             frameworks: []
             linkFlags: []
 
-    x86_64-ios:
+    arm64_sim-ios:
         context:
             excludeLibs: []
             excludeSymbols: []
@@ -115,4 +108,3 @@ platforms:
             libs: []
             frameworks: []
             linkFlags: []
-

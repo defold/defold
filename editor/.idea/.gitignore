@@ -9,6 +9,8 @@
 /**/vcs.xml
 /**/dictionaries
 /**/shelf
+/**/buildSystemProperties.xml
+/**/clj-kondo.xml
 
 # AWS User-specific
 /**/aws.xml

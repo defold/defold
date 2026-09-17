@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,19 +16,21 @@
 #define DMSDK_DSTRINGS_H
 
 #include <stdio.h>
+#include <string.h>
 
 /*# String functions.
  *
  * SDK Defold String Utils API documentation
  *
  * @document
- * @name DStrings
- * @language C++
+ * @name Strings
+ * @language C
  */
 
 /*# Size-bounded string formating.
  *
- * Size-bounded string formating. Resulting string is guaranteed to be 0-terminated.
+ * Size-bounded string formating. Resulting string is guaranteed to be 0-terminated. Unlike snprintf, which
+ * always returns the untruncated string length, this function returns -1 if the string was truncated.
  *
  * @name dmSnPrintf
  * @param buffer [type:char*] Buffer to write to
@@ -112,6 +114,27 @@ size_t dmStrlCpy(char *dst, const char *src, size_t size);
  * ```
  */
 size_t dmStrlCat(char *dst, const char *src, size_t size);
+
+/*# Trim a string
+ *
+ * Copies a string while removing leading and trailing whitespace. Internal
+ * whitespace is preserved. The source and destination may be the same buffer.
+ * The destination is null-terminated when `dst_size` is greater than zero.
+ *
+ * @name dmStrTrim
+ * @param dst [type:char*] Destination buffer
+ * @param dst_size [type:size_t] Size of the destination buffer
+ * @param src [type:const char*] Null-terminated source string
+ * @return Length of the trimmed source string. If the return value is greater
+ * than or equal to `dst_size`, the destination was truncated.
+ * @examples
+ *
+ * ```cpp
+ * char dst[4];
+ * dmStrTrim(dst, sizeof(dst), "  foo  "); // dst = "foo"
+ * ```
+ */
+size_t dmStrTrim(char* dst, size_t dst_size, const char* src);
 
 /*# Case-insensitive string comparison
  *

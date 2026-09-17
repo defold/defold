@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include <dlib/http_cache.h>
+#include <dlib/http/http_cache.h>
 #include <dlib/log.h>
 #include <dlib/sys.h>
 #include <dlib/time.h>
@@ -26,7 +26,7 @@
 
 class dmHttpCacheTest : public jc_test_base_class
 {
-    virtual void SetUp()
+    void SetUp() override
     {
         char path[1024];
         dmTestUtil::MakeHostPath(path, sizeof(path), "tmp");

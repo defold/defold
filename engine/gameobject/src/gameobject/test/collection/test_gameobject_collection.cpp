@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,8 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/path.h>
+#include <dlib/testutil.h>
 #include <dlib/time.h>
 
 #include "../gameobject.h"
@@ -32,14 +34,15 @@ using namespace dmVMath;
 class CollectionTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/collection");
+        char path[DMPATH_MAX_PATH];
+        m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gameobject/test/collection"));
 
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
@@ -84,7 +87,7 @@ protected:
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);
@@ -149,7 +152,7 @@ static dmGameObject::CreateResult TestComponentCreate(const dmGameObject::Compon
     // Hard coded for the specific case "CreateCallback" below
     dmGameObject::HInstance instance = params.m_Instance;
     if (dmGameObject::GetIdentifier(instance) != dmHashString64("/go2")) {
-        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
     }
     if (dmGameObject::GetWorldPosition(instance).getX() != 2.0f) {
         return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
@@ -441,7 +444,7 @@ TEST_F(CollectionTest, CollectionComponentFail)
         else
             r = PreloaderGet(m_Factory, "/failing_component.collectionc", (void**) &coll);
 
-        ASSERT_NE(dmResource::RESULT_OK, r);
+        ASSERT_EQ(dmResource::RESULT_TOO_MANY_COMPONENTS, r);
         dmGameObject::PostUpdate(m_Register);
     }
     dmLogSetLevel(LOG_SEVERITY_WARNING);

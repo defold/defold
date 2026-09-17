@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,10 +18,12 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.fs :as fs]
+            [editor.lsp :as lsp]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [support.test-support :as test-support]
             [util.coll :as coll]
             [util.fn :as fn]))
@@ -59,7 +61,7 @@
       (test-util/write-defunload-patterns! project-path defunload-patterns)
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
 
           ;; Add dependencies to all sanctioned extensions to game.project.
           (test-util/set-libraries! workspace test-util/sanctioned-extension-urls)
@@ -75,7 +77,7 @@
                          (not (excluded-ext? (:ext resource-type))))))
 
                 loadable-resource-types-by-proj-paths
-                (coll/transfer loadable-resource-type-colls-by-editability (sorted-map)
+                (coll/into-> loadable-resource-type-colls-by-editability (sorted-map)
                   (mapcat val)
                   (map (juxt resource-type->proj-path identity)))
 
@@ -96,7 +98,7 @@
               (g/with-auto-evaluation-context evaluation-context
                 (let [basis (:basis evaluation-context)]
                   (doseq [proj-path loadable-resource-proj-paths]
-                    (let [resource (workspace/find-resource workspace proj-path evaluation-context)
+                    (let [resource (workspace/find-resource basis workspace proj-path)
                           resource-node (project/get-resource-node project resource evaluation-context)
                           resource-type (resource/resource-type resource)]
                       (testing proj-path
@@ -111,7 +113,8 @@
                           (is (not (g/error? (g/node-value resource-node :node-outline evaluation-context))))
                           (is (not (g/error? (g/node-value resource-node :build-targets evaluation-context))))
                           (when (resource-type-has-view-type? resource-type :scene)
-                            (is (not (g/error? (g/node-value resource-node :scene evaluation-context))))))))))))))))))
+                            (is (not (g/error? (g/node-value resource-node :scene evaluation-context)))))))))))
+              (lsp/await (lsp/get-lsp)))))))))
 
 (defn- loaded-proj-path? [project proj-path]
   (let [resource-node-id (project/get-resource-node project proj-path)]
@@ -124,7 +127,7 @@
       (test-util/write-defunload-patterns! project-path ["/unloaded"])
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
 
           (fs/copy! (io/file "test/resources/images/small.png")
                     (io/file project-path "unloaded/unloaded.png"))
@@ -342,7 +345,8 @@
                 (testing "Only the externally modified files were reloaded."
                   (is (= ["/loaded_referencing_unloaded_go.collection"]
                          (mapv (comp resource/proj-path :resource first)
-                               node-load-info-tx-data-calls))))))))))))
+                               node-load-info-tx-data-calls))))))
+            (lsp/await (lsp/get-lsp))))))))
 
 (deftest defunload-scene-edit-test
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
@@ -350,7 +354,7 @@
       (test-util/write-defunload-patterns! project-path ["/unloaded"])
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
 
           (fs/copy! (io/file "test/resources/images/small.png")
                     (io/file project-path "unloaded/unloaded.png"))
@@ -420,7 +424,7 @@
                     (call-logged-transact!
                       (-> (project/get-resource-node project "/loaded_referencing_unloaded_go.collection")
                           (test-util/referenced-game-objects)
-                          (coll/transfer []
+                          (coll/into-> []
                             (map #(g/set-property % :path {:resource (workspace/find-resource workspace "/unloaded/unloaded.go")})))))]
 
                 (is (= []
@@ -440,7 +444,7 @@
                     (call-logged-transact!
                       (-> (project/get-resource-node project "/first_loaded_referencing_unloaded_tilemap.go")
                           (test-util/referenced-components)
-                          (coll/transfer []
+                          (coll/into-> []
                             (map #(g/set-property % :path {:resource (workspace/find-resource workspace "/unloaded/unloaded.tilemap")})))))]
 
                 (is (= ["/unloaded/unloaded.tilemap"
@@ -462,12 +466,13 @@
                       (call-logged-transact!
                         (-> (project/get-resource-node project "/second_loaded_referencing_unloaded_tilemap.go")
                             (test-util/referenced-components)
-                            (coll/transfer []
+                            (coll/into-> []
                               (map #(g/set-property % :path {:resource (workspace/find-resource workspace "/unloaded/unloaded.tilemap")})))))]
 
                   (is (= []
                          (mapv (comp resource/proj-path :resource first)
-                               node-load-info-tx-data-calls))))))))))))
+                               node-load-info-tx-data-calls))))))
+            (lsp/await (lsp/get-lsp))))))))
 
 (deftest defunload-script-edit-test
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
@@ -475,7 +480,7 @@
       (test-util/write-defunload-patterns! project-path ["/unloaded"])
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
 
           (fs/copy! (io/file "test/resources/images/small.png")
                     (io/file project-path "unloaded/unloaded.png"))
@@ -528,6 +533,8 @@
 
           (let [project (test-util/setup-project! workspace)
                 loaded-proj-path? #(loaded-proj-path? project %)
+                script-intelligence (project/script-intelligence project)
+                unloaded-lua-node (project/get-resource-node project "/unloaded/unloaded.lua")
 
                 call-logged-transact!
                 (fn call-logged-transact! [tx-data]
@@ -544,7 +551,13 @@
               (is (not (loaded-proj-path? "/unloaded/unloaded.tilesource")))
               (is (loaded-proj-path? "/loaded_referencing_unloaded_tilesource.script")))
 
-            (testing "Editing a script to reference unloaded Lua modules will load transitive dependencies."
+            (testing "Unloaded resource shells have their global connections."
+              (is (contains? (set (g/inputs (g/now) project :breakpoints))
+                             (gt/->Arc unloaded-lua-node :breakpoints project :breakpoints)))
+              (is (contains? (set (g/inputs (g/now) script-intelligence :required-module-infos))
+                             (gt/->Arc unloaded-lua-node :required-module-info script-intelligence :required-module-infos))))
+
+            (testing "Editing a script to reference unloaded Lua modules will not load transitive dependencies."
               (let [node-load-info-tx-data-calls
                     (call-logged-transact!
                       (test-util/set-code-editor-lines
@@ -552,14 +565,13 @@
                         ["local first_alias = require 'unloaded.unloaded'"
                          "local second_alias = require 'unloaded.unloaded'"]))]
 
-                (is (= ["/unloaded/unloaded.lua"
-                        "/unloaded/unloaded_math.lua"]
+                (is (= []
                        (mapv (comp resource/proj-path :resource first)
                              node-load-info-tx-data-calls))))
 
               (is (loaded-proj-path? "/loaded_math.lua"))
-              (is (loaded-proj-path? "/unloaded/unloaded_math.lua"))
-              (is (loaded-proj-path? "/unloaded/unloaded.lua"))
+              (is (not (loaded-proj-path? "/unloaded/unloaded_math.lua")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.lua")))
               (is (loaded-proj-path? "/loaded_referencing_unloaded_lua.script"))
               (is (not (loaded-proj-path? "/unloaded/unloaded.png")))
               (is (not (loaded-proj-path? "/unloaded/unloaded.tilesource")))
@@ -591,8 +603,8 @@
                              node-load-info-tx-data-calls))))
 
               (is (loaded-proj-path? "/loaded_math.lua"))
-              (is (loaded-proj-path? "/unloaded/unloaded_math.lua"))
-              (is (loaded-proj-path? "/unloaded/unloaded.lua"))
+              (is (not (loaded-proj-path? "/unloaded/unloaded_math.lua")))
+              (is (not (loaded-proj-path? "/unloaded/unloaded.lua")))
               (is (loaded-proj-path? "/loaded_referencing_unloaded_lua.script"))
               (is (loaded-proj-path? "/unloaded/unloaded.png"))
               (is (loaded-proj-path? "/unloaded/unloaded.tilesource"))
@@ -609,4 +621,6 @@
 
                   (is (= []
                          (mapv (comp resource/proj-path :resource first)
-                               node-load-info-tx-data-calls))))))))))))
+                               node-load-info-tx-data-calls))))))
+
+            (lsp/await (lsp/get-lsp))))))))

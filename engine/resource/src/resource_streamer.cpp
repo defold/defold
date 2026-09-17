@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dlib/log.h>
-#include <dlib/job_thread.h>
+#include <dlib/jobsystem.h>
 #include <dmsdk/resource/resource.h>
 #include "resource_private.h"
 #include "resource_util.h"
@@ -32,7 +32,7 @@ struct ResourceStreamJob
     const char*             m_CanonicalPath;
 };
 
-static int JobProcess(void* context, void* data)
+static int JobProcess(HJobContext, HJob hjob, void* context, void* data)
 {
     HFactory factory = (HFactory)context;
     ResourceStreamJob* job = (ResourceStreamJob*)data;
@@ -46,7 +46,7 @@ static int JobProcess(void* context, void* data)
 
     uint32_t resource_size;
     uint32_t buffer_size;
-    dmResource::Result result = dmResource::LoadResourceToBufferLocked(factory, job->m_CanonicalPath, job->m_Path, job->m_Offset, job->m_Size, &resource_size, &buffer_size, &job->m_Data);
+    dmResource::Result result = dmResource::LoadResourceToBufferWithOffset(factory, job->m_CanonicalPath, job->m_Path, job->m_Offset, job->m_Size, &resource_size, &buffer_size, &job->m_Data);
     if (dmResource::RESULT_OK != result)
     {
         dmLogError("Failed to read chunk (offset: %u, size: %u) from '%s' (%s)", job->m_Offset, job->m_Size, job->m_Path, dmResource::ResultToString(result));
@@ -55,7 +55,7 @@ static int JobProcess(void* context, void* data)
     return 1;
 }
 
-static void JobCallback(void* context, void* data, int result)
+static void JobCallback(HJobContext, HJob hjob, JobSystemStatus status, void* context, void* data, int result)
 {
     HFactory factory = (HFactory)context;
     ResourceStreamJob* job = (ResourceStreamJob*)data;
@@ -90,13 +90,22 @@ Result PreloadData(HFactory factory, const char* path, uint32_t offset, uint32_t
     job->m_Size = size;
 
     char canonical_path[RESOURCE_PATH_MAX];
-    dmResource::GetCanonicalPath(path, canonical_path);
+    dmResource::GetCanonicalPath(path, canonical_path, sizeof(canonical_path));
 
     job->m_CanonicalPath = strdup(canonical_path);
     job->m_Path = strdup(path);
 
-    dmJobThread::HContext job_context = dmResource::GetJobThread(factory);
-    dmJobThread::PushJob(job_context, JobProcess, JobCallback, factory, job);
+    HJobContext job_context = dmResource::GetJobThread(factory);
+    assert(job_context != 0);
+
+    Job threadjob = {0};
+    threadjob.m_Process = JobProcess;
+    threadjob.m_Callback = JobCallback;
+    threadjob.m_Context = (void*) factory;
+    threadjob.m_Data = (void*) job;
+
+    HJob hjob = JobSystemCreateJob(job_context, &threadjob);
+    JobSystemPushJob(job_context, hjob);
 
     return dmResource::RESULT_OK;
 }

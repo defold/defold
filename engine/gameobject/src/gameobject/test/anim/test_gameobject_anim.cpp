@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,6 +18,8 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/easing.h>
+#include <dlib/path.h>
+#include <dlib/testutil.h>
 #include <dlib/time.h>
 
 #include "../../gameobject.h"
@@ -26,14 +28,15 @@
 class AnimTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_UpdateContext.m_DT = 1.0f / 60.0f ;
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/anim");
+        char path[DMPATH_MAX_PATH];
+        m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gameobject/test/anim"));
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
@@ -59,7 +62,7 @@ protected:
         m_CancelCount = 0;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);
@@ -107,6 +110,7 @@ static dmhash_t hash(const char* s)
 TEST_F(AnimTest, AnimateAndStop)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    ASSERT_NE((dmGameObject::HInstance)0, go);
 
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("position");
@@ -119,8 +123,10 @@ TEST_F(AnimTest, AnimateAndStop)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_NEAR(2.5f, X(go), EPSILON);
+    ASSERT_NEAR(2.5f, dmGameObject::GetWorldPosition(go).getX(), EPSILON);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_NEAR(5.0f, X(go), EPSILON);
+    ASSERT_NEAR(5.0f, dmGameObject::GetWorldPosition(go).getX(), EPSILON);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_NEAR(7.5f, X(go), EPSILON);
     ASSERT_EQ(0u, this->m_FinishCount);

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,9 @@
 #include <random>
 #include <vector>
 
+#include <dlib/path.h>
+#include <dlib/testutil.h>
+
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 #include "gameobject/test/delete/test_gameobject_delete_ddf.h"
@@ -28,14 +31,15 @@
 class DeleteTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/delete");
+        char path[DMPATH_MAX_PATH];
+        m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gameobject/test/delete"));
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
@@ -75,7 +79,7 @@ protected:
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);
@@ -370,25 +374,6 @@ TEST_F(DeleteTest, TestScriptDeleteRecursiveOrder)
     ASSERT_EQ(0, m_Collection->m_Collection->m_InstanceIndices.Size());
 }
 
-
-TEST_F(DeleteTest, TestScriptDeleteAllDeprecated)
-{
-    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_all_deprecated.goc");
-    ASSERT_NE((void*)0, (void*)instance);
-    instance = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::SetIdentifier(m_Collection, instance, "test_id_1");
-    ASSERT_NE((void*)0, (void*)instance);
-    instance = dmGameObject::New(m_Collection, "/go.goc");
-    dmGameObject::SetIdentifier(m_Collection, instance, "test_id_2");
-    ASSERT_NE((void*)0, (void*)instance);
-    ASSERT_EQ(3, m_Collection->m_Collection->m_InstanceIndices.Size());
-
-    ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ(1, m_Collection->m_Collection->m_InstanceIndices.Size());
-}
-
 TEST_F(DeleteTest, TestScriptDeleteBone)
 {
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_other.goc");
@@ -407,7 +392,7 @@ TEST_F(DeleteTest, TestScriptDeleteBone)
 
 TEST_F(DeleteTest, TestScriptDeleteAllBone)
 {
-    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_all_deprecated.goc");
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete_all_bones.goc");
     ASSERT_NE((void*)0, (void*)instance);
     instance = dmGameObject::New(m_Collection, "/go.goc");
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id_1");

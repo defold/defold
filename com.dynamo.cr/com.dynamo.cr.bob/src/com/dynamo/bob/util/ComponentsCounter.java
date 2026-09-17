@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,7 +22,6 @@ import java.util.Set;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Iterator;
 import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -36,7 +35,7 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ProtoUtil;
-import com.dynamo.bob.pipeline.BuilderUtil;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.gameobject.proto.GameObject.ComponenTypeDesc;
 import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
@@ -175,14 +174,14 @@ public class ComponentsCounter {
             FactoryDesc.Builder factoryDesc = FactoryDesc.newBuilder();
             ProtoUtil.merge(resource, resourceContent, factoryDesc);
             Boolean isDynamic = factoryDesc.getDynamicPrototype();
-            String counterName = BuilderUtil.replaceExt(factoryDesc.getPrototype(), ".go", EXT_GO);
+            String counterName = ResourceUtil.minifyPathAndReplaceExt(factoryDesc.getPrototype(), ".go", EXT_GO);
             Map.Entry<String,Boolean> entry = new AbstractMap.SimpleEntry<String, Boolean>(counterName, isDynamic);
             return entry;
         } else if (type.equals("collectionfactory")) {
             CollectionFactoryDesc.Builder factoryDesc = CollectionFactoryDesc.newBuilder();
             ProtoUtil.merge(resource, resourceContent, factoryDesc);
             Boolean isDynamic = factoryDesc.getDynamicPrototype();
-            String counterName = BuilderUtil.replaceExt(factoryDesc.getPrototype(), ".collection", EXT_COL);
+            String counterName = ResourceUtil.minifyPathAndReplaceExt(factoryDesc.getPrototype(), ".collection", EXT_COL);
             Map.Entry<String,Boolean> entry = new AbstractMap.SimpleEntry<String, Boolean>(counterName, isDynamic);
             return entry;
         }
@@ -266,9 +265,9 @@ public class ComponentsCounter {
 
     public static String replaceExt(String path) {
         if (path.endsWith(".go")) {
-            return BuilderUtil.replaceExt(path, ".go", EXT_GO);
+            return ResourceUtil.minifyPathAndReplaceExt(path, ".go", EXT_GO);
         } else if (path.endsWith(".collection")) {
-            return BuilderUtil.replaceExt(path, ".collection", EXT_COL);
+            return ResourceUtil.minifyPathAndReplaceExt(path, ".collection", EXT_COL);
         }
         return null;
     }
@@ -316,6 +315,12 @@ public class ComponentsCounter {
         return name.equals("modelc") || name.equals("spinemodelc") || name.equals("rivemodelc");
     }
 
+    private static String getComponentTypeName(String inputTypeName) {
+        String outputExt = ResourceUtil.getOutputExt("." + inputTypeName);
+        int extIndex = outputExt.lastIndexOf('.');
+        return extIndex == -1 ? outputExt : outputExt.substring(extIndex + 1);
+    }
+
     public static void copyDataToBuilder(Storage storage, Project project, CollectionDesc.Builder builder) {
         //Do not copy values for collections with dynamic factories
         if (storage.isDynamic()) {
@@ -327,7 +332,7 @@ public class ComponentsCounter {
         for (Map.Entry<String, Integer> entry : components.entrySet()) {
             // different input component names may have the same output name
             // for example wav and sound both are soundc
-            String name = project.replaceExt("." + entry.getKey()).substring(1);
+            String name = getComponentTypeName(entry.getKey());
             Integer value = entry.getValue();
             if (mergedComponents.containsKey(name)) {
                 Integer mergedValue = mergedComponents.get(name);

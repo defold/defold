@@ -270,7 +270,7 @@ We ship Android "aapt" (Android Asset Packaging Tool) binaries for all platforms
 
 Creating a new android package is straight forward:
 
-    APILEVEL=35
+    APILEVEL=36
     mkdir -p sdkpack_android
     cd sdkpack_android
     mkdir -p share/java
@@ -286,7 +286,7 @@ Creating a new android package is straight forward:
 
 Update the reference to the tar ball in `<defold>/scripts/build.py`
 
-    PACKAGES_ANDROID="... android-35 ...".split()
+    PACKAGES_ANDROID="... android-36 ...".split()
 
 Find and update all `ANDROID_BUILD_TOOLS_VERSION`, `ANDROID_TARGET_API_LEVEL` and `ANDROID_PLATFORM` in the `defold` project folder.
 
@@ -303,7 +303,8 @@ Update Android environment variables in [the extender's Dockerfile](https://gith
     $ ./scripts/build.py distclean
     $ ./scripts/build.py install_sdk --platform=arm64-android
     $ ./scripts/build.py install_ext --platform=arm64-android
-    $ ./scripts/build.py build_engine --platform=arm64-android --skip-docs --skip-codesign --skip-tests
+    $ ./scripts/build.py build_ext --platform=arm64-android
+    $ ./scripts/build.py build_engine --platform=arm64-android --skip-docs --skip-tests
 
 ## Energy Consumption
 

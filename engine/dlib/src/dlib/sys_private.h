@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,12 +15,19 @@
 #ifndef DM_SYS_PRIVATE_H
 #define DM_SYS_PRIVATE_H
 
+#include "sys.h"
+
 namespace dmSys
 {
     void FillLanguageTerritory(const char* lang, struct SystemInfo* info);
     void FillTimeZone(struct SystemInfo* info);
     Result ErrnoToResult(int err);
     const char* ResultToString(Result r);
+
+#if defined(_WIN32)
+    Result GetApplicationSupportPath(const wchar_t* application_support_path, const char* application_name, char* path, uint32_t path_len);
+    Result GetApplicationSupportPath(const char* application_support_path, const char* application_name, char* path, uint32_t path_len);
+#endif
 }
 
 #endif // #ifndef DM_SYS_PRIVATE_H

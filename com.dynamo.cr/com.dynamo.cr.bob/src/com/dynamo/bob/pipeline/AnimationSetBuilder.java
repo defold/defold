@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,27 +32,42 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.AnimationSetDesc;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
+import com.dynamo.rig.proto.Rig.RigAnimation;
 import com.google.protobuf.TextFormat;
-
-import javax.xml.stream.XMLStreamException;
 
 @BuilderParams(name="AnimationSet", inExts=".animationset", outExt=".animationsetc", isCacheble = true)
 public class AnimationSetBuilder extends Builder  {
 
+    private static final String GENERATED_ANIMATION_SET_EXT = "_generated_0.animationsetc";
+
     public static void collectAnimations(Task.TaskBuilder taskBuilder, Project project, IResource owner, AnimationSetDesc.Builder animSetDescBuilder) throws IOException, CompileExceptionError  {
         for(AnimationInstanceDesc instance : animSetDescBuilder.getAnimationsList()) {
             IResource animFile = BuilderUtil.checkResource(project, owner, "animationset", instance.getAnimation());
-            taskBuilder.addInput(animFile);
 
             if(instance.getAnimation().endsWith(".animationset")) {
+                taskBuilder.addInput(animFile);
                 ByteArrayInputStream animFileIS = new ByteArrayInputStream(animFile.getContent());
                 InputStreamReader subAnimSetDescBuilderISR = new InputStreamReader(animFileIS);
                 AnimationSetDesc.Builder subAnimSetDescBuilder = AnimationSetDesc.newBuilder();
                 TextFormat.merge(subAnimSetDescBuilderISR, subAnimSetDescBuilder);
                 collectAnimations(taskBuilder, project, owner, subAnimSetDescBuilder);
+            } else {
+                String suffix = BuilderUtil.getSuffix(animFile.getPath());
+                if (suffix.equals("gltf") || suffix.equals("glb")) {
+                    Task meshsetTask = project.createTask(animFile, MeshsetBuilder.class);
+                    IResource compiledAnimations = meshsetTask.output(2);
+                    if (compiledAnimations == null) {
+                        throw new CompileExceptionError(animFile, 0, "Meshset task has no compiled animation output");
+                    }
+                    taskBuilder.addInput(compiledAnimations);
+                } else {
+                    // Preserve the existing build-time unsupported-format diagnostic.
+                    taskBuilder.addInput(animFile);
+                }
             }
         }
     }
@@ -83,7 +98,32 @@ public class AnimationSetBuilder extends Builder  {
         animFiles.add(path);
     }
 
-    private void buildAnimations(Task task, boolean isAnimationSet, ModelImporterJni.DataResolver dataResolver, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder,
+    private static RigAnimation getLongestAnimation(AnimationSet animationSet) {
+        RigAnimation longestAnimation = null;
+        for (RigAnimation animation : animationSet.getAnimationsList()) {
+            if (longestAnimation == null || animation.getDuration() > longestAnimation.getDuration()) {
+                longestAnimation = animation;
+            }
+        }
+        return longestAnimation;
+    }
+
+    private static void addCompiledAnimations(AnimationSet.Builder animationSetBuilder, AnimationSet compiledAnimations,
+                                              boolean isAnimationSet, String animId) {
+        if (!isAnimationSet) {
+            animationSetBuilder.addAllAnimations(compiledAnimations.getAnimationsList());
+            return;
+        }
+
+        RigAnimation longestAnimation = getLongestAnimation(compiledAnimations);
+        if (longestAnimation != null) {
+            animationSetBuilder.addAnimations(longestAnimation.toBuilder()
+                    .setId(MurmurHash.hash64(animId))
+                    .build());
+        }
+    }
+
+    private void buildAnimations(Task task, boolean isAnimationSet, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder,
                                             String parentId, ArrayList<String> animFiles) throws CompileExceptionError, IOException {
         ArrayList<String> idList = new ArrayList<>(animSetDescBuilder.getAnimationsCount());
 
@@ -95,7 +135,7 @@ public class AnimationSetBuilder extends Builder  {
                 InputStreamReader subAnimSetDescBuilderISR = new InputStreamReader(animFileIS);
                 AnimationSetDesc.Builder subAnimSetDescBuilder = AnimationSetDesc.newBuilder();
                 TextFormat.merge(subAnimSetDescBuilderISR, subAnimSetDescBuilder);
-                buildAnimations(task, true, dataResolver, subAnimSetDescBuilder, animationSetBuilder, FilenameUtils.getBaseName(animFile.getPath()), animFiles);
+                buildAnimations(task, true, subAnimSetDescBuilder, animationSetBuilder, FilenameUtils.getBaseName(animFile.getPath()), animFiles);
                 continue;
             }
             IResource animFile = BuilderUtil.checkResource(this.project, task.input(0), "animation", instance.getAnimation());
@@ -111,26 +151,18 @@ public class AnimationSetBuilder extends Builder  {
             }
             idList.add(animId);
 
-            ByteArrayInputStream animFileIS = new ByteArrayInputStream(animFile.getContent());
-            AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
-            ArrayList<String> animationIds = new ArrayList<String>();
-
             String suffix = BuilderUtil.getSuffix(animFile.getPath());
-            boolean isCollada = suffix.equals("dae");
-
-            try {
-                if (isCollada)
-                    loadColladaAnimations(animBuilder, animFileIS, animId, parentId);
-                else
-                    loadModelAnimations(isAnimationSet, animBuilder, animFileIS, dataResolver, animId, parentId, animFile.getPath(), animationIds);
-
-            } catch (XMLStreamException e) {
-                throw new CompileExceptionError(animFile, e.getLocation().getLineNumber(), "Failed to load animation: " + e.getLocalizedMessage(), e);
-            } catch (LoaderException e) {
-                throw new CompileExceptionError(animFile, -1, "Failed to load animation: " + e.getLocalizedMessage(), e);
+            if (!suffix.equals("gltf") && !suffix.equals("glb")) {
+                throw new CompileExceptionError(animFile, -1, "Unsupported animation format '." + suffix + "'");
             }
 
-            animationSetBuilder.addAllAnimations(animBuilder.getAnimationsList());
+            try {
+                IResource compiledAnimationsResource = animFile.changeExt(GENERATED_ANIMATION_SET_EXT);
+                AnimationSet compiledAnimations = AnimationSet.parseFrom(compiledAnimationsResource.getContent());
+                addCompiledAnimations(animationSetBuilder, compiledAnimations, isAnimationSet, animId);
+            } catch (IOException e) {
+                throw new CompileExceptionError(animFile, -1, e.getMessage(), e);
+            }
         }
     }
 
@@ -154,15 +186,6 @@ public class AnimationSetBuilder extends Builder  {
             animations.add(instance.getAnimation());
         }
         return makeUnique(animations);
-    }
-
-    static void loadColladaAnimations(AnimationSet.Builder animationSetBuilder, InputStream is, String animId, String parentId)
-    throws IOException, XMLStreamException, LoaderException {
-        ArrayList<String> localAnimationIds = new ArrayList<String>();
-        AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
-        ColladaUtil.loadAnimations(is, animBuilder, animId, localAnimationIds);
-
-        animationSetBuilder.addAllAnimations(animBuilder.getAnimationsList());
     }
 
     static void loadModelAnimations(boolean isAnimationSet, AnimationSet.Builder animationSetBuilder,
@@ -207,7 +230,7 @@ public class AnimationSetBuilder extends Builder  {
                 return null; // Actual errors are reported by ModelUtil.loadScene
             }
         }
-    };
+    }
 
     // For the editor
     static public void buildAnimations(boolean isAnimationSet, List<String> paths, List<InputStream> streams, ModelImporterJni.DataResolver dataResolver, List<String> parentIds,
@@ -232,22 +255,15 @@ public class AnimationSetBuilder extends Builder  {
             }
             animationIds.add(animId);
 
-            boolean isCollada = false;
             String suffix = BuilderUtil.getSuffix(path);
-            if (suffix.equals("dae")) {
-                isCollada = true;
+            if (!suffix.equals("gltf") && !suffix.equals("glb")) {
+                throw new CompileExceptionError(String.format("Unsupported animation format '.%s' in animation set: %s", suffix, path));
             }
 
             try {
-                if (isCollada)
-                    loadColladaAnimations(animationSetBuilder, stream, animId, parentId);
-                else
-                    loadModelAnimations(isAnimationSet, animationSetBuilder, stream, dataResolver, animId, parentId, path, animationIds);
-
-            } catch (XMLStreamException e) {
-                throw new CompileExceptionError(String.format("File %s:%d: Failed to load animation: %s", path, e.getLocation().getLineNumber(), e.getLocalizedMessage()), e);
-            } catch (LoaderException e) {
-                throw new CompileExceptionError(String.format("File %s:%d: Failed to load animation: %s", path, -1, e.getLocalizedMessage()), e);
+                loadModelAnimations(isAnimationSet, animationSetBuilder, stream, dataResolver, animId, parentId, path, animationIds);
+            } catch (IOException e) {
+                throw new CompileExceptionError(String.format("File %s:%d: Failed to load animation: %s", path, -1, e.getMessage()), e);
             }
         }
     }
@@ -261,17 +277,14 @@ public class AnimationSetBuilder extends Builder  {
         AnimationSetDesc.Builder animSetDescBuilder = AnimationSetDesc.newBuilder();
         TextFormat.merge(animSetDescISR, animSetDescBuilder);
 
-        ResourceDataResolver dataResolver = new ResourceDataResolver(this.project);
-
         // evaluate hierarchy
         AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
 
         ArrayList<String> animFiles = new ArrayList<String>();
-        animFiles = new ArrayList<String>();
         animFiles.add(task.input(0).getAbsPath());
 
         String suffix = BuilderUtil.getSuffix(task.input(0).getPath());
-        buildAnimations(task, suffix.equals("animationset"), dataResolver, animSetDescBuilder, animationSetBuilder, "", animFiles);
+        buildAnimations(task, suffix.equals("animationset"), animSetDescBuilder, animationSetBuilder, "", animFiles);
 
         // write merged animationset
         ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);

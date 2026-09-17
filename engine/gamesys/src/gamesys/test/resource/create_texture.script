@@ -1,4 +1,4 @@
--- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2020-2026 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -363,6 +363,15 @@ local function test_2d_array_texture()
     end)
 end
 
+local function get_function_name(func)
+    for name, value in pairs(_G) do
+        if value == func then
+            return name
+        end
+    end
+    return "Not found"
+end
+
 function update(self)
     self.update_counter = self.update_counter + 1
 
@@ -383,6 +392,7 @@ function update(self)
     }
 
     if tests[self.update_counter] ~= nil then
+        print(string.format("TEST %d: %s", self.update_counter, get_function_name(tests[self.update_counter])))
         tests[self.update_counter](self)
     else
         -- some tests can take more iterations, so we roll back here

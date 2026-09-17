@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,17 +20,6 @@
 
 namespace dmCrypt
 {
-    /**
-     * Decrypt data with a public hash
-     * @param key The public key
-     * @param keylen
-     * @param data The input data
-     * @param datalen
-     * @param output [out] The output. If the call was successful, the caller needs to free() this memory
-     * @param outputlen [out]
-     * @return RESULT_OK if decrypting went ok.
-     */
-    Result Decrypt(const uint8_t* key, uint32_t keylen, const uint8_t* data, uint32_t datalen, uint8_t** output, uint32_t* outputlen);
 }
 
 #endif /* DM_CRYPT_H */

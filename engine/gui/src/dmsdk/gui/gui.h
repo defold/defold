@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/script/script.h>
 
 
@@ -144,7 +145,6 @@ namespace dmGui
         NODE_TYPE_TEXT = 1,
         NODE_TYPE_PIE  = 2,
         NODE_TYPE_TEMPLATE = 3,
-        NODE_TYPE_SPINE = 4, // Deprecated. Used in the ddf for loading old content
         NODE_TYPE_PARTICLEFX = 5,
         NODE_TYPE_CUSTOM = 6,
         NODE_TYPE_COUNT = 7,
@@ -177,6 +177,49 @@ namespace dmGui
         RESULT_INF_RECURSION = -8,
         RESULT_DATA_ERROR = -9,
         RESULT_WRONG_TYPE = -10,
+    };
+
+    /*#
+     * @name CustomPropertyType
+     * @type enum
+     * @member CUSTOM_PROPERTY_TYPE_NUMBER
+     * @member CUSTOM_PROPERTY_TYPE_BOOLEAN
+     * @member CUSTOM_PROPERTY_TYPE_HASH
+     * @member CUSTOM_PROPERTY_TYPE_STRING
+     * @member CUSTOM_PROPERTY_TYPE_VECTOR3
+     * @member CUSTOM_PROPERTY_TYPE_VECTOR4
+     * @member CUSTOM_PROPERTY_TYPE_QUAT
+     */
+    enum CustomPropertyType
+    {
+        CUSTOM_PROPERTY_TYPE_NUMBER  = 0,
+        CUSTOM_PROPERTY_TYPE_BOOLEAN = 1,
+        CUSTOM_PROPERTY_TYPE_HASH    = 2,
+        CUSTOM_PROPERTY_TYPE_STRING  = 3,
+        CUSTOM_PROPERTY_TYPE_VECTOR3 = 5,
+        CUSTOM_PROPERTY_TYPE_VECTOR4 = 6,
+        CUSTOM_PROPERTY_TYPE_QUAT    = 7,
+    };
+
+    /*#
+     * Custom GUI node property value.
+     * String values returned from GetNodeCustomProperty() are owned by the GUI
+     * scene and must not be freed by the caller. String values passed to
+     * SetNodeCustomProperty() are copied.
+     * @name CustomProperty
+     * @type struct
+     * @member m_Type [type:dmGui::CustomPropertyType] the value type
+     */
+    struct CustomProperty
+    {
+        CustomPropertyType m_Type;
+        float              m_Number;
+        bool               m_Boolean;
+        dmhash_t           m_Hash;
+        const char*        m_String;
+        dmVMath::Vector3   m_Vector3;
+        dmVMath::Vector4   m_Vector4;
+        dmVMath::Quat      m_Quat;
     };
 
     /*#
@@ -325,6 +368,32 @@ namespace dmGui
      * @param value [type: dmVMath::Vector4]
      */
     void SetNodeProperty(HScene scene, HNode node, Property property, const dmVMath::Vector4& value);
+
+    /*#
+     * Get a custom property from a GUI node.
+     * String values returned in the output property are owned by the GUI scene
+     * and must not be freed by the caller.
+     * @name GetNodeCustomProperty
+     * @param scene [type: dmGui::HScene] scene
+     * @param node [type: dmGui::HNode] node
+     * @param key [type: dmhash_t] property name hash
+     * @param prop [type: dmGui::CustomProperty*] output property
+     * @return result [type: dmGui::Result] RESULT_OK on success
+     */
+    Result GetNodeCustomProperty(HScene scene, HNode node, dmhash_t key, CustomProperty* prop);
+
+    /*#
+     * Set a custom property on a GUI node.
+     * String values are copied, and the caller retains ownership of the input
+     * string.
+     * @name SetNodeCustomProperty
+     * @param scene [type: dmGui::HScene] scene
+     * @param node [type: dmGui::HNode] node
+     * @param key [type: dmhash_t] property name hash
+     * @param prop [type: const dmGui::CustomProperty*] property value
+     * @return result [type: dmGui::Result] RESULT_OK on success
+     */
+    Result SetNodeCustomProperty(HScene scene, HNode node, dmhash_t key, const CustomProperty* prop);
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
     // Don't forget to change gui_ddf.proto if you change here

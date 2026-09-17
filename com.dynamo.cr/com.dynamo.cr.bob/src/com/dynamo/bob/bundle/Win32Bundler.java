@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -30,7 +30,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 
-@BundlerParams(platforms = {"x86_64-win32", "x86-win32"})
+@BundlerParams(platforms = {"x86_64-win32"})
 public class Win32Bundler implements IBundler {
 
     @Override
@@ -83,7 +83,6 @@ public class Win32Bundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         String title = projectProperties.getStringValue("project", "title", "htmlUnnamed");
-
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title);
 
@@ -107,13 +106,14 @@ public class Win32Bundler implements IBundler {
         FileUtils.copyFile(bundleExe, exeOut);
 
         // Copy debug symbols if they were generated
-        String zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair());
+        File zipDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair()));
         File bundlePdb = new File(zipDir, "dmengine.pdb");
         if (bundlePdb.exists()) {
             File pdbOut = new File(appDir, "dmengine.pdb");
             FileUtils.copyFile(bundlePdb, pdbOut);
         }
 
+        BundleHelper.copySharedLibraries(platform, zipDir, appDir);
         BundleHelper.throwIfCanceled(canceled);
 
         // Copy bundle resources into bundle directory

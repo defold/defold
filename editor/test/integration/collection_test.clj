@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,6 +21,7 @@
             [editor.fs :as fs]
             [editor.game-object :as game-object]
             [editor.geom :as geom]
+            [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -39,7 +40,7 @@
         ;; Two game objects under the collection
         (is (= 2 (count (:children outline))))
         ;; One component and game object under the game object
-        (is (= 2 (count (:children (second (:children outline)))))))))
+        (is (= 2 (count (:children (first (:children outline)))))))))
   (testing "Deleting hierarchy deletes children"
     (test-util/with-loaded-project
       (let [node-id   (test-util/resource-node project "/logic/hierarchy.collection")
@@ -94,7 +95,7 @@
                    outline   (g/node-value node-id :node-outline)
                    scene     (g/node-value node-id :scene)]
                ;; Verify outline labels
-               (is (= (list "Collection" "go") (map :label (tree-seq :children :children outline))))
+               (is (= (list (localization/message "outline.collection") "go") (map :label (tree-seq :children :children outline))))
                ;; Verify AABBs
                (is (= [geom/null-aabb geom/empty-bounding-box]
                       (map :aabb (tree-seq :children :children (g/node-value node-id :scene)))))))))
@@ -106,7 +107,7 @@
                    outline   (g/node-value node-id :node-outline)
                    scene     (g/node-value node-id :scene)]
                ;; Verify outline labels
-               (is (= (list "Collection" "my_instance" "unknown")
+               (is (= (list (localization/message "outline.collection") "my_instance" "unknown")
                       (map :label (tree-seq :children :children outline))))
                ;; Verify AABBs
                (is (= [geom/null-aabb geom/empty-bounding-box geom/empty-bounding-box]
@@ -157,8 +158,8 @@
               coll-comp (:node-id (test-util/outline coll-id [0 0]))
               go-comp (:node-id (test-util/outline go-id [0]))]
           (is (= [coll-comp] (g/overrides go-comp)))
-          (let [coll-script (ffirst (g/sources-of coll-comp :source-id))
-                go-script (ffirst (g/sources-of go-comp :source-id))]
+          (let [coll-script (some-> (first (g/inputs (g/now) coll-comp :source-id)) gt/source-id)
+                go-script (some-> (first (g/inputs (g/now) go-comp :source-id)) gt/source-id)]
             (is (= [coll-script] (g/overrides go-script)))
             (is (some #{go-script} (g/overrides script-id))))
           (is (= 1.0 (script-prop go-comp "number")))
@@ -344,7 +345,7 @@
                     game-object-build-output-bytes (fs/read-bytes game-object-build-output-file)]
                 (protobuf/bytes->pb GameObject$PrototypeDesc game-object-build-output-bytes))))]
     (with-clean-system
-      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/small_project")
+      (let [workspace (test-util/setup-scratch-workspace! "test/resources/small_project")
             atlas-resource (workspace/find-resource workspace "/main/logo.atlas")
             atlas-proj-path (resource/proj-path atlas-resource)
             game-object-resource (test-util/make-resource! workspace "/test.go" {})

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,8 +16,7 @@
   (:require [dynamo.graph :as g]
             [schema.core :as s]
             [editor.types :as types])
-  (:import [com.jogamp.opengl GL GL2]
-           [com.jogamp.opengl.glu GLU]))
+  (:import [com.jogamp.opengl GL GL2]))
 
 (set! *warn-on-reflection* true)
 
@@ -62,10 +61,10 @@
                        (s/optional-key selection)             s/Any
                        (s/optional-key manipulator-selection) s/Any})
 
-(defmulti prepare-gl (fn [pass gl glu] pass))
+(defmulti prepare-gl (fn [pass gl] pass))
 
 (defmethod prepare-gl background
-  [_ ^GL2 gl ^GLU glu]
+  [_ ^GL2 gl]
   (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL)
   (.glDisable gl GL/GL_BLEND)
   (.glDisable gl GL/GL_DEPTH_TEST)
@@ -73,11 +72,10 @@
   (.glDisable gl GL/GL_SCISSOR_TEST)
   (.glDisable gl GL/GL_STENCIL_TEST)
   (.glStencilMask gl 0x0)
-  (.glColorMask gl true true true true)
-  (.glDisable gl GL2/GL_LINE_STIPPLE))
+  (.glColorMask gl true true true true))
 
 (defmethod prepare-gl infinity-grid
-  [_ ^GL2 gl ^GLU glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -87,11 +85,10 @@
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl opaque
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glDisable GL/GL_BLEND)
@@ -100,11 +97,10 @@
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl outline
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_LINE)
     (.glDisable GL/GL_BLEND)
@@ -113,11 +109,10 @@
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl transparent
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -127,11 +122,10 @@
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl opaque-selection
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glDisable GL/GL_BLEND)
@@ -140,11 +134,10 @@
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl selection
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -154,11 +147,10 @@
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl manipulator
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -168,11 +160,10 @@
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl manipulator-selection
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -182,11 +173,10 @@
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (defmethod prepare-gl overlay
-  [_ ^GL2 gl glu]
+  [_ ^GL2 gl]
   (doto gl
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
@@ -196,8 +186,7 @@
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
     (.glStencilMask 0x0)
-    (.glColorMask true true true true)
-    (.glDisable GL2/GL_LINE_STIPPLE)))
+    (.glColorMask true true true true)))
 
 (doseq [[v doc]
         {*ns*

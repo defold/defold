@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <script/test_script.h>
+#include <test_script.h>
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
 
@@ -49,12 +49,17 @@ TEST_F(ComponentTest, HTTPRequest)
 
     SetHttpAddress(L);
 
+    ASSERT_NE((void*)0, ContextRegistryGet(m_ContextRegistry, "http_service"));
+
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = ::Spawn(m_Factory, m_Collection, "/http/http_request.goc", dmHashString64("/http_request"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
-    uint64_t stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
+    // Upper bound, not a wait: the loop exits as soon as the script reports done, so a
+    // generous budget costs nothing on a fast host. One second is not enough for the 8
+    // requests once a real device is doing the round trips (measured ~2s on an emulator).
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 5*1e6; // 5 seconds
     bool tests_done = false;
     while (dmTime::GetMonotonicTime() < stop_time && !tests_done)
     {
@@ -70,6 +75,7 @@ TEST_F(ComponentTest, HTTPRequest)
 
     ASSERT_TRUE(tests_done);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmMessage::DeleteSocket(m_DefaultURL.m_Socket);
 }
 
 extern "C" void dmExportedSymbols();
@@ -112,5 +118,7 @@ int main(int argc, char **argv)
     }
 
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+    int result = jc_test_run_all();
+    dmLog::LogFinalize();
+    return result;
 }

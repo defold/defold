@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,6 +18,7 @@
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/configfile_gen.hpp>
+#include <dmsdk/dlib/context_registry.h>
 #include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/script/script.h>
@@ -25,7 +26,7 @@
 
 namespace dmGameObject
 {
-    /*# SDK Component API documentation
+    /*# Component API documentation
      *
      * Api for manipulating game object components (WIP)
      *
@@ -36,6 +37,7 @@ namespace dmGameObject
      */
 
     struct ComponentType;
+    struct ComponentTypeCreateCtxImpl;
 
     /*#
      * Component type handle. It holds the life time functions for a type.
@@ -57,10 +59,10 @@ namespace dmGameObject
      */
     struct ComponentNewWorldParams
     {
-        void* m_Context;
-        uint8_t m_ComponentIndex;
+        void*    m_Context;
+        uint8_t  m_ComponentIndex;
         uint32_t m_MaxInstances;
-        void** m_World;
+        void**   m_World;
         uint32_t m_MaxComponentInstances;
     };
 
@@ -112,16 +114,16 @@ namespace dmGameObject
      */
     struct ComponentCreateParams
     {
-        HInstance           m_Instance;
-        dmVMath::Point3     m_Position;
-        dmVMath::Quat       m_Rotation;
-        dmVMath::Vector3    m_Scale;
-        PropertySet         m_PropertySet;
-        void*               m_Resource;
-        void*               m_World;
-        void*               m_Context;
-        uintptr_t*          m_UserData;
-        uint16_t            m_ComponentIndex;
+        HInstance        m_Instance;
+        dmVMath::Point3  m_Position;
+        dmVMath::Quat    m_Rotation;
+        dmVMath::Vector3 m_Scale;
+        PropertySet      m_PropertySet;
+        void*            m_Resource;
+        void*            m_World;
+        void*            m_Context;
+        uintptr_t*       m_UserData;
+        uint16_t         m_ComponentIndex;
     };
 
     /*#
@@ -147,10 +149,10 @@ namespace dmGameObject
     struct ComponentDestroyParams
     {
         HCollection m_Collection;
-        HInstance m_Instance;
-        void* m_World;
-        void* m_Context;
-        uintptr_t* m_UserData;
+        HInstance   m_Instance;
+        void*       m_World;
+        void*       m_Context;
+        uintptr_t*  m_UserData;
     };
 
     /*#
@@ -175,10 +177,10 @@ namespace dmGameObject
     struct ComponentInitParams
     {
         HCollection m_Collection;
-        HInstance m_Instance;
-        void* m_World;
-        void* m_Context;
-        uintptr_t* m_UserData;
+        HInstance   m_Instance;
+        void*       m_World;
+        void*       m_Context;
+        uintptr_t*  m_UserData;
     };
 
     /*#
@@ -203,10 +205,10 @@ namespace dmGameObject
     struct ComponentFinalParams
     {
         HCollection m_Collection;
-        HInstance m_Instance;
-        void* m_World;
-        void* m_Context;
-        uintptr_t* m_UserData;
+        HInstance   m_Instance;
+        void*       m_World;
+        void*       m_Context;
+        uintptr_t*  m_UserData;
     };
 
     /*#
@@ -306,16 +308,6 @@ namespace dmGameObject
      * @return result [type: UpdateResult] UPDATE_RESULT_OK on success
      */
     typedef UpdateResult (*ComponentsUpdate)(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
-
-    /*#
-     * Component fixed update function. Updates all component of this type for all game objects
-     * @typedef
-     * @name ComponentsFixedUpdate
-     * @param params [type: const dmGameObject::ComponentsUpdateParams&] Update parameters
-     * @param params [type: dmGameObject::ComponentsUpdateResult&] (out) Update result
-     * @return result [type: UpdateResult] UPDATE_RESULT_OK on success
-     */
-    typedef UpdateResult (*ComponentsFixedUpdate)(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
 
     /*#
      * Parameters to ComponentsRender callback.
@@ -478,7 +470,7 @@ namespace dmGameObject
      * @member m_Instance [type: HInstance] Game object instance
      * @member m_PropertyId [type: dmhash_t] Id of the property
      * @member m_UserData [type: uintptr_t*] User data storage pointer
-     * @member m_Options [type: PropertyOptions] Options for getting the property
+     * @member m_Options [type: HPropertyOptions] Options for getting the property
      */
     struct ComponentGetPropertyParams
     {
@@ -487,7 +479,7 @@ namespace dmGameObject
         HInstance m_Instance;
         dmhash_t m_PropertyId;
         uintptr_t* m_UserData;
-        PropertyOptions m_Options;
+        HPropertyOptions m_Options;
     };
 
     /*#
@@ -509,8 +501,8 @@ namespace dmGameObject
      * @member m_Instance [type: HInstance] Game object instance
      * @member m_PropertyId [type: dmhash_t] Id of the property
      * @member m_UserData [type: uintptr_t*] User data storage pointer
-     * @member m_Value [type: PropertyVar] New value of the property
-     * @member m_Options [type: PropertyOptions] Options for setting the property
+     * @member m_Value [type: PropertyVar] New value of the property. Text values are borrowed and must be copied if retained after the callback returns.
+     * @member m_Options [type: HPropertyOptions] Options for setting the property
      */
     struct ComponentSetPropertyParams
     {
@@ -520,7 +512,7 @@ namespace dmGameObject
         dmhash_t m_PropertyId;
         uintptr_t* m_UserData;
         PropertyVar m_Value;
-        PropertyOptions m_Options;
+        HPropertyOptions m_Options;
     };
 
     /*#
@@ -636,9 +628,18 @@ namespace dmGameObject
      * Set the component update callback. Called when it's time to update all component instances.
      * @name ComponentTypeSetFixedUpdateFn
      * @param type [type: HComponentType] the type
-     * @param fn [type: ComponentsFixedUpdate] callback
+     * @param fn [type: ComponentsUpdate] callback
      */
-    void ComponentTypeSetFixedUpdateFn(HComponentType type, ComponentsFixedUpdate fn);
+    void ComponentTypeSetFixedUpdateFn(HComponentType type, ComponentsUpdate fn);
+
+
+    /*# set the component late update callback
+     * Set the component late update callback. Called after regular update of all component instances but before render and before post update.
+     * @name ComponentTypeSetLateUpdateFn
+     * @param type [type: HComponentType] the type
+     * @param fn [type: ComponentsUpdate] callback
+     */
+    void ComponentTypeSetLateUpdateFn(HComponentType type, ComponentsUpdate fn);
 
     /*# set the component post update callback
      * Set the component post update callback. Called for each collection after the update, before the render.
@@ -761,15 +762,25 @@ namespace dmGameObject
      * @member m_Factory [type: dmResource::HFactory] The resource factory
      * @member m_Register [type: dmGameObject::HRegister] The game object registry
      * @member m_Script [type: dmScript::HContext] The shared script context
-     * @member m_Contexts [type: dmHashTable64<void*>] Mappings between names and contextx
+     * @member m_Contexts [type: dmHashTable64<void*>] Mappings between names and contexts
+     * @member m_Impl [type: dmGameObject::ComponentTypeCreateCtxImpl*] Opaque implementation data
      */
     struct ComponentTypeCreateCtx {
-        dmConfigFile::HConfig    m_Config;
-        dmResource::HFactory     m_Factory;
-        dmGameObject::HRegister  m_Register;
-        dmScript::HContext       m_Script;
-        dmHashTable64<void*>     m_Contexts;
+        ComponentTypeCreateCtxImpl* m_Impl;
+        dmConfigFile::HConfig       m_Config; // deprecated
+        dmResource::HFactory        m_Factory; // deprecated
+        dmGameObject::HRegister     m_Register; // deprecated
+        dmScript::HContext          m_Script; // deprecated
+        dmHashTable64<void*>        m_Contexts; // deprecated
     };
+
+    /*# get the context registry from the component type create context
+     * Use the returned registry with ContextRegistryGet and ContextRegistrySet to access named engine contexts.
+     * @name ComponentGetContextRegistry
+     * @param ctx [type: const ComponentTypeCreateCtx*] component type create context
+     * @return registry [type: HContextRegistry] engine context registry
+     */
+    HContextRegistry ComponentGetContextRegistry(const ComponentTypeCreateCtx* ctx);
 
     typedef Result (*ComponentTypeCreateFunction)(const ComponentTypeCreateCtx* ctx, HComponentType type);
     typedef Result (*ComponentTypeDestroyFunction)(const ComponentTypeCreateCtx* ctx, HComponentType type);

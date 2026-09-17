@@ -1,0 +1,16 @@
+name: "recursive_collectionfactory_test"
+instances {
+  id: "go"
+  prototype: "/collection_factory/collectionfactory_test.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}

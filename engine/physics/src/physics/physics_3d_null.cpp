@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -69,6 +69,12 @@ namespace dmPhysics
     }
 
     HCollisionShape3D NewConvexHullShape3D(HContext3D context, const float* vertices, uint32_t vertex_count)
+    {
+        return 0;
+    }
+
+    HCollisionShape3D NewTriangleMeshShape3D(HContext3D context, const float* vertices, uint32_t vertex_count,
+                                              const uint32_t* indices, uint32_t index_count, CollisionObjectType object_type)
     {
         return 0;
     }
@@ -209,8 +215,9 @@ namespace dmPhysics
     {
     }
 
-    void RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
+    bool RequestRayCast3D(HWorld3D world, const RayCastRequest& request)
     {
+        return true;
     }
 
     void RayCast3D(HWorld3D world, const RayCastRequest& request, dmArray<RayCastResponse>& results)
@@ -239,8 +246,31 @@ namespace dmPhysics
         return 0;
     }
 
+    void* GetWorldContext3D(HWorld3D world)
+    {
+        return 0;
+    }
+
+    void* GetCollisionObjectContext3D(HCollisionObject3D collision_object)
+    {
+        return 0;
+    }
 
     void ReplaceShape3D(HCollisionObject3D object, HCollisionShape3D old_shape, HCollisionShape3D new_shape)
+    {
+    }
+
+    bool ReplaceCollisionShapeAtIndex3D(HCollisionObject3D object, uint32_t index, HCollisionShape3D new_shape)
+    {
+        return false;
+    }
+
+    bool MakeCollisionShapeOwned3D(HCollisionObject3D object, uint32_t index, HCollisionShape3D* out_shape)
+    {
+        return false;
+    }
+
+    void RefreshCollisionShape3D(HWorld3D world, HCollisionObject3D object)
     {
     }
 

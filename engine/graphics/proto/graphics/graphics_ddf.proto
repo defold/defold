@@ -2,7 +2,6 @@ syntax = "proto2";
 package dmGraphics;
 
 import "ddf/ddf_extensions.proto";
-import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.graphics.proto";
 option java_outer_classname = "Graphics";
@@ -59,17 +58,19 @@ message VertexAttribute
 
     enum SemanticType
     {
-        SEMANTIC_TYPE_NONE          = 1;
-        SEMANTIC_TYPE_POSITION      = 2;
-        SEMANTIC_TYPE_TEXCOORD      = 3;
-        SEMANTIC_TYPE_PAGE_INDEX    = 4;
-        SEMANTIC_TYPE_COLOR         = 5;
-        SEMANTIC_TYPE_NORMAL        = 6;
-        SEMANTIC_TYPE_TANGENT       = 7;
-        SEMANTIC_TYPE_WORLD_MATRIX  = 8;
-        SEMANTIC_TYPE_NORMAL_MATRIX = 9;
-        SEMANTIC_TYPE_BONE_WEIGHTS  = 10;
-        SEMANTIC_TYPE_BONE_INDICES  = 11;
+        SEMANTIC_TYPE_NONE                 = 1;
+        SEMANTIC_TYPE_POSITION             = 2;
+        SEMANTIC_TYPE_TEXCOORD             = 3;
+        SEMANTIC_TYPE_PAGE_INDEX           = 4;
+        SEMANTIC_TYPE_COLOR                = 5;
+        SEMANTIC_TYPE_NORMAL               = 6;
+        SEMANTIC_TYPE_TANGENT              = 7;
+        SEMANTIC_TYPE_WORLD_MATRIX         = 8;
+        SEMANTIC_TYPE_NORMAL_MATRIX        = 9;
+        SEMANTIC_TYPE_BONE_WEIGHTS         = 10;
+        SEMANTIC_TYPE_BONE_INDICES         = 11;
+        SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D = 12;
+        SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS = 13;
     }
 
     message LongValues
@@ -316,7 +317,9 @@ message ShaderDesc
         LANGUAGE_GLSL_SM430 = 6;  // OpenGL 4.3+ compatible
         LANGUAGE_GLSL_SM330 = 7;  // OpenGL 3.3 (used for desktop platforms)
         LANGUAGE_WGSL       = 8;  // WebGPU
-        LANGUAGE_HLSL       = 9;  // Windows / XBox compatible
+        LANGUAGE_HLSL_50    = 9;  // Windows / XBox compatible (also used for cross compiling)
+        LANGUAGE_HLSL_51    = 10; // Windows / XBox compatible (also used for cross compiling)
+        LANGUAGE_MSL_22     = 11; // MacOS / iOS compatible
     }
 
     enum ShaderType
@@ -438,6 +441,21 @@ message ShaderDesc
         optional uint32 set       = 3;
     }
 
+    message MSLResourceMapping
+    {
+        optional uint64 name_hash = 1;
+        optional uint32 binding   = 2;
+        optional uint32 set       = 3;
+        optional uint32 msl_index = 4;
+    }
+
+    message WorkGroupSize
+    {
+        optional uint32 x = 1;
+        optional uint32 y = 2;
+        optional uint32 z = 3;
+    }
+
     message Shader
     {
         required bytes               source                 = 1;
@@ -445,8 +463,14 @@ message ShaderDesc
         required Language            language               = 3;
         optional bool                variant_texture_array  = 4 [default = false];
         repeated HLSLResourceMapping hlsl_resource_mapping  = 5;
+        repeated MSLResourceMapping  msl_resource_mapping   = 6;
+        optional WorkGroupSize       work_group_size        = 7;
     }
 
     repeated Shader shaders              = 1;
     optional ShaderReflection reflection = 2;
+    optional bytes hlsl_root_signature   = 3;
+    optional string vertex_program       = 4;
+    optional string fragment_program     = 5;
+    optional string compute_program      = 6;
 }

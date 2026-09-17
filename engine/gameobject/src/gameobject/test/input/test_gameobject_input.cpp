@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,6 +18,8 @@
 
 #include <dlib/hash.h>
 #include <dlib/dstrings.h>
+#include <dlib/path.h>
+#include <dlib/testutil.h>
 
 #include "../gameobject.h"
 #include "../component.h"
@@ -31,7 +33,7 @@ using namespace dmVMath;
 class InputTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_InputCounter = 0;
 
@@ -40,7 +42,8 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/input");
+        char path[DMPATH_MAX_PATH];
+        m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gameobject/test/input"));
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
@@ -81,7 +84,7 @@ protected:
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);
@@ -267,7 +270,7 @@ TEST_F(InputTest, TextComponentTextInput)
     dmGameObject::InputAction action;
     action.m_ActionId = dmHashString64("test_action");
     action.m_HasText = 0;
-    action.m_TextCount = dmStrlCpy(action.m_Text, text_str, sizeof(action.m_Text));
+    action.m_Count = dmStrlCpy(action.m_Text, text_str, sizeof(action.m_Text));
 
     // Test normal text input action
     dmGameObject::UpdateResult r = dmGameObject::DispatchInput(m_Collection, &action, 1);
@@ -276,7 +279,7 @@ TEST_F(InputTest, TextComponentTextInput)
     // Test marked text input action
     action.m_ActionId = dmHashString64("test_action");
     action.m_HasText = 1;
-    action.m_TextCount = dmStrlCpy(action.m_Text, text_str, sizeof(action.m_Text));
+    action.m_Count = dmStrlCpy(action.m_Text, text_str, sizeof(action.m_Text));
 
     r = dmGameObject::DispatchInput(m_Collection, &action, 1);
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, r);

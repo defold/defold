@@ -1,0 +1,24 @@
+#version 140
+
+// Vertex shader with more than 8 attribute streams (10 total) for testing MAX_VERTEX_STREAMS support
+in vec2 position;
+in float stream0;
+in float stream1;
+in float stream2;
+in float stream3;
+in float stream4;
+in float stream5;
+in float stream6;
+in float stream7;
+in float stream8;
+
+out vec2 var_uv;
+out vec3 var_normal;
+
+void main()
+{
+    gl_Position = vec4(position, 0.0, 1.0);
+    // Need to use all streams for the test to work
+    var_uv.x = stream0 + stream1 + stream2 + stream3 + stream4 + stream5 + stream6 + stream7 + stream8;
+    var_normal = vec3(0.0);
+}

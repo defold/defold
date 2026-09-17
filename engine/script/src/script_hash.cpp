@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -42,8 +42,40 @@ namespace dmScript
      * @language Lua
      */
 
+    /*# Hashed identifier
+     *
+     * Defold represents resource paths, message names, object ids, and many other
+     * identifiers as 64-bit hash values. Create one from a string with [ref:hash],
+     * or receive one from an engine API. Hashes can be compared for equality and
+     * used as table keys, but the original string is not generally recoverable in
+     * release builds.
+     *
+     * @typedef
+     * @name hash
+     * @param value [type:userdata] hashed identifier
+     * @examples
+     *
+     * ```lua
+     * local damage_message = hash("take_damage")
+     *
+     * function on_message(self, message_id, message, sender)
+     *     if message_id == damage_message then
+     *         self.health = self.health - message.amount
+     *     end
+     * end
+     * ```
+     */
+
     #define SCRIPT_TYPE_NAME_HASH "hash"
     static uint32_t SCRIPT_HASH_TYPE_HASH = 0;
+
+    static inline void PushHashWeakTableKey(lua_State* L, dmhash_t hash)
+    {
+        // The weak table is indexed by full 64-bit hashes. Lua numbers are doubles
+        // and lua_rawgeti() takes an int, so numeric keys can lose
+        // bits and let stale hash userdata erase a live cache entry.
+        lua_pushlstring(L, (const char*)&hash, sizeof(hash));
+    }
 
     bool IsHash(lua_State *L, int index)
     {
@@ -175,7 +207,7 @@ namespace dmScript
         lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
         // [-2] userdata
         // [-1] weak_table
-        lua_pushinteger(L, (lua_Integer)hash);
+        PushHashWeakTableKey(L, hash);
         // [-3] userdata
         // [-2] weak_table
         // [-1] key
@@ -184,7 +216,7 @@ namespace dmScript
         // [-3] weak_table
         // [-2] key
         // [-1] value
-        lua_settable(L, -3); // weak_table[hash] = userdata
+        lua_rawset(L, -3); // weak_table[hash] = userdata
         // [-2] userdata
         // [-1] weak_table
         lua_pop(L, 1);
@@ -206,10 +238,10 @@ namespace dmScript
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
             // [-1] weak_table
-            lua_pushinteger(L, (lua_Integer)hash);
+            PushHashWeakTableKey(L, hash);
             // [-2] weak_table
             // [-1] key
-            lua_gettable(L, -2);
+            lua_rawget(L, -2);
             // [-2] weak_table
             // [-1] value or nil
             if (lua_isnil(L, -1))
@@ -397,9 +429,12 @@ namespace dmScript
             {
                 lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextWeakTableRef);
                 // [-1] weak_table
-                lua_rawgeti(L, -1, (lua_Integer)hash);
+                PushHashWeakTableKey(L, hash);
                 // [-2] weak_table
-                // [-1] hash
+                // [-1] key
+                lua_rawget(L, -2);
+                // [-2] weak_table
+                // [-1] value or nil
                 if (lua_isnil(L, -1))
                 {
                     context->m_HashInstances.Erase(hash);

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,8 +15,11 @@
 package com.dynamo.bob.fs.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -29,6 +32,7 @@ import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.test.TestLibrariesRule;
+import com.dynamo.bob.util.Library;
 
 public class ZipMountPointTest {
 
@@ -39,7 +43,7 @@ public class ZipMountPointTest {
 
     @Before
     public void setUp() throws Exception {
-        this.mp = new ZipMountPoint(null, "server_root/test_lib1.zip");
+        this.mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_lib1.zip")));
         this.mp.mount();
     }
 
@@ -51,18 +55,18 @@ public class ZipMountPointTest {
     @Test
     public void testResource() throws Exception {
         IResource resource = mp.get("test_lib1/file1.in");
-        assertTrue(resource != null);
-        assertEquals(new String(resource.getContent()), "file1");
+        assertNotNull(resource);
+        assertEquals("file1", new String(resource.getContent()));
     }
 
     @Test
     public void testMount() throws Exception {
-        ZipMountPoint mp = new ZipMountPoint(null, "server_root/test_lib2.zip");
-        assertTrue(mp.get("test_lib2/file2.in") == null);
+        ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_lib2.zip")));
+        assertNull(mp.get("test_lib2/file2.in"));
         mp.mount();
-        assertTrue(mp.get("test_lib2/file2.in") != null);
+        assertNotNull(mp.get("test_lib2/file2.in"));
         mp.unmount();
-        assertTrue(mp.get("test_lib2/file2.in") == null);
+        assertNull(mp.get("test_lib2/file2.in"));
     }
 
     @Test
@@ -78,7 +82,7 @@ public class ZipMountPointTest {
     public void testWalkerWithSubdir() throws Exception {
     	
     	// Mount a library zip that "incorrectly" has a subdir before its game.project
-    	ZipMountPoint mp = new ZipMountPoint(null, "server_root/test_lib3.zip");
+    	ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_lib3.zip")));
     	mp.mount();
         FileSystemWalker walker = new FileSystemWalker();
         Collection<String> results = new ArrayList<String>();
@@ -93,7 +97,7 @@ public class ZipMountPointTest {
 
     @Test
     public void testWalkerWithSubdir2() throws Exception {
-    	ZipMountPoint mp = new ZipMountPoint(null, "server_root/test_lib4.zip");
+    	ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_lib4.zip")));
     	mp.mount();
         FileSystemWalker walker = new FileSystemWalker();
         Collection<String> results = new ArrayList<String>();

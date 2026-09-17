@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,17 +17,18 @@
             [cljfx.component :as fx.component]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.column-constraints :as fx.column-constraints]
-            [cljfx.fx.combo-box :as fx.combo-box]
             [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.label :as fx.label]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.row-constraints :as fx.row-constraints]
+            [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.stage :as fx.stage]
-            [cljfx.fx.tooltip :as fx.tooltip]
+            [cljfx.fx.tab :as fx.tab]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
+            [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -37,29 +38,31 @@
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
-            [editor.fs :as fs]
             [editor.future :as future]
             [editor.fxui :as fxui]
+            [editor.fxui.combo-box :as fxui.combo-box]
             [editor.icons :as icons]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.ui :as ui]
+            [editor.workspace :as workspace]
             [internal.util :as iutil]
             [util.coll :as coll :refer [pair]]
-            [util.fn :as fn])
-  (:import [com.defold.control DefoldStringConverter]
-           [com.defold.editor.luart DefoldLuaFn]
+            [util.fn :as fn]
+            [util.path :as path])
+  (:import [com.defold.editor.luart DefoldLuaFn]
+           [java.net URI URISyntaxException]
            [java.nio.file Path]
            [java.util Collection List]
-           [javafx.animation SequentialTransition TranslateTransition]
            [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener]
            [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control CheckBox ComboBox TextField]
+           [javafx.scene.control CheckBox TextField]
+           [javafx.scene.image Image]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
-           [javafx.util Duration]
            [org.luaj.vm2 LuaError LuaValue]))
 
 (set! *warn-on-reflection* true)
@@ -67,6 +70,16 @@
 ;; See also:
 ;; - Components doc: https://docs.google.com/document/d/1e6kmVLspQEoe17Ys1nmbbf54cqUn2fNPZowIe7JBwl4/edit
 ;; - Reactive UI doc: https://docs.google.com/document/d/1cgqFPLUc3YQih2tsEA067Pz9Q0nWlKoVflqLEVX8CPY/edit
+
+;; The value gets bound to a volatile with evaluation context. When the context
+;; becomes invalid (fills the cache after use), the volatile is set to nil to
+;; signal that this context can't be used anymore. The default value is a
+;; reduced instance to support `deref`, but not `vreset!`
+(def ^:private ^:dynamic *lifecycle-evaluation-context-ideref* (reduced nil))
+
+(defn- lifecycle-evaluation-context []
+  {:post [(some? %)]}
+  @*lifecycle-evaluation-context-ideref*)
 
 (s/def ::create ifn?)
 (s/def ::advance ifn?)
@@ -147,6 +160,31 @@
   {:fx/type fxui/scroll
    :content content})
 
+(defn- tabs-view [{:keys [tabs]}]
+  (cond-> {:fx/type fxui/tab-pane
+           :style-class ["tab-pane" "ext-tab-pane"]}
+          tabs (assoc :tabs
+                      (into []
+                            (keep-indexed
+                              (fn [i desc]
+                                (when desc
+                                  (assoc desc :fx/key i))))
+                            tabs))))
+
+(ui/defc tab-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [text content icon enabled localization-state]
+    :or {enabled true}}]
+  (cond-> {:fx/type fx.tab/lifecycle
+           :text (localization-state text)
+           :closable false
+           :disable (not enabled)}
+          content (assoc :content content)
+          icon (assoc :graphic {:fx/type fx.stack-pane/lifecycle
+                                :style-class ["ext-tab-icon"]
+                                :alignment :center
+                                :children [icon]})))
+
 (defn- apply-constraints [props props-key lifecycle grow-key constraints]
   (assoc props props-key (mapv (fn [maybe-constraint]
                                  (let [ret {:fx/type lifecycle}]
@@ -223,42 +261,40 @@
     (fn apply-label-color [props color]
       (fxui/add-style-classes props (color->style-class color)))))
 
-(defn- apply-tooltip [props text]
-  {:pre [(some? text)]}
-  (assoc props :tooltip {:fx/type fx.tooltip/lifecycle
-                         :text text
-                         :hide-delay :zero
-                         :show-delay :zero
-                         :show-duration [30 :s]}))
-
-(defn- label-view [{:keys [alignment text text_alignment color tooltip]
-                    :or {alignment :top-left
-                         color :text}}]
+(ui/defc label-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [alignment text text_alignment color tooltip localization-state]
+    :or {alignment :top-left
+         color :text}}]
   (cond-> {:fx/type fxui/label :alignment alignment}
-          text (assoc :text text)
+          text (assoc :text (localization-state text))
           color (assoc :color color)
           text_alignment (assoc :text-alignment text_alignment)
-          tooltip (assoc :tooltip tooltip)))
+          tooltip (assoc :tooltip (localization-state tooltip))))
 
-(defn- paragraph-view [{:keys [alignment text text_alignment color word_wrap]
-                        :or {alignment :top-left
-                             word_wrap true
-                             color :text}}]
+(ui/defc paragraph-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [alignment text text_alignment color word_wrap localization-state]
+    :or {alignment :top-left
+         word_wrap true
+         color :text}}]
   (cond-> {:fx/type fxui/paragraph
            :wrap-text word_wrap
            :alignment alignment
            :color color}
-          text (assoc :text text)
+          text (assoc :text (localization-state text))
           text_alignment (assoc :text-alignment text_alignment)))
 
 (def ^:private heading-style->label-style-class
   (fn/make-case-fn (coll/pair-map-by identity #(str "ext-heading-style-" (name %)) (:heading-style ui-docs/enums))))
 
-(defn- heading-view [{:keys [alignment text text_alignment color word_wrap style]
-                      :or {alignment :top-left
-                           word_wrap true
-                           style :h3
-                           color :text}}]
+(ui/defc heading-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [alignment text text_alignment color word_wrap style localization-state]
+    :or {alignment :top-left
+         word_wrap true
+         style :h3
+         color :text}}]
   (-> {:fx/type fx.label/lifecycle
        :style-class ["label" (heading-style->label-style-class style)]
        :max-width Double/MAX_VALUE
@@ -266,7 +302,7 @@
        :wrap-text word_wrap}
       (apply-alignment alignment)
       (apply-label-color color)
-      (cond-> text (assoc :text text)
+      (cond-> text (assoc :text (localization-state text))
               text_alignment (assoc :text-alignment text_alignment))))
 
 (defn- wrap-in-alignment-container
@@ -300,6 +336,30 @@
                    :fit-width fit-size
                    :fit-height fit-size}]}
       alignment)))
+
+(defn- construct-image [^String s workspace]
+  (if (string/starts-with? s "/")
+    (when-let [resource (workspace/find-resource (:basis (lifecycle-evaluation-context)) workspace s)]
+      (when (resource/exists? resource)
+        (Image. (io/input-stream resource) #_background-loading true)))
+    (when-let [^URI uri (try (URI. s) (catch URISyntaxException _))]
+      (when (.getScheme uri)
+        (Image. s #_background-loading true)))))
+
+(ui/defc image-view
+  {:compose [{:fx/type fx/ext-get-env :env [:workspace]}
+             {:fx/type ui/ext-memo :fn construct-image :args [(:image props) (:workspace props)] :key :image}]}
+  [{:keys [image alignment width height]
+    :or {alignment :top-left}}]
+  (if image
+    (-> {:fx/type fx.stack-pane/lifecycle
+         :children [{:fx/type fxui/resizable-image :image image}]}
+        (apply-alignment alignment)
+        (cond->
+          width (assoc :min-width width :pref-width width :max-width width)
+          height (assoc :min-height height :pref-height height :max-height height))
+        (wrap-in-alignment-container alignment))
+    {:fx/type fx.region/lifecycle}))
 
 ;; endregion
 
@@ -338,18 +398,23 @@
 (defn- event-source->owner-window [^Event e]
   (.getWindow (.getScene ^Node (.getSource e))))
 
-(defn- button-view [{:keys [rt
-                            ;; text
-                            text
-                            text_alignment
-                            ;; icon
-                            icon
-                            ;; rest
-                            on_pressed
-                            enabled
-                            alignment]
-                     :or {enabled true}}]
-  (let [has-text (not (string/blank? text))
+(ui/defc button-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [rt
+           ;; text
+           text
+           text_alignment
+           ;; icon
+           icon
+           ;; rest
+           on_pressed
+           enabled
+           alignment
+           ;; env
+           localization-state]
+    :or {enabled true}}]
+  (let [text (localization-state text)
+        has-text (not (string/blank? text))
         has-icon (some? icon)
         style-class (cond
                       (and has-text has-icon) ["ext-button" "ext-button-text-and-icon"]
@@ -391,30 +456,33 @@
                             (fx.mutator/property-change-listener #(.selectedProperty ^CheckBox %))
                             property-change-listener-with-source-owner-window-lifecycle)}))
 
-(defn- apply-tooltip-and-issue [props tooltip issue]
+(defn- set-tooltip-and-issue [props tooltip issue localization-state]
   (let [message (:message issue)]
-    (cond-> props (or message tooltip) (apply-tooltip (if (and message tooltip)
-                                                        (str message "\n\n" tooltip)
-                                                        (or message tooltip))))))
+    (cond-> props
+            (or message tooltip)
+            (fxui/apply-tooltip
+              {:severity (:severity issue :info)
+               :message (localization-state
+                          (if (and message tooltip)
+                            (localization/join "\n\n" [message tooltip])
+                            (or message tooltip)))}))))
 
-(defn- set-tooltip-and-issue [props tooltip issue]
-  (let [message (:message issue)]
-    (cond-> props (or message tooltip) (assoc :tooltip (if (and message tooltip)
-                                                         (str message "\n\n" tooltip)
-                                                         (or message tooltip))))))
-
-(defn- check-box-view [{:keys [rt text text_alignment alignment issue tooltip enabled value on_value_changed]
-                        :or {enabled true
-                             value false}}]
+(ui/defc check-box-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [rt text text_alignment alignment issue tooltip enabled value indeterminate on_value_changed localization-state]
+    :or {enabled true
+         indeterminate false
+         value false}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-check-box-props
      :desc (-> {:fx/type fxui/check-box
                 :disable (not enabled)
+                :indeterminate indeterminate
                 :selected value}
-               (set-tooltip-and-issue tooltip issue)
+               (set-tooltip-and-issue tooltip issue localization-state)
                (cond->
                  issue (assoc :color (:severity issue))
-                 text (assoc :text text)
+                 text (assoc :text (localization-state text))
                  text_alignment (assoc :text-alignment text_alignment)))
      :props (cond-> {} on_value_changed (assoc :on-selected-changed (make-event-handler-1 :window :value rt "on_value_changed" on_value_changed)))}
     alignment))
@@ -423,52 +491,61 @@
 
 ;; region select_box
 
+(def ^:private message-or-to-string-coercer
+  (coerce/one-of ui-docs/message-pattern-coercer coerce/to-string))
+
 (defn- stringify-lua-value
-  ([rt maybe-lua-value]
+  ([rt maybe-lua-value localization-state]
    (if (nil? maybe-lua-value)
      ""
-     (rt/->clj rt coerce/to-string maybe-lua-value)))
-  ([rt to_string maybe-lua-value]
+     (localization-state (rt/->clj rt message-or-to-string-coercer maybe-lua-value))))
+  ([rt to_string maybe-lua-value localization-state]
    (if (nil? maybe-lua-value)
      ""
-     (rt/->clj rt coerce/to-string (rt/invoke-immediate-1 rt to_string maybe-lua-value)))))
+     (localization-state (rt/->clj rt message-or-to-string-coercer (rt/invoke-immediate-1 rt to_string maybe-lua-value))))))
 
-(defn- create-select-box-string-converter [rt to_string]
+(defn- create-select-box-to-string [rt to_string localization-state]
   ;; Note: if a combo box has no value provided, the default is JVM null
-  (DefoldStringConverter.
-    (if to_string
-      #(stringify-lua-value rt to_string %)
-      #(stringify-lua-value rt %))))
+  (if to_string
+    #(stringify-lua-value rt to_string % localization-state)
+    #(stringify-lua-value rt % localization-state)))
 
-(defn- on-select-box-key-pressed [^KeyEvent event]
-  (when (= KeyCode/SPACE (.getCode event))
-    (.show ^ComboBox (.getSource event))
-    (.consume event)))
+(def ^:private ext-with-extra-props
+  (fx/make-ext-with-props {}))
 
-(def ^:private ext-with-extra-combo-box-props
-  (fx/make-ext-with-props
-    {:on-value-changed (fx.prop/make
-                         (fx.mutator/property-change-listener #(.valueProperty ^ComboBox %))
-                         property-change-listener-with-source-owner-window-lifecycle)}))
+(def ^:private prop-instance-ref
+  (fx/make-prop
+    (fx.mutator/setter (fn [v a] (reset! a v)))
+    fx.lifecycle/scalar))
 
-(defn- select-box-view [{:keys [rt alignment tooltip issue enabled value options on_value_changed to_string]
-                         :or {options []
-                              enabled true}}]
+(defn- ref->window-fn [ref]
+  (fn [_event]
+    (.getWindow (.getScene ^Node (deref ref)))))
+
+(ui/defc select-box-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}
+             {:fx/type ui/ext-memo :fn atom :args [nil] :key :ref}]}
+  [{:keys [rt alignment tooltip issue enabled value options on_value_changed to_string localization-state ref]
+    :or {options []
+         enabled true}}]
   (wrap-in-alignment-container
-    {:fx/type ext-with-extra-combo-box-props
-     :desc {:fx/type fxui/ext-memo
-            :fn create-select-box-string-converter
-            :args [rt to_string]
-            :key :converter
-            :desc (apply-tooltip-and-issue
-                    {:fx/type fx.combo-box/lifecycle
-                     :value value
-                     :pseudo-classes (or (some-> issue :severity hash-set) #{})
-                     :on-key-pressed on-select-box-key-pressed
-                     :items options
-                     :disable (not enabled)}
-                    tooltip issue)}
-     :props (cond-> {} on_value_changed (assoc :on-value-changed (make-event-handler-1 :window :value rt "on_value_changed" on_value_changed)))}
+    {:fx/type ext-with-extra-props
+     :desc {:fx/type ui/ext-memo
+            :fn create-select-box-to-string
+            :args [rt to_string localization-state]
+            :key :to-string
+            :desc (-> {:fx/type fxui.combo-box/view
+                       :value value
+                       :items options
+                       :disable (not enabled)
+                       :filter-prompt-text (localization-state (localization/message "ui.combo-box.filter-prompt"))
+                       :no-items-text (localization-state (localization/message "ui.combo-box.no-items"))
+                       :not-found-text (localization-state (localization/message "ui.combo-box.not-found"))}
+                      (cond->
+                        on_value_changed (assoc :on-value-changed (make-event-handler-1 (ref->window-fn ref) identity rt "on_value_changed" on_value_changed))
+                        issue (assoc :color (:severity issue)))
+                      (set-tooltip-and-issue tooltip issue localization-state))}
+     :props (cond-> {prop-instance-ref ref})}
     alignment
     true))
 
@@ -482,14 +559,16 @@
                         (fx.mutator/property-change-listener #(.textProperty ^TextField %))
                         property-change-listener-with-source-owner-window-lifecycle)}))
 
-(defn- text-field-view [{:keys [rt text on_text_changed tooltip issue enabled alignment]
-                         :or {text "" enabled true}}]
+(ui/defc text-field-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [rt text on_text_changed tooltip issue enabled alignment localization-state]
+    :or {text "" enabled true}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-text-field-props
      :desc (-> {:fx/type fxui/text-field
                 :disable (not enabled)
                 :text text}
-               (set-tooltip-and-issue tooltip issue)
+               (set-tooltip-and-issue tooltip issue localization-state)
                (cond-> issue (assoc :color (:severity issue))))
      :props (cond-> {} on_text_changed (assoc :on-text-changed (make-event-handler-1 :window :value rt "on_text_changed" on_text_changed)))}
     alignment true))
@@ -525,15 +604,8 @@
                                     (catch LuaError _))]
           ;; nil result or error from `to_value` means couldn't convert => keep editing
           (if (nil? maybe-new-lua-value)
-            (let [^TextField text-field (.getSource e)
-                  anim (SequentialTransition. text-field)]
-              (doto (.getChildren anim)
-                (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 4.0)))
-                (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX -8.0)))
-                (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 7.0)))
-                (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX -4.0)))
-                (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 1.0))))
-              (.play anim)
+            (do
+              (fxui/play-invalid-value-animation! (.getSource e))
               (.consume e))
             ;; new value!
             (do (swap-state #(-> % (assoc :value maybe-new-lua-value) (dissoc :edit)))
@@ -584,7 +656,8 @@
            tooltip
            issue
            enabled
-           alignment]
+           alignment
+           localization-state]
     :or {enabled true}}]
   (let [{:keys [edit]} state]
     (wrap-in-alignment-container
@@ -595,22 +668,24 @@
                   :disable (not enabled)
                   :on-text-changed #(swap-state assoc :edit %)
                   :on-key-pressed #(on-value-field-key-pressed rt value text on_value_changed to_value edit swap-state %)}
-                 (set-tooltip-and-issue tooltip issue)
+                 (set-tooltip-and-issue tooltip issue localization-state)
                  (cond-> issue (assoc :color (:severity issue))))}
       alignment
       true)))
 
-(defn- value-field-view-impl-1 [{:keys [state rt value to_string]
-                                 :as props}]
+(ui/defc value-field-view-impl-1
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [state rt value to_string localization-state]
+    :as props}]
   ;; overrides :value to point to the current value of the control, which might
   ;; differ from the one assigned from outside.
   ;; adds value's :text to props
   (let [current-value (:value state value)]
-    {:fx/type fxui/ext-memo
+    {:fx/type ui/ext-memo
      :fn stringify-lua-value
-     :args [rt to_string current-value]
+     :args [rt to_string current-value localization-state]
      :key :text
-     :desc (assoc props :fx/type value-field-view-impl-2 :value current-value)}))
+     :desc (assoc props :fx/type value-field-view-impl-2 :value current-value :localization-state localization-state)}))
 
 (defn- value-field-view [props]
   ;; adds :state and :swap-state to props
@@ -669,21 +744,27 @@
 
 ;; region dialog components
 
-(defn- dialog-button-view [{:keys [enabled text result cancel default]
-                            :or {enabled true cancel false default false}}]
-  (let [button {:fx/type fxui/button
+(ui/defc dialog-button-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state]}]}
+  [{:keys [enabled text result cancel default localization-state]
+    :or {enabled true cancel false default false}}]
+  (let [button {:fx/type fxui/legacy-button
                 :disable (not enabled)
                 :variant (if default :primary :secondary)
                 :cancel-button cancel
                 :default-button default
-                :text text
+                :text (localization-state text)
                 :on-action {:result result}}]
     (if default
       {:fx/type fxui/ext-focused-by-default :desc button}
       button)))
 
-(defn- dialog-view [{:keys [title header content buttons]}]
-  (let [header (or header {:fx/type fxui/legacy-label :text title :variant :header})
+(ui/defc dialog-view
+  {:compose [{:fx/type fx/ext-get-env :env [:localization-state :owner-window]}]}
+  [{:keys [title header content width height resizable buttons modal localization-state owner-window]
+    :or {modal true}}]
+  (let [title (localization-state title)
+        header (or header {:fx/type fxui/legacy-label :text title :variant :header})
         buttons (into []
                       (keep-indexed
                         (fn [i desc]
@@ -696,29 +777,23 @@
                                      buttons))
         footer {:fx/type dialogs/dialog-buttons
                 :children (if (coll/empty? buttons)
-                            [{:fx/type dialog-button-view :text "Close" :cancel true :default true}]
+                            [{:fx/type dialog-button-view :text (localization/message "dialog.button.close") :cancel true :default true}]
                             buttons)}]
     (cond-> {:fx/type dialogs/dialog-stage
              :title title
+             :owner owner-window
              :on-close-request {:result cancel-result}
              :header header
              :footer footer}
-            content
-            (assoc :content content))))
+            (not modal) (assoc :modality :none)
+            content (assoc :content content)
+            width (assoc :width width)
+            height (assoc :height height)
+            resizable (assoc :resizable resizable))))
 
 ;; endregion
 
 ;; region functions
-
-;; The value gets bound to a volatile with evaluation context. When the context
-;; becomes invalid (fills the cache after use), the volatile is set to nil to
-;; signal that this context can't be used anymore. The default value is a
-;; reduced instance to support `deref`, but not `vreset!`
-(def ^:private ^:dynamic *lifecycle-evaluation-context-ideref* (reduced nil))
-
-(defn- lifecycle-evaluation-context []
-  {:post [(some? %)]}
-  @*lifecycle-evaluation-context-ideref*)
 
 (defmacro ^:private with-nestable-evaluation-context [& body]
   `(if @*lifecycle-evaluation-context-ideref*
@@ -730,15 +805,12 @@
              (vreset! v# nil)
              ret#))))))
 
-(def evaluation-context-lifecycle
-  "Root lifecycle that must be used to re-use evaluation context in cljfx tree
-
-  This lifecycle shares the same evaluation context along the whole cljfx tree
-  during cljfx lifecycle updates.
+(def ext-with-evaluation-context
+  "Lifecycle that shares an evaluation context in cljfx tree
 
   Expected keys:
     :desc    child description that will be able to access a shared evaluation
-             context using lifecycle-evaluation-context fn"
+             context using [[lifecycle-evaluation-context]] fn"
   (reify fx.lifecycle/Lifecycle
     (create [_ {:keys [desc]} opts]
       (with-nestable-evaluation-context
@@ -750,6 +822,30 @@
       (with-nestable-evaluation-context
         (fx.lifecycle/delete fx.lifecycle/dynamic component opts)))))
 
+(ui/defc root-view
+  {:doc "Root lifecycle that must be used by all extension UIs
+
+         Expected keys:
+           :desc            extension cljfx description
+           :localization    localization instance
+           :workspace       node id of a Workspace
+
+         Provides:
+           - evaluation context: shared along the whole cljfx tree during
+             lifecycle updates, can be accessed using
+             [[lifecycle-evaluation-context]] fn
+           - localization state: available in cljfx env using [[fx/ext-get-env]]
+             with :localization-state key
+           - owner window: available in cljfx env using [[fx/ext-get-env]]
+             with :owner-window key"
+   :compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}
+             {:fx/type fx/ext-set-env :env {:localization-state (:localization-state props)
+                                            :owner-window (:owner-window props)
+                                            :workspace (:workspace props)}}
+             {:fx/type ext-with-evaluation-context}]}
+  [{:keys [desc]}]
+  desc)
+
 ;; region show_dialog
 
 (def ^:private ext-with-stage-props
@@ -760,19 +856,24 @@
    :props {:showing (fxui/dialog-showing? props)}
    :desc desc})
 
-(def ^:private lua-show-dialog-fn
+(defn- make-lua-show-dialog-fn [workspace localization]
   (rt/suspendable-lua-fn show-dialog [{:keys [rt]} lua-dialog-component]
-    (let [desc {:fx/type show-dialog-wrapper-view
-                :desc {:fx/type evaluation-context-lifecycle
+    (let [owner-window (current-owner-window)
+          desc {:fx/type show-dialog-wrapper-view
+                :desc {:fx/type root-view
+                       :localization localization
+                       :owner-window owner-window
+                       :workspace workspace
                        :desc (rt/->clj rt ui-docs/component-coercer lua-dialog-component)}}
           f (future/make)]
       (fx/run-later
         (future/complete!
           f
-          (fxui/show-dialog-and-await-result!
-            :event-handler #(assoc %1 ::fxui/result (:result %2))
-            :error-handler #(future/fail! f %)
-            :description desc)))
+          (rt/and-refresh-context
+            (fxui/show-dialog-and-await-result!
+              :event-handler #(assoc %1 ::fxui/result (:result %2))
+              :error-handler #(future/fail! f %)
+              :description desc))))
       f)))
 
 ;; endregion
@@ -781,11 +882,14 @@
 
 (def ^:private show-external-file-dialog-opts-coercer
   (coerce/hash-map
-    :opt {:title coerce/string
+    :opt {:title ui-docs/string-or-message-pattern-coercer
           :path coerce/string
           :filters ui-docs/external-file-dialog-filters-coercer}))
 
-(defn- make-show-external-file-dialog-lua-fn [^Path project-path]
+(def ^:private default-select-external-file-dialog-title-message
+  (localization/message "dialog.file.title.select"))
+
+(defn- make-show-external-file-dialog-lua-fn [^Path project-path localization]
   (rt/suspendable-lua-fn select-external-file
     ([ctx]
      (select-external-file ctx nil))
@@ -793,26 +897,26 @@
      (let [opts (when maybe-lua-opts
                   (rt/->clj rt show-external-file-dialog-opts-coercer maybe-lua-opts))
            {:keys [title ^String path filters]
-            :or {title "Select File" path "."}} opts
+            :or {title default-select-external-file-dialog-title-message path "."}} opts
            initial-path (.normalize (.resolve project-path path))
            [^Path initial-directory-path initial-file-name]
-           (if (fs/path-exists? initial-path)
-             (if (fs/path-is-directory? initial-path)
+           (if (path/exists? initial-path)
+             (if (path/directory? initial-path)
                [initial-path nil]
                [(.getParent initial-path) (str (.getFileName initial-path))])
              (let [parent-path (.getParent initial-path)]
-               (if (fs/path-is-directory? parent-path)
+               (if (path/directory? parent-path)
                  [parent-path (str (.getFileName initial-path))]
                  [project-path nil])))
            dialog (doto (FileChooser.)
-                    (.setTitle title)
+                    (.setTitle (localization title))
                     (.setInitialDirectory (.toFile initial-directory-path)))]
        (when filters
          (.addAll (.getExtensionFilters dialog)
                   ^Collection
-                  (mapv (fn [{:keys [^String description extensions]}]
+                  (mapv (fn [{:keys [description extensions]}]
                           (FileChooser$ExtensionFilter.
-                            description
+                            ^String (localization description)
                             ^List extensions))
                         filters)))
        (when initial-file-name
@@ -832,10 +936,13 @@
 
 (def ^:private show-external-directory-dialog-opts-coercer
   (coerce/hash-map
-    :opt {:title coerce/string
+    :opt {:title ui-docs/string-or-message-pattern-coercer
           :path coerce/string}))
 
-(defn- make-show-external-directory-dialog-lua-fn [^Path project-path]
+(def ^:private default-select-external-directory-dialog-title-message
+  (localization/message "dialog.directory.title.select"))
+
+(defn- make-show-external-directory-dialog-lua-fn [^Path project-path localization]
   (rt/suspendable-lua-fn show-external-directory-dialog
     ([ctx]
      (show-external-directory-dialog ctx nil))
@@ -843,14 +950,14 @@
      (let [opts (when maybe-lua-opts
                   (rt/->clj rt show-external-directory-dialog-opts-coercer maybe-lua-opts))
            {:keys [title ^String path]
-            :or {title "Select Directory" path "."}} opts
+            :or {title default-select-external-directory-dialog-title-message path "."}} opts
            resolved-path (.normalize (.resolve project-path path))
            ^Path initial-path (cond
-                                (not (fs/path-exists? resolved-path)) project-path
-                                (fs/path-is-directory? resolved-path) resolved-path
+                                (not (path/exists? resolved-path)) project-path
+                                (path/directory? resolved-path) resolved-path
                                 :else (.getParent resolved-path))
            dialog (doto (DirectoryChooser.)
-                    (.setTitle title)
+                    (.setTitle (localization title))
                     (.setInitialDirectory (.toFile initial-path)))
            f (future/make)]
        (fx/run-later
@@ -868,7 +975,10 @@
 (def ^:private show-resource-dialog-opts-coercer
   (coerce/hash-map :opt {:extensions (coerce/vector-of coerce/string :min-count 1)
                          :selection (coerce/enum :single :multiple)
-                         :title coerce/string}))
+                         :title ui-docs/string-or-message-pattern-coercer}))
+
+(def ^:private default-select-resource-title-message
+  (localization/message "dialog.select-resource.title"))
 
 (defn- make-show-resource-dialog-lua-fn [workspace project]
   (rt/suspendable-lua-fn show-resource-dialog
@@ -878,7 +988,7 @@
                   (rt/->clj rt show-resource-dialog-opts-coercer maybe-lua-opts))
            {:keys [selection extensions title]
             :or {selection :single
-                 title "Select Resource"}} opts
+                 title default-select-resource-title-message}} opts
            f (future/make)
            owner (current-owner-window)]
        (fx/run-later
@@ -968,7 +1078,7 @@
 
 (defn- invoke-with-hooks [component-atom rt lua-fn lua-props]
   (binding [*current-component-atom* component-atom]
-    (let [ret (rt/invoke-immediate-1 rt lua-fn lua-props (lifecycle-evaluation-context))
+    (let [ret (rt/invoke-immediate-1 rt {:evaluation-context (lifecycle-evaluation-context)} lua-fn lua-props)
           {:keys [hooks current-hook-index]} @component-atom]
       (swap! component-atom assoc :current-hook-index 0)
       (when (< current-hook-index (count hooks))
@@ -1093,7 +1203,7 @@
               (case (key type+dependencies)
                 :value (val type+dependencies)
                 :function (let [lua-fn+lua-args (val type+dependencies)]
-                            (apply rt/invoke-immediate-1 rt (lua-fn+lua-args 0) (conj (subvec lua-fn+lua-args 1) evaluation-context)))))
+                            (apply rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} (lua-fn+lua-args 0) (subvec lua-fn+lua-args 1)))))
             (eq-type+dependencies? [rt a b]
               (let [t (key a)]
                 (and (= t (key b))
@@ -1114,8 +1224,8 @@
                             lua-args (subvec lua-fn+lua-args 1)]
                         (update-hook-state! component-atom hook-index true update :current
                                             (fn [old-lua-value]
-                                              (apply rt/invoke-immediate-1 rt lua-fn
-                                                     (conj (into [old-lua-value] lua-args) evaluation-context))))))))))]
+                                              (apply rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} lua-fn
+                                                     (into [old-lua-value] lua-args))))))))))]
       (make-hook
         (:name ui-docs/use-state-doc)
         :create (fn create-use-hook-state [component-atom {:keys [rt current-hook-index]} evaluation-context & lua-args]
@@ -1142,13 +1252,13 @@
     :create (fn create-use-memo-state [_ {:keys [rt]} evaluation-context & lua-args]
               (let [deps (vec lua-args)]
                 {:dependencies deps
-                 :value (apply rt/invoke-immediate rt (conj deps evaluation-context))}))
+                 :value (apply rt/invoke-immediate rt {:evaluation-context evaluation-context} deps)}))
     :advance (fn advance-use-memo-state [{:keys [rt]} hook-state evaluation-context & lua-args]
                (let [new-dependencies (vec lua-args)]
                  (if (vectors-with-eq-lua-values? rt new-dependencies (:dependencies hook-state))
                    hook-state
                    {:dependencies new-dependencies
-                    :value (apply rt/invoke-immediate rt (conj new-dependencies evaluation-context))})))
+                    :value (apply rt/invoke-immediate rt {:evaluation-context evaluation-context} new-dependencies)})))
     :return :value))
 
 ;; endregion
@@ -1192,7 +1302,7 @@
 
 ;; endregion
 
-(defn env [workspace project project-path]
+(defn env [workspace project project-path localization]
   (into {}
         cat
         [(eduction
@@ -1211,10 +1321,12 @@
             [ui-docs/grid-component grid-view]
             [ui-docs/separator-component separator-view]
             [ui-docs/scroll-component scroll-view]
+            [ui-docs/tabs-component tabs-view]
             [ui-docs/label-component label-view]
             [ui-docs/paragraph-component paragraph-view]
             [ui-docs/heading-component heading-view]
             [ui-docs/icon-component icon-view]
+            [ui-docs/image-component image-view]
             [ui-docs/button-component button-view]
             [ui-docs/check-box-component check-box-view]
             [ui-docs/select-box-component select-box-view]
@@ -1226,14 +1338,15 @@
             [ui-docs/integer-field-component integer-field-view]
             [ui-docs/number-field-component number-field-view]
             [ui-docs/dialog-button-component dialog-button-view]
+            [ui-docs/tab-component tab-view]
             [ui-docs/dialog-component dialog-view]])
          (eduction
            (map (fn [[script-doc lua-fn]]
                   [(:name script-doc) lua-fn]))
-           [[ui-docs/show-dialog-doc lua-show-dialog-fn]
+           [[ui-docs/show-dialog-doc (make-lua-show-dialog-fn workspace localization)]
             [ui-docs/function-component-doc function-component-lua-fn]
-            [ui-docs/show-external-file-dialog-doc (make-show-external-file-dialog-lua-fn project-path)]
-            [ui-docs/show-external-directory-dialog-doc (make-show-external-directory-dialog-lua-fn project-path)]
+            [ui-docs/show-external-file-dialog-doc (make-show-external-file-dialog-lua-fn project-path localization)]
+            [ui-docs/show-external-directory-dialog-doc (make-show-external-directory-dialog-lua-fn project-path localization)]
             [ui-docs/show-resource-dialog-doc (make-show-resource-dialog-lua-fn workspace project)]
             [ui-docs/use-state-doc use-state-hook-lua-fn]
             [ui-docs/use-memo-doc use-memo-hook-lua-fn]])]))

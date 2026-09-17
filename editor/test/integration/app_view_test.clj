@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -30,15 +30,29 @@
             [support.test-support :refer [spit-until-new-mtime with-clean-system]]))
 
 (deftest open-editor
-  (testing "Opening editor only alters undo history by selection"
-           (test-util/with-loaded-project
-             (let [proj-graph (g/node-id->graph-id project)
-                   _          (is (not (g/has-undo? proj-graph)))
-                   [atlas-node view] (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)]
-               ;; One history entry for selection
-               (is (g/has-undo? proj-graph))
-               (g/undo! proj-graph)
-               (is (not (g/has-undo? proj-graph)))))))
+  (testing "Opening editor only alters undo by selection"
+    (test-util/with-loaded-project
+      (is (not (g/has-undo? :undo/global)))
+      (test-util/open-scene-view! project app-view "/switcher/fish.atlas" 128 128)
+
+      ;; One undo entry for selection.
+      (is (g/has-undo? :undo/global))
+      (g/undo! :undo/global)
+      (is (not (g/has-undo? :undo/global))))))
+
+(deftest register-view-type-is-non-undoable-test
+  (test-util/with-loaded-project
+    (let [view-type-id ::registered-view-type]
+      (is (not (g/has-undo? :undo/global)))
+
+      (g/transact
+        (workspace/register-view-type
+          workspace
+          :id view-type-id
+          :label "Registered View Type"))
+
+      (is (= view-type-id (:id (workspace/get-view-type workspace view-type-id))))
+      (is (not (g/has-undo? :undo/global))))))
 
 (deftest select-test
   (testing "asserts that all node-ids are non-nil"
@@ -122,7 +136,7 @@
 
 (deftest revert-rename-of-opened-file
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/reload_project")
           project (test-util/setup-project! workspace)
           app-view (test-util/setup-app-view! project)
           atlas-path "/atlas/single.atlas"
@@ -150,7 +164,7 @@
 
 (deftest rename-directory-handles-all-files-in-directory
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/small_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/small_project")
           project (test-util/setup-project! workspace)
           game-project (test-util/resource-node project "/game.project")
           main-dir (workspace/find-resource workspace "/main")]
@@ -162,7 +176,7 @@
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
         (workspace/artifact-map! workspace (:artifact-map build-results)))
-      (asset-browser/rename [main-dir] "blahonga")
+      (asset-browser/rename [main-dir] "blahonga" test-util/localization)
       (is (nil? (workspace/find-resource workspace "/main")))
       (is (workspace/find-resource workspace "/blahonga"))
       (let [old-artifact-map (workspace/artifact-map workspace)
@@ -185,7 +199,7 @@
                      (set/intersection cached-outputs retained-labels))))]
       (with-clean-system {:cache-size cache-size
                           :cache-retain? project/cache-retain?}
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
               artifact-map (workspace/artifact-map workspace)
               game-project (test-util/resource-node project "/game.project")
@@ -197,29 +211,24 @@
                                                                          ;; This is a project (i.e. not embedded) resource node.
                                                                          (when-some [source-node-id (test-util/resource-node project source-resource)]
                                                                            (node-cacheable-build-target-endpoints source-node-id))))))
-                                                           (build/resolve-node-dependencies game-project project))]
-          (test-util/run-event-loop!
-            (fn [exit-event-loop!]
+                                                           (build/resolve-node-dependencies game-project project))
+              _ (g/clear-system-cache!)
+              build-results @(app-view/async-build! project
+                                                    :debug false
+                                                    :build-engine false
+                                                    :old-artifact-map artifact-map
+                                                    :prefs (test-util/make-test-prefs))]
+          (when (is (nil? (:error build-results)))
+
+            (testing "Build targets remain in cache even though we've exceeded the cache limit."
+              (is (set/subset? expected-cached-build-target-endpoints (cached-endpoints))))
+
+            (testing "Build targets are always evicted from the cache after their dependencies change."
+              (let [background-atlas (test-util/resource-node project "/background/background.atlas")]
+                (is (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets)))
+                (test-util/prop! background-atlas :margin 10)
+                (is (not (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets))))))
+
+            (testing "Build targets are always evicted from the cache when it is explicitly cleared."
               (g/clear-system-cache!)
-              (app-view/async-build! project
-                                     :debug false
-                                     :build-engine false
-                                     :old-artifact-map artifact-map
-                                     :prefs (test-util/make-test-prefs)
-                                     :result-fn (fn [build-results]
-                                                  (when (is (nil? (:error build-results)))
-
-                                                    (testing "Build targets remain in cache even though we've exceeded the cache limit."
-                                                      (is (set/subset? expected-cached-build-target-endpoints (cached-endpoints))))
-
-                                                    (testing "Build targets are always evicted from the cache after their dependencies change."
-                                                      (let [background-atlas (test-util/resource-node project "/background/background.atlas")]
-                                                        (is (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets)))
-                                                        (test-util/prop! background-atlas :margin 10)
-                                                        (is (not (contains? (cached-endpoints) (gt/endpoint background-atlas :build-targets))))))
-
-                                                    (testing "Build targets are always evicted from the cache when it is explicitly cleared."
-                                                      (g/clear-system-cache!)
-                                                      (is (empty? (g/cache)))))
-
-                                                  (exit-event-loop!))))))))))
+              (is (empty? (g/cache))))))))))

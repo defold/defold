@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,14 +29,14 @@ namespace dmPhysics
     {
     public:
         DebugDraw3D(DebugCallbacks* callbacks);
-        virtual ~DebugDraw3D();
+        ~DebugDraw3D() override;
 
-        virtual void drawLine(const btVector3 &from, const btVector3 &to, const btVector3 &color);
-        virtual void drawContactPoint(const btVector3 &PointOnB, const btVector3 &normalOnB, btScalar distance, int lifeTime, const btVector3 &color);
-        virtual void reportErrorWarning(const char *warningString);
-        virtual void draw3dText(const btVector3 &location, const char *textString);
-        virtual void setDebugMode(int debugMode);
-        virtual int getDebugMode() const;
+        void drawLine(const btVector3 &from, const btVector3 &to, const btVector3 &color) override;
+        void drawContactPoint(const btVector3 &PointOnB, const btVector3 &normalOnB, btScalar distance, int lifeTime, const btVector3 &color) override;
+        void reportErrorWarning(const char *warningString) override;
+        void draw3dText(const btVector3 &location, const char *textString) override;
+        void setDebugMode(int debugMode) override;
+        int getDebugMode() const override;
 
     private:
         DebugCallbacks* m_Callbacks;

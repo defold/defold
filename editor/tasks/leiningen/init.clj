@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -55,13 +55,13 @@
       "dynamo-home"     nil ; for symmetry
       "archived-stable" (sha-from-version-file)
       "archived"        (sha-from-ref "HEAD")
-      version)))
+      (sha-from-ref version))))
 
 (defn- resolve-archive-domain
   [user_domain]
   (let [default_domain "d.defold.com"
         env_domain (System/getenv "DM_ARCHIVE_DOMAIN")]
-        (or user_domain env_domain default_domain)))
+    (or user_domain env_domain default_domain)))
 
 (def init-tasks
   [["clean"]
@@ -79,11 +79,13 @@
 
   Arguments:
     - version: dynamo-home, archived, archived-stable or a sha.
-    - archive-domain: domain where engine artifacts are stored"
-  [project & [version archive-domain]]
+    - archive-domain: domain where engine artifacts are stored
+    - target-platform: optional platform to pack into resources/_unpack"
+  [project & [version archive-domain target-platform]]
   (let [git-sha (resolve-version version)
         archive-domain (resolve-archive-domain archive-domain)
-        project (assoc project :archive-domain archive-domain :engine git-sha)]
+        project (assoc-in (assoc project :archive-domain archive-domain :engine git-sha)
+                          [:packing :target-platform] target-platform)]
     (println (format "Initializing editor with version '%s', resolved to '%s'. Using archive domain '%s'." version (get project :engine) (get project :archive-domain)))
     (doseq [task+args init-tasks]
       (main/resolve-and-apply project task+args))))

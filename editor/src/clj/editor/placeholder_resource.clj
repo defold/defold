@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,6 +15,7 @@
 (ns editor.placeholder-resource
   (:require [dynamo.graph :as g]
             [editor.code.resource :as r]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [util.text-util :as text-util]))
 
@@ -33,7 +34,7 @@
 (defn register-resource-types [workspace]
   (r/register-code-resource-type workspace
     :ext resource/placeholder-resource-type-ext
-    :label "Unknown"
+    :label (localization/message "resource.type.unknown")
     :icon "icons/32/Icons_29-AT-Unknown.png"
     :node-type PlaceholderResourceNode
     :view-types [:code :default]

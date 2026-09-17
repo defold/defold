@@ -1,4 +1,4 @@
--- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2020-2026 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,11 +15,27 @@
 function on_input(self, action_id, action)
 	if action_id == hash("gamepad_connected") then
 		assert(action.gamepad_name == "null_device")
+		assert(action.gamepad_guid == "00000000000000000000000000000000")
+		assert(action.gamepad_guid_info.bus == 0)
+		assert(action.gamepad_guid_info.crc == 0)
+		assert(action.gamepad_guid_info.vendor == 0)
+		assert(action.gamepad_guid_info.product == 0)
+		assert(action.gamepad_guid_info.version == 0)
+		assert(action.touch == nil)
 		assert(action.text == nil)
 	elseif action_id == hash("gamepad_connected_0") then
 		assert(action.gamepad_name == "")
+		assert(action.gamepad_guid == "00000000000000000000000000000000")
+		assert(action.gamepad_guid_info.bus == 0)
+		assert(action.gamepad_guid_info.crc == 0)
+		assert(action.gamepad_guid_info.vendor == 0)
+		assert(action.gamepad_guid_info.product == 0)
+		assert(action.gamepad_guid_info.version == 0)
+		assert(action.touch == nil)
 		assert(action.text == nil)
 	else
 		assert(action.gamepad_name == nil)
+		assert(action.gamepad_guid == nil)
+		assert(action.gamepad_guid_info == nil)
 	end
 end

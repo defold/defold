@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,35 +29,6 @@
 
 namespace dmTestUtil
 {
-
-void GetSocketsFromConfig(dmConfigFile::HConfig config, int* socket, int* socket_ssl, int* socket_ssl_test)
-{
-    if( socket != 0 )
-    {
-        *socket = dmConfigFile::GetInt(config, "server.socket", -1);
-    }
-    if( socket_ssl != 0 )
-    {
-        *socket_ssl = dmConfigFile::GetInt(config, "server.socket_ssl", -1);
-    }
-    if( socket_ssl_test != 0 )
-    {
-        *socket_ssl_test = dmConfigFile::GetInt(config, "server.socket_ssl_test", -1);
-    }
-}
-
-const char* GetIpFromConfig(dmConfigFile::HConfig config, char* ip, uint32_t iplen)
-{
-    const char* _ip = dmConfigFile::GetString(config, "server.ip", 0);
-    if (!_ip) {
-        return 0;
-    }
-
-    uint32_t nwritten = dmSnPrintf(ip, iplen, "%s", _ip);
-    if (nwritten >= iplen)
-        return 0;
-    return ip;
-}
 
 static void SetupFS()
 {

@@ -61,9 +61,9 @@ Run the script (hostsystem is any of darwin/linux/windows):
 and it will output a package (depending on hostsystem):
 
 ```
-	_tmpdir/darwin/android-sdk-darwin-android-35.tar.gz
-	_tmpdir/linux/android-sdk-linux-android-35.tar.gz
-	_tmpdir/windows/android-sdk-windows-android-35.tar.gz
+	_tmpdir/darwin/android-sdk-darwin-android-36.tar.gz
+	_tmpdir/linux/android-sdk-linux-android-36.tar.gz
+	_tmpdir/windows/android-sdk-windows-android-36.tar.gz
 ```
 
 An alternative approach could be using GitHub Actions. See *Package Android SDKs* (`pack-android-sdks.yml`).  
@@ -78,6 +78,36 @@ Download and unpack this this:
 And repackage into a tar file:
 
 	$ tar -czf android-sdk-tools-linux-3859397.tar.gz tools
+
+#### Android strip tool
+
+Bob strips the Android engine and native extension libraries when bundling with
+`--strip-executable`. The tool is the NDK's `llvm-strip`, which reads every Android ABI, so one
+package covers armv7/arm64/x86_64.
+
+Run the script once per host (`linux` and `windows` package from any host, `darwin` needs macOS
+because it uses `lipo` to thin the NDK's universal binary, and `linux` needs `patchelf`):
+
+	$ ./scripts/package/package_android_strip.sh linux
+	$ ./scripts/package/package_android_strip.sh windows
+	$ ./scripts/package/package_android_strip.sh darwin
+
+and it will output packages named after the NDK's LLVM version in `local_sdks`:
+
+```
+	local_sdks/strip_android-14.0.6-x86_64-linux.tar.gz
+	local_sdks/strip_android-14.0.6-x86_64-win32.tar.gz
+	local_sdks/strip_android-14.0.6-x86_64-macos.tar.gz
+	local_sdks/strip_android-14.0.6-arm64-macos.tar.gz
+```
+
+Only the macOS tool is self contained. The linux package also carries the NDK's `libc++.so.1`
+(and the script rewrites the tool's runpath to `$ORIGIN` so it is found next to the executable),
+and the windows package carries `libwinpthread-1.dll`. Bob unpacks everything in a `libexec`
+platform folder side by side, so both are found at runtime.
+
+Unlike the SDKs above these are small enough to live in `packages/`, so copy them there and update
+the version in the `PACKAGES_*` lists in `scripts/build.py`.
 
 
 ## iOS + macOS
@@ -104,6 +134,8 @@ and it will output files in `local_sdks` (version depends on which is the curren
 Run the script
 
 	./scripts/package/package_win32_sdk.sh
+
+The script uses the system-installed `vswhere.exe` from the Visual Studio Installer to locate the active MSVC toolchain and Windows 10 SDK.
 
 ## HTML5
 

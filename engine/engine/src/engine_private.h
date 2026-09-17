@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,14 +19,14 @@
 
 #include <dmsdk/dlib/configfile.h>
 #include <dlib/hashtable.h>
+#include <dlib/jobsystem.h>
 #include <dlib/message.h>
-#include <dlib/http_cache.h>
+#include <dlib/context_registry.h>
+#include <dlib/http/http_cache.h>
 
 #include <resource/resource.h>
 
 #include <render/render.h>
-#include <render/font_renderer.h>
-#include <rig/rig.h>
 
 #include <hid/hid.h>
 #include <input/input.h>
@@ -43,7 +43,11 @@
 #include "engine_service.h"
 #include "engine.h"
 #include <engine/engine_ddf.h>
-#include <dmsdk/gamesys/resources/res_font.h>
+
+namespace dmGameSystem
+{
+    struct FontResource;
+}
 
 namespace dmEngine
 {
@@ -108,7 +112,7 @@ namespace dmEngine
         Engine(dmEngineService::HEngineService engine_service);
         dmEngineService::HEngineService             m_EngineService;
         dmConfigFile::HConfig                       m_Config;
-        dmPlatform::HWindow                         m_Window;
+        HWindow                                     m_Window;
 
         RunResult                                   m_RunResult;
         bool                                        m_Alive;
@@ -122,17 +126,12 @@ namespace dmEngine
 
         float                                       m_MouseSensitivity;
 
-        dmJobThread::HContext                       m_JobThreadContext;
+        HJobContext                                 m_JobThreadContext;
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;
         dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
         dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
-        dmGameSystem::ParticleFXContext             m_ParticleFXContext;
-        /// If the shared context is set, the three environment specific contexts below will point to the same context
-        dmScript::HContext                          m_SharedScriptContext;
-        dmScript::HContext                          m_GOScriptContext;
-        dmScript::HContext                          m_RenderScriptContext;
-        dmScript::HContext                          m_GuiScriptContext;
+        dmScript::HContext                          m_ScriptContext;
         dmResource::HFactory                        m_Factory;
         dmGui::HContext                             m_GuiContext;
         dmMessage::HSocket                          m_SystemSocket;
@@ -142,7 +141,6 @@ namespace dmEngine
         dmGameSystem::CollectionFactoryContext      m_CollectionFactoryContext;
         dmGameSystem::ModelContext                  m_ModelContext;
         dmGameSystem::LabelContext                  m_LabelContext;
-        dmGameSystem::TilemapContext                m_TilemapContext;
         dmGameObject::ModuleContext                 m_ModuleContext;
 
         dmGameSystem::FontResource*                 m_SystemFont;
@@ -151,6 +149,7 @@ namespace dmEngine
         dmInput::HBinding                           m_GameInputBinding;
         dmRender::HDisplayProfiles                  m_DisplayProfiles;
         dmHttpCache::HCache                         m_HttpCache;
+        HContextRegistry                            m_ContextRegistry;
 
         dmGameSystem::RenderScriptPrototype*        m_RenderScriptPrototype;
 
@@ -160,9 +159,14 @@ namespace dmEngine
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         bool                                        m_RunWhileIconified;
-        bool                                        m_UseSwVSync;
+        uint32_t                                    m_SwapInterval;             // Swap interval requested by the application
+        uint32_t                                    m_EffectiveSwapInterval;    // Swap interval currently applied to the graphics context
         uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
-        float                                       m_AccumFrameTime;           // Used to trigger frame updates when using m_UpdateFrequency != 0
+        uint64_t                                    m_NextFrameTime;            // Next engine-frame pacing deadline
+        uint32_t                                    m_FramePacingFrequency;     // Frequency used to calculate m_NextFrameTime
+        uint32_t                                    m_FrameTimeRemainder;       // Fractional microsecond remainder carried between deadlines
+        float                                       m_PacedFrameTimeDebt;       // Signed accounted-elapsed-versus-simulated time balance, preserved across pacing modes
+        float                                       m_AccumFrameTime;           // Remainder when frame pacing is controlled by the platform
         uint32_t                                    m_UpdateFrequency;
         uint32_t                                    m_FixedUpdateFrequency;
         uint32_t                                    m_Width;
@@ -172,12 +176,20 @@ namespace dmEngine
         float                                       m_InvPhysicalHeight;
         float                                       m_MaxTimeStep;
 
+        float                                       m_ThrottleCooldownMax;
+        float                                       m_ThrottleCooldown;
+        bool                                        m_ThrottleEnabled;
+
         RecordData                                  m_RecordData;
+        void*                                       m_DependenciesJsonResource;
+        uint32_t                                    m_DependenciesJsonSize;
+        uint8_t                                     m_GuiSafeAreaMode;
     };
 
 
     HEngine New(dmEngineService::HEngineService engine_service);
     void Delete(HEngine engine);
+    bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size);
     bool Init(HEngine engine, int argc, char *argv[]);
     void Step(HEngine engine);
 
@@ -185,7 +197,26 @@ namespace dmEngine
     bool LoadBootstrapContent(HEngine engine, HConfigFile config);
     void UnloadBootstrapContent(HEngine engine);
 
+    /** Enables automatic disabling of update+render. Wakes up on input, for a period of time
+     * @name SetEngineThrottle
+     * @param engine [type: HEngine]
+     * @param enabled [type: bool] true to skip updates, false to reenable updates (default = false)
+     * @param cooldown [type: float] cooldown in seconds. 0 = single frame update+render
+     */
+    void SetEngineThrottle(HEngine engine, bool enabled, float cooldown);
 
+    /** Enables or disables the "update" part of the engine loop (Lua, scripting etc).
+     * @note If disabled, it will also skip rendering, as there is nothing new to render.
+     * @name SetUpdateEnabled
+     * @param enabled [type: bool] true to skip updates, false to reenable updates (default = true)
+     */
+    void SetUpdateEnabled(bool enabled);
+
+    /** Enables or disables the "render" part of the engine loop
+     * @name SetRenderEnabled
+     * @param enabled [type: bool] true to skip rendering, false to reenable rendering (default = true)
+     */
+    void SetRenderEnabled(bool enabled);
 
     // Creates and initializes the engine. Returns the engine instance
     typedef HEngine (*EngineCreate)(int argc, char** argv);
@@ -210,6 +241,28 @@ namespace dmEngine
         EngineUpdate        m_EngineUpdate;
         EngineGetResult     m_EngineGetResult;
     };
+
+    /**
+     * Check whether Step() may use the engine-side frame pacer. Platform-owned
+     * callback loops perform their scheduling externally.
+     * @return true if Step() may apply engine-side frame pacing
+     */
+    bool UseEngineFramePacing();
+
+    // Applies a requested update frequency. Exposed for deterministic unit testing
+    // without advancing the frame pacer or depending on wall-clock deadlines.
+    void SetUpdateFrequency(HEngine engine, int32_t frequency);
+
+    // Advances a deadline by one rational frame period without accumulating
+    // integer microsecond rounding error. Exposed here for unit testing.
+    uint64_t AdvanceFrameDeadline(uint64_t deadline, uint32_t frequency, uint32_t& remainder);
+
+    // Calculates a timer-paced simulation step. The balance tracks elapsed time
+    // capped at max(max_time_step, fixed_dt), minus simulated time; excess hitch
+    // time is discarded. Positive balance below fixed_dt is retained. Catch-up
+    // adds at most max(0, max_time_step - fixed_dt); negative balance shortens the
+    // step without allowing negative dt. Exposed for deterministic unit testing.
+    float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance);
 
     /**
      *

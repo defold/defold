@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,16 +18,129 @@
 #include <stdint.h>
 #include <dlib/mutex.h>
 #include <dlib/index_pool.h>
+#include <dmsdk/dlib/atomic.h>
 #include "graphics.h"
 
 namespace dmGraphics
 {
+    // Shared texture metadata embedded as m_Base in each backend texture struct (OpenGLTexture, VulkanTexture, etc.).
+    // Each adapter keeps Texture as the first non-vtable member so the asset pointer aliases m_Base and
+    // GetAssetFromContainer<Texture>(container, handle) is valid alongside GetAssetFromContainer<BackendTexture>(...).
+    struct Texture
+    {
+        TextureType    m_Type;
+        TextureFormat  m_Format;
+        uint16_t       m_Width;
+        uint16_t       m_Height;
+        uint16_t       m_Depth;
+        uint16_t       m_OriginalWidth;
+        uint16_t       m_OriginalHeight;
+        uint16_t       m_OriginalDepth;
+        uint8_t        m_MipMapCount;
+        uint8_t        m_PageCount;
+        uint8_t        m_UsageHintFlags;
+        uint16_t       m_NumTextureIds;
+        uint32_t       m_ResourceSize;
+        uint32_t       m_Mip0ResourceSize;
+        int32_atomic_t m_DataState; // mip bits for upload pending; mutable so const Texture* can pass &m_DataState to atomics
+    };
+
+    struct Buffer
+    {
+        uint32_t m_Size;
+    };
+
+    static inline uint32_t EstimateTextureResourceDataSize(const Texture* texture, uint32_t mip0_size, bool multiply_depth)
+    {
+        uint32_t size_total = 0;
+        uint32_t size       = mip0_size;
+        if (size == 0)
+        {
+            size = texture->m_Mip0ResourceSize;
+        }
+
+        if (size == 0)
+        {
+            // Nothing was handed to us, so every level is sized from its own dimensions. Quartering
+            // the byte count per level undercounts compressed formats, whose mips never drop below
+            // one whole block - a three level 4x4 BC1 chain is 8+8+8 bytes, not 8+2+0.
+            for (uint32_t i = 0; i < texture->m_MipMapCount; ++i)
+            {
+                uint16_t mip_width  = dmMath::Max((uint16_t) 1, GetMipmapSize(texture->m_Width, i));
+                uint16_t mip_height = dmMath::Max((uint16_t) 1, GetMipmapSize(texture->m_Height, i));
+                size_total         += dmMath::Max(1U, GetTextureFormatDataSize(texture->m_Format, mip_width, mip_height));
+            }
+        }
+        else
+        {
+            // A supplied mip 0 size may include padding we can't re-derive (it comes from the
+            // uploaded buffer), so the smaller levels are approximated from it.
+            for (uint32_t i = 0; i < texture->m_MipMapCount; ++i)
+            {
+                size_total += size;
+                size >>= 2;
+            }
+        }
+        if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP || texture->m_Type == TEXTURE_TYPE_TEXTURE_CUBE)
+        {
+            size_total *= 6;
+        }
+        else if (multiply_depth)
+        {
+            size_total *= dmMath::Max((uint16_t) 1, texture->m_Depth);
+        }
+        return size_total;
+    }
+
+    static inline void SetTextureResourceSize(Texture* texture, uint32_t backend_texture_size, uint32_t mip0_size = 0, bool multiply_depth = false)
+    {
+        if (mip0_size != 0 || texture->m_Mip0ResourceSize == 0)
+        {
+            texture->m_Mip0ResourceSize = mip0_size;
+        }
+        texture->m_ResourceSize = EstimateTextureResourceDataSize(texture, mip0_size, multiply_depth) + backend_texture_size;
+    }
+
+    static inline void SetTextureResourceSizeExact(Texture* texture, uint32_t backend_texture_size, uint32_t data_size)
+    {
+        texture->m_ResourceSize = data_size + backend_texture_size;
+    }
+
+    // Shared render target metadata embedded as m_Base in each backend render target struct.
+    // Each adapter keeps RenderTarget as the first non-vtable member so the asset pointer aliases m_Base and
+    // GetAssetFromContainer<RenderTarget>(container, handle) is valid alongside GetAssetFromContainer<BackendRenderTarget>(...).
+    struct RenderTarget
+    {
+        TextureParams m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureParams m_DepthBufferParams;
+        TextureParams m_StencilBufferParams;
+        TextureParams m_DepthStencilTextureParams;
+        HTexture      m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture      m_TextureColorResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture      m_TextureDepth;
+        HTexture      m_TextureStencil;
+        HTexture      m_TextureDepthStencil;
+        uint32_t      m_SampleCount;
+        uint16_t      m_Id;
+        uint8_t       m_ColorAttachmentCount;
+        uint8_t       m_IsBound;
+    };
+
+    static inline uint32_t GetDefaultSampleCount(uint32_t sample_count)
+    {
+        return sample_count == 0 ? 1 : sample_count;
+    }
+
+    uint32_t GetClosestSupportedSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts);
+    uint32_t ConformRenderTargetSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts, const char* adapter_name);
+
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t MAX_VERTEX_BUFFERS            = 3;
     const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 32;
     const static uint8_t MAX_SET_COUNT                 = 4;
     const static uint8_t MAX_STORAGE_BUFFERS           = 4;
     const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
+    const static uint8_t UNUSED_BINDING_OR_SET         = 0xFF;
 
     // In OpenGL, there is a single global resource identifier between
     // fragment and vertex uniforms for a single program. In Vulkan,
@@ -82,64 +195,29 @@ namespace dmGraphics
 
     struct VertexStreamDeclaration
     {
-        VertexStream       m_Streams[MAX_VERTEX_STREAM_COUNT];
-        VertexStepFunction m_StepFunction;
-        uint8_t            m_StreamCount;
-    };
-
-    struct ShaderResourceType
-    {
-        union
-        {
-            dmGraphics::ShaderDesc::ShaderDataType m_ShaderType;
-            uint32_t                               m_TypeIndex;
-        };
-        uint8_t m_UseTypeIndex : 1;
-    };
-
-    struct ShaderResourceMember
-    {
-        char*                       m_Name;
-        dmhash_t                    m_NameHash;
-        ShaderResourceType          m_Type;
-        uint32_t                    m_ElementCount;
-        uint16_t                    m_Offset;
-    };
-
-    struct ShaderResourceTypeInfo
-    {
-        char*                         m_Name;
-        dmhash_t                      m_NameHash;
-        dmArray<ShaderResourceMember> m_Members;
+        dmArray<VertexStream> m_Streams;
+        VertexStepFunction    m_StepFunction;
     };
 
     struct ShaderResourceBinding
     {
-        enum BindingFamily
-        {
-            BINDING_FAMILY_GENERIC        = 0,
-            BINDING_FAMILY_UNIFORM_BUFFER = 1,
-            BINDING_FAMILY_STORAGE_BUFFER = 2,
-            BINDING_FAMILY_TEXTURE        = 3,
-        };
-
         union BindingInfo
         {
             uint16_t m_BlockSize;
             uint16_t m_SamplerTextureIndex;
         };
 
-        char*              m_Name;
-        dmhash_t           m_NameHash;
-        char*              m_InstanceName;
-        dmhash_t           m_InstanceNameHash;
-        ShaderResourceType m_Type;
-        BindingFamily      m_BindingFamily;
-        uint16_t           m_Set;
-        uint16_t           m_Binding;
-        uint16_t           m_ElementCount;
-        BindingInfo        m_BindingInfo;
-        uint8_t            m_StageFlags;
+        char*                       m_Name;
+        dmhash_t                    m_NameHash;
+        char*                       m_InstanceName;
+        dmhash_t                    m_InstanceNameHash;
+        ShaderResourceType          m_Type;
+        ShaderResourceBindingFamily m_BindingFamily;
+        BindingInfo                 m_BindingInfo;
+        uint16_t                    m_Set;
+        uint16_t                    m_Binding;
+        uint16_t                    m_ElementCount;
+        uint8_t                     m_StageFlags;
     };
 
     struct ShaderMeta
@@ -167,6 +245,62 @@ namespace dmGraphics
         dmArray<HTexture>              m_PostDeleteTextures;
     };
 
+    // Shared fields embedded as m_BaseContext (first member) in each backend context struct.
+    struct GraphicsContext
+    {
+        GraphicsContextLimits              m_Limits;
+        uint16_t                           m_AdapterVersionMajor;
+        uint16_t                           m_AdapterVersionMinor;
+        HWindow                            m_Window;
+        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
+        dmMutex::HMutex                    m_AssetHandleContainerMutex;
+        uint64_t                           m_TextureFormatSupport;
+        TextureFilter                      m_DefaultTextureMinFilter;
+        TextureFilter                      m_DefaultTextureMagFilter;
+        uint32_t                           m_ContextFeatureSupport;
+        uint32_t                           m_Width;
+        uint32_t                           m_Height;
+        uint32_t                           m_VerifyGraphicsCalls : 1;
+        uint32_t                           m_PrintDeviceInfo     : 1;
+    };
+
+    static inline void SetContextFeatureSupported(GraphicsContext* context, ContextFeature feature)
+    {
+        assert(feature < MAX_CONTEXT_FEATURE_COUNT);
+        context->m_ContextFeatureSupport |= 1 << feature;
+    }
+
+    static inline void SetAllContextFeaturesSupported(GraphicsContext* context)
+    {
+        for (uint32_t i = 0; i < MAX_CONTEXT_FEATURE_COUNT; ++i)
+        {
+            SetContextFeatureSupported(context, (ContextFeature) i);
+        }
+    }
+
+    static inline void SetContextTextureFormatSupported(GraphicsContext* context, TextureFormat format)
+    {
+        context->m_TextureFormatSupport |= 1ULL << format;
+    }
+
+    static inline void SetContextASTCTextureFormatsSupported(GraphicsContext* context)
+    {
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4X4);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_5X4);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_5X5);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_6X5);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_6X6);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_8X5);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_8X6);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_8X8);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_10X5);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_10X6);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_10X8);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_10X10);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_12X10);
+        SetContextTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_12X12);
+    }
+
     struct ProgramResourceBindingsInfo
     {
         uint32_t m_UniformBufferCount;
@@ -189,24 +323,34 @@ namespace dmGraphics
     {
         ShaderResourceBinding*           m_Res;
         dmArray<ShaderResourceTypeInfo>* m_TypeInfos;
-        uint32_t                         m_DataOffset;
+        void*                            m_BindingUserData;
 
         union
         {
-            uint16_t m_TextureUnit;
-            uint16_t m_StorageBufferUnit;
+            uint32_t m_TextureUnit;
+            uint32_t m_StorageBufferUnit;
+            uint32_t m_UniformBufferOffset; // Offset into scratch space typically
         };
 
         uint8_t m_StageFlags;
     };
 
+    struct UniformBuffer
+    {
+        UniformBufferLayout m_Layout;
+        uint32_t            m_Size;
+        uint8_t             m_BoundBinding;
+        uint8_t             m_BoundSet;
+    };
+
     struct Program
     {
-        ProgramResourceBinding m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
-        ShaderMeta             m_ShaderMeta;
-        dmArray<Uniform>       m_Uniforms;
-        uint8_t                m_MaxSet;
-        uint8_t                m_MaxBinding;
+        ProgramResourceBinding       m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        ShaderMeta                   m_ShaderMeta;
+        dmArray<Uniform>             m_Uniforms;
+        dmArray<UniformBufferLayout> m_UniformBufferLayouts;
+        uint8_t                      m_MaxSet;
+        uint8_t                      m_MaxBinding;
     };
 
     struct ProgramResourceBindingIterator
@@ -246,30 +390,40 @@ namespace dmGraphics
         }
     };
 
-    HContext             GetInstalledContext();
-    uint32_t             GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
-    uint32_t             GetGraphicsTypeDataSize(Type type);
-    void                 InstallAdapterVendor();
-    PipelineState        GetDefaultPipelineState();
-    Type                 GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type);
-    void                 SetForceFragmentReloadFail(bool should_fail);
-    void                 SetForceVertexReloadFail(bool should_fail);
-    void                 SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
-    bool                 IsTextureFormatCompressed(TextureFormat format);
-    void                 RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
-    bool                 IsTextureFormatASTC(TextureFormat format);
-    const char*          TextureFormatToString(TextureFormat format);
-    ShaderDesc::Language GetShaderProgramLanguage(HContext context);
-    uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);
-    Type                 ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
-    bool                 GetShaderProgram(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** vp, ShaderDesc::Shader** fp, ShaderDesc::Shader** cp);
+    struct TextureFormatCompressedBlockSize
+    {
+        uint32_t m_Width;
+        uint32_t m_Height;
+        uint32_t m_ByteSize;
+    };
 
-    void                 CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta);
-    void                 DestroyShaderMeta(ShaderMeta& meta);
-    bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
-    uint32_t             CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0);
-    void                 BuildUniforms(Program* program);
-    void                 IterateUniforms(Program* program, bool prepend_instance_name, IterateUniformsCallback callback, void* user_data);
+    uint32_t                   GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
+    bool                       GetTextureFormatCompressedBlockSize(TextureFormat format, TextureFormatCompressedBlockSize* out);
+    uint32_t                   GetTextureFormatDataSize(TextureFormat format, uint32_t width, uint32_t height); // Size of one image slice, compressed or not
+    uint32_t                   GetGraphicsTypeDataSize(Type type);
+    void                       InstallAdapterVendor();
+    PipelineState              GetDefaultPipelineState();
+    Type                       GetGraphicsTypeFromShaderDataType(ShaderDesc::ShaderDataType shader_type);
+    void                       SetForceFragmentReloadFail(bool should_fail);
+    void                       SetForceVertexReloadFail(bool should_fail);
+    void                       SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
+    bool                       IsTextureFormatCompressed(TextureFormat format);
+    bool                       IsTextureFormatASTC(TextureFormat format);
+    bool                       IsTextureFormatBC(TextureFormat format); // S3TC/RGTC/BPTC families (BC1/BC3/BC4/BC5/BC7)
+    const char*                TextureFormatToString(TextureFormat format);
+    ShaderDesc::Language       GetShaderProgramLanguage(HContext context);
+    uint32_t                   GetShaderTypeSize(ShaderDesc::ShaderDataType type);
+    Type                       ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
+    ShaderDesc::ShaderDataType GraphicsTypeToShaderDataType(Type graphics_type);
+    bool                       GetShaderProgram(HContext context, ShaderDesc* shader_desc, ShaderDesc::Shader** vp, ShaderDesc::Shader** fp, ShaderDesc::Shader** cp);
+
+    void                       CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta);
+    void                       DestroyShaderMeta(ShaderMeta& meta);
+    bool                       GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
+    uint32_t                   CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0);
+    void                       BuildUniforms(Program* program);
+    void                       IterateUniforms(Program* program, bool prepend_instance_name, IterateUniformsCallback callback, void* user_data);
+    UniformBufferLayout*       AddUniformBufferLayout(Program* program, const ShaderResourceBinding* res, const ShaderResourceTypeInfo* type_infos, uint32_t num_type_infos);
 
     void FillProgramResourceBindings(Program& program,
         dmArray<ShaderResourceBinding>&       resources,
@@ -352,12 +506,13 @@ namespace dmGraphics
     }
 
     // Test only functions:
-    void             ResetDrawCount();
-    uint64_t         GetDrawCount();
-    void             GetTextureFilters(HContext context, uint32_t unit, TextureFilter& min_filter, TextureFilter& mag_filter);
-    void             EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index);
-    void             SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderType shader_class, ShaderDesc::Language language);
-    const Uniform*   GetUniform(HProgram prog, dmhash_t name_hash);
+    void                ResetDrawCount();
+    uint64_t            GetDrawCount();
+    void                GetTextureFilters(HContext context, uint32_t unit, TextureFilter& min_filter, TextureFilter& mag_filter);
+    void                EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index);
+    void                SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderType shader_class, ShaderDesc::Language language);
+    const Uniform*      GetUniform(HProgram prog, dmhash_t name_hash);
+    const ShaderMeta*   GetShaderMeta(HProgram prog);
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,7 +23,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 
-#include "platform_window.h"
+#include "window.hpp"
 
 // From engine_private.h
 enum UpdateResult
@@ -61,7 +61,7 @@ struct AppCtx
 
 struct EngineCtx
 {
-    dmPlatform::HWindow  m_Window;
+    HWindow              m_Window;
     int                  m_WasCreated;
     int                  m_WasRun;
     int                  m_WasDestroyed;
@@ -132,6 +132,15 @@ static void AppDestroy(void* _ctx)
     ctx->m_Destroyed++;
 }
 
+static WindowsGraphicsApi GetPreferredGraphicsApi()
+{
+#if defined(_GAMING_XBOX)
+    return WINDOW_GRAPHICS_API_DIRECTX;
+#else
+    return WINDOW_GRAPHICS_API_OPENGL;
+#endif
+}
+
 static void* EngineCreate(int argc, char** argv)
 {
     EngineCtx* engine = &g_EngineCtx;
@@ -139,10 +148,11 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_WasCreated++;
     engine->m_TimeStart = dmTime::GetMonotonicTime();
 
-    dmPlatform::WindowParams params = {};
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
     params.m_Width                  = 512;
     params.m_Height                 = 512;
-    params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+    params.m_GraphicsApi            = GetPreferredGraphicsApi();
     params.m_Title                  = "Test app";
     params.m_ContextAlphabits       = 8;
 

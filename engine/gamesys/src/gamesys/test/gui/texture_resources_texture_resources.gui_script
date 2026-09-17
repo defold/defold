@@ -1,0 +1,28 @@
+ -- Copyright 2020-2026 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+function init(self)
+	local w = 32
+	local h = 32
+	local orange = string.char(0xff) .. string.char(0x80) .. string.char(0x10)
+    gui.new_texture("dynamic_texture", w, h, "rgb", string.rep(orange, w * h))
+
+    local n = gui.new_box_node(vmath.vector3(200, 200, 0), vmath.vector3(w, h, 0))
+	gui.set_texture(n, "dynamic_texture")
+	gui.set_id(n, "box3")
+end
+
+function final(self)
+	gui.delete_texture("dynamic_texture")
+end

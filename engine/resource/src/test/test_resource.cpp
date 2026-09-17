@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -46,7 +46,7 @@
 #include "test/test_resource_ddf.h"
 
 #if defined(DM_TEST_HTTP_SUPPORTED)
-#include <dlib/http_client.h>
+#include <dlib/http/http_client.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 #include <dlib/uri.h>
@@ -80,49 +80,64 @@ extern uint32_t RESOURCES_DMANIFEST_SIZE;
 class ResourceTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
+        JobSystemCreateParams job_thread_create_param = {0};
+        job_thread_create_param.m_ThreadCount    = 1;
+        m_JobContext = JobSystemCreate(&job_thread_create_param);
+
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        params.m_JobThreadContext = m_JobContext;
 
         factory = dmResource::NewFactory(&params, MOUNT_DIR);
         ASSERT_NE((void*) 0, factory);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (factory != NULL)
         {
             dmResource::DeleteFactory(factory);
         }
+        JobSystemDestroy(m_JobContext);
     }
 
     dmResource::HFactory factory;
+    HJobContext m_JobContext;
 };
 
 class DynamicResourceTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
+        JobSystemCreateParams job_thread_create_param = {0};
+        job_thread_create_param.m_ThreadCount    = 1;
+        m_JobContext = JobSystemCreate(&job_thread_create_param);
+
         const char* test_dir = "build/src/test";
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        params.m_JobThreadContext = m_JobContext;
+
         factory = dmResource::NewFactory(&params, test_dir);
         ASSERT_NE((void*) 0, factory);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (factory != NULL)
         {
             dmResource::DeleteFactory(factory);
         }
+        JobSystemDestroy(m_JobContext);
     }
 
     dmResource::HFactory factory;
+    HJobContext m_JobContext;
 };
 
 
@@ -219,7 +234,7 @@ dmResource::Result FooResourceDestroy(const dmResource::ResourceDestroyParams* p
 class GetResourceTest : public jc_test_params_class<const char*>
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_ResourceContainerCreateCallCount = 0;
         m_ResourceContainerDestroyCallCount = 0;
@@ -253,7 +268,7 @@ protected:
         ASSERT_EQ(dmResource::RESULT_OK, e);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (m_Factory != NULL)
         {
@@ -565,6 +580,33 @@ TEST_P(GetResourceTest, GetDescriptorWithExt)
     ASSERT_EQ(dmResource::RESULT_NOT_LOADED, e);
 }
 
+TEST_P(GetResourceTest, GetWithExt)
+{
+    void* resource = 0;
+    dmResource::Result e = dmResource::GetWithExt(m_Factory, m_ResourceName, "cont", &resource);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_NE((void*)0, resource);
+
+    void* sentinel = (void*)0xdeadbeef;
+    e = dmResource::GetWithExt(m_Factory, m_ResourceName, "foo", &sentinel);
+    ASSERT_EQ(dmResource::RESULT_INVALID_FILE_EXTENSION, e);
+    ASSERT_EQ((void*)0, sentinel);
+
+    void* hashed_resource = 0;
+    dmhash_t name_hash = dmHashString64(m_ResourceName);
+    e = dmResource::GetWithExt(m_Factory, name_hash, CONT_EXT_HASH, &hashed_resource);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_NE((void*)0, hashed_resource);
+
+    void* hashed_sentinel = (void*)0xdeadbeef;
+    e = dmResource::GetWithExt(m_Factory, name_hash, FOO_EXT_HASH, &hashed_sentinel);
+    ASSERT_EQ(dmResource::RESULT_INVALID_FILE_EXTENSION, e);
+    ASSERT_EQ((void*)0xdeadbeef, hashed_sentinel);
+
+    dmResource::Release(m_Factory, hashed_resource);
+    dmResource::Release(m_Factory, resource);
+}
+
 const char* params_resource_paths[] = {
     "build/src/test",
 #if defined(DM_TEST_HTTP_SUPPORTED)
@@ -868,6 +910,38 @@ TEST_P(GetResourceTest, PreloadGetManyRefs)
 
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, r);
     dmResource::DeletePreloader(pr);
+}
+
+TEST_P(GetResourceTest, PreloadPathCacheFull)
+{
+    // Normal paths exhaust the name cache. Noncanonical paths use two entries
+    // and exhaust it while inserting the canonical name instead. Both early
+    // returns must release the scoped lock exactly once: Darwin's os_unfair_lock
+    // aborts on the double unlock that the old spinlock implementation tolerated.
+    const char* prefixes[] = { "/", "/./" };
+    for (uint32_t p = 0; p < 2; ++p)
+    {
+        dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, m_ResourceName);
+        ResourcePreloadHintInfo info;
+        info.m_Preloader = pr;
+        info.m_Parent = 0;
+        bool full = false;
+        for (uint32_t i = 0; i < 4096; ++i)
+        {
+            char path[64];
+            dmSnPrintf(path, sizeof(path), "%smissing_%u.foo", prefixes[p], i);
+            if (!dmResource::PreloadHint(&info, path))
+            {
+                full = true;
+                break;
+            }
+        }
+        ASSERT_TRUE(full);
+        // Re-enter the same lock after failure and confirm existing cache entries
+        // remain usable when no new entries can be added.
+        ASSERT_TRUE(dmResource::PreloadHint(&info, m_ResourceName));
+        dmResource::DeletePreloader(pr);
+    }
 }
 
 
@@ -1644,13 +1718,8 @@ static dmResource::Result StreamResourceDestroy(const dmResource::ResourceDestro
 }
 
 
-TEST(StreamingTest, PartialReadTest)
+TEST_F(ResourceTest, PartialReadTest)
 {
-    dmResource::NewFactoryParams params;
-    params.m_MaxResources = 16;
-    dmResource::HFactory factory = dmResource::NewFactory(&params, MOUNT_DIR);
-    ASSERT_NE((void*) 0, factory);
-
     dmResource::Result e;
     e = dmResource::RegisterType(factory, "foo", 0, 0, &StreamResourceCreate, 0, &StreamResourceDestroy, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
@@ -1716,9 +1785,7 @@ TEST(StreamingTest, PartialReadTest)
                 ASSERT_TRUE(false);
             }
 
-            dmTime::Sleep(1000);
-
-            dmResource::UpdateFactory(factory); // pump the results from the job thread to the main thread
+            JobSystemUpdate(m_JobContext, 2000); // pump the results from the job thread to the main thread
 
             ASSERT_ARRAY_EQ_LEN(expected_data, resource->m_Data, resource->m_Offset);
 
@@ -1729,7 +1796,6 @@ TEST(StreamingTest, PartialReadTest)
     }
 
     dmSys::Unlink(path);
-    dmResource::DeleteFactory(factory);
 }
 
 
@@ -1783,5 +1849,6 @@ int main(int argc, char **argv)
 #if defined(DM_TEST_HTTP_SUPPORTED)
     dmSocket::Finalize();
 #endif
+    dmLog::LogFinalize();
     return ret;
 }

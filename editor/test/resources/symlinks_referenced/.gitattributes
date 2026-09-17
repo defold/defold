@@ -1,0 +1,42 @@
+# Defold Protocol Buffer Text Files (https://github.com/github/linguist/issues/5091)
+*.animationset linguist-language=JSON5
+*.atlas linguist-language=JSON5
+*.camera linguist-language=JSON5
+*.collection linguist-language=JSON5
+*.collectionfactory linguist-language=JSON5
+*.collectionproxy linguist-language=JSON5
+*.collisionobject linguist-language=JSON5
+*.cubemap linguist-language=JSON5
+*.display_profiles linguist-language=JSON5
+*.factory linguist-language=JSON5
+*.font linguist-language=JSON5
+*.gamepads linguist-language=JSON5
+*.go linguist-language=JSON5
+*.gui linguist-language=JSON5
+*.input_binding linguist-language=JSON5
+*.label linguist-language=JSON5
+*.material linguist-language=JSON5
+*.mesh linguist-language=JSON5
+*.model linguist-language=JSON5
+*.particlefx linguist-language=JSON5
+*.render linguist-language=JSON5
+*.sound linguist-language=JSON5
+*.sprite linguist-language=JSON5
+*.spinemodel linguist-language=JSON5
+*.spinescene linguist-language=JSON5
+*.texture_profiles linguist-language=JSON5
+*.tilemap linguist-language=JSON5
+*.tilesource linguist-language=JSON5
+
+# Defold JSON Files
+*.buffer linguist-language=JSON
+
+# Defold GLSL Shaders
+*.fp linguist-language=GLSL
+*.vp linguist-language=GLSL
+
+# Defold Lua Files
+*.editor_script linguist-language=Lua
+*.render_script linguist-language=Lua
+*.script linguist-language=Lua
+*.gui_script linguist-language=Lua

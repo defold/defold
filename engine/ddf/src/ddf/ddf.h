@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,11 +16,16 @@
 #define DM_DDF_H
 
 #include <stdint.h>
+#include <stddef.h>
 #include <dmsdk/ddf/ddf.h>
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/hash.h>
 
-#define DDF_OFFSET_OF(T, F) (((uintptr_t) (&((T*) 16)->F)) - 16)
+#if defined(__GNUC__) || defined(__clang__)
+#define DDF_OFFSET_OF(T, F) __builtin_offsetof(T, F)
+#else
+#define DDF_OFFSET_OF(T, F) offsetof(T, F)
+#endif
 #define DDF_MAX_FIELDS (128)
 #define DDF_NO_ONE_OF_INDEX 0
 
@@ -52,8 +57,9 @@ namespace dmDDF
         Descriptor* m_MessageDescriptor;
         uint32_t    m_Offset;
         const char* m_DefaultValue;
-        uint8_t     m_OneOfIndex : 7;
-        uint8_t     m_OneOfSet   : 1;
+        // Index of which oneof block inside this field is in
+        uint8_t     m_OneOfIndex       : 7;
+        uint8_t     m_FullyDefinedType : 1;
     };
 
     struct Descriptor
@@ -65,6 +71,10 @@ namespace dmDDF
         uint32_t         m_Size;
         FieldDescriptor* m_Fields;
         uint8_t          m_FieldCount;  // TODO: Where to check < 255...?
+        // Offset of a uint8_t value that indicates which oneof member has been set
+        uint32_t*        m_OneOfDataOffsets;
+        uint8_t          m_OneOfDataOffsetsCount : 7;
+        uint8_t          m_ContainsDynamicFields : 1;
         void*            m_NextDescriptor;
     };
 
@@ -125,6 +135,7 @@ namespace dmDDF
     struct InternalRegisterDescriptor
     {
         InternalRegisterDescriptor(Descriptor* descriptor);
+        InternalRegisterDescriptor(Descriptor** descriptors, uint32_t count);
     };
 
     /**

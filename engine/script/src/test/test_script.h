@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -38,11 +38,11 @@ namespace dmScriptTest
     class ScriptTest : public jc_test_base_class
     {
     public:
-        virtual void SetUp();
+        void SetUp() override;
 
         void FinalizeLogs();
 
-        virtual void TearDown();
+        void TearDown() override;
         char* GetLog();
         void AppendToLog(const char* log);
 

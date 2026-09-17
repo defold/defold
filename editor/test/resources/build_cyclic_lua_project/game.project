@@ -1,9 +1,6 @@
 [bootstrap]
 main_collection = /main/main.collectionc
 
-[script]
-shared_state = 1
-
 [display]
 width = 960
 height = 640
@@ -16,4 +13,3 @@ title = build_cyclic_lua_project
 
 [input]
 game_binding = /builtins/input/all.input_bindingc
-

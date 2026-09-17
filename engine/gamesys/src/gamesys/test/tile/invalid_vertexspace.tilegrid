@@ -29,4 +29,4 @@ layers
         tile: 3
     }
 }
-material: "/material/local_vertexspace.material"
+material: "/tile/material_local_vertexspace.material"

@@ -1,4 +1,4 @@
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -99,7 +99,6 @@ def get_files(archive_path, bucket, sha1):
     files.extend(find_files_in_bucket(archive_path, bucket, sha1, "alpha", '.*(/Defold-.*)$'))
     files.extend(find_files_in_bucket(archive_path, bucket, sha1, "beta", '.*(/Defold-.*)$'))
     files.extend(find_files_in_bucket(archive_path, bucket, sha1, "stable", '.*(/Defold-.*)$'))
-    files.extend(find_files_in_bucket(archive_path, bucket, sha1, "editor-alpha", '.*(/Defold-.*)$'))
     return files
 
 def get_tagged_releases(archive_path, pattern=None, num_releases=10):
@@ -171,7 +170,7 @@ def move_release(archive_path, sha1, channel):
         # destination
         new_key = "archive/%s/%s/%s" % (channel, sha1, name)
 
-        print("Prepair %s to be moved to: %s" % (name, new_key))
+        print("Prepare %s to be moved to: %s" % (name, new_key))
 
         # the keys in archive/sha1/* are all redirects to files in archive/channel/sha1/*
         # get the actual file from the redirect

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,7 +20,8 @@
 #include "array.h"
 #include "dstrings.h"
 #include "webserver.h"
-#include "http_server.h"
+
+#include <dlib/http/http_server.h>
 
 namespace dmWebServer
 {
@@ -298,4 +299,3 @@ namespace dmWebServer
         return TranslateResult(r);
     }
 }
-

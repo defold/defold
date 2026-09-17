@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,7 +26,12 @@ public class ScriptBuilders {
 
     @ProtoParams(srcClass = LuaModule.class, messageClass = LuaModule.class)
     @BuilderParams(name = "Script", inExts = ".script", outExt = ".scriptc", paramsForSignature = {"use-uncompressed-lua-source", "use-lua-bytecode-delta", "platform", "architectures", "variant", "prometheus-disabled"})
-    public static class ScriptBuilder extends LuaBuilder {}
+    public static class ScriptBuilder extends LuaBuilder {
+        @Override
+        protected boolean allowGoProperties() {
+            return true;
+        }
+    }
 
     @ProtoParams(srcClass = LuaModule.class, messageClass = LuaModule.class)
     @BuilderParams(name = "GuiScript", inExts = ".gui_script", outExt = ".gui_scriptc", paramsForSignature = {"use-uncompressed-lua-source", "use-lua-bytecode-delta", "platform", "architectures", "variant", "prometheus-disabled"})

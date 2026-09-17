@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -63,9 +63,6 @@ case $PLATFORM in
         ;;
     arm64-ios)
 		cp $MOLTENVK_FRAMEWORK_PATH/ios-arm64/libMoltenVK.a lib/$PLATFORM/
-        ;;
-    x86_64-ios)
-		lipo -thin x86_64 $MOLTENVK_FRAMEWORK_PATH/ios-arm64_x86_64-simulator/libMoltenVK.a -o lib/$PLATFORM/libMoltenVK.a
         ;;
 esac
 

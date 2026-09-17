@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -39,6 +39,19 @@ namespace dmGameSystem
         if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_DDF_ERROR;
+        }
+
+        for (uint32_t mi = 0; mi < MeshSet->m_Models.m_Count; ++mi)
+        {
+            const dmRigDDF::Model* model = &MeshSet->m_Models[mi];
+            for (uint32_t mesh_i = 0; mesh_i < model->m_Meshes.m_Count; ++mesh_i)
+            {
+                const dmRigDDF::Mesh* mesh = &model->m_Meshes[mesh_i];
+                if (mesh->m_MorphTargetTexture && mesh->m_MorphTargetTexture[0])
+                {
+                    dmResource::PreloadHint(params->m_HintInfo, mesh->m_MorphTargetTexture);
+                }
+            }
         }
 
         *params->m_PreloadData = MeshSet;

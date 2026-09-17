@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,8 +15,10 @@
 package com.dynamo.bob;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URLDecoder;
+import java.nio.file.NoSuchFileException;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -24,7 +26,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.lang.ClassLoader;
 import java.net.URL;
 import java.net.URLClassLoader;
 
@@ -58,6 +59,17 @@ public class ClassLoaderScanner implements IClassScanner {
             }
         }
     }
+
+    private static boolean isMissingFileException(Throwable e) {
+        while (e != null) {
+            if (e instanceof FileNotFoundException || e instanceof NoSuchFileException) {
+                return true;
+            }
+            e = e.getCause();
+        }
+        return false;
+    }
+
     private static void scanJar(URL resource, String pkgname, Set<String> classes) throws IOException {
         String relPath = pkgname.replace('.', '/');
         String resPath = resource.getPath();
@@ -99,7 +111,7 @@ public class ClassLoaderScanner implements IClassScanner {
                 URL[] urls = extraJars.toArray(new URL[0]);
                 classLoader = new URLClassLoader(urls, baseClassLoader);
             } catch (Exception e) {
-                throw new RuntimeException(String.format("Couldn't create custom class loader"), e);
+                throw new RuntimeException("Couldn't create custom class loader", e);
             }
             dirty = false;
         }
@@ -116,7 +128,13 @@ public class ClassLoaderScanner implements IClassScanner {
                     File dir = new File(url.getFile());
                     scanDir(dir, pkg, classes);
                 } else if (protocol.equals("jar")) {
-                    scanJar(url, pkg, classes);
+                    try {
+                        scanJar(url, pkg, classes);
+                    } catch (IOException ex) {
+                        if (!isMissingFileException(ex)) {
+                            throw new RuntimeException(ex);
+                        }
+                    }
                 }
             }
         } catch (IOException e) {

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,6 +15,7 @@
 #include "gui.h"
 
 #include <string.h>
+#include <stdlib.h>
 #include <new>
 #include <algorithm>
 
@@ -30,7 +31,7 @@
 #include <dlib/transform.h>
 #include <dlib/message.h>
 #include <dlib/profile.h>
-#include <dlib/trig_lookup.h>
+#include <dmsdk/dlib/trig_lookup.h>
 
 #include <script/script.h>
 #include <script/lua_source_ddf.h>
@@ -78,9 +79,121 @@ namespace dmGui
     static uint32_t g_ClonedNodeCount = 0;
 
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
+    inline void CalculateNodeSize(InternalNode* in);
+    static void SetSceneSafeAreaAdjust(Scene* scene, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y);
+    static void ComputeSafeAreaAdjust(SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
+                                      int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom,
+                                      uint32_t* out_width, uint32_t* out_height, float* out_offset_x, float* out_offset_y);
     static inline Animation* GetComponentAnimation(HScene scene, HNode node, float* value);
     static inline void ResetInternalNode(HScene scene, InternalNode* n);
     static void RemoveFromNodeList(HScene scene, InternalNode* n);
+
+    static void ResetTextLayout(TextLayout* text_layout)
+    {
+        memset(text_layout, 0, sizeof(*text_layout));
+    }
+
+    static void FreeTextLayout(TextLayout* text_layout)
+    {
+        if (text_layout->m_Handle)
+        {
+            TextLayoutRelease(text_layout->m_Handle);
+        }
+        ResetTextLayout(text_layout);
+    }
+
+    static void FreeCustomProperty(CustomProperty* property)
+    {
+        if (property->m_Type == CUSTOM_PROPERTY_TYPE_STRING)
+        {
+            free((void*) property->m_String);
+            property->m_String = 0;
+        }
+    }
+
+    static void FreeCustomProperties(CustomPropertyDesc* properties, uint32_t property_count)
+    {
+        if (!properties)
+        {
+            return;
+        }
+        for (uint32_t i = 0; i < property_count; ++i)
+        {
+            FreeCustomProperty(&properties[i].m_Property);
+        }
+        free(properties);
+    }
+
+    static void FreeCustomProperties(Node* node)
+    {
+        FreeCustomProperties(node->m_CustomProperties, node->m_CustomPropertyCount);
+        node->m_CustomProperties = 0;
+        node->m_CustomPropertyCount = 0;
+    }
+
+    static Result CopyCustomProperties(CustomPropertyDesc** dst, const CustomPropertyDesc* src, uint32_t property_count)
+    {
+        *dst = 0;
+        if (property_count == 0)
+        {
+            return RESULT_OK;
+        }
+
+        CustomPropertyDesc* properties = (CustomPropertyDesc*)malloc(sizeof(CustomPropertyDesc) * property_count);
+        if (!properties)
+        {
+            return RESULT_OUT_OF_RESOURCES;
+        }
+        memcpy(properties, src, sizeof(CustomPropertyDesc) * property_count);
+
+        for (uint32_t i = 0; i < property_count; ++i)
+        {
+            CustomProperty* property = &properties[i].m_Property;
+            if (property->m_Type == CUSTOM_PROPERTY_TYPE_STRING)
+            {
+                const char* string_value = property->m_String ? property->m_String : "";
+                property->m_String = strdup(string_value);
+                if (!property->m_String)
+                {
+                    FreeCustomProperties(properties, i);
+                    return RESULT_OUT_OF_RESOURCES;
+                }
+            }
+        }
+
+        *dst = properties;
+        return RESULT_OK;
+    }
+
+    static int CompareCustomProperties(const void* a, const void* b)
+    {
+        dmhash_t key_a = ((const CustomPropertyDesc*)a)->m_Key;
+        dmhash_t key_b = ((const CustomPropertyDesc*)b)->m_Key;
+        if (key_a < key_b)
+            return -1;
+        if (key_a > key_b)
+            return 1;
+        return 0;
+    }
+
+    static void SetCustomPropertiesInternal(Node* node, CustomPropertyDesc* properties, uint32_t property_count)
+    {
+        if (property_count != 0)
+        {
+            qsort(properties, property_count, sizeof(CustomPropertyDesc), CompareCustomProperties);
+        }
+
+        FreeCustomProperties(node);
+        node->m_CustomProperties = properties;
+        node->m_CustomPropertyCount = (uint8_t) property_count;
+    }
+
+    static CustomPropertyDesc* FindCustomProperty(Node* node, dmhash_t key)
+    {
+        CustomPropertyDesc search = {};
+        search.m_Key = key;
+        return (CustomPropertyDesc*)bsearch(&search, node->m_CustomProperties, node->m_CustomPropertyCount, sizeof(CustomPropertyDesc), CompareCustomProperties);
+    }
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
     {
@@ -202,12 +315,36 @@ namespace dmGui
         context->m_DefaultProjectHeight = params->m_DefaultProjectHeight;
         context->m_PhysicalWidth = params->m_PhysicalWidth;
         context->m_PhysicalHeight = params->m_PhysicalHeight;
+        context->m_AdjustWidth = params->m_PhysicalWidth;
+        context->m_AdjustHeight = params->m_PhysicalHeight;
         context->m_Dpi = params->m_Dpi;
+        context->m_AdjustOffsetX = 0.0f;
+        context->m_AdjustOffsetY = 0.0f;
+        context->m_UseSafeAreaAdjust = false;
+        context->m_SafeAreaMode = SAFE_AREA_NONE;
+        context->m_WindowWidth = params->m_PhysicalWidth;
+        context->m_WindowHeight = params->m_PhysicalHeight;
+        context->m_WindowInsetLeft = 0;
+        context->m_WindowInsetTop = 0;
+        context->m_WindowInsetRight = 0;
+        context->m_WindowInsetBottom = 0;
         context->m_HidContext = params->m_HidContext;
         context->m_Scenes.SetCapacity(INITIAL_SCENE_COUNT);
         context->m_ScratchBoneNodes.SetCapacity(32);
 
         return context;
+    }
+
+    void SetContextCallbacks(HContext context,
+                             GetURLCallback get_url_callback,
+                             GetUserDataCallback get_user_data_callback,
+                             ResolvePathCallback resolve_path_callback,
+                             GetTextMetricsCallback get_text_metrics_callback)
+    {
+        context->m_GetURLCallback = get_url_callback;
+        context->m_GetUserDataCallback = get_user_data_callback;
+        context->m_ResolvePathCallback = resolve_path_callback;
+        context->m_GetTextMetricsCallback = get_text_metrics_callback;
     }
 
     void DeleteContext(HContext context, dmScript::HContext script_context)
@@ -255,6 +392,13 @@ namespace dmGui
     {
         context->m_PhysicalWidth = width;
         context->m_PhysicalHeight = height;
+        if (!context->m_UseSafeAreaAdjust)
+        {
+            context->m_AdjustWidth = width;
+            context->m_AdjustHeight = height;
+            context->m_AdjustOffsetX = 0.0f;
+            context->m_AdjustOffsetY = 0.0f;
+        }
         dmArray<HScene>& scenes = context->m_Scenes;
         uint32_t scene_count = scenes.Size();
 
@@ -262,11 +406,201 @@ namespace dmGui
         {
             Scene* scene = scenes[i];
             scene->m_ResChanged = 1;
+            if (!scene->m_SafeAreaModeOverride)
+            {
+                SetSceneSafeAreaAdjust(scene, context->m_UseSafeAreaAdjust,
+                    context->m_AdjustWidth, context->m_AdjustHeight,
+                    context->m_AdjustOffsetX, context->m_AdjustOffsetY);
+            }
             if(scene->m_OnWindowResizeCallback)
             {
                 scene->m_OnWindowResizeCallback(scene, width, height);
             }
         }
+    }
+
+    static void SetSceneSafeAreaAdjust(Scene* scene, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y)
+    {
+        scene->m_UseSafeAreaAdjust = enabled;
+        if (enabled)
+        {
+            scene->m_AdjustWidth = width;
+            scene->m_AdjustHeight = height;
+            scene->m_AdjustOffsetX = offset_x;
+            scene->m_AdjustOffsetY = offset_y;
+        }
+        else
+        {
+            scene->m_AdjustWidth = scene->m_Context->m_PhysicalWidth;
+            scene->m_AdjustHeight = scene->m_Context->m_PhysicalHeight;
+            scene->m_AdjustOffsetX = 0.0f;
+            scene->m_AdjustOffsetY = 0.0f;
+        }
+        scene->m_ResChanged = 1;
+    }
+
+    static void ComputeSafeAreaAdjust(SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
+                                      int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom,
+                                      uint32_t* out_width, uint32_t* out_height, float* out_offset_x, float* out_offset_y)
+    {
+        if (mode == SAFE_AREA_LONG || mode == SAFE_AREA_SHORT)
+        {
+            const bool landscape = window_width >= window_height;
+            const bool apply_long = mode == SAFE_AREA_LONG;
+            const bool apply_lr = landscape ? apply_long : !apply_long;
+
+            if (apply_lr)
+            {
+                inset_top = 0;
+                inset_bottom = 0;
+            }
+            else
+            {
+                inset_left = 0;
+                inset_right = 0;
+            }
+        }
+        else if (mode != SAFE_AREA_BOTH)
+        {
+            inset_left = 0;
+            inset_top = 0;
+            inset_right = 0;
+            inset_bottom = 0;
+        }
+
+        *out_width = (uint32_t) dmMath::Max(0, (int32_t)window_width - inset_left - inset_right);
+        *out_height = (uint32_t) dmMath::Max(0, (int32_t)window_height - inset_top - inset_bottom);
+        *out_offset_x = (float) inset_left;
+        *out_offset_y = (float) inset_bottom;
+    }
+
+    void SetSafeAreaAdjust(HContext context, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y)
+    {
+        context->m_UseSafeAreaAdjust = enabled;
+        if (enabled)
+        {
+            context->m_AdjustWidth = width;
+            context->m_AdjustHeight = height;
+            context->m_AdjustOffsetX = offset_x;
+            context->m_AdjustOffsetY = offset_y;
+        }
+        else
+        {
+            context->m_AdjustWidth = context->m_PhysicalWidth;
+            context->m_AdjustHeight = context->m_PhysicalHeight;
+            context->m_AdjustOffsetX = 0.0f;
+            context->m_AdjustOffsetY = 0.0f;
+        }
+
+        dmArray<HScene>& scenes = context->m_Scenes;
+        uint32_t scene_count = scenes.Size();
+
+        for (uint32_t i = 0; i < scene_count; ++i)
+        {
+            Scene* scene = scenes[i];
+            if (!scene->m_SafeAreaModeOverride)
+            {
+                SetSceneSafeAreaAdjust(scene, enabled, width, height, offset_x, offset_y);
+            }
+        }
+    }
+
+    SafeAreaMode ParseSafeAreaMode(const char* mode)
+    {
+        if (!mode || dmStrCaseCmp(mode, "none") == 0)
+        {
+            return SAFE_AREA_NONE;
+        }
+        if (dmStrCaseCmp(mode, "long") == 0)
+        {
+            return SAFE_AREA_LONG;
+        }
+        if (dmStrCaseCmp(mode, "short") == 0)
+        {
+            return SAFE_AREA_SHORT;
+        }
+        if (dmStrCaseCmp(mode, "both") == 0)
+        {
+            return SAFE_AREA_BOTH;
+        }
+
+        dmLogWarning("Unknown gui.safe_area_mode '%s', defaulting to 'none'", mode);
+        return SAFE_AREA_NONE;
+    }
+
+    void UpdateSafeAreaAdjust(HContext context, SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
+                              int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom)
+    {
+        if (!context)
+        {
+            return;
+        }
+
+        context->m_SafeAreaMode = mode;
+        context->m_WindowWidth = window_width;
+        context->m_WindowHeight = window_height;
+        context->m_WindowInsetLeft = inset_left;
+        context->m_WindowInsetTop = inset_top;
+        context->m_WindowInsetRight = inset_right;
+        context->m_WindowInsetBottom = inset_bottom;
+
+        if (mode == SAFE_AREA_NONE)
+        {
+            SetSafeAreaAdjust(context, false, 0, 0, 0.0f, 0.0f);
+        }
+        else
+        {
+            uint32_t safe_width = 0;
+            uint32_t safe_height = 0;
+            float offset_x = 0.0f;
+            float offset_y = 0.0f;
+            ComputeSafeAreaAdjust(mode, window_width, window_height, inset_left, inset_top, inset_right, inset_bottom,
+                                  &safe_width, &safe_height, &offset_x, &offset_y);
+            SetSafeAreaAdjust(context, true, safe_width, safe_height, offset_x, offset_y);
+        }
+
+        dmArray<HScene>& scenes = context->m_Scenes;
+        uint32_t scene_count = scenes.Size();
+        for (uint32_t i = 0; i < scene_count; ++i)
+        {
+            Scene* scene = scenes[i];
+            if (scene->m_SafeAreaModeOverride)
+            {
+                uint32_t override_width = 0;
+                uint32_t override_height = 0;
+                float override_offset_x = 0.0f;
+                float override_offset_y = 0.0f;
+                ComputeSafeAreaAdjust(scene->m_SafeAreaMode, window_width, window_height, inset_left, inset_top, inset_right, inset_bottom,
+                                      &override_width, &override_height, &override_offset_x, &override_offset_y);
+                SetSceneSafeAreaAdjust(scene, scene->m_SafeAreaMode != SAFE_AREA_NONE, override_width, override_height, override_offset_x, override_offset_y);
+            }
+        }
+    }
+
+    void SetSceneSafeAreaMode(HScene scene, SafeAreaMode mode)
+    {
+        Scene* s = scene;
+        Context* context = s->m_Context;
+        s->m_SafeAreaModeOverride = true;
+        s->m_SafeAreaMode = mode;
+
+        uint32_t window_width = context->m_WindowWidth;
+        uint32_t window_height = context->m_WindowHeight;
+        if (window_width == 0 || window_height == 0)
+        {
+            window_width = context->m_PhysicalWidth;
+            window_height = context->m_PhysicalHeight;
+        }
+
+        uint32_t safe_width = 0;
+        uint32_t safe_height = 0;
+        float offset_x = 0.0f;
+        float offset_y = 0.0f;
+        ComputeSafeAreaAdjust(mode, window_width, window_height,
+                              context->m_WindowInsetLeft, context->m_WindowInsetTop,
+                              context->m_WindowInsetRight, context->m_WindowInsetBottom,
+                              &safe_width, &safe_height, &offset_x, &offset_y);
+        SetSceneSafeAreaAdjust(s, mode != SAFE_AREA_NONE, safe_width, safe_height, offset_x, offset_y);
     }
 
     void GetDefaultResolution(HContext context, uint32_t& width, uint32_t& height)
@@ -380,12 +714,20 @@ namespace dmGui
         scene->m_RenderOrder = 0;
         scene->m_Width = context->m_DefaultProjectWidth;
         scene->m_Height = context->m_DefaultProjectHeight;
+        scene->m_AdjustWidth = context->m_AdjustWidth;
+        scene->m_AdjustHeight = context->m_AdjustHeight;
+        scene->m_AdjustOffsetX = context->m_AdjustOffsetX;
+        scene->m_AdjustOffsetY = context->m_AdjustOffsetY;
+        scene->m_SafeAreaMode = context->m_SafeAreaMode;
+        scene->m_SafeAreaModeOverride = false;
+        scene->m_UseSafeAreaAdjust = context->m_UseSafeAreaAdjust;
         scene->m_FetchTextureSetAnimCallback = params->m_FetchTextureSetAnimCallback;
         scene->m_CreateCustomNodeCallback = params->m_CreateCustomNodeCallback;
         scene->m_DestroyCustomNodeCallback = params->m_DestroyCustomNodeCallback;
         scene->m_CloneCustomNodeCallback = params->m_CloneCustomNodeCallback;
         scene->m_UpdateCustomNodeCallback = params->m_UpdateCustomNodeCallback;
         scene->m_CreateCustomNodeCallbackContext = params->m_CreateCustomNodeCallbackContext;
+        scene->m_PrepareNodeTextLayoutCallback = params->m_PrepareNodeTextLayoutCallback;
         scene->m_GetResourceCallback = params->m_GetResourceCallback;
         scene->m_GetResourceCallbackContext = params->m_GetResourceCallbackContext;
         scene->m_GetMaterialPropertyCallback = params->m_GetMaterialPropertyCallback;
@@ -395,6 +737,8 @@ namespace dmGui
         scene->m_DestroyRenderConstantsCallback = params->m_DestroyRenderConstantsCallback;
         scene->m_CloneRenderConstantsCallback = params->m_CloneRenderConstantsCallback;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
+        scene->m_ApplyLayoutCallback    = params->m_ApplyLayoutCallback;
+        scene->m_GetDisplayProfileDescCallback = params->m_GetDisplayProfileDescCallback;
         scene->m_NewTextureResourceCallback = params->m_NewTextureResourceCallback;
         scene->m_DeleteTextureResourceCallback = params->m_DeleteTextureResourceCallback;
         scene->m_SetTextureResourceCallback = params->m_SetTextureResourceCallback;
@@ -417,6 +761,30 @@ namespace dmGui
         return scene;
     }
 
+    static void FreeNodeMemory(HScene scene, InternalNode* n)
+    {
+        if (n->m_Node.m_CustomType != 0 && scene->m_DestroyCustomNodeCallback)
+        {
+            scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(n), n->m_Node.m_CustomType, n->m_Node.m_CustomData);
+        }
+
+        if (n->m_Node.m_RenderConstants && scene->m_DestroyRenderConstantsCallback)
+        {
+            scene->m_DestroyRenderConstantsCallback(n->m_Node.m_RenderConstants);
+            n->m_Node.m_RenderConstants = 0;
+        }
+
+        FreeTextLayout(&n->m_Node.m_TextLayout);
+
+        free((void*)n->m_Node.m_Text);
+        n->m_Node.m_Text = 0;
+
+        FreeCustomProperties(&n->m_Node);
+
+        free(n->m_Node.m_ResetPointProperties);
+        n->m_Node.m_ResetPointProperties = 0;
+    }
+
     void DeleteScene(HScene scene)
     {
         lua_State*L = scene->m_Context->m_LuaState;
@@ -431,15 +799,7 @@ namespace dmGui
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
         {
-            InternalNode* n = &nodes[i];
-
-            if (n->m_Node.m_CustomType != 0)
-            {
-                scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(n), n->m_Node.m_CustomType, n->m_Node.m_CustomData);
-            }
-
-            if (n->m_Node.m_Text)
-                free((void*) n->m_Node.m_Text);
+            FreeNodeMemory(scene, &nodes[i]);
         }
 
         dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
@@ -482,16 +842,33 @@ namespace dmGui
             {
                 nodes[i].m_Node.m_Texture     = texture_source;
                 nodes[i].m_Node.m_TextureType = texture_type;
+
+                if (texture_type == NODE_TEXTURE_TYPE_TEXTURE_SET)
+                {
+                    UpdateTextureSetAnimData(scene, &nodes[i]);
+                    CalculateNodeSize(&nodes[i]);
+                }
             }
         }
     }
 
-    static Result AddTexture(HScene scene, dmHashTable64<TextureInfo>& info_array, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height, dmImage::Type image_type)
+    static Result AddTexture(HScene scene, dmHashTable64<TextureInfo>& info_array, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height, uint32_t image_type)
     {
-        if (info_array.Full())
-            return RESULT_OUT_OF_RESOURCES;
+        TextureInfo texture_info(texture_source, texture_type, original_width, original_height, image_type);
+        TextureInfo* existing_texture_info = info_array.Get(texture_name_hash);
 
-        info_array.Put(texture_name_hash, TextureInfo(texture_source, texture_type, original_width, original_height, image_type));
+        if (existing_texture_info)
+        {
+            *existing_texture_info = texture_info;
+        }
+        else
+        {
+            if (info_array.Full())
+                return RESULT_OUT_OF_RESOURCES;
+
+            info_array.Put(texture_name_hash, texture_info);
+        }
+
         UpdateTexture(scene, texture_name_hash, texture_source, texture_type);
 
         return RESULT_OK;
@@ -499,7 +876,7 @@ namespace dmGui
 
     Result AddTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
     {
-        return AddTexture(scene, scene->m_Textures, texture_name_hash, texture_source, texture_type, original_width, original_height, (dmImage::Type) -1);
+        return AddTexture(scene, scene->m_Textures, texture_name_hash, texture_source, texture_type, original_width, original_height, UINT32_MAX);
     }
 
     Result AddDynamicTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
@@ -507,14 +884,15 @@ namespace dmGui
         TextureInfo* t = scene->m_DynamicTextures.Get(texture_name_hash);
         if (t)
         {
-            if (t->m_ImageType != -1)
+            if (t->m_ImageType != UINT32_MAX)
             {
-                uint32_t buffer_size_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel(t->m_ImageType);
-                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size_mb);
+                uint32_t buffer_size_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel((dmImage::Type) t->m_ImageType);
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, -buffer_size_mb);
             }
+
             scene->m_DeleteTextureResourceCallback(scene, texture_name_hash, t->m_TextureSource);
         }
-        return AddTexture(scene, scene->m_DynamicTextures, texture_name_hash, texture_source, texture_type, original_width, original_height, (dmImage::Type) -1);
+        return AddTexture(scene, scene->m_DynamicTextures, texture_name_hash, texture_source, texture_type, original_width, original_height, UINT32_MAX);
     }
 
     static void UnassignTexture(HScene scene, dmhash_t texture_name_hash)
@@ -620,12 +998,38 @@ namespace dmGui
         return data;
     }
 
-    Result NewDynamicTexture(HScene scene, const dmhash_t path, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
+    Result NewDynamicTexture(HScene scene, const dmhash_t path, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, bool flip, const void* buffer, uint32_t buffer_size)
     {
-        uint32_t expected_buffer_size = width * height * dmImage::BytesPerPixel(type);
-        if (buffer_size != expected_buffer_size)
+        if (scene->m_DynamicTextures.Full())
+            return RESULT_OUT_OF_RESOURCES;
+
+        if (compression_type == dmImage::COMPRESSION_TYPE_NONE)
         {
-            dmLogError("Invalid image buffer size. Expected %d, got %d", expected_buffer_size, buffer_size);
+            uint32_t expected_buffer_size = width * height * dmImage::BytesPerPixel(type);
+            if (buffer_size != expected_buffer_size)
+            {
+                dmLogError("Invalid image buffer size. Expected %d, got %d", expected_buffer_size, buffer_size);
+                return RESULT_INVAL_ERROR;
+            }
+        }
+        else if (compression_type == dmImage::COMPRESSION_TYPE_ASTC)
+        {
+            if (flip) // Cannot flip a compressed textures
+            {
+                dmLogWarning("Flipping a compressed texture is not supported! '%s'", dmHashReverseSafe64(path));
+            }
+            flip = false;
+
+            uint32_t depth;
+            if (!dmImage::GetAstcDimensions(buffer, buffer_size, &width, &height, &depth))
+            {
+                dmLogError("Invalid image data. Expected astc format");
+                return RESULT_INVAL_ERROR;
+            }
+        }
+        else
+        {
+            dmLogError("Invalid image compression type. %d", compression_type);
             return RESULT_INVAL_ERROR;
         }
 
@@ -634,21 +1038,23 @@ namespace dmGui
             return RESULT_TEXTURE_ALREADY_EXISTS;
         }
 
-        void* data = MakeDynamicTextureData(width, height, type, flip, buffer, buffer_size);
+        // Only make a copy if we need to flip the image
+        void* flipped_data = flip ? MakeDynamicTextureData(width, height, type, flip, buffer, buffer_size) : 0;
+        const void* data = flip ? flipped_data : buffer;
         if (!data)
         {
             return RESULT_DATA_ERROR;
         }
 
-        HTextureSource res = scene->m_NewTextureResourceCallback(scene, path, width, height, type, data);
-        free(data);
+        HTextureSource res = scene->m_NewTextureResourceCallback(scene, path, width, height, type, compression_type, data, buffer_size);
+        free(flipped_data);
 
         if (!res)
         {
             return RESULT_OUT_OF_RESOURCES;
         }
 
-        uint32_t buffer_size_mb = expected_buffer_size / 1024.0 / 1024.0;
+        float buffer_size_mb = buffer_size / float(1024 * 1024);
         DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, buffer_size_mb);
 
         return AddTexture(scene, scene->m_DynamicTextures, path, res, NODE_TEXTURE_TYPE_TEXTURE, width, height, type);
@@ -662,8 +1068,11 @@ namespace dmGui
             return RESULT_RESOURCE_NOT_FOUND;
         }
 
-        uint32_t buffer_size_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel(t->m_ImageType);
-        DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size_mb);
+        if (t->m_ImageType != UINT32_MAX)
+        {
+            uint32_t buffer_size_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel((dmImage::Type) t->m_ImageType);
+            DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size_mb);
+        }
 
         scene->m_DeleteTextureResourceCallback(scene, texture_hash, t->m_TextureSource);
         scene->m_DynamicTextures.Erase(texture_hash);
@@ -680,7 +1089,7 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
+    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, bool flip, const void* buffer, uint32_t buffer_size)
     {
         TextureInfo* t = scene->m_DynamicTextures.Get(texture_hash);
         if (!t)
@@ -688,21 +1097,40 @@ namespace dmGui
             return RESULT_INVAL_ERROR;
         }
 
-        void* data = MakeDynamicTextureData(width, height, type, flip, buffer, buffer_size);
+        if (compression_type == dmImage::COMPRESSION_TYPE_ASTC)
+        {
+            flip = false; // Cannot flip a preencoded astc image
+
+            uint32_t depth;
+            if (!dmImage::GetAstcDimensions(buffer, buffer_size, &width, &height, &depth))
+            {
+                dmLogError("Invalid image data. Expected astc format");
+                return RESULT_INVAL_ERROR;
+            }
+        }
+
+        // Only make a copy if we need to flip the image
+        void* flipped_data = flip ? MakeDynamicTextureData(width, height, type, flip, buffer, buffer_size) : 0;
+        const void* data = flip ? flipped_data : buffer;
         if (!data)
         {
             return RESULT_DATA_ERROR;
         }
 
-        scene->m_SetTextureResourceCallback(scene, texture_hash, width, height, type, data);
-        free(data);
+        scene->m_SetTextureResourceCallback(scene, texture_hash, width, height, type, compression_type, data, buffer_size);
+        free(flipped_data);
+
+        float buffer_size_orig_mb = 0.0f;
+        if (t->m_ImageType != UINT32_MAX)
+        {
+            buffer_size_orig_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel((dmImage::Type) t->m_ImageType);
+        }
 
         t->m_OriginalWidth  = width;
         t->m_OriginalHeight = height;
         t->m_ImageType      = type;
 
-        uint32_t buffer_size_orig_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel(t->m_ImageType);
-        uint32_t buffer_size_mb      = buffer_size / 1024.0 / 1024.0 - buffer_size_orig_mb;
+        float buffer_size_mb = buffer_size / 1024.0 / 1024.0 - buffer_size_orig_mb;
         DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size_mb);
 
         return RESULT_OK;
@@ -1054,8 +1482,8 @@ namespace dmGui
         float scale_y = 1.0f;
 
         if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || node == 0x0 || node->m_ParentIndex == INVALID_INDEX) {
-            scale_x = (float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Width;
-            scale_y = (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Height;
+            scale_x = (float) scene->m_AdjustWidth / (float) scene->m_Width;
+            scale_y = (float) scene->m_AdjustHeight / (float) scene->m_Height;
         } else {
             Vector4 adjust_scale = scene->m_Nodes[node->m_ParentIndex].m_Node.m_LocalAdjustScale;
             scale_x = adjust_scale.getX();
@@ -1103,26 +1531,14 @@ namespace dmGui
         {
             const dmhash_t key = dynamic_textures_iter.GetKey();
             const TextureInfo texture = dynamic_textures_iter.GetValue();
-            float buffer_size = texture.m_OriginalWidth * texture.m_OriginalHeight * dmImage::BytesPerPixel(texture.m_ImageType) / 1024.0 / 1024.0;
-            DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
+            if (texture.m_ImageType <= dmImage::TYPE_LUMINANCE_ALPHA)
+            {
+                float buffer_size = texture.m_OriginalWidth * texture.m_OriginalHeight * dmImage::BytesPerPixel((dmImage::Type) texture.m_ImageType) / 1024.0 / 1024.0;
+                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
+            }
             scene->m_DeleteTextureResourceCallback(scene, key, texture.m_TextureSource);
         }
         scene->m_DynamicTextures.Clear();
-    }
-
-    void IterateDynamicTextures(dmhash_t gui_res_id, HScene scene, FDynamicTextturesIterator callback, void* user_ctx)
-    {
-        dmHashTable64<TextureInfo>::Iterator dynamic_textures_iter = scene->m_DynamicTextures.GetIterator();
-        while(dynamic_textures_iter.Next())
-        {
-            const TextureInfo texture = dynamic_textures_iter.GetValue();
-            uint32_t size = texture.m_OriginalWidth * texture.m_OriginalHeight * dmImage::BytesPerPixel(texture.m_ImageType);
-            bool result = callback(gui_res_id, dynamic_textures_iter.GetKey(), size, user_ctx);
-            if (!result)
-            {
-                break;
-            }
-        }
     }
 
     static uint16_t GetLayerIndex(HScene scene, InternalNode* node)
@@ -1196,9 +1612,18 @@ namespace dmGui
                 scope.m_RefVal |= parent_scope->m_RefVal;
             }
         } else {
-            scope.m_RefVal = 1 << (7 - index);
-            if (parent_scope != 0x0) {
-                scope.m_RefVal |= (CalcMask(bit_field_offset) & parent_scope->m_RefVal);
+            if (index >= 8)
+            {
+                dmLogOnceError("Stencil buffer exceeded for inverted clipping node, clipping will not work as expected.");
+                // Match the previous backend behavior without relying on undefined shifting.
+                scope.m_RefVal = 0;
+            }
+            else
+            {
+                scope.m_RefVal = 1u << (7 - index);
+                if (parent_scope != 0x0) {
+                    scope.m_RefVal |= (CalcMask(bit_field_offset) & parent_scope->m_RefVal);
+                }
             }
         }
         if (inverted && node->m_Node.m_ClippingVisible) {
@@ -2126,8 +2551,11 @@ namespace dmGui
         uint32_t node_count = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
 
+		// It's needed in cases when texture reloaded using hot reload
+		// There is no way to notify nodes about it
         if (dLib::IsDebugMode())
         {
+            DM_PROFILE("DebugUpdateTextureSetAnimData");
             for (uint32_t i = 0; i < node_count; ++i)
             {
                 InternalNode* node = &nodes[i];
@@ -2157,6 +2585,10 @@ namespace dmGui
             else if (node->m_Index != INVALID_INDEX)
             {
                 ++total_nodes;
+                if (node->m_Node.m_TextLayout.m_Handle)
+                {
+                    TextLayoutUpdate(node->m_Node.m_TextLayout.m_Handle, dt);
+                }
                 if (node->m_Node.m_CustomType != 0)
                 {
                     scene->m_UpdateCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(node),
@@ -2388,6 +2820,7 @@ namespace dmGui
         node->m_Node.m_FlipbookAnimHash = 0;
         node->m_Node.m_FlipbookAnimPosition = 0.0f;
         node->m_Node.m_FontHash = 0;
+        node->m_Node.m_TextStyle = dmHashString64("default");
         node->m_Node.m_Font = 0;
         node->m_Node.m_HasHeadlessPfx = 0;
         node->m_Node.m_LayerHash = DEFAULT_LAYER;
@@ -2431,6 +2864,73 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         return n->m_NameHash;
+    }
+
+    Result SetNodeCustomProperties(HScene scene, HNode node, const CustomPropertyDesc* properties, uint32_t property_count)
+    {
+        InternalNode* n = GetNode(scene, node);
+        Node* node_data = &n->m_Node;
+
+        if (property_count == 0)
+        {
+            FreeCustomProperties(node_data);
+            return RESULT_OK;
+        }
+        if (property_count > 255)
+        {
+            return RESULT_OUT_OF_RESOURCES;
+        }
+
+        CustomPropertyDesc* copied_properties = (CustomPropertyDesc*)malloc(sizeof(CustomPropertyDesc) * property_count);
+        if (!copied_properties)
+        {
+            return RESULT_OUT_OF_RESOURCES;
+        }
+        memcpy(copied_properties, properties, sizeof(CustomPropertyDesc) * property_count);
+
+        SetCustomPropertiesInternal(node_data, copied_properties, property_count);
+        return RESULT_OK;
+    }
+
+    Result GetNodeCustomProperty(HScene scene, HNode node, dmhash_t key, CustomProperty* prop)
+    {
+        InternalNode* n = GetNode(scene, node);
+        CustomPropertyDesc* property = FindCustomProperty(&n->m_Node, key);
+        if (!property)
+        {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+        *prop = property->m_Property;
+        return RESULT_OK;
+    }
+
+    Result SetNodeCustomProperty(HScene scene, HNode node, dmhash_t key, const CustomProperty* prop)
+    {
+        InternalNode* n = GetNode(scene, node);
+        CustomPropertyDesc* property = FindCustomProperty(&n->m_Node, key);
+        if (!property)
+        {
+            return RESULT_RESOURCE_NOT_FOUND;
+        }
+        if (property->m_Property.m_Type != prop->m_Type)
+        {
+            return RESULT_WRONG_TYPE;
+        }
+
+        CustomProperty new_property = *prop;
+        if (prop->m_Type == CUSTOM_PROPERTY_TYPE_STRING)
+        {
+            const char* string_value = prop->m_String ? prop->m_String : "";
+            new_property.m_String = strdup(string_value);
+            if (!new_property.m_String)
+            {
+                return RESULT_OUT_OF_RESOURCES;
+            }
+        }
+
+        FreeCustomProperty(&property->m_Property);
+        property->m_Property = new_property;
+        return RESULT_OK;
     }
 
     HNode GetNodeById(HScene scene, const char* id)
@@ -2558,9 +3058,11 @@ namespace dmGui
         {
             scene->m_Nodes.SetSize(node_index);
         }
+        FreeTextLayout(&n->m_Node.m_TextLayout);
         if (n->m_Node.m_Text)
             free((void*)n->m_Node.m_Text);
         free(n->m_Node.m_ResetPointProperties);
+        FreeCustomProperties(&n->m_Node);
         memset(n, 0, sizeof(InternalNode));
         n->m_Index = INVALID_INDEX;
     }
@@ -2569,15 +3071,7 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
 
-        if (n->m_Node.m_CustomType != 0)
-        {
-            scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, node, n->m_Node.m_CustomType, n->m_Node.m_CustomData);
-        }
-
-        if (n->m_Node.m_RenderConstants)
-        {
-            scene->m_DestroyRenderConstantsCallback(n->m_Node.m_RenderConstants);
-        }
+        FreeNodeMemory(scene, n);
 
         // Stop (or destroy) any living particle instances started on this node
         uint32_t count = scene->m_AliveParticlefxs.Size();
@@ -2656,6 +3150,13 @@ namespace dmGui
 
     void ClearNodes(HScene scene)
     {
+        uint32_t n = scene->m_Nodes.Size();
+        InternalNode* nodes = scene->m_Nodes.Begin();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            FreeNodeMemory(scene, &nodes[i]);
+        }
+
         scene->m_Nodes.SetSize(0);
         scene->m_RenderHead = INVALID_INDEX;
         scene->m_RenderTail = INVALID_INDEX;
@@ -2694,7 +3195,6 @@ namespace dmGui
         // Apply ref-scaling to scale uniformly, select the smallest scale component to make sure everything fits
         Vector4 adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node.m_AdjustMode);
 
-        Context* context = scene->m_Context;
         Vector4 parent_dims;
 
         if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || n->m_ParentIndex == INVALID_INDEX) {
@@ -2708,10 +3208,12 @@ namespace dmGui
         Vector4 adjusted_dims = mulPerElem(parent_dims, adjust_scale);
         Vector4 ref_size;
         if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY || n->m_ParentIndex == INVALID_INDEX) {
-            ref_size = Vector4((float) context->m_PhysicalWidth, (float) context->m_PhysicalHeight, 0.0f, 1.0f);
+            ref_size = Vector4((float) scene->m_AdjustWidth, (float) scene->m_AdjustHeight, 0.0f, 1.0f);
 
             // need to calculate offset for root nodes, since (0,0) is in middle of scene
             offset = (ref_size - adjusted_dims) * 0.5f;
+            offset.setX(offset.getX() + scene->m_AdjustOffsetX);
+            offset.setY(offset.getY() + scene->m_AdjustOffsetY);
         } else {
             InternalNode* parent = &scene->m_Nodes[n->m_ParentIndex];
             ref_size = Vector4(parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getX() * reference_scale.getX(), parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getY() * reference_scale.getY(), 0.0f, 1.0f);
@@ -3004,6 +3506,17 @@ namespace dmGui
         return n->m_Node.m_LineBreak;
     }
 
+    void SetNodeTextStyle(HScene scene, HNode node, dmhash_t style)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_TextStyle = style;
+    }
+
+    dmhash_t GetNodeTextStyle(HScene scene, HNode node)
+    {
+        return GetNode(scene, node)->m_Node.m_TextStyle;
+    }
+
     void SetNodeTextLeading(HScene scene, HNode node, float leading)
     {
         InternalNode* n = GetNode(scene, node);
@@ -3236,6 +3749,11 @@ namespace dmGui
         return n->m_Node.m_LayerHash;
     }
 
+    uint16_t GetNodeLayerIndex(HScene scene, HNode node)
+    {
+        return GetLayerIndex(scene, GetNode(scene, node));
+    }
+
     Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id)
     {
         uint16_t* layer_index = scene->m_Layers.Get(layer_id);
@@ -3463,6 +3981,35 @@ namespace dmGui
 
         scene->m_Context->m_GetTextMetricsCallback(*font, text, width, line_break, leading, tracking, metrics);
         return RESULT_OK;
+    }
+
+    void PrepareNodeTextLayout(HScene scene, HNode node)
+    {
+        if (scene->m_PrepareNodeTextLayoutCallback)
+        {
+            scene->m_PrepareNodeTextLayoutCallback(scene, node);
+        }
+    }
+
+    void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout)
+    {
+        InternalNode* n = GetNode(scene, node);
+        *out_text_layout = n->m_Node.m_TextLayout;
+    }
+
+    void SetNodeTextLayout(HScene scene, HNode node, const TextLayout& text_layout)
+    {
+        InternalNode* n = GetNode(scene, node);
+        TextLayout& current_text_layout = n->m_Node.m_TextLayout;
+        if (text_layout.m_Handle && current_text_layout.m_Handle != text_layout.m_Handle)
+        {
+            TextLayoutAcquire(text_layout.m_Handle);
+        }
+        if (current_text_layout.m_Handle && current_text_layout.m_Handle != text_layout.m_Handle)
+        {
+            TextLayoutRelease(current_text_layout.m_Handle);
+        }
+        current_text_layout = text_layout;
     }
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node)
@@ -3731,6 +4278,20 @@ namespace dmGui
         dmArray<Animation>* animations = &scene->m_Animations;
         uint32_t n_animations = animations->Size();
 
+        if (property_hash == 0)
+        { 
+            // if property hash is 0 then cancels all ongoing animation of properties for node
+            for (uint32_t i = 0; i < n_animations; ++i)
+            {
+                Animation* anim = &(*animations)[i];
+                if (anim->m_Node == node)
+                {
+                    anim->m_Cancelled = 1;
+                }
+            }
+            return;
+        }
+
         PropDesc* pd = GetPropertyDesc(property_hash);
         if (pd) {
             for (uint32_t i = 0; i < n_animations; ++i)
@@ -3798,6 +4359,7 @@ namespace dmGui
         uint64_t anim_frames = (anim_desc.m_State.m_End - anim_desc.m_State.m_Start);
         dmGui::Playback playback = (dmGui::Playback)anim_desc.m_State.m_Playback;
         bool pingpong = playback == dmGui::PLAYBACK_ONCE_PINGPONG || playback == dmGui::PLAYBACK_LOOP_PINGPONG;
+        bool backwards = playback == dmGui::PLAYBACK_ONCE_BACKWARD || playback == dmGui::PLAYBACK_LOOP_BACKWARD;
 
         // Ping pong for flipbook animations should result in double the
         // animation duration.
@@ -3836,7 +4398,8 @@ namespace dmGui
         anim->m_From = 0.0f,
         anim->m_FirstUpdate = 0.0f;
         anim->m_Elapsed = elapsed;
-        n->m_Node.m_FlipbookAnimPosition = offset;
+        // As for sprites, offset is playback progress while the cursor is the visible position.
+        n->m_Node.m_FlipbookAnimPosition = backwards ? 1.0f - offset : offset;
     }
 
     static inline FetchTextureSetAnimResult FetchTextureSetAnim(HScene scene, InternalNode* n, dmhash_t anim)
@@ -3925,6 +4488,8 @@ namespace dmGui
         if(n->m_Node.m_TextureSetAnimDesc.m_State.m_Playback == PLAYBACK_NONE)
         {
             CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            // As for sprites, PLAYBACK_NONE still uses the offset to select a static frame.
+            n->m_Node.m_FlipbookAnimPosition = dmMath::Clamp(offset, 0.0f, 1.0f);
             if (anim_complete_callback != 0x0)
             {
                 anim_complete_callback(scene, node, true, callback_userdata1, callback_userdata2);
@@ -3992,6 +4557,35 @@ namespace dmGui
                 && node_pos.getX() <= 1.0f
                 && node_pos.getY() >= 0.0f
                 && node_pos.getY() <= 1.0f;
+    }
+
+    bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, Point3* position)
+    {
+        Vector4 scale((float)scene->m_Context->m_PhysicalWidth / (float)scene->m_Context->m_DefaultProjectWidth,
+                      (float)scene->m_Context->m_PhysicalHeight / (float)scene->m_Context->m_DefaultProjectHeight, 1.0f, 1.0f);
+        InternalNode* n = GetNode(scene, node);
+        CalculateNodeSize(n);
+
+        Matrix4 transform;
+        CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform);
+        // Preserve a sound inverse for flat GUI nodes, matching PickNode().
+        transform.setElem(2, 2, 1.0f);
+        transform = inverse(transform);
+
+        Vector4     node_pos = transform * Vector4(x * scale.getX(), y * scale.getY(), 0.0f, 1.0f);
+        const float epsilon = 0.0001f;
+        if (dmMath::Abs(node_pos.getZ()) > epsilon)
+        {
+            Vector4 ray_dir = transform.getCol2();
+            if (dmMath::Abs(ray_dir.getZ()) < epsilon)
+            {
+                return false;
+            }
+            node_pos -= ray_dir * (node_pos.getZ() / ray_dir.getZ());
+        }
+
+        *position = Point3(node_pos.getXYZ());
+        return true;
     }
 
     bool IsNodeEnabled(HScene scene, HNode node, bool recursive)
@@ -4114,9 +4708,23 @@ namespace dmGui
     {
         Matrix4 parent_m;
 
+        if (scene->m_AdjustReference == ADJUST_REFERENCE_DISABLED)
+        {
+            if (parent_node == 0x0)
+            {
+                return screen_position;
+            }
+
+            CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
+            Vector4 local_position = inverse(parent_m) * Vector4(screen_position, 1.0f);
+            return local_position.getXYZ();
+        }
+
         Vector4 reference_scale;
         Vector4 adjust_scale;
         Vector4 offset(0.0f);
+
+        Vector3 position = screen_position;
 
         // Calculate the new parents scene transform
         // We also need to calculate values relative to adjustments and offset
@@ -4126,20 +4734,30 @@ namespace dmGui
             CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
             reference_scale = parent_node->m_Node.m_LocalAdjustScale;
             adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node->m_Node.m_AdjustMode);
+
+            Vector4 parent_local_position = inverse(parent_m) * Vector4(screen_position, 1.0f);
+            position = parent_local_position.getXYZ();
+
+            if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY)
+            {
+                return position;
+            }
+
+            // For ADJUST_REFERENCE_PARENT the node's local transform is pre-multiplied
+            // by the inverse reference scale in UpdateLocalTransform. Reapply it before
+            // undoing the node adjustment below.
+            position = mulPerElem(position, reference_scale.getXYZ());
         } else {
             reference_scale = CalculateReferenceScale(scene, 0x0);
             adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node->m_Node.m_AdjustMode);
-            parent_m = Matrix4::scale(adjust_scale.getXYZ());
 
             Vector4 parent_dims = Vector4((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
             Vector4 adjusted_dims = mulPerElem(parent_dims, adjust_scale);
-            Vector4 ref_size = Vector4((float) scene->m_Context->m_PhysicalWidth, (float) scene->m_Context->m_PhysicalHeight, 0.0f, 1.0f);
+            Vector4 ref_size = Vector4((float) scene->m_AdjustWidth, (float) scene->m_AdjustHeight, 0.0f, 1.0f);
             offset = (ref_size - adjusted_dims) * 0.5f;
+            offset.setX(offset.getX() + scene->m_AdjustOffsetX);
+            offset.setY(offset.getY() + scene->m_AdjustOffsetY);
         }
-
-        // We calculate a new position that will be the relative position once
-        // the node has been childed to the new parent.
-        Vector3 position = screen_position - parent_m.getCol3().getXYZ();
 
         // We need to perform the inverse of what AdjustPosScale will do to counteract when
         // it will be applied during next call to CalculateNodeTransform.
@@ -4260,16 +4878,50 @@ namespace dmGui
         InternalNode* out_n = &scene->m_Nodes[index];
         memset(out_n, 0, sizeof(InternalNode));
 
-        // generate a name for the cloned node
-        char name[18];
-        dmSnPrintf(name, 18, "__node%d", g_ClonedNodeCount++);
-
         InternalNode* n = GetNode(scene, node);
         out_n->m_Node = n->m_Node;
         out_n->m_Node.m_HasResetPoint = 0;
         out_n->m_Node.m_ResetPointProperties = 0;
+        out_n->m_Node.m_CustomProperties = 0;
+        out_n->m_Node.m_CustomPropertyCount = 0;
+        ResetTextLayout(&out_n->m_Node.m_TextLayout);
         if (n->m_Node.m_Text != 0x0)
             out_n->m_Node.m_Text = strdup(n->m_Node.m_Text);
+
+        out_n->m_Version = version;
+        out_n->m_Index = index;
+
+        CustomPropertyDesc* custom_properties = 0;
+        Result result = CopyCustomProperties(&custom_properties, n->m_Node.m_CustomProperties, n->m_Node.m_CustomPropertyCount);
+        if (result == RESULT_OK)
+        {
+            SetCustomPropertiesInternal(&out_n->m_Node, custom_properties, n->m_Node.m_CustomPropertyCount);
+        }
+        if (result != RESULT_OK)
+        {
+            if (out_n->m_Node.m_Text)
+                free((void*)out_n->m_Node.m_Text);
+            scene->m_NodePool.Push(index);
+            if (index + 1 == scene->m_Nodes.Size())
+            {
+                scene->m_Nodes.SetSize(index);
+            }
+            memset(out_n, 0, sizeof(InternalNode));
+            out_n->m_Index = INVALID_INDEX;
+            *out_node = INVALID_HANDLE;
+            return result;
+        }
+
+        // generate a name for the cloned node
+        char name[18];
+        dmSnPrintf(name, 18, "__node%d", g_ClonedNodeCount++);
+        out_n->m_NameHash = dmHashBufferNoReverse64(name, strlen(name));
+        out_n->m_SceneTraversalCacheVersion = INVALID_INDEX;
+        out_n->m_PrevIndex = INVALID_INDEX;
+        out_n->m_NextIndex = INVALID_INDEX;
+        out_n->m_ParentIndex = INVALID_INDEX;
+        out_n->m_ChildHead = INVALID_INDEX;
+        out_n->m_ChildTail = INVALID_INDEX;
         
         // Handle render constants - clone them if callback is available and source has them
         if (n->m_Node.m_RenderConstants && scene->m_CloneRenderConstantsCallback)
@@ -4282,15 +4934,6 @@ namespace dmGui
             out_n->m_Node.m_RenderConstants = 0x0;
             out_n->m_Node.m_RenderConstantsHash = 0;
         }
-        out_n->m_NameHash = dmHashString64(name);
-        out_n->m_Version = version;
-        out_n->m_Index = index;
-        out_n->m_SceneTraversalCacheVersion = INVALID_INDEX;
-        out_n->m_PrevIndex = INVALID_INDEX;
-        out_n->m_NextIndex = INVALID_INDEX;
-        out_n->m_ParentIndex = INVALID_INDEX;
-        out_n->m_ChildHead = INVALID_INDEX;
-        out_n->m_ChildTail = INVALID_INDEX;
         scene->m_NextVersionNumber = (version + 1) % ((1 << 16) - 1);
 
         if (n->m_Node.m_CustomType != 0)
@@ -4303,8 +4946,32 @@ namespace dmGui
         if (n->m_Node.m_FlipbookAnimHash != 0)
         {
             float playback_rate = GetNodeFlipbookPlaybackRate(scene, node);
+            // The visible cursor is ambiguous at a loop wrap, so preserve the active animation phase separately.
+            Animation* source_animation = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            bool copy_animation_phase = source_animation != 0 && source_animation->m_Cancelled == 0;
+            float animation_elapsed = copy_animation_phase ? source_animation->m_Elapsed : 0.0f;
+            uint16_t animation_backwards = copy_animation_phase ? source_animation->m_Backwards : 0;
+
+            // Convert the visible cursor back to playback progress before starting the clone.
             float cursor = GetNodeFlipbookCursor(scene, node);
-            PlayNodeFlipbookAnim(scene, *out_node, n->m_Node.m_FlipbookAnimHash, cursor, playback_rate, 0, 0, 0);
+            float offset = cursor;
+            Playback playback = (Playback)n->m_Node.m_TextureSetAnimDesc.m_State.m_Playback;
+            if (playback == PLAYBACK_ONCE_BACKWARD || playback == PLAYBACK_LOOP_BACKWARD)
+            {
+                offset = 1.0f - offset;
+            }
+            PlayNodeFlipbookAnim(scene, *out_node, n->m_Node.m_FlipbookAnimHash, offset, playback_rate, 0, 0, 0);
+
+            if (copy_animation_phase)
+            {
+                Animation* clone_animation = GetComponentAnimation(scene, *out_node, &out_n->m_Node.m_FlipbookAnimPosition);
+                if (clone_animation != 0)
+                {
+                    clone_animation->m_Elapsed = animation_elapsed;
+                    clone_animation->m_Backwards = animation_backwards;
+                    out_n->m_Node.m_FlipbookAnimPosition = cursor;
+                }
+            }
         }
 
         if (n->m_Node.m_ParticleInstance != 0x0)
@@ -4465,6 +5132,8 @@ namespace dmGui
             lua_pushnil(L);
             lua_setglobal(L, SCRIPT_FUNCTION_NAMES[i]);
         }
+
+        free((void*)script->m_SourceFileName);
         script->m_SourceFileName = strdup(source->m_Filename);
 bail:
         assert(top == lua_gettop(L));

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,35 +17,40 @@
             [editor.animation-set :as animation-set]
             [editor.app-manifest :as app-manifest]
             [editor.atlas :as atlas]
+            [editor.binary-file :as binary-file]
             [editor.buffer :as buffer]
             [editor.camera-editor :as camera]
             [editor.code.script :as code-script]
             [editor.code.shader :as code-shader]
             [editor.code.text-file :as code-text-file]
-            [editor.model-scene :as model-scene]
             [editor.collection :as collection]
             [editor.collection-non-editable :as collection-non-editable]
             [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
             [editor.compute :as compute]
             [editor.cubemap :as cubemap]
+            [editor.data-text :as data-text]
             [editor.display-profiles :as display-profiles]
+            [editor.editor-localization :as editor-localization]
             [editor.editor-script :as editor-script]
             [editor.factory :as factory]
             [editor.font :as font]
             [editor.game-object :as game-object]
             [editor.game-object-non-editable :as game-object-non-editable]
+            [editor.gamepads :as gamepads]
             [editor.game-project :as game-project]
             [editor.game-properties :as game-properties]
             [editor.gui :as gui]
             [editor.html :as html]
             [editor.image :as image]
             [editor.label :as label]
+            [editor.light :as light]
             [editor.live-update-settings :as live-update-settings]
             [editor.markdown :as markdown]
             [editor.material :as material]
             [editor.mesh :as mesh]
             [editor.model :as model]
+            [editor.model-scene :as model-scene]
             [editor.particlefx :as particlefx]
             [editor.placeholder-resource :as placeholder-resource]
             [editor.protobuf-types :as protobuf-types]
@@ -61,10 +66,12 @@
 
 (defn register-resource-types! [workspace]
   (g/transact
+    {:undoable false}
     (concat
       (animation-set/register-resource-types workspace)
       (app-manifest/register-resource-types workspace)
       (atlas/register-resource-types workspace)
+      (binary-file/register-resource-types workspace)
       (buffer/register-resource-types workspace)
       (camera/register-resource-types workspace)
       (model-scene/register-resource-types workspace)
@@ -75,17 +82,20 @@
       (compute/register-resource-types workspace)
       (cubemap/register-resource-types workspace)
       (display-profiles/register-resource-types workspace)
+      (editor-localization/register-resource-types workspace)
       (editor-script/register-resource-types workspace)
       (factory/register-resource-types workspace)
       (font/register-resource-types workspace)
       (game-object/register-resource-types workspace)
       (game-object-non-editable/register-resource-types workspace)
+      (gamepads/register-resource-types workspace)
       (game-project/register-resource-types workspace)
       (game-properties/register-resource-types workspace)
       (gui/register-resource-types workspace)
       (html/register-resource-types workspace)
       (image/register-resource-types workspace)
       (label/register-resource-types workspace)
+      (light/register-resource-types workspace)
       (live-update-settings/register-resource-types workspace)
       (markdown/register-resource-types workspace)
       (material/register-resource-types workspace)
@@ -102,6 +112,7 @@
       (sprite/register-resource-types workspace)
       (tile-map/register-resource-types workspace)
       (tile-source/register-resource-types workspace)
+      (data-text/register-resource-types workspace)
       (code-script/register-resource-types workspace)
       (code-shader/register-resource-types workspace)
       (code-text-file/register-resource-types workspace)

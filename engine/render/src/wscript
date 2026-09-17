@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import waf_graphics, waf_dynamo, waflib
-from waf_dynamo import apidoc_extract_task, dmsdk_add_files
+from waf_dynamo import dmsdk_add_files
 
 def options(opt):
     pass
@@ -10,7 +10,7 @@ def configure(cont):
     pass
 
 def build(bld):
-    sources = bld.path.ant_glob('render/*.cpp') + bld.path.parent.ant_glob('proto/render/*.proto')
+    sources = bld.path.ant_glob('render/*.cpp') + bld.path.ant_glob('render/font/*.cpp') + bld.path.parent.ant_glob('proto/render/*.proto')
     if 'web' in bld.env.PLATFORM:
         sources += ['platform/renderer_web.cpp']
     else:
@@ -24,6 +24,7 @@ def build(bld):
               includes        = ['.', '../build/proto'],
               proto_gen_py    = True,
               protoc_includes = '../proto',
+              uselib          = 'LUA',
               source          = sources,
               target          = 'render')
 
@@ -31,13 +32,14 @@ def build(bld):
               includes        = ['.', '../build/proto'],
               proto_gen_py    = True,
               protoc_includes = '../proto',
-              source          = ['render/font_renderer_default.cpp'],
+              source          = ['render/font/default/font_default_vertex.cpp'],
               target          = 'render_font_default')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
-    bld.install_files('${PREFIX}/include/render', 'render/font.h')
-    bld.install_files('${PREFIX}/include/render', 'render/font_renderer.h')
+    bld.install_files('${PREFIX}/include/render/font', 'render/font/fontmap.h')
+    bld.install_files('${PREFIX}/include/render/font', 'render/font/font_glyphbank.h')
+    bld.install_files('${PREFIX}/include/render/font', 'render/font/font_renderer.h')
     bld.install_files('${PREFIX}/include/render', 'render/display_profiles.h')
     bld.install_files('${PREFIX}/include/render', 'render/render.h')
 
@@ -49,13 +51,6 @@ def build(bld):
 
     if 'web' in bld.env.PLATFORM:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'js/library_render.js', postpone = False)
-
-    apidoc_extract_task(bld, [
-      '../proto/render/material_ddf.proto',
-      '../proto/render/render_ddf.proto',
-      '../proto/render/font_ddf.proto',
-      'render/render_script.cpp',
-      'render/render_script_camera.cpp'])
 
     if not waflib.Options.options.skip_build_tests:
         bld.recurse('test')

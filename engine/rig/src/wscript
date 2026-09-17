@@ -6,7 +6,8 @@ def configure(conf):
     pass
 
 def build(bld):
-    proto_files = ['../proto/rig/rig_ddf.proto']
+    rig_ddf_proto = bld.path.parent.find_resource('proto/rig/rig_ddf.proto')
+    rig_ddf_cpp = rig_ddf_proto.change_ext('.cpp')
 
     bld.stlib(features        = 'cxx ddf',
               includes        = ['.', '..', '../proto'],
@@ -14,28 +15,25 @@ def build(bld):
               protoc_includes = '../proto',
               target          = 'rig',
               use             = 'DDF DLIB SOCKET',
-              source          = ['rig.cpp'] + proto_files)
+              source          = ['rig.cpp', rig_ddf_proto])
 
     bld.add_group()
 
-    bld.stlib(features        = 'cxx ddf',
+    bld.stlib(features        = 'cxx',
               includes        = ['.', '..', '../proto'],
-              proto_gen_py    = True,
-              protoc_includes = '../proto',
               target          = 'rig_null',
               use             = 'DDF DLIB SOCKET',
-              source          = ['rig_null.cpp'] + proto_files)
+              source          = ['rig_null.cpp', rig_ddf_cpp])
 
     bld.add_group()
 
     # We only need this library in the editor
     if bld.env.IS_TARGET_DESKTOP:
-        bld.shlib(features        = 'cxx ddf skip_asan',
+        bld.shlib(features        = 'cxx skip_asan',
                   includes        = ['.', '..', '../proto'],
                   target          = 'rig_shared',
-                  protoc_includes = '../proto',
                   use             = 'DDF_NOASAN DLIB_NOASAN PROFILE_NULL_NOASAN SOCKET PLATFORM_NULL GRAPHICS_NULL_NOASAN',
-                  source          = 'rig.cpp ../proto/rig/rig_ddf.proto')
+                  source          = ['rig.cpp', rig_ddf_cpp])
 
     bld.install_files('${PREFIX}/include/rig', 'rig.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/rig/rig_ddf.proto')

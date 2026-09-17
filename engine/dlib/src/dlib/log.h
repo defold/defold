@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,10 @@
 
 #include <dmsdk/dlib/log.h>
 #include <dlib/message.h>
+
+#if defined(_WIN32) || defined(_GAMING_XBOX)
+#include <winerror.h> // HRESULT
+#endif
 
 namespace dmLog
 {
@@ -52,25 +56,6 @@ struct LogMessage
 };
 
 const uint32_t MAX_STRING_SIZE = dmMessage::DM_MESSAGE_MAX_DATA_SIZE - sizeof(LogMessage);
-struct LogParams
-{
-    LogParams()
-    {
-    }
-};
-
-/**
- * Initialize logging system. Running this function is only required in order to start the log-server.
- * The function will never fail even if the log-server can't be started. Any errors will be reported to stderr though
- * @param params log parameters
- */
-void LogInitialize(const LogParams* params);
-
-
-/**
- * Finalize logging system
- */
-void LogFinalize();
 
 /**
  * Get log server port
@@ -88,6 +73,12 @@ uint16_t GetPort();
 bool SetLogFile(const char* path);
 
 /**
+ * Get the number of queued log messages that have not yet been dispatched by
+ * the log thread.
+ */
+uint32_t GetPendingLogCount();
+
+/**
  * iOS specific print function that wraps NSLog to be able to
  * output logging to the device/XCode log.
  *
@@ -99,6 +90,13 @@ bool SetLogFile(const char* path);
  */
 void __ios_log_print(LogSeverity severity, const char* str_buf);
 
+void DoLogPlatform(LogSeverity severity, const char* output, int output_len);
+void CloseConsoleWindow();
+
+#if defined(_WIN32)
+bool HResultToString(HRESULT hr, char* buffer, size_t buffer_size);
+void LogHResult(LogSeverity severity, HRESULT hr, const char* str_buf);
+#endif
 
 } //namespace dmLog
 

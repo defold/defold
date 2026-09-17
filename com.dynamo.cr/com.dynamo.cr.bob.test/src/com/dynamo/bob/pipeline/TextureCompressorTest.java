@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,7 +15,6 @@
 package com.dynamo.bob.pipeline;
 
 import com.defold.extension.pipeline.texture.*;
-import com.defold.extension.pipeline.texture.TestTextureCompressor;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;
@@ -33,11 +32,10 @@ public class TextureCompressorTest extends AbstractProtoBuilderTest {
     private void ensureBuildProject() throws Exception {
         // We need to build some dummy data
         addImage("/test.png", 16, 16);
-        StringBuilder src = new StringBuilder();
-        src.append("images: {");
-        src.append("  image: \"/test.png\"");
-        src.append("}");
-        build("/test.atlas", src.toString());
+        String src = "images: {" +
+                "  image: \"/test.png\"" +
+                "}";
+        build("/test.atlas", src);
     }
 
     @Test

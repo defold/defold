@@ -6,13 +6,13 @@ import os, sys
 
 def create_protoc_task(name, type):
     return waflib.Task.task_factory(name, 
-                                    'protoc --encode=%s -I ../src/test -I ../proto -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include ../proto/input/input_ddf.proto < ${SRC} > ${TGT}' % type,
+                                    '${PROTOC} --encode=%s -I ../src/test -I ../proto -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include ../proto/input/input_ddf.proto < ${SRC} > ${TGT}' % type,
                                     before='c cxx',
                                     shell=True,
                                     color='PINK')
 
 create_protoc_task('input_binding', 'dmInputDDF.InputBinding')
-create_protoc_task('gamepads', 'dmInputDDF.GamepadMaps')
+create_protoc_task('gamepads', 'dmInputDDF.GamepadMapsRuntime')
 
 @extension('.input_binding')
 def extension_cont_pb(self, node):
@@ -32,7 +32,7 @@ def build(bld):
     test_input = bld(features = 'cc cxx cprogram test',
                      includes = '. .. ../../proto',
                      use = 'TESTMAIN PROFILE_NULL DDF SOCKET PLATFORM_THREAD PLATFORM_NULL HID_NULL DLIB input',
-                     source = bld.path.ant_glob('*', excl='wscript'),
+                     source = bld.path.ant_glob('*', excl=['wscript', 'CMakeLists.txt']),
                      protoc_includes = '../../proto',
                      target = 'test_input')
 

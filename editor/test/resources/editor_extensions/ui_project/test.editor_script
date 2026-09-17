@@ -1,13 +1,27 @@
 local M = {}
 
+local function expect_error(msg, fn, ...)
+    local success, error = pcall(fn, ...)
+    if success then
+        print(("%s => unexpected success!"):format(msg))
+    else
+        print(("%s => %s"):format(msg, error))
+    end
+end
+
 function M.get_commands()
     return {
         {
             label = "Test UI",
             locations = {"Edit"},
+            id = "defold.test",
             run = function()
                 local dialog = editor.ui.dialog({
                     title = "Dialog title",
+                    modal = false,
+                    width = 720,
+                    height = 540,
+                    resizable = true,
                     header = editor.ui.heading({
                         text = "Header on the Right",
                         color = editor.ui.COLOR.HINT,
@@ -44,6 +58,68 @@ function M.get_commands()
                                             editor.ui.button({ icon = editor.ui.ICON.MINUS }),
                                             editor.ui.button({ icon = editor.ui.ICON.OPEN_RESOURCE }),
                                             editor.ui.button({ icon = editor.ui.ICON.PLUS }),
+                                        }
+                                    })
+                                },
+                                {
+                                    editor.ui.label({
+                                        text = "Images",
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
+                                    }),
+                                    editor.ui.grid({
+                                        spacing = editor.ui.SPACING.NONE,
+                                        children = {
+                                            {
+                                                -- resources
+                                                editor.ui.image({
+                                                    image = "/builtins/assets/images/logo/logo_256.png",
+                                                    width = 16,
+                                                    alignment = editor.ui.ALIGNMENT.BOTTOM_LEFT
+                                                }),
+                                                editor.ui.image({
+                                                    image = "/builtins/assets/images/logo/logo_256.png",
+                                                    width = 32,
+                                                    alignment = editor.ui.ALIGNMENT.CENTER
+                                                }),
+                                                editor.ui.image({
+                                                    image = "/builtins/assets/images/logo/logo_256.png",
+                                                    width = 64
+                                                })
+                                            },
+                                            {
+                                                -- URLs
+                                                editor.ui.image({
+                                                    image = "https://avatars.githubusercontent.com/u/111111",
+                                                    width = 32
+                                                }),
+                                                editor.ui.image({
+                                                    image = "https://avatars.githubusercontent.com/u/732554",
+                                                    width = 32
+                                                }),
+                                                editor.ui.image({
+                                                    image = "https://avatars.githubusercontent.com/u/123456",
+                                                    width = 32,
+                                                    alignment = editor.ui.ALIGNMENT.RIGHT
+                                                })
+                                            },
+                                            {
+                                                -- invalid resources
+                                                editor.ui.image({
+                                                    image = "/does-not-exist.png"
+                                                }),
+                                                editor.ui.image({
+                                                    image = "/game.project"
+                                                })
+                                            },
+                                            {
+                                                -- invalid URLs
+                                                editor.ui.image({
+                                                    image = "https://defold.com/"
+                                                }),
+                                                editor.ui.image({
+                                                    image = "https://probably-does-not-exist.com/"
+                                                }),
+                                            }
                                         }
                                     })
                                 },
@@ -162,7 +238,45 @@ function M.get_commands()
                                                 issue = {severity = editor.ui.ISSUE_SEVERITY.ERROR, message = "error message"}
                                             }),
                                             editor.ui.check_box({
+                                                text = "Indeterminate check box",
+                                                indeterminate = true,
                                                 value = true
+                                            }),
+                                            editor.ui.check_box({
+                                                value = true
+                                            })
+                                        }
+                                    })
+                                },
+                                {
+                                    editor.ui.label({
+                                        text = "Tabs",
+                                        alignment = editor.ui.ALIGNMENT.TOP_RIGHT
+                                    }),
+                                    editor.ui.tabs({
+                                        tabs = {
+                                            editor.ui.tab({
+                                                text = "General",
+                                                icon = editor.ui.image({
+                                                    image = "/builtins/assets/images/logo/logo_256.png"
+                                                }),
+                                                content = editor.ui.vertical({
+                                                    padding = editor.ui.PADDING.LARGE,
+                                                    children = {
+                                                        editor.ui.label({
+                                                            text = "General content"
+                                                        })
+                                                    }
+                                                })
+                                            }),
+                                            false,
+                                            editor.ui.tab({
+                                                text = "Empty",
+                                                content = false
+                                            }),
+                                            editor.ui.tab({
+                                                text = "Disabled",
+                                                enabled = false
                                             })
                                         }
                                     })
@@ -187,6 +301,18 @@ function M.get_commands()
                         })
                     }
                 })
+
+                expect_error("editor.ui.image({})", editor.ui.image, {})
+                expect_error("editor.ui.image({image = false})", editor.ui.image, {image = false})
+                expect_error("editor.ui.image({image = 'foo', width = false})", editor.ui.image, {image = 'foo', width = false})
+                expect_error("editor.ui.image({image = 'foo', width = -1})", editor.ui.image, {image = 'foo', width = -1})
+                editor.ui.dialog({title = "Width-only dialog", width = 720})
+                editor.ui.dialog({title = "Height-only dialog", height = 540})
+                expect_error("editor.ui.dialog({title = 'Dialog title', width = false})", editor.ui.dialog, {title = "Dialog title", width = false})
+                expect_error("editor.ui.dialog({title = 'Dialog title', height = -1})", editor.ui.dialog, {title = "Dialog title", height = -1})
+                expect_error("editor.ui.dialog({title = 'Dialog title', resizable = 1})", editor.ui.dialog, {title = "Dialog title", resizable = 1})
+                expect_error("editor.ui.check_box({indeterminate = 1})", editor.ui.check_box, {indeterminate = 1})
+                expect_error("editor.ui.tab({})", editor.ui.tab, {})
 
                 -- editor.ui.show_dialog(dialog)
             end

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -87,6 +87,25 @@ static int g_TotalBytesLogged = 0;
 static FILE* g_LogFile = 0;
 static dmSpinlock::Spinlock g_ListenerLock; // Protects the array of listener functions
 
+// A writer may pass IsServerInitialized() before LogFinalize() starts, then
+// acquire the server lock after finalization. Keep both locks alive across
+// logger restarts so delayed writers can safely check the initialized flag.
+struct LogLocks
+{
+    LogLocks()
+    {
+        dmSpinlock::Create(&g_LogServerLock);
+        dmSpinlock::Create(&g_ListenerLock);
+    }
+
+    ~LogLocks()
+    {
+        dmSpinlock::Destroy(&g_ListenerLock);
+        dmSpinlock::Destroy(&g_LogServerLock);
+    }
+};
+static LogLocks g_LogLocks;
+
 #if defined(DM_HAS_NO_GETENV)
 static const char* getenv(const char*) {
     return 0;
@@ -95,6 +114,7 @@ static const char* getenv(const char*) {
 static const int g_MaxListeners = 32;
 static FLogListener g_Listeners[g_MaxListeners];
 static int32_atomic_t g_ListenersCount;
+static int32_atomic_t g_PendingLogCount;
 
 static inline bool IsServerInitialized()
 {
@@ -295,38 +315,42 @@ static android_LogPriority ToAndroidPriority(LogSeverity severity)
 }
 #endif
 
-static void DoLogPlatform(LogSeverity severity, const char* output, int output_len)
+#if !defined(_WIN32) && !defined(_GAMING_XBOX)
+void DoLogPlatform(LogSeverity severity, const char* output, int output_len)
 {
 #ifdef ANDROID
-        __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", output);
+    __android_log_print(dmLog::ToAndroidPriority(severity), "defold", "%s", output);
 
 // iOS
 #elif TARGET_OS_IOS==1
-        dmLog::__ios_log_print(severity, output);
+    dmLog::__ios_log_print(severity, output);
 #endif
 
 #ifdef __EMSCRIPTEN__
 
-        //Emscripten maps stderr to console.error and stdout to console.log.
-        if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL){
-            EM_ASM_({
-                Module.printErr(UTF8ToString($0));
-            }, output);
-        } else {
-            EM_ASM_({
-                Module.print(UTF8ToString($0));
-            }, output);
-        }
-#elif !defined(ANDROID)
-        fwrite(output, 1, output_len, stderr);
-#endif
-
-    if (dmLog::g_LogFile && dmLog::g_TotalBytesLogged < dmLog::MAX_LOG_FILE_SIZE) {
-        dmLog::g_TotalBytesLogged += output_len;
-        fwrite(output, 1, output_len, dmLog::g_LogFile);
-        fflush(dmLog::g_LogFile);
+    //Emscripten maps stderr to console.error and stdout to console.log.
+    if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL)
+    {
+        EM_ASM_({
+            Module.printErr(UTF8ToString($0));
+        }, output);
+    } else {
+        EM_ASM_({
+            Module.print(UTF8ToString($0));
+        }, output);
     }
+#elif !defined(ANDROID)
+    if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL)
+    {
+        fwrite(output, 1, output_len, stderr);
+    }
+    else
+    {
+        fwrite(output, 1, output_len, stdout);
+    }
+#endif
 }
+#endif
 
 // Here we put logging that needs to be thread safe
 // We either push it on the logger thread, or from the main thread if threads aren't supported (e.g. html5)
@@ -363,7 +387,7 @@ static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
     {
         DM_SPINLOCK_SCOPED_LOCK(dmLog::g_LogServerLock);
         if (!dmLog::IsServerInitialized())
-            return; // The log system may have been shut down in between
+            goto done; // The log system may have been shut down in between
         n = (int) server->m_Connections.Size();
     }
 
@@ -374,7 +398,7 @@ static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
         {
             DM_SPINLOCK_SCOPED_LOCK(dmLog::g_LogServerLock);
             if (!dmLog::IsServerInitialized())
-                return; // The log system may have been shut down in between
+                goto done; // The log system may have been shut down in between
             c = &server->m_Connections[i];
             socket = c->m_Socket;
         }
@@ -401,7 +425,7 @@ static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
                 {
                     DM_SPINLOCK_SCOPED_LOCK(dmLog::g_LogServerLock);
                     if (!dmLog::IsServerInitialized())
-                        return; // The log system may have been shut down in between
+                        goto done; // The log system may have been shut down in between
                     c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
                     server->m_Connections.EraseSwap(i);
                 }
@@ -412,6 +436,9 @@ static void dmLogDispatch(dmMessage::Message *message, void* user_ptr)
             }
         } while (total_sent < msg_len);
     }
+
+done:
+    dmAtomicSub32(&dmLog::g_PendingLogCount, 1);
 }
 
 static void dmLogThread(void* args)
@@ -439,8 +466,6 @@ void LogInitialize(const LogParams* params)
         fprintf(stderr, "ERROR:DLIB: dmLog already initialized\n");
         return;
     }
-
-    dmSpinlock::Create(&g_LogServerLock);
 
     dmSocket::Socket server_socket = dmSocket::INVALID_SOCKET_HANDLE;
     uint16_t port = 0;
@@ -478,10 +503,9 @@ void LogInitialize(const LogParams* params)
         server->m_Thread = dmThread::New(dmLogThread, 0x80000, 0, "log");
     }
 
-    dmAtomicStore32(&g_LogServerInitialized, 1);
-
     dmAtomicStore32(&g_ListenersCount, 0);
-    dmSpinlock::Create(&g_ListenerLock);
+    dmAtomicStore32(&g_PendingLogCount, 0);
+    dmAtomicStore32(&g_LogServerInitialized, 1);
 
     /*
      * This message is parsed by editor 2 - don't remove or change without
@@ -549,9 +573,6 @@ void LogFinalize()
         g_dmLogServer = 0;
         CloseLogFile();
     }
-
-    dmSpinlock::Destroy(&g_ListenerLock);
-    dmSpinlock::Destroy(&g_LogServerLock);
 }
 
 uint16_t GetPort()
@@ -576,6 +597,13 @@ bool SetLogFile(const char* path)
         return false;
     }
     return true;
+}
+
+uint32_t GetPendingLogCount()
+{
+    int32_t count = dmAtomicGet32(&g_PendingLogCount);
+    assert(count >= 0);
+    return (uint32_t)count;
 }
 
 } //namespace dmLog
@@ -605,6 +633,16 @@ void dmLogUnregisterListener(FLogListener listener)
     dmLogWarning("dmLog listener not found");
 }
 
+void dmLogInitialize(const LogParams* params)
+{
+    dmLog::LogInitialize(params);
+}
+
+void dmLogFinalize()
+{
+    dmLog::LogFinalize();
+}
+
 void dmLogSetLevel(LogSeverity severity)
 {
     dmLog::g_LogLevel = severity;
@@ -620,6 +658,9 @@ namespace dmLog {
     void RegisterLogListener(FLogListener listener)     { dmLogRegisterListener(listener); }
     void UnregisterLogListener(FLogListener listener)   { dmLogUnregisterListener(listener); }
     void Setlevel(LogSeverity severity)                 { dmLogSetLevel(severity); }
+#if !defined(_WIN32) && !defined(_GAMING_XBOX)
+    void CloseConsoleWindow()                           {}
+#endif
 }
 
 
@@ -630,9 +671,9 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
         return;
     }
 
-    // In release mode, if there are no custom listeners, we'll return here
+    // In release mode, if there are no custom listeners, and no log.txt file, we'll return here
     bool is_debug_mode = dLib::IsDebugMode();
-    if (!is_debug_mode && (dmAtomicGet32(&dmLog::g_ListenersCount) == 0))
+    if (!is_debug_mode && !dmLog::g_LogFile && (dmAtomicGet32(&dmLog::g_ListenersCount) == 0))
     {
         return;
     }
@@ -671,7 +712,8 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
 
     if (n < dmLog::MAX_STRING_SIZE)
     {
-        n += dmSnPrintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, "\n");
+        dmSnPrintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, "\n");
+        ++n; // Since dmSnPrintf returns -1 on truncation, don't add the return value to n, and instead increment n separately
     }
 
     if (n >= dmLog::MAX_STRING_SIZE)
@@ -689,6 +731,13 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
     if (is_debug_mode)
     {
         dmLog::DoLogPlatform(severity, str_buf, actual_n);
+    }
+
+    if (dmLog::g_LogFile && dmLog::g_TotalBytesLogged < dmLog::MAX_LOG_FILE_SIZE)
+    {
+        dmLog::g_TotalBytesLogged += actual_n;
+        fwrite(str_buf, 1, actual_n, dmLog::g_LogFile);
+        fflush(dmLog::g_LogFile);
     }
 
     if (!dmLog::IsServerInitialized()) // in case the server lock isn't even created
@@ -724,6 +773,11 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
         receiver.m_Socket = server->m_MessageSocket;
         receiver.m_Path = 0;
         receiver.m_Fragment = 0;
-        dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(dmLog::LogMessage) + actual_n + 1, sizeof(tmp_buf)), 0);
+        dmAtomicAdd32(&dmLog::g_PendingLogCount, 1);
+        dmMessage::Result result = dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(dmLog::LogMessage) + actual_n + 1, sizeof(tmp_buf)), 0);
+        if (result != dmMessage::RESULT_OK)
+        {
+            dmAtomicSub32(&dmLog::g_PendingLogCount, 1);
+        }
     }
 }

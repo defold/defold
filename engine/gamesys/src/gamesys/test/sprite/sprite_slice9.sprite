@@ -1,5 +1,5 @@
 material: "/sprite/sprite.material"
-default_animation: "valid_png_128"
+default_animation: "atlas_texture_valid_png_128"
 blend_mode: BLEND_MODE_ALPHA
 slice9 {
   x: 32.0
@@ -16,5 +16,5 @@ size {
 size_mode: SIZE_MODE_MANUAL
 textures {
   sampler: "texture_sampler"
-  texture: "/atlas/valid.atlas"
+  texture: "/sprite/atlas_valid.atlas"
 }

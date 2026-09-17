@@ -1,0 +1,31 @@
+name: Windows
+
+on: [push, pull_request]
+
+jobs:
+  Windows:
+    runs-on: windows-latest
+    steps:
+    - name: Configure Git
+      shell: cmd
+      run: |
+        git config --system core.autocrlf false
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ github.ref }}
+        fetch-depth: 2
+    - name: Build
+      shell: powershell
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        $cores = [Environment]::ProcessorCount
+        Write-Host "Found $cores logical processors. Building with -j$cores"
+        cmake --build . --config Debug -j"$cores"
+    - name: Unit Tests
+      shell: powershell
+      run: |
+        cd build/bin
+        ./Debug/skribidi_test.exe

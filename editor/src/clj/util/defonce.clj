@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,19 +21,26 @@
 (defmacro protocol
   "Like core.defprotocol, but will never be redefined."
   [name & opts+sigs]
-  (if (not (some-> ^Var (resolve name) (.hasRoot)))
+  (when-not (some-> ^Var (resolve name) (.hasRoot))
     (list* 'defprotocol name opts+sigs)))
 
 (defmacro record
   "Like core.defrecord, but will never be redefined."
   {:arglists '([name [& fields] & opts+specs])}
   [name & args]
-  (if (not (class? (resolve name)))
+  (when-not (class? (resolve name))
     (list* 'defrecord name args)))
 
 (defmacro type
   "Like core.deftype, but will never be redefined."
   {:arglists '([name [& fields] & opts+specs])}
   [name & args]
-  (if (not (class? (resolve name)))
+  (when-not (class? (resolve name))
     (list* 'deftype name args)))
+
+(defmacro interface
+  "Like core.definterface, but will never be redefined."
+  {:arglists '([name [& fields] & opts+specs])}
+  [name & args]
+  (when-not (class? (resolve name))
+    (list* 'definterface name args)))

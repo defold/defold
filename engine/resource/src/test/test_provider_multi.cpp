@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -74,7 +74,7 @@ TEST(ArchiveProviderBasic, Registered)
 class ArchiveProvidersMulti : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmResourceProvider::ArchiveLoader* loader_file = dmResourceProvider::FindLoaderByName(dmHashString64("file"));
         dmResourceProvider::ArchiveLoader* loader_zip = dmResourceProvider::FindLoaderByName(dmHashString64("zip"));
@@ -115,18 +115,18 @@ protected:
         //  file    - 30
         {
             dmResource::Result result;
-            result = dmResourceMounts::AddMount(m_Mounts, "a", m_Archives[0], 30, false); // file
+            result = dmResourceMounts::AddMount(m_Mounts, dmHashString64("a"), m_Archives[0], 30); // file
             ASSERT_EQ(dmResource::RESULT_OK, result);
 
-            result = dmResourceMounts::AddMount(m_Mounts, "b", m_Archives[1], 10, false); // archive
+            result = dmResourceMounts::AddMount(m_Mounts, dmHashString64("b"), m_Archives[1], 10); // archive
             ASSERT_EQ(dmResource::RESULT_OK, result);
 
-            result = dmResourceMounts::AddMount(m_Mounts, "c", m_Archives[2], 20, false); // zip
+            result = dmResourceMounts::AddMount(m_Mounts, dmHashString64("c"), m_Archives[2], 20); // zip
             ASSERT_EQ(dmResource::RESULT_OK, result);
         }
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Archives); ++i)
         {
@@ -161,30 +161,30 @@ TEST_F(ArchiveProvidersMulti, GetMounts)
     ASSERT_EQ(dmResource::RESULT_INVAL, dmResourceMounts::GetMountByIndex(m_Mounts, 4, &result));
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByIndex(m_Mounts, 0, &result));
-    ASSERT_STREQ("a", result.m_Name);
+    ASSERT_EQ(dmHashString64("a"), result.m_NameHash);
     ASSERT_EQ(30, result.m_Priority);
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByIndex(m_Mounts, 1, &result));
-    ASSERT_STREQ("c", result.m_Name);
+    ASSERT_EQ(dmHashString64("c"), result.m_NameHash);
     ASSERT_EQ(20, result.m_Priority);
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByIndex(m_Mounts, 2, &result));
-    ASSERT_STREQ("b", result.m_Name);
+    ASSERT_EQ(dmHashString64("b"), result.m_NameHash);
     ASSERT_EQ(10, result.m_Priority);
 
-    // By name
-    ASSERT_EQ(dmResource::RESULT_INVAL, dmResourceMounts::GetMountByName(m_Mounts, "not_exist", &result));
+    // By name hash
+    ASSERT_EQ(dmResource::RESULT_INVAL, dmResourceMounts::GetMountByNameHash(m_Mounts, dmHashString64("not_exist"), &result));
 
-    ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByName(m_Mounts, "c", &result));
-    ASSERT_STREQ("c", result.m_Name);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByNameHash(m_Mounts, dmHashString64("c"), &result));
+    ASSERT_EQ(dmHashString64("c"), result.m_NameHash);
     ASSERT_EQ(20, result.m_Priority);
 
-    ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByName(m_Mounts, "a", &result));
-    ASSERT_STREQ("a", result.m_Name);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByNameHash(m_Mounts, dmHashString64("a"), &result));
+    ASSERT_EQ(dmHashString64("a"), result.m_NameHash);
     ASSERT_EQ(30, result.m_Priority);
 
-    ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByName(m_Mounts, "b", &result));
-    ASSERT_STREQ("b", result.m_Name);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::GetMountByNameHash(m_Mounts, dmHashString64("b"), &result));
+    ASSERT_EQ(dmHashString64("b"), result.m_NameHash);
     ASSERT_EQ(10, result.m_Priority);
 }
 
@@ -361,5 +361,8 @@ int main(int argc, char **argv)
     dmLog::LogInitialize(&logparams);
 
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+    int result = jc_test_run_all();
+
+    dmLog::LogFinalize();
+    return result;
 }

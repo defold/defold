@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -46,6 +46,14 @@ namespace dmGameObject
      * @return current game object instance
      */
     HInstance GetInstanceFromLua(lua_State* L);
+
+    /**
+     * Get current game object instance from a script instance of the specified type.
+     * @param L lua-state
+     * @param script_instance_type_hash script instance user type
+     * @return current game object instance
+     */
+    HInstance GetInstanceFromLua(lua_State* L, uint32_t script_instance_type_hash);
 
 }
 

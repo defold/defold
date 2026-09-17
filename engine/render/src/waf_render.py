@@ -1,4 +1,4 @@
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,25 +20,20 @@ from waf_content import proto_compile_task
 def configure(conf):
     pass
 
-waflib.Task.task_factory('material', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.MaterialBuilder ${SRC} ${TGT} ${SHADER_NAME} ${CONTENT_ROOT}',
+waflib.Task.task_factory('material', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.MaterialBuilder ${SRC} ${TGT} ${SHADER_NAME} ${CONTENT_ROOT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
                       shell=False)
 
-waflib.Task.task_factory('material_shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${FP} ${VP} ${TGT} ${PLATFORM} ${CONTENT_ROOT}',
+waflib.Task.task_factory('material_shaderbuilder', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${FP} ${VP} ${TGT} ${PLATFORM} ${CONTENT_ROOT}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
                       shell=False)
-
-GENERATOR_ID = 0
 
 @extension('.material')
 def material_file(self, node):
-    global GENERATOR_ID
-    GENERATOR_ID = GENERATOR_ID + 1
-
     import google.protobuf.text_format
     import render.material_ddf_pb2
     import dlib
@@ -59,16 +54,14 @@ def material_file(self, node):
 
     if shader_name == None:
         shader_hash = dlib.dmHashBuffer64(msg.vertex_program + msg.fragment_program)
-        # make sure the name is unique, as each task requires unique outputs
-        shader_name = 'shader_%d_%d_%s' % (shader_hash, GENERATOR_ID, '.spc')
+        material_path = node.path_from(self.path).replace(os.sep, '/')
+        material_hash = dlib.dmHashBuffer64(material_path)
+        # Make sure the name is unique and deterministic, as each task requires unique outputs.
+        shader_name = 'shader_%d_%d%s' % (shader_hash, material_hash, '.spc')
 
     material.env['CLASSPATH']    = os.pathsep.join(classpath)
     material.env['CONTENT_ROOT'] = material.generator.content_root
     material.env['SHADER_NAME']  = shader_name
-
-    material.set_inputs(node)
-    material_node = node.change_ext('.materialc')
-    material.set_outputs(material_node)
 
     shader = self.create_task('material_shaderbuilder')
     shader.env['CLASSPATH'] = os.pathsep.join(classpath)
@@ -76,12 +69,17 @@ def material_file(self, node):
     shader.env['VP'] = material.generator.content_root + msg.vertex_program
     shader.env['CONTENT_ROOT'] = material.generator.content_root
 
-    shader.set_inputs(material_node)
-
     shader_node = node.parent.get_bld().make_node(shader_name)
     shader.set_outputs(shader_node)
 
-waflib.Task.task_factory('fontmap', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${TGT} ${CONTENT_ROOT} ${DYNAMIC}',
+    # Material task depends on shader output
+    material.set_inputs([node, shader_node])
+    material_node = node.change_ext('.materialc')
+    material.set_outputs(material_node)
+    # Ensure shader runs first, material builders depend on reflection data from shaders
+    material.set_run_after(shader)
+
+waflib.Task.task_factory('fontmap', '${JAVA} ${JAVA_RUNTIME_FLAGS} -classpath ${CLASSPATH} com.dynamo.bob.font.Fontc ${SRC} ${TGT} ${CONTENT_ROOT} ${DYNAMIC}',
                          color='PINK',
                          after='proto_gen_py',
                          before='c cxx',

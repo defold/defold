@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,6 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdio.h>
+#include <math.h>
+#include <string.h>
 
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/log.h>
@@ -22,6 +24,9 @@
 
 #include <dmsdk/gamesys/resources/res_font.h>
 #include <dmsdk/gamesys/resources/res_ttf.h>
+
+#include <font/fontcollection.h>
+#include <font/text_layout.h>
 
 #include "gamesys/fontgen/fontgen.h"
 
@@ -39,7 +44,75 @@ namespace dmGameSystem
 
     //////////////////////////////////////////////////////////////////////////////
 
+const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
+
 dmResource::HFactory g_ResourceFactory = 0;
+
+/*# sets a named rich-text render style on a font
+ *
+ * Named object styles are resolved by text layouts without reshaping text.
+ * A `link` tag uses `link` by default. Callers may select another named style,
+ * such as `link:hover` or `link:active`, in response to input.
+ * Font collections initially define these named styles. Each default contains
+ * a normalized RGBA face-color multiplier and no effects. The default `link`
+ * style also uses a solid underline, which remains when hover or active colors
+ * are applied:
+ *
+ * - `link`: `(0.10, 0.45, 0.90, 1.0)`, solid underline
+ * - `link:hover`: `(0.30, 0.65, 1.00, 1.0)`
+ * - `link:active`: `(0.05, 0.30, 0.70, 1.0)`
+ *
+ * The definition is an opening-only sequence of rich-text tags. Tags are
+ * implicitly closed in reverse order. Calling this function replaces the
+ * named render properties and effects. Resource-defined decorations, such as
+ * the default `link` underline, remain unchanged.
+ *
+ * @name font.set_style
+ * @param fontc [type:string|hash] The path to the `.fontc` resource.
+ * @param name [type:string] Style name, for example `link:hover`.
+ * @param style [type:string] Opening-only render-style markup.
+ *
+ * @examples
+ *
+ * ```lua
+ * font.set_style("/fonts/ui.fontc", "link:hover",
+ *     "<color=#66b3ff><outline color=#000000 size=1><shake amplitude=0.2>")
+ * ```
+ */
+static int SetStyle(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+
+    const dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
+    size_t         name_length = 0;
+    const char*    name = luaL_checklstring(L, 2, &name_length);
+    size_t         definition_length = 0;
+    const char*    definition = luaL_checklstring(L, 3, &definition_length);
+
+    if (name_length == 0)
+    {
+        return DM_LUA_ERROR("font.set_style() style name must not be empty");
+    }
+
+    FontResource* resource = 0;
+    dmResource::Result result = dmResource::GetWithExt(g_ResourceFactory, fontc_path_hash, EXT_HASH_FONTC, (void**)&resource);
+
+    if (result != dmResource::RESULT_OK)
+    {
+        return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), result);
+    }
+
+    MarkupError error = {};
+    const bool valid = FontCollectionSetNamedStyleMarkup(ResFontGetFontCollection(resource), dmHashBuffer64(name, (uint32_t)name_length), definition, (uint32_t)definition_length, &error);
+    dmResource::Release(g_ResourceFactory, resource);
+
+    if (!valid)
+    {
+        return DM_LUA_ERROR("font.set_style() invalid markup at byte %u", error.m_ByteOffset);
+    }
+
+    return 0;
+}
 
 struct CallbackContext
 {
@@ -47,113 +120,149 @@ struct CallbackContext
     int                        m_Request;
 };
 
-// TODO: Determine more about our actual use case!
-// /*#
-//  * Adds a ttf resource to a .fontc file
-//  *
-//  * @name font.add_source
-//  * @param fontc [type:string|hash] The path to the .fontc resource
-//  * @param ttf [type:string|hash] The path to the .ttf resource
-//  * @param codepoint_min [type:number] The minimum codepoint range (inclusive)
-//  * @param codepoint_max [type:number] The maximum codepoint range (inclusive)
-//  *
-//  * @examples
-//  *
-//  * ```lua
-//  * local font_hash = hash("/assets/fonts/roboto.fontc")
-//  * local ttf_hash = hash("/assets/fonts/Roboto/Roboto-Bold.ttf")
-//  * local codepoint_min = 0x00000041 -- A
-//  * local codepoint_max = 0x0000005A -- Z
-//  * font.add_source(font_hash, ttf_hash, codepoint_min, codepoint_max)
-//  * ```
-//  */
-// static int AddSource(lua_State* L)
-// {
-//     DM_LUA_STACK_CHECK(L, 0);
+/*#
+ * associates a TTF or OTF resource to a .fontc file.
+ * @note The font is loaded via the resource system. There are a few ways it can be accessed:
+ *     - It was already loaded in the resource system
+ *     - It is bundled via our game data
+ *     - It is accessible via a live update mount
+ *
+ * @note The reference count will increase for the .ttf or .otf font
+ *
+ *
+ * @name font.add_font
+ * @param fontc [type:string|hash] The path to the .fontc resource
+ * @param font [type:string|hash] The path to the .ttf or .otf resource
+ *
+ * @examples
+ *
+ * ```lua
+ * local font_hash = hash("/assets/fonts/roboto.fontc")
+ * local ttf_hash = hash("/assets/fonts/Roboto/Roboto-Bold.ttf")
+ * font.add_font(font_hash, ttf_hash)
+ * ```
+ */
+static int AddFont(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
 
-//     dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
-//     dmhash_t ttf_path_hash = dmScript::CheckHashOrString(L, 2);
-//     int codepoint_min = luaL_checkinteger(L, 3);
-//     int codepoint_max = luaL_checkinteger(L, 4);
+    dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
+    // TODO: If it's a string, pass a string to the function to allow for explicit loading of the resource
+    const char* ttf_path = 0;
+    dmhash_t ttf_path_hash = 0;
+    if (lua_isstring(L, 2))
+    {
+        ttf_path = luaL_checkstring(L, 2);
+    }
+    else
+    {
+        ttf_path_hash = dmScript::CheckHash(L, 2);
+    }
 
-//     dmResource::Result r = dmGameSystem::ResFontAddGlyphSource(g_ResourceFactory, fontc_path_hash, ttf_path_hash, codepoint_min, codepoint_max);
-//     if (dmResource::RESULT_OK != r)
-//     {
-//         return DM_LUA_ERROR("Failed to add glyph source '%s' for font '%s'", dmHashReverseSafe64(ttf_path_hash), dmHashReverseSafe64(fontc_path_hash));
-//     }
+    dmGameSystem::FontResource* resource;
+    dmResource::Result r = dmResource::GetWithExt(g_ResourceFactory, fontc_path_hash, EXT_HASH_FONTC, (void**)&resource);
+    if (dmResource::RESULT_OK != r)
+    {
+        return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
+    }
 
-//     return 0;
-// }
+    if (ttf_path)
+        r = dmGameSystem::ResFontAddFontByPath(g_ResourceFactory, resource, ttf_path);
+    else
+        r = dmGameSystem::ResFontAddFontByPathHash(g_ResourceFactory, resource, ttf_path_hash);
+    dmResource::Release(g_ResourceFactory, resource);
 
-// /*#
-//  * Removes the .ttf resource from a .fontc file
-//  * Removes all ranges associated with the .ttf resource
-//  *
-//  * @name font.add_source
-//  * @param fontc [type:string|hash] The path to the .fontc resource
-//  * @param ttf [type:string|hash] The path to the .ttf resource
-//  */
-// static int RemoveSource(lua_State* L)
-// {
-//     DM_LUA_STACK_CHECK(L, 0);
+    if (dmResource::RESULT_OK != r)
+    {
+        return DM_LUA_ERROR("Failed to add font '%s' to font collection '%s'", dmHashReverseSafe64(ttf_path_hash), dmHashReverseSafe64(fontc_path_hash));
+    }
 
-//     dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
-//     dmhash_t ttf_path_hash = dmScript::CheckHashOrString(L, 2);
+    return 0;
+}
 
-//     dmResource::Result r = dmGameSystem::ResFontRemoveGlyphSource(g_ResourceFactory, fontc_path_hash, ttf_path_hash);
-//     if (dmResource::RESULT_OK != r)
-//     {
-//         return DM_LUA_ERROR("Failed to remove glyph source '%s' from font '%s'", dmHashReverseSafe64(ttf_path_hash), dmHashReverseSafe64(fontc_path_hash));
-//     }
-//     return 0;
-// }
+/*#
+ * associates a TTF or OTF resource to a .fontc file
+ * @note The reference count will decrease for the .ttf or .otf font
+ *
+ * @name font.remove_font
+ * @param fontc [type:string|hash] The path to the .fontc resource
+ * @param font [type:string|hash] The path to the .ttf or .otf resource
+ *
+ * @examples
+ *
+ * ```lua
+ * local font_hash = hash("/assets/fonts/roboto.fontc")
+ * local ttf_hash = hash("/assets/fonts/Roboto/Roboto-Bold.ttf")
+ * font.remove_font(font_hash, ttf_hash)
+ * ```
+ */
+static int RemoveFont(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
 
-static void AddGlyphsCallback(void* _ctx, int result, const char* errmsg)
+    dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
+    dmhash_t ttf_path_hash = dmScript::CheckHashOrString(L, 2);
+
+    dmGameSystem::FontResource* resource;
+    dmResource::Result r = dmResource::GetWithExt(g_ResourceFactory, fontc_path_hash, EXT_HASH_FONTC, (void**)&resource);
+    if (dmResource::RESULT_OK != r)
+    {
+        return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
+    }
+
+    r = dmGameSystem::ResFontRemoveFont(g_ResourceFactory, resource, ttf_path_hash);
+    dmResource::Release(g_ResourceFactory, resource);
+
+    if (dmResource::RESULT_OK != r)
+    {
+        return DM_LUA_ERROR("Failed to add font '%s' to font collection '%s'", dmHashReverseSafe64(ttf_path_hash), dmHashReverseSafe64(fontc_path_hash));
+    }
+
+    return 0;
+}
+
+static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
 {
     CallbackContext* ctx = (CallbackContext*)_ctx;
     dmScript::LuaCallbackInfo* cbk = ctx->m_Callback;
-
-    lua_State* L = dmScript::GetCallbackLuaContext(cbk);
-    DM_LUA_STACK_CHECK(L, 0);
-
-    if (dmScript::SetupCallback(cbk))
+    if (dmScript::IsCallbackValid(cbk))
     {
-        int nargs = 3;
-        lua_pushinteger(L, (int)ctx->m_Request);
-        lua_pushboolean(L, result != 0);
-        if (0 != errmsg)
-            lua_pushstring(L, errmsg);
-        else
-            lua_pushnil(L);
+        lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+        DM_LUA_STACK_CHECK(L, 0);
 
-        dmScript::PCall(L, 1 + nargs, 0); // self + # user arguments
+        if (dmScript::SetupCallback(cbk))
+        {
+            int nargs = 3;
+            lua_pushinteger(L, (int)ctx->m_Request);
+            lua_pushboolean(L, result != 0);
+            if (0 != errmsg)
+                lua_pushstring(L, errmsg);
+            else
+                lua_pushnil(L);
 
-        dmScript::TeardownCallback(cbk);
+            dmScript::PCall(L, 1 + nargs, 0); // self + # user arguments
+
+            dmScript::TeardownCallback(cbk);
+        }
     }
     dmScript::DestroyCallback(cbk); // only do this if you're not using the callback again
     delete ctx;
 }
 
-/*# adds more glyphs to a .fontc resource
- * Asynchronoously adds more glyphs to a .fontc resource
+
+/*#
+ * prepopulates the font glyph cache with rasterised glyphs
  *
- * @note The generated glyph bitmaps are stored in memory, for easy transition into the glyph cache texture.
- * You can call `font.remove_glyphs()` to remove them from memory.
- *
- * @note A glyph residing in the glyph cache will stay there until it's evicted.
- * It will not be removed from the glyph cache by removing the loaded glyphs from the .fontc resource.
- *
- * @name font.add_glyphs
- *
- * @param path [type:string|hash] The path to the .fontc resource
- * @param text [type:string] A string with unique unicode characters to be loaded
- * @param [callback] [type:function(self, request_id, result, errstring)] (optional) A callback function that is called after the request is finished
+ * @name font.prewarm_text
+ * @param fontc [type:string|hash] The path to the .fontc resource
+ * @param text [type:string] The text to layout
+ * @param [callback] [type:fun(self:script_instance, request_id:integer, result:boolean, errstring?:string)] (optional) A callback function that is called after the request is finished
  *
  * `self`
- * : [type:object] The current object.
+ * : [type:script_instance] The current script instance.
  *
  * `request_id`
- * : [type:number] The request id
+ * : [type:integer] The request id
  *
  * `result`
  * : [type:boolean] True if request was succesful
@@ -161,26 +270,18 @@ static void AddGlyphsCallback(void* _ctx, int result, const char* errmsg)
  * `errstring`
  * : [type:string] `nil` if the request was successful
  *
- * @return request_id [type:number] Returns the asynchronous request id
+ * @return request_id [type:integer] Returns the asynchronous request id
  *
  * @examples
  *
  * ```lua
- * -- Add glyphs
- * local requestid = font.add_glyphs("/path/to/my.fontc", "abcABC123", function (self, request, result, errstring)
- *         -- make a note that all the glyphs are loaded
- *         -- and we're ready to present the text
- *         self.dialog_text_ready = true
+ * local font_hash = hash("/assets/fonts/roboto.fontc")
+ * font.prewarm_text(font_hash, "Some text", function (self, request_id, result, errstring)
+ *         -- cache is warm, show the text!
  *     end)
  * ```
- *
- * ```lua
- * -- Remove glyphs
- * local requestid = font.remove_glyphs("/path/to/my.fontc", "abcABC123")
- * ```
  */
-
-static int AddGlyphs(lua_State* L)
+static int PrewarmText(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 1);
     int top = lua_gettop(L);
@@ -188,35 +289,36 @@ static int AddGlyphs(lua_State* L)
     dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
     const char* text = luaL_checkstring(L, 2);
 
-    dmScript::LuaCallbackInfo* luacbk = 0;
-    if (top > 2 && lua_isfunction(L, 3))
-    {
-        luacbk = dmScript::CreateCallback(L, 3);
-    }
-
     static int requests = 1;
     int request_id = requests++;
 
-    dmGameSystem::FGlyphCallback callback = 0;
-    CallbackContext* cbk_ctx = 0;
-    if (luacbk)
-    {
-        callback = AddGlyphsCallback;
-        cbk_ctx = new CallbackContext;
-        cbk_ctx->m_Callback  = luacbk;
-        cbk_ctx->m_Request = request_id;
-    }
-
     dmGameSystem::FontResource* resource;
-    dmResource::Result r = dmResource::Get(g_ResourceFactory, fontc_path_hash, (void**)&resource);
+    dmResource::Result r = dmResource::GetWithExt(g_ResourceFactory, fontc_path_hash, EXT_HASH_FONTC, (void**)&resource);
     if (dmResource::RESULT_OK != r)
     {
         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
     }
 
-    if (!dmGameSystem::FontGenAddGlyphs(resource, text, false, callback, cbk_ctx))
+    dmGameSystem::FPrewarmTextCallback callback = 0;
+    CallbackContext* cbk_ctx = 0;
+    if (top > 2 && lua_isfunction(L, 3))
+    {
+        dmScript::LuaCallbackInfo* luacbk = dmScript::CreateCallback(L, 3);
+        callback = PrewarmTextCallback;
+        cbk_ctx = new CallbackContext;
+        cbk_ctx->m_Callback = luacbk;
+        cbk_ctx->m_Request = request_id;
+    }
+
+    r = dmGameSystem::ResFontPrewarmText(resource, text, callback, cbk_ctx);
+    if (dmResource::RESULT_OK != r)
     {
         dmResource::Release(g_ResourceFactory, resource);
+        if (cbk_ctx)
+        {
+            dmScript::DestroyCallback(cbk_ctx->m_Callback);
+            delete cbk_ctx;
+        }
         return DM_LUA_ERROR("Failed to add glyphs to font %s", dmHashReverseSafe64(fontc_path_hash));
     }
 
@@ -225,45 +327,88 @@ static int AddGlyphs(lua_State* L)
     return 1;
 }
 
-/*# removes glyphs from the font
- * Removes glyphs from the font
- *
- * @name font.remove_glyphs
- * @param path [type:string|hash] The path to the .fontc resource
- * @param text [type:string] A string with unique unicode characters to be removed
+/*# Associated font file information
+ * @struct
+ * @name font.file_info
+ * @member path [type:string] path to the `.ttf` or `.otf` font file
+ * @member path_hash [type:hash] hashed font-file path
  */
-static int RemoveGlyphs(lua_State* L)
+
+/*# Font resource information
+ * @struct
+ * @name font.info
+ * @member path [type:hash] path hash of the `.fontc` resource
+ * @member fonts [type:font.file_info[]] associated font files
+ */
+
+/*#
+ * Gets information about a font, such as the associated font files
+ *
+ * @name font.get_info
+ * @param fontc [type:string|hash] The path to the .fontc resource
+ * @return info [type:font.info] font resource information
+ */
+static int GetFontInfo(lua_State* L)
 {
-    DM_LUA_STACK_CHECK(L, 0);
+    DM_LUA_STACK_CHECK(L, 1);
 
     dmhash_t fontc_path_hash = dmScript::CheckHashOrString(L, 1);
-    const char* text = luaL_checkstring(L, 2);
 
     dmGameSystem::FontResource* resource;
-    dmResource::Result r = dmResource::Get(g_ResourceFactory, fontc_path_hash, (void**)&resource);
+    dmResource::Result r = dmResource::GetWithExt(g_ResourceFactory, fontc_path_hash, EXT_HASH_FONTC, (void**)&resource);
     if (dmResource::RESULT_OK != r)
     {
         return DM_LUA_ERROR("Failed to get font %s: %d", dmHashReverseSafe64(fontc_path_hash), r);
     }
 
-    if (!dmGameSystem::FontGenRemoveGlyphs(resource, text))
+    lua_createtable(L,0,0);
+
     {
-        dmResource::Release(g_ResourceFactory, resource);
-        return DM_LUA_ERROR("Failed to remove glyphs from font %s", dmHashReverseSafe64(fontc_path_hash));
+        dmScript::PushHash(L, fontc_path_hash);
+        lua_setfield(L, -2, "path");
+
+        HFontCollection fontcollection = ResFontGetFontCollection(resource);
+        uint32_t num_fonts = FontCollectionGetFontCount(fontcollection);
+
+        lua_newtable(L);
+
+        {
+            for (uint32_t i = 0; i < num_fonts; ++i)
+            {
+                HFont font = FontCollectionGetFont(fontcollection, i);
+                dmhash_t font_path_hash = ResFontGetPathHashFromFont(resource, font);
+
+                lua_newtable(L);
+
+                lua_pushstring(L, FontGetPath(font));
+                lua_setfield(L, -2, "path");
+
+                dmScript::PushHash(L, font_path_hash);
+                lua_setfield(L, -2, "path_hash");
+
+                lua_rawseti(L, -2, i + 1);
+            }
+        }
+
+        lua_setfield(L, -2, "fonts");
     }
 
     dmResource::Release(g_ResourceFactory, resource);
-    return 0;
+
+    return 1;
 }
+
+
+
 
 // Functions exposed to Lua
 static const luaL_reg Module_methods[] =
 {
-    // {"add_source", AddSource},
-    // {"remove_source", RemoveSource},
-
-    {"add_glyphs", AddGlyphs},
-    {"remove_glyphs", RemoveGlyphs},
+    {"add_font", AddFont},
+    {"remove_font", RemoveFont},
+    {"prewarm_text", PrewarmText},
+    {"get_info", GetFontInfo},
+    {"set_style", SetStyle},
     {0, 0}
 };
 
@@ -284,12 +429,6 @@ static dmExtension::Result ScriptFontFinalize(dmExtension::Params* params)
     return dmGameSystem::FontGenFinalize(params);
 }
 
-static dmExtension::Result ScriptFontUpdate(dmExtension::Params* params)
-{
-    return dmGameSystem::FontGenUpdate(params);
-}
-
-DM_DECLARE_EXTENSION(ScriptFont, "ScriptFont", 0, 0, ScriptFontInitialize, ScriptFontUpdate, 0, ScriptFontFinalize)
+DM_DECLARE_EXTENSION(ScriptFont, "ScriptFont", 0, 0, ScriptFontInitialize, 0, 0, ScriptFontFinalize)
 
 } // namespace
-

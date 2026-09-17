@@ -1,0 +1,162 @@
+script: "/gui/valid.gui_script"
+nodes {
+  position {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 0.0
+  }
+  size {
+    x: 1.0
+    y: 1.0
+    z: 0.0
+    w: 0.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+  type: TYPE_BOX
+  blend_mode: BLEND_MODE_ALPHA
+  id: "custom_props_layout"
+  custom_properties {
+    id: "test_custom_string"
+    type: TYPE_STRING
+    string: "default"
+  }
+  custom_properties {
+    id: "test_custom_number"
+    type: TYPE_NUMBER
+    number: 1.0
+  }
+  custom_properties {
+    id: "test_custom_boolean"
+    type: TYPE_BOOLEAN
+    boolean: true
+  }
+  custom_properties {
+    id: "test_custom_vector3"
+    type: TYPE_VECTOR3
+    vector3 {
+      x: 1.0
+      y: 2.0
+      z: 3.0
+    }
+  }
+}
+layouts {
+  name: "Landscape"
+  nodes {
+    position {
+      x: 2.0
+      y: 0.0
+      z: 0.0
+      w: 0.0
+    }
+    rotation {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 0.0
+    }
+    scale {
+      x: 1.0
+      y: 1.0
+      z: 1.0
+      w: 0.0
+    }
+    size {
+      x: 1.0
+      y: 1.0
+      z: 0.0
+      w: 0.0
+    }
+    color {
+      x: 1.0
+      y: 1.0
+      z: 1.0
+      w: 1.0
+    }
+    type: TYPE_BOX
+    blend_mode: BLEND_MODE_ALPHA
+    id: "custom_props_layout"
+    custom_properties {
+      id: "test_custom_string"
+      type: TYPE_STRING
+      string: "landscape"
+    }
+    custom_properties {
+      id: "test_custom_number"
+      type: TYPE_NUMBER
+      number: 2.0
+    }
+    custom_properties {
+      id: "test_custom_boolean"
+      type: TYPE_BOOLEAN
+      boolean: false
+    }
+    custom_properties {
+      id: "test_custom_vector3"
+      type: TYPE_VECTOR3
+      vector3 {
+        x: 4.0
+        y: 5.0
+        z: 6.0
+      }
+    }
+  }
+}
+layouts {
+  name: "Portrait"
+  nodes {
+    position {
+      x: 3.0
+      y: 0.0
+      z: 0.0
+      w: 0.0
+    }
+    rotation {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 0.0
+    }
+    scale {
+      x: 1.0
+      y: 1.0
+      z: 1.0
+      w: 0.0
+    }
+    size {
+      x: 1.0
+      y: 1.0
+      z: 0.0
+      w: 0.0
+    }
+    color {
+      x: 1.0
+      y: 1.0
+      z: 1.0
+      w: 1.0
+    }
+    type: TYPE_BOX
+    blend_mode: BLEND_MODE_ALPHA
+    id: "custom_props_layout"
+    overridden_fields: 1
+  }
+}
+material: "/gui/gui.material"

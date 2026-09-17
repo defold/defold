@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,7 +32,7 @@ public class CopyBuilders {
             super.build(task);
 
             boolean soundStreaming = this.project.option("sound-stream-enabled", "false").equals("true"); // if no value set use old hardcoded path (backward compatability)
-            boolean compressSounds = soundStreaming ? false : true; // We want to be able to read directly from the files as-is (without compression)
+            boolean compressSounds = !soundStreaming; // We want to be able to read directly from the files as-is (without compression)
             for(IResource res : task.getOutputs()) {
                 if (!compressSounds) {
                     project.addOutputFlags(res.getAbsPath(), Project.OutputFlags.UNCOMPRESSED);
@@ -41,12 +41,13 @@ public class CopyBuilders {
         }
     }
 
-    @BuilderParams(name = "Gamepads", inExts = ".gamepads", outExt = ".gamepadsc")
-    public static class GamepadsBuilder extends CopyBuilder {}
 
     @BuilderParams(name = "Glsl", inExts = ".glsl", outExt = ".glslc")
     public static class GlslBuilder extends CopyBuilder {}
 
     @BuilderParams(name = "TTF", inExts = ".ttf", outExt = ".ttf")
     public static class TTFBuilder extends CopyBuilder {}
+
+    @BuilderParams(name = "OTF", inExts = ".otf", outExt = ".otf")
+    public static class OTFBuilder extends CopyBuilder {}
 }

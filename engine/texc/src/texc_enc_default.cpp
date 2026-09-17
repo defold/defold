@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,6 +15,8 @@
 #include "texc.h"
 #include "texc_private.h"
 
+#include <stdlib.h>
+
 namespace dmTexc
 {
     bool DefaultEncode(DefaultEncodeSettings* settings, uint8_t** out, uint32_t* out_size)
@@ -24,7 +26,18 @@ namespace dmTexc
             return false; // Unsupported format
 
         uint8_t* packed_data = (uint8_t*)malloc(size);
-        ConvertRGBA8888ToPf(settings->m_Data, settings->m_Width, settings->m_Height, settings->m_OutPixelFormat, packed_data);
+        if (settings->m_PixelFormat == PF_RGBA32F)
+        {
+            if (!ConvertRGBA32FToPf(settings->m_Data, settings->m_Width, settings->m_Height, settings->m_OutPixelFormat, packed_data))
+            {
+                free(packed_data);
+                return false;
+            }
+        }
+        else
+        {
+            ConvertRGBA8888ToPf(settings->m_Data, settings->m_Width, settings->m_Height, settings->m_OutPixelFormat, packed_data);
+        }
 
         *out = packed_data;
         *out_size = size;

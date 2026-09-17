@@ -6,10 +6,27 @@
         -fx-padding: 0px 4px;
         -fx-alignment: center;
         &:warning { -fx-text-fill: -df-defold-yellow-dark; }
+        &:inherited { -fx-text-fill: -df-text-dark; -fx-background-color: -df-component-dark; }
+        &:overridden { -fx-text-fill: -df-defold-blue-light; }
     }
     &-shortcuts { -fx-padding: 2px 0; }
     &-command:overridden > .label { -fx-text-fill: -df-defold-blue-light; }
     &-command-arrow { -fx-opacity: 0.6; }
+    &-mouse-binding-badge {
+        -fx-background-color: derive(-df-background-light, 5%);
+        -fx-background-radius: 4px;
+        -fx-padding: 0px 5px;
+        -fx-text-fill: -df-text-selected;
+        -fx-font-size: 85%;
+        -fx-alignment: center;
+        -fx-min-width: 28px;
+        -fx-max-width: 28px;
+    }
+    &-mouse-binding-preview {
+        -fx-background-color: -df-component-light;
+        -fx-background-radius: 4px;
+        -fx-padding: 4px 8px;
+    }
     &-warning {
         -fx-background-color: -df-component-light;
         -fx-pref-width: 15px;
@@ -35,6 +52,8 @@
             -fx-text-fill: -df-text-selected;
             -fx-background-color: -df-component-lighter;
             &:warning { -fx-text-fill: -df-defold-yellow; }
+            &:inherited { -fx-text-fill: -df-text-dark; -fx-background-color: -df-component-light; }
+            &:overridden { -fx-text-fill: -df-defold-blue-lighter; }
         }
         & > .keymap-warning-container > .keymap-warning {
             -fx-background-color: -df-component-lighter;

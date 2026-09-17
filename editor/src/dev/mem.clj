@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,6 +14,7 @@
 
 (ns mem
   (:require [dynamo.graph :as g]
+            [internal.graph.types :as gt]
             [util.coll :as coll :refer [pair]])
   (:import [clojure.lang Keyword Symbol]
            [internal.node NodeTypeRef]
@@ -248,7 +249,7 @@
   the system graph in the format [byte-size node-type-kw]. The list is sorted by
   total bytes allocated in descending order."
   []
-  (->> (:graphs @g/*the-system*)
-       (vals)
-       (coll/mapcat #(vals (:nodes %)))
+  (->> (g/now)
+       gt/nodes
+       coll/vals
        (size-report #(:k (g/node-type %)) [NodeTypeRef])))

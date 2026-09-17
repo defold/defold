@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -48,9 +48,9 @@ dmExtension::Result UpdateTest(dmExtension::Params* params)
 
 void OnEventTest(dmExtension::Params* params, const dmExtension::Event* event)
 {
-    if( event->m_Event == dmExtension::EVENT_ID_ACTIVATEAPP )
+    if( event->m_Event == (ExtensionEventID)dmExtension::EVENT_ID_ACTIVATEAPP )
         ++g_TestAppEventCount;
-    else if(event->m_Event == dmExtension::EVENT_ID_DEACTIVATEAPP)
+    else if(event->m_Event == (ExtensionEventID)dmExtension::EVENT_ID_DEACTIVATEAPP)
         --g_TestAppEventCount;
 }
 
@@ -60,4 +60,3 @@ dmExtension::Result FinalizeTest(dmExtension::Params* params)
 }
 
 DM_DECLARE_EXTENSION(TestSdk, "test", AppInitializeTest, AppFinalizeTest, InitializeTest, UpdateTest, OnEventTest, FinalizeTest);
-

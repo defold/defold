@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -379,6 +379,11 @@
         y1 (- y1 (* 0.5 (.height centered-rect)))]
     (make-aabb (Point3d. x1 y1 0)
                (Point3d. x2 y2 0))))
+
+(s/defn mirrored-point->aabb :- AABB
+  [^Point3d point]
+  (let [mirrored-point (doto (Point3d.) (.negate point))]
+    (make-aabb point mirrored-point)))
 
 (def empty-bounding-box (coords->aabb [0 0 0] [0 0 0]))
 

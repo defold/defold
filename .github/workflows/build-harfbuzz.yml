@@ -1,0 +1,21 @@
+name: Build HarfBuzz
+
+on:
+  workflow_dispatch:
+    inputs:
+      push_changes:
+        description: 'Commit built package tarballs to ./packages on the branch'
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-external-template.yml
+    with:
+      package_name: 'harfbuzz'
+      result_folder_name: 'harfbuzz'
+      result_lib_name: 'libharfbuzz'
+      package_version: '13.2.1'
+      push_changes: ${{ inputs.push_changes }}
+    secrets:
+      dm_packages_url: ${{ secrets.DM_PACKAGES_URL }}

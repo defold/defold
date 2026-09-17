@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -260,7 +260,7 @@ namespace dmResource
         // create a request so we can get a proper error code for the resource in the request
 
         char canonical_path[RESOURCE_PATH_MAX];
-        uint32_t canonical_path_len = dmResource::GetCanonicalPath(name, canonical_path);
+        uint32_t canonical_path_len = dmResource::GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
         out_path_descriptor.m_CanonicalPathHash = dmHashBuffer64(canonical_path, canonical_path_len);
 
         DM_SPINLOCK_SCOPED_LOCK(preloader->m_SyncedDataSpinlock)
@@ -268,13 +268,11 @@ namespace dmResource
             out_path_descriptor.m_InternalizedName = InternalizePath(&preloader->m_SyncedData, out_path_descriptor.m_NameHash, name, name_len);
             if (out_path_descriptor.m_InternalizedName == 0x0)
             {
-                dmSpinlock::Unlock(&preloader->m_SyncedDataSpinlock);
                 return RESULT_OUT_OF_MEMORY;
             }
             out_path_descriptor.m_InternalizedCanonicalPath = InternalizePath(&preloader->m_SyncedData, out_path_descriptor.m_CanonicalPathHash, canonical_path, canonical_path_len);
             if (out_path_descriptor.m_InternalizedCanonicalPath == 0x0)
             {
-                dmSpinlock::Unlock(&preloader->m_SyncedDataSpinlock);
                 return RESULT_OUT_OF_MEMORY;
             }
         }

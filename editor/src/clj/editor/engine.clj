@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,9 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.engine
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojure.data.json :as json]
             [editor.code.util :refer [split-lines]]
             [editor.engine.native-extensions :as native-extensions]
             [editor.fs :as fs]
@@ -27,6 +27,7 @@
   (:import [com.dynamo.bob Platform]
            [com.dynamo.render.proto Render$Resize]
            [com.dynamo.resource.proto Resource$Reload]
+           [com.dynamo.system.proto System$Exit]
            [java.io BufferedReader File IOException InputStream]
            [java.net HttpURLConnection InetSocketAddress Socket URI]
            [java.util.zip ZipEntry ZipFile]))
@@ -100,25 +101,41 @@
       (change-resolution! target (:width data) (:height data)
                           (prefs/get prefs [:run :simulate-rotated-device])))))
 
-(defn reboot! [target local-url debug?]
+(defn reboot! [target local-url debug focus]
   (let [uri (URI. (format "%s/post/@system/reboot" (:url target)))
         conn ^HttpURLConnection (get-connection uri)
         instance-index (:instance-index target)
-        instance-index? (some? instance-index)
         args (cond-> [(str "--config=resource.uri=" local-url)]
-                     debug?
-                     (conj (str "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"))
+                     debug
+                     (conj "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac")
 
                      true
                      (conj (str local-url "/game.projectc"))
 
-                     (and instance-index? (> instance-index 0))
-                     (conj (format "--config=project.instance_index=%d" instance-index)))]
+                     (and instance-index (> instance-index 0))
+                     (conj (format "--config=project.instance_index=%d" instance-index))
+
+                     (not focus)
+                     (conj "--config=display.focus_on_show=0"))]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
                             com.dynamo.system.proto.System$Reboot
                             (zipmap (map #(keyword (str "arg" (inc %))) (range)) args))))
+      (with-open [is (.getInputStream conn)]
+        (ignore-all-output is))
+      :ok
+      (finally
+        (.disconnect conn)))))
+
+(defn exit! [target code]
+  (let [uri (URI. (format "%s/post/@system/exit" (:url target)))
+        conn ^HttpURLConnection (get-connection uri)]
+    (try
+      (with-open [os (.getOutputStream conn)]
+        (.write os ^bytes (protobuf/map->bytes
+                            System$Exit
+                            {:code code})))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
       :ok
@@ -276,8 +293,16 @@
       (copy-dmengine-dependencies! engine-dir extender-platform)
       engine-file)))
 
-(defn launch! [^File engine project-directory prefs debug? instance-index]
-  (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
+(defn- validate-service-port [port-str]
+  (when port-str
+    (try
+      (let [port (Integer/parseInt port-str)]
+        (when (<= 0 port 65535)
+          (str port)))
+      (catch Exception _))))
+
+(defn launch! [^File engine project-directory prefs debug instance-index focus]
+  (let [defold-log-dir (some-> (system/defold-log-dir)
                                (File.)
                                (.getAbsolutePath))
         command (.getAbsolutePath engine)
@@ -287,15 +312,19 @@
                      (into ["--config=project.write_log=1"
                             (format "--config=project.log_dir=%s" defold-log-dir)])
 
-                     debug?
-                     (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"])
+                     debug
+                     (conj "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac")
 
                      (> instance-index 0)
-                     (into [(format "--config=project.instance_index=%d" instance-index)])
+                     (conj (format "--config=project.instance_index=%d" instance-index))
+
+                     (not focus)
+                     (conj "--config=display.focus_on_show=0")
 
                      (not (str/blank? engine-arguments))
                      (into (remove str/blank?) (split-lines engine-arguments)))
-        env {"DM_SERVICE_PORT" "dynamic"
+        env {"DM_SERVICE_PORT" (or (validate-service-port (System/getenv "DM_SERVICE_PORT"))
+                                   "dynamic")
              "DM_QUIT_ON_ESC" (if (prefs/get prefs [:run :quit-on-escape])
                                 "1" "0")
              ;; Windows only. Sets the correct symbol search path, since we're also setting the cwd (https://docs.microsoft.com/en-us/windows/win32/debug/symbol-paths)

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -40,7 +41,7 @@ class dmCrashTest : public jc_test_base_class
 {
     public:
 
-        virtual void SetUp()
+        void SetUp() override
         {
 
             time_t t = time(NULL);
@@ -52,7 +53,7 @@ class dmCrashTest : public jc_test_base_class
             dmCrash::Init("TEST", m_EngineHash);
         }
 
-        virtual void TearDown()
+        void TearDown() override
         {
             dmCrash::Purge();
         }
@@ -85,6 +86,10 @@ TEST_F(dmCrashTest, TestLoad)
     ASSERT_EQ(0, strcmp(info.m_DeviceLanguage, dmCrash::GetSysField(d, dmCrash::SYSFIELD_DEVICE_LANGUAGE)));
     ASSERT_EQ(0, strcmp(info.m_Territory, dmCrash::GetSysField(d, dmCrash::SYSFIELD_TERRITORY)));
 
+#if defined(__EMSCRIPTEN__)
+    ASSERT_EQ(0xDEAD, dmCrash::GetSignum(d));
+    ASSERT_LT(0u, strlen(dmCrash::GetExtraData(d)));
+#else
     uint32_t addresses = dmCrash::GetBacktraceAddrCount(d);
     ASSERT_GE(addresses, 2u);
     for (uint32_t i=0;i!=addresses;i++)
@@ -116,6 +121,7 @@ TEST_F(dmCrashTest, TestLoad)
     }
 
     ASSERT_GT(count, 3);
+#endif
 }
 
 TEST_F(dmCrashTest, TestPurgeCustomPath)
@@ -205,6 +211,11 @@ TEST_F(dmCrashTest, TestSIGSEGV) // using the signal handler, not the exception 
 
 int main(int argc, char **argv)
 {
+#if defined(DM_CRASH_TEST_NULL)
+    printf("Skipping crash null tests: target only verifies that the null crash backend links.\n");
+    return 0;
+#endif
+
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

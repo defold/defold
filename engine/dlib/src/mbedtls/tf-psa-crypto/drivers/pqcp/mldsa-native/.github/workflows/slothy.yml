@@ -1,0 +1,29 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: SLOTHY re-optimization tests
+permissions:
+  contents: read
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  slothy:
+    name: SLOTHY
+    if: ${{ github.repository_owner == 'pq-code-package' && !github.event.pull_request.head.repo.fork }}
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    uses: ./.github/workflows/ci_ec2_reusable.yml
+    with:
+      name: SLOTHY
+      ec2_instance_type: c8g.8xlarge
+      ec2_ami: ubuntu-latest (aarch64)
+      ec2_volume_size: 20
+      lint: false
+      test: false
+      cbmc: false
+      slothy: true
+    secrets: inherit

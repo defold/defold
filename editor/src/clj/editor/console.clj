@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,6 +18,7 @@
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.label :as fx.label]
+            [cljfx.fx.list-cell :as fx.list-cell]
             [cljfx.fx.list-view :as fx.list-view]
             [cljfx.fx.popup :as fx.popup]
             [cljfx.fx.region :as fx.region]
@@ -36,6 +37,7 @@
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.types :as types]
@@ -45,6 +47,7 @@
             [util.http-server :as http-server])
   (:import [editor.code.data Cursor CursorRange LayoutInfo Rect]
            [java.io BufferedReader IOException]
+           [java.util.concurrent ArrayBlockingQueue]
            [java.util.regex MatchResult]
            [javafx.beans.property SimpleStringProperty]
            [javafx.scene Node Parent Scene]
@@ -57,8 +60,6 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-(defonce ^:const url-prefix "/console")
 
 (def ^:const console-filters-prefs-key [:console :filters])
 (def ^:const console-filtering-key [:console :filtering])
@@ -73,7 +74,7 @@
   ;; by resetting the :index to 0, marking the view to :clear while keeping the
   ;; :entries. Hence, from the point of view of the console view, there is no
   ;; such thing as filters, only clearing the output.
-  (atom {:clear false :entries [] :index 0 :filter-set #{} :entry-pred nil}))
+  (atom {:clear false :entries [] :index 0 :filter-set #{} :entry-pred nil :stream-subscribers #{}}))
 
 (def ^:private gutter-bubble-font
   (Font. "Source Sans Pro", 10.5))
@@ -87,14 +88,18 @@
   [type line]
   (assert (or (nil? type) (keyword? type)))
   (assert (string? line))
-  (swap! pending-atom update :entries conj [type line]))
+  (let [message (str line \newline)
+        subscribers (:stream-subscribers (swap! pending-atom update :entries conj [type line]))]
+    (run! #(% message) subscribers)))
 
 (def append-console-line! (partial append-console-entry! nil))
 
 (defn clear-console!
   "Clear the console. Callable from a background thread."
   []
-  (swap! pending-atom assoc :clear true :entries [] :index 0))
+  (let [subscribers (:stream-subscribers (swap! pending-atom assoc :clear true :entries [] :index 0))]
+    ;; ESC [ 3 J clears scrollback, ESC [ H moves the cursor to the home position, ESC [ 2 J clears the screen.
+    (run! #(% "\n\u001b[3J\u001b[H\u001b[2J") subscribers)))
 
 (def ^:private remote-log-pump-thread (atom nil))
 (def ^:private console-stream (atom nil))
@@ -136,7 +141,8 @@
 
 (defn set-log-service-stream [log-stream]
   (reset-console-stream! log-stream)
-  (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream))))
+  (reset-remote-log-pump-thread! (when log-stream
+                                   (start-log-pump! log-stream (make-remote-log-sink log-stream)))))
 
 (defn pipe-log-stream-to-console! [input-stream]
   (reset-console-stream! input-stream)
@@ -229,7 +235,7 @@
                                      :style-class "cross"}
                            :on-action {:event-type :delete :index i}}]}}))
 
-(defn- filter-console-view [^Node filter-console-button {:keys [open enabled filters text]}]
+(defn- filter-console-view [^Node filter-console-button localization {:keys [open enabled filters text]}]
   (let [active-filters-count (count (filterv second filters))
         show-counter (and enabled (pos? active-filters-count))
         anchor (.localToScreen filter-console-button
@@ -239,7 +245,7 @@
                                   4.0))]
     {:fx/type fxui/with-popup-window
      :desc {:fx/type ext-with-button-props
-            :desc {:fx/type fxui/ext-value
+            :desc {:fx/type ui/ext-value
                    :value filter-console-button}
             :props {:on-action {:event-type :show-or-hide}
                     :graphic {:fx/type fx.h-box/lifecycle
@@ -271,14 +277,15 @@
                                     :style-class "console-filter-popup-background"}
                                    {:fx/type fx.v-box/lifecycle
                                     :children
-                                    [{:fx/type fx.check-box/lifecycle
-                                      :focus-traversable false
-                                      :max-width ##Inf
+                                    [{:fx/type fxui/ext-localize
                                       :v-box/margin 4
-                                      :id "global-console-filtering"
-                                      :selected enabled
-                                      :on-selected-changed {:event-type :toggle-global-filtering}
-                                      :text "Enable filtering"}
+                                      :localization localization
+                                      :message (localization/message "console.filter.enable-filtering")
+                                      :desc {:fx/type fx.check-box/lifecycle
+                                             :focus-traversable false
+                                             :max-width ##Inf
+                                             :selected enabled
+                                             :on-selected-changed {:event-type :toggle-global-filtering}}}
                                      {:fx/type fx.separator/lifecycle
                                       :style-class "console-filter-popup-separator"}
                                      {:fx/type fx.list-view/lifecycle
@@ -287,15 +294,18 @@
                                       :items (into [] (map-indexed coll/pair) filters)
                                       :fixed-cell-size 27
                                       :max-height (* 27 (min 10 (count filters)))
-                                      :cell-factory {:fx/cell-type :list-cell
+                                      :cell-factory {:fx/cell-type fx.list-cell/lifecycle
                                                      :describe filter-console-list-cell-view}}
                                      {:fx/type fxui/ext-focused-by-default
                                       :v-box/margin 4
-                                      :desc {:fx/type fx.text-field/lifecycle
-                                             :text text
-                                             :on-text-changed {:event-type :type}
-                                             :on-action {:event-type :add}
-                                             :prompt-text "Add filter (e.g. text, !exclude)"}}]}]}]}}))
+                                      :desc {:fx/type fxui/ext-localize
+                                             :localization localization
+                                             :message (localization/message "console.filter.add-filter")
+                                             :object-fn TextField/.promptTextProperty
+                                             :desc {:fx/type fx.text-field/lifecycle
+                                                    :text text
+                                                    :on-text-changed {:event-type :type}
+                                                    :on-action {:event-type :add}}}}]}]}]}}))
 
 (defn- handle-filter-event! [state prefs e]
   (case (:event-type e)
@@ -316,7 +326,7 @@
     :select (let [new-state (swap! state assoc-in [:filters (:index e) 1] (:fx/event e))]
               (save-filters! prefs (:filters new-state)))))
 
-(defn- init-console-filter! [filter-console-button prefs]
+(defn- init-console-filter! [filter-console-button prefs localization]
   (let [filters (prefs/get prefs console-filters-prefs-key)
         filtering (prefs/get prefs console-filtering-key)
         state (atom {:open false :enabled filtering :text "" :filters filters})]
@@ -328,18 +338,21 @@
         :opts {:fx.opt/map-event-handler #(handle-filter-event! state prefs %)}
         :middleware (comp
                       fxui/wrap-dedupe-desc
-                      (fx/wrap-map-desc #(filter-console-view filter-console-button %)))))))
+                      (fx/wrap-map-desc #(filter-console-view filter-console-button localization %)))))))
 
 (defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
 
 (defn- setup-tool-bar!
-  ^Parent [^Parent tool-bar view-node prefs]
+  ^Parent [^Parent tool-bar view-node prefs localization]
   (ui/with-controls tool-bar [^TextField search-console
                               ^Button prev-console
                               ^Button next-console
                               ^Button clear-console
                               filter-console]
-    (init-console-filter! filter-console prefs)
+    (localization/localize! clear-console localization (localization/message "console.button.clear"))
+    (localization/localize! filter-console localization (localization/message "console.button.filter"))
+    (localization/localize! (.promptTextProperty search-console) localization (localization/message "console.search"))
+    (init-console-filter! filter-console prefs localization)
     (ui/context! tool-bar :console-tool-bar {:term-field search-console :view-node view-node} nil)
     (.bindBidirectional (.textProperty search-console) find-term-property)
     (ui/bind-key-commands! search-console {"Enter" :code.find-next
@@ -362,24 +375,26 @@
   (.setValue find-term-property (or term-text "")))
 
 (defn- find-next! [view-node]
-  (view/set-properties! view-node :selection
-                        (data/find-next (view/get-property view-node :lines)
-                                        (view/get-property view-node :cursor-ranges)
-                                        (view/get-property view-node :layout)
-                                        (split-lines (.getValue find-term-property))
-                                        false
-                                        false
-                                        true)))
+  (when-let [tx-data (view/set-properties view-node :selection
+                                          (data/find-next (view/get-property view-node :lines)
+                                                          (view/get-property view-node :cursor-ranges)
+                                                          (view/get-property view-node :layout)
+                                                          (split-lines (.getValue find-term-property))
+                                                          false
+                                                          false
+                                                          true))]
+    (g/transact {:undoable false} tx-data)))
 
 (defn- find-prev! [view-node]
-  (view/set-properties! view-node :selection
-                        (data/find-prev (view/get-property view-node :lines)
-                                        (view/get-property view-node :cursor-ranges)
-                                        (view/get-property view-node :layout)
-                                        (split-lines (.getValue find-term-property))
-                                        false
-                                        false
-                                        true)))
+  (when-let [tx-data (view/set-properties view-node :selection
+                                          (data/find-prev (view/get-property view-node :lines)
+                                                          (view/get-property view-node :cursor-ranges)
+                                                          (view/get-property view-node :layout)
+                                                          (split-lines (.getValue find-term-property))
+                                                          false
+                                                          false
+                                                          true))]
+    (g/transact {:undoable false} tx-data)))
 
 (handler/defhandler :edit.find :console-view
   (run [term-field view-node]
@@ -431,6 +446,10 @@
   (property regions r/Regions (default []) (dynamic visible (g/constantly false)))
   (output lines types/Lines (gu/passthrough modified-lines))
   (output request-response g/Any :cached produce-request-response))
+
+(g/defnode ConsoleView
+  (inherits view/CodeEditorView)
+  (input console-node g/NodeID :cascade-delete))
 
 (defn- gutter-metrics []
   [44.0 0.0])
@@ -518,19 +537,38 @@
   (gutter-metrics [_this _lines _regions _glyph-metrics]
     (gutter-metrics))
 
-  (draw-gutter! [_this gc gutter-rect layout font color-scheme lines regions _visible-cursors]
+  (draw-gutter! [_this gc gutter-rect layout _hovered-element font color-scheme lines regions _visible-cursor-ranges _focus-state]
     (draw-gutter! gc gutter-rect layout font color-scheme lines regions)))
 
 (defn- setup-view! [console-node view-node]
   (g/transact
+    {:undoable false}
     (concat
       (g/connect console-node :_node-id view-node :resource-node)
+      (g/connect console-node :_node-id view-node :console-node)
       (g/connect console-node :indent-type view-node :indent-type)
       (g/connect console-node :cursor-ranges view-node :cursor-ranges)
       (g/connect console-node :invalidated-rows view-node :invalidated-rows)
       (g/connect console-node :lines view-node :lines)
       (g/connect console-node :regions view-node :regions)))
   view-node)
+
+(defn- handle-mouse-moved! [view-node ^MouseEvent event]
+  (.consume event)
+  (view/set-properties!
+    view-node :selection
+    (g/with-auto-evaluation-context evaluation-context
+      (let [layout (view/get-property view-node :layout evaluation-context)]
+        (data/mouse-moved (view/get-property view-node :lines evaluation-context)
+                          (view/get-property view-node :cursor-ranges evaluation-context)
+                          (view/get-property view-node :visible-regions evaluation-context)
+                          layout
+                          (view/get-property view-node :minimap-layout evaluation-context)
+                          (view/get-property view-node :gesture-start evaluation-context)
+                          (view/get-property view-node :hovered-element evaluation-context)
+                          (.getX event)
+                          (.getY event)))))
+  (view/refresh-mouse-cursor! view-node event))
 
 (def ^:const line-sub-regions-pattern #"(?<=^|\s|[<\"'`])(\/[^\s>\"'`:]+)(?::?)(\d+)?")
 (def ^:private ^:const line-sub-regions-pattern-partial #"([^\s<>:]+):(\d+)")
@@ -647,25 +685,27 @@
 (defn- repaint-console-view! [view-node workspace on-region-click! elapsed-time]
   (let [{:keys [clear entries]} (dequeue-pending! 1024)]
     (when (or clear (seq entries))
-      (g/with-auto-evaluation-context evaluation-context
-        (let [resource-map (g/node-value workspace :resource-map evaluation-context)
-              ^LayoutInfo prev-layout (g/node-value view-node :layout evaluation-context)
-              prev-lines (g/node-value view-node :lines evaluation-context)
-              prev-regions (g/node-value view-node :regions evaluation-context)
-              prev-document-width (if clear 0.0 (.document-width prev-layout))
-              appended-width (data/max-line-width (.glyph prev-layout) (.tab-stops prev-layout) (mapv second entries))
-              document-width (max prev-document-width ^double appended-width)
-              was-scrolled-to-bottom? (data/scrolled-to-bottom? prev-layout (count prev-lines))
-              resource-suffix-map-delay (make-resource-suffix-map-delay resource-map)
-              props (append-entries {:lines (if clear [""] prev-lines)
-                                     :regions (if clear [] prev-regions)}
-                                    entries resource-map resource-suffix-map-delay on-region-click!)]
-          (view/set-properties! view-node nil
-                                (cond-> (assoc props :document-width document-width)
-                                        was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
-                                        clear (assoc :cursor-ranges [data/document-start-cursor-range])
-                                        clear (assoc :invalidated-row 0)
-                                        clear (data/frame-cursor prev-layout)))))))
+      (g/let-ec [basis (:basis evaluation-context)
+                 resource-map (g/raw-property-value basis workspace :resource-map)
+                 ^LayoutInfo prev-layout (g/node-value view-node :layout evaluation-context)
+                 prev-lines (g/node-value view-node :lines evaluation-context)
+                 prev-regions (g/node-value view-node :regions evaluation-context)
+                 prev-document-width (if clear 0.0 (.document-width prev-layout))
+                 appended-width (data/max-line-width (.glyph prev-layout) (.tab-stops prev-layout) (mapv second entries))
+                 document-width (max prev-document-width ^double appended-width)
+                 was-scrolled-to-bottom? (data/scrolled-to-bottom? prev-layout (count prev-lines))
+                 resource-suffix-map-delay (make-resource-suffix-map-delay resource-map)
+                 props (append-entries {:lines (if clear [""] prev-lines)
+                                        :regions (if clear [] prev-regions)}
+                                       entries resource-map resource-suffix-map-delay on-region-click!)]
+        (when-let [tx-data (view/set-properties
+                             view-node nil
+                             (cond-> (assoc props :document-width document-width)
+                                     was-scrolled-to-bottom? (assoc :scroll-y (data/scroll-to-bottom prev-layout (count (:lines props))))
+                                     clear (assoc :cursor-ranges [data/document-start-cursor-range])
+                                     clear (assoc :invalidated-row 0)
+                                     clear (data/frame-cursor prev-layout)))]
+          (g/transact {:undoable false} tx-data)))))
   (view/repaint-view! view-node elapsed-time {:cursor-visible false :editable false}))
 
 (def ^:private console-grammar
@@ -714,21 +754,28 @@
 
 (def ^:private resource->menu-item (comp ui/string->menu-item resource/proj-path))
 
-(defn make-console! [graph workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn prefs]
+(defn make-console! [workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn prefs localization]
   (let [^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
         canvas (Canvas. (.getWidth canvas-pane) (.getHeight canvas-pane))
-        view-node (setup-view! (g/make-node! graph ConsoleNode)
-                               (g/make-node! graph view/CodeEditorView
-                                             :canvas canvas
-                                             :canvas-width (.getWidth canvas)
-                                             :canvas-height (.getHeight canvas)
-                                             :color-scheme console-color-scheme
-                                             :grammar console-grammar
-                                             :gutter-view (ConsoleGutterView.)
-                                             :highlighted-find-term (.getValue find-term-property)
-                                             :line-height-factor 1.2
-                                             :resize-reference :bottom))
-        tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node prefs)
+
+        [console-node view-node]
+        (g/tx-nodes-added
+          (g/transact
+            {:undoable false}
+            [(g/make-node ConsoleNode)
+             (g/make-node ConsoleView
+               :canvas canvas
+               :canvas-width (.getWidth canvas)
+               :canvas-height (.getHeight canvas)
+               :color-scheme console-color-scheme
+               :grammar console-grammar
+               :gutter-view (ConsoleGutterView.)
+               :highlighted-find-term (.getValue find-term-property)
+               :line-height-factor 1.2
+               :resize-reference :bottom)]))
+
+        view-node (setup-view! console-node view-node)
+        tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node prefs localization)
         on-region-click! (fn on-region-click! [region ^MouseEvent event]
                            (when (= :resource-reference (:type region))
                              (let [open-resource! (fn open-resource! [resource]
@@ -737,7 +784,7 @@
                                                                    {:cursor-range (data/Cursor->CursorRange (data/->Cursor row 0))})]
                                                         (open-resource-fn resource opts))))
                                    resource-candidates (into []
-                                                             (comp (keep (partial workspace/find-resource workspace))
+                                                             (comp (keep (partial workspace/find-resource (g/now) workspace))
                                                                    (filter openable-resource?))
                                                              (:proj-path-candidates region))]
                                (case (count resource-candidates)
@@ -755,16 +802,24 @@
     (ui/add-child! canvas-pane canvas)
     (.bind (.widthProperty canvas) (.widthProperty canvas-pane))
     (.bind (.heightProperty canvas) (.heightProperty canvas-pane))
-    (ui/observe (.widthProperty canvas) (fn [_ _ width] (g/set-property! view-node :canvas-width width)))
-    (ui/observe (.heightProperty canvas) (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
+    (ui/observe (.widthProperty canvas)
+                (fn [_observable _old width]
+                  (g/transact
+                    {:undoable false}
+                    (g/set-property view-node :canvas-width width))))
+    (ui/observe (.heightProperty canvas)
+                (fn [_observable _old height]
+                  (g/transact
+                    {:undoable false}
+                    (g/set-property view-node :canvas-height height))))
 
     ;; Configure canvas.
     (doto canvas
       (.setFocusTraversable true)
       (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (view/handle-key-pressed! view-node prefs event false)))
-      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (view/handle-mouse-moved! view-node prefs event)))
+      (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (view/handle-mouse-pressed! view-node event)))
-      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (view/handle-mouse-moved! view-node prefs event)))
+      (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (view/handle-mouse-released! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_EXITED (ui/event-handler event (view/handle-mouse-exited! view-node event)))
       (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (view/handle-scroll! view-node false event))))
@@ -794,8 +849,74 @@
     (ui/timer-start! repainter)
     view-node))
 
+(defn- stream-console-response []
+  (http-server/response
+    200
+    {"content-type" "text/plain; charset=utf-8"}
+    (reify
+      http-server/ConnectionWrite
+      (connection-write! [_ output-stream]
+        (let [writer (io/writer output-stream :encoding "UTF-8")
+              queue (ArrayBlockingQueue. 1024)
+              subscriber #(.offer queue %)
+              entries (:entries (swap! pending-atom update :stream-subscribers conj subscriber))]
+          (try
+            (when-not (coll/empty? entries)
+              (run! (fn [[_ line]]
+                      (.write writer ^String line)
+                      (.write writer "\n"))
+                    entries)
+              (.flush writer))
+            (loop []
+              (do
+                (.write writer ^String (.take queue))
+                (.flush writer)
+                (recur)))
+            ;; Suppress warning logs on disconnect:
+            (catch IOException _)
+            (finally
+              (swap! pending-atom update :stream-subscribers disj subscriber))))))))
+
 (defn routes [console-view]
   (let [console-node (g/node-value console-view :resource-node)]
     (assert (g/node-instance? ConsoleNode console-node))
-    {"/console" {"GET" (bound-fn [_]
-                         (g/node-value console-node :request-response))}}))
+    {"/console"
+     {"GET" (with-meta
+              (bound-fn [_]
+                (g/node-value console-node :request-response))
+              {:openapi
+               {:summary "Read console output"
+                :responses
+                {"200"
+                 {:description "Console lines and regions"
+                  :content
+                  {"application/json"
+                   {:schema
+                    {:type "object"
+                     :required ["lines" "regions"]
+                     :properties
+                     {:lines {:type "array"
+                              :items {:type "string"}}
+                      :regions {:type "array"
+                                :items {:type "object"
+                                        :required ["from" "to" "type"]
+                                        :properties
+                                        {:from {:type "object"
+                                                :required ["row" "col"]
+                                                :properties {:row {:type "integer"}
+                                                             :col {:type "integer"}}}
+                                         :to {:type "object"
+                                              :required ["row" "col"]
+                                              :properties {:row {:type "integer"}
+                                                           :col {:type "integer"}}}
+                                         :type {:type "string"
+                                                :description "Region type, e.g. extension-output, extension-error, resource-reference, repeat, eval-expression, eval-result, or eval-error."}}}}}}}}}}}})}
+     "/console/stream"
+     {"GET" (with-meta
+              (bound-fn [_]
+                (stream-console-response))
+              {:openapi
+               {:summary "Stream console output, use with, e.g., `curl -N`"
+                :responses
+                {"200"
+                 {:description "Chunked text stream; stays open indefinitely"}}}})}}))

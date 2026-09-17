@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -42,7 +42,8 @@
                                (throw (ex-info "Method not found" {:jsonrpc/code -32601 :method (:method message)})))]
                (handler (:params message)))}
     (catch Throwable e
-      (error-reporting/report-exception! e)
+      (when-not (Boolean/getBoolean "defold.tests")
+        (error-reporting/report-exception! e))
       {:jsonrpc "2.0"
        :id (:id message)
        :error {:code (:jsonrpc/code (ex-data e) -32603)

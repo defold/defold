@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -54,8 +54,7 @@
   (let [accessed-key? (.accessed volatile-cache)
         metadata (.metadata volatile-cache)
         cache (.cache volatile-cache)
-        pruned-cache (into (coll/empty-with-meta cache)
-                           (filter (fn [entry]
-                                     (accessed-key? (key entry))))
-                           cache)]
+        pruned-cache (coll/transform-> cache
+                       (filter (fn [entry]
+                                 (accessed-key? (key entry)))))]
     (VolatileCache. pruned-cache #{} metadata)))

@@ -1,4 +1,4 @@
--- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2020-2026 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,7 +14,7 @@
 
 function init(self)
 
-    local maxnumproxies = tonumber(sys.get_config("collection_proxy.max_count"))
+    local maxnumproxies = sys.get_config_int("collection_proxy.max_count")
     if maxnumproxies > 8 then
         print("This test was designed for max 8 proxy collections. Please adjust accordingly")
         msg.post("@system:", "exit", {code = 1})

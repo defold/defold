@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -43,6 +43,7 @@ namespace dmRender
     {
         DisplayProfiles* profiles = new DisplayProfiles();
         profiles->m_NameHash = 0x0;
+        profiles->m_AutoLayoutSelection = true;
         return profiles;
     }
 
@@ -84,6 +85,7 @@ namespace dmRender
         }
 
         dmRenderDDF::DisplayProfiles& ddf = *params.m_DisplayProfilesDDF;
+        profiles->m_AutoLayoutSelection = ddf.m_AutoLayoutSelection;
         uint32_t profile_count = 0;
         uint32_t qualifier_count = 0;
         for(uint32_t i = 0; i < ddf.m_Profiles.m_Count; ++i)
@@ -231,6 +233,11 @@ namespace dmRender
     dmhash_t GetDisplayProfilesName(HDisplayProfiles profiles)
     {
         return profiles->m_NameHash;
+    }
+
+    bool GetAutoLayoutSelection(HDisplayProfiles profiles)
+    {
+        return profiles->m_AutoLayoutSelection;
     }
 
 }

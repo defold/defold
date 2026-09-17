@@ -37,6 +37,10 @@ vec4 apply_skin(mat4 bone_matrix, float weight, vec4 base_pos) {
     return weight * (bone_matrix * base_pos);
 }
 
+vec3 apply_skin_normal(mat4 bone_matrix, float weight, vec3 base_normal) {
+    return weight * (mat3(bone_matrix) * base_normal);
+}
+
 vec4 get_skinned_position(vec4 local_position)
 {
 #ifdef EDITOR
@@ -57,6 +61,26 @@ vec4 get_skinned_position(vec4 local_position)
         skinned_position = position;
     }
     return skinned_position;
+#endif
+}
+
+vec3 get_skinned_normal(vec3 local_normal)
+{
+#ifdef EDITOR
+    return local_normal;
+#else
+    vec3 skinned_normal = vec3(0.0);
+    if (animation_data.y > 0.0) {
+        skinned_normal += apply_skin_normal(get_bone_matrix(int(bone_indices.x)), bone_weights.x, local_normal);
+        skinned_normal += apply_skin_normal(get_bone_matrix(int(bone_indices.y)), bone_weights.y, local_normal);
+        skinned_normal += apply_skin_normal(get_bone_matrix(int(bone_indices.z)), bone_weights.z, local_normal);
+        skinned_normal += apply_skin_normal(get_bone_matrix(int(bone_indices.w)), bone_weights.w, local_normal);
+    }
+    else
+    {
+        skinned_normal = local_normal;
+    }
+    return normalize(skinned_normal);
 #endif
 }
 #endif

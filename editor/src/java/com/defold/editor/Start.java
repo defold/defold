@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -89,7 +89,7 @@ public class Start extends Application {
                 }
             } catch (Throwable t) {
                 t.printStackTrace();
-                logger.error("failed to extract native libs", t);
+                logger.error("failed to initialize bundled native libraries", t);
             }
         });
         kickThread.start();

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,4 +19,7 @@ set -e
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-docker build -t builder/ubuntu ${DIR}/
+MULTI_ARCH="linux/amd64"
+[[ -z "$NO_ARM64" ]] && MULTI_ARCH+=",linux/arm64"
+
+docker buildx build --platform $MULTI_ARCH -t builder/ubuntu:22.04 -t builder/ubuntu:latest ${DIR}/

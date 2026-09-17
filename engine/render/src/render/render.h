@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/render/render.h>
+#include <dmsdk/graphics/graphics.h>
 
 #include <dlib/hash.h>
 #include <script/script.h>
@@ -46,11 +47,14 @@ namespace dmRender
     extern const dmhash_t VERTEX_STREAM_BONE_WEIGHTS;
     extern const dmhash_t VERTEX_STREAM_BONE_INDICES;
     extern const dmhash_t VERTEX_STREAM_ANIMATION_DATA;
+    extern const dmhash_t VERTEX_STREAM_TEXTURE_TRANSFORM_2D;
+    extern const dmhash_t VERTEX_STREAM_MORPH_TARGET_WEIGHTS;
     extern const dmhash_t SAMPLER_POSE_MATRIX_CACHE;
+    extern const dmhash_t SAMPLER_MORPH_TARGETS;
+    extern const dmhash_t CONSTANT_MORPH_TARGETS_WEIGHTS;
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
-    typedef struct Sampler*                 HSampler;
     typedef struct RenderScript*            HRenderScript;
     typedef struct RenderScriptInstance*    HRenderScriptInstance;
     typedef struct Predicate*               HPredicate;
@@ -58,6 +62,8 @@ namespace dmRender
     typedef uintptr_t                       HRenderBuffer;
     typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
     typedef HOpaqueHandle                   HRenderCamera;
+    typedef HOpaqueHandle                   HLightPrototype;
+    typedef HOpaqueHandle                   HLightInstance;
 
     static const uint8_t RENDERLIST_INVALID_DISPATCH       = 0xff;
     static const HRenderType INVALID_RENDER_TYPE_HANDLE    = ~0ULL;
@@ -108,6 +114,31 @@ namespace dmRender
     {
         CONTEXT_LOST = 0,
         CONTEXT_RESTORED = 1
+    };
+
+    enum SortOrder
+    {
+        SORT_UNSPECIFIED   = 0,
+        SORT_BACK_TO_FRONT = 1,
+        SORT_FRONT_TO_BACK = 2,
+        SORT_NONE          = 3
+    };
+
+    enum LightType
+    {
+        LIGHT_TYPE_DIRECTIONAL = 0,
+        LIGHT_TYPE_POINT       = 1,
+        LIGHT_TYPE_SPOT        = 2,
+        LIGHT_TYPE_AMBIENT     = 3,
+    };
+
+    // NOTE: These enum values are duplicated in gamesys camera DDF (camera_ddf.proto)
+    // Don't forget to change dmGamesysDDF::OrthoZoomMode if you change here
+    enum OrthoZoomMode
+    {
+        ORTHO_MODE_FIXED        = 0,
+        ORTHO_MODE_AUTO_FIT     = 1,
+        ORTHO_MODE_AUTO_COVER   = 2,
     };
 
     struct Predicate
@@ -163,17 +194,44 @@ namespace dmRender
         float            m_NearZ;
         float            m_FarZ;
         float            m_OrthographicZoom;
+        // These bitfields are packed into a single byte
         uint8_t          m_AutoAspectRatio        : 1;
         uint8_t          m_OrthographicProjection : 1;
+        uint8_t          m_OrthographicMode   : 2; // dmRender::OrthoZoomMode
     };
 
     struct MaterialProgramAttributeInfo
     {
-        dmhash_t                           m_AttributeNameHash;
-        const dmGraphics::VertexAttribute* m_Attribute;
-        const uint8_t*                     m_ValuePtr;
-        dmhash_t                           m_ElementIds[4];
-        uint32_t                           m_ElementIndex;
+        dmhash_t                               m_AttributeNameHash;
+        const dmGraphics::VertexAttributeInfo* m_Attribute;
+        const uint8_t*                         m_ValuePtr;
+        dmhash_t                               m_ElementIds[4];
+        uint32_t                               m_ElementIndex;
+    };
+
+    struct LightPrototypeParams
+    {
+        LightPrototypeParams();
+
+        LightType        m_Type;
+        dmVMath::Vector4 m_Color;
+        float            m_Intensity;
+        float            m_Range;
+        float            m_InnerConeAngle;
+        float            m_OuterConeAngle;
+    };
+
+    struct SamplerInfo
+    {
+        dmhash_t                     m_NameHash;
+        dmGraphics::TextureType      m_TextureType;
+        dmGraphics::HUniformLocation m_Location;
+        dmGraphics::TextureWrap      m_UWrap;
+        dmGraphics::TextureWrap      m_VWrap;
+        dmGraphics::TextureWrap      m_WWrap;
+        dmGraphics::TextureFilter    m_MinFilter;
+        dmGraphics::TextureFilter    m_MagFilter;
+        float                        m_MaxAnisotropy;
     };
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
@@ -189,11 +247,14 @@ namespace dmRender
     dmGraphics::HContext GetGraphicsContext(HRenderContext render_context);
 
     const dmVMath::Matrix4& GetViewProjectionMatrix(HRenderContext render_context);
-    const dmVMath::Matrix4& GetViewMatrix(HRenderContext render_context);
     dmVMath::Matrix4 GetNormalMatrix(HRenderContext render_context, const dmVMath::Matrix4& world_matrix);
 
     void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
+
+    // Begin a render frame by setting its time and delta-time (in seconds) and resetting
+    // per-frame renderer state such as submitted light instances.
+    void BeginFrame(HRenderContext render_context, float time, float dt);
 
     HMaterial GetContextMaterial(HRenderContext render_context);
 
@@ -201,11 +262,10 @@ namespace dmRender
 
     // Takes the contents of the render list, sorts by view and inserts all the objects in the
     // render list, unless they already are in place from a previous call.
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options);
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order);
 
     Result Draw(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
     Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options);
-    Result DrawDebug2d(HRenderContext context);
 
     void SetRenderPause(HRenderContext context, uint8_t is_paused);
     bool IsRenderPaused(HRenderContext context);
@@ -220,6 +280,41 @@ namespace dmRender
      * @param color Color
      */
     void Square2d(HRenderContext context, float x0, float y0, float x1, float y1, dmVMath::Vector4 color);
+
+    /**
+     * Maps screen coordinates to a world-space point along the pixel ray.
+     * The mapping is viewport-aware and woks for both perspective and orthographic cameras.
+     *
+     * z is interpreted as view depth in world units measured from the camera plane,
+     * along the camera forward axis. The returned point lies on the ray passing through
+     * (screen_x, screen_y) at the specified view depth. The point is guaranteed to be
+     * inside the camera frustum only if z is between the camera near and far planes.
+     *
+     * @param render_context Render context handle
+     * @param camera         Camera handle
+     * @param screen_x       X coordinate in window pixels
+     * @param screen_y       Y coordinate in window pixels
+     * @param z              View depth in world units from the camera plane
+     * @param out_world      Output world-space position
+     * @return Result        RESULT_OK on success, error otherwise
+     */
+    Result CameraScreenToWorld(HRenderContext render_context, HRenderCamera camera, float screen_x, float screen_y, float z, dmVMath::Vector3* out_world);
+
+    /**
+     * Maps a world-space position to screen coordinates.
+     * The mapping is viewport-aware and works for both perspective and orthographic cameras.
+     *
+     * Returns screen-space X and Y in window pixels and Z as the view depth in world units
+     * measured from the camera plane along the camera forward axis. The value of Z can be
+     * used with CameraScreenToWorld to reconstruct the world position on the same pixel ray.
+     *
+     * @param render_context Render context handle
+     * @param camera         Camera handle
+     * @param world          World-space position
+     * @param out_screen     Output screen-space position (x,y in pixels, z is view depth)
+     * @return Result        RESULT_OK on success, error otherwise
+     */
+    Result CameraWorldToScreen(HRenderContext render_context, HRenderCamera camera, const dmVMath::Vector3& world, dmVMath::Vector3* out_screen);
 
     /**
      * Render debug triangle in world space.
@@ -269,30 +364,26 @@ namespace dmRender
     void                    OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance);
 
     // Material
-    HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HProgram program); // dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
-    void                            DeleteMaterial(dmRender::HRenderContext render_context, HMaterial material);
-    HSampler                        GetMaterialSampler(HMaterial material, uint32_t unit);
-    dmhash_t                        GetMaterialSamplerNameHash(HMaterial material, uint32_t unit);
-    uint32_t                        GetMaterialSamplerUnit(HMaterial material, dmhash_t name_hash);
-    void                            ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* ro);
-    void                            ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, HSampler sampler, uint8_t value_index, dmGraphics::HTexture texture);
-
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
     Result                          SetConstantValuesRef(HConstant constant, dmVMath::Vector4* values, uint32_t num_values);
+    bool                            GetSamplerInfo(HSampler sampler, SamplerInfo* info);
 
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material);
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material, dmGraphics::VertexStepFunction step_function);
     bool                            GetMaterialProgramAttributeInfo(HMaterial material, dmhash_t name_hash, MaterialProgramAttributeInfo& info);
-    void                            GetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute** attributes, uint32_t* attribute_count);
+    void                            GetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttributeInfo** attributes, uint32_t* attribute_count);
     void                            GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, const uint8_t** value_ptr, uint32_t* num_values);
     void                            SetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count);
     void                            GetMaterialProgramAttributeMetadata(HMaterial material, dmGraphics::VertexAttributeInfoMetadata* metadata);
+    void                            GetMaterialProgramVertexAttributeInfos(HMaterial material, const dmGraphics::VertexAttributeInfo** attribute_infos, uint32_t* num_attribute_infos);
     uint8_t                         GetMaterialAttributeIndex(HMaterial material, dmhash_t name_hash);
     bool                            GetMaterialHasSkinnedAttributes(HMaterial material);
     bool                            GetMaterialHasSkinnedMatrixCache(HMaterial material);
+    bool                            GetMaterialHasMorphTargetsSampler(HMaterial material);
+    bool                            GetMaterialHasMorphTargetWeightsAttribute(HMaterial material);
 
     // Compute
     HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram program);
@@ -300,11 +391,12 @@ namespace dmRender
     HSampler                        GetComputeProgramSampler(HComputeProgram program, uint32_t unit);
     HRenderContext                  GetProgramRenderContext(HComputeProgram program);
     dmGraphics::HProgram            GetComputeProgram(HComputeProgram program);
-    uint64_t                        GetProgramUserData(HComputeProgram program);
-    void                            SetProgramUserData(HComputeProgram program, uint64_t user_data);
+    uint32_t                        GetComputeProgramConstantCount(HComputeProgram program);
+    bool                            GetComputeProgramConstantNameHash(HComputeProgram program, uint32_t index, dmhash_t* out_name_hash);
     void                            SetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, dmVMath::Vector4* values, uint32_t count);
     void                            SetComputeProgramConstantType(HComputeProgram compute_program, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+    bool                            SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     uint32_t                        GetComputeProgramSamplerUnit(HComputeProgram compute_program, dmhash_t name_hash);
     bool                            GetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, HConstant& out_value);
 
@@ -323,26 +415,27 @@ namespace dmRender
 
     void                            SetMaterialProgramConstant(HMaterial material, dmhash_t name_hash, dmVMath::Vector4* constant, uint32_t count);
     dmGraphics::HUniformLocation    GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
+    uint32_t                        GetMaterialConstantCount(HMaterial material);
+    bool                            GetMaterialConstantNameHash(HMaterial material, uint32_t index, dmhash_t* out_name_hash);
     bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+    bool                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 
-    uint64_t                        GetMaterialUserData1(HMaterial material);
-    void                            SetMaterialUserData1(HMaterial material, uint64_t user_data);
-    uint64_t                        GetMaterialUserData2(HMaterial material);
-    void                            SetMaterialUserData2(HMaterial material, uint64_t user_data);
-
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer);
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HComputeProgram program, HNamedConstantBuffer buffer);
-
-    void                            ClearMaterialTags(HMaterial material);
-    void                            SetMaterialTags(HMaterial material, uint32_t tag_count, const dmhash_t* tags);
 
     HPredicate                      NewPredicate();
     void                            DeletePredicate(HPredicate predicate);
     Result                          AddPredicateTag(HPredicate predicate, dmhash_t tag);
 
     HConstant                       NewConstant(dmhash_t name_hash);
+
+    /** PBR properties
+     *
+     */
+    void SetMaterialPBRParameters(HMaterial material, const dmRenderDDF::MaterialDesc::PbrParameters* parameters);
+    void GetMaterialPBRParameters(HMaterial material, dmRenderDDF::MaterialDesc::PbrParameters* parameters);
 
     /** Buffered render buffers
      * A render buffer is a thin wrapper around vertex and index buffers that, depending on graphics context,
@@ -393,6 +486,52 @@ namespace dmRender
     void                            SetRenderCameraEnabled(HRenderContext render_context, HRenderCamera camera, bool value);
     void                            UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation);
     float                           GetRenderCameraEffectiveAspectRatio(HRenderContext render_context, HRenderCamera camera);
+    float                           GetRenderCameraOrthographicAutoZoom(HRenderContext render_context, HRenderCamera camera);
+
+    /** Lights
+     * A light prototype is essentially the data that represents the light and has a set of basic parameters,
+     * such as color, range and whatnot. A light 'instance' on the other hand is what exists in the game world,
+     * and is the basis for what's being written into the light buffer. It has a position and a rotation (direction),
+     * and in the future it is likely that a light instance can override certain parameters of the light prototype.
+     * A light prototype can be used across many light instances, and must live as long as the lights live.
+     * Instance data persists between frames; SubmitLightInstance selects which instances participate in the
+     * current frame's light buffer.
+     *
+     * Programs opt in to the engine-owned light UBO by declaring this exact std140 layout:
+     *
+     * struct Light {
+     *     vec4 position;
+     *     vec4 color;
+     *     vec4 direction_range;
+     *     vec4 params;
+     * };
+     * uniform LightBuffer {
+     *     vec4 light_info;
+     *     Light lights[MAX_LIGHT_COUNT];
+     * };
+     *
+     * light_info.xyz contains accumulated ambient color and light_info.w contains the number of
+     * non-ambient lights in the engine-owned buffer. Programs must clamp this count to their
+     * declared array capacity before indexing lights, for example:
+     *
+     * int light_count = min(int(light_info.w), MAX_LIGHT_COUNT);
+     *
+     * Light data is in world space. params contains type, intensity, inner cone angle, and outer
+     * cone angle. Cone angles are in radians and type is 0 for directional, 1 for point, and 2 for
+     * spot lights. Entry order is unspecified. The renderer binds the block automatically for
+     * graphics and compute programs.
+     */
+    HLightPrototype NewLightPrototype(HRenderContext render_context, const LightPrototypeParams& params);
+    void            SetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype, const LightPrototypeParams& params);
+    void            DeleteLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
+    LightType       GetLightType(HRenderContext render_context, HLightPrototype light_prototype);
+    dmVMath::Vector4 GetLightColor(HRenderContext render_context, HLightPrototype light_prototype);
+    float           GetLightIntensity(HRenderContext render_context, HLightPrototype light_prototype);
+    HLightInstance  NewLightInstance(HRenderContext render_context, HLightPrototype light_prototype);
+    void            DeleteLightInstance(HRenderContext render_context, HLightInstance light_instance);
+    void            SetLightInstance(HRenderContext render_context, HLightInstance light_instance, dmVMath::Point3 position, dmVMath::Quat rotation, float scale);
+    void            SubmitLightInstance(HRenderContext render_context, HLightInstance light_instance);
+    void            SetLightBufferCount(HRenderContext render_context, uint32_t max_lights);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)
     {

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,7 +15,7 @@
 
 
 
-export SHA1=a4f56a459a588ae768801074b46ba0adcfb49eb1
+export SHA1=3e223cb8a41cff3b92931acb846af7b67a5d2537
 export SHA1_SHORT=${SHA1:0:7}
 export VERSION=2.1.0-${SHA1_SHORT}
 export PRODUCT=luajit

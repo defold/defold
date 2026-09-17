@@ -5,6 +5,9 @@ from waf_dynamo import dmsdk_add_files
 def configure(conf):
     pass
 
+def remove_from_node_list(lst, name):
+    return [x for x in lst if not x.abspath().endswith(name)]
+
 def build(bld):
     resource = bld.stlib(features = 'cxx ddf',
                          includes = '. ../proto',
@@ -13,15 +16,20 @@ def build(bld):
                          proto_gen_py = True,
                          target = 'resource')
 
+    if 'web' in bld.env.PLATFORM:
+        resource.source = remove_from_node_list(resource.source, 'provider_http.cpp')
+    else:
+        resource.source = remove_from_node_list(resource.source, 'provider_http_null.cpp')
+
     resource.source.append('async/load_queue.cpp');
     if 'web' in bld.env.PLATFORM:
          resource.source.append('async/load_queue_sync.cpp');
     else:
          resource.source.append('async/load_queue_threaded.cpp');
 
-    if bld.env.PLATFORM in ('armv7-android','arm64-android'):
+    if bld.env.PLATFORM in ('armv7-android','arm64-android','x86_64-android'):
         resource.source.append('mount/mount_android.cpp');
-    elif bld.env.PLATFORM in ('x86_64-linux','x86_64-macos','arm64-macos','arm64-ios','x86_64-ios'):
+    elif bld.env.PLATFORM in ('x86_64-linux','x86_64-macos','arm64-macos','arm64-ios','arm64_sim-ios'):
         resource.source.append('mount/mount_mmap.cpp');
     else:
         resource.source.append('mount/mount_generic.cpp');
@@ -47,4 +55,3 @@ def build(bld):
     bld.install_files('${PREFIX}/include/resource/providers', 'providers/provider.h')
     bld.install_files('${PREFIX}/lib/python', 'waf_resource.py')
     bld.install_files('${PREFIX}/bin', 'arcc.py')
-

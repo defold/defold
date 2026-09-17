@@ -1,0 +1,22 @@
+tags: "checked_tag"
+
+data {
+  struct {
+    fields {
+      key: "name"
+      value {
+        string: "Checked Player"
+      }
+    }
+    fields {
+      key: "list"
+      value {
+        list {
+          values { string: "entry_a" }
+          values { string: "entry_b" }
+          values { string: "entry_c" }
+        }
+      }
+    }
+  }
+}

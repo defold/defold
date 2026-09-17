@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,30 +12,83 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
+;; Silence log spam.
+(when-let [^ch.qos.logback.classic.Logger root-logger (org.slf4j.LoggerFactory/getLogger ch.qos.logback.classic.Logger/ROOT_LOGGER_NAME)]
+  (.setLevel root-logger ch.qos.logback.classic.Level/ERROR))
+
 (ns load-project
-  (:require [dev :as dev]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.build :as build]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
+            [editor.library :as library]
+            [editor.localization :as localization]
+            [editor.prefs :as prefs]
+            [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.resource-types :as resource-types]
+            [editor.resource-update :as resource-update]
+            [editor.scene :as scene]
             [editor.shared-editor-settings :as shared-editor-settings]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]
             [internal.graph.types]
             [internal.system :as is]
-            [service.log :as log]
+            [internal.transaction :as it]
+            [util.coll :as coll]
             [util.debug-util :as du]
-            [util.eduction :as e])
-  (:import [java.util List]))
+            [util.eduction :as e]
+            [util.fn :as fn])
+  (:import [java.util ArrayList Collection Collections List Random]))
 
 (set! *warn-on-reflection* true)
 
-;; Set to the path of the project directory you want to load.
-(defonce project-path "test/resources/save_data_project")
+(defn- log-data [tag & {:as args}]
+  {:pre [(#{:INFO :WARNING :ERROR} tag)
+         (string? (:message args))]}
+  (prn (into {tag (:message args)}
+             (dissoc args :message))))
+
+(def ^:private log-info (partial log-data :INFO))
+(def ^:private log-warning (partial log-data :WARNING))
+(def ^:private log-error (partial log-data :ERROR))
+
+;; Set DM_DEV_LOAD_PROJECT_PATH to the path of the project directory you want to load.
+(def ^:private default-project-path "test/resources/all_types_project")
+
+(defonce project-path
+  (let [^String env-project-path (System/getenv "DM_DEV_LOAD_PROJECT_PATH")]
+    (if (or (nil? env-project-path)
+            (.isEmpty env-project-path))
+      default-project-path
+      env-project-path)))
+
+;; The reload ratio determines the percentage of resources that are reloaded
+;; during the simulated reload phase. Set DM_DEV_LOAD_PROJECT_RELOAD_RATIO to a
+;; number between 0.0 and 1.0 if you want to limit the number of resources that
+;; are reloaded. Defaults to 0.05, or 5% of resources.
+(def ^:private ^:const default-simulated-reload-ratio 0.05)
+
+(defonce simulated-reload-ratio
+  (let [^String env-simulated-reload-ratio (System/getenv "DM_DEV_LOAD_PROJECT_RELOAD_RATIO")]
+    (if (or (nil? env-simulated-reload-ratio)
+            (.isEmpty env-simulated-reload-ratio))
+      default-simulated-reload-ratio
+      (max 0.0 (min (Double/parseDouble env-simulated-reload-ratio) 1.0)))))
+
+;; The reload seed affects which random resources are reloaded during the
+;; simulated reload phase.
+(def ^:const simulated-reload-seed 0x5eed)
+
+;; When true, generate tx-data for loaded nodes in a separate step before
+;; applying it in a transaction. Allows us to profile the two phases in
+;; isolation at the cost of increased peak memory usage.
+(defonce separate-load-tx-data-generation true)
 
 ;; Set to one of the task-phases below to skip the rest of the tasks.
-(defonce final-task :cache-save-data)
+(def final-task nil)
 
 ;; You can use this to start and stop your own profiling tool for certain tasks.
 (defn- user-profiling-hook! [task-key task-fn]
@@ -55,20 +108,47 @@
     ;; A task we do not care about. Just invoke the task-fn.
     (task-fn)))
 
-(defonce ^:private ^List task-phases
-  [:setup-workspace
-   :fetch-libraries
-   :resource-sync
+(defmacro log-time-and-memory [label expr]
+  `(let [runtime# (Runtime/getRuntime)
+         start-bytes# (du/allocated-bytes runtime#)
+         start-ns# (System/nanoTime)
+         ret# ~expr
+         end-ns# (System/nanoTime)
+         end-bytes# (du/allocated-bytes runtime#)
+         allocated-bytes# (- end-bytes# start-bytes#)
+         elapsed-ns# (- end-ns# start-ns#)]
+     (if (pos? allocated-bytes#)
+       (log-info :message ~label
+                 :elapsed (du/nanos->string elapsed-ns#)
+                 :allocated (du/bytes->string allocated-bytes#)
+                 :heap (du/bytes->string end-bytes#))
+       (log-info :message ~label
+                 :elapsed (du/nanos->string elapsed-ns#)
+                 :heap (du/bytes->string end-bytes#)))
+     ret#))
+
+(def ^:private ^List task-phases
+  [:resource-sync
    :list-resources
    :make-project
    :read-resources
-   :load-nodes
-   :cache-save-data])
+   :generate-load-tx-data
+   :apply-load-tx-data
+   :update-overrides
+   :update-successors
+   :cache-save-data
+   :evaluate-build-targets
+   :resolve-build-target-deps
+   :build-build-targets
+   :simulate-reload-plugins
+   :simulate-reload-nodes])
 
-(defonce ^:private final-task-index
-  (let [task-index (.indexOf task-phases final-task)]
-    (assert (nat-int? task-index) (str "Invalid final-task: " final-task))
-    task-index))
+(def ^:private final-task-index
+  (if (nil? final-task)
+    (dec (count task-phases))
+    (let [task-index (.indexOf task-phases final-task)]
+      (assert (nat-int? task-index) (str "Invalid final-task: " final-task))
+      task-index)))
 
 (defn- run-task? [task-key]
   {:pre [(keyword? task-key)]}
@@ -76,19 +156,28 @@
     (assert (nat-int? task-index) (str "Invalid task-key: " task-key))
     (<= task-index (int final-task-index))))
 
+(defmacro ^:private ensure-some [expr]
+  `(if-some [result# ~expr]
+     result#
+     (throw
+       (ex-info
+         "Expression returned nil."
+         {:expr '~expr}))))
+
 (defonce ^:private task-metrics (du/make-metrics-collector))
 (defonce ^:private resource-metrics (du/make-metrics-collector))
 (defonce ^:private transaction-metrics (du/make-metrics-collector))
 
-(defonce ^:private change-tracked-transact false)
+(defonce ^:private full-invalidation-transact true)
 
 (defonce ^:private transact-opts
-  {:metrics transaction-metrics
-   :track-changes change-tracked-transact})
+  {:full-invalidation full-invalidation-transact
+   :metrics transaction-metrics
+   :undoable false})
 
 (defn- measure-task-impl! [task-key task-fn]
   (let [task-label (name task-key)]
-    (du/log-time-and-memory task-label
+    (log-time-and-memory task-label
       (du/measuring task-metrics task-key
         (user-profiling-hook! task-key task-fn)))))
 
@@ -98,34 +187,44 @@
   (let [task-fn-sym (symbol (str "measure-" (name task-key)))]
     `(measure-task-impl! ~task-key (fn ~task-fn-sym [] (do ~@body)))))
 
+(defmacro ^:private run-task! [task-key & body]
+  `(when (run-task? ~task-key)
+     ~@body))
+
 (defmacro ^:private run-and-measure-task! [task-key & body]
   `(when (run-task? ~task-key)
      (measure-task! ~task-key ~@body)))
 
 (defonce runtime (Runtime/getRuntime))
-(defonce start-allocated-bytes (du/allocated-bytes runtime))
-(defonce start-time-nanos (System/nanoTime))
-(defonce system-config (assoc (shared-editor-settings/load-project-system-config project-path) :cache-retain? project/cache-retain?))
+(defonce prefs (prefs/project project-path))
+(defonce localization (localization/make prefs ::load-project {} ^[] Throwable/.printStackTrace))
+(defonce system-config (assoc (shared-editor-settings/load-project-system-config project-path localization) :cache-retain? project/cache-retain?))
 (defonce ^:private -set-system- (do (reset! g/*the-system* (is/make-system system-config)) nil))
-(defonce workspace-graph-id (g/last-graph-added))
+
+(defn- setup-workspace! [project-path]
+  (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
+        workspace (workspace/make-workspace project-path {} workspace-config localization)]
+    (g/transact
+      {:undoable false}
+      (scene/register-view-types workspace))
+    (resource-types/register-resource-types! workspace)
+    workspace))
 
 (defonce workspace
-  (run-and-measure-task!
-    :setup-workspace
-    (test-util/setup-workspace! workspace-graph-id project-path)))
+  (setup-workspace! project-path))
 
-(defonce game-project-resource
-  (workspace/find-resource workspace "/game.project"))
+(defonce up-to-date-lib-results
+  (let [project-directory (workspace/project-directory workspace)
+        game-project-file (io/file project-directory "game.project")
+        dependencies (project/read-dependencies game-project-file)
+        library-results (library/fetch! project-directory dependencies progress/null-render-progress!)]
+    (workspace/set-project-dependencies! workspace library-results)))
 
-(defonce up-to-date-lib-states
-  (when (run-task? :fetch-libraries)
-    (dev/run-with-progress "Fetching Libraries..."
-      (fn fetch-libraries-with-progress [render-progress!]
-        (measure-task!
-          :fetch-libraries
-          (let [dependencies (project/read-dependencies game-project-resource)
-                stale-lib-states (workspace/fetch-and-validate-libraries workspace dependencies render-progress!)]
-            (workspace/install-validated-libraries! workspace stale-lib-states)))))))
+(defonce ^:private -log-project-path-
+  (log-info :message "Loading project." :project-path project-path))
+
+(defonce start-allocated-bytes (du/allocated-bytes runtime))
+(defonce start-time-nanos (System/nanoTime))
 
 (defonce ^:private -initial-resource-sync-
   (run-and-measure-task!
@@ -133,13 +232,13 @@
     (workspace/resource-sync! workspace)
     nil))
 
-(defonce project-graph-id (g/make-graph! :history true :volatility 1))
+(defonce game-project-resource
+  (workspace/find-resource workspace "/game.project"))
 
 (defonce node-id+resource-pairs
   (run-and-measure-task!
     :list-resources
     (project/make-node-id+resource-pairs
-      project-graph-id
       (g/node-value workspace :resource-list))))
 
 (defonce game-project-node-id
@@ -151,34 +250,63 @@
 (defonce project
   (run-and-measure-task!
     :make-project
-    (let [extensions (extensions/make project-graph-id)]
-      (project/make-project project-graph-id workspace extensions))))
+    (let [extensions (extensions/make)]
+      (project/make-project workspace extensions))))
 
 (defonce node-load-infos
-  (when (run-task? :read-resources)
-    (dev/run-with-progress "Reading Files..."
-      (fn read-resources-with-progress [render-progress!]
-        (measure-task!
-          :read-resources
-          (project/read-nodes node-id+resource-pairs
-            :render-progress! render-progress!
-            :resource-metrics resource-metrics))))))
+  (run-and-measure-task!
+    :read-resources
+    (project/read-nodes node-id+resource-pairs
+      :resource-metrics resource-metrics)))
 
 (defonce migrated-resource-node-ids
-  (let [prelude-tx-data
-        (e/concat
-          (project/make-resource-nodes-tx-data project node-id+resource-pairs)
-          (project/setup-game-project-tx-data project game-project-node-id))
+  (let [tx-data
+        (run-and-measure-task!
+          :generate-load-tx-data
+          (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs]}
+                (project/node-load-infos->stored-disk-state node-load-infos)]
+            (resource-node/merge-source-values! node-id+source-value-pairs)
+            (coll/into->
+              (e/concat
+                (project/make-resource-nodes-tx-data project node-id+resource-pairs)
+                (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
+                (project/load-nodes-tx-data project node-load-infos progress/null-render-progress! progress/null-render-progress! resource-metrics))
+              (if separate-load-tx-data-generation [] :eduction)
+              coll/flatten-xf)))
+
+        transaction-context (g/make-transaction-context transact-opts)
+        pre-tx-basis (:basis transaction-context)
+
+        tx-result
+        (as-> transaction-context transaction-context
+
+          (run-and-measure-task!
+            :apply-load-tx-data
+            (let [[transaction-context] (it/realize-tx transaction-context nil tx-data)]
+              transaction-context))
+
+          (run-and-measure-task!
+            :update-overrides
+            (let [[transaction-context] (it/realize-update-overrides transaction-context nil)]
+              transaction-context))
+
+          (run-and-measure-task!
+            :update-successors
+            (it/update-successors transaction-context))
+
+          (when transaction-context
+            (it/trace-dependencies transaction-context)
+            (it/finalize-update transaction-context)))
+
+        _ (when tx-result
+            (g/commit-tx-result! tx-result transact-opts pre-tx-basis))
 
         migrated-resource-node-ids
-        (when (run-task? :load-nodes)
-          (dev/run-with-progress "Loading Nodes..."
-            (fn load-nodes-with-progress [render-progress!]
-              (measure-task!
-                :load-nodes
-                (project/load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))))]
-    (when-not change-tracked-transact
-      (g/clear-system-cache!))
+        (let [basis (:basis tx-result)]
+          (into #{}
+                (keep #(resource-node/owner-resource-node-id basis %))
+                (g/migrated-node-ids tx-result)))]
+
     (run-and-measure-task!
       :cache-save-data
       (project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids))
@@ -188,28 +316,99 @@
                 (map #(resource/proj-path (resource-node/resource basis %)))
                 migrated-resource-node-ids)]
       (when (pos? (count migrated-proj-paths))
-        (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))
+        (log-info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))
 
     migrated-resource-node-ids))
 
-(defonce ^:private -reset-undo- (g/reset-undo! project-graph-id))
+(defonce build-results
+  (g/with-auto-evaluation-context evaluation-context
+    (when-some [node-build-targets
+                (run-and-measure-task!
+                  :evaluate-build-targets
+                  (let [node-id->resource-path (build/make-node-id->resource-path project evaluation-context)]
+                    (build/node-build-targets (ensure-some game-project-node-id) node-id->resource-path progress/null-render-progress! fn/constantly-false evaluation-context)))]
+      (when-some [all-build-targets
+                  (run-and-measure-task!
+                    :resolve-build-target-deps
+                    (build/resolve-dependencies node-build-targets project evaluation-context))]
+        (let [build-results
+              (run-and-measure-task!
+                :build-build-targets
+                (build/build-build-targets! all-build-targets workspace {} progress/null-render-progress! evaluation-context))]
+          (when-some [error-value (:error build-results)]
+            (doseq [error-line (string/split-lines (localization (g/error-message error-value)))]
+              (log-error :message "build-failure" :cause error-line)))
+          build-results)))))
+
+(defn- select-simulated-reload-resources [resources ^double reload-ratio]
+  (if (<= 1.0 reload-ratio)
+    ;; Include all non-directory resources.
+    (filterv #(= :file (resource/source-type %))
+             resources)
+
+    ;; Include a seeded random subset of all non-directory resources. The subset
+    ;; will include at least one resource of each type in the project.
+    (let [random (Random. (long simulated-reload-seed))]
+      (into []
+            (mapcat
+              (fn [[_ resources]]
+                (let [shuffled-resources (ArrayList. ^Collection (sort-by resource/proj-path resources))
+                      selection-count (int (Math/ceil (* reload-ratio (.size shuffled-resources))))]
+                  (Collections/shuffle shuffled-resources random)
+                  (.subList shuffled-resources 0 selection-count))))
+            (->> resources
+                 (filter #(= :file (resource/source-type %)))
+                 (group-by (comp :ext resource/resource-type))
+                 (sort-by key))))))
+
+(defonce simulated-reload-changes
+  (when (run-task? :simulate-reload-plugins)
+    {:added []
+     :removed []
+     :moved []
+     :changed (select-simulated-reload-resources
+                (g/node-value workspace :resource-list)
+                simulated-reload-ratio)}))
+
+(defonce ^:private -simulate-reload-plugins-
+  (run-and-measure-task!
+    :simulate-reload-plugins
+    (let [touched-resources (set (:changed simulated-reload-changes))]
+      (project/reload-plugins! project touched-resources))
+    nil))
+
+(defonce simulated-reload-resource-change-plan
+  (when (run-task? :simulate-reload-nodes)
+    (let [old-nodes-by-path (g/node-value project :nodes-by-resource-path)
+          old-node->old-disk-sha256 {}] ; Bypass content equality check, forcing reload.
+      (resource-update/resource-change-plan old-nodes-by-path old-node->old-disk-sha256 simulated-reload-changes))))
+
+(defonce ^:private -simulate-reload-nodes-
+  (run-and-measure-task!
+    :simulate-reload-nodes
+    (project/perform-resource-change-plan simulated-reload-resource-change-plan project progress/null-render-progress!)
+    nil))
 
 (defonce total-duration-nanos
   (let [end-time-nanos (System/nanoTime)]
     (- end-time-nanos (long start-time-nanos))))
 
+(defonce end-allocated-bytes (du/allocated-bytes runtime))
+
 (defonce total-allocated-bytes
-  (let [end-allocated-bytes (du/allocated-bytes runtime)]
-    (- end-allocated-bytes (long start-allocated-bytes))))
+  (- end-allocated-bytes (long start-allocated-bytes)))
 
 (defonce ^:private -log-statistics-
-  (log/info :message "total"
+  (log-info :message "total"
             :elapsed (du/nanos->string total-duration-nanos)
-            :allocated (du/bytes->string total-allocated-bytes)))
+            :elapsed-sans-gc (du/nanos->string (- total-duration-nanos (du/gc-overhead-ns)))
+            :allocated (du/bytes->string total-allocated-bytes)
+            :heap (du/bytes->string end-allocated-bytes)))
 
 (defonce load-metrics
   (du/when-metrics
-    {:new-nodes-by-path (g/node-value project :nodes-by-resource-path)
+    {:new-nodes-by-path (some-> project (g/node-value :nodes-by-resource-path))
      :task-metrics @task-metrics
      :resource-metrics @resource-metrics
+     :resource-change-metrics @project/resource-change-metrics-atom
      :transaction-metrics @transaction-metrics}))

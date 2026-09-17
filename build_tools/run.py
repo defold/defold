@@ -1,4 +1,4 @@
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,47 +31,119 @@ def _to_str(x):
         x = str(x, encoding='utf-8')
     return x
 
+def _to_output_str(x):
+    if x is None:
+        return ''
+    elif isinstance(x, (bytes, bytearray)):
+        x = str(x, encoding='utf-8', errors='replace')
+    return x
+
+def _to_str_set(values):
+    if values is None:
+        return set()
+    if isinstance(values, (list, tuple, set)):
+        iterable = values
+    else:
+        iterable = [values]
+    out = set()
+    for v in iterable:
+        s = _to_str(v)
+        if s:
+            out.add(s)
+    return out
+
+def _sanitize_text(text, secrets):
+    text = _to_str(text)
+    for secret in secrets:
+        if secret:
+            text = text.replace(secret, '***')
+    return text
+
+def _redact_args(arg_list, redact_flags, secrets):
+    redacted = []
+    redact_next = False
+
+    for arg in arg_list:
+        value = _to_str(arg)
+        if redact_next:
+            if value:
+                secrets.add(value)
+            redacted.append('***')
+            redact_next = False
+            continue
+
+        is_redacted = False
+        for flag in redact_flags:
+            prefix = flag + '='
+            if value == flag:
+                redacted.append(value)
+                redact_next = True
+                is_redacted = True
+                break
+            elif value.startswith(prefix):
+                secret = value[len(prefix):]
+                if secret:
+                    secrets.add(secret)
+                redacted.append(prefix + '***')
+                is_redacted = True
+                break
+
+        if not is_redacted:
+            redacted.append(value)
+
+    return redacted, secrets
+
 def _exec_command(arg_list, **kwargs):
     silent = False
     if 'silent' in kwargs:
         silent = True
         del kwargs['silent']
 
+    redact_flags = kwargs.pop('redact_flags', ['--password', '--passphrase', '--token', '--secret', '--api-key', '--client-secret'])
+    if isinstance(redact_flags, str):
+        redact_flags = [redact_flags]
+    secrets = _to_str_set(kwargs.pop('redacted_values', None))
+
     arg_str = arg_list
     if not isinstance(arg_str, str):
         arg_list = [_to_str(x) for x in arg_list]
-        arg_str = ' '.join(arg_list)
+        redacted_args, secrets = _redact_args(arg_list, redact_flags, secrets)
+        arg_str = ' '.join(redacted_args)
+    else:
+        arg_str = _sanitize_text(arg_str, secrets)
     if not silent: log('[exec] %s' % arg_str)
 
-    if sys.stdout.isatty():
-        # If not on CI, we want the colored output, and we get the output as it runs, in order to preserve the colors
-        if not 'stdout' in kwargs:
-            kwargs['stdout'] = subprocess.PIPE # Only way to get output from the command
-        process = subprocess.Popen(arg_list, **kwargs)
-        output = process.communicate()[0]
-        if process.returncode != 0:
-            if not silent: log(_to_str(output))
-    else:
-        # On the CI machines, we make sure we produce a steady stream of output
-        # However, this also makes us lose the color information
-        if 'stdout' in kwargs:
-            del kwargs['stdout']
-        process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
+    # Keep stdout and stderr in their original order. In particular, Ninja may
+    # print the failed command on stdout while the compiler or linker writes the
+    # useful diagnostic to stderr.
+    stream_output = 'stdout' not in kwargs and 'stderr' not in kwargs
+    if stream_output:
+        kwargs['stdout'] = subprocess.PIPE
+        kwargs['stderr'] = subprocess.STDOUT
 
-        output = ''
+    process = subprocess.Popen(arg_list, **kwargs)
+    output = ''
+    if stream_output:
         while True:
-            line = process.stdout.readline().decode(errors='replace')
-            if line != '':
-                output += line
-                if not silent: log(line.rstrip())
-            else:
+            line = _to_output_str(process.stdout.readline())
+            if line == '':
                 break
+            output += line
+            if not silent:
+                log(_sanitize_text(line, secrets).rstrip('\r\n'))
+        process.stdout.close()
+    else:
+        captured_stdout, captured_stderr = process.communicate()
+        output = _to_output_str(captured_stdout) + _to_output_str(captured_stderr)
 
-    if process.wait() != 0:
-        e = ExecException(process.returncode)
+    retcode = process.wait()
+    output = _sanitize_text(output, secrets)
+    if retcode != 0:
+        e = ExecException(retcode)
         e.output = output
-        log('[exec] %s' % arg_str)
-        log("Error: %s" % _to_str(output))
+        if not silent:
+            log('[exec] failed command: %s' % arg_str)
+            log('[exec] command failed with exit code %s' % retcode)
         raise e
 
     output = _to_str(output)
@@ -95,7 +167,7 @@ def shell_command(args, **kwargs):
 
 
 def env_command(env, args, **kwargs):
-    return _exec_command(args, shell = False, stdout = None, env = env, **kwargs)
+    return _exec_command(args, shell = False, env = env, **kwargs)
 
 def env_shell_command(env, args, **kwargs):
     return _exec_command(args, shell = True, env = env, **kwargs)

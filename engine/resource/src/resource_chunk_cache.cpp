@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@
 
 #include <dlib/static_assert.h>
 #include <dlib/array.h>
+#include <dlib/double_linked_list.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 
@@ -23,21 +24,9 @@
 #include <stddef.h>  // offsetof
 #include <algorithm> // lower_bound
 
-struct DLListNode
-{
-    struct DLListNode* m_Prev;
-    struct DLListNode* m_Next;
-};
-
-struct DLList
-{
-    DLListNode m_Head;
-    DLListNode m_Tail;
-};
-
 struct ResourceInternalDataChunk
 {
-    DLListNode m_ListNode; // must be first in the struct
+    dmDoubleLinkedList::ListNode m_ListNode; // must be first in the struct
 
     dmhash_t m_PathHash;
     uint8_t* m_Data;
@@ -55,49 +44,11 @@ struct ResourceChunkCache
     // The array is sorted on (path_hash, offset)
     dmArray<ResourceInternalDataChunk*> m_Chunks;
 
-    uint32_t m_CacheSize;       // The cache size for all streaming sounds
-    uint32_t m_CacheSizeUsed;   // The amount of cache currently used
-    DLList   m_LRU;             // head is MRU, tail is LRU
-    DLList   m_LRUNoEvict;      // head is MRU, tail is LRU
+    uint32_t                   m_CacheSize;       // The cache size for all streaming sounds
+    uint32_t                   m_CacheSizeUsed;   // The amount of cache currently used
+    dmDoubleLinkedList::List   m_LRU;             // head is MRU, tail is LRU
+    dmDoubleLinkedList::List   m_LRUNoEvict;      // head is MRU, tail is LRU
 };
-
-// **********************************************************************************
-
-static void ListInit(DLList* list)
-{
-    list->m_Head.m_Prev = 0;
-    list->m_Tail.m_Next = 0;
-    list->m_Head.m_Next = &list->m_Tail;
-    list->m_Tail.m_Prev = &list->m_Head;
-}
-
-static void ListRemove(DLList* list, DLListNode* item)
-{
-    DLListNode* prev = item->m_Prev;
-    DLListNode* next = item->m_Next;
-    item->m_Prev = 0;
-    item->m_Next = 0;
-    prev->m_Next = next;
-    next->m_Prev = prev;
-}
-
-static void ListAdd(DLList* list, DLListNode* item)
-{
-    DLListNode* prev = &list->m_Head;
-    DLListNode* next = prev->m_Next;
-    item->m_Prev = prev;
-    item->m_Next = next;
-    prev->m_Next = item;
-    next->m_Prev = item;
-}
-
-static DLListNode* ListGetLast(DLList* list)
-{
-    DLListNode* last = list->m_Tail.m_Prev;
-    return last == &list->m_Head ? 0 : last;
-}
-
-// **********************************************************************************
 
 static ResourceInternalDataChunk* AllocChunk(ResourceChunkCache* cache, dmhash_t path_hash, uint8_t* data, uint32_t data_size, uint32_t offset, int flags)
 {
@@ -116,7 +67,7 @@ static ResourceInternalDataChunk* AllocChunk(ResourceChunkCache* cache, dmhash_t
 static void FreeChunk(ResourceChunkCache* cache, ResourceInternalDataChunk* chunk)
 {
     cache->m_CacheSizeUsed -= chunk->m_Size;
-    delete chunk->m_Data;
+    delete[] chunk->m_Data;
     delete chunk;
 }
 
@@ -152,10 +103,10 @@ static void PrintChunk(ResourceChunkCache* cache, ResourceInternalDataChunk* chu
     printf("  offset: %8u  size: %8u  data: %p  noevict: %s  file: '%s'\n", chunk->m_Offset, chunk->m_Size, chunk->m_Data, chunk->m_NoEvict?"true":"false", dmHashReverseSafe64(chunk->m_PathHash));
 }
 
-static void PrintList(ResourceChunkCache* cache, DLList* list)
+static void PrintList(ResourceChunkCache* cache, dmDoubleLinkedList::List* list)
 {
-    DLListNode* item = list->m_Head.m_Next;
-    DLListNode* end = &list->m_Tail;
+    dmDoubleLinkedList::ListNode* item = list->m_Head.m_Next;
+    dmDoubleLinkedList::ListNode* end = &list->m_Tail;
     while (item != end)
     {
         ResourceInternalDataChunk* chunk = (ResourceInternalDataChunk*)item;
@@ -285,12 +236,12 @@ bool ResourceChunkCacheGet(HResourceChunkCache cache, dmhash_t path_hash, uint32
             out->m_Size = chunk_size;
 
             // Update the LRU by placing the item first in the queue
-            DLList* list = &cache->m_LRU;
+            dmDoubleLinkedList::List* list = &cache->m_LRU;
             if (chunk->m_NoEvict)
                 list = &cache->m_LRUNoEvict;
 
-            ListRemove(list, (DLListNode*)chunk);
-            ListAdd(list, (DLListNode*)chunk);
+            ListRemove(list, (dmDoubleLinkedList::ListNode*)chunk);
+            ListAdd(list, (dmDoubleLinkedList::ListNode*)chunk);
             return true;
         }
     }
@@ -322,10 +273,10 @@ bool ResourceChunkCachePut(HResourceChunkCache cache, uint64_t path_hash, int fl
     cache->m_Chunks.Push(chunk);
     SortChunksOnPathAndOffset(cache);
 
-    DLList* list = &cache->m_LRU;
+    dmDoubleLinkedList::List* list = &cache->m_LRU;
     if (flags & RESOURCE_CHUNK_CACHE_NO_EVICT)
         list = &cache->m_LRUNoEvict;
-    ListAdd(list, (DLListNode*)chunk); // add it first in the LRU
+    ListAdd(list, (dmDoubleLinkedList::ListNode*)chunk); // add it first in the LRU
     return true;
 }
 
@@ -360,10 +311,10 @@ static void RemoveChunks(HResourceChunkCache cache, uint32_t index, uint32_t cou
 
 bool ResourceChunkCacheEvictMemory(HResourceChunkCache cache, uint32_t size)
 {
-    DLList* list = &cache->m_LRU;
+    dmDoubleLinkedList::List* list = &cache->m_LRU;
     while (!ResourceChunkCacheCanFit(cache, size))
     {
-        DLListNode* last = ListGetLast(list);
+        dmDoubleLinkedList::ListNode* last = ListGetLast(list);
         if (!last)
             break;
 
@@ -399,11 +350,11 @@ void ResourceChunkCacheEvictPathHash(HResourceChunkCache cache, uint64_t path_ha
 
         ++count;
 
-        DLList* list = &cache->m_LRU;
+        dmDoubleLinkedList::List* list = &cache->m_LRU;
         if (chunk->m_NoEvict)
             list = &cache->m_LRUNoEvict;
 
-        ListRemove(list, (DLListNode*)chunk);
+        ListRemove(list, (dmDoubleLinkedList::ListNode*)chunk);
         FreeChunk(cache, chunk);
     }
 

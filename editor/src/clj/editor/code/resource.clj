@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,6 +22,7 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [schema.core :as s]
+            [util.eduction :as e]
             [util.text-util :as text-util])
   (:import [editor.code.data Cursor CursorRange]))
 
@@ -46,7 +47,7 @@
 (g/deftype Regions [TRegion])
 (g/deftype RegionGrouping {s/Any [TRegion]})
 
-(def ^:private default-indent-type :tabs)
+(def default-indent-type :tabs)
 
 (defn make-code-error-user-data [^String path line-number]
   (let [cursor-range (some-> line-number data/line-number->CursorRange)]
@@ -150,6 +151,7 @@
     (resource-node/set-source-value! node-id source-value)
     (when disk-sha256
       (g/transact
+        {:undoable false}
         (workspace/set-disk-sha256 (resource/workspace resource) node-id disk-sha256)))))
 
 (defn- eager-load [self lines]
@@ -161,12 +163,17 @@
       :modified-lines lines
       :modified-indent-type indent-type)))
 
-(defn- load-fn [additional-load-fn lazy-loaded connect-breakpoints project self resource lines]
-  (concat
-    (when-not lazy-loaded
-      (eager-load self lines))
+(defn- connect-fn [additional-connect-fn connect-breakpoints project self resource]
+  (e/concat
     (when connect-breakpoints
       (g/connect self :breakpoints project :breakpoints))
+    (when additional-connect-fn
+      (additional-connect-fn project self resource))))
+
+(defn- load-fn [additional-load-fn lazy-loaded project self resource lines]
+  (e/concat
+    (when-not lazy-loaded
+      (eager-load self lines))
     (when additional-load-fn
       (additional-load-fn project self resource))))
 
@@ -186,7 +193,7 @@
   (property modified-lines types/Lines (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         lsp (lsp/get-node-lsp basis self)]
+                         lsp (lsp/get-lsp basis)]
                      (if-some [[resource source-value disk-sha256] (init-disk-state self evaluation-context)]
                        (do
                          (lsp/notify-lines-modified! lsp resource source-value new-value)
@@ -225,16 +232,20 @@
 
 (defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label lazy-loaded additional-load-fn built-pb-class] :as args}]
   (let [connect-breakpoints (contains? tags :debuggable)
-        load-fn (partial load-fn additional-load-fn lazy-loaded connect-breakpoints)
-        args (-> args
-                 (dissoc :additional-load-fn)
-                 (assoc :load-fn load-fn
-                        :read-fn read-fn
-                        :write-fn write-fn
-                        :search-fn search-fn
-                        :search-value-fn search-value-fn
-                        :source-value-fn source-value-fn
-                        :textual? true
-                        :test-info (cond-> {:type :code}
-                                           built-pb-class (assoc :built-pb-class built-pb-class))))]
+        additional-connect-fn (:connect-fn args)
+        resource-connect-fn (when (or additional-connect-fn connect-breakpoints)
+                              (partial connect-fn additional-connect-fn connect-breakpoints))
+        resource-load-fn (partial load-fn additional-load-fn lazy-loaded)
+        args (cond-> (-> args
+                         (dissoc :additional-load-fn :connect-fn)
+                         (assoc :load-fn resource-load-fn
+                                :read-fn read-fn
+                                :write-fn write-fn
+                                :search-fn search-fn
+                                :search-value-fn search-value-fn
+                                :source-value-fn source-value-fn
+                                :textual? true
+                                :test-info (cond-> {:type :code}
+                                             built-pb-class (assoc :built-pb-class built-pb-class))))
+               resource-connect-fn (assoc :connect-fn resource-connect-fn))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

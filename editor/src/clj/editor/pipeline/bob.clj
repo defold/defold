@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,7 +20,6 @@
             [editor.engine.build-errors :as engine-build-errors]
             [editor.engine.native-extensions :as native-extensions]
             [editor.error-reporting :as error-reporting]
-            [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -31,8 +30,9 @@
             [service.log :as log]
             [util.coll :as coll]
             [util.fn :as fn]
-            [util.http-server :as http-server])
-  (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType IProgress TaskResult]
+            [util.http-server :as http-server]
+            [util.path :as path])
+  (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType Progress Progress$Reporter TaskResult]
            [com.dynamo.bob.logging LogHelper]
            [java.io File OutputStream PrintStream PrintWriter]
            [java.nio.charset StandardCharsets]
@@ -41,45 +41,24 @@
 
 (set! *warn-on-reflection* true)
 
-
 (defn ->progress
   ([render-progress!]
    (->progress render-progress! fn/constantly-false))
   ([render-progress! task-cancelled?]
-   (->progress render-progress! task-cancelled? (atom [])))
-  ([render-progress! task-cancelled? msg-stack-atom]
    (assert (ifn? render-progress!))
    (assert (ifn? task-cancelled?))
-   (assert (vector? @msg-stack-atom))
-   (reify IProgress
-     (isCanceled [_this]
-       (task-cancelled?))
-     (setCanceled [_this _canceled])
-     (subProgress [_this _work-claimed-from-this]
-       (->progress render-progress! task-cancelled? msg-stack-atom))
-     (beginTask [_this name _steps]
-       (error-reporting/catch-all!
-         (swap! msg-stack-atom conj name)
-         (render-progress! (progress/make-cancellable-indeterminate name))))
-     (worked [_this _amount]
-       ;; Bob reports misleading progress amounts.
-       ;; We report only "busy" and the name of the task.
-       nil)
-     (done [_this]
-       (error-reporting/catch-all!
-         (let [msg (peek (swap! msg-stack-atom pop))]
-           (render-progress! (if (some? msg)
-                               (progress/make-cancellable-indeterminate msg)
-                               progress/done))))))))
+   (Progress.
+     (reify Progress$Reporter
+       (isCanceled [_]
+         (task-cancelled?))
+       (report [_ message fraction]
+         (error-reporting/catch-all! (render-progress! (progress/bob message fraction true))))
+       (close [_]
+         (error-reporting/catch-all! (render-progress! progress/done)))))))
 
 (defn- project-title [project]
   (let [proj-settings (project/settings project)]
     (get proj-settings ["project" "title"] "Unnamed")))
-
-(defonce ^:private build-in-progress-atom (atom false))
-
-(defn build-in-progress? []
-  @build-in-progress-atom)
 
 (defn- PrintStream-on ^PrintStream [fn]
   (-> fn
@@ -185,7 +164,6 @@
          (ifn? render-progress!)
          (or (nil? log-output-stream) (instance? OutputStream log-output-stream))
          (ifn? task-cancelled?)]}
-  (reset! build-in-progress-atom true)
   (let [;; bob might notify the progress tracker AFTER it's done!
         render-progress! (progress/until-done render-progress!)
         provided-evaluation-context (some? evaluation-context)
@@ -227,7 +205,6 @@
       (catch Exception e
         {:exception e})
       (finally
-        (reset! build-in-progress-atom false)
         (System/setOut prev-out)
         (System/setErr prev-err)
         (LogHelper/setVerboseLogging false)
@@ -252,7 +229,7 @@
   (let [output-path (build-html5-output-path project)
         build-server-url (native-extensions/get-build-server-url prefs project)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")]
-    {"platform" "js-web"
+    {"platform" "wasm-web"
      "architectures" "wasm-web"
      "variant" "debug"
      "archive" true
@@ -280,7 +257,6 @@
                                           (.resolve ^String path-str)
                                           (.normalize))]
                     (if (and (.startsWith resource-path output-path)
-                             (fs/path-exists? resource-path)
-                             (not (fs/path-is-directory? resource-path)))
+                             (path/file? resource-path))
                       (http-server/response 200 resource-path)
                       http-server/not-found)))))}}))

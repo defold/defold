@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,7 +16,7 @@
 #define DMSDK_SHARED_LIBRARY_H
 
 
-/*# SDK Shared library API documentation
+/*# Shared library API documentation
  *
  * Utility functions for shared library export/import
  *

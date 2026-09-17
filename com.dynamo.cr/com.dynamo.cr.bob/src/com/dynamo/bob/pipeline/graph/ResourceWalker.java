@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,7 +22,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.proto.DdfExtensions;
 import com.dynamo.bob.ProtoBuilder;
 
-import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.DescriptorProtos.FieldOptions;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Message;
@@ -63,7 +63,7 @@ public class ResourceWalker {
     }
 
     private static void visitResource(Project project, IResource parentResource, IResource resource, IResourceVisitor visitor) throws CompileExceptionError {
-        if (resource.getPath().equals("") || !visitor.shouldVisit(resource, parentResource)) {
+        if (resource.getPath().isEmpty() || !visitor.shouldVisit(resource, parentResource)) {
             return;
         }
 
@@ -81,7 +81,7 @@ public class ResourceWalker {
             return;
         }
 
-        GeneratedMessageV3.Builder builder = ProtoBuilder.newBuilder(ext);
+        GeneratedMessage.Builder builder = ProtoBuilder.newBuilder(ext);
         try {
             final byte[] content = resource.output().getContent();
             if(content == null) {

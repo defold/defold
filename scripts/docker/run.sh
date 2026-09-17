@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -30,4 +30,8 @@ if [ ! -z "${DM_PACKAGES_URL}" ]; then
     USE_ENV="--env DM_PACKAGES_URL=${DM_PACKAGES_URL}"
 fi
 
-docker run --rm --name ubuntu --hostname=ubuntu -t -i -v ${DIR}:/home/builder ${USE_PATH_MAPPINGS} ${USE_ENV} -v ${SCRIPT_DIR}/bashrc:/home/builder/.bashrc builder/ubuntu
+if [ ! -z "${DM_DOCKER_BUILD_PLATFORM}" ]; then
+    DOCKER_PLATFORM="--platform ${DM_DOCKER_BUILD_PLATFORM}"
+fi
+
+docker run --rm --name ubuntu --hostname=ubuntu -t -i -v ${DIR}:/home/builder ${DOCKER_PLATFORM} ${USE_PATH_MAPPINGS} ${USE_ENV} -v ${SCRIPT_DIR}/bashrc:/home/builder/.bashrc builder/ubuntu

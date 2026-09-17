@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -122,7 +122,7 @@ namespace dmSoundCodec
         };
 
         struct DecodeStreamInfoADPCM : public DecodeStreamInfo {
-            virtual ~DecodeStreamInfoADPCM() {}
+            ~DecodeStreamInfoADPCM() override = default;
 
             dmArray<int16_t> m_OutBuffer;
             dmArray<int8_t> m_InBuffer;
@@ -566,8 +566,6 @@ namespace dmSoundCodec
             streamInfo->m_Cursor += n;
             return RESULT_OK;
         }
-
-        DecodeStreamInfoADPCM *streamInfo = (DecodeStreamInfoADPCM *) stream;
 
         Result res = RESULT_OK;
         *skipped = 0;

@@ -1,4 +1,4 @@
--- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2020-2026 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,11 +21,11 @@ function init(self)
 	go.animate(".", "euler.y", go.PLAYBACK_LOOP_FORWARD, 360, go.EASING_INOUTQUAD, 12)
 
 	-- tint the cube
-	model.set_constant("#cube", "tint", vmath.vector4(1,1,0,1))
+	go.set("#cube", "tint", vmath.vector4(1,1,0,1))
 
 	-- position directional light
 	self.light = vmath.vector4(0, 0, 2, 0)
-	model.set_constant("#cube", "light", self.light)
+	go.set("#cube", "light", self.light)
 
 	self.count = 3
 end

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -46,6 +46,7 @@ import java.awt.image.Raster;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -164,14 +165,14 @@ public class TextureSetGenerator {
 
         @Override
         public String toString() {
-            String s = "LayoutResult:\n";
-            s += String.format("  innerPadding: %d:\n", innerPadding);
-            s += String.format("  extrudeBorders: %d:\n", extrudeBorders);
+            StringBuilder s = new StringBuilder("LayoutResult:\n");
+            s.append(String.format("  innerPadding: %d:\n", innerPadding));
+            s.append(String.format("  extrudeBorders: %d:\n", extrudeBorders));
             for (Layout l : layouts) {
-                s += String.format("%s:\n", l.toString());
+                s.append(String.format("%s:\n", l.toString()));
             }
-            s += "\n";
-            return s;
+            s.append("\n");
+            return s.toString();
         }
     }
 
@@ -239,7 +240,7 @@ public class TextureSetGenerator {
 
         // We must respect the upper limit of the vertex hull count
         if (points == null || points.length > hullVertexCount) {
-            // Generates a CW rect
+            // Generates a CCW rect (vertices go BL -> TL -> TR -> BR)
             points = new ConvexHull2D.PointF[4];
             points[0] = new ConvexHull2D.PointF(-0.5,-0.5);
             points[1] = new ConvexHull2D.PointF(-0.5, 0.5);
@@ -255,10 +256,11 @@ public class TextureSetGenerator {
             geometryBuilder.addUvs(0);
         }
 
+        // CCW winding order (OpenGL front-face default)
         for (int v = 1; v <= points.length-2; ++v) {
             geometryBuilder.addIndices(0);
-            geometryBuilder.addIndices(v);
             geometryBuilder.addIndices(v+1);
+            geometryBuilder.addIndices(v);
         }
 
         return geometryBuilder.build();
@@ -439,8 +441,13 @@ public class TextureSetGenerator {
     /**
      * Generate an atlas for individual images and animations. The basic steps of the algorithm are:
      * Create vertex data for each frame (image) in each animation
+     *
+     * A geometry can have a different pivot or trim mode without needing another atlas slot.
+     * geometryToRectIndex maps each geometry to its shared packed rectangle. A null mapping keeps
+     * the original one-geometry-per-rectangle behaviour.
      */
-    public static TextureSetResult calculateTextureSetResult(LayoutResult layout, List<SpriteGeometry> imageHulls, int useGeometries,
+    public static TextureSetResult calculateTextureSetResult(LayoutResult layout, List<SpriteGeometry> imageHulls,
+                                                             List<Integer> geometryToRectIndex, int useGeometries,
                                                              AnimIterator iterator) {
 
         TimeProfiler.start("calculateTextureSetResult");
@@ -459,15 +466,27 @@ public class TextureSetGenerator {
         // Contract the sizes rectangles (i.e remove the extrudeBorders from them)
         layoutRects = clipBorders(layoutRects, layout.extrudeBorders);
 
-        Pair<TextureSet.Builder, List<UVTransform>> vertexData = buildData(layoutWidth, layoutHeight, layoutRects, iterator);
+        // Texture-set frames use geometry indices, so each geometry needs an entry for its packed rect.
+        List<Rect> geometryRects;
+        if (geometryToRectIndex == null) {
+            geometryRects = layoutRects;
+        } else {
+            geometryRects = new ArrayList<Rect>(geometryToRectIndex.size());
+            for (Integer rectIndex : geometryToRectIndex) {
+                geometryRects.add(layoutRects.get(rectIndex));
+            }
+        }
+
+        Pair<TextureSet.Builder, List<UVTransform>> vertexData = buildData(layoutWidth, layoutHeight, geometryRects, iterator);
 
         vertexData.left.setUseGeometries(useGeometries);
 
         if (imageHulls != null) {
-            for (Rect rect : layoutRects) {
-                SpriteGeometry geometry = imageHulls.get(rect.getIndex());
+            for (int i = 0; i < imageHulls.size(); ++i) {
+                Rect rect = geometryRects.get(i);
+
                 SpriteGeometry.Builder geometryBuilder = TextureSetProto.SpriteGeometry.newBuilder();
-                geometryBuilder.mergeFrom(geometry);
+                geometryBuilder.mergeFrom(imageHulls.get(i));
 
                 TextureSetLayout.Point center = rect.getCenter();
                 geometryBuilder.setCenterX(center.x);
@@ -483,14 +502,14 @@ public class TextureSetGenerator {
     }
 
     // Deprecated
-    public static TextureSetResult calculateLayout(List<Rect> images, List<SpriteGeometry> imageHulls, int useGeometries,
-                                                    AnimIterator iterator, int margin, int innerPadding, int extrudeBorders,
+    public static TextureSetResult calculateLayout(List<Rect> images, List<SpriteGeometry> imageHulls, List<Integer> geometryToRectIndex,
+                                                    int useGeometries, AnimIterator iterator, int margin, int innerPadding, int extrudeBorders,
                                                     boolean rotate, boolean useTileGrid, Grid gridSize, float maxPageSizeW, float maxPageSizeH) throws CompileExceptionError {
 
         LayoutResult layout = calculateLayoutResult(images, margin, innerPadding, extrudeBorders, rotate,
                                                     useTileGrid, gridSize, maxPageSizeW, maxPageSizeH);
 
-        return calculateTextureSetResult(layout, imageHulls, useGeometries, iterator);
+        return calculateTextureSetResult(layout, imageHulls, geometryToRectIndex, useGeometries, iterator);
     }
 
     // Public api
@@ -563,14 +582,37 @@ public class TextureSetGenerator {
      * @param images list of images
      * @param imagePaths corresponding image-id to previous list
      * @param animations list of animations
+     * @param geometryToRectIndex maps each geometry to its packed rectangle, letting pivot and trim
+     *                            variants share one atlas slot. A null mapping keeps the original
+     *                            one-geometry-per-rectangle behaviour.
      * @param margin internal atlas margin
      * @return {@link AtlasMap}
      */
-    public static TextureSetResult generate(List<BufferedImage> images, List<AtlasImage> atlasImages, List<String> paths, AnimIterator iterator,
+    public static TextureSetResult generate(List<BufferedImage> images, List<AtlasImage> atlasImages, List<String> paths,
+            List<Integer> geometryToRectIndex, AnimIterator iterator,
             int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize,
             float maxPageSizeW, float maxPageSizeH) throws CompileExceptionError {
 
-        List<Rect> imageRects = rectanglesFromImages(images, paths);
+        // Pack each shared rectangle once.
+        List<BufferedImage> layoutSourceImages = images;
+        List<String> layoutSourcePaths = paths;
+        if (geometryToRectIndex != null) {
+            int rectCount = 0;
+            for (Integer rectIndex : geometryToRectIndex) {
+                rectCount = Math.max(rectCount, rectIndex + 1);
+            }
+            layoutSourceImages = new ArrayList<BufferedImage>(Collections.nCopies(rectCount, null));
+            layoutSourcePaths = new ArrayList<String>(Collections.nCopies(rectCount, null));
+            for (int i = 0; i < geometryToRectIndex.size(); ++i) {
+                int rectIndex = geometryToRectIndex.get(i);
+                if (layoutSourceImages.get(rectIndex) == null) {
+                    layoutSourceImages.set(rectIndex, images.get(i));
+                    layoutSourcePaths.set(rectIndex, paths.get(i));
+                }
+            }
+        }
+
+        List<Rect> imageRects = rectanglesFromImages(layoutSourceImages, layoutSourcePaths);
 
         // if all sizes are 0, we still need to generate hull (or rect) data
         // since it will still be part of the new code path if there is another atlas with trimming enabled
@@ -592,7 +634,7 @@ public class TextureSetGenerator {
         }
 
         // The layout step will expand the rect, and possibly rotate them
-        TextureSetResult result = calculateLayout(imageRects, imageHulls, useGeometries, iterator,
+        TextureSetResult result = calculateLayout(imageRects, imageHulls, geometryToRectIndex, useGeometries, iterator,
             margin, innerPadding, extrudeBorders, rotate, useTileGrid, gridSize, maxPageSizeW, maxPageSizeH);
 
         for (Layout layout : result.layoutResult.layouts) {
@@ -600,7 +642,7 @@ public class TextureSetGenerator {
             List<Rect> layoutRects           = layout.getRectangles();
 
             for (Rect rect : layoutRects) {
-                BufferedImage image = images.get(rect.getIndex());
+                BufferedImage image = layoutSourceImages.get(rect.getIndex());
 
                 if (innerPadding > 0) {
                     image = TextureUtil.createPaddedImage(image, innerPadding, paddingColour);
@@ -746,12 +788,9 @@ public class TextureSetGenerator {
 
         AnimDesc animDesc = null;
         while ((animDesc = iterator.nextAnim()) != null) {
-            String animId = animDesc.getId();
-
             Rect ref = null;
             Integer index = null;
             int startIndex = quadIndex;
-            int localIndex = 0; // 0 .. num_frames(anim)-1
             while ((index = iterator.nextFrameIndex()) != null) {
 
                 String frameId = iterator.getFrameId(); // either "id" or "anim./id"
@@ -769,7 +808,6 @@ public class TextureSetGenerator {
                 textureSet.addPageIndices(r.getPage());
 
                 ++quadIndex;
-                ++localIndex;
             }
             if (ref == null) {
                 continue;

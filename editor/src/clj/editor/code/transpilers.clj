@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,6 +24,7 @@
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
@@ -32,7 +33,8 @@
             [internal.java :as java]
             [internal.util :as util]
             [service.log :as log]
-            [util.coll :refer [pair pair-map-by]]
+            [util.coll :as coll :refer [pair pair-map-by]]
+            [util.eduction :as e]
             [util.fn :as fn])
   (:import [com.defold.extension.pipeline ILuaTranspiler ILuaTranspiler$Issue ILuaTranspiler$Severity]
            [com.dynamo.bob ClassLoaderScanner]
@@ -70,7 +72,7 @@
           all-source-save-datas)
     dir))
 
-(g/defnk produce-build-output [^ILuaTranspiler instance build-file-save-data source-code-save-datas root lua-preprocessors]
+(g/defnk produce-build-output [^:unsafe _evaluation-context ^ILuaTranspiler instance build-file-save-data source-code-save-datas root lua-preprocessors]
   (g/precluding-errors source-code-save-datas
     (when (and build-file-save-data (pos? (count source-code-save-datas)))
       (let [build-file-node-id (:node-id build-file-save-data)
@@ -104,12 +106,12 @@
                             ;; a build error that points to a lua file that does not exist in the
                             ;; resource tree
                             (let [resource (resource/make-file-resource workspace (str output-dir) file [] fn/constantly-false fn/constantly-false)
-                                  build-targets (script-compilation/build-targets build-file-node-id resource (code.util/split-lines (slurp resource)) lua-preprocessors [] [] proj-path->node-id)]
+                                  build-targets (script-compilation/build-targets build-file-node-id resource (code.util/split-lines (slurp resource)) false lua-preprocessors [] [] proj-path->node-id _evaluation-context)]
                               (pair (resource/proj-path resource) build-targets)))))
                       (fs/file-walker output-dir false))))
           (catch Exception e
             (g/->error build-file-node-id :modified-lines :fatal (:resource build-file-save-data)
-                       (str "Compilation failed: " (ex-message e))))
+                       (localization/message "error.transpiler-compilation-failed" {"error" (ex-message e)})))
           (finally
             (when-not use-project-dir
               (fs/delete-directory! source-dir {:fail :silently}))))))))
@@ -149,22 +151,20 @@
 (g/defnode SourceNode
   (inherits r/CodeEditorResourceNode))
 
-(defn- report-error! [error-message faulty-class-names]
+(defn- report-error! [header-key faulty-class-names localization]
   (ui/run-later
     (dialogs/make-info-dialog
-      {:title "Unable to Load Plugin"
+      localization
+      {:title (localization/message "dialog.lua-transpilers-error.title")
        :size :large
        :icon :icon/triangle-error
        :always-on-top true
-       :header error-message
-       :content (string/join "\n"
-                             (concat
-                               ["The following classes from editor plugins are not compatible with this version of the editor:"
-                                ""]
-                               (mapv dialogs/indent-with-bullet (sort faulty-class-names))
-                               [""
-                                "The project might not build without them."
-                                "Please edit your project dependencies to refer to a suitable version."]))})))
+       :header (localization/message header-key)
+       :content (localization/message "dialog.lua-transpilers-error.content"
+                                      {"classes" (->> faulty-class-names
+                                                      sort
+                                                      (mapv dialogs/indent-with-bullet)
+                                                      (coll/join-to-string "\n"))})})))
 
 (defn- initialize-lua-transpiler-classes [^ClassLoader class-loader]
   (let [{:keys [classes faulty-class-names]}
@@ -184,7 +184,9 @@
                        (pair :faulty-class-names class-name))))))
              (util/group-into {} #{} key val))]
     (when faulty-class-names
-      (throw (ex-info "Failed to initialize Lua transpiler plugins" {:faulty-class-names faulty-class-names})))
+      (throw (ex-info "Failed to initialize Lua transpiler plugins"
+                      {:faulty-class-names faulty-class-names
+                       :localization-key "dialog.lua-transpilers-error.initialize.header"})))
     (or classes #{})))
 
 (defn- create-lua-transpilers [transpiler-classes]
@@ -211,10 +213,12 @@
                             (pair :faulty-class-names class-name)))))))
              (util/group-into {} [] key val))]
     (when faulty-class-names
-      (throw (ex-info "Failed to create Lua transpiler plugins" {:faulty-class-names faulty-class-names})))
+      (throw (ex-info "Failed to create Lua transpiler plugins"
+                      {:faulty-class-names faulty-class-names
+                       :localization-key "dialog.lua-transpilers-error.construct.header"})))
     transpilers))
 
-(defn reload-lua-transpilers! [code-transpilers workspace class-loader]
+(defn reload-lua-transpilers! [code-transpilers workspace class-loader localization]
   (try
     (let [old-transpiler-class->node-id (pair-map-by
                                           #(-> % :instance class)
@@ -226,28 +230,34 @@
         (let [removed (set/difference old-transpiler-classes new-transpiler-classes)
               added (set/difference new-transpiler-classes old-transpiler-classes)]
           (g/transact
-            (for [removed-class removed]
-              (g/delete-node (old-transpiler-class->node-id removed-class)))
-            (for [{:keys [source-ext build-file-proj-path instance]} (create-lua-transpilers added)]
-              (g/make-nodes (g/node-id->graph-id code-transpilers) [transpiler TranspilerNode]
-                (r/register-code-resource-type
-                  workspace
-                  :ext source-ext
-                  :icon "icons/32/Icons_12-Script-type.png"
-                  :icon-class :script
-                  :node-type SourceNode
-                  :view-types [:code :default]
-                  :additional-load-fn (fn [_ self _]
-                                        (g/connect self :save-data transpiler :source-code-save-datas)))
-                (g/set-properties transpiler :build-file-proj-path build-file-proj-path :instance instance)
-                (g/connect code-transpilers :lua-preprocessors transpiler :lua-preprocessors)
-                (g/connect workspace :root transpiler :root)
-                (g/connect transpiler :_node-id code-transpilers :nodes)
-                (g/connect transpiler :transpiler-info code-transpilers :transpiler-infos)
-                (g/connect transpiler :build-output code-transpilers :build-outputs))))))
+            {:undoable false}
+            (e/concat
+              (for [removed-class removed]
+                (g/delete-node (old-transpiler-class->node-id removed-class)))
+              (for [{:keys [source-ext build-file-proj-path instance]} (create-lua-transpilers added)]
+                (g/make-nodes [transpiler TranspilerNode]
+                  (r/register-code-resource-type
+                    workspace
+                    :ext source-ext
+                    :icon "icons/32/Icons_12-Script-type.png"
+                    :icon-class :script
+                    :node-type SourceNode
+                    :view-types [:code :default]
+                    :additional-load-fn (fn [_ self _]
+                                          (g/connect self :save-data transpiler :source-code-save-datas)))
+                  (g/set-properties transpiler :build-file-proj-path build-file-proj-path :instance instance)
+                  (g/connect code-transpilers :lua-preprocessors transpiler :lua-preprocessors)
+                  (g/connect workspace :root transpiler :root)
+                  (g/connect transpiler :_node-id code-transpilers :nodes)
+                  (g/connect transpiler :transpiler-info code-transpilers :transpiler-infos)
+                  (g/connect transpiler :build-output code-transpilers :build-outputs)))))))
       nil)
     (catch Exception e
-      (report-error! (ex-message e) (:faulty-class-names (ex-data e))))))
+      (let [data (ex-data e)]
+        (report-error!
+          (:localization-key data "dialog.lua-transpilers-error.generic.header")
+          (:faulty-class-names data)
+          localization)))))
 
 (defn make-resource-load-tx-data-fn [code-transpilers evaluation-context]
   (if-let [build-file-proj-path->transpiler-node-id (g/tx-cached-node-value! code-transpilers :build-file-proj-path->transpiler-node-id evaluation-context)]

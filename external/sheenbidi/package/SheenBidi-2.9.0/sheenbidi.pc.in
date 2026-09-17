@@ -1,0 +1,10 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+
+Name: SheenBidi
+Description: SheenBidi is a lightweight, fast and stable implementation of the Unicode Bidirectional Algorithm.
+URL: https://github.com/Tehreer/SheenBidi
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -lSheenBidi
+Cflags: -I${includedir}@SHEENBIDI_PKGCONFIG_CFLAGS@

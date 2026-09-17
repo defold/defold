@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,12 +23,14 @@
 
 namespace dmGameSystem
 {
-    static dmPhysics::HCollisionShape2D Create3DShape(dmPhysics::HContext3D context, const dmPhysicsDDF::CollisionShape* collision_shape, uint32_t shape_index)
+    static dmPhysics::HCollisionShape3D Create3DShape(dmPhysics::HContext3D context, const dmPhysicsDDF::CollisionShape* collision_shape,
+                                                       uint32_t shape_index, dmPhysics::CollisionObjectType object_type)
     {
         const dmPhysicsDDF::CollisionShape::Shape* shape = &collision_shape->m_Shapes[shape_index];
 
         const float* data = collision_shape->m_Data.m_Data;
         uint32_t data_count = collision_shape->m_Data.m_Count;
+        uint32_t indices_count = collision_shape->m_Indices.m_Count;
         dmPhysics::HCollisionShape3D ret = 0;
 
         switch (shape->m_ShapeType)
@@ -61,6 +63,34 @@ namespace dmGameSystem
             }
             ret = dmPhysics::NewConvexHullShape3D(context, &collision_shape->m_Data[shape->m_Index], shape->m_Count / 3);
             break;
+
+        case dmPhysicsDDF::CollisionShape::TYPE_MESH:
+        {
+            uint32_t triangle_capacity = indices_count / 3;
+            if (shape->m_Index > data_count || shape->m_Count > data_count - shape->m_Index ||
+                shape->m_Count == 0 || shape->m_Count % 3 != 0 ||
+                shape->m_TriangleIndex > triangle_capacity || shape->m_TriangleCount > triangle_capacity - shape->m_TriangleIndex ||
+                shape->m_TriangleCount == 0)
+            {
+                goto range_error;
+            }
+
+            uint32_t vertex_count = shape->m_Count / 3;
+            uint32_t index_offset = shape->m_TriangleIndex * 3;
+            uint32_t index_count = shape->m_TriangleCount * 3;
+            for (uint32_t i = 0; i < index_count; ++i)
+            {
+                if (collision_shape->m_Indices[index_offset + i] >= vertex_count)
+                {
+                    goto range_error;
+                }
+            }
+            ret = dmPhysics::NewTriangleMeshShape3D(context,
+                                                    &collision_shape->m_Data[shape->m_Index], vertex_count,
+                                                    &collision_shape->m_Indices[index_offset], index_count,
+                                                    object_type);
+        }
+        break;
 
         default:
             // NOTE: We do not create hulls here. Hulls can't currently be created as embedded shapes
@@ -109,11 +139,12 @@ range_error:
             resource_base->m_ShapeRotation = (dmVMath::Quat*)malloc(sizeof(dmVMath::Quat) * embedded_shape_count);
             resource_base->m_ShapeTypes = (dmPhysicsDDF::CollisionShape::Type*)malloc(sizeof(dmPhysicsDDF::CollisionShape::Type) * embedded_shape_count);
 
-            // Create embedded convex shapes
+            // Create embedded shapes
             uint32_t current_shape_count = resource_base->m_ShapeCount;
             for (uint32_t i = 0; i < embedded_shape_count; ++i)
             {
-                dmPhysics::HCollisionObject3D shape = Create3DShape(physics_context->m_Context, embedded_shape, i);
+                dmPhysics::HCollisionShape3D shape = Create3DShape(physics_context->m_Context, embedded_shape, i,
+                    (dmPhysics::CollisionObjectType)resource_base->m_DDF->m_Type);
                 if (shape)
                 {
                     resource->m_Shapes3D[current_shape_count] = shape;
@@ -145,9 +176,14 @@ range_error:
         uint32_t shape_count = resource_base->m_ShapeCount;
         if (shape_count > 0)
         {
+            for (uint32_t i = 0; i < resource_base->m_ShapeCount; ++i)
+            {
+                dmPhysics::DeleteCollisionShape3D(resource->m_Shapes3D[i]);
+            }
             free(resource->m_Shapes3D);
             free(resource_base->m_ShapeTranslation);
             free(resource_base->m_ShapeRotation);
+            free(resource_base->m_ShapeTypes);
         }
         if (resource_base->m_DDF)
             dmDDF::FreeMessage(resource_base->m_DDF);

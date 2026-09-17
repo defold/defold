@@ -1,10 +1,10 @@
 script: "/gui/valid.gui_script"
 fonts {
   name: "test_font"
-  font: "/font/invalid_material.font"
+  font: "/gui/font_invalid_material.font"
 }
 textures {
   name: "test_texture"
-  texture: "/texture/valid_png.png"
+  texture: "/gui/texture_valid_png.png"
 }
 material: "/gui/gui.material"

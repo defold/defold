@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -44,21 +44,21 @@
 (set! *warn-on-reflection* true)
 
 (defn- setup-scratch
-  [ws-graph]
-  (let [workspace (test-util/setup-scratch-workspace! ws-graph test-util/project-path)
+  []
+  (let [workspace (test-util/setup-scratch-workspace! test-util/project-path)
         project (test-util/setup-project! workspace)]
     [workspace project]))
 
 (deftest save-after-delete
   (with-clean-system
-    (let [[_workspace project] (setup-scratch world)
+    (let [[_workspace project] (setup-scratch)
           atlas-id (test-util/resource-node project "/switcher/switcher.atlas")]
       (asset-browser/delete [(g/node-value atlas-id :resource)])
       (is (not (g/error? (project/all-save-data project)))))))
 
 (deftest save-after-external-delete
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           atlas-id (test-util/resource-node project "/switcher/switcher.atlas")
           path (resource/abs-path (g/node-value atlas-id :resource))]
       (fs/delete-file! (File. path))
@@ -67,9 +67,9 @@
 
 (deftest save-after-rename
   (with-clean-system
-    (let [[_workspace project] (setup-scratch world)
+    (let [[_workspace project] (setup-scratch)
           atlas-id (test-util/resource-node project "/switcher/switcher.atlas")]
-      (asset-browser/rename [(g/node-value atlas-id :resource)] "switcher2")
+      (asset-browser/rename [(g/node-value atlas-id :resource)] "switcher2" test-util/localization)
       (is (not (g/error? (project/all-save-data project)))))))
 
 (defn- resource-line-endings
@@ -108,26 +108,26 @@
       (set-autocrlf! git false)
       (clean-checkout! git)
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
               line-endings-before (line-endings-by-resource project)
               {:keys [lf crlf] :or {lf 0 crlf 0}} (frequencies (map second line-endings-before))]
           (is (< 100 lf))
           (is (> 100 crlf))
-          (disk/write-save-data-to-disk! (project/dirty-save-data project) nil nil)
+          (disk/write-save-data-to-disk! (project/dirty-save-data project) nil test-util/localization nil)
           (is (= line-endings-before (line-endings-by-resource project))))))
 
     (testing "autocrlf true"
       (set-autocrlf! git true)
       (clean-checkout! git)
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
               line-endings-before (line-endings-by-resource project)
               {:keys [lf crlf] :or {lf 0 crlf 0}} (frequencies (map second line-endings-before))]
           (is (> 100 lf))
           (is (< 100 crlf))
-          (disk/write-save-data-to-disk! (project/dirty-save-data project) nil nil)
+          (disk/write-save-data-to-disk! (project/dirty-save-data project) nil test-util/localization nil)
           (is (= line-endings-before (line-endings-by-resource project))))))))
 
 (defn- workspace-file
@@ -208,7 +208,7 @@
 
 (deftest async-reload-test
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           external-game-object-text (slurp (workspace/find-resource workspace "/game_object/empty_props.go"))
           external-json-text "{\"item\" : \"Added externally\"}"
           external-lua-text "-- Edited externally"
@@ -312,7 +312,7 @@
 
 (deftest async-save-test
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           external-game-object-text (slurp (workspace/find-resource workspace "/game_object/empty_props.go"))
           internal-edit-text "-- Edited by us"
           external-json-text "{\"item\" : \"Added externally\"}"
@@ -378,13 +378,14 @@
         retained-labels #{:save-data :save-value}]
     (with-clean-system {:cache-size cache-size
                         :cache-retain? project/cache-retain?}
-      (let [workspace (test-util/setup-workspace! world)
+      (let [workspace (test-util/setup-workspace!)
             project (test-util/setup-project! workspace)
+            basis (g/now)
             invalidated-save-data-endpoints-atom (atom #{})
             cacheable-save-data-endpoints (into (sorted-set)
-                                                (comp (map first)
-                                                      (mapcat (partial test-util/cacheable-save-data-endpoints (g/now))))
-                                                (g/sources-of project :save-data))]
+                                                (comp (map gt/source-id)
+                                                      (mapcat (partial test-util/cacheable-save-data-endpoints basis)))
+                                                (g/inputs basis project :save-data))]
         ;; The source-value output will be evicted from the cache for resource
         ;; nodes whose save-data was dirty. This needs to happen, as the
         ;; source-value output should always represent the on-disk state.
@@ -392,7 +393,7 @@
         ;; these endpoints from what we expect to be in the cache after the
         ;; save operation concludes.
         (with-redefs [disk/write-save-data-to-disk!
-                      (fn mock-write-save-data-to-disk! [save-datas invalidate-counters _opts]
+                      (fn mock-write-save-data-to-disk! [save-datas invalidate-counters _localization _opts]
                         (swap! invalidated-save-data-endpoints-atom
                                (fn [invalidated-save-data-endpoints]
                                  (into invalidated-save-data-endpoints
@@ -431,7 +432,7 @@
 (deftest edit-during-save-test
   (with-clean-system {:cache-size 50
                       :cache-retain? project/cache-retain?}
-    (let [workspace (test-util/setup-workspace! world)
+    (let [workspace (test-util/setup-workspace!)
           project (test-util/setup-project! workspace)
           edited-before-save (test-util/resource-node project "/script/props.script")
           edited-during-save (test-util/resource-node project "/script/test_module.lua")
@@ -441,7 +442,7 @@
       ;; progress. The purpose of this is to verify that the edits that were
       ;; made while saving are unsaved after we wrap up the save process.
       (with-redefs [disk/write-save-data-to-disk!
-                    (fn mock-write-save-data-to-disk! [save-datas invalidate-counters _opts]
+                    (fn mock-write-save-data-to-disk! [save-datas invalidate-counters _localization _opts]
                       ;; This function runs on a background thread as part of
                       ;; the save process. Simulate a concurrent edit on the UI
                       ;; thread before proceeding with the background thread.

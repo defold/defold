@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,11 +16,20 @@
   (:require [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [editor.editor-extensions.coerce :as coerce]
-            [editor.lua-completion :as lua-completion]
             [editor.util :as util]
             [util.coll :as coll]
             [util.eduction :as e]
-            [util.fn :as fn]))
+            [util.fn :as fn])
+  (:import [com.defold.editor.localization MessagePattern]))
+
+(def message-pattern-coercer
+  ;; We don't use `localization/message-pattern?` because we can't depend on
+  ;; localization ns from here since this ns is used for generating docs before
+  ;; bob is built, while localization ns transitively depends on bob classes
+  (coerce/wrap-with-pred coerce/userdata #(instance? MessagePattern %) "is not a localization message"))
+
+(def string-or-message-pattern-coercer
+  (coerce/one-of coerce/string message-pattern-coercer))
 
 ;; region make-prop
 
@@ -39,7 +48,7 @@
   (if (= 1 (count types))
     (types 0)
     (str "("
-         (string/join " | " types)
+         (coll/join-to-string " | " types)
          ")")))
 
 (defn- infer-doc-types-from-coercer-schema [schema]
@@ -49,7 +58,7 @@
     :function ["function"]
     :integer ["integer"]
     :number ["number"]
-    :table ["table"]
+    :table ["table<any, any>"]
     :any ["any"]
     :array (when-let [item-types (infer-doc-types-from-coercer-schema (:item schema))]
              [(str (group-doc-types item-types) "[]")])
@@ -102,22 +111,13 @@
 (def ^{:arglists '([keyword])} ->screaming-snake-case
   (fn/memoize #(string/replace (util/upper-case* (name %)) "-" "_")))
 
-(defn- enum-doc-options [enum]
-  {:pre [(contains? enums enum)]}
-  (let [enum-module (->screaming-snake-case enum)]
-    (map #(format "<code>editor.ui.%s.%s</code>" enum-module (->screaming-snake-case %)) (enums enum))))
-
-(defn doc-with-ul-options [doc options]
-  (str doc
-       "; either:\n<ul>"
-       (string/join (map #(format "<li>%s</li>" %) options))
-       "</ul>"))
-
-(defn- enum-prop [name & {:keys [enum doc] :as props}]
-  (apply make-prop name (mapcat identity (cond-> (assoc props :coerce (get-enum-coercer enum)
-                                                              :types ["string"])
-                                                 doc
-                                                 (update :doc doc-with-ul-options (enum-doc-options enum))))))
+(defn- enum-prop [name & {:keys [enum] :as props}]
+  (apply make-prop
+         name
+         (mapcat identity (-> props
+                              (dissoc :enum)
+                              (assoc :coerce (get-enum-coercer enum)
+                                     :types [(str "editor.ui." (->screaming-snake-case enum))])))))
 
 ;; endregion
 
@@ -148,20 +148,12 @@
         padding (coerce/one-of (get-enum-coercer :padding) non-negative-number)]
     (into [(make-prop :padding
                       :coerce padding
-                      :types ["string" "number"]
-                      :doc (doc-with-ul-options
-                             "empty space from the edges of the container to its children"
-                             (concat
-                               (enum-doc-options :padding)
-                               ["non-negative number, pixels"])))
+                      :types ["editor.ui.PADDING" "number"]
+                      :doc "empty space from the edges of the container to its children, either a predefined padding value or a non-negative number of pixels")
            (make-prop :spacing
                       :coerce spacing
-                      :types ["string" "number"]
-                      :doc (doc-with-ul-options
-                             "empty space between child components, defaults to <code>editor.ui.SPACING.MEDIUM</code>"
-                             (concat
-                               (enum-doc-options :spacing)
-                               ["non-negative number, pixels"])))]
+                      :types ["editor.ui.SPACING" "number"]
+                      :doc "empty space between child components, either a predefined spacing value or a non-negative number of pixels; defaults to <code>editor.ui.SPACING.MEDIUM</code>")]
           common-props)))
 
 (def component-coercer (coerce/wrap-with-pred coerce/userdata #(= :component (:type (meta %))) "is not a UI component"))
@@ -172,7 +164,7 @@
 (def ^:private list-props
   (into [(make-prop :children
                     :coerce children-coercer
-                    :types ["component[]"]
+                    :types ["(editor.component|false)[]"]
                     :doc "array of child components")]
         multi-child-layout-container-props))
 
@@ -181,19 +173,18 @@
                                    (coerce/one-of
                                      (coerce/hash-map :opt {:grow coerce/boolean})
                                      absent-coercer))
-        constraint-doc #(format "array of %s option tables, separate configuration for each %s:<dl><dt><code>grow <small>boolean</small></code></dt><dd>determines if the %s should grow to fill available space</dd></dl>"
-                                % % %)]
+        constraint-doc #(format "separate configuration for each %s" %)]
     (into [(make-prop :children
                       :coerce (coerce/vector-of (coerce/one-of children-coercer absent-coercer))
-                      :types ["component[][]"]
+                      :types ["((editor.component|false)[]|false)[]"]
                       :doc "array of arrays of child components")
            (make-prop :rows
                       :coerce grid-constraints-coercer
-                      :types ["table[]"]
+                      :types ["(editor.ui.grid.constraint|false)[]"]
                       :doc (constraint-doc "row"))
            (make-prop :columns
                       :coerce grid-constraints-coercer
-                      :types ["table[]"]
+                      :types ["(editor.ui.grid.constraint|false)[]"]
                       :doc (constraint-doc "column"))]
           multi-child-layout-container-props)))
 
@@ -205,12 +196,19 @@
   (into [(make-prop :content
                     :coerce component-coercer
                     :required true
-                    :types ["component"]
+                    :types ["editor.component"]
                     :doc "content component")]
         read-only-common-props))
 
+(def ^:private tabs-props
+  (into [(make-prop :tabs
+                    :coerce children-coercer
+                    :types ["(editor.component|false)[]"]
+                    :doc "array of <code>editor.ui.tab(...)</code> components")]
+        read-only-common-props))
+
 (def ^:private label-without-color-specific-props
-  [(make-prop :text :coerce coerce/string :doc "the text")
+  [(make-prop :text :types ["string" "editor.message"] :coerce string-or-message-pattern-coercer :doc "the text, either a string or a localization message")
    (enum-prop :text_alignment :enum :text-alignment :doc "text alignment within paragraph bounds")])
 
 (def ^:private label-specific-props
@@ -221,7 +219,7 @@
   [(enum-prop :icon :enum :icon :required true :doc "predefined icon name")])
 
 (def ^:private tooltip-prop
-  (make-prop :tooltip :coerce coerce/string :doc "tooltip message, shown on hover"))
+  (make-prop :tooltip :types ["string" "editor.message"] :coerce string-or-message-pattern-coercer :doc "tooltip message shown on hover; either a string or a localization message"))
 
 (def ^:private label-props
   (-> label-specific-props
@@ -246,6 +244,15 @@
 (def ^:private icon-props
   (into icon-specific-props common-props))
 
+(def positive-number-coercer
+  (coerce/wrap-with-pred coerce/number pos? "is not positive"))
+
+(def ^:private image-props
+  (into [(make-prop :image :coerce coerce/string :required true :doc "either a resource path (starts with <code>/</code>), or an URL")
+         (make-prop :width :coerce positive-number-coercer :doc "width of the image view, the image will be fit inside it while preserving its aspect ratio")
+         (make-prop :height :coerce positive-number-coercer :doc "height of the image view, the image will be fit inside it while preserving its aspect ratio")]
+        common-props))
+
 (def ^:private common-input-props
   (into [(make-prop :enabled
                     :coerce coerce/boolean
@@ -267,23 +274,17 @@
   (into [(make-prop :issue
                     :coerce (coerce/one-of
                               (coerce/hash-map :req {:severity (coerce/enum :error :warning)
-                                                     :message coerce/string})
+                                                     :message string-or-message-pattern-coercer})
                               absent-coercer)
-                    :types ["table"]
-                    :doc (str "issue related to the input; table with the following keys (all required):"
-                              (lua-completion/args-doc-html
-                                [{:name "severity"
-                                  :types ["string"]
-                                  :doc "either <code>editor.ui.ISSUE_SEVERITY.WARNING</code> or <code>editor.ui.ISSUE_SEVERITY.ERROR</code>"}
-                                 {:name "message"
-                                  :types ["string"]
-                                  :doc "issue message, will be shown in a tooltip"}])))
+                    :types ["editor.ui.issue" "false"]
+                    :doc "issue related to the input, or false if there is no issue")
          tooltip-prop]
         common-input-props))
 
 (def ^:private check-box-specific-props
   [(make-prop :value :coerce coerce/boolean :doc "determines if the checkbox should appear checked")
-   (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the new value")])
+   (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the new value")
+   (make-prop :indeterminate :coerce coerce/boolean :doc "determines if the checkbox should appear in the mixed state")])
 
 (def ^:private check-box-props
   (into [] cat [check-box-specific-props label-without-color-specific-props input-with-issue-props]))
@@ -292,7 +293,7 @@
   [(make-prop :value :coerce coerce/untouched :doc "selected value")
    (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the selected value")
    (make-prop :options :coerce (coerce/vector-of coerce/untouched) :doc "array of selectable options")
-   (make-prop :to_string :coerce coerce/function :doc "function that converts an item to a string, defaults to <code>tostring</code>")])
+   (make-prop :to_string :coerce coerce/function :doc "function that converts an item to a string (or a localization message); defaults to <code>tostring</code>")])
 
 (def ^:private select-box-props
   (into select-box-specific-props input-with-issue-props))
@@ -310,9 +311,9 @@
 
 (def ^:private convertible-value-field-specific-props
   (into [(make-prop :to_value :coerce coerce/function :required true
-                    :doc "covert string to value, should return converted value or <code>nil</code> if not convertible")
+                    :doc "convert the string to a value; should return the converted value or <code>nil</code> if not convertible")
          (make-prop :to_string :coerce coerce/function :required true
-                    :doc "covert value to string, should always return string")]
+                    :doc "convert the value to a string (or a localization message)")]
         value-field-specific-props))
 
 (def ^:private generic-value-field-props
@@ -323,9 +324,10 @@
 
 (def ^:private dialog-button-props
   [(make-prop :text
-              :coerce coerce/string
+              :coerce string-or-message-pattern-coercer
               :required true
-              :doc "button text")
+              :types ["string" "editor.message"]
+              :doc "button text, either a string or a localization message")
    (make-prop :result
               :coerce coerce/untouched
               :doc "value returned by <code>editor.ui.show_dialog(...)</code> if this button is pressed")
@@ -339,41 +341,65 @@
               :coerce coerce/boolean
               :doc "determines if the button can be interacted with")])
 
+(def ^:private tab-props
+  [(make-prop :text
+              :coerce string-or-message-pattern-coercer
+              :required true
+              :types ["string" "editor.message"]
+              :doc "tab header text, either a string or a localization message")
+   (make-prop :content
+              :coerce child-coercer
+              :types ["editor.component"]
+              :doc "tab content component")
+   (make-prop :icon
+              :coerce child-coercer
+              :types ["editor.component"]
+              :doc "tab header icon component")
+   (make-prop :enabled
+              :coerce coerce/boolean
+              :doc "determines if the tab can be selected")])
+
 (def ^:private dialog-props
   [(make-prop :title
-              :coerce coerce/string
+              :coerce string-or-message-pattern-coercer
               :required true
-              :doc "OS dialog window title")
+              :types ["string" "editor.message"]
+              :doc "OS dialog window title, either a string or a localization message")
    (make-prop :header
               :coerce child-coercer
-              :types ["component"]
+              :types ["editor.component" "false"]
               :doc "top part of the dialog, defaults to <code>editor.ui.heading({text = props.title})</code>")
    (make-prop :content
               :coerce child-coercer
-              :types ["component"]
+              :types ["editor.component" "false"]
               :doc "content of the dialog")
+   (make-prop :width
+              :coerce positive-number-coercer
+              :doc "initial width of the dialog window in pixels")
+   (make-prop :height
+              :coerce positive-number-coercer
+              :doc "initial height of the dialog window in pixels")
+   (make-prop :resizable
+              :coerce coerce/boolean
+              :doc "determines if the dialog window can be resized by the user")
    (make-prop :buttons
               :coerce children-coercer
-              :types ["component[]"]
-              :doc "array of <code>editor.ui.dialog_button(...)</code> components, footer of the dialog. Defaults to a single Close button")])
+              :types ["(editor.component|false)[]"]
+              :doc "array of <code>editor.ui.dialog_button(...)</code> components, footer of the dialog. Defaults to a single Close button")
+   (make-prop :modal
+              :coerce coerce/boolean
+              :doc "if set to <code>false</code>, the dialog window stays on top but does not block interaction with the editor")])
 
 (def ^:private external-file-dialog-title-doc
-  "OS window title")
+  "OS window title, either a string or a localization message")
 
 (def ^:private external-file-dialog-filters-doc
-  (str "File filters, an array of filter tables, where each filter has following keys:"
-       (lua-completion/args-doc-html
-         [{:name "description"
-           :types ["string"]
-           :doc "string explaining the filter, e.g. <code>\"Text files (*.txt)\"</code>"}
-          {:name "extensions"
-           :types ["string[]"]
-           :doc "array of file extension patterns, e.g. <code>\"*.txt\"</code>, <code>\"*.*\"</code> or <code>\"game.project\"</code>"}])))
+  "File filters")
 
 (def external-file-dialog-filters-coercer
   (coerce/vector-of
     (coerce/hash-map
-      :req {:description coerce/string
+      :req {:description string-or-message-pattern-coercer
             :extensions (coerce/vector-of
                           coerce/string
                           :min-count 1
@@ -383,16 +409,24 @@
 (def ^:private external-file-field-props
   (into [(make-prop :value :coerce coerce/string :doc "file or directory path; resolved against project root if relative")
          (make-prop :on_value_changed :coerce coerce/function :doc "value change callback, will receive the absolute path of a selected file/folder or nil if the field was cleared; even though the selector dialog allows selecting only files, it's possible to receive directories and non-existent file system entries using text field input")
-         (make-prop :title :coerce coerce/string :doc external-file-dialog-title-doc)
-         (make-prop :filters :coerce external-file-dialog-filters-coercer :doc external-file-dialog-filters-doc)]
+         (make-prop :title :types ["string" "editor.message"] :coerce string-or-message-pattern-coercer :doc external-file-dialog-title-doc)
+         (make-prop :filters
+                    :coerce external-file-dialog-filters-coercer
+                    :types ["editor.ui.external_file_filter[]"]
+                    :doc external-file-dialog-filters-doc)]
         input-with-issue-props))
 ;; endregion
 
 ;; region component definitions
 
-(defn props-doc-html [props]
-  (lua-completion/args-doc-html
-    (map #(update % :name name) props)))
+(defn props->struct-members [props]
+  (into []
+        (map (fn [{prop-name :name
+                   :keys [doc required types]}]
+               {:name (str (name prop-name) (when-not required "?"))
+                :types types
+                :doc doc}))
+        props))
 
 (s/def :editor.editor-extensions.ui-docs.component/name string?)
 (s/def ::props (s/coll-of ::prop))
@@ -445,6 +479,12 @@
     :description "Layout container that optionally shows scroll bars if child contents overflow the assigned bounds"
     :props scroll-props))
 
+(def tabs-component
+  (component
+    "tabs"
+    :description "Layout container that shows one selected tab content at a time"
+    :props tabs-props))
+
 (def label-component
   (component
     "label"
@@ -468,6 +508,12 @@
     "icon"
     :description "An icon from a predefined set"
     :props icon-props))
+
+(def image-component
+  (component
+    "image"
+    :description "An image"
+    :props image-props))
 
 (def button-component
   (component
@@ -523,6 +569,12 @@
     :props dialog-button-props
     :description "Dialog button shown in the footer of a dialog"))
 
+(def tab-component
+  (component
+    "tab"
+    :props tab-props
+    :description "Tab used in the <code>tabs</code> prop of <code>editor.ui.tabs(...)</code>"))
+
 (def dialog-component
   (component
     "dialog"
@@ -533,29 +585,94 @@
 
 ;; region docs
 
-(defn- component->script-doc [{:keys [name props description]}]
-  (let [[req opt] (coll/separate-by :required props)]
-    {:name name
-     :type :function
-     :description description
-     :parameters [{:name "props"
-                   :types ["table"]
-                   :doc (str (when-not (coll/empty? req)
-                               (str "Required props:\n"
-                                    (props-doc-html req)
-                                    "\n\n"))
-                             "Optional props:\n"
-                             (props-doc-html opt))}]
-     :returnvalues [{:name "value"
-                     :types ["component"]
-                     :doc "UI component"}]}))
+(def ^:private resource-dialog-extensions-doc-string
+  "if specified, restricts selectable resources in the dialog to specified file extensions; e.g. <code>{\"collection\", \"go\"}</code>")
+
+(def ^:private resource-dialog-title-doc-string
+  "dialog title, either a string or a localization message, defaults to <code>localization.message(\"dialog.select-resource.title\")</code>")
+
+(def ^:private struct-docs
+  [{:name "issue"
+    :type :struct
+    :description "Issue associated with an input component"
+    :members [{:name "severity"
+               :types ["editor.ui.ISSUE_SEVERITY"]
+               :doc "issue severity"}
+              {:name "message"
+               :types ["string" "editor.message"]
+               :doc "issue message shown in a tooltip, either a string or a localization message"}]}
+   {:name "external_file_filter"
+    :type :struct
+    :description "External file dialog filter"
+    :members [{:name "description"
+               :types ["string" "editor.message"]
+               :doc "text explaining the filter, either a literal string like <code>\"Text files (*.txt)\"</code> or a localization message"}
+              {:name "extensions"
+               :types ["string[]"]
+               :doc "file extension patterns, e.g. <code>\"*.txt\"</code>, <code>\"*.*\"</code>, or <code>\"game.project\"</code>"}]}
+   {:name "grid.constraint"
+    :type :struct
+    :description "Grid row or column constraint"
+    :members [{:name "grow?"
+               :types ["boolean"]
+               :doc "whether the row or column should grow to fill available space"}]}
+   {:name "show_external_file_dialog.options"
+    :type :struct
+    :description "Options for editor.ui.show_external_file_dialog"
+    :members [{:name "path?"
+               :types ["string"]
+               :doc "initial file or directory path; resolved against project root if relative"}
+              {:name "title?"
+               :types ["string" "editor.message"]
+               :doc external-file-dialog-title-doc}
+              {:name "filters?"
+               :types ["editor.ui.external_file_filter[]"]
+               :doc external-file-dialog-filters-doc}]}
+   {:name "show_external_directory_dialog.options"
+    :type :struct
+    :description "Options for editor.ui.show_external_directory_dialog"
+    :members [{:name "path?"
+               :types ["string"]
+               :doc "initial file or directory path; resolved against project root if relative"}
+              {:name "title?"
+               :types ["string" "editor.message"]
+               :doc external-file-dialog-title-doc}]}
+   {:name "show_resource_dialog.options"
+    :type :struct
+    :description "Options for editor.ui.show_resource_dialog"
+    :members [{:name "extensions?"
+               :types ["string[]"]
+               :doc resource-dialog-extensions-doc-string}
+              {:name "selection?"
+               :types ["\"single\"" "\"multiple\""]
+               :doc "selection mode, defaults to <code>\"single\"</code>"}
+              {:name "title?"
+               :types ["string" "editor.message"]
+               :doc resource-dialog-title-doc-string}]}])
+
+(defn- component->script-docs [{:keys [name props description]}]
+  (let [props-name (str name ".props")
+        props-type (str "editor.ui." props-name)]
+    [{:name props-name
+      :type :struct
+      :description (str "Properties for editor.ui." name)
+      :members (props->struct-members props)}
+     {:name name
+      :type :function
+      :description description
+      :parameters [{:name "props"
+                    :types [props-type]
+                    :doc "component properties"}]
+      :returnvalues [{:name "value"
+                      :types ["editor.component"]
+                      :doc "UI component"}]}]))
 
 (def show-dialog-doc
   {:name "show_dialog"
    :type :function
-   :description "Show a modal dialog and await a result"
+   :description "Show a dialog and await a result"
    :parameters [{:name "dialog"
-                 :types ["component"]
+                 :types ["editor.component"]
                  :doc "a component that resolves to <code>editor.ui.dialog(...)</code>"}]
    :returnvalues [{:name "value"
                    :types ["any"]
@@ -564,31 +681,21 @@
 (def function-component-doc
   {:name "component"
    :type :function
-   :description (str "Convert a function to a UI component.\n\nThe wrapped function may call any hooks functions (`editor.ui.use_*`), but on any function invocation, the hooks calls must be the same, and in the same order. This means that hooks should not be used inside loops and conditions or after a conditional return statement.\n\nThe following props are supported automatically:"
-                     (props-doc-html read-only-common-props))
+   :description "Convert a function to a UI component.\n\nThe wrapped function may call any hooks functions (`editor.ui.use_*`), but on any function invocation, the hooks calls must be the same, and in the same order. This means that hooks should not be used inside loops and conditions or after a conditional return statement.\n\nThe `grow`, `row_span`, and `column_span` props are supported automatically."
    :parameters [{:name "fn"
-                 :types ["function"]
+                 :types ["fun(props:T):editor.component"]
                  :doc "function, will receive a single table of props when called"}]
    :returnvalues [{:name "value"
-                   :types ["function"]
-                   :doc "decorated component function that may be invoked with a props table create component"}]})
+                   :types ["fun(props:T):editor.component"]
+                   :doc "decorated component function that may be invoked with a props table to create a component"}]})
 
 (def show-external-file-dialog-doc
   {:name "show_external_file_dialog"
    :type :function
    :description "Show a modal OS file selection dialog and await a result"
    :parameters [{:name "[opts]"
-                 :types ["table"]
-                 :doc (lua-completion/args-doc-html
-                        [{:name "path"
-                          :types ["string"]
-                          :doc "initial file or directory path used by the dialog; resolved against project root if relative"}
-                         {:name "title"
-                          :types ["string"]
-                          :doc external-file-dialog-title-doc}
-                         {:name "filters"
-                          :types ["table[]"]
-                          :doc external-file-dialog-filters-doc}])}]
+                 :types ["editor.ui.show_external_file_dialog.options"]
+                 :doc "dialog options"}]
    :returnvalues [{:name "value"
                    :types ["string" "nil"]
                    :doc "either absolute file path or nil if user canceled file selection"}]})
@@ -598,40 +705,19 @@
    :type :function
    :description "Show a modal OS directory selection dialog and await a result"
    :parameters [{:name "[opts]"
-                 :types ["table"]
-                 :doc (lua-completion/args-doc-html
-                        [{:name "path"
-                          :types ["string"]
-                          :doc "initial file or directory path used by the dialog; resolved against project root if relative"}
-                         {:name "title"
-                          :types ["string"]
-                          :doc external-file-dialog-title-doc}])}]
+                 :types ["editor.ui.show_external_directory_dialog.options"]
+                 :doc "dialog options"}]
    :returnvalues [{:name "value"
                    :types ["string" "nil"]
                    :doc "either absolute directory path or nil if user canceled directory selection"}]})
-
-(def ^:private resource-dialog-extensions-doc-string
-  "if specified, restricts selectable resources in the dialog to specified file extensions; e.g. <code>{\"collection\", \"go\"}</code>")
-
-(def ^:private resource-dialog-title-doc-string
-  "dialog title, defaults to <code>\"Select Resource\"</code>")
 
 (def show-resource-dialog-doc
   {:name "show_resource_dialog"
    :type :function
    :description "Show a modal resource selection dialog and await a result"
    :parameters [{:name "[opts]"
-                 :types ["table"]
-                 :doc (lua-completion/args-doc-html
-                        [{:name "extensions"
-                          :types ["string[]"]
-                          :doc resource-dialog-extensions-doc-string}
-                         {:name "selection"
-                          :types ["string"]
-                          :doc "either <code>\"single\"</code> or <code>\"multiple\"</code>, defaults to <code>\"single\"</code>"}
-                         {:name "title"
-                          :types ["string"]
-                          :doc resource-dialog-title-doc-string}])}]
+                 :types ["editor.ui.show_resource_dialog.options"]
+                 :doc "dialog options"}]
    :returnvalues [{:name "value"
                    :types ["string" "string[]" "nil"]
                    :doc "if user made no selection, returns <code>nil</code>. Otherwise, if selection mode is <code>\"single\"</code>, returns selected resource path; otherwise returns a non-empty array of selected resource paths."}]})
@@ -644,18 +730,14 @@
                  :types ["any" "function"]
                  :doc "local state initializer, either initial data structure or function that produces the data structure"}
                 {:name "[...]"
-                 :types ["...any"]
+                 :types ["any"]
                  :doc "used when <code>init</code> is a function, the args are passed to the initializer function"}]
    :returnvalues [{:name "state"
                    :types ["any"]
                    :doc "current local state, starts with initial state, then may be changed using the returned <code>set_state</code> function"}
                   {:name "set_state"
                    :types ["function"]
-                   :doc "function that changes the local state and causes the component to refresh. The function may be used in 2 ways:
-                        <ul>
-                          <li>to set the state to some other data structure: pass the data structure as a value</li>
-                          <li>to replace the state using updater function: pass a function to <code>set_state</code> — it will be invoked with the current state, as well as with the rest of the arguments passed to <code>set_state</code> after the updater function. The state will be set to the value returned from the updater function</lia>
-                        </ul>"}]
+                   :doc "function that changes the local state and causes the component to refresh. Pass a value to set the new state directly, or pass an updater function that receives the current state and any additional arguments; the updater's return value becomes the new state."}]
    :examples "<pre><code>local function increment(n)
   return n + 1
 end
@@ -678,10 +760,10 @@ end)</code></pre>"})
                  :types ["function"]
                  :doc "function that will be used to compute the cached value"}
                 {:name "[...]"
-                 :types ["...any"]
+                 :types ["any"]
                  :doc "args to the computation function"}]
    :returnvalues [{:name "values"
-                   :types ["...any"]
+                   :types ["any"]
                    :doc "all returned values of the compute function"}]
    :examples "<pre><code>local function increment(n)
     return n + 1
@@ -702,38 +784,41 @@ local counter_button = editor.ui.component(function(props)
     }
 end)</code></pre>"})
 
-(def ^:private external-file-field-doc
-  (component->script-doc
-    {:name "external_file_field"
-     :description "Input component for selecting files from the file system"
-     :props external-file-field-props}))
+(def ^:private external-file-field-component
+  (component
+    "external_file_field"
+    :description "Input component for selecting files from the file system"
+    :props external-file-field-props))
 
-(def ^:private resource-field-doc
-  (component->script-doc
-    {:name "resource_field"
-     :description "Input component for selecting project resources"
-     :props (into [(make-prop :value :coerce coerce/string :doc "resource path (must start with <code>/</code>)")
-                   (make-prop :on_value_changed :coerce coerce/function :doc "value change callback, will receive either resource path of a selected resource or nil when the field is cleared; even though the resource selector dialog allows filtering on resource extensions, it's possible to receive resources with other extensions and non-existent resources using text field input")
-                   (make-prop :title :coerce coerce/string :doc resource-dialog-title-doc-string)
-                   (make-prop :extensions :coerce (coerce/vector-of coerce/string :min-count 1) :doc resource-dialog-extensions-doc-string)]
-                  input-with-issue-props)}))
+(def ^:private resource-field-component
+  (component
+    "resource_field"
+    :description "Input component for selecting project resources"
+    :props (into [(make-prop :value :coerce coerce/string :doc "resource path (must start with <code>/</code>)")
+                  (make-prop :on_value_changed :coerce coerce/function :doc "value change callback, will receive either resource path of a selected resource or nil when the field is cleared; even though the resource selector dialog allows filtering on resource extensions, it's possible to receive resources with other extensions and non-existent resources using text field input")
+                  (make-prop :title :types ["string" "editor.message"] :coerce string-or-message-pattern-coercer :doc resource-dialog-title-doc-string)
+                  (make-prop :extensions :coerce (coerce/vector-of coerce/string :min-count 1) :doc resource-dialog-extensions-doc-string)]
+                 input-with-issue-props)))
 
 (defn script-docs
   "Returns a vector with all ui-related script doc maps"
   []
   (let [add-ns-prefix #(str "editor.ui." %)]
     (->> (e/concat
-           (e/map
-             component->script-doc
+           struct-docs
+           (e/mapcat
+             component->script-docs
              [horizontal-component
               vertical-component
               grid-component
               separator-component
               scroll-component
+              tabs-component
               label-component
               paragraph-component
               heading-component
               icon-component
+              image-component
               button-component
               check-box-component
               select-box-component
@@ -745,11 +830,12 @@ end)</code></pre>"})
               integer-field-component
               number-field-component
               dialog-button-component
-              dialog-component])
+              tab-component
+              dialog-component
+              external-file-field-component
+              resource-field-component])
            [show-dialog-doc
             function-component-doc
-            external-file-field-doc
-            resource-field-doc
             show-external-file-dialog-doc
             show-external-directory-dialog-doc
             show-resource-dialog-doc

@@ -1,0 +1,5 @@
+[project]
+title = Invalid Content
+
+[bootstrap]
+main_collection = /main/main.collectionc

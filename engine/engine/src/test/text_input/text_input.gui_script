@@ -1,0 +1,10 @@
+local EXPECTED_TEXT = "A"
+
+function on_input(self, action_id, action)
+    if action_id == hash("text") then
+        assert(action.text == EXPECTED_TEXT)
+        assert(action.value == nil)
+        assert(action.pressed == nil)
+        msg.post("/text_input#script", "gui_text_ok")
+    end
+end

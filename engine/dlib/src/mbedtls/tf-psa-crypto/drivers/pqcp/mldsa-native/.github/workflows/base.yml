@@ -1,0 +1,285 @@
+# Copyright (c) The mlkem-native project authors
+# Copyright (c) The mldsa-native project authors
+# SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT
+
+name: Base
+permissions:
+  contents: read
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    strategy:
+      fail-fast: false
+      matrix:
+        system: [ubuntu-latest, ubuntu-24.04-arm]
+    name: Linting
+    runs-on: ${{ matrix.system }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: ./.github/actions/lint
+        with:
+          nix-shell: ci-linter
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          cross-prefix: "aarch64-unknown-linux-gnu-"
+  quickcheck:
+    strategy:
+      fail-fast: false
+      matrix:
+        external:
+         - ${{ github.repository_owner != 'pq-code-package' }}
+        target:
+         - runner: ubuntu-24.04-arm
+           name: 'aarch64'
+         - runner: ubuntu-latest
+           name: 'x86_64'
+         - runner: macos-latest
+           name: 'macos (aarch64)'
+         - runner: macos-15-intel
+           name: 'macos (x86_64)'
+        exclude:
+          - {external: true,
+             target: {
+               runner: ubuntu-24.04-arm,
+               name: 'aarch64'
+             }}
+    name: Quickcheck (${{ matrix.target.name }})
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: make quickcheck
+        run: |
+          OPT=0 make quickcheck
+          make clean >/dev/null
+          OPT=1 make quickcheck
+      - uses: ./.github/actions/setup-os
+      - name: tests func
+        run: |
+          ./scripts/tests func --check-namespace
+  quickcheck-acvp:
+    strategy:
+      fail-fast: false
+      matrix:
+        external:
+         - ${{ github.repository_owner != 'pq-code-package' }}
+        target:
+         - runner: ubuntu-24.04-arm
+           name: 'aarch64'
+         - runner: ubuntu-latest
+           name: 'x86_64'
+        acvp-version: [v1.1.0.39, v1.1.0.40, v1.1.0.41]
+        exclude:
+          - {external: true,
+             target: {
+               runner: ubuntu-24.04-arm,
+               name: 'aarch64'
+             }}
+    name: Quickcheck ACVP (${{ matrix.target.name }}, ${{ matrix.acvp-version }})
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Run ACVP test
+        run: |
+          ./scripts/tests acvp --version ${{ matrix.acvp-version }}
+  quickcheck_bench:
+    strategy:
+      fail-fast: false
+      matrix:
+        external:
+         - ${{ github.repository_owner != 'pq-code-package' }}
+        target:
+         - runner: ubuntu-24.04-arm
+           name: 'aarch64'
+         - runner: ubuntu-24.04-arm
+           name: 'aarch64'
+         - runner: ubuntu-latest
+           name: 'x86_64'
+         - runner: macos-latest
+           name: 'macos (aarch64)'
+         - runner: macos-15-intel
+           name: 'macos (x86_64)'
+        exclude:
+          - {external: true,
+             target: {
+               runner: ubuntu-24.04-arm,
+               name: 'aarch64'
+             }}
+    name: Quickcheck bench (${{ matrix.target.name }})
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: "tests bench (cycles: NO)"
+        run: |
+          ./scripts/tests bench -c NO
+      - name: "tests bench (build only, cycles: PMU)"
+        if: ${{ matrix.target.name != 'macos (aarch64)' && matrix.target.name != 'macos (x86_64)' }}
+        run: |
+          make clean
+          ./scripts/tests bench -c PMU --no-run
+      - name: "tests bench (build only, cycles: PERF)"
+        if: ${{ matrix.target.name != 'macos (aarch64)' && matrix.target.name != 'macos (x86_64)' }}
+        run: |
+          make clean
+          ./scripts/tests bench -c PERF --no-run
+      - name: "tests bench (build only, cycles: MAC)"
+        if: ${{ matrix.target.name == 'macos (aarch64)' || matrix.target.name == 'macos (x86_64)' }}
+        run: |
+          make clean
+          ./scripts/tests bench -c MAC --no-run
+      - name: tests bench components
+        run: |
+          make clean
+          ./scripts/tests bench --components -c NO
+  quickcheck-c90:
+    strategy:
+      fail-fast: false
+      matrix:
+        external:
+         - ${{ github.repository_owner != 'pq-code-package' }}
+        target:
+         - runner: ubuntu-24.04-arm
+           name: 'aarch64'
+         - runner: ubuntu-latest
+           name: 'x86_64'
+        exclude:
+          - {external: true,
+             target: {
+               runner: ubuntu-24.04-arm,
+               name: 'aarch64'
+             }}
+    name: Quickcheck C90 (${{ matrix.target.name }})
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: make quickcheck
+        run: |
+          OPT=0 CFLAGS=-std=c90 make quickcheck
+          make clean >/dev/null
+          OPT=1 CFLAGS=-std=c90 make quickcheck
+      - uses: ./.github/actions/setup-apt
+      - name: tests func
+        run: |
+          ./scripts/tests func --cflags="-std=c90" --check-namespace
+      - name: tests bench
+        run: |
+          ./scripts/tests bench -c NO --cflags="-std=c90"
+      - name: tests bench components
+        run: |
+          ./scripts/tests bench --components -c NO --cflags="-std=c90"
+  quickcheck-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        system: [windows-2025, windows-2022]
+    name: Quickcheck ${{ matrix.system }}
+    runs-on: ${{ matrix.system }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+      - name: Build test
+        shell: powershell
+        run: |
+          # print compiler version
+          cl
+          nmake /f ./Makefile.Microsoft_nmake quickcheck
+  quickcheck-windows-mingw-w64:
+    strategy:
+      fail-fast: false
+      matrix:
+        # TODO: re-enable 5.4.0 or other old version
+        mingw-version: [11.2.0, 12.2.0, 13.2.0, 14.2.0, 15.2.0]
+    name: Quickcheck (Mingw-w64 ${{ matrix.mingw-version }})
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Install MinGW-w64
+        run: choco install mingw --version=${{ matrix.mingw-version }} -y
+        shell: cmd
+      - name: make quickcheck
+        shell: bash
+        run: |
+          CC=gcc OPT=0 make quickcheck
+          CC=gcc make clean >/dev/null
+          CC=gcc OPT=1 make quickcheck
+  quickcheck-lib:
+    name: Quickcheck lib
+    strategy:
+      matrix:
+        system: [macos-latest, macos-15-intel, ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.system }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: make lib
+        run: |
+          make lib
+  simpasm:
+    strategy:
+      fail-fast: false
+      matrix: 
+        backend:
+           - arg: '--aarch64-clean'
+             name: Clean
+           - arg: ''
+             name: Optimized
+        simplify:
+           - arg: ''
+             name: Simplified
+           - arg: '--no-simplify'
+             name: Unmodified
+    runs-on: ubuntu-24.04-arm
+    name: AArch64 dev backend (${{ matrix.simplify.name }})
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Reinstate and test backend
+        uses: ./.github/actions/setup-shell
+        with:
+          nix-shell: 'ci'
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            ./scripts/autogen ${{ matrix.simplify.arg }}
+            make clean
+            OPT=1 make quickcheck
+  x86_64_intel_syntax:
+    name: x86_64 Intel syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Generate with Intel syntax and test
+        uses: ./.github/actions/setup-shell
+        with:
+          nix-shell: 'ci'
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            ./scripts/autogen --x86-64-syntax intel
+            make clean
+            ./scripts/tests all
+  scan-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        external:
+         - ${{ github.repository_owner != 'pq-code-package' }}
+        target:
+         - runner: ubuntu-24.04-arm
+           name: 'aarch64'
+         - runner: ubuntu-latest
+           name: 'x86_64'
+    name: scan-build (${{ matrix.target.name }})
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: ./.github/actions/setup-apt
+        with:
+          packages: clang-tools clang
+      - name: make quickcheck
+        run: |
+          scan-build --status-bugs make quickcheck OPT=0
+          make clean >/dev/null
+          scan-build --status-bugs make quickcheck OPT=1
+  symlink-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+    - uses: donatj/symlink-check-action@b3c737d0fd4e52752f0b8c71a03f3f775fa015cb

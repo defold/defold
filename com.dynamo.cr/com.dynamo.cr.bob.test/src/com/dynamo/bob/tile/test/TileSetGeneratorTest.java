@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@ package com.dynamo.bob.tile.test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 
 import java.awt.Color;
@@ -179,7 +180,7 @@ public class TileSetGeneratorTest {
         assertEquals(3, iterator.nextFrameIndex().intValue());
         assertEquals(0, iterator.nextFrameIndex().intValue());
         assertEquals(1, iterator.nextFrameIndex().intValue());
-        assertEquals(null, iterator.nextFrameIndex());
+        assertNull(iterator.nextFrameIndex());
     }
 
     private static BufferedImage newImage(int w, int h) {
@@ -208,7 +209,7 @@ public class TileSetGeneratorTest {
         // bottom right, bottom left, top left, top right
         List<Float> expectedVertices = Arrays.asList(0.5f, -0.5f, -0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f);
         List<Float> expectedUVs = Arrays.asList(maxU, minV, minU, minV, minU, maxV, maxU, maxV);
-        List<Integer> expectedIndices = Arrays.asList(0, 1, 2, 0, 2, 3);
+        List<Integer> expectedIndices = Arrays.asList(0, 2, 1, 0, 3, 2);
 
         assertThat(geometry.getVerticesList(), is(expectedVertices));
         assertThat(geometry.getUvsList(), is(expectedUVs));

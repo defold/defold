@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <stdlib.h>
 #include <string.h>
 
 #include <dlib/dlib.h>
@@ -23,12 +24,13 @@
 #include <dlib/message.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
-#include <dlib/trig_lookup.h>
+#include <dmsdk/dlib/trig_lookup.h>
 #include <dmsdk/dlib/vmath.h>
+#include <font/text_layout.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
 #include <render/display_profiles.h>
-#include <render/font_renderer.h>
+#include <render/font/font_renderer.h>
 #include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h> // dmGameObjectDDF enable/disable
 #include <gamesys/atlas_ddf.h>
@@ -61,6 +63,12 @@ namespace dmGameSystem
 {
     using namespace dmVMath;
 
+    static const dmhash_t TAG_LINK          = dmHashString64("link");
+    static const dmhash_t STYLE_LINK_HOVER  = dmHashString64("link:hover");
+    static const dmhash_t STYLE_LINK_ACTIVE = dmHashString64("link:active");
+
+    static const char* GUI_MAX_COUNT_KEY = "gui.max_count";
+
     static CompGuiNodeTypeDescriptor g_CompGuiNodeTypeSentinel = {0};
     static bool g_CompGuiNodeTypesInitialized = false;
 
@@ -69,8 +77,8 @@ namespace dmGameSystem
 
     static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(dmGui::HTextureSource, dmhash_t, dmGui::TextureSetAnimDesc*);
 
-    // implemention in comp_particlefx.cpp
-    extern dmParticle::FetchAnimationResult FetchAnimationCallback(void* texture_set_ptr, dmhash_t animation, dmParticle::AnimationData* out_data);
+    // implementation in comp_particlefx.cpp, or particle_null.cpp when Particle FX is excluded
+    extern dmParticle::FetchResourcesResult FetchResourcesCallback(const dmParticle::FetchResourcesParams* params, dmParticle::FetchResourcesData* out_data);
 
     static dmGameObject::Result CreateRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, struct CompGuiContext* comp_gui_context);
     static dmGameObject::Result DestroyRegisteredCompGuiNodeTypes(const CompGuiNodeTypeCtx* ctx, struct CompGuiContext* comp_gui_context);
@@ -78,13 +86,156 @@ namespace dmGameSystem
     static void* CloneCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
     static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
     static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
+    static void PrepareGuiNodeTextLayout(dmGui::HScene scene, dmGui::HNode node);
     static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type);
 
-    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
     static void                  DeleteTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, dmGui::HTextureSource texture_source);
-    static void                  SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    static void                  SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
 
     static inline dmRender::HMaterial GetNodeMaterial(void* material_res);
+
+    static bool EqualGuiLayoutObjectTargets(const GuiLayoutObjectTarget& a, const GuiLayoutObjectTarget& b)
+    {
+        return a.m_Layout == b.m_Layout &&
+               a.m_FontResource == b.m_FontResource &&
+               a.m_ObjectId == b.m_ObjectId &&
+               a.m_FontVersion == b.m_FontVersion;
+    }
+
+    static void ResetGuiLayoutObjectTarget(GuiLayoutObjectTarget* target)
+    {
+        if (target->m_Layout)
+        {
+            TextLayoutRelease(target->m_Layout);
+        }
+        target->m_Layout       = 0;
+        target->m_FontResource = 0;
+        target->m_ObjectId     = 0;
+        target->m_FontVersion  = 0;
+    }
+
+    static void SetGuiLayoutObjectTarget(GuiLayoutObjectTarget* target, const GuiLayoutObjectTarget& value)
+    {
+        if (EqualGuiLayoutObjectTargets(*target, value))
+        {
+            return;
+        }
+
+        ResetGuiLayoutObjectTarget(target);
+        *target = value;
+        if (target->m_Layout)
+        {
+            TextLayoutAcquire(target->m_Layout);
+        }
+    }
+
+    static bool IsGuiLayoutObjectTargetCurrent(const GuiLayoutObjectTarget& target)
+    {
+        return target.m_Layout &&
+               target.m_FontResource &&
+               target.m_FontVersion == ResFontGetVersion(target.m_FontResource);
+    }
+
+    static const TextLayoutObject* FindGuiLayoutObject(const GuiLayoutObjectTarget& target);
+
+    static void SetGuiLayoutObjectStyle(const GuiLayoutObjectTarget& target, dmhash_t style)
+    {
+        if (IsGuiLayoutObjectTargetCurrent(target) && target.m_ObjectId)
+        {
+            const TextLayoutObject* object = FindGuiLayoutObject(target);
+            if (object && object->m_Tag == TAG_LINK)
+            {
+                TextLayoutSetObjectStyle(target.m_Layout, target.m_ObjectId, style);
+            }
+        }
+    }
+
+    static const TextLayoutObject* FindGuiLayoutObject(const GuiLayoutObjectTarget& target)
+    {
+        if (!target.m_Layout)
+        {
+            return 0;
+        }
+
+        const TextLayoutObject* objects = TextLayoutGetObjects(target.m_Layout);
+        const uint32_t object_count = TextLayoutGetObjectCount(target.m_Layout);
+
+        for (uint32_t i = 0; i < object_count; ++i)
+        {
+            if (objects[i].m_Id == target.m_ObjectId)
+            {
+                return &objects[i];
+            }
+        }
+
+        return 0;
+    }
+
+    static const TextLayoutObjectAttribute* FindGuiLayoutObjectAttribute(HTextLayout layout, const TextLayoutObject& object, const char* name)
+    {
+        const char* source = TextLayoutGetObjectSource(layout);
+        const TextLayoutObjectAttribute* attributes = TextLayoutGetObjectAttributes(layout);
+        const uint32_t name_length = (uint32_t)strlen(name);
+
+        for (uint32_t i = 0; i < object.m_AttributeCount; ++i)
+        {
+            const TextLayoutObjectAttribute& attribute = attributes[object.m_AttributeIndex + i];
+
+            if (attribute.m_NameLength == name_length && memcmp(source + attribute.m_NameOffset, name, name_length) == 0)
+            {
+                return &attribute;
+            }
+        }
+
+        return 0;
+    }
+
+    template <class Message>
+    static void SendGuiLayoutObjectMessage(GuiComponent* component, const GuiLayoutObjectTarget& target)
+    {
+        const TextLayoutObject* object = FindGuiLayoutObject(target);
+
+        if (!object)
+        {
+            return;
+        }
+
+        const TextLayoutObjectAttribute* src = FindGuiLayoutObjectAttribute(target.m_Layout, *object, "src");
+        const char* source = TextLayoutGetObjectSource(target.m_Layout);
+        const uint32_t src_length = src ? src->m_ValueLength : 0;
+        const uint32_t data_size = sizeof(Message) + src_length + 1;
+        dmArray<uint8_t> buffer;
+        buffer.SetCapacity(sizeof(dmMessage::Message) + data_size);
+        buffer.SetSize(sizeof(dmMessage::Message) + data_size);
+
+        dmMessage::Message* message = (dmMessage::Message*)buffer.Begin();
+        memset(message, 0, sizeof(dmMessage::Message));
+        message->m_Id = Message::m_DDFDescriptor->m_NameHash;
+        message->m_Descriptor = (uintptr_t)Message::m_DDFDescriptor;
+        message->m_DataSize = data_size;
+        Message* message_data = (Message*)message->m_Data;
+        char* src_value = (char*)message->m_Data + sizeof(Message);
+
+        if (src)
+        {
+            memcpy(src_value, source + src->m_ValueOffset, src_length);
+        }
+
+        src_value[src_length] = 0;
+        message_data->m_Id = object->m_Id;
+        message_data->m_Type = object->m_Tag;
+        message_data->m_Src = (const char*)((uintptr_t)src_value - (uintptr_t)message->m_Data);
+        dmGui::DispatchMessage(component->m_Scene, message);
+    }
+
+    static void ClearGuiLayoutObjectInteraction(GuiComponent* component)
+    {
+        SetGuiLayoutObjectStyle(component->m_HoveredLayoutObject, 0);
+        SetGuiLayoutObjectStyle(component->m_PressedLayoutObject, 0);
+        ResetGuiLayoutObjectTarget(&component->m_HoveredLayoutObject);
+        ResetGuiLayoutObjectTarget(&component->m_PressedLayoutObject);
+    }
 
     // Translation table to translate from dmGameSystemDDF playback mode into dmGui playback mode.
     static struct PlaybackGuiToRig
@@ -175,7 +326,7 @@ namespace dmGameSystem
         return node_material_res ? GetNodeMaterial(node_material_res) : gui_context->m_Material;
     }
 
-    static inline dmRender::HMaterial GetTextNodeMaterial(RenderGuiContext* gui_context, dmGui::HScene scene, dmGui::HNode node, dmRender::HFont font_map)
+    static inline dmRender::HMaterial GetTextNodeMaterial(RenderGuiContext* gui_context, dmGui::HScene scene, dmGui::HNode node, dmRender::HFontMap font_map)
     {
         void* node_material_res = dmGui::GetNodeMaterial(scene, node);
         if (node_material_res)
@@ -210,6 +361,187 @@ namespace dmGameSystem
         }
     }
 
+    static bool DDFPropertyToCustomProperty(const dmGuiDDF::Property& ddf_property, dmGui::CustomPropertyDesc* out_property)
+    {
+        out_property->m_Key = ddf_property.m_IdHash != 0 ? (dmhash_t)ddf_property.m_IdHash : dmHashString64(ddf_property.m_Id ? ddf_property.m_Id : "");
+        dmGui::CustomProperty* property = &out_property->m_Property;
+
+        switch (ddf_property.m_Type)
+        {
+            case dmGuiDDF::Property::TYPE_NUMBER:
+                property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_NUMBER;
+                property->m_Number = ddf_property.m_Value.m_Number;
+            break;
+
+            case dmGuiDDF::Property::TYPE_BOOLEAN:
+                property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_BOOLEAN;
+                property->m_Boolean = ddf_property.m_Value.m_Boolean;
+            break;
+
+            case dmGuiDDF::Property::TYPE_HASH:
+                property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_HASH;
+                property->m_Hash = (dmhash_t)ddf_property.m_Value.m_Hash;
+            break;
+
+            case dmGuiDDF::Property::TYPE_STRING:
+                property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_STRING;
+                property->m_String = strdup(ddf_property.m_Value.m_String ? ddf_property.m_Value.m_String : "");
+                if (!property->m_String)
+                {
+                    return false;
+                }
+            break;
+
+            case dmGuiDDF::Property::TYPE_VECTOR3:
+                property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3;
+                property->m_Vector3 = ddf_property.m_Value.m_Vector3;
+            break;
+
+            case dmGuiDDF::Property::TYPE_VECTOR4:
+                property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_VECTOR4;
+                property->m_Vector4 = ddf_property.m_Value.m_Vector4;
+            break;
+
+            case dmGuiDDF::Property::TYPE_QUAT:
+                property->m_Type = dmGui::CUSTOM_PROPERTY_TYPE_QUAT;
+                property->m_Quat = ddf_property.m_Value.m_Quat;
+            break;
+
+            default:
+                return false;
+        }
+
+        return true;
+    }
+
+    static void FreeCustomPropertyStrings(dmGui::CustomPropertyDesc* properties, uint32_t property_count)
+    {
+        for (uint32_t i = 0; i < property_count; ++i)
+        {
+            dmGui::CustomProperty* property = &properties[i].m_Property;
+            if (property->m_Type == dmGui::CUSTOM_PROPERTY_TYPE_STRING)
+            {
+                free((void*) property->m_String);
+                property->m_String = 0;
+            }
+        }
+    }
+
+    static bool SetCustomProperties(const dmGui::HScene scene, dmGui::HNode node, const dmGuiDDF::NodeDesc* node_desc)
+    {
+        uint32_t custom_property_count = node_desc->m_CustomProperties.m_Count;
+        const uint32_t max_stack_custom_properties = 20;
+        dmGui::CustomPropertyDesc stack_custom_properties[max_stack_custom_properties];
+        dmArray<dmGui::CustomPropertyDesc> custom_properties;
+        dmGui::CustomPropertyDesc* custom_properties_data = 0;
+        if (custom_property_count != 0)
+        {
+            if (custom_property_count < max_stack_custom_properties)
+            {
+                custom_properties.Set(stack_custom_properties, custom_property_count, max_stack_custom_properties, true);
+            }
+            else
+            {
+                custom_properties.SetCapacity(custom_property_count);
+                custom_properties.SetSize(custom_property_count);
+            }
+
+            for (uint32_t i = 0; i < custom_property_count; ++i)
+            {
+                if (!DDFPropertyToCustomProperty(node_desc->m_CustomProperties[i], &custom_properties[i]))
+                {
+                    FreeCustomPropertyStrings(custom_properties.Begin(), i);
+                    dmLogError("The custom property for '%s' has an invalid type: %d.", node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", node_desc->m_CustomProperties[i].m_Type);
+                    return false;
+                }
+            }
+
+            custom_properties_data = custom_properties.Begin();
+        }
+
+        if (dmGui::SetNodeCustomProperties(scene, node, custom_properties_data, custom_property_count) != dmGui::RESULT_OK)
+        {
+            FreeCustomPropertyStrings(custom_properties_data, custom_property_count);
+            dmLogError("The custom properties could not be set for '%s'.", node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed");
+            return false;
+        }
+
+        return true;
+    }
+
+    static void ResetDefaultNodeDescCache(GuiComponent* component, uint32_t node_count)
+    {
+        if (node_count == 0)
+        {
+            if (component->m_DefaultNodeDescs.Capacity() > 0)
+            {
+                component->m_DefaultNodeDescs.Clear();
+            }
+            return;
+        }
+
+        if (component->m_DefaultNodeDescs.Capacity() < node_count)
+        {
+            component->m_DefaultNodeDescs.SetCapacity(node_count);
+        }
+        component->m_DefaultNodeDescs.Clear();
+    }
+
+    static const dmGuiDDF::NodeDesc* FindDefaultNodeDesc(const dmGui::HScene scene, dmGui::HNode node)
+    {
+        GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        dmhash_t node_id = dmGui::GetNodeId(scene, node);
+
+        const dmGuiDDF::NodeDesc* const* default_node_desc = component->m_DefaultNodeDescs.Get(node_id);
+        if (default_node_desc)
+        {
+            return *default_node_desc;
+        }
+
+        dmGuiDDF::SceneDesc* scene_desc = component->m_Resource->m_SceneDesc;
+        for (uint32_t i = 0; i < scene_desc->m_Nodes.m_Count; ++i)
+        {
+            const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Nodes[i];
+            if (node_desc->m_Id && dmHashString64(node_desc->m_Id) == node_id)
+            {
+                return node_desc;
+            }
+        }
+        return 0;
+    }
+
+    static const dmGuiDDF::NodeDesc* GetCustomPropertiesNodeDesc(const dmGui::HScene scene, dmGui::HNode node, const dmGuiDDF::NodeDesc* node_desc)
+    {
+        if (node_desc->m_CustomProperties.m_Count != 0)
+        {
+            return node_desc;
+        }
+
+        const dmGuiDDF::NodeDesc* default_node_desc = FindDefaultNodeDesc(scene, node);
+        if (node_desc == default_node_desc)
+        {
+            return node_desc;
+        }
+        return default_node_desc ? default_node_desc : node_desc;
+    }
+
+    static dmGui::NodeType DDFNodeTypeToGuiNodeType(dmGuiDDF::NodeDesc::Type type)
+    {
+        switch (type)
+        {
+            case dmGuiDDF::NodeDesc::TYPE_BOX:        return dmGui::NODE_TYPE_BOX;
+            case dmGuiDDF::NodeDesc::TYPE_TEXT:       return dmGui::NODE_TYPE_TEXT;
+            case dmGuiDDF::NodeDesc::TYPE_PIE:        return dmGui::NODE_TYPE_PIE;
+            case dmGuiDDF::NodeDesc::TYPE_TEMPLATE:   return dmGui::NODE_TYPE_TEMPLATE;
+            case dmGuiDDF::NodeDesc::TYPE_PARTICLEFX: return dmGui::NODE_TYPE_PARTICLEFX;
+            case dmGuiDDF::NodeDesc::TYPE_CUSTOM:     return dmGui::NODE_TYPE_CUSTOM;
+            default:
+                dmLogError("Unknown gui node type: %d", type);
+                assert(0);
+                return dmGui::NODE_TYPE_BOX;
+        }
+    }
+
     struct CompGuiRenderConstantUserData
     {
         GuiComponent*       m_GuiComponent;
@@ -235,7 +567,9 @@ namespace dmGameSystem
         GuiComponent* gui_component  = (GuiComponent*) ctx;
         GuiSceneResource* resource   = gui_component->m_Resource;
         dmRender::HMaterial material = GetMaterial(gui_component, resource, scene, node);
-        uint32_t value_index         = options ? options->m_Index : 0;
+
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex((dmGameObject::HPropertyOptions) options, 0, &value_index);
 
         CompGuiRenderConstantUserData user_data = {};
         user_data.m_GuiComponent = gui_component;
@@ -281,22 +615,22 @@ namespace dmGameSystem
         }
 
         HComponentRenderConstants cloned_constants = dmGameSystem::CreateRenderConstants();
-        
+
         uint32_t count = dmGameSystem::GetRenderConstantCount(src_constants);
         for (uint32_t i = 0; i < count; ++i)
         {
             dmRender::HConstant constant = dmGameSystem::GetRenderConstant(src_constants, i);
             dmhash_t name_hash = dmRender::GetConstantName(constant);
-            
+
             uint32_t num_values;
             dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
-            
+
             if (values)
             {
                 dmGameSystem::SetRenderConstant(cloned_constants, name_hash, values, num_values);
             }
         }
-        
+
         return cloned_constants;
     }
 
@@ -305,7 +639,8 @@ namespace dmGameSystem
         GuiComponent* gui_component  = (GuiComponent*) ctx;
         GuiSceneResource* resource   = gui_component->m_Resource;
         dmRender::HMaterial material = GetMaterial(gui_component, resource, scene, node);
-        uint32_t value_index         = options ? options->m_Index : 0;
+        int32_t value_index = 0;
+        GetPropertyOptionsIndex((dmGameObject::HPropertyOptions) options, 0, &value_index);
 
         CompGuiRenderConstantUserData user_data = {};
         user_data.m_GuiComponent = gui_component;
@@ -358,10 +693,11 @@ namespace dmGameSystem
         gui_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[0], dmRender::VERTEX_STREAM_POSITION,   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[1], dmRender::VERTEX_STREAM_TEXCOORD0,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[2], dmRender::VERTEX_STREAM_COLOR,      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
-        FillAttribute(gui_world->m_ParticleAttributeInfos.m_Infos[3], dmRender::VERTEX_STREAM_PAGE_INDEX, dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
+        gui_world->m_ParticleAttributeInfos.m_Infos = new dmGraphics::VertexAttributeInfo[4];
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[0], dmRender::VERTEX_STREAM_POSITION,   dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[1], dmRender::VERTEX_STREAM_TEXCOORD0,  dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[2], dmRender::VERTEX_STREAM_COLOR,      dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,      dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+        FillAttribute((dmGraphics::VertexAttributeInfo&) gui_world->m_ParticleAttributeInfos.m_Infos[3], dmRender::VERTEX_STREAM_PAGE_INDEX, dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
 
         // Another way would be to use the vertex declaration, but that currently doesn't have an api
         // and the buffer is well suited for this.
@@ -375,6 +711,7 @@ namespace dmGameSystem
 
         gui_world->m_ParticleAttributeInfos.m_VertexStride = dmGraphics::GetVertexDeclarationStride(gui_world->m_VertexDeclaration);
         gui_world->m_ParticleAttributeInfos.m_NumInfos     = 4;
+        gui_world->m_ParticleAttributeInfos.m_StructSize   = sizeof(dmGraphics::VertexAttributeInfos);
 
         // Grows automatically
         gui_world->m_ClientVertexBuffer.SetCapacity(512);
@@ -403,7 +740,7 @@ namespace dmGameSystem
         tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
 
         gui_world->m_WhiteTexture = dmGraphics::NewTexture(graphics_context, tex_create_params);
-        dmGraphics::SetTexture(gui_world->m_WhiteTexture, tex_params);
+        dmGraphics::SetTexture(graphics_context, gui_world->m_WhiteTexture, tex_params);
 
         // Grows automatically
         gui_world->m_GuiRenderObjects.SetCapacity(128);
@@ -464,11 +801,15 @@ namespace dmGameSystem
             }
         }
 
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
         dmGraphics::DeleteVertexDeclaration(gui_world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(gui_world->m_VertexBuffer);
-        dmGraphics::DeleteTexture(gui_world->m_WhiteTexture);
+        dmGraphics::DeleteTexture(graphics_context, gui_world->m_WhiteTexture);
 
         dmScript::DeleteScriptWorld(gui_world->m_ScriptWorld);
+
+        delete[] gui_world->m_BoxVertexStreamDeclaration;
+        delete[] gui_world->m_ParticleAttributeInfos.m_Infos;
 
         delete gui_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -477,6 +818,8 @@ namespace dmGameSystem
     static bool SetNode(const dmGui::HScene scene, dmGui::HNode n, const dmGuiDDF::NodeDesc* node_desc)
     {
         bool result = true;
+
+        dmGui::SetNodeTextStyle(scene, n, node_desc->m_Style[0] ? dmHashString64(node_desc->m_Style) : 0);
 
         // properties
         dmGui::SetNodePosition(scene, n, Point3(node_desc->m_Position.getXYZ()));
@@ -622,7 +965,7 @@ namespace dmGameSystem
             break;
 
 
-            case dmGui::NODE_TYPE_CUSTOM:
+            case dmGuiDDF::NodeDesc::TYPE_CUSTOM:
             {
                 GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
                 uint32_t custom_type = dmGui::GetNodeCustomType(scene, n);
@@ -655,11 +998,38 @@ namespace dmGameSystem
 
     static void SetNodeCallback(const dmGui::HScene scene, dmGui::HNode n, const void* node_desc)
     {
-        SetNode(scene, n, (const dmGuiDDF::NodeDesc*) node_desc);
+        const dmGuiDDF::NodeDesc* node_desc_ddf = (const dmGuiDDF::NodeDesc*) node_desc;
+        const dmGuiDDF::NodeDesc* custom_properties_node_desc = GetCustomPropertiesNodeDesc(scene, n, node_desc_ddf);
+        if (!SetCustomProperties(scene, n, custom_properties_node_desc))
+        {
+            return;
+        }
+        SetNode(scene, n, node_desc_ddf);
+    }
+
+    static void SendLayoutChangedMessage(const dmGui::HScene scene, dmhash_t layout_id, dmhash_t previous_layout_id)
+    {
+        char buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
+        dmMessage::Message* message = (dmMessage::Message*)buf;
+        memset(message, 0, sizeof(dmMessage::Message));
+        message->m_Sender = dmMessage::URL();
+        message->m_Receiver = dmMessage::URL();
+        message->m_Id = dmHashString64("layout_changed");
+        message->m_Descriptor = (uintptr_t)dmGuiDDF::LayoutChanged::m_DDFDescriptor;
+        message->m_DataSize = sizeof(dmGuiDDF::LayoutChanged);
+        dmGuiDDF::LayoutChanged* message_data = (dmGuiDDF::LayoutChanged*)message->m_Data;
+        message_data->m_Id = layout_id;
+        message_data->m_PreviousId = previous_layout_id;
+        DispatchMessage(scene, message);
     }
 
     static void OnWindowResizeCallback(const dmGui::HScene scene, uint32_t width, uint32_t height)
     {
+        dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
+        if (!dmRender::GetAutoLayoutSelection(display_profiles))
+        {
+            return;
+        }
         dmArray<dmhash_t> scene_layouts;
         uint16_t layout_count = dmGui::GetLayoutCount(scene);
         scene_layouts.SetCapacity(layout_count);
@@ -675,7 +1045,6 @@ namespace dmGameSystem
             scene_layouts.Push(id);
         }
 
-        dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
         dmhash_t current_layout_id = GetLayout(scene);
         dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, width, height, dmGui::GetDisplayDpi(scene), &scene_layouts);
         if(layout_id != current_layout_id)
@@ -686,19 +1055,59 @@ namespace dmGameSystem
             dmGui::SetLayout(scene, layout_id, SetNodeCallback);
 
             // Notify the scene script. The callback originates from the dmGraphics::SetWindowSize firing the callback.
-            char buf[sizeof(dmMessage::Message) + sizeof(dmGuiDDF::LayoutChanged)];
-            dmMessage::Message* message = (dmMessage::Message*)buf;
-            memset(message, 0, sizeof(dmMessage::Message));
-            message->m_Sender = dmMessage::URL();
-            message->m_Receiver = dmMessage::URL();
-            message->m_Id = dmHashString64("layout_changed");
-            message->m_Descriptor = (uintptr_t)dmGuiDDF::LayoutChanged::m_DDFDescriptor;
-            message->m_DataSize = sizeof(dmGuiDDF::LayoutChanged);
-            dmGuiDDF::LayoutChanged* message_data = (dmGuiDDF::LayoutChanged*)message->m_Data;
-            message_data->m_Id = layout_id;
-            message_data->m_PreviousId = current_layout_id;
-            DispatchMessage(scene, message);
+            SendLayoutChangedMessage(scene, layout_id, current_layout_id);
         }
+    }
+
+    static void ApplyLayoutFromScript(const dmGui::HScene scene, dmhash_t layout_id)
+    {
+        dmhash_t current_layout_id = GetLayout(scene);
+        if (current_layout_id == layout_id)
+            return;
+
+        // Verify that the layout exists in the scene
+        bool has_layout = false;
+        uint16_t layout_count = dmGui::GetLayoutCount(scene);
+        for (uint16_t i = 0; i < layout_count; ++i)
+        {
+            dmhash_t id;
+            if (dmGui::GetLayoutId(scene, i, id) == dmGui::RESULT_OK && id == layout_id)
+            {
+                has_layout = true;
+                break;
+            }
+        }
+        if (!has_layout)
+        {
+            dmLogError("Attempting to apply non-existent layout '%s'", dmHashReverseSafe64(layout_id));
+            return;
+        }
+
+        dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
+        dmRender::DisplayProfileDesc profile_desc;
+        if (dmRender::GetDisplayProfileDesc(display_profiles, layout_id, profile_desc) == dmRender::RESULT_OK)
+        {
+            dmGui::SetSceneResolution(scene, profile_desc.m_Width, profile_desc.m_Height);
+        }
+
+        dmGui::SetLayout(scene, layout_id, SetNodeCallback);
+
+        SendLayoutChangedMessage(scene, layout_id, current_layout_id);
+    }
+
+    static bool GetDisplayProfileDescForGui(const dmGui::HScene scene, dmhash_t layout_id, uint32_t* out_width, uint32_t* out_height)
+    {
+        dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles) dmGui::GetDisplayProfiles(scene);
+        if (!display_profiles)
+            return false;
+        dmRender::DisplayProfileDesc desc;
+        if (dmRender::GetDisplayProfileDesc(display_profiles, layout_id, desc) == dmRender::RESULT_OK)
+        {
+            *out_width = desc.m_Width;
+            *out_height = desc.m_Height;
+            return true;
+        }
+        return false;
     }
 
     static void* GetSceneResourceByHash(void* ctx, dmGui::HScene scene, dmhash_t name_hash, dmhash_t suffix_with_dot)
@@ -731,6 +1140,7 @@ namespace dmGameSystem
     {
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
         dmGui::SetSceneScript(scene, scene_resource->m_Script);
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_world->m_CompGuiContext->m_RenderContext);
 
         bool result = true;
 
@@ -803,8 +1213,8 @@ namespace dmGameSystem
 
             dmGui::Result r = dmGui::AddTexture(scene, dmHashString64(name),
                 texture_source, texture_source_type,
-                dmGraphics::GetOriginalTextureWidth(texture),
-                dmGraphics::GetOriginalTextureHeight(texture));
+                dmGraphics::GetOriginalTextureWidth(graphics_context, texture),
+                dmGraphics::GetOriginalTextureHeight(graphics_context, texture));
 
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add texture '%s' to scene (%d)", name,  r);
@@ -826,6 +1236,7 @@ namespace dmGameSystem
         uint32_t layouts_count = scene_desc->m_Layouts.m_Count;
         if(layouts_count != 0)
         {
+            ResetDefaultNodeDescCache(gui_component, scene_desc->m_Nodes.m_Count);
             dmGui::AllocateLayouts(scene, scene_desc->m_Nodes.m_Count, layouts_count);
             for (uint32_t i = 0; i < layouts_count; ++i)
             {
@@ -840,11 +1251,9 @@ namespace dmGameSystem
 
         for (uint32_t i = 0; i < scene_desc->m_Nodes.m_Count; ++i)
         {
-            // NOTE: We assume that the enums in dmGui and dmGuiDDF have the same values
             const dmGuiDDF::NodeDesc* node_desc = &scene_desc->m_Nodes[i];
-            dmGui::NodeType type = (dmGui::NodeType) node_desc->m_Type;
+            dmGui::NodeType type = DDFNodeTypeToGuiNodeType(node_desc->m_Type);
             uint32_t custom_type = node_desc->m_CustomType;
-
 
             Vector4 position = node_desc->m_Position;
             Vector4 size = node_desc->m_Size;
@@ -852,7 +1261,15 @@ namespace dmGameSystem
             if (n)
             {
                 if (node_desc->m_Id)
+                {
                     dmGui::SetNodeId(scene, n, node_desc->m_Id);
+                    if (layouts_count != 0)
+                    {
+                        gui_component->m_DefaultNodeDescs.Put(dmHashString64(node_desc->m_Id), node_desc);
+                    }
+                }
+                if (!SetCustomProperties(scene, n, node_desc))
+                    return false;
                 if(!SetNode(scene, n, node_desc))
                     return false;
                 if(layouts_count != 0)
@@ -904,6 +1321,12 @@ namespace dmGameSystem
             }
 
             // we might have any resolution starting the scene, so let's set the best alternative layout directly
+            dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles)dmGui::GetDisplayProfiles(scene);
+            if (!dmRender::GetAutoLayoutSelection(display_profiles))
+            {
+                // Skip auto layout selection when disabled
+                return result;
+            }
             dmArray<dmhash_t> scene_layouts;
             scene_layouts.SetCapacity(layouts_count+1);
             for(uint16_t i = 0; i < layouts_count+1; ++i)
@@ -920,7 +1343,6 @@ namespace dmGameSystem
 
             uint32_t display_width, display_height;
             dmGui::GetPhysicalResolution(scene, display_width, display_height);
-            dmRender::HDisplayProfiles display_profiles = (dmRender::HDisplayProfiles)dmGui::GetDisplayProfiles(scene);
             dmhash_t layout_id = dmRender::GetOptimalDisplayProfile(display_profiles, display_width, display_height, 0, &scene_layouts);
             if(layout_id != dmGui::DEFAULT_LAYOUT)
             {
@@ -940,8 +1362,8 @@ namespace dmGameSystem
 
         if (gui_world->m_Components.Full())
         {
-            ShowFullBufferError("Gui", "gui.max_count", gui_world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            ShowFullBufferError("Gui", GUI_MAX_COUNT_KEY, gui_world->m_Components.Capacity());
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
@@ -952,6 +1374,8 @@ namespace dmGameSystem
         gui_component->m_Resource = scene_resource;
         gui_component->m_Instance = params.m_Instance;
         gui_component->m_Material = 0;
+        gui_component->m_HoveredLayoutObject = {};
+        gui_component->m_PressedLayoutObject = {};
         gui_component->m_ComponentIndex = params.m_ComponentIndex;
         gui_component->m_Enabled = 1;
         gui_component->m_AddedToUpdate = 0;
@@ -975,6 +1399,7 @@ namespace dmGameSystem
         scene_params.m_CloneCustomNodeCallback = &CloneCustomNodeCallback;
         scene_params.m_UpdateCustomNodeCallback = &UpdateCustomNodeCallback;
         scene_params.m_CreateCustomNodeCallbackContext = gui_component;
+        scene_params.m_PrepareNodeTextLayoutCallback = &PrepareGuiNodeTextLayout;
         scene_params.m_GetResourceCallback = GetSceneResourceByHash;
         scene_params.m_GetResourceCallbackContext = gui_component;
         scene_params.m_GetMaterialPropertyCallback = GetMaterialPropertyCallback;
@@ -984,6 +1409,8 @@ namespace dmGameSystem
         scene_params.m_DestroyRenderConstantsCallback = DestroyRenderConstantsCallback;
         scene_params.m_CloneRenderConstantsCallback = CloneRenderConstantsCallback;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
+        scene_params.m_ApplyLayoutCallback    = &ApplyLayoutFromScript;
+        scene_params.m_GetDisplayProfileDescCallback = &GetDisplayProfileDescForGui;
 
         scene_params.m_NewTextureResourceCallback    = &NewTextureResourceCallback;
         scene_params.m_DeleteTextureResourceCallback = &DeleteTextureResourceCallback;
@@ -1016,6 +1443,8 @@ namespace dmGameSystem
             if (gui_world->m_Components[i] == gui_component)
             {
                 dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
+                ClearGuiLayoutObjectInteraction(gui_component);
+                dmGui::DeleteScene(gui_component->m_Scene);
                 if (gui_component->m_Material) {
                     dmResource::Release(factory, gui_component->m_Material);
                 }
@@ -1025,7 +1454,6 @@ namespace dmGameSystem
                     }
                 }
                 gui_component->m_ResourcePropertyPointers.SetSize(0);
-                dmGui::DeleteScene(gui_component->m_Scene);
                 delete gui_component;
                 gui_world->m_Components.EraseSwap(i);
                 break;
@@ -1050,6 +1478,7 @@ namespace dmGameSystem
     static dmGameObject::CreateResult CompGuiFinal(const dmGameObject::ComponentFinalParams& params)
     {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
+        ClearGuiLayoutObjectInteraction(gui_component);
         dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
         if (result != dmGui::RESULT_OK)
         {
@@ -1178,6 +1607,172 @@ namespace dmGameSystem
         return 0;
     }
 
+    static uint64_t MakeTextLayoutCacheKey(FontResource* font_resource, uint32_t font_version, uint64_t text_hash, float width, bool line_break, float leading, float tracking)
+    {
+        HashState64 key_state;
+        dmHashInit64(&key_state, false);
+
+        uint8_t line_break_flag = line_break ? 1 : 0;
+
+        dmHashUpdateBuffer64(&key_state, &font_resource, sizeof(font_resource));
+        dmHashUpdateBuffer64(&key_state, &font_version, sizeof(font_version));
+        dmHashUpdateBuffer64(&key_state, &text_hash, sizeof(text_hash));
+        dmHashUpdateBuffer64(&key_state, &width, sizeof(width));
+        dmHashUpdateBuffer64(&key_state, &leading, sizeof(leading));
+        dmHashUpdateBuffer64(&key_state, &tracking, sizeof(tracking));
+        dmHashUpdateBuffer64(&key_state, &line_break_flag, sizeof(line_break_flag));
+        return dmHashFinal64(&key_state);
+    }
+
+    // Reserves the proposed one-em or explicit sprite dimensions until resource loading is implemented.
+    static uint8_t ResolveGuiLayoutObject(void*, const char*, const TextLayoutObjectAttribute*,
+                                          float proposed_width, float proposed_height, TextLayoutObject* object)
+    {
+        object->m_Width = proposed_width;
+        object->m_Height = proposed_height;
+        object->m_Resource = 0;
+
+        return 1;
+    }
+
+    static void GetGuiTextAlignment(dmGui::HScene scene, dmGui::HNode node, dmRender::TextAlign* align, dmRender::TextVAlign* valign)
+    {
+        switch (dmGui::GetNodePivot(scene, node))
+        {
+            case dmGui::PIVOT_NW:
+                *align = dmRender::TEXT_ALIGN_LEFT;
+                *valign = dmRender::TEXT_VALIGN_TOP;
+                break;
+            case dmGui::PIVOT_N:
+                *align = dmRender::TEXT_ALIGN_CENTER;
+                *valign = dmRender::TEXT_VALIGN_TOP;
+                break;
+            case dmGui::PIVOT_NE:
+                *align = dmRender::TEXT_ALIGN_RIGHT;
+                *valign = dmRender::TEXT_VALIGN_TOP;
+                break;
+            case dmGui::PIVOT_W:
+                *align = dmRender::TEXT_ALIGN_LEFT;
+                *valign = dmRender::TEXT_VALIGN_MIDDLE;
+                break;
+            case dmGui::PIVOT_CENTER:
+                *align = dmRender::TEXT_ALIGN_CENTER;
+                *valign = dmRender::TEXT_VALIGN_MIDDLE;
+                break;
+            case dmGui::PIVOT_E:
+                *align = dmRender::TEXT_ALIGN_RIGHT;
+                *valign = dmRender::TEXT_VALIGN_MIDDLE;
+                break;
+            case dmGui::PIVOT_SW:
+                *align = dmRender::TEXT_ALIGN_LEFT;
+                *valign = dmRender::TEXT_VALIGN_BOTTOM;
+                break;
+            case dmGui::PIVOT_S:
+                *align = dmRender::TEXT_ALIGN_CENTER;
+                *valign = dmRender::TEXT_VALIGN_BOTTOM;
+                break;
+            case dmGui::PIVOT_SE:
+                *align = dmRender::TEXT_ALIGN_RIGHT;
+                *valign = dmRender::TEXT_VALIGN_BOTTOM;
+                break;
+        }
+    }
+
+    static HTextLayout GetOrCreateNodeTextLayout(dmGui::HScene scene, dmGui::HNode node, FontResource* font_resource, dmRender::HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, dmArray<uint32_t>& codepoints)
+    {
+        const char* safe_text = text ? text : "";
+        if (!font_resource || !font_map || safe_text[0] == '\0')
+        {
+            dmGui::TextLayout empty_text_layout = {};
+            dmGui::SetNodeTextLayout(scene, node, empty_text_layout);
+            return 0;
+        }
+
+        const uint32_t font_version = ResFontGetVersion(font_resource);
+        const uint64_t text_hash = dmHashBufferNoReverse64(safe_text, (uint32_t)strlen(safe_text));
+        const uint64_t cache_key = MakeTextLayoutCacheKey(font_resource, font_version, text_hash, width, line_break, leading, tracking) ^ dmGui::GetNodeTextStyle(scene, node);
+
+        dmGui::TextLayout text_layout = {};
+        dmGui::GetNodeTextLayout(scene, node, &text_layout);
+        if (text_layout.m_Handle && text_layout.m_Key == cache_key)
+        {
+            return text_layout.m_Handle;
+        }
+
+        TextLayoutSettings settings = {};
+        settings.m_Width = width;
+        settings.m_LineBreak = line_break;
+        settings.m_Leading = leading;
+        settings.m_Tracking = tracking;
+        settings.m_Size = dmRender::GetFontMapSize(font_map);
+        settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
+        settings.m_Padding = dmRender::GetFontMapPadding(font_map);
+        settings.m_ResolveObject = ResolveGuiLayoutObject;
+        settings.m_BaseStyle = dmGui::GetNodeTextStyle(scene, node);
+        settings.m_UseBaseStyle = 1;
+
+        HTextLayout  layout = 0;
+        HMarkup      markup = 0;
+        MarkupResult markup_result = MarkupCreate(safe_text, strlen(safe_text), &markup, 0);
+        TextResult   result = TEXT_RESULT_ERROR;
+
+        if (markup_result == MARKUP_RESULT_OK)
+        {
+            result = TextLayoutCreateMarkup(dmRender::GetFontCollection(font_map), markup, &settings, &layout);
+        }
+
+        MarkupDestroy(markup);
+
+        if (result != TEXT_RESULT_OK)
+        {
+            if (layout)
+            {
+                TextLayoutRelease(layout);
+            }
+
+            layout = 0;
+            TextToCodePoints(safe_text, codepoints);
+            uint32_t* text_codepoints = codepoints.Empty() ? 0 : codepoints.Begin();
+            result = TextLayoutCreate(dmRender::GetFontCollection(font_map), text_codepoints, codepoints.Size(), &settings, &layout);
+        }
+
+        if (result != TEXT_RESULT_OK)
+        {
+            if (layout)
+            {
+                TextLayoutRelease(layout);
+            }
+            dmGui::TextLayout empty_text_layout = {};
+            dmGui::SetNodeTextLayout(scene, node, empty_text_layout);
+            return 0;
+        }
+
+        dmGui::TextLayout new_text_layout = {};
+        new_text_layout.m_Handle = layout;
+        new_text_layout.m_Key = cache_key;
+        // SetNodeTextLayout() acquires a node-owned reference, so we release the
+        // temporary ownership from TextLayoutCreate() after storing the handle.
+        dmGui::SetNodeTextLayout(scene, node, new_text_layout);
+        TextLayoutRelease(layout);
+        return new_text_layout.m_Handle;
+    }
+
+    static void PrepareGuiNodeTextLayout(dmGui::HScene scene, dmGui::HNode node)
+    {
+        if (dmGui::GetNodeType(scene, node) != dmGui::NODE_TYPE_TEXT)
+        {
+            return;
+        }
+
+        FontResource* font_resource = (FontResource*)dmGui::GetNodeFont(scene, node);
+        dmRender::HFontMap font_map = font_resource ? ResFontGetHandle(font_resource) : 0;
+        const char* text = dmGui::GetNodeText(scene, node);
+        Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
+        dmArray<uint32_t> text_codepoints;
+        GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, text, size.getX(), dmGui::GetNodeLineBreak(scene, node),
+                                  dmGui::GetNodeTextLeading(scene, node), dmGui::GetNodeTextTracking(scene, node), text_codepoints);
+    }
+
     static void RenderTextNodes(dmGui::HScene scene,
                          const dmGui::RenderEntry* entries,
                          const Matrix4* node_transforms,
@@ -1188,6 +1783,8 @@ namespace dmGameSystem
                          RenderGuiContext* gui_context)
     {
         GuiWorld* gui_world = gui_context->m_GuiWorld;
+        uint32_t batch_render_order = MakeFinalRenderOrder(gui_world->m_RenderOrder, dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++);
+        dmArray<uint32_t> text_codepoints;
         for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
@@ -1200,9 +1797,13 @@ namespace dmGameSystem
             assert(node_type == dmGui::NODE_TYPE_TEXT);
 
             dmGameSystem::FontResource* font_resource = (dmGameSystem::FontResource*)dmGui::GetNodeFont(scene, node);
-            dmRender::HFont font_map = font_resource != 0 ? dmGameSystem::ResFontGetHandle(font_resource) : 0;
+            dmRender::HFontMap font_map = font_resource != 0 ? dmGameSystem::ResFontGetHandle(font_resource) : 0;
             if (!font_map)
+            {
+                dmGui::TextLayout empty_text_layout = {};
+                dmGui::SetNodeTextLayout(scene, node, empty_text_layout);
                 continue;
+            }
             dmRender::HMaterial material = GetTextNodeMaterial(gui_context, scene, node, font_map);
 
             dmRender::DrawTextParams params;
@@ -1210,9 +1811,10 @@ namespace dmGameSystem
             params.m_FaceColor = Vector4(color.getXYZ(), opacity);
             params.m_OutlineColor = Vector4(outline.getXYZ(), outline.getW() * opacity);
             params.m_ShadowColor = Vector4(shadow.getXYZ(), shadow.getW() * opacity);
-            params.m_Text = dmGui::GetNodeText(scene, node);
+            const char* text = dmGui::GetNodeText(scene, node);
+            const char* safe_text = text ? text : "";
             params.m_WorldTransform = node_transforms[i];
-            params.m_RenderOrder = dmGui::GetRenderOrder(scene);
+            params.m_RenderOrder = batch_render_order;
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
             params.m_Leading = dmGui::GetNodeTextLeading(scene, node);
             params.m_Tracking = dmGui::GetNodeTextTracking(scene, node);
@@ -1231,52 +1833,15 @@ namespace dmGameSystem
             Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
             params.m_Width = size.getX();
             params.m_Height = size.getY();
+            params.m_TextLayout = GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, safe_text, params.m_Width, params.m_LineBreak, params.m_Leading, params.m_Tracking, text_codepoints);
+            params.m_Text = params.m_TextLayout ? 0 : safe_text;
+            if (!params.m_TextLayout && safe_text[0] == '\0')
+                continue;
             ApplyStencilClipping(gui_context, stencil_scopes[i], params);
-            dmGui::Pivot pivot = dmGui::GetNodePivot(scene, node);
-            switch (pivot)
-            {
-            case dmGui::PIVOT_NW:
-                params.m_Align = dmRender::TEXT_ALIGN_LEFT;
-                params.m_VAlign = dmRender::TEXT_VALIGN_TOP;
-                break;
-            case dmGui::PIVOT_N:
-                params.m_Align = dmRender::TEXT_ALIGN_CENTER;
-                params.m_VAlign = dmRender::TEXT_VALIGN_TOP;
-                break;
-            case dmGui::PIVOT_NE:
-                params.m_Align = dmRender::TEXT_ALIGN_RIGHT;
-                params.m_VAlign = dmRender::TEXT_VALIGN_TOP;
-                break;
-            case dmGui::PIVOT_W:
-                params.m_Align = dmRender::TEXT_ALIGN_LEFT;
-                params.m_VAlign = dmRender::TEXT_VALIGN_MIDDLE;
-                break;
-            case dmGui::PIVOT_CENTER:
-                params.m_Align = dmRender::TEXT_ALIGN_CENTER;
-                params.m_VAlign = dmRender::TEXT_VALIGN_MIDDLE;
-                break;
-            case dmGui::PIVOT_E:
-                params.m_Align = dmRender::TEXT_ALIGN_RIGHT;
-                params.m_VAlign = dmRender::TEXT_VALIGN_MIDDLE;
-                break;
-            case dmGui::PIVOT_SW:
-                params.m_Align = dmRender::TEXT_ALIGN_LEFT;
-                params.m_VAlign = dmRender::TEXT_VALIGN_BOTTOM;
-                break;
-            case dmGui::PIVOT_S:
-                params.m_Align = dmRender::TEXT_ALIGN_CENTER;
-                params.m_VAlign = dmRender::TEXT_VALIGN_BOTTOM;
-                break;
-            case dmGui::PIVOT_SE:
-                params.m_Align = dmRender::TEXT_ALIGN_RIGHT;
-                params.m_VAlign = dmRender::TEXT_VALIGN_BOTTOM;
-                break;
-            }
+            GetGuiTextAlignment(scene, node, &params.m_Align, &params.m_VAlign);
 
             dmRender::DrawText(gui_context->m_RenderContext, font_map, material, 0, params);
         }
-
-        dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(gui_world->m_RenderOrder, dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);
     }
 
     static void RenderParticlefxNodes(dmGui::HScene scene,
@@ -1326,6 +1891,8 @@ namespace dmGameSystem
             // we can't use transform.GetUniformScale() since the z-component is ignored by the gui
             float scale = dmMath::Min(transform.GetScalePtr()[0], transform.GetScalePtr()[1]);
             dmParticle::SetScale(gui_world->m_ParticleContext, emitter_render_data->m_Instance, scale);
+            // GUI applies transform overrides in the render path, so refresh the cached particle render state in-frame.
+            dmParticle::UpdateRenderData(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex, gui_world->m_DT);
         }
 
         vertex_count = dmMath::Min(vertex_count, vb_max_size / (uint32_t)sizeof(ParticleGuiVertex));
@@ -1348,7 +1915,6 @@ namespace dmGameSystem
             uint32_t vb_generate_size = 0;
             dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexData(
                 gui_world->m_ParticleContext,
-                gui_world->m_DT,
                 emitter_render_data->m_Instance,
                 emitter_render_data->m_EmitterIndex,
                 gui_world->m_ParticleAttributeInfos,
@@ -1577,6 +2143,7 @@ namespace dmGameSystem
                         RenderGuiContext* gui_context)
     {
         GuiWorld* gui_world = gui_context->m_GuiWorld;
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(gui_world->m_CompGuiContext->m_RenderContext);
 
         dmGui::HNode first_node = entries[0].m_Node;
         dmGui::NodeType node_type = dmGui::GetNodeType(scene, first_node);
@@ -1625,8 +2192,8 @@ namespace dmGameSystem
 
         // 9-slice values are specified with reference to the original graphics and not by
         // the possibly stretched texture.
-        float org_width = (float)dmGraphics::GetOriginalTextureWidth(ro.m_Textures[0]);
-        float org_height = (float)dmGraphics::GetOriginalTextureHeight(ro.m_Textures[0]);
+        float org_width = (float)dmGraphics::GetOriginalTextureWidth(graphics_context, ro.m_Textures[0]);
+        float org_height = (float)dmGraphics::GetOriginalTextureHeight(graphics_context, ro.m_Textures[0]);
         assert(org_width > 0 && org_height > 0);
 
         int rendered_vert_count = 0;
@@ -1820,10 +2387,12 @@ namespace dmGameSystem
                 vs[vI[3]] = tc[3];
             }
 
-            xs[1] = sx * slice9.getX();
-            xs[2] = 1 - sx * slice9.getZ();
-            ys[1] = sy * slice9.getW();
-            ys[2] = 1 - sy * slice9.getY();
+            // Keep the geometry subdivisions aligned with the reversed UV
+            // subdivisions when an asymmetric 9-slice is flipped.
+            xs[1] = sx * (flip_u ? slice9.getZ() : slice9.getX());
+            xs[2] = 1 - sx * (flip_u ? slice9.getX() : slice9.getZ());
+            ys[1] = sy * (flip_v ? slice9.getY() : slice9.getW());
+            ys[2] = 1 - sy * (flip_v ? slice9.getW() : slice9.getY());
 
             const Matrix4* transform = &node_transforms[i];
             Vector4 pts[4][4];
@@ -2097,20 +2666,21 @@ namespace dmGameSystem
                 v = 0.5f + d * s;
                 BoxVertex vOuter(node_transforms[i] * Point3(u,v,0), u0 + ((uv_rotated ? v : u) * su), v0 + ((uv_rotated ? u : 1-v) * sv), pm_color, page_index);
 
-                // both inner & outer are doubled at first / last entry to generate degenerate triangles
+                // both outer & inner are doubled at first / last entry to generate degenerate triangles
                 // for the triangle strip, allowing more than one pie to be chained together in the same
                 // drawcall.
+                // CCW winding order: push outer before inner so front face points toward camera
                 if (first)
                 {
-                    gui_world->m_ClientVertexBuffer.Push(vInner);
+                    gui_world->m_ClientVertexBuffer.Push(vOuter);
                     first = false;
                 }
 
-                gui_world->m_ClientVertexBuffer.Push(vInner);
                 gui_world->m_ClientVertexBuffer.Push(vOuter);
+                gui_world->m_ClientVertexBuffer.Push(vInner);
 
                 if (j == generate-1)
-                    gui_world->m_ClientVertexBuffer.Push(vOuter);
+                    gui_world->m_ClientVertexBuffer.Push(vInner);
             }
 
             assert((gui_world->m_ClientVertexBuffer.Size() - sizeBefore) <= ComputeRequiredVertices(dmGui::GetNodePerimeterVertices(scene, entries[i].m_Node)));
@@ -2183,7 +2753,7 @@ namespace dmGameSystem
         uint64_t prev_combined_type                     = GetCombinedNodeType(prev_node_type, prev_custom_type);
         dmGraphics::HTexture prev_texture               = GetNodeTexture(scene, first_node);
         dmGameSystem::FontResource* prev_font_resource  = (dmGameSystem::FontResource*)dmGui::GetNodeFont(scene, first_node);
-        dmRender::HFont             prev_font           = prev_font_resource ? dmGameSystem::ResFontGetHandle(prev_font_resource) : 0;
+        dmRender::HFontMap          prev_font           = prev_font_resource ? dmGameSystem::ResFontGetHandle(prev_font_resource) : 0;
         HComponentRenderConstants prev_render_constants = (HComponentRenderConstants) dmGui::GetNodeRenderConstants(scene, first_node);
         const dmGui::StencilScope* prev_stencil_scope   = stencil_scopes[0];
         uint32_t prev_emitter_batch_key                 = 0;
@@ -2217,7 +2787,7 @@ namespace dmGameSystem
             uint64_t combined_type                     = GetCombinedNodeType(node_type, custom_type);
             dmGraphics::HTexture texture               = GetNodeTexture(scene, node);
             dmGameSystem::FontResource* font_resource  = (dmGameSystem::FontResource*)dmGui::GetNodeFont(scene, node);
-            dmRender::HFont             font           = font_resource ? dmGameSystem::ResFontGetHandle(font_resource) : 0;
+            dmRender::HFontMap          font           = font_resource ? dmGameSystem::ResFontGetHandle(font_resource) : 0;
             const dmGui::StencilScope* stencil_scope   = stencil_scopes[i];
             uint32_t emitter_batch_key                 = 0;
             dmRender::HMaterial material               = 0;
@@ -2316,6 +2886,8 @@ namespace dmGameSystem
             }
         }
 
+        dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, false);
+
         dmGraphics::SetVertexBufferData(gui_world->m_VertexBuffer,
                                         gui_world->m_ClientVertexBuffer.Size() * sizeof(BoxVertex),
                                         gui_world->m_ClientVertexBuffer.Begin(),
@@ -2348,33 +2920,65 @@ namespace dmGameSystem
         return dmHashString64(buffer);
     }
 
-    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* data)
+    static bool ReleaseResourcePropertyPointer(GuiComponent* component, dmResource::HFactory factory, void* resource)
+    {
+        for (uint32_t i = 0; i < component->m_ResourcePropertyPointers.Size(); ++i)
+        {
+            if (component->m_ResourcePropertyPointers[i] == resource)
+            {
+                component->m_ResourcePropertyPointers.EraseSwap(i);
+                dmResource::Release(factory, resource);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height,
+                                                            dmImage::Type type, dmImage::CompressionType compression_type, const void* data, uint32_t data_size)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
 
         char resource_path[dmResource::RESOURCE_PATH_MAX];
         dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
 
+        dmGraphics::TextureFormat texture_format = ToGraphicsFormat(type);
+        dmGraphics::TextureImage::CompressionType texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        if (compression_type == dmImage::COMPRESSION_TYPE_ASTC)
+        {
+            texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_ASTC;
+            if (!GetAstcTextureFormat(data, data_size, &texture_format))
+            {
+                dmLogError("Failed to create texture resource %s", resource_path);
+                return 0;
+            }
+
+            // The astc header is 16 bytes and the graphcis api expects the raw block data, not the header
+            data = ((uint8_t*)data) + 16;
+            data_size -= 16;
+        }
+
         CreateTextureResourceParams params = {};
         params.m_Path               = resource_path;
         params.m_PathHash           = resolved_path_hash;
         params.m_Collection         = dmGameObject::GetCollection(component->m_Instance);
         params.m_Type               = dmGraphics::TEXTURE_TYPE_2D;
-        params.m_Format             = ToGraphicsFormat(type);
+        params.m_Format             = texture_format;
         params.m_TextureType        = GraphicsTextureTypeToImageType(params.m_Type);
         params.m_TextureFormat      = GraphicsTextureFormatToImageFormat(params.m_Format);
-        params.m_CompressionType    = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        params.m_CompressionType    = texture_compression;
         params.m_Buffer             = 0;
         params.m_Data               = data;
+        params.m_DataSize           = data_size;
         params.m_Width              = width;
         params.m_Height             = height;
         params.m_Depth              = 1;
         params.m_MaxMipMaps         = 1;
-        params.m_TextureBpp         = dmGraphics::GetTextureFormatBitsPerPixel(params.m_Format);
         params.m_UsageFlags         = dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE;
 
-        void* resource_out = 0;
-        dmResource::Result res = CreateTextureResource(dmGameObject::GetFactory(component->m_Instance), params, &resource_out);
+        // Creates a texture and invokes the res_texture.cpp code path
+        dmGameSystem::TextureResource* resource_out = 0;
+        dmResource::Result res = CreateTextureResource(dmGameObject::GetFactory(component->m_Instance), params, (void**)&resource_out);
         if (res != dmResource::RESULT_OK)
         {
             dmLogError("Failed to create texture resource %s (status=%d)", resource_path, (int) res);
@@ -2387,9 +2991,14 @@ namespace dmGameSystem
     static void DeleteTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, dmGui::HTextureSource texture_source)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        dmResource::HFactory factory = dmGameObject::GetFactory(component->m_Instance);
+        if (ReleaseResourcePropertyPointer(component, factory, (void*)(uintptr_t) texture_source))
+        {
+            return;
+        }
+
         char resource_path[dmResource::RESOURCE_PATH_MAX];
         dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
-        dmResource::HFactory factory = dmGameObject::GetFactory(component->m_Instance);
         ResourceDescriptor* rd = dmResource::FindByHash(factory, resolved_path_hash);
         if (rd)
         {
@@ -2397,19 +3006,35 @@ namespace dmGameSystem
         }
     }
 
-    static void SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+    static void SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
         char resource_path[dmResource::RESOURCE_PATH_MAX];
         dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
 
+        dmGraphics::TextureFormat texture_format = ToGraphicsFormat(type);
+        dmGraphics::TextureImage::CompressionType texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        if (compression_type == dmImage::COMPRESSION_TYPE_ASTC)
+        {
+            texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_ASTC;
+            if (!GetAstcTextureFormat(buffer, buffer_size, &texture_format))
+            {
+                dmLogError("Failed to create texture resource %s", resource_path);
+                return;
+            }
+
+            // The astc header is 16 bytes and the graphcis api expects the raw block data, not the header
+            buffer = ((uint8_t*)buffer) + 16;
+            buffer_size -= 16;
+        }
+
         SetTextureResourceParams params = {};
         params.m_PathHash               = resolved_path_hash;
         params.m_TextureType            = dmGraphics::TEXTURE_TYPE_2D;
-        params.m_TextureFormat          = ToGraphicsFormat(type);
-        params.m_CompressionType        = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        params.m_TextureFormat          = texture_format;
+        params.m_CompressionType        = texture_compression;
         params.m_Data                   = buffer;
-        params.m_DataSize               = dmImage::BytesPerPixel(type) * width * height;
+        params.m_DataSize               = buffer_size;
         params.m_Width                  = width;
         params.m_Height                 = height;
         params.m_X                      = 0;
@@ -2444,8 +3069,9 @@ namespace dmGameSystem
             out_data->m_TexCoords = (const float*) texture_set->m_TexCoords.m_Data;
             out_data->m_State.m_Start = animation->m_Start;
             out_data->m_State.m_End = animation->m_End;
-            out_data->m_State.m_OriginalTextureWidth = dmGraphics::GetOriginalTextureWidth(texture_set_res->m_Texture->m_Texture);
-            out_data->m_State.m_OriginalTextureHeight = dmGraphics::GetOriginalTextureHeight(texture_set_res->m_Texture->m_Texture);
+
+            out_data->m_State.m_OriginalTextureWidth = texture_set_res->m_Texture->m_OriginalWidth;
+            out_data->m_State.m_OriginalTextureHeight = texture_set_res->m_Texture->m_OriginalHeight;
             out_data->m_State.m_Playback = ddf_playback_map.m_Table[playback_index];
             out_data->m_State.m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
@@ -2546,7 +3172,7 @@ namespace dmGameSystem
         dmScript::UpdateScriptWorld(gui_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
 
         gui_world->m_DT = params.m_UpdateContext->m_DT;
-        dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchAnimationCallback);
+        dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchResourcesCallback);
         const uint32_t count = gui_world->m_Components.Size();
         DM_PROPERTY_ADD_U32(rmtp_Gui, count);
         for (uint32_t i = 0; i < count; ++i)
@@ -2658,6 +3284,7 @@ namespace dmGameSystem
         }
         else if (params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash)
         {
+            ClearGuiLayoutObjectInteraction(gui_component);
             gui_component->m_Enabled = 0;
         }
         dmGui::Result result = dmGui::DispatchMessage(gui_component->m_Scene, params.m_Message);
@@ -2668,12 +3295,124 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    static void HitTestGuiLayoutObjects(dmGui::HScene scene, dmGui::HNode parent, float x, float y, dmArray<uint32_t>& codepoints, GuiLayoutObjectTarget* target, uint16_t* target_layer)
+    {
+        for (dmGui::HNode node = dmGui::GetFirstChildNode(scene, parent); node; node = dmGui::GetNextNode(scene, node))
+        {
+            if (!dmGui::IsNodeEnabled(scene, node, false))
+            {
+                continue;
+            }
+
+            if (dmGui::GetNodeType(scene, node) == dmGui::NODE_TYPE_TEXT && dmGui::GetNodeVisible(scene, node))
+            {
+                FontResource*      font_resource = (FontResource*)dmGui::GetNodeFont(scene, node);
+                dmRender::HFontMap font_map = font_resource ? ResFontGetHandle(font_resource) : 0;
+                Point3             local_position;
+
+                if (font_map && dmGui::ScreenToNodeRenderPosition(scene, node, x, y, &local_position))
+                {
+                    const char* text = dmGui::GetNodeText(scene, node);
+                    const char* safe_text = text ? text : "";
+                    Vector4     size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
+                    const bool  line_break = dmGui::GetNodeLineBreak(scene, node);
+                    const float leading = dmGui::GetNodeTextLeading(scene, node);
+                    const float tracking = dmGui::GetNodeTextTracking(scene, node);
+                    HTextLayout layout = GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, safe_text, size.getX(), line_break, leading, tracking, codepoints);
+
+                    if (layout)
+                    {
+                        TextLayoutHitTestParams hit_test = {};
+                        hit_test.m_Tag = TAG_LINK;
+                        hit_test.m_X = local_position.getX();
+                        hit_test.m_Y = local_position.getY();
+                        hit_test.m_Width = size.getX();
+                        hit_test.m_Height = size.getY();
+                        hit_test.m_FontSize = dmRender::GetFontMapSize(font_map);
+                        hit_test.m_MonospacePadding = dmRender::GetFontMapMonospaced(font_map) ? dmRender::GetFontMapPadding(font_map) : 0.0f;
+                        dmRender::TextAlign  align;
+                        dmRender::TextVAlign valign;
+                        GetGuiTextAlignment(scene, node, &align, &valign);
+                        hit_test.m_Align = align;
+                        hit_test.m_VAlign = valign;
+
+                        const uint32_t object_index = TextLayoutHitTestObject(layout, hit_test);
+                        const uint16_t node_layer = dmGui::GetNodeLayerIndex(scene, node);
+                        if (object_index != UINT32_MAX && (!target->m_Layout || node_layer >= *target_layer))
+                        {
+                            target->m_Layout       = layout;
+                            target->m_FontResource = font_resource;
+                            target->m_ObjectId     = TextLayoutGetObjects(layout)[object_index].m_Id;
+                            target->m_FontVersion  = ResFontGetVersion(font_resource);
+                            *target_layer          = node_layer;
+                        }
+                    }
+                }
+            }
+
+            HitTestGuiLayoutObjects(scene, node, x, y, codepoints, target, target_layer);
+        }
+    }
+
+    static void UpdateGuiLayoutObjectInteraction(GuiComponent* component, const dmGameObject::InputAction& action)
+    {
+        if (!action.m_PositionSet)
+        {
+            return;
+        }
+
+        GuiLayoutObjectTarget hovered = {};
+        dmArray<uint32_t>     codepoints;
+        uint16_t              hovered_layer = 0;
+        HitTestGuiLayoutObjects(component->m_Scene, 0, action.m_X, action.m_Y, codepoints, &hovered, &hovered_layer);
+
+        if (!EqualGuiLayoutObjectTargets(hovered, component->m_HoveredLayoutObject))
+        {
+            GuiLayoutObjectTarget previous = {};
+            SetGuiLayoutObjectTarget(&previous, component->m_HoveredLayoutObject);
+            SetGuiLayoutObjectStyle(component->m_HoveredLayoutObject, 0);
+            SetGuiLayoutObjectTarget(&component->m_HoveredLayoutObject, hovered);
+            SetGuiLayoutObjectStyle(component->m_HoveredLayoutObject, STYLE_LINK_HOVER);
+            SendGuiLayoutObjectMessage<dmGuiDDF::TextObjectUnhovered>(component, previous);
+            SendGuiLayoutObjectMessage<dmGuiDDF::TextObjectHovered>(component, component->m_HoveredLayoutObject);
+            ResetGuiLayoutObjectTarget(&previous);
+        }
+
+        if (action.m_Pressed && hovered.m_Layout)
+        {
+            SetGuiLayoutObjectStyle(component->m_PressedLayoutObject, 0);
+            SetGuiLayoutObjectTarget(&component->m_PressedLayoutObject, hovered);
+            SetGuiLayoutObjectStyle(component->m_PressedLayoutObject, STYLE_LINK_ACTIVE);
+        }
+
+        if (component->m_PressedLayoutObject.m_Layout && !EqualGuiLayoutObjectTargets(hovered, component->m_PressedLayoutObject) && !action.m_Released)
+        {
+            SetGuiLayoutObjectStyle(component->m_PressedLayoutObject, 0);
+            ResetGuiLayoutObjectTarget(&component->m_PressedLayoutObject);
+        }
+
+        if (component->m_PressedLayoutObject.m_Layout && action.m_Released)
+        {
+            const bool released_over_pressed = EqualGuiLayoutObjectTargets(hovered, component->m_PressedLayoutObject);
+            SetGuiLayoutObjectStyle(component->m_PressedLayoutObject, released_over_pressed ? STYLE_LINK_HOVER : 0);
+
+            if (released_over_pressed)
+            {
+                SendGuiLayoutObjectMessage<dmGuiDDF::TextObjectClicked>(component, component->m_PressedLayoutObject);
+            }
+
+            ResetGuiLayoutObjectTarget(&component->m_PressedLayoutObject);
+        }
+    }
+
     static dmGameObject::InputResult CompGuiOnInput(const dmGameObject::ComponentOnInputParams& params)
     {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
 
         if (gui_component->m_Enabled)
         {
+            UpdateGuiLayoutObjectInteraction(gui_component, *params.m_InputAction);
+
             dmGui::HScene scene = gui_component->m_Scene;
             dmGui::InputAction gui_input_action;
             gui_input_action.m_ActionId = params.m_InputAction->m_ActionId;
@@ -2695,23 +3434,43 @@ namespace dmGameSystem
             gui_input_action.m_GamepadUnknown = params.m_InputAction->m_GamepadUnknown;
             gui_input_action.m_GamepadDisconnected = params.m_InputAction->m_GamepadDisconnected;
             gui_input_action.m_GamepadConnected = params.m_InputAction->m_GamepadConnected;
-            gui_input_action.m_GamepadPacket = params.m_InputAction->m_GamepadPacket;
             gui_input_action.m_HasGamepadPacket = params.m_InputAction->m_HasGamepadPacket;
+            if (gui_input_action.m_HasGamepadPacket)
+            {
+                gui_input_action.m_GamepadPacket = params.m_InputAction->m_GamepadPacket;
+            }
             gui_input_action.m_AccX = params.m_InputAction->m_AccX;
             gui_input_action.m_AccY = params.m_InputAction->m_AccY;
             gui_input_action.m_AccZ = params.m_InputAction->m_AccZ;
             gui_input_action.m_AccelerationSet = params.m_InputAction->m_AccelerationSet;
             gui_input_action.m_UserID = params.m_InputAction->m_UserID;
 
-            gui_input_action.m_TouchCount = params.m_InputAction->m_TouchCount;
-            int tc = params.m_InputAction->m_TouchCount;
-            for (int i = 0; i < tc; ++i) {
-                gui_input_action.m_Touch[i] = params.m_InputAction->m_Touch[i];
-            }
 
-            size_t text_count = dmStrlCpy(gui_input_action.m_Text, params.m_InputAction->m_Text, sizeof(gui_input_action.m_Text));
-            gui_input_action.m_TextCount = text_count;
             gui_input_action.m_HasText = params.m_InputAction->m_HasText;
+            gui_input_action.m_TouchCount = 0;
+            gui_input_action.m_TextCount = 0;
+
+            if (gui_input_action.m_GamepadConnected)
+            {
+                size_t text_count = dmStrlCpy(gui_input_action.m_Text, params.m_InputAction->m_Text, sizeof(gui_input_action.m_Text));
+                gui_input_action.m_TextCount = text_count;
+            }
+            else if (params.m_InputAction->m_Count > 0)
+            {
+                if (!gui_input_action.m_HasText)
+                {
+                    gui_input_action.m_TouchCount = params.m_InputAction->m_Count;
+                    int tc = gui_input_action.m_TouchCount;
+                    for (int i = 0; i < tc; ++i) {
+                        gui_input_action.m_Touch[i] = params.m_InputAction->m_Touch[i];
+                    }
+                }
+                else
+                {
+                    size_t text_count = dmStrlCpy(gui_input_action.m_Text, params.m_InputAction->m_Text, sizeof(gui_input_action.m_Text));
+                    gui_input_action.m_TextCount = text_count;
+                }
+            }
 
             bool consumed;
             dmGui::Result gui_result = dmGui::DispatchInput(scene, &gui_input_action, 1, &consumed);
@@ -2732,6 +3491,7 @@ namespace dmGameSystem
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
+        ClearGuiLayoutObjectInteraction(gui_component);
         dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
         if (result != dmGui::RESULT_OK)
         {
@@ -2755,7 +3515,7 @@ namespace dmGameSystem
         }
     }
 
-    // Public function used by engine (as callback from gui system)
+    // Callback used to integrate GUI scenes with game objects
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
@@ -2768,14 +3528,14 @@ namespace dmGameSystem
         }
     }
 
-    // Public function used by engine (as callback from gui system)
+    // Callback used to integrate GUI scenes with game objects
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
         return (uintptr_t)component->m_Instance;
     }
 
-    // Public function used by engine (as callback from gui system)
+    // Callback used to integrate GUI scenes with game objects
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
@@ -2793,13 +3553,16 @@ namespace dmGameSystem
     // Public function used by engine (as callback from gui system)
     void GuiGetTextMetricsCallback(dmGameSystem::FontResource* font_resource, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
     {
-        dmRender::HFont font = dmGameSystem::ResFontGetHandle(font_resource);
+        dmRender::HFontMap font = dmGameSystem::ResFontGetHandle(font_resource);
 
-        dmRender::TextMetricsSettings settings;
+        TextLayoutSettings settings = {0};
         settings.m_Width = width;
         settings.m_LineBreak = line_break;
         settings.m_Leading = leading;
         settings.m_Tracking = tracking;
+        // legacy options for glyph bank fonts
+        settings.m_Monospace = dmRender::GetFontMapMonospaced(font);
+        settings.m_Padding = dmRender::GetFontMapPadding(font);
 
         dmRender::TextMetrics metrics;
         dmRender::GetTextMetrics(font, text, &settings, &metrics);
@@ -2818,31 +3581,34 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_MATERIALS)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
 
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetMaterial(gui_component->m_Scene, params.m_Options.m_Key), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetMaterial(gui_component->m_Scene, key), out_value);
         }
         else if (set_property == PROP_FONTS)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetFont(gui_component->m_Scene, params.m_Options.m_Key), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), dmGui::GetFont(gui_component->m_Scene, key), out_value);
         }
         else if (set_property == PROP_TEXTURES)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
-            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), (void*) dmGui::GetTexture(gui_component->m_Scene, params.m_Options.m_Key), out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), (void*) dmGui::GetTexture(gui_component->m_Scene, key), out_value);
         }
 
         CompGuiPropertyGetterFn* getter_fn = g_CompGuiPropertyGetters.Get(set_property);
@@ -2850,7 +3616,7 @@ namespace dmGameSystem
         {
             return (*getter_fn)(gui_component->m_Scene, params, out_value);
         }
-        
+
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -2863,7 +3629,8 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_FONTS)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
@@ -2872,10 +3639,10 @@ namespace dmGameSystem
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, FONT_EXT_HASH, (void**)&font_resource);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGui::Result r = dmGui::AddFont(gui_component->m_Scene, params.m_Options.m_Key, (void*)font_resource, params.m_Value.m_Hash);
+                dmGui::Result r = dmGui::AddFont(gui_component->m_Scene, key, (void*)font_resource, params.m_Value.m_Hash);
                 if (r != dmGui::RESULT_OK)
                 {
-                    dmLogError("Unable to set font `%s` property in component `%s`", dmHashReverseSafe64(params.m_Options.m_Key), gui_component->m_Resource->m_Path);
+                    dmLogError("Unable to set font `%s` property in component `%s`", dmHashReverseSafe64(key), gui_component->m_Resource->m_Path);
                     dmResource::Release(factory, font_resource);
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
                 }
@@ -2888,7 +3655,8 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_TEXTURES)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
@@ -2897,11 +3665,13 @@ namespace dmGameSystem
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, TEXTURE_SET_EXT_HASH, (void**)&texture_source);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGraphics::HTexture texture = texture_source->m_Texture->m_Texture;
-                dmGui::Result r = dmGui::AddDynamicTexture(gui_component->m_Scene, params.m_Options.m_Key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
+                dmGui::Result r = dmGui::AddDynamicTexture(gui_component->m_Scene, key, (dmGui::HTextureSource) texture_source, dmGui::NODE_TEXTURE_TYPE_TEXTURE_SET,
+                                                            texture_source->m_Texture->m_OriginalWidth,
+                                                            texture_source->m_Texture->m_OriginalHeight);
                 if (r != dmGui::RESULT_OK)
                 {
-                    dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key),  r);
+                    dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(key),  r);
+                    dmResource::Release(factory, texture_source);
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
                 }
                 if(gui_component->m_ResourcePropertyPointers.Full())
@@ -2914,7 +3684,8 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_MATERIALS)
         {
-            if (!params.m_Options.m_HasKey)
+            dmhash_t key = 0;
+            if (GetPropertyOptionsKey(params.m_Options, 0, &key) != dmGameObject::PROPERTY_RESULT_OK)
             {
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
@@ -2925,11 +3696,11 @@ namespace dmGameSystem
 
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGui::Result r = dmGui::AddMaterial(gui_component->m_Scene, params.m_Options.m_Key, material_res);
+                dmGui::Result r = dmGui::AddMaterial(gui_component->m_Scene, key, material_res);
 
                 if (r != dmGui::RESULT_OK)
                 {
-                    dmLogError("Unable to add material '%s' to scene (%d)", dmHashReverseSafe64(params.m_Options.m_Key), r);
+                    dmLogError("Unable to add material '%s' to scene (%d)", dmHashReverseSafe64(key), r);
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
                 }
 
@@ -2950,7 +3721,7 @@ namespace dmGameSystem
         {
             return (*setter_fn)(gui_component->m_Scene, params);
         }
-        
+
         return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -3185,12 +3956,6 @@ namespace dmGameSystem
         pit->m_FnIterateNext = CompGuiIterPropertiesGetNext;
     }
 
-    void IterateDynamicTextures(dmhash_t gui_res_id, dmGameObject::SceneNode* node, FDynamicTextturesIterator callback, void* user_ctx)
-    {
-        GuiComponent* component = (GuiComponent*)node->m_Component;
-        IterateDynamicTextures(gui_res_id, component->m_Scene, callback, user_ctx);
-    }
-
     template <typename T2>
     static void HTCopyCallback(dmHashTable64<T2> *ht, const uint64_t* key, T2* value)
     {
@@ -3201,14 +3966,15 @@ namespace dmGameSystem
     {
         g_CompGuiPropertySetters.SetCapacity(4, 8);
         g_CompGuiPropertyGetters.SetCapacity(4, 8);
-        
-        CompGuiContext* gui_context = new CompGuiContext;
-        gui_context->m_Factory = ctx->m_Factory;
-        gui_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));
-        gui_context->m_GuiContext = *(dmGui::HContext*)ctx->m_Contexts.Get(dmHashString64("guic"));
-        gui_context->m_ScriptContext = *(dmScript::HContext*)ctx->m_Contexts.Get(dmHashString64("gui_scriptc"));
 
-        gui_context->m_MaxGuiComponents = dmConfigFile::GetInt(ctx->m_Config, "gui.max_count", 64);
+        CompGuiContext* gui_context = new CompGuiContext;
+        HContextRegistry context_registry = dmGameObject::ComponentGetContextRegistry(ctx);
+        gui_context->m_Factory = ctx->m_Factory;
+        gui_context->m_RenderContext = (dmRender::HRenderContext) ContextRegistryGet(context_registry, RENDER_CONTEXT_NAME);
+        gui_context->m_GuiContext = (dmGui::HContext) ContextRegistryGet(context_registry, "guic");
+        gui_context->m_ScriptContext = (dmScript::HContext) ContextRegistryGet(context_registry, "gui_scriptc");
+
+        gui_context->m_MaxGuiComponents = dmConfigFile::GetInt(ctx->m_Config, GUI_MAX_COUNT_KEY, 64);
         gui_context->m_MaxParticleFXCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particlefx_count", 64);
         gui_context->m_MaxParticleCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particle_count", 1024);
         gui_context->m_MaxAnimationCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_animation_count", 1024);
@@ -3223,6 +3989,11 @@ namespace dmGameSystem
         }
         gui_context->m_Worlds.SetCapacity(max_world_count);
 
+        dmGui::SetContextCallbacks(gui_context->m_GuiContext,
+                                   GuiGetURLCallback,
+                                   GuiGetUserDataCallback,
+                                   GuiResolvePathCallback,
+                                   (dmGui::GetTextMetricsCallback) GuiGetTextMetricsCallback);
         dmGui::InitializeScript(gui_context->m_ScriptContext);
 
         ComponentTypeSetPrio(type, 300);
@@ -3299,6 +4070,7 @@ namespace dmGameSystem
         g_CompGuiPropertySetters.Clear();
         g_CompGuiPropertyGetters.Clear();
 
+        dmGui::SetContextCallbacks(gui_context->m_GuiContext, 0, 0, 0, 0);
         delete gui_context;
         return dmGameObject::RESULT_OK;
     }

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -93,11 +93,13 @@
     value))
 
 (defn make-event
-  [^Exception ex ^Thread thread]
+  [^Exception ex ^Thread thread user]
+  {:pre [(map? user) (= 1 (count user)) (contains? user :id)]}
   (let [id (string/replace (str (java.util.UUID/randomUUID)) "-" "")
         environment (if (system/defold-version) "release" "dev")
         gl-info (gl/info)
         event {:event_id    id
+               :user        user
                :message     (.getMessage ex)
                :timestamp   (LocalDateTime/now ZoneOffset/UTC)
                :level       "error"
@@ -160,8 +162,8 @@
    :as :input-stream})
 
 (defn report-exception
-  [{:keys [project-id] :as options} exception thread]
-  (let [event (make-event exception thread)
+  [{:keys [project-id user] :as options} exception thread]
+  (let [event (make-event exception thread user)
         request (make-request-data options event)
         response @(http/request (format "https://sentry.io/api/%s/store/" project-id) request)]
     (when (= 200 (:status response))
@@ -175,7 +177,7 @@
 ;; - limit rate of reporting
 
 (defn make-exception-reporter
-  [{:keys [project-id key secret] :as options}]
+  [{:keys [project-id key secret user] :as options}]
   (let [queue (LinkedBlockingQueue. 1000)
         run? (volatile! true)
         reporter-fn (fn []

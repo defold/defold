@@ -1,0 +1,5 @@
+mesh: "/misc/dispatch_buffers_test_quad_2x2.gltf"
+skeleton: ""
+animations: ""
+default_animation: ""
+material: "/misc/dispatch_buffers_test_material_b.material"

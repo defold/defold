@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -45,6 +45,51 @@ namespace dmPlatform
     }
 
     void SetWindowsIconNative(HWindow window)
+    {
+        // NOP
+    }
+
+    void SetWindowedFullscreenFocusNative(HWindow, bool)
+    {
+        // NOP
+    }
+
+    void SetWindowedSizeFromSettingsNative(HWindow, int32_t, int32_t)
+    {
+        // NOP
+    }
+
+    void SetFullscreenWindowModeParamsNative(GLFWmonitor* monitor, const GLFWvidmode* mode, WindowModeParams* mode_params)
+    {
+        mode_params->m_Width  = mode->width;
+        mode_params->m_Height = mode->height;
+
+        if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
+        {
+            glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_FALSE);
+            mode_params->m_Monitor = monitor;
+            return;
+        }
+
+        // The video mode already has the size needed to cover the monitor.
+        // Do not scale the borderless window dimensions a second time.
+        glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_FALSE);
+        glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+        glfwGetMonitorPos(monitor, &mode_params->m_X, &mode_params->m_Y);
+        mode_params->m_WindowedFullscreen = true;
+    }
+
+    bool CanSetOpenGLCoreProfileHintNative(bool)
+    {
+        return true;
+    }
+
+    void InstallWindowCloseHandlerNative(HWindow)
+    {
+        // NOP
+    }
+
+    void UninstallWindowCloseHandlerNative(HWindow)
     {
         // NOP
     }

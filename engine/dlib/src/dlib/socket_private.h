@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,10 +15,15 @@
 #ifndef DM_SOCKET_PRIVATE_H
 #define DM_SOCKET_PRIVATE_H
 
+#define DM_SOCKET_ERRNO() dmSocket::GetSocketLastError()
+#define DM_SOCKET_EINTR() dmSocket::GetSocketInterruptedError()
+
 namespace dmSocket
 {
     Result PlatformInitialize();
     Result PlatformFinalize();
+    int GetSocketLastError();
+    int GetSocketInterruptedError();
 
     Result NativeToResult(const char* filename, int line, int r);
     #define NATIVETORESULT(_R_) NativeToResult(__FILE__, __LINE__, _R_)

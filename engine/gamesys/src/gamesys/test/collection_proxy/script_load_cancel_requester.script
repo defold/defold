@@ -1,0 +1,23 @@
+cp_script_load_cancel_refs = nil
+cp_script_load_cancel_started = false
+cp_script_load_cancel_loading = false
+cp_script_load_cancel_ready = false
+cp_script_load_cancel_error = nil
+
+function init(self)
+    cp_script_load_cancel_refs = setmetatable({}, { __mode = "v" })
+
+    local function callback(self, message_id, message, sender)
+        if message_id == hash("proxy_loading") then
+            cp_script_load_cancel_loading = true
+        elseif message_id == hash("proxy_ready") then
+            cp_script_load_cancel_ready = true
+        elseif message_id == hash("proxy_error") then
+            cp_script_load_cancel_error = message.code
+        end
+    end
+
+    cp_script_load_cancel_refs.callback = callback
+    collectionproxy.load("/proxy#callbackproxy", nil, callback)
+    cp_script_load_cancel_started = true
+end

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -48,7 +48,7 @@
  * ```
  */
 
-#if __cplusplus >= 201103L
+#if __cplusplus >= 201103L || (defined(_MSC_VER) && defined(__cplusplus))
     // For backwards compatibility, we need to keep the old error format
     #define DM_STATIC_ASSERT(x, error) static_assert(x, #error)
 #else

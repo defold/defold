@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,10 +18,11 @@
 #include "texc.h"
 #include "texc_private.h"
 #include <dlib/log.h>
+#include <dlib/math.h>
 
 namespace dmTexc
 {
-    void RGB565ToRGB888(const uint16_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgb)
+    void RGB565ToRGB888(const uint16_t* data, uint32_t width, uint32_t height, uint8_t* color_rgb)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -44,7 +45,7 @@ namespace dmTexc
         return r | g | b;
     }
 
-    void RGB565ToRGBA8888(const uint16_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgba)
+    void RGB565ToRGBA8888(const uint16_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -61,7 +62,7 @@ namespace dmTexc
     }
 
     // https://docs.microsoft.com/en-us/windows/win32/directshow/working-with-16-bit-rgb
-    void RGBA8888ToRGB565(const uint8_t* data, const uint32_t width, const uint32_t height, uint16_t* color_rgb)
+    void RGBA8888ToRGB565(const uint8_t* data, uint32_t width, uint32_t height, uint16_t* color_rgb)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -86,7 +87,7 @@ namespace dmTexc
         return (r | g | b | a);
     }
 
-    void RGBA4444ToRGBA8888(const uint16_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgba)
+    void RGBA4444ToRGBA8888(const uint16_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -104,7 +105,7 @@ namespace dmTexc
         }
     }
 
-    void RGBA8888ToRGBA4444(const uint8_t* data, const uint32_t width, const uint32_t height, uint16_t* color_rgba)
+    void RGBA8888ToRGBA4444(const uint8_t* data, uint32_t width, uint32_t height, uint16_t* color_rgba)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -117,7 +118,7 @@ namespace dmTexc
         }
     }
 
-    void L8ToRGB888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgb)
+    void L8ToRGB888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgb)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -127,7 +128,7 @@ namespace dmTexc
         }
     }
 
-    void L8ToRGBA8888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgba)
+    void L8ToRGBA8888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -138,7 +139,7 @@ namespace dmTexc
         }
     }
 
-    void RGBA8888ToL8(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_l)
+    void RGBA8888ToL8(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_l)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -147,7 +148,7 @@ namespace dmTexc
         }
     }
 
-    void L8A8ToRGBA8888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgba)
+    void L8A8ToRGBA8888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -158,7 +159,7 @@ namespace dmTexc
         }
     }
 
-    void RGBA8888ToL8A8(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_la)
+    void RGBA8888ToL8A8(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_la)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -168,7 +169,7 @@ namespace dmTexc
         }
     }
 
-    void RGB888ToRGBA8888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgba)
+    void RGB888ToRGBA8888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -179,7 +180,7 @@ namespace dmTexc
         }
     }
 
-    void ABGR8888ToRGBA8888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgba)
+    void ABGR8888ToRGBA8888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgba)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -195,7 +196,7 @@ namespace dmTexc
         }
     }
 
-    void RGBA8888ToRGB888(const uint8_t* data, const uint32_t width, const uint32_t height, uint8_t* color_rgb)
+    void RGBA8888ToRGB888(const uint8_t* data, uint32_t width, uint32_t height, uint8_t* color_rgb)
     {
         for(uint32_t i = 0; i < width*height; ++i)
         {
@@ -206,7 +207,7 @@ namespace dmTexc
         }
     }
 
-    void PreMultiplyAlpha(uint8_t* data, const uint32_t width, const uint32_t height)
+    void PreMultiplyAlpha(uint8_t* data, uint32_t width, uint32_t height)
     {
         // If this is an issue, we could simd it
         // e.g (v6) https://github.com/Wizermil/premultiply_alpha/blob/master/premultiply_alpha/premultiply_alpha.hpp
@@ -221,7 +222,7 @@ namespace dmTexc
         }
     }
 
-    void FlipImageX_RGBA8888(uint32_t* data, const uint32_t width, const uint32_t height)
+    void FlipImageX_RGBA8888(uint32_t* data, uint32_t width, uint32_t height)
     {
         for (uint32_t y = 0; y < height; ++y)
         {
@@ -235,7 +236,7 @@ namespace dmTexc
         }
     }
 
-    void FlipImageY_RGBA8888(uint32_t* data, const uint32_t width, const uint32_t height)
+    void FlipImageY_RGBA8888(uint32_t* data, uint32_t width, uint32_t height)
     {
         for (uint32_t y = 0; y < height/2; ++y)
         {
@@ -247,6 +248,101 @@ namespace dmTexc
                 data[x + y2 * width] = rgba;
             }
         }
+    }
+
+    void FlipImageX_RGBA32F(float* data, uint32_t width, uint32_t height)
+    {
+        for (uint32_t y = 0; y < height; ++y)
+        {
+            for (uint32_t x = 0; x < width/2; ++x)
+            {
+                uint32_t x2 = width - x - 1;
+                float* a = data + (x + y * width) * 4;
+                float* b = data + (x2 + y * width) * 4;
+                for (uint32_t c = 0; c < 4; ++c)
+                {
+                    float t = a[c];
+                    a[c] = b[c];
+                    b[c] = t;
+                }
+            }
+        }
+    }
+
+    void FlipImageY_RGBA32F(float* data, uint32_t width, uint32_t height)
+    {
+        for (uint32_t y = 0; y < height/2; ++y)
+        {
+            uint32_t y2 = height - y - 1;
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                float* a = data + (x + y * width) * 4;
+                float* b = data + (x + y2 * width) * 4;
+                for (uint32_t c = 0; c < 4; ++c)
+                {
+                    float t = a[c];
+                    a[c] = b[c];
+                    b[c] = t;
+                }
+            }
+        }
+    }
+
+    Image* ResizeRGBA32F(Image* image, uint32_t width, uint32_t height)
+    {
+        Image* resized = new Image;
+        resized->m_Path = 0;
+        resized->m_Width = width;
+        resized->m_Height = height;
+        resized->m_PixelFormat = PF_RGBA32F;
+        resized->m_ColorSpace = image->m_ColorSpace;
+        resized->m_DataCount = GetDataSize(PF_RGBA32F, width, height);
+        if (resized->m_DataCount == 0)
+        {
+            delete resized;
+            return 0;
+        }
+
+        resized->m_Data = (uint8_t*)malloc(resized->m_DataCount);
+        if (!resized->m_Data)
+        {
+            delete resized;
+            return 0;
+        }
+
+        const float* src = (const float*)image->m_Data;
+        float* dst = (float*)resized->m_Data;
+        float scale_x = (float)image->m_Width / (float)width;
+        float scale_y = (float)image->m_Height / (float)height;
+
+        for (uint32_t y = 0; y < height; ++y)
+        {
+            float src_y = dmMath::Max(0.0f, (y + 0.5f) * scale_y - 0.5f);
+            uint32_t y0 = dmMath::Min((uint32_t)src_y, image->m_Height - 1);
+            uint32_t y1 = dmMath::Min(y0 + 1, image->m_Height - 1);
+            float ty = src_y - y0;
+
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                float src_x = dmMath::Max(0.0f, (x + 0.5f) * scale_x - 0.5f);
+                uint32_t x0 = dmMath::Min((uint32_t)src_x, image->m_Width - 1);
+                uint32_t x1 = dmMath::Min(x0 + 1, image->m_Width - 1);
+                float tx = src_x - x0;
+
+                for (uint32_t c = 0; c < 4; ++c)
+                {
+                    float c00 = src[((y0 * image->m_Width + x0) * 4) + c];
+                    float c10 = src[((y0 * image->m_Width + x1) * 4) + c];
+                    float c01 = src[((y1 * image->m_Width + x0) * 4) + c];
+                    float c11 = src[((y1 * image->m_Width + x1) * 4) + c];
+                    float cx0 = c00 + (c10 - c00) * tx;
+                    float cx1 = c01 + (c11 - c01) * tx;
+                    dst[((y * width + x) * 4) + c] = cx0 + (cx1 - cx0) * ty;
+                }
+            }
+        }
+
+        return resized;
     }
 
     bool HasAlpha(PixelFormat pf)
@@ -290,6 +386,8 @@ namespace dmTexc
         case PF_L8A8:       return 2;
         case PF_R5G6B5:     return 2;
         case PF_L8:         return 1;
+        case PF_RGBA16F:    return 8;
+        case PF_RGBA32F:    return 16;
 
         default:
             assert("not supported");
@@ -300,10 +398,11 @@ namespace dmTexc
     uint32_t GetDataSize(PixelFormat pf, uint32_t width, uint32_t height)
     {
         uint32_t bytes_per_pixel = GetBytesPerPixel(pf);
-        return bytes_per_pixel * width * height;
+        uint64_t data_size = (uint64_t)bytes_per_pixel * (uint64_t)width * (uint64_t)height;
+        return data_size <= 0xffffffffULL ? (uint32_t)data_size : 0;
     }
 
-    bool ConvertToRGBA8888(const uint8_t* input, const uint32_t width, const uint32_t height, PixelFormat pf, uint8_t* out)
+    bool ConvertToRGBA8888(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, uint8_t* out)
     {
         switch(pf)
         {
@@ -333,6 +432,100 @@ namespace dmTexc
         case PF_R8G8B8A8:   memcpy((uint8_t*)out_data, input, width*height*4); break;
         default:
             dmLogError("ConvertRGBA8888ToPf: Format not yet supported: %d", pf);
+        }
+    }
+
+    static uint16_t FloatToHalf(float value)
+    {
+        uint32_t bits;
+        memcpy(&bits, &value, sizeof(bits));
+
+        // IEEE-754 float32: 1 sign bit, 8 exponent bits, 23 mantissa bits.
+        // IEEE-754 float16: 1 sign bit, 5 exponent bits, 10 mantissa bits.
+        uint32_t sign = (bits >> 16) & 0x8000;
+        int32_t exponent = ((bits >> 23) & 0xff) - 127 + 15;
+        uint32_t mantissa = bits & 0x7fffff;
+
+        if (exponent <= 0)
+        {
+            // Values too small for a normalized half become subnormals, or zero
+            // when the exponent is outside the representable subnormal range.
+            if (exponent < -10)
+            {
+                return (uint16_t)sign;
+            }
+            mantissa = (mantissa | 0x800000) >> (1 - exponent);
+            return (uint16_t)(sign | ((mantissa + 0x1000) >> 13));
+        }
+
+        if (exponent >= 31)
+        {
+            // Preserve infinities and NaNs as half-float special values.
+            if (mantissa == 0)
+            {
+                return (uint16_t)(sign | 0x7c00);
+            }
+            return (uint16_t)(sign | 0x7c00 | (mantissa >> 13));
+        }
+
+        // Round the float32 mantissa from 23 to 10 bits. Use addition between
+        // exponent and mantissa fields so rounding overflow carries into exponent.
+        return (uint16_t)(sign | ((exponent << 10) + ((mantissa + 0x1000) >> 13)));
+    }
+
+    bool ConvertRGBA32FToPf(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, void* out_data)
+    {
+        uint32_t input_data_size = GetDataSize(PF_RGBA32F, width, height);
+        if (input_data_size == 0)
+        {
+            return false;
+        }
+
+        switch(pf)
+        {
+        case PF_RGBA32F:
+            memcpy((uint8_t*)out_data, input, input_data_size);
+            return true;
+        case PF_RGBA16F:
+        {
+            const float* src = (const float*)input;
+            uint16_t* dst = (uint16_t*)out_data;
+            uint32_t component_count = input_data_size / sizeof(float);
+            for (uint32_t i = 0; i < component_count; ++i)
+            {
+                dst[i] = FloatToHalf(src[i]);
+            }
+            return true;
+        }
+        default:
+            dmLogError("ConvertRGBA32FToPf: Format not yet supported: %d", pf);
+            return false;
+        }
+    }
+
+    // NOTE: This is used by the Defold Editor when Generating a Preview Image for atlases
+    // We merge all the required steps to optimize since this blocks the editor UI while this is generated
+    void ConvertPremultiplyAndFlip_ABGR8888ToRGBA8888(const uint8_t* input_data, uint8_t* output_data, uint32_t width, uint32_t height)
+    {
+        for (uint32_t y = 0; y < height; ++y)
+        {
+            uint32_t       flipped_y = height - y - 1;
+            const uint8_t* src = input_data + (y * width * 4);
+            uint8_t*       dst = output_data + (flipped_y * width * 4);
+
+#pragma clang loop vectorize(enable) interleave(enable)
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                uint8_t a = *(src++);
+                uint8_t b = *(src++);
+                uint8_t g = *(src++);
+                uint8_t r = *(src++);
+
+                *(dst++) = (uint8_t)((r * a) / 255);
+                *(dst++) = (uint8_t)((g * a) / 255);
+                *(dst++) = (uint8_t)((b * a) / 255);
+                *(dst++) = a;
+            }
         }
     }
 

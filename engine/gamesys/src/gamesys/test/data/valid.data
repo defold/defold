@@ -1,0 +1,6 @@
+tags: "tag-one"
+tags: "tag-two"
+data {
+  string: "hello"
+}
+

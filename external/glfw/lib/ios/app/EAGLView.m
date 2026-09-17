@@ -17,6 +17,7 @@
 #include "EAGLView.h"
 #import "TextUtil.h"
 #import "AppDelegate.h"
+#import "ViewController.h"
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
@@ -294,6 +295,25 @@ int  _glfwPlatformOpenWindowOpenGL( int width, int height,
                               const _GLFWwndconfig *wndconfig,
                               const _GLFWfbconfig *fbconfig )
 {
+    if (!g_EAGLView || !g_glContext)
+    {
+        ViewController* viewController = (ViewController*) _glfwWin.viewController;
+        if (!viewController)
+        {
+            viewController = (ViewController*) g_ApplicationWindow.rootViewController;
+            _glfwWin.viewController = viewController;
+        }
+        if (viewController && [viewController isViewLoaded])
+        {
+            [viewController createView:FALSE];
+        }
+    }
+
+    if (!g_EAGLView || !g_glContext || ![EAGLContext setCurrentContext:g_glContext])
+    {
+        return GL_FALSE;
+    }
+
     // Width and height are set by the EAGLView
     _glfwWin.width = [g_EAGLView getWindowWidth];
     _glfwWin.height = [g_EAGLView getWindowHeight];

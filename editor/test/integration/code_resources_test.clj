@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,6 +21,7 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [support.test-support :refer [with-clean-system]]))
 
 (defn- all-file-resources
@@ -37,9 +38,9 @@
 
 (defn- save-tracked-resources [project]
   (let [basis (g/now)]
-    (->> (g/sources-of basis project :save-data)
-         (map (fn [[resource-node-id]]
-                (resource-node/resource basis resource-node-id)))
+    (->> (g/inputs basis project :save-data)
+         (map (fn [arc]
+                (resource-node/resource basis (gt/source-id arc))))
          (sort-by resource/proj-path)
          (vec))))
 
@@ -67,9 +68,8 @@
 
 (deftest code-resources-dirty-test
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_unchanged_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/reload_unchanged_project")
           project (test-util/setup-project! workspace)
-          project-graph-id (g/node-id->graph-id project)
 
           editable-code-resource-node-ids
           (g/with-auto-evaluation-context evaluation-context
@@ -100,15 +100,15 @@
       (is (all-clean?) "Clean after loading.")
       (set-code-resource-node-lines! edited-lines-by-code-resource-node-id)
       (is (all-dirty?) "Dirty after edit.")
-      (g/undo! project-graph-id)
+      (g/undo! :undo/global)
       (is (all-clean?) "Clean after edit -> undo.")
-      (g/redo! project-graph-id)
+      (g/redo! :undo/global)
       (is (all-dirty?) "Dirty after edit -> undo -> redo.")
       (test-util/save-project! project)
       (is (all-clean?) "Clean after edit -> save.")
-      (g/undo! project-graph-id)
+      (g/undo! :undo/global)
       (is (all-dirty?) "Dirty after edit -> save -> undo.")
-      (g/redo! project-graph-id)
+      (g/redo! :undo/global)
       (is (all-clean?) "Clean after edit -> save -> undo -> redo.")
       (set-code-resource-node-lines! original-lines-by-code-resource-node-id)
       (is (all-dirty?) "Dirty after edit -> save -> paste-original"))))

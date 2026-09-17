@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,19 +27,57 @@ enum BindingType
     BINDING_TYPE_STORAGE_BUFFER,
 };
 
-static inline void AddShader(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::Language language, uint8_t* source, int source_size)
+static inline uint8_t InferShaderStageFlags(const dmGraphics::ShaderDesc* desc)
+{
+    uint8_t stage_flags = 0;
+
+    for (uint32_t i = 0; i < desc->m_Shaders.m_Count; ++i)
+    {
+        switch (desc->m_Shaders.m_Data[i].m_ShaderType)
+        {
+        case dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX:
+            stage_flags |= dmGraphics::SHADER_STAGE_FLAG_VERTEX;
+            break;
+        case dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT:
+            stage_flags |= dmGraphics::SHADER_STAGE_FLAG_FRAGMENT;
+            break;
+        case dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE:
+            stage_flags |= dmGraphics::SHADER_STAGE_FLAG_COMPUTE;
+            break;
+        default:
+            break;
+        }
+    }
+
+    return stage_flags ? stage_flags : dmGraphics::SHADER_STAGE_FLAG_VERTEX;
+}
+
+static inline void AddShaderWithType(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ShaderType type, dmGraphics::ShaderDesc::Language language, uint8_t* source, int source_size)
 {
     desc->m_Shaders.m_Data = (dmGraphics::ShaderDesc::Shader*) realloc(desc->m_Shaders.m_Data, sizeof(dmGraphics::ShaderDesc::Shader) * (desc->m_Shaders.m_Count + 1));
+
     dmGraphics::ShaderDesc::Shader* shader = desc->m_Shaders.m_Data + desc->m_Shaders.m_Count;
     memset(shader, 0, sizeof(dmGraphics::ShaderDesc::Shader));
     desc->m_Shaders.m_Count++;
 
     shader->m_Language       = language;
+    shader->m_ShaderType     = type;
     shader->m_Source.m_Data  = (uint8_t*) source;
     shader->m_Source.m_Count = source_size;
+    shader->m_ShaderType     = type;
 }
 
-static inline void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* name, dmGraphics::ShaderDesc::ShaderDataType shader_type, int type_index, uint32_t binding, uint32_t set, BindingType binding_type)
+static inline void AddShader(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::Language language, uint8_t* source, int source_size)
+{
+    AddShaderWithType(desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, language, source, source_size);
+}
+
+static inline void AddShader(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::Language language, dmGraphics::ShaderDesc::ShaderType type, uint8_t* source, int source_size)
+{
+    AddShaderWithType(desc, type, language, source, source_size);
+}
+
+static inline void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* name, dmGraphics::ShaderDesc::ShaderDataType shader_type, int type_index, uint32_t binding, uint32_t set, BindingType binding_type, uint32_t block_size, uint8_t stage_flags)
 {
     dmGraphics::ShaderDesc::ResourceBinding** data = 0;
     uint32_t* count = 0;
@@ -61,18 +99,25 @@ static inline void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* n
     case BINDING_TYPE_UNIFORM_BUFFER:
         data = &desc->m_Reflection.m_UniformBuffers.m_Data;
         count = &desc->m_Reflection.m_UniformBuffers.m_Count;
+        break;
     case BINDING_TYPE_STORAGE_BUFFER:
         data = &desc->m_Reflection.m_StorageBuffers.m_Data;
         count = &desc->m_Reflection.m_StorageBuffers.m_Count;
+        break;
     }
 
-    *data = (dmGraphics::ShaderDesc::ResourceBinding*) realloc(data, sizeof(dmGraphics::ShaderDesc::ResourceBinding) * (*count + 1));
+    *data = (dmGraphics::ShaderDesc::ResourceBinding*) realloc(*data, sizeof(dmGraphics::ShaderDesc::ResourceBinding) * (*count + 1));
+
     dmGraphics::ShaderDesc::ResourceBinding* res = *data + *count;
     memset(res, 0, sizeof(dmGraphics::ShaderDesc::ResourceBinding));
+    *count = *count + 1;
 
     res->m_Name                     = name;
     res->m_NameHash                 = dmHashString64(name);
+    res->m_StageFlags               = stage_flags;
     res->m_Binding                  = binding;
+    res->m_Bindinginfo.m_BlockSize  = block_size;
+    res->m_Set                      = set;
     res->m_Type.m_Type.m_ShaderType = shader_type;
 
     if (type_index != -1)
@@ -82,19 +127,46 @@ static inline void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* n
     }
 }
 
+/*
+AddShaderResource(dmGraphics::ShaderDesc* desc, const char* name, dmGraphics::ShaderDesc::ShaderDataType shader_type, int type_index, uint32_t binding, uint32_t set, BindingType binding_type, uint32_t block_size, uint8_t stage_flags)
+*/
+
+static inline void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* name, dmGraphics::ShaderDesc::ShaderDataType shader_type, uint32_t binding, uint32_t set, BindingType binding_type, uint8_t stage_flags)
+{
+    AddShaderResource(desc, name, shader_type, -1, binding, set, binding_type, 0, stage_flags);
+}
+
 static inline void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* name, dmGraphics::ShaderDesc::ShaderDataType shader_type, uint32_t binding, uint32_t set, BindingType binding_type)
 {
-    AddShaderResource(desc, name, shader_type, -1, binding, set, binding_type);
+    AddShaderResource(desc, name, shader_type, -1, binding, set, binding_type, 0, InferShaderStageFlags(desc));
+}
+
+static inline void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* name, int type_index, uint32_t binding, uint32_t set, BindingType binding_type, uint8_t stage_flags)
+{
+    AddShaderResource(desc, name, (dmGraphics::ShaderDesc::ShaderDataType) -1, type_index, binding, set, binding_type, 0, stage_flags);
 }
 
 static inline void AddShaderResource(dmGraphics::ShaderDesc* desc, const char* name, int type_index, uint32_t binding, uint32_t set, BindingType binding_type)
 {
-    AddShaderResource(desc, name, (dmGraphics::ShaderDesc::ShaderDataType) -1, type_index, binding, set, binding_type);
+    AddShaderResource(desc, name, (dmGraphics::ShaderDesc::ShaderDataType) -1, type_index, binding, set, binding_type, 0, InferShaderStageFlags(desc));
+}
+
+static inline void AddShaderResourceUniformBuffer(dmGraphics::ShaderDesc* desc, const char* name, int type_index, uint32_t binding, uint32_t set, uint32_t block_size)
+{
+    AddShaderResource(desc, name, (dmGraphics::ShaderDesc::ShaderDataType) -1, type_index, binding, set, BINDING_TYPE_UNIFORM_BUFFER, block_size, InferShaderStageFlags(desc));
 }
 
 static inline dmGraphics::ShaderDesc::ResourceTypeInfo* AddShaderType(dmGraphics::ShaderDesc* desc, const char* name)
 {
-    desc->m_Reflection.m_Types.m_Data = (dmGraphics::ShaderDesc::ResourceTypeInfo*) realloc(desc->m_Reflection.m_Types.m_Data, sizeof(dmGraphics::ShaderDesc::ResourceTypeInfo) * (desc->m_Reflection.m_Types.m_Count + 1));
+    if (desc->m_Reflection.m_Types.m_Data == 0)
+    {
+        desc->m_Reflection.m_Types.m_Data = (dmGraphics::ShaderDesc::ResourceTypeInfo*) malloc(sizeof(dmGraphics::ShaderDesc::ResourceTypeInfo) * (desc->m_Reflection.m_Types.m_Count + 1));
+    }
+    else
+    {
+        desc->m_Reflection.m_Types.m_Data = (dmGraphics::ShaderDesc::ResourceTypeInfo*) realloc(desc->m_Reflection.m_Types.m_Data, sizeof(dmGraphics::ShaderDesc::ResourceTypeInfo) * (desc->m_Reflection.m_Types.m_Count + 1));
+    }
+
     dmGraphics::ShaderDesc::ResourceTypeInfo* type_info = desc->m_Reflection.m_Types.m_Data + desc->m_Reflection.m_Types.m_Count;
     memset(type_info, 0, sizeof(dmGraphics::ShaderDesc::ResourceTypeInfo));
     desc->m_Reflection.m_Types.m_Count++;
@@ -104,21 +176,61 @@ static inline dmGraphics::ShaderDesc::ResourceTypeInfo* AddShaderType(dmGraphics
     return type_info;
 }
 
-static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type)
+static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type, int type_index, int offset, int element_count)
 {
-    type_info->m_Members.m_Data = (dmGraphics::ShaderDesc::ResourceMember*) realloc(type_info->m_Members.m_Data, sizeof(dmGraphics::ShaderDesc::ResourceMember) * (type_info->m_Members.m_Count + 1));
+    if (type_info->m_Members.m_Data == 0)
+    {
+        type_info->m_Members.m_Data = (dmGraphics::ShaderDesc::ResourceMember*) malloc(sizeof(dmGraphics::ShaderDesc::ResourceMember));
+
+    }
+    else
+    {
+        type_info->m_Members.m_Data = (dmGraphics::ShaderDesc::ResourceMember*) realloc(type_info->m_Members.m_Data, sizeof(dmGraphics::ShaderDesc::ResourceMember) * (type_info->m_Members.m_Count + 1));
+    }
     dmGraphics::ShaderDesc::ResourceMember* member = type_info->m_Members.m_Data + type_info->m_Members.m_Count;
     memset(member, 0, sizeof(dmGraphics::ShaderDesc::ResourceMember));
     type_info->m_Members.m_Count++;
 
     member->m_Name = name;
-    member->m_Type.m_Type.m_ShaderType = type;
     member->m_NameHash = dmHashString64(name);
+    member->m_Offset = offset;
+    member->m_ElementCount = element_count;
+    member->m_Type.m_Type.m_ShaderType = type;
+
+    if (type_index != -1)
+    {
+        member->m_Type.m_Type.m_TypeIndex = type_index;
+        member->m_Type.m_UseTypeIndex = 1;
+    }
+}
+
+static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type, int offset, int element_count)
+{
+    AddShaderTypeMember(desc, type_info, name, type, -1, offset, element_count);
+}
+
+static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type)
+{
+    AddShaderTypeMember(desc, type_info, name, type, -1, 0, 1);
+}
+
+static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, int type_index, int offset, int element_count)
+{
+    AddShaderTypeMember(desc, type_info, name, (dmGraphics::ShaderDesc::ShaderDataType) -1, type_index, offset, element_count);
+}
+
+static inline void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::ResourceTypeInfo* type_info, const char* name, int type_index)
+{
+    AddShaderTypeMember(desc, type_info, name, (dmGraphics::ShaderDesc::ShaderDataType) -1, type_index, 0, 1);
 }
 
 static inline void DeleteShaderDesc(dmGraphics::ShaderDesc* desc)
 {
 #define FREE_IF_SIZE_NOT_ZERO(x) if (x.m_Count > 0) free(x.m_Data);
+    for (uint32_t i = 0; i < desc->m_Reflection.m_Types.m_Count; ++i)
+    {
+        FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Types.m_Data[i].m_Members);
+    }
     FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Inputs);
     FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Textures);
     FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Outputs);
@@ -127,8 +239,6 @@ static inline void DeleteShaderDesc(dmGraphics::ShaderDesc* desc)
     FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_StorageBuffers);
     FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Types);
 #undef FREE_IF_SIZE_NOT_ZERO
-
-    free(desc);
 }
 
 #endif // DM_GRAPHICS_TEST_APP_GRAPHICS_H

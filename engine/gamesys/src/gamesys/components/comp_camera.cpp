@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -58,13 +58,14 @@ namespace dmGameSystem
         dmArray<CameraComponent*> m_CameraStack;
     };
 
-    static const dmhash_t CAMERA_PROP_FOV               = dmHashString64("fov");
-    static const dmhash_t CAMERA_PROP_NEAR_Z            = dmHashString64("near_z");
-    static const dmhash_t CAMERA_PROP_FAR_Z             = dmHashString64("far_z");
-    static const dmhash_t CAMERA_PROP_ORTHOGRAPHIC_ZOOM = dmHashString64("orthographic_zoom");
-    static const dmhash_t CAMERA_PROP_PROJECTION        = dmHashString64("projection");
-    static const dmhash_t CAMERA_PROP_VIEW              = dmHashString64("view");
-    static const dmhash_t CAMERA_PROP_ASPECT_RATIO      = dmHashString64("aspect_ratio");
+    static const dmhash_t CAMERA_PROP_FOV                    = dmHashString64("fov");
+    static const dmhash_t CAMERA_PROP_NEAR_Z                 = dmHashString64("near_z");
+    static const dmhash_t CAMERA_PROP_FAR_Z                  = dmHashString64("far_z");
+    static const dmhash_t CAMERA_PROP_ORTHOGRAPHIC_ZOOM      = dmHashString64("orthographic_zoom");
+    static const dmhash_t CAMERA_PROP_ORTHOGRAPHIC_AUTO_ZOOM = dmHashString64("orthographic_auto_zoom");
+    static const dmhash_t CAMERA_PROP_PROJECTION             = dmHashString64("projection");
+    static const dmhash_t CAMERA_PROP_VIEW                   = dmHashString64("view");
+    static const dmhash_t CAMERA_PROP_ASPECT_RATIO           = dmHashString64("aspect_ratio");
 
 
     static void CompCameraUpdateViewProjection(CameraComponent* camera, dmRender::RenderContext* render_context)
@@ -143,7 +144,7 @@ namespace dmGameSystem
         if (w->m_Cameras.Full())
         {
             ShowFullBufferError("Camera", MAX_COUNT);
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
         dmRender::RenderContext* render_context = (dmRender::RenderContext*)params.m_Context;
@@ -156,6 +157,7 @@ namespace dmGameSystem
         camera.m_RenderCamera   = dmRender::NewRenderCamera(render_context);
 
         dmRender::RenderCameraData camera_data = {};
+        camera_data.m_Viewport                 = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
         camera_data.m_AspectRatio              = cam_resource->m_DDF->m_AspectRatio;
         camera_data.m_Fov                      = cam_resource->m_DDF->m_Fov;
         camera_data.m_NearZ                    = cam_resource->m_DDF->m_NearZ;
@@ -163,6 +165,7 @@ namespace dmGameSystem
         camera_data.m_AutoAspectRatio          = cam_resource->m_DDF->m_AutoAspectRatio != 0;
         camera_data.m_OrthographicProjection   = cam_resource->m_DDF->m_OrthographicProjection != 0;
         camera_data.m_OrthographicZoom         = cam_resource->m_DDF->m_OrthographicZoom;
+        camera_data.m_OrthographicMode         = (uint8_t)cam_resource->m_DDF->m_OrthographicMode;
 
         dmMessage::URL camera_url = CameraToURL(&camera);
         SetRenderCameraURL(render_context, camera.m_RenderCamera, &camera_url);
@@ -239,7 +242,7 @@ namespace dmGameSystem
         return true;
     }
 
-    dmGameObject::UpdateResult CompCameraUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
+    dmGameObject::UpdateResult CompCameraLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         CameraWorld* camera_world = (CameraWorld*) params.m_World;
         DM_PROPERTY_ADD_U32(rmtp_Camera, camera_world->m_Cameras.Size());
@@ -283,6 +286,7 @@ namespace dmGameSystem
             camera_data.m_FarZ                   = ddf->m_FarZ;
             camera_data.m_OrthographicProjection = ddf->m_OrthographicProjection;
             camera_data.m_OrthographicZoom       = ddf->m_OrthographicZoom;
+            camera_data.m_OrthographicMode   = (uint8_t) ddf->m_OrthographicMode;
 
             dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
         }
@@ -317,6 +321,7 @@ namespace dmGameSystem
         camera_data.m_AutoAspectRatio          = cam_resource->m_DDF->m_AutoAspectRatio != 0;
         camera_data.m_OrthographicProjection   = cam_resource->m_DDF->m_OrthographicProjection != 0;
         camera_data.m_OrthographicZoom         = cam_resource->m_DDF->m_OrthographicZoom;
+        camera_data.m_OrthographicMode     = (uint8_t) cam_resource->m_DDF->m_OrthographicMode;
 
         dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
         CompCameraUpdateViewProjection(camera, render_context);
@@ -348,6 +353,12 @@ namespace dmGameSystem
         else if (CAMERA_PROP_ORTHOGRAPHIC_ZOOM == get_property)
         {
             out_value.m_Variant = dmGameObject::PropertyVar(camera_data.m_OrthographicZoom);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (CAMERA_PROP_ORTHOGRAPHIC_AUTO_ZOOM == get_property)
+        {
+            float auto_zoom = dmRender::GetRenderCameraOrthographicAutoZoom(render_context, camera->m_RenderCamera);
+            out_value.m_Variant = dmGameObject::PropertyVar(auto_zoom);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if (CAMERA_PROP_PROJECTION == get_property)
@@ -397,6 +408,10 @@ namespace dmGameSystem
         }
         else if (CAMERA_PROP_ORTHOGRAPHIC_ZOOM == set_property)
         {
+            if (!(params.m_Value.m_Number > 0.0f))
+            {
+                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+            }
             camera_data.m_OrthographicZoom = params.m_Value.m_Number;
             dmRender::SetRenderCameraData(render_context, camera->m_RenderCamera, &camera_data);
             return dmGameObject::PROPERTY_RESULT_OK;
@@ -409,6 +424,7 @@ namespace dmGameSystem
         }
         else if (CAMERA_PROP_PROJECTION   == set_property ||
                  CAMERA_PROP_VIEW         == set_property ||
+                 CAMERA_PROP_ORTHOGRAPHIC_AUTO_ZOOM == set_property ||
                  CAMERA_PROP_ASPECT_RATIO == set_property)
         {
             return dmGameObject::PROPERTY_RESULT_READ_ONLY;

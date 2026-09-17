@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,9 +24,6 @@ set -e
 MODEL_PATH=$1
 
 CLASS_NAME=ModelUtil
-case $MODEL_PATH in *.dae|*.DAE)
-    CLASS_NAME=ColladaUtil;;
-esac
 
 DEFOLD_HOME=$DYNAMO_HOME/../..
 MODELC_BUILD_DIR=${DEFOLD_HOME}/engine/modelc/build/src

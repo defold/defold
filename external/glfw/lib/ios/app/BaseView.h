@@ -33,6 +33,7 @@
 - (void)swapBuffers;
 - (void)setSwapInterval: (int) interval;
 - (void)setCurrentContext;
+- (void)invalidateDisplayLink;
 - (void)setupView;
 - (void)teardownView;
 

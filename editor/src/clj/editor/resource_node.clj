@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,7 @@
             [dynamo.graph :as g]
             [editor.code.util :as code.util]
             [editor.core :as core]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -148,18 +149,14 @@
   (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id _overridden-properties child-outlines own-build-errors resource source-outline]
-           (let [rt (resource/resource-type resource)
-                 label (or (:label rt) (:ext rt) "unknown")
-                 icon (or (:icon rt) unknown-icon)
-                 children (cond-> child-outlines
-                            source-outline (into (:children source-outline)))]
-             {:node-id _node-id
-              :node-outline-key label
-              :label label
-              :icon icon
-              :children children
-              :outline-error? (g/error-fatal? own-build-errors)
-              :outline-overridden? (not (empty? _overridden-properties))})))
+      (let [rt (resource/resource-type resource)]
+        {:node-id _node-id
+         :node-outline-key (or (:ext rt) "unknown")
+         :label (or (:label rt) (:ext rt) (localization/message "outline.unknown"))
+         :icon (or (:icon rt) unknown-icon)
+         :children (cond-> child-outlines source-outline (into (:children source-outline)))
+         :outline-error? (g/error-fatal? own-build-errors)
+         :outline-overridden? (not (empty? _overridden-properties))})))
   (output sha256 g/Str :cached produce-sha256))
 
 ;; TODO(save-value-cleanup): Can we remove this now?
@@ -175,7 +172,7 @@
 (defn loaded?
   "Returns true if the specified node-id corresponds to a resource that has been
   loaded. The node-id must refer to an existing resource node. A resource node
-  can exist in the project graph in an unloaded state, for example if its
+  can exist in the graph in an unloaded state, for example if its
   proj-path matches a pattern listed in the .defunload file."
   ([resource-node-id]
    (loaded? (g/now) resource-node-id))
@@ -216,14 +213,13 @@
   ([resource-node-id evaluation-context]
    (g/valid-node-value resource-node-id :dirty evaluation-context)))
 
-(defn- make-ddf-dependencies-fn-raw [ddf-type]
-  (let [get-fields (protobuf/get-fields-fn (protobuf/resource-field-path-specs ddf-type))]
-    (fn [source-value]
-      (into []
-            (comp
-              (filter seq)
-              (distinct))
-            (get-fields source-value)))))
+(defn- make-ddf-dependencies-fn-raw [^Class pb-class]
+  (fn ddf-dependencies-fn [source-value]
+    (coll/into->
+      (protobuf/resource-field-value-paths pb-class source-value) []
+      (map second) ; => proj-paths
+      (remove coll/empty?)
+      (distinct))))
 
 (def make-ddf-dependencies-fn (memoize make-ddf-dependencies-fn-raw))
 
@@ -292,7 +288,7 @@
                :path (path-fn pb-map path)))
            (coll/search-with-path pb-map init-path match-fn)))))
 
-(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn search-fn string-encode-fn icon view-types tags tag-opts label built-pb-class] :as args}]
+(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn search-fn pb-encode-fn icon view-types tags tag-opts label built-pb-class] :as args}]
   {:pre [(protobuf/pb-class? ddf-type)
          (or (nil? built-pb-class) (protobuf/pb-class? built-pb-class))]}
   (let [read-defaults (boolean read-defaults)
@@ -302,10 +298,10 @@
         read-fn (cond->> read-raw-fn
                          (some? sanitize-fn) (comp sanitize-fn))
         write-fn (cond-> (partial protobuf/map->str ddf-type)
-                         (some? string-encode-fn) (comp string-encode-fn))
+                         (some? pb-encode-fn) (comp pb-encode-fn))
         search-fn (or search-fn default-ddf-resource-search-fn)
         args (-> args
-                 (dissoc :read-defaults :string-encode-fn)
+                 (dissoc :read-defaults :pb-encode-fn)
                  (assoc :textual? true
                         :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
                         :read-fn read-fn

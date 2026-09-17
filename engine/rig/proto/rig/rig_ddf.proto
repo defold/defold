@@ -38,9 +38,9 @@ message Sampler
 
 message Texture
 {
-    optional string name    = 1;
-    optional uint32 index   = 2; // Index into the scene textures
-    optional string path    = 3; // Technically an Image struct
+    optional string name     = 1;
+    optional int32  index    = 2 [default = -1]; // Index into the scene textures, -1 if not set
+    optional string path     = 3;                // Technically an Image struct
     optional Sampler sampler = 4;
 }
 
@@ -174,6 +174,7 @@ message Material
     optional AlphaMode alphaMode                            = 19 [default = ALPHA_MODE_OPAQUE];
     optional bool doubleSided                               = 20 [default = false];
     optional bool unlit                                     = 21 [default = false];
+    optional uint64 materialHash                            = 22;
 }
 
 message Bone
@@ -232,6 +233,13 @@ message EventTrack
     repeated EventKey keys = 2;
 }
 
+message MorphWeightTrack
+{
+    required uint64 model_id = 1;    // MeshSet Model id (name hash) whose morph targets this track samples
+    required uint32 morph_count = 2; // Morph weights per time sample; stride when indexing weights (must match mesh morph count at runtime)
+    repeated float weights = 3;      // Packed samples: morph_count floats per pose
+}
+
 message RigAnimation
 {
     required uint64 id = 1;
@@ -239,6 +247,7 @@ message RigAnimation
     required float sample_rate = 3;
     repeated AnimationTrack tracks = 4;
     repeated EventTrack event_tracks = 5;
+    repeated MorphWeightTrack morph_weight_tracks = 6;
 }
 
 message AnimationSet
@@ -261,6 +270,20 @@ enum IndexBufferFormat
 {
     INDEXBUFFER_FORMAT_16 = 0;
     INDEXBUFFER_FORMAT_32 = 1;
+}
+
+// Same values as dmModelImporter::PrimitiveType/cgltf_primitive_type.
+enum PrimitiveType
+{
+    PRIMITIVE_TYPE_INVALID        = 0;
+    PRIMITIVE_TYPE_POINTS         = 1;
+    PRIMITIVE_TYPE_LINES          = 2;
+    PRIMITIVE_TYPE_LINE_LOOP      = 3;
+    PRIMITIVE_TYPE_LINE_STRIP     = 4;
+    PRIMITIVE_TYPE_TRIANGLES      = 5;
+    PRIMITIVE_TYPE_TRIANGLE_STRIP = 6;
+    PRIMITIVE_TYPE_TRIANGLE_FAN   = 7;
+    PRIMITIVE_TYPE_MAX_ENUM       = 8;
 }
 
 message Mesh
@@ -287,6 +310,17 @@ message Mesh
 
     optional uint32 material_index = 15; // index into the mesh set material list
 
+    repeated float morph_base_weights = 16;
+
+    // Packed morph target delta texture resource. Layout is RGBA32F 2D array:
+    // target N position/normal/tangent deltas live in layers N*3+0, N*3+1, N*3+2.
+    optional string morph_target_texture = 17 [(resource)=true];
+
+    // Number of morph targets represented by morph_target_texture.
+    optional uint32 morph_target_count = 18;
+
+    // Kept in the producer artifact so build-time consumers can validate topology.
+    optional PrimitiveType primitive_type = 19 [default = PRIMITIVE_TYPE_TRIANGLES];
 }
 
 message Model // E.g. the Node in the Scene
@@ -298,6 +332,7 @@ message Model // E.g. the Node in the Scene
     repeated Mesh               meshes      = 3;
     // If set, then this model should be transformed as a child of the bone
     optional uint64             bone_id     = 4 [default = 0]; // hash of bone id
+    optional uint32             mesh_index  = 5 [default = 0xffffffff]; // raw source meshes[] index
 }
 
 message MeshSet
@@ -310,6 +345,13 @@ message MeshSet
     repeated uint64         bone_list      = 3;
     // Max number of bones used in any of the meshes (in the bone_indices list)
     optional uint32         max_bone_count = 4;
+
+    // Source meshes without scene node transforms, indexed by Model.mesh_index.
+    repeated Model          raw_models     = 5;
+
+    // Raw source model indices that were split for the runtime mesh set.
+    // Build-time consumers use this to reject unsupported split geometry.
+    repeated uint32         split_model_indices = 6;
 }
 
 // Public api (dmSDK)

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -74,7 +74,7 @@
 
 (s/defn make-image :- Image
   [nm :- s/Any contents :- BufferedImage]
-  (Image. nm contents (.getWidth contents) (.getHeight contents) 0.5 0.5 :sprite-trim-mode-off))
+  (Image. nm contents (.getWidth contents) (.getHeight contents) (float 0.5) (float 0.5) :sprite-trim-mode-off))
 
 (s/defn blank-image :- BufferedImage
   ([space :- Rect]

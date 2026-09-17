@@ -33,6 +33,10 @@ def init(ctx):
     if 'build' in waflib.Options.commands:
         test_context = TestContext.create_test_context()
 
+def _is_mac_ci():
+    is_ci = os.environ.get('GITHUB_WORKFLOW') or os.environ.get('GITHUB_ACTIONS') or os.environ.get('CI')
+    return is_ci and sys.platform == 'darwin'
+
 def options(opt):
     opt.load('waf_dynamo')
 
@@ -40,6 +44,9 @@ def configure(conf):
     conf.load('waf_dynamo')
     conf.load('waf_resource')
     conf.load('java')
+
+    if _is_mac_ci():
+        conf.env.append_unique('DEFINES', 'GITHUB_CI')
 
     waf_ddf.configure(conf)
 
@@ -50,7 +57,7 @@ def configure(conf):
     conf.recurse('src')
 
     conf.env.append_value('INCLUDES', "src")
-    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'zip', 'dmbedtls']
     conf.env['STLIB_DDF'] = 'ddf'
 
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="RESOURCE"')
@@ -72,6 +79,9 @@ def _get_local_ip(self):
         print(f"Hostname was '{hostname}', now trying empty ('') string now")
         local_ip = socket.gethostbyname("")
     return local_ip
+
+def _get_test_server_ip(self):
+    return waf_dynamo.get_test_server_ip(test_context.env.PLATFORM, _get_local_ip(self))
 
 def _start_server(self, local_ip, port, configname=None):
     Logs.info('Starting test server at http://%s:%d' % (local_ip, port))
@@ -131,14 +141,31 @@ def shutdown(self):
     if not TestContext.is_valid(test_context) or waflib.Options.options.skip_build_tests or waflib.Options.options.skip_tests:
         return
 
-    local_ip = _get_local_ip(self)
-    port = find_free_port()
-    proc, configfile = _start_server(self, local_ip, port)
-    atexit.register(_cleanup_server, (proc, configfile))
+    skip_server = _is_mac_ci()
+    if skip_server:
+        print("Running resource tests without HTTP server on macOS CI")
 
-    _wait_for_server(self, proc, local_ip, port)
+    configfile = None
+    local_ip = _get_test_server_ip(self)
+    if not skip_server:
+        port = find_free_port()
+        proc, configfile = _start_server(self, local_ip, port)
+        atexit.register(_cleanup_server, (proc, configfile))
+
+        _wait_for_server(self, proc, local_ip, port)
+    else:
+        configfile = waf_dynamo.create_test_server_config(self, port=0, ip=local_ip, config_name="unittest.cfg")
 
     try:
-        waf_dynamo.run_tests(test_context, valgrind = True, configfile = configfile)
+        waf_dynamo.run_tests(test_context, configfile = configfile,
+                                folders = {
+                                    "src/test/archive_data": "src/test/archive_data",
+                                    "src/test/files": "src/test/files",
+                                    "src/test/mountfiles": "src/test/mountfiles",
+                                    "src/test/overrides": "src/test/overrides",
+                                    "src/test/zipfiles": "src/test/zipfiles",
+                                    "build/src/test": "build/src/test"
+                                    })
     finally:
-        os.remove(configfile)
+        if configfile and os.path.exists(configfile):
+            os.remove(configfile)

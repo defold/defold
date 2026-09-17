@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,7 @@
 namespace dmRig
 {
     static const uint16_t INVALID_POSE_MATRIX_CACHE_ENTRY = 0xFFFF;
+    extern const float TEXTURE_TRANSFORM_2D_IDENTITY[9];
 
     typedef uint16_t HCachePoseMatrixEntry;
 
@@ -67,6 +68,13 @@ namespace dmRig
      * @return True if the instance is currently animating
      */
     bool IsAnimating(HRigInstance instance);
+
+    /**
+     * Checks if the instance pose matrix cache contains a pose produced by animation playback.
+     * @param instance The rig instance
+     * @return True if the pose matrix cache contains an animated pose
+     */
+    bool HasPoseMatrixCacheAnimatedPose(HRigInstance instance);
 }
 
 #endif // DM_RIG_H

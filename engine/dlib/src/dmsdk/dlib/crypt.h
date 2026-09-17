@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-/*# SDK Crypt API documentation
+/*# Crypt API documentation
  *
  * Various hash and encode/decode functions.
  *
@@ -115,6 +115,7 @@ namespace dmCrypt
      * @param dst_len[in,out]   [type:uint32_t*] In: The length of the destination in bytes. Out: The length of the encoded string.
      * @return success          [type:bool] true if the encoding went ok
      * @note                    Call this function with *dst_len = 0 to obtain the required buffer size in *dst_len
+     * @note                    An empty input (src_len = 0) still requires one byte for the terminating null, and encodes into *dst_len = 0
      */
     bool Base64Encode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len);
 
@@ -127,6 +128,7 @@ namespace dmCrypt
      * @param dst_len[in,out]   [type:uint32_t*] In: The length of the destination in bytes. Out: The length of the decoded string.
      * @return success          [type:bool] true if the decoding went ok
      * @note                    Call this function with *dst_len = 0 to obtain the required buffer size in *dst_len
+     * @note                    An empty input (src_len = 0) decodes into zero bytes: the function returns true with *dst_len = 0
      */
     bool Base64Decode(const uint8_t* src, uint32_t src_len, uint8_t* dst, uint32_t* dst_len);
 }

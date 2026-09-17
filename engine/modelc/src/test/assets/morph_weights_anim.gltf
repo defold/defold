@@ -1,0 +1,32 @@
+{
+  "asset": {"version": "2.0"},
+  "scene": 0,
+  "scenes": [{"nodes": [0]}],
+  "nodes": [{"name": "MorphedMesh", "mesh": 0}],
+  "meshes": [{
+    "primitives": [{
+      "attributes": {"POSITION": 0},
+      "targets": [{"POSITION": 1}, {"POSITION": 2}]
+    }],
+    "weights": [0.0, 0.0]
+  }],
+  "accessors": [
+    {"bufferView": 0, "componentType": 5126, "count": 1, "type": "VEC3", "max": [0, 0, 0], "min": [0, 0, 0]},
+    {"bufferView": 1, "componentType": 5126, "count": 1, "type": "VEC3", "max": [1, 0, 0], "min": [1, 0, 0]},
+    {"bufferView": 2, "componentType": 5126, "count": 1, "type": "VEC3", "max": [0, 1, 0], "min": [0, 1, 0]},
+    {"bufferView": 3, "componentType": 5126, "count": 2, "type": "SCALAR", "max": [1.0], "min": [0.0]},
+    {"bufferView": 4, "componentType": 5126, "count": 4, "type": "SCALAR", "max": [1.0], "min": [0.0]}
+  ],
+  "bufferViews": [
+    {"buffer": 0, "byteOffset": 0, "byteLength": 12},
+    {"buffer": 0, "byteOffset": 12, "byteLength": 12},
+    {"buffer": 0, "byteOffset": 24, "byteLength": 12},
+    {"buffer": 0, "byteOffset": 36, "byteLength": 8},
+    {"buffer": 0, "byteOffset": 44, "byteLength": 16}
+  ],
+  "buffers": [{"uri": "morph_weights_anim.bin", "byteLength": 60}],
+  "animations": [{
+    "channels": [{"sampler": 0, "target": {"node": 0, "path": "weights"}}],
+    "samplers": [{"input": 3, "output": 4, "interpolation": "LINEAR"}]
+  }]
+}

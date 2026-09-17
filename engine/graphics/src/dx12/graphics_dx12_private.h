@@ -1,28 +1,42 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
 // this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License, together with FAQs at
 // https://www.defold.com/license
-// 
+//
 // Unless required by applicable law or agreed to in writing, software distributed
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMGRAPHICS_GRAPHICS_DEVICE_DX12_H
-#define DMGRAPHICS_GRAPHICS_DEVICE_DX12_H
+#ifndef DM_GRAPHICS_DX12_PRIVATE_H
+#define DM_GRAPHICS_DX12_PRIVATE_H
 
+#include <cstddef>
+#include <dlib/hashtable.h>
+#include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/mutex.h>
-#include <dlib/hashtable.h>
 #include <dlib/opaque_handle_container.h>
+#include <platform/window.h>
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
-#include <platform/platform_window.h>
+#if defined(DM_PLATFORM_XBOX)
+    #include "graphics_dx12_xbox.h"
+#else
+    #include <d3d12.h>
+    #include <d3dx12.h>
+    #include <dxgi1_6.h>
+    #include <D3DCompiler.h>
+
+    #define DM_IID_PPV_ARGS IID_PPV_ARGS
+#endif
+
+#include "../graphics_private.h"
 
 namespace dmGraphics
 {
@@ -44,21 +58,13 @@ namespace dmGraphics
 
     struct DX12Texture
     {
-        ID3D12Resource*       m_Resource;
-        D3D12_RESOURCE_DESC   m_ResourceDesc;
-        D3D12_RESOURCE_STATES m_ResourceStates[16];
+        Texture             m_Base;
+        ID3D12Resource*         m_Resource;
+        D3D12_RESOURCE_DESC     m_ResourceDesc;
+        D3D12_RESOURCE_STATES   m_ResourceStates[16];
 
-        TextureType         m_Type;
-        uint16_t            m_Width;
-        uint16_t            m_Height;
-        uint16_t            m_Depth;
-        uint16_t            m_LayerCount;
-        uint16_t            m_OriginalWidth;
-        uint16_t            m_OriginalHeight;
-        uint16_t            m_OriginalDepth;
-        uint16_t            m_MipMapCount         : 5;
-        uint16_t            m_TextureSamplerIndex : 10;
-        uint8_t             m_PageCount; // page count of texture array
+        uint16_t                m_LayerCount;
+        uint16_t                m_TextureSamplerIndex : 10;
     };
 
     struct DX12TextureSampler
@@ -68,15 +74,25 @@ namespace dmGraphics
         TextureFilter   m_MagFilter;
         TextureWrap     m_AddressModeU;
         TextureWrap     m_AddressModeV;
+        TextureWrap     m_AddressModeW;
         float           m_MaxAnisotropy;
         uint8_t         m_MaxLod;
     };
 
     struct DX12DeviceBuffer
     {
+        Buffer          m_Base;
         ID3D12Resource* m_Resource;
-        uint32_t        m_DataSize;
+        uint8_t*        m_MappedDataPtr;
+        uint32_t        m_DataSize;  // Valid/uploaded bytes
+        uint32_t        m_Capacity;  // Allocated resource size in bytes
         uint32_t        m_Destroyed : 1;
+    };
+
+    struct DX12UniformBuffer
+    {
+        UniformBuffer    m_BaseUniformBuffer;
+        DX12DeviceBuffer m_DeviceBuffer;
     };
 
     struct DX12VertexBuffer
@@ -93,9 +109,12 @@ namespace dmGraphics
 
     struct DX12ShaderModule
     {
-        ID3DBlob* m_ShaderBlob;
-        ID3DBlob* m_RootSignatureBlob;
-        uint64_t  m_Hash;
+        ID3DBlob*            m_ShaderBlob;
+        ID3DBlob*            m_RootSignatureBlob;
+        ID3D12RootSignature* m_RootSignature;
+        void*                m_Data;     // owned by this struct if m_ShaderBlob == 0
+        uint32_t             m_DataSize;
+        uint64_t             m_Hash;
     };
 
     struct DX12Viewport
@@ -117,6 +136,7 @@ namespace dmGraphics
     {
         Program                      m_BaseProgram;
         dmArray<DX12ResourceBinding> m_RootSignatureResources;
+        dmArray<uint8_t>             m_RootSignatureParamIsSampler;
         uint8_t*                     m_UniformData;
         ID3D12RootSignature*         m_RootSignature;
         DX12ShaderModule*            m_VertexModule;
@@ -134,20 +154,13 @@ namespace dmGraphics
 
     struct DX12RenderTarget
     {
+        RenderTarget          m_Base;
+        ID3D12Resource*       m_Resource;
         ID3D12DescriptorHeap* m_ColorAttachmentDescriptorHeap;
         ID3D12DescriptorHeap* m_DepthStencilDescriptorHeap;
-
-        TextureParams         m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
-        TextureParams         m_DepthStencilTextureParams;
-
-        HTexture              m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
-        HTexture              m_TextureDepthStencil;
-
         DXGI_FORMAT           m_Format;
+        DXGI_FORMAT           m_DsvFormat; // DXGI_FORMAT_UNKNOWN if no depth/stencil attachment
         DXGI_SAMPLE_DESC      m_SampleDesc;
-
-        uint16_t              m_Id;
-        uint32_t              m_IsBound : 1;
     };
 
     struct DX12DescriptorPool
@@ -188,6 +201,24 @@ namespace dmGraphics
         void  Bind(DX12Context* context);
     };
 
+    // Per-frame persistently-mapped upload ring. Used to stage CPU->GPU buffer/texture copies
+    // without hitting CreateCommittedResource on every update. Safe to reset at frame start
+    // because we already wait on the previous use of this frame slot (SyncronizeFrame).
+    struct DX12UploadRing
+    {
+        ID3D12Resource* m_Resource;
+        uint8_t*        m_MappedDataPtr;
+        uint32_t        m_Capacity;
+        uint32_t        m_Cursor;
+
+        void Initialize(DX12Context* context, uint32_t initial_size);
+        void Destroy();
+        void Reset();
+        // Returns true and fills out the pointers on success. Returns false if the request
+        // doesn't fit in the ring (caller should fall back to a one-shot upload heap).
+        bool Allocate(uint32_t size, uint32_t alignment, uint8_t** out_cpu, D3D12_GPU_VIRTUAL_ADDRESS* out_gpu, uint32_t* out_offset, ID3D12Resource** out_resource);
+    };
+
     struct DX12FrameResource
     {
         HTexture                m_TextureColor;
@@ -197,6 +228,7 @@ namespace dmGraphics
         ID3D12CommandAllocator* m_CommandAllocator;
         ID3D12Fence*            m_Fence;
         DX12ScratchBuffer       m_ScratchBuffer;
+        DX12UploadRing          m_UploadRing;
         uint64_t                m_FenceValue;
 
         dmArray<ID3D12Resource*> m_ResourcesToDestroy;
@@ -211,22 +243,24 @@ namespace dmGraphics
 
     struct DX12Context
     {
-        DX12Context(const ContextParams& params);
-
+        GraphicsContext                    m_BaseContext;
         ID3D12Device*                      m_Device;
+
+#if defined(DM_PLATFORM_XBOX)
+        DX12VendorContext                  m_VendorContext;
+#else
         IDXGISwapChain3*                   m_SwapChain;
+        ID3D12Debug*                       m_DebugInterface;
+#endif
         ID3D12CommandQueue*                m_CommandQueue;
         ID3D12DescriptorHeap*              m_RtvDescriptorHeap;
         ID3D12DescriptorHeap*              m_DsvDescriptorHeap;
         ID3D12GraphicsCommandList*         m_CommandList;
-        ID3D12Debug*                       m_DebugInterface;
         HANDLE                             m_FenceEvent;
         DX12FrameResource                  m_FrameResources[MAX_FRAMEBUFFERS];
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_RtvHandle;
         CD3DX12_CPU_DESCRIPTOR_HANDLE      m_DsvHandle;
 
-        dmPlatform::HWindow                m_Window;
-        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         DX12PipelineCache                  m_PipelineCache;
         PipelineState                      m_PipelineState;
 
@@ -235,32 +269,77 @@ namespace dmGraphics
 
         HRenderTarget                      m_MainRenderTarget;
         VertexDeclaration                  m_MainVertexDeclaration[MAX_VERTEX_BUFFERS];
+        dmArray<VertexDeclaration::Stream> m_MainVertexDeclarationStreams[MAX_VERTEX_BUFFERS];
 
         HRenderTarget                      m_CurrentRenderTarget;
         DX12ShaderProgram*                 m_CurrentProgram;
         DX12Pipeline*                      m_CurrentPipeline;
         DX12VertexBuffer*                  m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
+        uint32_t                           m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
         HTexture                           m_CurrentTextures[DM_MAX_TEXTURE_UNITS];
+        DX12UniformBuffer*                 m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         DX12Viewport                       m_CurrentViewport;
 
-        TextureFilter                      m_DefaultTextureMinFilter;
-        TextureFilter                      m_DefaultTextureMagFilter;
-        uint64_t                           m_TextureFormatSupport;
-        uint32_t                           m_Width;
-        uint32_t                           m_Height;
         uint32_t                           m_CurrentFrameIndex;
         uint32_t                           m_RtvDescriptorSize;
         uint32_t                           m_DsvDescriptorSize;
+        uint32_t                           m_SwapInterval;
         uint32_t                           m_NumFramesInFlight    : 2;
         uint32_t                           m_FrameBegun           : 1;
         uint32_t                           m_CullFaceChanged      : 1;
         uint32_t                           m_ViewportChanged      : 1;
-        uint32_t                           m_VerifyGraphicsCalls  : 1;
         uint32_t                           m_UseValidationLayers  : 1;
-        uint32_t                           m_PrintDeviceInfo      : 1;
         uint32_t                           m_MSAASampleCount      : 8;
     };
+
+    bool            CommonInitialize(DX12Context* context);
+    int16_t         CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, uint8_t maxLod, float max_anisotropy);
+    void            FlushResourcesToDestroy(DX12FrameResource& current_frame_resource);
+    void            SyncronizeFrame(DX12Context* context);; // wait for gpu to finish
+    void            SetupMainRenderTarget(DX12Context* context, DXGI_SAMPLE_DESC sample_desc);
+    HRESULT         CreateShaderModule(DX12Context* context, const char* target, void* data, uint32_t data_size, DX12ShaderModule* shader);
+
+    bool            DX12IsSupported();
+    DXGI_FORMAT     DX12GetBackBufferFormat();
+
+    DX12Context*    DX12NativeCreate(const struct ContextParams& params);
+    bool            DX12NativeInitialize(DX12Context* context);
+    void            DX12DestroyContextResources(DX12Context* context);
+    void            DX12NativeDestroy(DX12Context* context);
+    void            DX12NativeBeginFrame(DX12Context* context);
+    void            DX12NativeEndFrame(DX12Context* context);
+
+    void            DebugPrintRootSignature(const void* blob_ptr, size_t blob_size);
+
+    #define CHECK_HR_ERROR(result) \
+    { \
+        if(g_DX12Context->m_BaseContext.m_VerifyGraphicsCalls && FAILED(result)) { \
+            char msg[256]; \
+            char buffer[1024]; \
+            dmLog::HResultToString(result, msg, sizeof(msg)); \
+            dmSnPrintf(buffer, sizeof(buffer), "DX Error (%s:%s:%d) hr: 0x%08x code: %d : '%s'\n", __FILE__, __FUNCTION__, __LINE__, result, HRESULT_CODE(result), msg); \
+            dmLogError(buffer); \
+            OutputDebugStringA(buffer); \
+            if (result == 0x887a0005 && g_DX12Context->m_Device) { \
+                HRESULT reason = g_DX12Context->m_Device->GetDeviceRemovedReason(); \
+                dmLog::HResultToString(reason, msg, sizeof(msg)); \
+                dmSnPrintf(buffer, sizeof(buffer), "  Reason: hr: 0x%08x code: %d : '%s'\n", reason, HRESULT_CODE(reason), msg); \
+                dmLogError(buffer); \
+                OutputDebugStringA(buffer); \
+            } \
+            __debugbreak(); \
+            assert(0); \
+        } \
+    }
+
+    #define OUTPUT_HRESULT(result) \
+    { \
+        char msg[256]; \
+        dmLog::HResultToString(result, msg, sizeof(msg)); \
+        dmLogError("%s:%s:%d: hr: 0x%08x code: %d : %s", __FILE__, __FUNCTION__, __LINE__, result, HRESULT_CODE(result), msg); \
+    }
+
 }
 
-#endif // DMGRAPHICS_GRAPHICS_DEVICE_DX12_H
+#endif // DM_GRAPHICS_DX12_PRIVATE_H

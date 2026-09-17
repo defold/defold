@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,24 +15,32 @@
 (ns editor.game-properties
   (:require [dynamo.graph :as g]
             [editor.code.data :as data]
-            [editor.code.resource :as r]
             [editor.code.lang.ini :as ini]
+            [editor.code.resource :as r]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.settings-core :as settings-core]
+            [editor.workspace :as workspace]
             [util.coll :as coll])
   (:import [java.io BufferedReader]))
 
 (g/defnode GameProperties
   (inherits r/CodeEditorResourceNode)
   (output proj-path+meta-info g/Any :cached
-          (g/fnk [_node-id resource lines]
+          (g/fnk [^:unsafe _evaluation-context _node-id resource lines]
+            ;; Safe because the evaluation context is only used to resolve stable proj-paths for resource defaults.
             (try
               (with-open [rdr (BufferedReader. (data/lines-reader lines))]
-                (coll/pair (resource/proj-path resource) (settings-core/load-meta-properties rdr)))
+                (coll/pair (resource/proj-path resource)
+                           (update (settings-core/load-meta-properties rdr)
+                                   :settings
+                                   settings-core/resolve-resource-settings
+                                   :default
+                                   #(workspace/resolve-resource (:basis _evaluation-context) resource %))))
               (catch Exception e
                 (g/->error _node-id :meta-info :fatal resource (.getMessage e) (ex-data e)))))))
 
-(defn- additional-load-fn [project self _resource]
+(defn- connect-fn [project self _resource]
   (g/connect self :proj-path+meta-info project :proj-path+meta-info-pairs))
 
 (defn register-resource-types [workspace]
@@ -40,8 +48,8 @@
     workspace
     :ext "properties"
     :node-type GameProperties
-    :additional-load-fn additional-load-fn
-    :label "Properties"
+    :connect-fn connect-fn
+    :label (localization/message "resource.type.properties")
     :icon "icons/32/Icons_05-Project-info.png"
     :language "ini"
     :view-types [:code :default]

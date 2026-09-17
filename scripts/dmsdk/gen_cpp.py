@@ -1,4 +1,4 @@
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -90,6 +90,7 @@ def gen_doc(docs, name, renamed, indent=1, language='C++'):
     if not doc:
         return f"""    /*#
         * Generated from [ref:{name}]
+        * @name {renamed}
         */"""
 
     lines = []
@@ -293,4 +294,3 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
     l('') # always have a newline at the end
     return out_lines
-

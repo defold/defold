@@ -14,7 +14,7 @@
 
 #include "BaseView.h"
 
-@interface ViewController : UIViewController<UIContentContainer, UIAccelerometerDelegate>
+@interface ViewController : UIViewController<UIContentContainer>
 {
     BaseView* baseView;
     CGSize cachedViewSize;

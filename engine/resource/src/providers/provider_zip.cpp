@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -11,6 +11,7 @@
 // under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
+
 
 #include "provider.h"
 #include "provider_private.h"
@@ -28,7 +29,6 @@
 #include <dlib/lz4.h>
 #include <dlib/math.h>
 #include <dlib/memory.h>
-#include <dlib/sys.h>
 #include <dlib/zip.h>
 
 namespace dmResourceProviderZip
@@ -46,7 +46,10 @@ struct EntryInfo
 struct ZipProviderContext
 {
     dmURI::Parts                m_BaseUri;
+    
+    // handle to the zip archive
     dmZip::HZip                 m_Zip;
+
     dmResource::HManifest       m_Manifest;
     dmHashTable64<EntryInfo>    m_EntryMap; // url hash -> entry in the manifest
 };
@@ -169,10 +172,23 @@ static dmResourceProvider::Result LoadManifest(dmZip::HZip zip, const char* path
     }
 
     uint32_t manifest_len;
-    dmZip::GetEntrySize(zip, &manifest_len);
+    zr = dmZip::GetEntrySize(zip, &manifest_len);
+    if (dmZip::RESULT_OK != zr)
+    {
+        dmZip::CloseEntry(zip);
+        dmLogError("Could not get the size of manifest '%s' from archive", path);
+        return dmResourceProvider::RESULT_IO_ERROR;
+    }
+
     uint8_t* manifest_data = new uint8_t[manifest_len];
-    dmZip::GetEntryData(zip, (void*)manifest_data, manifest_len);
+    zr = dmZip::GetEntryData(zip, (void*)manifest_data, manifest_len);
     dmZip::CloseEntry(zip);
+    if (dmZip::RESULT_OK != zr)
+    {
+        dmLogError("Could not extract manifest '%s' from archive", path);
+        delete[] manifest_data;
+        return dmResourceProvider::RESULT_IO_ERROR;
+    }
 
     dmResourceProvider::Result result = dmResourceProvider::RESULT_OK;
     dmResource::Result r = dmResource::LoadManifestFromBuffer(manifest_data, manifest_len, manifest);
@@ -195,29 +211,21 @@ static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvi
     memset(archive, 0, sizeof(ZipProviderContext));
     memcpy(&archive->m_BaseUri, uri, sizeof(dmURI::Parts));
 
-    char path[1024];
-    dmSnPrintf(path, sizeof(path), "%s", uri->m_Path);
-    dmPath::Normalize(path, path, sizeof(path));
-
-    char mount_path[1024];
-    if (dmSys::RESULT_OK != dmSys::ResolveMountFileName(mount_path, sizeof(mount_path), path))
-    {
-        dmLogError("Could not resolve a mount path '%s'", path);
-        DeleteZipArchiveInternal(archive);
-        return dmResourceProvider::RESULT_NOT_FOUND;
-    }
-
-    dmZip::Result zr = dmZip::Open(mount_path, &archive->m_Zip);
+    dmZip::Result zr = dmZip::Open(uri->m_Path, &archive->m_Zip);
     if (dmZip::RESULT_OK != zr)
     {
-        dmLogError("Could not open zip file '%s'", mount_path);
+        dmLogError("Could not open zip resource '%s' (%d)", uri->m_Path, zr);
         DeleteZipArchiveInternal(archive);
-        return dmResourceProvider::RESULT_NOT_FOUND;
+        return zr == dmZip::RESULT_NO_SUCH_ENTRY
+            ? dmResourceProvider::RESULT_NOT_FOUND
+            : dmResourceProvider::RESULT_IO_ERROR;
     }
 
     dmResourceProvider::Result result = LoadManifest(archive->m_Zip, LIVEUPDATE_ARCHIVE_MANIFEST_FILENAME, &archive->m_Manifest);
     if (dmResourceProvider::RESULT_OK != result)
     {
+        dmLogInfo("Could not load manifest (%d)", result);
+        DeleteZipArchiveInternal(archive);
         return result;
     }
 
@@ -304,15 +312,24 @@ static dmResourceProvider::Result ReadFile(dmResourceProvider::HArchiveInternal 
     if (entry->m_ManifestEntry)
     {
         uint32_t raw_data_size;
-        dmZip::GetEntrySize(archive->m_Zip, &raw_data_size);
-        uint8_t* raw_data = new uint8_t[raw_data_size];
-        dmZip::GetEntryData(archive->m_Zip, (void*)raw_data, raw_data_size);
-        result = UnpackData(path, entry->m_ManifestEntry, raw_data, raw_data_size, buffer);
-        delete[] raw_data;
-    } else
+        zr = dmZip::GetEntrySize(archive->m_Zip, &raw_data_size);
+        if (dmZip::RESULT_OK == zr)
+        {
+            uint8_t* raw_data = new uint8_t[raw_data_size];
+            zr = dmZip::GetEntryData(archive->m_Zip, (void*)raw_data, raw_data_size);
+            if (dmZip::RESULT_OK == zr)
+                result = UnpackData(path, entry->m_ManifestEntry, raw_data, raw_data_size, buffer);
+            delete[] raw_data;
+        }
+        if (dmZip::RESULT_OK != zr)
+            result = dmResourceProvider::RESULT_IO_ERROR;
+    }
+    else
     {
         // Uncompressed, regular files (i.e. no Liveupdate header)
-        dmZip::GetEntryData(archive->m_Zip, (void*)buffer, buffer_len);
+        zr = dmZip::GetEntryData(archive->m_Zip, (void*)buffer, buffer_len);
+        if (dmZip::RESULT_OK != zr)
+            result = dmResourceProvider::RESULT_IO_ERROR;
     }
 
     dmZip::CloseEntry(archive->m_Zip);

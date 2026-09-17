@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,6 +15,8 @@
 #include <jc_test/jc_test.h>
 
 #include <dlib/hash.h>
+#include <dlib/path.h>
+#include <dlib/testutil.h>
 
 #include "../gameobject.h"
 #include "../component.h"
@@ -61,7 +63,7 @@ static void ResetWorldCounters(Stats* stats) {
 class ReloadCollectionTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_NewResource = 0x0;
 
@@ -70,7 +72,8 @@ protected:
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/reload");
+        char path[DMPATH_MAX_PATH];
+        m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gameobject/test/reload"));
 
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
@@ -122,7 +125,7 @@ protected:
         m_Collection = 0;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (m_Collection)
             dmGameObject::DeleteCollection(m_Collection);

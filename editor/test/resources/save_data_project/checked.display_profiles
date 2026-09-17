@@ -21,3 +21,4 @@ profiles {
     device_models: "iPhone10,6"
   }
 }
+auto_layout_selection: false

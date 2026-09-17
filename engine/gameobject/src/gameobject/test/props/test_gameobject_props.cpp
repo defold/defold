@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,11 +18,13 @@
 #include <dlib/align.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
+#include <dlib/path.h>
+#include <dlib/testutil.h>
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 #include "../gameobject_script.h"
-#include "../proto/gameobject/gameobject_ddf.h"
+#include <gameobject/gameobject_ddf.h>
 #include "../gameobject_props.h"
 #include "../gameobject_props_lua.h"
 
@@ -66,13 +68,14 @@ dmGameObject::PropertyResult CompNoUserDataSetProperties(const dmGameObject::Com
 class PropsTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Path = "build/src/gameobject/test/props";
-        m_Factory = dmResource::NewFactory(&params, m_Path);
+        char path[DMPATH_MAX_PATH];
+        m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), m_Path));
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
@@ -115,7 +118,7 @@ protected:
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);
@@ -253,6 +256,9 @@ TEST_F(PropsTest, PropsSpawn)
     dmScript::PushQuat(L, Quat(1, 2, 3, 4));
     lua_setfield(L, -2, "quat");
 
+    lua_pushliteral(L, "spawned text");
+    lua_setfield(L, -2, "text");
+
     dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
     lua_pop(L, 1);
 
@@ -270,6 +276,27 @@ TEST_F(PropsTest, PropsSpawnNoProperties)
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_go.goc", dmHashString64("test_id"), 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
     ASSERT_NE((void*)0u, instance);
+}
+
+TEST_F(PropsTest, PropsFromLuaRejectsEmbeddedNullText)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    int top = lua_gettop(L);
+
+    lua_pushlstring(L, "embedded\0null", 13);
+    dmGameObject::PropertyVar var;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE, dmGameObject::LuaToVar(L, -1, var));
+    lua_pop(L, 1);
+
+    lua_newtable(L);
+    lua_pushlstring(L, "embedded\0null", 13);
+    lua_setfield(L, -2, "text");
+
+    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
+    lua_pop(L, 1);
+
+    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ((dmGameObject::HPropertyContainer)0, properties);
 }
 
 TEST_F(PropsTest, PropsRelativeURL)
@@ -307,7 +334,6 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyDesc desc;\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v0, desc.m_Variant.m_Number, epsilon);\
@@ -316,7 +342,6 @@ static dmhash_t hash(const char* s)
 #define ASSERT_SET_PROP_NUM(go, prop, v0, epsilon)\
     {\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         dmGameObject::PropertyVar var(v0);\
         dmGameObject::SetProperty(go, 0, hash(prop), opt, var);\
         dmGameObject::PropertyDesc desc;\
@@ -329,7 +354,6 @@ static dmhash_t hash(const char* s)
         dmGameObject::SetScale(go, v0);\
         dmGameObject::PropertyDesc desc;\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, desc.m_Variant.m_Type);\
         ASSERT_NEAR(v0, *desc.m_ValuePtr, epsilon);\
@@ -338,7 +362,6 @@ static dmhash_t hash(const char* s)
 #define ASSERT_SET_PROP_V1(go, prop, v0, epsilon)\
     {\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         dmGameObject::PropertyVar var(v0);\
         dmGameObject::SetProperty(go, 0, hash(prop), opt, var);\
         dmGameObject::PropertyDesc desc;\
@@ -350,7 +373,6 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyDesc desc;\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
         ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, desc.m_Variant.m_Type);\
         ASSERT_EQ(hash(prop ".x"), desc.m_ElementIds[0]);\
@@ -378,7 +400,6 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyVar var(v);\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, hash(prop), opt, var));\
         dmGameObject::PropertyDesc desc;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
@@ -412,7 +433,6 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyDesc desc;\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
         ASSERT_TRUE(dmGameObject::PROPERTY_TYPE_VECTOR4 == desc.m_Variant.m_Type || dmGameObject::PROPERTY_TYPE_QUAT == desc.m_Variant.m_Type);\
         ASSERT_EQ(hash(prop ".x"), desc.m_ElementIds[0]);\
@@ -446,7 +466,6 @@ static dmhash_t hash(const char* s)
     {\
         dmGameObject::PropertyVar var(v);\
         dmGameObject::PropertyOptions opt;\
-        opt.m_Index = 0;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, 0, hash(prop), opt, var));\
         dmGameObject::PropertyDesc desc;\
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, 0, hash(prop), opt, desc));\
@@ -487,6 +506,7 @@ static dmhash_t hash(const char* s)
 TEST_F(PropsTest, PropsGetSet)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_go.goc");
+    SetProperties(go);
     dmGameObject::Init(m_Collection);
 
     float epsilon = 0.000001f;
@@ -545,6 +565,166 @@ TEST_F(PropsTest, PropsGetSet)
 #undef ASSERT_SET_PROP_V3
 #undef ASSERT_GET_PROP_V4
 #undef ASSERT_SET_PROP_V4
+
+float DiffVector3(dmVMath::Vector3 a, dmVMath::Vector3 b)
+{
+    return dmMath::Abs(dmVMath::Length(a) - dmVMath::Length(b));
+}
+float DiffVector4(dmVMath::Vector4 a, dmVMath::Vector4 b)
+{
+    return dmMath::Abs(dmVMath::Length(a) - dmVMath::Length(b));
+}
+float DiffQuat(dmVMath::Quat a, dmVMath::Quat b)
+{
+    return dmMath::Abs(dmVMath::Length(a) - dmVMath::Length(b));
+}
+
+TEST_F(PropsTest, PropsGetSetAs)
+{
+    dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/props_go.goc");
+    SetProperties(instance);
+    dmGameObject::Init(m_Collection);
+
+    dmGameObject::PropertyResult r;
+
+    dmhash_t geth;
+    dmhash_t seth = hash("foobar");
+    // check initial value
+    r = dmGameObject::GetPropertyAsHash(instance, hash("script"), hash("hash"), &geth);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_EQ(hash("hash"), geth);
+    // set new value
+    r = dmGameObject::SetPropertyFromHash(instance, hash("script"), hash("hash"), seth);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    // check that it was set
+    r = dmGameObject::GetPropertyAsHash(instance, hash("script"), hash("hash"), &geth);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_EQ(seth, geth);
+    // check that it verifies property type
+    r = dmGameObject::GetPropertyAsHash(instance, 0, hash("rotation"), &geth);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::SetPropertyFromHash(instance, 0, hash("rotation"), seth);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+
+    float getf;
+    float setf = -123;
+    r = dmGameObject::GetPropertyAsFloat(instance, hash("script"), hash("number"), &getf);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_EQ(200, getf);
+    r = dmGameObject::SetPropertyFromFloat(instance, hash("script"), hash("number"), setf);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::GetPropertyAsFloat(instance, hash("script"), hash("number"), &getf);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_EQ(setf, getf);
+    r = dmGameObject::GetPropertyAsFloat(instance, 0, hash("rotation"), &getf);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::SetPropertyFromFloat(instance, 0, hash("rotation"), setf);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+
+    dmVMath::Vector3 getvec3;
+    dmVMath::Vector3 setvec3 = dmVMath::Vector3(-10, -1, 9);
+    r = dmGameObject::GetPropertyAsVector3(instance, hash("script"), hash("vec3"), &getvec3);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_LT(DiffVector3(dmVMath::Vector3(1, 2, 3), getvec3), 0.0001f);
+    r = dmGameObject::SetPropertyFromVector3(instance, hash("script"), hash("vec3"), setvec3);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::GetPropertyAsVector3(instance, hash("script"), hash("vec3"), &getvec3);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_LT(DiffVector3(setvec3, getvec3), 0.0001f);
+    r = dmGameObject::GetPropertyAsVector3(instance, 0, hash("rotation"), &getvec3);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::SetPropertyFromVector3(instance, 0, hash("rotation"), setvec3);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+
+    dmVMath::Vector4 getvec4;
+    dmVMath::Vector4 setvec4 = dmVMath::Vector4(-10, -1, 9, 500);
+    r = dmGameObject::GetPropertyAsVector4(instance, hash("script"), hash("vec4"), &getvec4);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_LT(DiffVector4(dmVMath::Vector4(4, 5, 6, 7), getvec4), 0.0001f);
+    r = dmGameObject::SetPropertyFromVector4(instance, hash("script"), hash("vec4"), setvec4);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::GetPropertyAsVector4(instance, hash("script"), hash("vec4"), &getvec4);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_LT(DiffVector4(setvec4, getvec4), 0.0001f);
+    r = dmGameObject::GetPropertyAsVector4(instance, 0, hash("rotation"), &getvec4);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::SetPropertyFromVector4(instance, 0, hash("rotation"), setvec4);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+
+    dmVMath::Quat getquat;
+    dmVMath::Quat setquat = dmVMath::Quat(-10, -1, 9, 500);
+    r = dmGameObject::GetPropertyAsQuat(instance, hash("script"), hash("quat"), &getquat);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_LT(DiffQuat(dmVMath::Quat(8, 9, 10, 11), getquat), 0.0001f);
+    r = dmGameObject::SetPropertyFromQuat(instance, hash("script"), hash("quat"), setquat);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::GetPropertyAsQuat(instance, hash("script"), hash("quat"), &getquat);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_LT(DiffQuat(setquat, getquat), 0.0001f);
+    r = dmGameObject::GetPropertyAsQuat(instance, 0, hash("position"), &getquat);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::SetPropertyFromQuat(instance, 0, hash("position"), setquat);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+
+    bool getb;
+    bool setb = 1;
+    r = dmGameObject::GetPropertyAsBool(instance, hash("script"), hash("bool"), &getb);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_EQ(0, getb);
+    r = dmGameObject::SetPropertyFromBool(instance, hash("script"), hash("bool"), setb);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::GetPropertyAsBool(instance, hash("script"), hash("bool"), &getb);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_EQ(setb, getb);
+    r = dmGameObject::GetPropertyAsBool(instance, 0, hash("rotation"), &getb);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::SetPropertyFromBool(instance, 0, hash("position"), setb);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+
+    dmMessage::URL geturl;
+    dmMessage::URL seturl;
+    seturl.m_Socket = hash("foo");
+    seturl.m_Path = hash("bar");
+    seturl.m_Fragment = hash("baz");
+    r = dmGameObject::GetPropertyAsURL(instance, hash("script"), hash("url"), &geturl);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_EQ(hash("/path"), geturl.m_Path);
+    r = dmGameObject::SetPropertyFromURL(instance, hash("script"), hash("url"), seturl);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::GetPropertyAsURL(instance, hash("script"), hash("url"), &geturl);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_EQ(seturl.m_Socket, geturl.m_Socket);
+    ASSERT_EQ(seturl.m_Path, geturl.m_Path);
+    ASSERT_EQ(seturl.m_Fragment, geturl.m_Fragment);
+    r = dmGameObject::GetPropertyAsURL(instance, hash("script"), hash("vec3"), &geturl);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::GetPropertyAsURL(instance, 0, hash("rotation"), &geturl);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+    r = dmGameObject::SetPropertyFromURL(instance, 0, hash("position"), seturl);
+    ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+
+    const char* gettext;
+    char settext[] = "runtime text with a longer value";
+    r = dmGameObject::GetPropertyAsText(instance, hash("script"), hash("text"), &gettext);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_STREQ("override text", gettext);
+    r = dmGameObject::SetPropertyFromText(instance, hash("script"), hash("text"), settext);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    settext[0] = 'X';
+    r = dmGameObject::GetPropertyAsText(instance, hash("script"), hash("text"), &gettext);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_STREQ("runtime text with a longer value", gettext);
+    r = dmGameObject::GetPropertyAsText(instance, hash("script"), hash("number"), &gettext);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
+    r = dmGameObject::SetPropertyFromText(instance, hash("script"), hash("number"), "invalid");
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
+    r = dmGameObject::SetPropertyFromFloat(instance, hash("script"), hash("text"), 1.0f);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
+    r = dmGameObject::SetPropertyFromText(instance, 0, hash("position"), "invalid");
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
+
+    dmGameObject::Delete(m_Collection, instance, false);
+}
 
 TEST_F(PropsTest, PropsGetSetScript)
 {
@@ -611,6 +791,7 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     dmhash_t hashFirst = dmHashString64("hash_first");
     const char urlStringFirst[] = "url_string_first";
     const char urlStringSecond[] = "url_string_second";
+    const char textFirst[] = "hello text";
     const char urlFirst[32] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
                                 1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
                                 1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
@@ -626,6 +807,7 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     params.m_NumberCount = 2;
     params.m_HashCount = 1;
     params.m_URLStringCount = 2;
+    params.m_TextCount = 1;
     params.m_URLCount = 1;
     params.m_Vector3Count = 2;
     params.m_Vector4Count = 1;
@@ -633,6 +815,7 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     params.m_BoolCount = 2;
     params.m_URLStringSize += strlen("url_string_first") + 1;
     params.m_URLStringSize += strlen("url_string_second") + 1;
+    params.m_TextSize += strlen(textFirst) + 1;
     dmGameObject::HPropertyContainerBuilder builder = dmGameObject::PropertyContainerCreateBuilder(params);
     ASSERT_NE(builder, (dmGameObject::HPropertyContainerBuilder)0x0);
     dmGameObject::PropertyContainerPushFloat(builder, dmHashString64("NumberFirst"), numberFirst);
@@ -640,6 +823,7 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     dmGameObject::PropertyContainerPushHash(builder, dmHashString64("HashFirst"), hashFirst);
     dmGameObject::PropertyContainerPushURLString(builder, dmHashString64("URLStringFirst"), urlStringFirst);
     dmGameObject::PropertyContainerPushURLString(builder, dmHashString64("URLStringSecond"), urlStringSecond);
+    dmGameObject::PropertyContainerPushText(builder, dmHashString64("TextFirst"), textFirst, (uint32_t) strlen(textFirst));
     dmGameObject::PropertyContainerPushURL(builder, dmHashString64("URLFirst"), urlFirst);
     dmGameObject::PropertyContainerPushVector3(builder, dmHashString64("Vector3First"), vector3First);
     dmGameObject::PropertyContainerPushVector3(builder, dmHashString64("Vector3Second"), vector3Second);
@@ -692,6 +876,9 @@ TEST(GameObjectProps, TestPropertyContainerCreate)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("BoolSecond"), var));
     ASSERT_EQ(dmGameObject::PROPERTY_TYPE_BOOLEAN, var.m_Type);
     ASSERT_EQ(boolSecond, var.m_Bool);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("TextFirst"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_TEXT, var.m_Type);
+    ASSERT_STREQ(textFirst, var.m_Text);
     dmGameObject::PropertyContainerDestroy(c);
 }
 

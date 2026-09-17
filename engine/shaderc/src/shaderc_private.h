@@ -102,18 +102,17 @@ namespace dmShaderc
     struct CombinedSampler
     {
         const char* m_CombinedName;
-        uint8_t     m_CombinedId;
+        uint32_t    m_CombinedId;
         const char* m_ImageName;
-        uint8_t     m_ImageId;
+        uint32_t    m_ImageId;
         const char* m_SamplerName;
-        uint8_t     m_SamplerId;
+        uint32_t    m_SamplerId;
     };
 
     void GetCombinedSamplerMapSPIRV(HShaderContext context, ShaderCompilerSPVC* compiler, dmArray<CombinedSampler>& samplers);
 
-#ifdef DM_BINARY_HLSL_SUPPORTED
-    ShaderCompileResult* CompileRawHLSLToBinary(HShaderContext context, HShaderCompiler compiler, ShaderCompileResult* raw_hlsl);
-#endif
+    ShaderCompileResult* CompileRawHLSLToBinary(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions* options, ShaderCompileResult* raw_hlsl);
+    bool RootSignatureBlobToText(const void* blob_data, uint32_t blob_size, dmArray<char>& out_text);
 }
 
 #endif

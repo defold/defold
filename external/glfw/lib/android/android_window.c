@@ -32,6 +32,7 @@
 
 #include <limits.h>
 #include <jni.h>
+#include <unistd.h>
 
 //************************************************************************
 //****               Platform implementation functions                ****
@@ -45,6 +46,8 @@
 #include "android_log.h"
 #include "android_util.h"
 #include "android_joystick.h"
+#include "android_jni.h"
+#include "android_window_backend.h"
 
 extern struct android_app* g_AndroidApp;
 extern int g_AppCommands[MAX_APP_COMMANDS];
@@ -87,6 +90,11 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwInputCharNativ
     }
 }
 
+JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetPendingResizeBecauseOfInsets(JNIEnv* env, jobject obj)
+{
+    _glfwAndroidPlatformSetPendingResizeBecauseOfInsets();
+}
+
 JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetMarkedTextNative(JNIEnv* env, jobject obj, jstring text)
 {
     const jsize len = (*env)->GetStringUTFLength(env, text);
@@ -108,56 +116,7 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetMarkedTextN
 
 int _glfwPlatformGetWindowRefreshRate( void )
 {
-    // Source: http://irrlicht.sourceforge.net/forum/viewtopic.php?f=9&t=50206
-    if (_glfwWinAndroid.display == EGL_NO_DISPLAY || _glfwWinAndroid.surface == EGL_NO_SURFACE || _glfwWin.iconified == 1)
-    {
-        return 0;
-    }
-
-    float refresh_rate = 0.0f;
-    jint result;
-
-    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
-    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
-
-    JavaVMAttachArgs lJavaVMAttachArgs;
-    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
-    lJavaVMAttachArgs.name = "NativeThread";
-    lJavaVMAttachArgs.group = NULL;
-
-    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
-    if (result == JNI_ERR) {
-         return 0;
-    }
-
-    jobject native_activity = g_AndroidApp->activity->clazz;
-    jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
-    jclass native_window_manager_class = (*lJNIEnv)->FindClass(lJNIEnv, "android/view/WindowManager");
-    jclass native_display_class = (*lJNIEnv)->FindClass(lJNIEnv, "android/view/Display");
-
-    if (native_window_manager_class)
-    {
-        jmethodID get_window_manager = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "getWindowManager", "()Landroid/view/WindowManager;");
-        jmethodID get_default_display = (*lJNIEnv)->GetMethodID(lJNIEnv, native_window_manager_class, "getDefaultDisplay", "()Landroid/view/Display;");
-        jmethodID get_refresh_rate = (*lJNIEnv)->GetMethodID(lJNIEnv, native_display_class, "getRefreshRate", "()F");
-        if (get_refresh_rate)
-        {
-            jobject window_manager = (*lJNIEnv)->CallObjectMethod(lJNIEnv, native_activity, get_window_manager);
-
-            if (window_manager)
-            {
-                jobject display = (*lJNIEnv)->CallObjectMethod(lJNIEnv, window_manager, get_default_display);
-
-                if (display)
-                {
-                    refresh_rate = (*lJNIEnv)->CallFloatMethod(lJNIEnv, display, get_refresh_rate);
-                }
-            }
-        }
-    }
-    (*lJavaVM)->DetachCurrentThread(lJavaVM);
-
-    return (int)(refresh_rate + 0.5f);
+    return _glfwAndroidPlatformGetWindowRefreshRate();
 }
 
 int _glfwPlatformOpenWindow( int width__, int height__,
@@ -166,19 +125,11 @@ int _glfwPlatformOpenWindow( int width__, int height__,
 {
     LOGV("_glfwPlatformOpenWindow");
 
-    _glfwWin.clientAPI = wndconfig__->clientAPI;
-
-    if (_glfwWin.clientAPI == GLFW_OPENGL_API)
+    if (!_glfwAndroidPlatformOpenWindow(width__, height__, wndconfig__, fbconfig__))
     {
-        if (init_gl(&_glfwWinAndroid) == 0)
-        {
-            return GL_FALSE;
-        }
-        make_current(&_glfwWinAndroid);
-        update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
-        computeIconifiedState();
+        return GL_FALSE;
     }
-    
+
     _glfwTerminateJoysticks();
 
     return GL_TRUE;
@@ -191,12 +142,7 @@ int _glfwPlatformOpenWindow( int width__, int height__,
 void _glfwPlatformCloseWindow( void )
 {
     LOGV("_glfwPlatformCloseWindow");
-
-    if (_glfwWin.opened && _glfwWin.clientAPI != GLFW_NO_API) {
-        destroy_gl_surface(&_glfwWinAndroid);
-        final_gl(&_glfwWinAndroid);
-        _glfwWin.opened = 0;
-    }
+    _glfwAndroidPlatformCloseWindow();
 }
 
 int _glfwPlatformGetDefaultFramebuffer( )
@@ -251,58 +197,9 @@ void _glfwPlatformRestoreWindow( void )
 {
 }
 
-//========================================================================
-// Swap OpenGL buffers and poll any new events
-//========================================================================
-
-static void _glfwPlatformSwapBuffersNoLock( void )
-{
-    if (_glfwWinAndroid.display == EGL_NO_DISPLAY || _glfwWinAndroid.surface == EGL_NO_SURFACE || _glfwWin.iconified == 1)
-    {
-        return;
-    }
-
-    if (!eglSwapBuffers(_glfwWinAndroid.display, _glfwWinAndroid.surface))
-    {
-        // Error checking inspired by Android implementation of GLSurfaceView:
-        // https://android.googlesource.com/platform/frameworks/base/+/master/opengl/java/android/opengl/GLSurfaceView.java
-        EGLint error = eglGetError();
-        if (error != EGL_SUCCESS) {
-
-            if (error == EGL_CONTEXT_LOST) {
-                LOGE("eglSwapBuffers failed due to EGL_CONTEXT_LOST!");
-                assert(0);
-                return;
-            } else if (error == EGL_BAD_SURFACE) {
-                // Recreate surface
-                LOGE("eglSwapBuffers failed due to EGL_BAD_SURFACE, destroy surface and wait for recreation.");
-                destroy_gl_surface(&_glfwWinAndroid);
-                _glfwWinAndroid.should_recreate_surface = 1;
-                _glfwWin.iconified = 1;
-                return;
-            } else {
-                // Other errors typically mean that the current surface is bad,
-                // probably because the SurfaceView surface has been destroyed,
-                // but we haven't been notified yet.
-                // Ignore error, but log for debugging purpose.
-                LOGW("eglSwapBuffers failed, eglGetError: %X", error);
-                return;
-            }
-        }
-    }
-
-    /*
-     The preferred way of handling orientation changes is probably
-     in APP_CMD_CONFIG_CHANGED or APP_CMD_WINDOW_RESIZED but occasionally
-     the wrong previous orientation is reported (Tested on Samsung S2 GTI9100 4.1.2).
-     This might very well be a bug..
-     */
-    update_width_height_info(&_glfwWin, &_glfwWinAndroid, 0);
-}
-
 void _glfwPlatformSwapBuffers( void )
 {
-    _glfwPlatformSwapBuffersNoLock();
+    _glfwAndroidPlatformSwapBuffers();
     spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
 }
 
@@ -313,16 +210,7 @@ void _glfwPlatformSwapBuffers( void )
 
 void _glfwPlatformSwapInterval( int interval )
 {
-    if (_glfwWin.clientAPI != GLFW_NO_API)
-    {
-        // eglSwapInterval is not supported on all devices, so clear the error here
-        // (yields EGL_BAD_PARAMETER when not supported for kindle and HTC desire)
-        // https://groups.google.com/forum/#!topic/android-developers/HvMZRcp3pt0
-        eglSwapInterval(_glfwWinAndroid.display, interval);
-        EGLint error = eglGetError();
-        assert(error == EGL_SUCCESS || error == EGL_BAD_PARAMETER);
-        (void)error;
-    }
+    _glfwAndroidPlatformSwapInterval(interval);
 }
 
 //========================================================================
@@ -343,59 +231,94 @@ void glfwAndroidBeginFrame()
     spinlock_lock(&_glfwWinAndroid.m_RenderLock);
 }
 
-static void CreateGLSurface()
-{
-    create_gl_surface(&_glfwWinAndroid);
-
-    // We might have tried to create the surface just as we received an APP_CMD_TERM_WINDOW on the looper thread
-    if (_glfwWinAndroid.surface != EGL_NO_SURFACE)
-    {
-        // This thread attachment is a workaround for this crash 
-        // https://github.com/defold/defold/issues/6956
-        // only on Android 13 
-        JNIEnv* env = g_AndroidApp->activity->env;
-        JavaVM* vm = g_AndroidApp->activity->vm;
-        (*vm)->AttachCurrentThread(vm, &env, NULL);
-
-        make_current(&_glfwWinAndroid);
-        
-        if (vm != 0)
-        {
-            (*vm)->DetachCurrentThread(vm);
-        }
-        update_width_height_info(&_glfwWin, &_glfwWinAndroid, 1);
-
-        computeIconifiedState();
-    }
-}
-
 void glfwAndroidFlushEvents()
 {
-    spinlock_lock(&g_EventLock);
+    int app_commands[MAX_APP_COMMANDS];
+    static struct InputEvent* flush_input_events = 0;
+    static int flush_input_events_capacity = 0;
+    struct InputEvent* input_events = 0;
 
-    for (int i = 0; i < g_NumAppCommands; ++i)
+    int num_app_commands = 0;
+    int num_input_events = 0;
+    int events_copied = 0;
+    while (!events_copied)
     {
-        int cmd = g_AppCommands[i];
+        spinlock_lock(&g_EventLock);
+
+        num_app_commands = g_NumAppCommands;
+        num_input_events = g_NumAppInputEvents;
+        if (num_input_events <= flush_input_events_capacity)
+        {
+            memcpy(app_commands, g_AppCommands, num_app_commands * sizeof(int));
+            g_NumAppCommands = 0;
+
+            if (num_input_events > 0)
+            {
+                memcpy(flush_input_events, g_AppInputEvents, num_input_events * sizeof(struct InputEvent));
+                input_events = flush_input_events;
+            }
+            g_NumAppInputEvents = 0;
+            events_copied = 1;
+        }
+
+        spinlock_unlock(&g_EventLock);
+
+        if (!events_copied)
+        {
+            int new_flush_input_events_capacity = flush_input_events_capacity > 0 ? flush_input_events_capacity : APP_INPUT_EVENTS_SIZE_INCREASE_STEP;
+            while (new_flush_input_events_capacity < num_input_events)
+            {
+                new_flush_input_events_capacity *= 2;
+            }
+
+            // Grow the local copy buffer outside g_EventLock. The queues are not drained
+            // until the next locked pass can snapshot commands and input events together.
+            struct InputEvent* new_flush_input_events = (struct InputEvent*) realloc(flush_input_events, new_flush_input_events_capacity * sizeof(struct InputEvent));
+            if (new_flush_input_events == 0)
+            {
+                LOGE("glfwAndroidFlushEvents: failed to allocate %d input events", new_flush_input_events_capacity);
+                num_app_commands = 0;
+                num_input_events = 0;
+                events_copied = 1;
+            }
+            else
+            {
+                flush_input_events = new_flush_input_events;
+                flush_input_events_capacity = new_flush_input_events_capacity;
+            }
+        }
+    }
+
+    for (int i = 0; i < num_app_commands; ++i)
+    {
+        int cmd = app_commands[i];
 
         LOGV("handleCommand (main thread): %s", _glfwGetAndroidCmdName(cmd));
 
         switch(cmd)
         {
+        case APP_CMD_TERM_WINDOW:
+            _glfwAndroidPlatformOnTermWindow();
+            computeIconifiedState();
+            break;
+
         case APP_CMD_INIT_WINDOW:
-            // We don't get here the first time around, but from the second and onwards
-            // The first time, the create_gl_surface() is called from the _glfwPlatformOpenWindow function
-            if (_glfwWin.opened && _glfwWinAndroid.display != EGL_NO_DISPLAY && _glfwWinAndroid.surface == EGL_NO_SURFACE)
-            {
-                CreateGLSurface();
-            }
+            _glfwAndroidPlatformOnInitWindow();
             computeIconifiedState();
             break;
 
         case APP_CMD_GAINED_FOCUS:
-            // If we failed to create the window in APP_CMD_INIT_WINDOW, let's try again
-            if (_glfwWinAndroid.surface == EGL_NO_SURFACE) {
-                CreateGLSurface();
-            }
+            _glfwAndroidPlatformOnGainedFocus();
+            break;
+
+        case APP_CMD_WINDOW_RESIZED:
+        case APP_CMD_CONFIG_CHANGED:
+        case APP_CMD_CONTENT_RECT_CHANGED:
+            _glfwAndroidPlatformOnResize();
+            computeIconifiedState();
+            break;
+
+        case APP_CMD_WINDOW_REDRAW_NEEDED:
             break;
 
         case APP_CMD_PAUSE:
@@ -409,45 +332,35 @@ void glfwAndroidFlushEvents()
 
         }
     }
-    g_NumAppCommands = 0;
 
-    // Still, there seem to be room for the surface to not be ready when the rendering restarts (Issue 5358)
-    if (_glfwWinAndroid.should_recreate_surface && _glfwWinAndroid.surface == EGL_NO_SURFACE)
-    {
-        LOGV("Recreating surface");
-        CreateGLSurface();
-        _glfwWinAndroid.should_recreate_surface = 0;
-    }
+    _glfwAndroidPlatformAfterFlushEvents();
 
     JNIEnv* env = 0;
     JavaVM* vm = 0;
-    if (g_NumAppInputEvents > 0)
+    if (num_input_events > 0)
     {
         env = g_AndroidApp->activity->env;
         vm = g_AndroidApp->activity->vm;
         (*vm)->AttachCurrentThread(vm, &env, NULL);
     }
 
-    for (int i = 0; i < g_NumAppInputEvents; ++i)
+    for (int i = 0; i < num_input_events; ++i)
     {
-        struct InputEvent* event = &g_AppInputEvents[i];
+        struct InputEvent* event = &input_events[i];
         _glfwAndroidHandleInput(_glfwWinAndroid.app, env, event);
     }
-    g_NumAppInputEvents = 0;
 
     if (vm != 0)
     {
         (*vm)->DetachCurrentThread(vm);
     }
-
-    spinlock_unlock(&g_EventLock);
 }
 
 void androidDestroyWindow( void )
 {
     if (_glfwWin.opened) {
         _glfwWin.opened = 0;
-        final_gl(&_glfwWinAndroid);
+        _glfwAndroidPlatformDestroyWindow();
         computeIconifiedState();
     }
 }
@@ -473,27 +386,26 @@ void _glfwPlatformPollEvents( void )
 // Called from the looper thread
 void glfwAndroidPollEvents()
 {
-    int ident;
-    int events;
-    struct android_poll_source* source;
-
     int timeoutMillis = 0;
     if (_glfwWin.iconified) {
         timeoutMillis = 300;
     }
-    while ((ident=ALooper_pollAll(timeoutMillis, NULL, &events, (void**)&source)) >= 0)
-    {
-        timeoutMillis = 0;
-        // Process this event.
-        if (source != NULL) {
-            source->process(_glfwWinAndroid.app, source);
-        }
+    void* data = NULL;
+    int ident = ALooper_pollOnce(timeoutMillis, NULL, NULL, &data);
 
-        if (_glfwWinAndroid.app->destroyRequested) {
-            androidDestroyWindow();
-            // OS is destroyng the app. All the other events doesn't matter in this case.
-            return;
-        }
+    if (ident >= 0 && data != NULL) {
+        struct android_poll_source* source = (struct android_poll_source*)data;
+        source->process(_glfwWinAndroid.app, source);
+    }
+    if (ident == ALOOPER_POLL_ERROR) {
+        LOGF("ALooper_pollOnce returned an error");
+        return;
+    }
+
+    if (_glfwWinAndroid.app->destroyRequested) {
+        androidDestroyWindow();
+        // OS is destroyng the app. All the other events doesn't matter in this case.
+        return;
     }
 }
 
@@ -646,6 +558,64 @@ void _glfwAndroidSetFullscreenParameters(int immersive_mode, int display_cutout)
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }
 
+int _glfwAndroidGetSafeAreaInsets(int* left, int* top, int* right, int* bottom)
+{
+    jint result;
+
+    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
+    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
+
+    JavaVMAttachArgs lJavaVMAttachArgs;
+    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+    lJavaVMAttachArgs.name = "NativeThread";
+    lJavaVMAttachArgs.group = NULL;
+
+    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
+    if (result == JNI_ERR) {
+        return 0;
+    }
+
+    jobject native_activity = g_AndroidApp->activity->clazz;
+    jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
+
+    jmethodID get_safe_area_insets = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "getSafeAreaInsets", "()[I");
+    if (!get_safe_area_insets)
+    {
+        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        return 0;
+    }
+
+    jintArray array = (jintArray)(*lJNIEnv)->CallObjectMethod(lJNIEnv, native_activity, get_safe_area_insets);
+    if (!array)
+    {
+        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        return 0;
+    }
+
+    jsize len = (*lJNIEnv)->GetArrayLength(lJNIEnv, array);
+    if (len < 4)
+    {
+        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        return 0;
+    }
+
+    jint* values = (*lJNIEnv)->GetIntArrayElements(lJNIEnv, array, NULL);
+    if (!values)
+    {
+        (*lJavaVM)->DetachCurrentThread(lJavaVM);
+        return 0;
+    }
+
+    *left = values[0];
+    *top = values[1];
+    *right = values[2];
+    *bottom = values[3];
+
+    (*lJNIEnv)->ReleaseIntArrayElements(lJNIEnv, array, values, JNI_ABORT);
+    (*lJavaVM)->DetachCurrentThread(lJavaVM);
+    return 1;
+}
+
 //========================================================================
 // Defold extension: Get native references (window, view and context)
 //========================================================================
@@ -674,12 +644,88 @@ GLFWAPI struct android_app* glfwGetAndroidApp(void)
     return g_AndroidApp;
 }
 
+ANativeWindow* _glfwAndroidAcquireWindow(void)
+{
+    struct android_app* app = g_AndroidApp;
+    if (app == NULL)
+        return NULL;
+
+    int did_attach = 0;
+    JNIAttachCurrentThreadIfNeeded(&did_attach);
+    pthread_mutex_lock(&app->mutex);
+    ANativeWindow* window = app->window;
+    if (app->pendingWindow != window)
+        window = NULL;
+    if (window)
+        ANativeWindow_acquire(window);
+    pthread_mutex_unlock(&app->mutex);
+    JNIDetachCurrentThreadIfNeeded(did_attach);
+
+    return window;
+}
+
+GLFWAPI ANativeWindow* glfwAcquireAndroidWindow(void)
+{
+    return _glfwAndroidAcquireWindow();
+}
+
+GLFWAPI ANativeWindow* glfwWaitForAndroidWindow(void)
+{
+    const useconds_t wait_period = 50 * 1000;
+    int logged_wait = 0;
+    while (g_AndroidApp != NULL && !g_AndroidApp->destroyRequested)
+    {
+        if (_glfwAndroidIsAppResumed())
+        {
+            ANativeWindow* window = _glfwAndroidAcquireWindow();
+            if (window)
+            {
+                LOGI("ENGINE THREAD: Window ready!");
+                return window;
+            }
+        }
+
+        if (!logged_wait)
+        {
+            LOGI("ENGINE THREAD: Window not ready. Waiting...");
+            logged_wait = 1;
+        }
+        usleep(wait_period);
+    }
+
+    LOGI("ENGINE THREAD: App is being destroyed. Exiting!");
+    return NULL;
+}
+
+GLFWAPI int glfwAndroidIsWindowCurrent(ANativeWindow* window)
+{
+    struct android_app* app = g_AndroidApp;
+    if (app == NULL || window == NULL || !_glfwAndroidIsAppResumed())
+        return 0;
+
+    pthread_mutex_lock(&app->mutex);
+    int is_current = app->window == window && app->pendingWindow == window;
+    pthread_mutex_unlock(&app->mutex);
+    return is_current;
+}
+
+GLFWAPI void glfwReleaseAndroidWindow(ANativeWindow* window)
+{
+    if (window)
+    {
+        int did_attach = 0;
+        JNIAttachCurrentThreadIfNeeded(&did_attach);
+        ANativeWindow_release(window);
+        JNIDetachCurrentThreadIfNeeded(did_attach);
+    }
+}
+
 //========================================================================
 // Query auxillary context
 //========================================================================
 int _glfwPlatformQueryAuxContext()
 {
-    return _glfwWin.clientAPI == GLFW_NO_API ? 0 : query_gl_aux_context(&_glfwWinAndroid);
+    return _glfwAndroidPlatformQueryAuxContext();
 }
 
 //========================================================================
@@ -687,7 +733,7 @@ int _glfwPlatformQueryAuxContext()
 //========================================================================
 void* _glfwPlatformAcquireAuxContext()
 {
-    return _glfwWin.clientAPI == GLFW_NO_API ? 0 : acquire_gl_aux_context(&_glfwWinAndroid);
+    return _glfwAndroidPlatformAcquireAuxContext();
 }
 
 //========================================================================
@@ -695,10 +741,7 @@ void* _glfwPlatformAcquireAuxContext()
 //========================================================================
 void _glfwPlatformUnacquireAuxContext(void* context)
 {
-    if (_glfwWin.clientAPI != GLFW_NO_API)
-    {
-        unacquire_gl_aux_context(&_glfwWinAndroid);
-    }
+    _glfwAndroidPlatformUnacquireAuxContext(context);
 }
 
 void _glfwPlatformSetViewType(int view_type)

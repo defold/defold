@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,6 +29,7 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.PropertiesUtil;
@@ -363,7 +364,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
     @Override
     protected CollectionDesc.Builder transform(Task task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
-        Integer countOfRealEmbededObjects = messageBuilder.getEmbeddedInstancesCount();
+        int countOfRealEmbededObjects = messageBuilder.getEmbeddedInstancesCount();
         int goCount = messageBuilder.getInstancesCount();
         mergeSubCollections(resource, messageBuilder);
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
@@ -384,8 +385,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 goCount++;
             }
 
-            int buildDirLen = project.getBuildDirectory().length();
-            String path = genResource.getPath().substring(buildDirLen);
+            String path = BuilderUtil.getRelativePath(project, genResource);
 
             InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder();
             instBuilder.setId(desc.getId())
@@ -432,7 +432,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 b.setScale3(MathUtil.vecmathToDDFOne(new Vector3d(s, s, s)));
             }
 
-            b.setPrototype(BuilderUtil.replaceExt(b.getPrototype(), ".go", ".goc"));
+            b.setPrototype(ResourceUtil.minifyPathAndReplaceExt(b.getPrototype(), ".go", ".goc"));
+
             for (int j = 0; j < b.getComponentPropertiesCount(); ++j) {
                 ComponentPropertyDesc.Builder compPropBuilder = ComponentPropertyDesc.newBuilder(b.getComponentProperties(j));
                 PropertyDeclarations.Builder properties = PropertyDeclarations.newBuilder();

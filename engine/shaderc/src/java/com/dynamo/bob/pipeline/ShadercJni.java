@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -91,6 +91,8 @@ public class ShadercJni {
     public static native void SetResourceStageFlags(long context, long nameHash, int stageFlags);
 
     public static native Shaderc.ShaderCompileResult Compile(long context, long compiler, Shaderc.ShaderCompilerOptions options);
+    public static native Shaderc.HLSLRootSignature   HLSLMergeRootSignatures(Shaderc.ShaderCompileResult[] shaders);
+    public static native String                      HLSLRootSignatureToString(byte[] rootSignatureBlob);
 
     public static byte[] ReadFile(File file) throws IOException
     {

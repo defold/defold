@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,7 +18,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
-            [util.coll :refer [pair]])
+            [util.coll :as coll :refer [pair]])
   (:import [com.dynamo.bob.pipeline AtlasUtil]
            [com.dynamo.bob.textureset TextureSetGenerator TextureSetGenerator$AnimDesc TextureSetGenerator$AnimIterator TextureSetGenerator$LayoutResult TextureSetGenerator$TextureSetResult TextureSetLayout$Grid TextureSetLayout$Layout TextureSetLayout$Rect]
            [com.dynamo.bob.tile ConvexHull TileSetUtil TileSetUtil$Metrics]
@@ -152,12 +152,20 @@
           (TextureSetGenerator/buildConvexHull buffered-image pivot-x pivot-y (sprite-trim-mode->enum sprite-trim-mode)))))))
 
 (defn atlas->texture-set-data
-  [animations images margin inner-padding extrude-borders max-page-size]
-  (let [sprite-geometries (mapv make-image-sprite-geometry images)]
-    (g/precluding-errors sprite-geometries
-      (let [img-to-index (into {}
-                               (map-indexed #(pair %2 (Integer/valueOf ^int %1)))
-                               images)
+  [animations geometry-images layout-images margin inner-padding extrude-borders max-page-size]
+  ;; NOTE: Images order matters when generating the layouts, especially if they are of the same size.
+  ;; Since the SHA1 for the packed-page-images-generator is insensitive to order, things could get out of sync
+  (let [geometry-images (vec (sort-by (juxt #(-> % :path resource/proj-path)
+                                            :pivot-x
+                                            :pivot-y
+                                            #(protobuf/pb-enum->int (sprite-trim-mode->enum (:sprite-trim-mode %))))
+                                      geometry-images))
+        layout-images (vec (sort-by #(-> % :path resource/proj-path) layout-images))
+        geometries (mapv make-image-sprite-geometry geometry-images)]
+    (g/precluding-errors geometries
+      (let [geometry-image->index (into {}
+                                        (map-indexed #(pair %2 (Integer/valueOf ^int %1)))
+                                        geometry-images)
             anims-atom (atom animations)
             anim-imgs-atom (atom [])
             anim-iterator (reify TextureSetGenerator$AnimIterator
@@ -169,21 +177,28 @@
                             (nextFrameIndex [_this]
                               (let [img (first @anim-imgs-atom)]
                                 (swap! anim-imgs-atom rest)
-                                (img-to-index img)))
+                                (geometry-image->index img)))
                             ; This generator is run with fake animation (i.e. no valid id's)
                             ; See atlas.clj produce-texture-set-data for the patchup details
                             (getFrameId [_this] "")
                             (rewind [_this]
                               (reset! anims-atom animations)
                               (reset! anim-imgs-atom [])))
-            rects (mapv texture-set-layout-rect images)
-            use-geometries (if (every? #(= :sprite-trim-mode-off (:sprite-trim-mode %)) images) 0 1)
+            layout-rects (mapv texture-set-layout-rect layout-images)
+            path->layout-rect-index (into {}
+                                          (map-indexed #(pair (-> %2 :path resource/proj-path) (Integer/valueOf ^int %1)))
+                                          layout-images)
+            geometry->layout-rect-index (mapv #(path->layout-rect-index (-> % :path resource/proj-path))
+                                              geometry-images)
+            use-geometries (if (coll/every? #(= :sprite-trim-mode-off (:sprite-trim-mode %)) geometry-images) 0 1)
             result (TextureSetGenerator/calculateLayout
-                     rects sprite-geometries use-geometries anim-iterator margin inner-padding extrude-borders
+                     layout-rects geometries geometry->layout-rect-index use-geometries anim-iterator margin inner-padding extrude-borders
                      true false nil (get max-page-size 0) (get max-page-size 1))]
         (doto (.builder result)
           (.setTexture "unknown"))
-        (TextureSetResult->result result)))))
+        (assoc (TextureSetResult->result result)
+          :geometry-images geometry-images
+          :geometry->layout-rect-index geometry->layout-rect-index)))))
 
 (defn- calc-tile-start [{:keys [spacing margin]} size tile-index]
   (let [actual-tile-size (+ size spacing (* 2 margin))]
@@ -304,6 +319,7 @@
         result (TextureSetGenerator/calculateTextureSetResult
                  layout-result
                  sprite-geometries
+                 nil
                  use-geometries
                  anim-iterator)]
     (doto (.builder result)
@@ -316,7 +332,7 @@
     (TextureSetResult->result result)))
 
 (defn layout-tile-source
-  [^TextureSetGenerator$LayoutResult layout-result ^BufferedImage image tile-source-attributes]
+  ^BufferedImage [^TextureSetGenerator$LayoutResult layout-result ^BufferedImage image tile-source-attributes]
   (let [layout (first (.-layouts layout-result))
         inner-padding (.-innerPadding layout-result)
         extrude-borders (.-extrudeBorders layout-result)

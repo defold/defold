@@ -1,0 +1,256 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+package com.dynamo.bob.tools;
+
+
+import java.io.File;
+import java.io.IOException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.TimeProfiler;
+
+import com.dynamo.bob.tools.ToolsHelper;
+
+
+
+public class AndroidTools {
+    private static Logger logger = Logger.getLogger(AndroidTools.class.getName());
+
+    private static boolean initialized = false;
+
+    private static void extractOptionalResource(File rootFolder, String path, boolean executable) throws IOException {
+        File f = new File(rootFolder, path);
+        if (f.exists()) {
+            return;
+        }
+        URL url = Bob.class.getResource("/" + path);
+        if (url != null) {
+            f.getParentFile().mkdirs();
+            Bob.atomicCopy(url, f, executable);
+        }
+    }
+
+    /**
+     * Execute a command.
+     * Sets LD_LIBRARY_PATH on Linux before running the command.
+     * TODO: Could this be done in com.dynamo.bob.util.Exec instead?
+     * @param args List of arguments
+     * @return The result
+     */
+    public static Result exec(List<String> args) throws IOException {
+        init();
+        logger.info("exec: " + String.join(" ", args));
+        Map<String, String> env = new HashMap<String, String>();
+        if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.Arm64Linux) {
+            env.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
+        }
+        Result res = Exec.execResultWithEnvironment(env, args);
+        String stdout = new String(res.stdOutErr, StandardCharsets.UTF_8);
+        if (res.ret != 0) {
+            throw new IOException(stdout);
+        }
+        else {
+            logger.info("result: %s", stdout);
+        }
+        return res;
+    }
+
+    public static Result exec(String... args) throws IOException {
+        return exec(Arrays.asList(args));
+    }
+
+    private static String getAapt2Name() {
+        if (Platform.getHostPlatform() == Platform.X86_64Win32)
+            return "aapt2.exe";
+        return "aapt2";
+    }
+
+    private static String getAapt2BundletoolPlatformName(Platform hostPlatform) throws IOException {
+        if (hostPlatform == Platform.X86_64Win32)
+            return "windows";
+        if (hostPlatform == Platform.X86_64Linux)
+            return "linux";
+        if (hostPlatform == Platform.X86_64MacOS || hostPlatform == Platform.Arm64MacOS)
+            return "macos";
+        throw new IOException("aapt2 is not available for host platform " + hostPlatform.getPair());
+    }
+
+    private static String getAapt2Path() throws IOException {
+        Platform hostPlatform = Platform.getHostPlatform();
+        RuntimeException missingPackedAapt2 = null;
+        try {
+            return Bob.getExe(hostPlatform, "aapt2");
+        } catch (RuntimeException e) {
+            missingPackedAapt2 = e;
+        }
+
+        String aapt2Name = getAapt2Name();
+        String bundletoolPlatformName;
+        try {
+            bundletoolPlatformName = getAapt2BundletoolPlatformName(hostPlatform);
+        } catch (IOException e) {
+            e.addSuppressed(missingPackedAapt2);
+            throw e;
+        }
+        String bundletoolEntry = bundletoolPlatformName + "/" + aapt2Name;
+        File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
+        File aapt2File = new File(bundletool.getParent(), aapt2Name);
+        if (!aapt2File.exists())
+        {
+            try {
+                ToolsHelper.extractFile(bundletool, bundletoolEntry, aapt2File);
+                aapt2File.setExecutable(true);
+            } catch (Exception e) {
+                IOException ioe = new IOException(String.format(
+                    "Failed to prepare aapt2 for host platform '%s'. Missing packed tool '/libexec/%s/%s' and failed to extract '%s' from '%s' to '%s'.",
+                    hostPlatform.getPair(), hostPlatform.getPair(), aapt2Name, bundletoolEntry, bundletool.getAbsolutePath(), aapt2File.getAbsolutePath()), e);
+                ioe.addSuppressed(missingPackedAapt2);
+                throw ioe;
+            }
+        }
+        return aapt2File.getAbsolutePath();
+    }
+
+    public static synchronized void init() {
+        TimeProfiler.start("Init Android");
+        if (!initialized)
+        {
+            Bob.init();
+            File rootFolder = Bob.getRootFolder();
+            try {
+                // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
+                // aapt will find it later when AndroidBundler is run.
+                String libcFilename = Platform.getHostPlatform().getLibPrefix() + "c++" + Platform.getHostPlatform().getLibSuffix();
+                URL libcUrl = Bob.class.getResource("/lib/" + Platform.getHostPlatform().getPair() + "/" + libcFilename);
+                if (libcUrl != null) {
+                    File f = new File(rootFolder, Platform.getHostPlatform().getPair() + "/lib/" + libcFilename);
+                    Bob.atomicCopy(libcUrl, f, false);
+                }
+
+                // NOTE: android.jar and classes.dex are only available in "full bob", i.e. from CI
+                URL androidJar = Bob.class.getResource("/lib/android.jar");
+                if (androidJar != null) {
+                    File f = new File(rootFolder, "lib/android.jar");
+                    Bob.atomicCopy(androidJar, f, false);
+                }
+                URL classesDex = Bob.class.getResource("/lib/classes.dex");
+                if (classesDex != null) {
+                    File f = new File(rootFolder, "lib/classes.dex");
+                    Bob.atomicCopy(classesDex, f, false);
+                }
+                extractOptionalResource(rootFolder, "lib/vkquality/vkqualitydata.vkq", false);
+                extractOptionalResource(rootFolder, "libexec/armv7-android/libvkquality.so", false);
+                extractOptionalResource(rootFolder, "libexec/arm64-android/libvkquality.so", false);
+                extractOptionalResource(rootFolder, "libexec/x86_64-android/libvkquality.so", false);
+
+                getAapt2Path();
+
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to initialize Android tools for host platform " + Platform.getHostPlatform().getPair(), e);
+            }
+            initialized = true;
+        }
+        TimeProfiler.stop();
+    }
+
+
+    /**
+     * Run the Java jarsigner tool
+     * https://docs.oracle.com/en/java/javase/21/docs/specs/man/jarsigner.html
+     * @param jarsignerargs List of jarsigner arguments
+     * @return The result of running jarsigner
+     */
+    public static Result jarsigner(List<String> jarsignerargs) throws IOException {
+        init();
+
+        List<String> args = new ArrayList<>();
+        args.add(ToolsHelper.getJavaBinFile("jarsigner"));
+        args.addAll(jarsignerargs);
+
+        return exec(args);
+    }
+
+    /**
+     * Run the Android Asset Packaging Tool with a set of arguments
+     * https://developer.android.com/tools/aapt2
+     * @param aapt2args List of aapt2 arguments
+     * @return The result of running aapt2
+     */
+    public static Result aapt2(List<String> aapt2args) throws IOException {
+        init();
+
+        String aapt2 = getAapt2Path();
+
+        List<String> args = new ArrayList<>();
+        args.add(aapt2);
+        args.addAll(aapt2args);
+
+        return exec(args);
+    }
+
+    /**
+     * Run the Android bundle tool
+     * https://developer.android.com/tools/bundletool
+     * @param bundletoolargs List of bundletool arguments
+     * @return The result of running bundletool
+     */
+    public static Result bundletool(List<String> bundletoolargs) throws IOException {
+        init();
+
+        List<String> args = new ArrayList<>();
+        args.add(ToolsHelper.getJavaBinFile("java")); args.add("-jar");
+        args.add(Bob.getLibExecPath("bundletool-all.jar"));
+        args.addAll(bundletoolargs);
+
+        return exec(args);
+    }
+
+
+    public static void main(String[] args) throws Exception {
+        if (args.length == 0) {
+            System.out.println("Usage: AndroidTools <aapt2|bundletool|jarsigner> <arg1..n>");
+            return;
+        }
+
+        // create list of args, starting from the second value (first is the command to run)
+        List<String> argslist = new ArrayList<>(Arrays.asList(args).subList(1, args.length));
+
+        final String command = args[0];
+        switch (command) {
+            case "aapt2":
+                aapt2(argslist);
+                break;
+            case "bundletool":
+                bundletool(argslist);
+                break;
+            case "jarsigner":
+                jarsigner(argslist);
+                break;
+            default:
+                System.out.println("Unknown command: " + command);
+        }
+    }
+}

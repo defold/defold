@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -44,10 +44,6 @@
     (and (= :path (::prefs/error x))
          (= path (:path x)))))
 
-(defspec any-schema-spec 100
-  (prop/for-all [any gen/any]
-    (prefs/valid? {:type :any} any)))
-
 (defspec boolean-schema-valid-spec 100
   (prop/for-all [b gen/boolean]
     (prefs/valid? {:type :boolean} b)))
@@ -81,7 +77,7 @@
     (not (prefs/valid? {:type :keyword} x))))
 
 (defspec integer-schema-valid-spec 100
-  (prop/for-all [x gen/int]
+  (prop/for-all [x gen/small-integer]
     (prefs/valid? {:type :integer} x)))
 
 (defspec integer-schema-invalid-spec 10
@@ -89,12 +85,20 @@
     (not (prefs/valid? {:type :integer} x))))
 
 (defspec number-schema-valid-spec 100
-  (prop/for-all [x (gen/one-of [gen/double gen/int])]
+  (prop/for-all [x (gen/one-of [gen/double gen/small-integer])]
     (prefs/valid? {:type :number} x)))
 
 (defspec number-schema-invalid-spec 10
   (prop/for-all [x (gen/such-that (complement number?) gen/any)]
     (not (prefs/valid? {:type :number} x))))
+
+(defspec one-of-schema-valid-spec 100
+  (prop/for-all [m (gen/one-of [gen/string gen/small-integer])]
+    (prefs/valid? {:type :one-of :schemas [{:type :number} {:type :string}]} m)))
+
+(defspec one-of-schema-invalid-spec 100
+  (prop/for-all [m (gen/such-that #(and (not (string? %)) (not (number? %))) gen/any)]
+    (not (prefs/valid? {:type :one-of :schemas [{:type :number} {:type :string}]} m))))
 
 (defspec array-schema-valid-spec 100
   (prop/for-all [x (gen/vector gen/string)]
@@ -130,7 +134,7 @@
 
 (defspec tuple-schema-valid-spec 100
   (prop/for-all [s gen/string
-                 i gen/int]
+                 i gen/small-integer]
     (prefs/valid? {:type :tuple :items [{:type :string} {:type :integer}]} [s i])))
 
 (defspec tuple-schema-invalid-size-spec 100
@@ -155,13 +159,13 @@
 (deftest prefs-types-test
   (with-schemas {::types {:type :object
                           :properties {:types {:type :object
-                                               :properties {:any {:type :any}
-                                                            :boolean {:type :boolean :default true}
+                                               :properties {:boolean {:type :boolean :default true}
                                                             :string {:type :string}
                                                             :password {:type :password}
                                                             :keyword {:type :keyword :default :none}
                                                             :integer {:type :integer :default -1}
                                                             :number {:type :number :default 0.5}
+                                                            :one-of {:type :one-of :schemas [{:type :number} {:type :string}]}
                                                             :array {:type :array :item {:type :string}}
                                                             :set {:type :set :item {:type :string}}
                                                             :enum {:type :enum :values [:foo :bar]}
@@ -170,13 +174,13 @@
     (let [p (prefs/make :scopes {:global (fs/create-temp-file! "global" "test.editor_settings")}
                         :schemas [::types])]
       ;; ensure defaults are properly typed
-      (is (= {:types {:any nil
-                      :boolean true
+      (is (= {:types {:boolean true
                       :string ""
                       :password ""
                       :keyword :none
                       :integer -1
                       :number 0.5
+                      :one-of 0.0
                       :array []
                       :set #{}
                       :enum :foo
@@ -184,26 +188,26 @@
                       :object-of {}}}
              (prefs/get p [])))
       ;; change values
-      (prefs/set! p [] {:types {:any 'foo/bar
-                                :boolean false
+      (prefs/set! p [] {:types {:boolean false
                                 :string "str"
                                 :password "1337"
                                 :keyword :something
                                 :integer 42
                                 :number 42
+                                :one-of "string"
                                 :array ["heh"]
                                 :set #{"heh"}
                                 :enum :bar
                                 :tuple ["/game.project" :form-view]
                                 :object-of {"foo" "bar"}}})
       ;; ensure updated values are as expected
-      (is (= {:types {:any 'foo/bar
-                      :boolean false
+      (is (= {:types {:boolean false
                       :string "str"
                       :password "1337"
                       :keyword :something
                       :integer 42
                       :number 42
+                      :one-of "string"
                       :array ["heh"]
                       :set #{"heh"}
                       :enum :bar
@@ -226,19 +230,20 @@
          [:types :keyword] "not-a-keyword"
          [:types :integer] "not-an-int"
          [:types :number] "NaN"
+         [:types :one-of] false
          [:types :array] true
          [:types :set] false
          [:types :enum] 12
          [:types :tuple] nil
          [:types :object-of] {:foo :bar}})
       ;; No invalid changes are recorded
-      (is (= {:types {:any 'foo/bar
-                      :boolean false
+      (is (= {:types {:boolean false
                       :string "str"
                       :password "1337"
                       :keyword :something
                       :integer 42
                       :number 42
+                      :one-of "string"
                       :array ["heh"]
                       :set #{"heh"}
                       :enum :bar
@@ -603,3 +608,396 @@
            (vec)
            (run! deref))
       (is (= (* thread-count inc-count-per-thread) (prefs/get p [:counter]))))))
+
+(deftest incorporates-updated-storage-test
+  (with-schemas {::race {:type :object
+                         :properties {:x {:type :integer :default 0}
+                                      :y {:type :integer :default 0}
+                                      :z {:type :integer :default 0}}}}
+    (testing "pending event adds a new key"
+      (let [file (fs/create-temp-file! "race" "test.editor_settings")
+            p (prefs/make :scopes {:global file}
+                          :schemas [::race])
+            real-read-config! @#'prefs/read-config!]
+        (prefs/set! p [:x] 1)
+        (with-redefs [prefs/read-config!
+                      (fn [path]
+                        (real-read-config! path)
+                        (prefs/set! p [:y] 2))]
+          (prefs/sync!))
+        (is (= {:x 1} (edn/read-string (slurp file))))
+        (is (= 1 (prefs/get p [:x])))
+        (is (= 2 (prefs/get p [:y])))
+        (prefs/sync!)
+        (is (= {:x 1 :y 2} (edn/read-string (slurp file))))))
+
+    (testing "pending event wins over written storage"
+      (let [file (fs/create-temp-file! "event-wins" "test.editor_settings")
+            p (prefs/make :scopes {:global file}
+                          :schemas [::race])
+            real-read-config! @#'prefs/read-config!]
+        (prefs/set! p [:x] 1)
+        (with-redefs [prefs/read-config!
+                      (fn [path]
+                        (real-read-config! path)
+                        (prefs/set! p [:x] 99))]
+          (prefs/sync!))
+        (is (= {:x 1} (edn/read-string (slurp file))))
+        (is (= 99 (prefs/get p [:x])))
+        (prefs/sync!)
+        (is (= {:x 99} (edn/read-string (slurp file))))))
+
+    (testing "pending reset event: path removed from merged storage"
+      (let [file (fs/create-temp-file! "reset" "test.editor_settings")
+            p (prefs/make :scopes {:global file}
+                          :schemas [::race])
+            real-read-config! @#'prefs/read-config!]
+        (prefs/set! p [:x] 1)
+        (prefs/set! p [:y] 2)
+        (with-redefs [prefs/read-config!
+                      (fn [path]
+                        (real-read-config! path)
+                        (prefs/reset-path! p [:x]))]
+          (prefs/sync!))
+        (is (= 0 (prefs/get p [:x])))
+        (is (= 2 (prefs/get p [:y])))))))
+
+(deftest reset-path-test
+  (with-schemas {::reset-path
+                 {:type :object
+                  :scope :project
+                  :properties {:size {:type :object
+                                      :scope :project
+                                      :properties
+                                      {:x {:type :number :default 1.0}
+                                       :y {:type :number :default 1.0}
+                                       :z {:type :number :default 1.0}}}
+                               :active-plane {:type :enum :values [:x :y :z] :default :z}
+                               :opacity {:type :number :default 0.25}
+                               :color {:type :tuple
+                                       :items [{:type :number} {:type :number} {:type :number} {:type :number}]
+                                       :default [0.5 0.5 0.5 1.0]}}}}
+    (let [file (fs/create-temp-file! "project" "test.editor_settings")
+          p (prefs/make :scopes {:project file}
+                        :schemas [::reset-path])]
+
+      (testing "reset leaf restores default"
+        (prefs/set! p [:opacity] 0.75)
+        (is (= 0.75 (prefs/get p [:opacity])))
+        (is (prefs/set? p [:opacity]))
+        (prefs/reset-path! p [:opacity])
+        (is (= 0.25 (prefs/get p [:opacity])))
+        (is (not (prefs/set? p [:opacity]))))
+
+      (testing "reset object restores all children to defaults"
+        (prefs/set! p [:size] {:x 5.0 :y 10.0 :z 15.0})
+        (is (= {:x 5.0 :y 10.0 :z 15.0} (prefs/get p [:size])))
+        (prefs/reset-path! p [:size])
+        (is (= {:x 1.0 :y 1.0 :z 1.0} (prefs/get p [:size])))
+        (is (not (prefs/set? p [:size :x])))
+        (is (not (prefs/set? p [:size :y])))
+        (is (not (prefs/set? p [:size :z])))
+        (is (not (prefs/set? p [:size]))))
+
+      (testing "reset does not affect sibling paths"
+        (prefs/set! p [:size :x] 5.0)
+        (prefs/set! p [:opacity] 0.75)
+        (prefs/set! p [:active-plane] :x)
+        (prefs/reset-path! p [:size])
+        (is (= {:x 1.0 :y 1.0 :z 1.0} (prefs/get p [:size])))
+        (is (= 0.75 (prefs/get p [:opacity])))
+        (is (= :x (prefs/get p [:active-plane])))
+        (is (not (prefs/set? p [:size])))
+        (is (prefs/set? p [:opacity]))
+        (is (prefs/set? p [:active-plane])))
+
+      (testing "reset removes path from file"
+        ;; opacity and active-plane still set from previous test
+        (prefs/set! p [:size :x] 5.0)
+        (prefs/sync!)
+        (is (= {:size {:x 5.0} :opacity 0.75 :active-plane :x}
+               (edn/read-string (slurp file))))
+        (prefs/reset-path! p [:size :x])
+        (prefs/sync!)
+        (is (= {:opacity 0.75 :active-plane :x}
+               (edn/read-string (slurp file)))))
+
+      (testing "reset object removes entire subtree from file"
+        (prefs/set! p [:size] {:x 5.0 :y 10.0 :z 15.0})
+        (prefs/set! p [:color] [1.0 0.0 0.0 1.0])
+        (prefs/sync!)
+        (prefs/reset-path! p [:size])
+        (prefs/sync!)
+        (is (= {:opacity 0.75 :active-plane :x :color [1.0 0.0 0.0 1.0]}
+               (edn/read-string (slurp file)))))
+
+      (testing "reset clears pending events so sync doesn't re-write"
+        (prefs/set! p [:size :x] 99.0)
+        (prefs/set! p [:size :y] 99.0)
+        (prefs/set! p [:size :z] 99.0)
+        (prefs/reset-path! p [:size])
+        (is (not (prefs/set? p [:size])))
+        (prefs/sync!)
+        (let [stored (edn/read-string (slurp file))]
+          (is (nil? (get stored :size)))))
+
+      (testing "reset doesn't clobber pending events that were added post reset"
+        (prefs/set! p [:size :x] 99.0)
+        (prefs/set! p [:size :y] 99.0)
+        (prefs/set! p [:size :z] 99.0)
+        (prefs/reset-path! p [:size])
+        (prefs/set! p [:size :x] 99.0)
+        (is (prefs/set? p [:size]))
+        (is (not (prefs/set? p [:size :y])))
+        (is (= 99.0 (prefs/get p [:size :x])))
+        (prefs/sync!)
+        (let [stored (edn/read-string (slurp file))]
+          (is (= {:x 99.0} (get stored :size)))))
+
+      (testing "reset on already-default path is a no-op"
+        (prefs/reset-path! p [:opacity])
+        (is (= 0.25 (prefs/get p [:opacity])))
+        (is (not (prefs/set? p [:opacity]))))
+
+      (testing "reset [] resets everything to defaults"
+        (prefs/set! p [:size] {:x 5.0 :y 10.0 :z 15.0})
+        (prefs/set! p [:opacity] 0.99)
+        (prefs/set! p [:active-plane] :y)
+        (prefs/set! p [:color] [1.0 0.0 0.0 1.0])
+        (prefs/sync!)
+        (is (prefs/set? p [:size]))
+        (is (prefs/set? p [:opacity]))
+        (is (prefs/set? p [:active-plane]))
+        (is (prefs/set? p [:color]))
+        (prefs/reset-path! p [])
+        (is (= {:size {:x 1.0 :y 1.0 :z 1.0}
+                :active-plane :z
+                :opacity 0.25
+                :color [0.5 0.5 0.5 1.0]}
+               (prefs/get p [])))
+        (is (not (prefs/set? p [:size])))
+        (is (not (prefs/set? p [:opacity])))
+        (is (not (prefs/set? p [:active-plane])))
+        (is (not (prefs/set? p [:color])))
+        (is (not (prefs/set? p [])))
+        (prefs/sync!)
+        (is (= {} (edn/read-string (slurp file)))))
+
+      (testing "reset on unregistered path throws"
+        (test-util/check-thrown-with-data!
+            (path-error-data? [:nonexistent])
+          (prefs/reset-path! p [:nonexistent]))))))
+
+(deftest reset-with-multiple-scopes-test
+  (let [global-file (fs/create-temp-file! "global" "test.editor_settings")
+        project-file (fs/create-temp-file! "project" "test.editor_settings")]
+    (with-schemas {::multi-scope
+                   {:type :object
+                    :properties {:theme {:type :string :default "dark"}
+                                 :font-size {:type :integer :default 12}
+                                 :indent {:type :integer :default 2 :scope :project}
+                                 :lint {:type :boolean :default false :scope :project}}}}
+      (testing "reset [] with multiple scopes resets both files"
+        (let [p (prefs/make :scopes {:global global-file :project project-file}
+                            :schemas [::multi-scope])]
+          (prefs/set! p [:theme] "light")
+          (prefs/set! p [:font-size] 16)
+          (prefs/set! p [:indent] 4)
+          (prefs/set! p [:lint] true)
+          (prefs/sync!)
+          (is (= {:theme "light" :font-size 16} (edn/read-string (slurp global-file))))
+          (is (= {:indent 4 :lint true} (edn/read-string (slurp project-file))))
+
+          (prefs/reset-path! p [])
+
+          (is (= "dark" (prefs/get p [:theme])))
+          (is (= 12 (prefs/get p [:font-size])))
+          (is (= 2 (prefs/get p [:indent])))
+          (is (false? (prefs/get p [:lint])))
+
+          (is (not (prefs/set? p [:theme])))
+          (is (not (prefs/set? p [:indent])))
+
+          (prefs/sync!)
+          (is (= {} (edn/read-string (slurp global-file))))
+          (is (= {} (edn/read-string (slurp project-file)))))))))
+
+;; Resetting an object path should also clear nested values that are stored in a
+;; different scope file.
+(deftest reset-path-nested-scope-test
+  (with-schemas {::nested-scope
+                 {:type :object
+                  :properties {:scene {:type :object
+                                       :properties {:move-whole-pixels {:type :boolean :default true}
+                                                    :grid {:type :object
+                                                           :scope :project
+                                                           :properties {:opacity {:type :number :default 0.25}}}}}}}}
+    (let [global-file (fs/create-temp-file! "global" "test.editor_settings")
+          project-file (fs/create-temp-file! "project" "test.editor_settings")
+          p (prefs/make :scopes {:global global-file :project project-file}
+                        :schemas [::nested-scope])]
+      (prefs/set! p [:scene :move-whole-pixels] false)
+      (prefs/set! p [:scene :grid :opacity] 0.75)
+      (prefs/sync!)
+      (is (= {:scene {:move-whole-pixels false}}
+             (edn/read-string (slurp global-file))))
+      (is (= {:scene {:grid {:opacity 0.75}}}
+             (edn/read-string (slurp project-file))))
+
+      (prefs/reset-path! p [:scene])
+
+      (is (= {:move-whole-pixels true
+              :grid {:opacity 0.25}}
+             (prefs/get p [:scene])))
+      (is (not (prefs/set? p [:scene :move-whole-pixels])))
+      (is (not (prefs/set? p [:scene :grid :opacity])))
+      (is (not (prefs/set? p [:scene])))
+      (prefs/sync!)
+      (is (= {} (edn/read-string (slurp global-file))))
+      (is (= {} (edn/read-string (slurp project-file)))))))
+
+;; Resetting an already-default path should be a no-op even when the backing
+;; prefs file does not exist yet.
+(deftest reset-path-missing-storage-test
+  (with-schemas {::missing-storage {:type :object
+                                    :properties {:opacity {:type :number :default 0.25}}}}
+    (let [file (fs/create-temp-file! "missing" "test.editor_settings")
+          _ (fs/delete-file! file)
+          p (prefs/make :scopes {:global file}
+                        :schemas [::missing-storage])]
+      (is (= 0.25 (prefs/get p [:opacity])))
+      (is (nil? (prefs/reset-path! p [:opacity])))
+      (is (= 0.25 (prefs/get p [:opacity])))
+      (is (not (prefs/set? p [:opacity]))))))
+
+;; Syncing a reset after the backing file was deleted should write an empty
+;; prefs map, not the internal missing-file sentinel.
+(deftest reset-path-sync-missing-file-test
+  (with-schemas {::sync-missing-file {:type :object
+                                      :properties {:opacity {:type :number :default 0.25}}}}
+    (let [file (fs/create-temp-file! "missing-sync" "test.editor_settings")
+          p (prefs/make :scopes {:global file}
+                        :schemas [::sync-missing-file])]
+      (prefs/set! p [:opacity] 0.75)
+      (prefs/sync!)
+      (is (= {:opacity 0.75} (edn/read-string (slurp file))))
+      (fs/delete-file! file)
+      (prefs/reset-path! p [:opacity])
+      (prefs/sync!)
+      (is (= {} (edn/read-string (slurp file)))))))
+
+(deftest reset-path-root-non-object-schema-test
+  (testing "string root schema"
+    (with-schemas {::root-string {:type :string :default "default"}}
+      (let [file (fs/create-temp-file! "root-string" "test.editor_settings")
+            p (prefs/make :scopes {:global file}
+                          :schemas [::root-string])]
+        (prefs/set! p [] "custom")
+        (prefs/sync!)
+        (is (= "custom" (edn/read-string (slurp file))))
+
+        (prefs/reset-path! p [])
+
+        (is (= "default" (prefs/get p [])))
+        (is (not (prefs/set? p [])))
+        (prefs/sync!)
+        (is (not (.exists file))))))
+
+  (testing "password root schema"
+    (with-schemas {::root-password {:type :password :default "default"}}
+      (let [file (fs/create-temp-file! "root-password" "test.editor_settings")
+            p (prefs/make :scopes {:global file}
+                          :schemas [::root-password])]
+        (prefs/set! p [] "custom")
+        (prefs/sync!)
+        (is (= "custom" (prefs/get p [])))
+
+        (prefs/reset-path! p [])
+
+        (is (= "default" (prefs/get p [])))
+        (is (not (prefs/set? p [])))
+        (prefs/sync!)
+        (is (not= "custom" (prefs/get p [])))
+        (is (not (.exists file)))))))
+
+(deftest reset-path-root-all-schema-types-test
+  (doseq [[schema-type {:keys [schema custom expected]}]
+          {:boolean {:schema {:type :boolean :default true}
+                     :custom false
+                     :expected true}
+           :string {:schema {:type :string :default "default"}
+                    :custom "custom"
+                    :expected "default"}
+           :password {:schema {:type :password :default "default"}
+                      :custom "custom"
+                      :expected "default"}
+           :locale {:schema {:type :locale :default "sv"}
+                    :custom "en"
+                    :expected "sv"}
+           :keyword {:schema {:type :keyword :default :default}
+                     :custom :custom
+                     :expected :default}
+           :integer {:schema {:type :integer :default 1}
+                     :custom 2
+                     :expected 1}
+           :number {:schema {:type :number :default 1.0}
+                    :custom 2.0
+                    :expected 1.0}
+           :one-of {:schema {:type :one-of
+                             :schemas [{:type :object-of
+                                        :key {:type :string}
+                                        :val {:type :integer}
+                                        :default {"default" 1}}
+                                       {:type :string}]}
+                    :custom "custom"
+                    :expected {"default" 1}}
+           :array {:schema {:type :array
+                            :item {:type :string}
+                            :default ["default"]}
+                   :custom ["custom"]
+                   :expected ["default"]}
+           :set {:schema {:type :set
+                          :item {:type :string}
+                          :default #{"default"}}
+                 :custom #{"custom"}
+                 :expected #{"default"}}
+           :object {:schema {:type :object
+                             :properties {:x {:type :integer :default 1}}}
+                    :custom {:x 2}
+                    :expected {:x 1}}
+           :object-of {:schema {:type :object-of
+                                :key {:type :string}
+                                :val {:type :integer}
+                                :default {"default" 1}}
+                       :custom {"custom" 2}
+                       :expected {"default" 1}}
+           :enum {:schema {:type :enum
+                           :values [{} "custom"]}
+                  :custom "custom"
+                  :expected {}}
+           :tuple {:schema {:type :tuple
+                            :items [{:type :string} {:type :integer}]
+                            :default ["default" 1]}
+                   :custom ["custom" 2]
+                   :expected ["default" 1]}}]
+    (testing (name schema-type)
+      (let [schema-id (keyword "editor.prefs-test" (str "root-" (name schema-type)))
+            file (fs/create-temp-file! (str "root-" (name schema-type)) "test.editor_settings")]
+        (prefs/register-schema! schema-id schema)
+        (try
+          (let [p (prefs/make :scopes {:global file}
+                              :schemas [schema-id])]
+            (prefs/set! p [] custom)
+            (prefs/sync!)
+            (is (= custom (prefs/get p [])))
+            (is (prefs/set? p []))
+
+            (prefs/reset-path! p [])
+
+            (is (= expected (prefs/get p [])))
+            (is (not (prefs/set? p [])))
+            (prefs/sync!)
+            (is (= expected (prefs/get p [])))
+            (is (not (prefs/set? p []))))
+          (finally
+            (prefs/unregister-schema! schema-id)))))))

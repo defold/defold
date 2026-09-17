@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,7 +17,8 @@
             [editor.code.lang.cish :as cish]
             [editor.code.lang.json :as json]
             [editor.code.lang.zig :as zig]
-            [editor.code.resource :as r]))
+            [editor.code.resource :as r]
+            [editor.localization :as localization]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -31,67 +32,103 @@
 (def ^:private text-file-defs
   [{:ext "cpp"
     :language "cpp"
-    :label "C++"
+    :label (localization/message "resource.type.cpp")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "cxx"
     :language "cpp"
-    :label "C++"
+    :label (localization/message "resource.type.cpp")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "C"
     :language "cpp"
-    :label "C++"
+    :label (localization/message "resource.type.cpp")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "cc"
     :language "cpp"
-    :label "C++"
+    :label (localization/message "resource.type.cpp")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "hpp"
     :language "cpp"
-    :label "C++"
+    :label (localization/message "resource.type.cpp")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "h"
     :language "cpp"
-    :label "C/C++ Header"
+    :label (localization/message "resource.type.h")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "mm"
     :language "objective-c"
-    :label "Objective-C"
+    :label (localization/message "resource.type.objective-c")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "c"
     :language "c"
-    :label "C"
+    :label (localization/message "resource.type.c")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
    {:ext "json"
     :language "json"
-    :label "JSON"
+    :label (localization/message "resource.type.json")
     :icon "icons/32/Icons_29-AT-Unknown.png"
     :view-opts json-opts}
    {:ext "manifest"
     :language "yaml"
-    :label "Manifest"
+    :label (localization/message "resource.type.manifest")
     :icon "icons/32/Icons_11-Script-general.png"}
+   {:ext "proto"
+    :language "proto"
+    :label (localization/message "resource.type.proto")
+    :icon "icons/32/Icons_11-Script-general.png"}
+   {:ext "java"
+    :language "java"
+    :label (localization/message "resource.type.java")
+    :icon "icons/32/Icons_11-Script-general.png"}
+   {:ext "py"
+    :language "python"
+    :label (localization/message "resource.type.py")
+    :icon "icons/32/Icons_11-Script-general.png"}
+   {:ext "sh"
+    :language "shellscript"
+    :label (localization/message "resource.type.sh")
+    :icon "icons/32/Icons_11-Script-general.png"}
+   {:ext "xml"
+    :language "xml"
+    :label (localization/message "resource.type.xml")
+    :icon "icons/32/Icons_29-AT-Unknown.png"}
+   {:ext "ini"
+    :language "ini"
+    :label (localization/message "resource.type.ini")
+    :icon "icons/32/Icons_29-AT-Unknown.png"}
+   {:ext "plist"
+    :language "plist"
+    :label (localization/message "resource.type.plist")
+    :icon "icons/32/Icons_29-AT-Unknown.png"}
+   {:ext "gitignore"
+    :language "gitignore"
+    :label (localization/message "resource.type.gitignore")
+    :icon "icons/32/Icons_29-AT-Unknown.png"}
+   {:ext "gradle"
+    :language "gradle"
+    :label (localization/message "resource.type.gradle")
+    :icon "icons/32/Icons_29-AT-Unknown.png"}
    {:ext "defignore"
-    :label "Defignore"
+    :label (localization/message "resource.type.defignore")
     :icon "icons/32/Icons_11-Script-general.png"}
    {:ext "defunload"
-    :label "Defunload"
+    :label (localization/message "resource.type.defunload")
     :icon "icons/32/Icons_11-Script-general.png"}
    {:ext "zig"
     :language "zig"
-    :label "Zig"
+    :label (localization/message "resource.type.zig")
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts zig-opts}
    {:ext "zon"
     :language "zig"
-    :label "Zig Object Notation"
+    :label (localization/message "resource.type.zon")
     :icon "icons/32/Icons_29-AT-Unknown.png"
     :view-opts zig-opts}])
 

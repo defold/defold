@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,11 +18,6 @@
 #include <stdint.h>
 #include <dlib/hash.h>
 #include <resource/resource.h>
-
-namespace dmResourceArchive
-{
-    struct LiveUpdateResource;
-}
 
 namespace dmResourceMounts
 {
@@ -54,26 +49,10 @@ namespace dmLiveUpdate
 
     const char* ResultToString(Result result);
 
-    // Scripting
-    bool HasLiveUpdateMount();
-
     Result ResourceResultToLiveupdateResult(dmResource::Result r);
 
-    // For .arci/.arcd storage using the "archive" provider
-    Result StoreResourceAsync(const char* expected_digest, uint32_t expected_digest_length,
-                                    const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(bool, void*), void* callback_data);
-
-    Result StoreManifestAsync(const uint8_t* manifest_data, uint32_t manifest_len, void (*callback)(int, void*), void* callback_data);
-
-
-    // For .zip storage using the "zip" provider
-    // Registers an archive (.zip) on disc
-    Result StoreArchiveAsync(const char* path, void (*callback)(const char*, int, void*), void* callback_data, const char* mountname, int priority, bool verify_archive);
-
-
-    // The new api
-    Result AddMountAsync(const char* name, const char* uri, int priority, void (*callback)(const char*, const char*, int, void*), void* cbk_ctx);
-    Result RemoveMountSync(const char* name);
+    Result AddMountAsync(dmhash_t name_hash, const char* uri, int priority, void (*callback)(dmhash_t, const char*, int, void*), void* cbk_ctx);
+    Result RemoveMountSync(dmhash_t name_hash);
 
     bool IsBuiltWithExcludedFiles();
 };

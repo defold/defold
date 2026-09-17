@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -51,7 +51,8 @@
   (:require [dynamo.graph :as g]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
-            [util.coll :as coll]))
+            [util.coll :as coll])
+  (:import [clojure.lang IReduceInit]))
 
 (defn- assoc-list-definition [state node-type list-kw {:keys [aliases] :as definition}]
   (let [state (assoc-in state [node-type :lists list-kw] definition)]
@@ -101,24 +102,25 @@
          (or (nil? reorder) (ifn? reorder))
          (or (nil? read-only?) (ifn? read-only?))
          (or get add reorder read-only?)]}
-  (g/update-property
-    workspace
-    :node-attachments
-    (fn [s]
-      (let [definition (-> s
-                           (clojure.core/get node-type)
-                           :lists
-                           list-kw
-                           (cond->
-                             add (update :add coll/merge add)
-                             get (assoc :get get)
-                             reorder (assoc :reorder reorder)
-                             read-only? (assoc :read-only? read-only?)))]
-        ;; The first registration has to provide :get
-        ;; Subsequent registrations typically add additional :add fns
-        (assert (contains? definition :get))
-        (assert (not (contains? definition :alias)) "Cannot modify an alias")
-        (assoc-list-definition s node-type list-kw definition)))))
+  (g/non-undoable
+    (g/update-property
+      workspace
+      :node-attachments
+      (fn [s]
+        (let [definition (-> s
+                             (clojure.core/get node-type)
+                             :lists
+                             list-kw
+                             (cond->
+                               add (update :add coll/merge add)
+                               get (assoc :get get)
+                               reorder (assoc :reorder reorder)
+                               read-only? (assoc :read-only? read-only?)))]
+          ;; The first registration has to provide :get
+          ;; Subsequent registrations typically add additional :add fns
+          (assert (contains? definition :get))
+          (assert (not (contains? definition :alias)) "Cannot modify an alias")
+          (assoc-list-definition s node-type list-kw definition))))))
 
 (defn alias
   "Create transaction steps that alias a node type's list as another node-type
@@ -126,15 +128,16 @@
   The other node type must define a list with the same name"
   [workspace node-type list-kw alias-node-type]
   {:pre [(not= node-type alias-node-type)]}
-  (g/update-property
-    workspace
-    :node-attachments
-    (fn [s]
-      (let [definition (-> s (clojure.core/get alias-node-type) :lists list-kw)
-            _ (assert definition "Can't alias undefined list")]
-        (assert definition "Can't alias undefined list")
-        (assert (not (contains? definition :alias)) "Can't alias another alias")
-        (assoc-list-definition s alias-node-type list-kw (update definition :aliases coll/conj-set node-type))))))
+  (g/non-undoable
+    (g/update-property
+      workspace
+      :node-attachments
+      (fn [s]
+        (let [definition (-> s (clojure.core/get alias-node-type) :lists list-kw)
+              _ (assert definition "Can't alias undefined list")]
+          (assert definition "Can't alias undefined list")
+          (assert (not (contains? definition :alias)) "Can't alias another alias")
+          (assoc-list-definition s alias-node-type list-kw (update definition :aliases coll/conj-set node-type)))))))
 
 (defn define-alternative
   "Create transaction steps that define an alternative node to use for editing
@@ -151,32 +154,37 @@
                       evaluation-context, should return an alternative node-id
                       or nil"
   [workspace node-type alternative-fn]
-  (g/update-property workspace :node-attachments #(update % node-type assoc :alternative alternative-fn)))
+  (g/non-undoable
+    (g/update-property workspace :node-attachments #(update % node-type assoc :alternative alternative-fn))))
 
-(defn find-alternative
-  "Returns first truthy value given an alternative chain
+(defn alternatives
+  "Return reducible of a node id and all other node ids in its alternative chain
 
   Args:
     workspace             the workspace that defines node alternatives
     node-id               initial node id
-    pred                  predicate fn, will receive 1 arg: node id
     evaluation-context    the evaluation context"
-  [workspace node-id pred {:keys [basis] :as evaluation-context}]
+  [workspace node-id {:keys [basis] :as evaluation-context}]
   (let [current-state (workspace/node-attachments basis workspace)]
-    (loop [node-id node-id]
-      (or (pred node-id)
-          (when-let [alternative-fn (:alternative (clojure.core/get current-state (g/node-type* basis node-id)))]
-            (some-> (alternative-fn node-id evaluation-context) recur))))))
+    (reify IReduceInit
+      (reduce [_ rf init]
+        (loop [node-id node-id
+               acc init]
+          (let [acc (rf acc node-id)]
+            (if (reduced? acc)
+              @acc
+              (if-let [alternative-fn (:alternative (clojure.core/get current-state (g/node-type* basis node-id)))]
+                (some-> (alternative-fn node-id evaluation-context) (recur acc))
+                acc))))))))
 
 (defn- get-list-definition
   "Internal. Returns either a tuple of node-id + list definition map or nil if
   it does not exist"
   [workspace node-id list-kw {:keys [basis] :as evaluation-context}]
   (let [current-state (workspace/node-attachments basis workspace)]
-    (find-alternative
-      workspace node-id
+    (coll/some
       #(some->> (list-kw (:lists (clojure.core/get current-state (g/node-type* basis %)))) (coll/pair %))
-      evaluation-context)))
+      (alternatives workspace node-id evaluation-context))))
 
 (defn- require-list-definition
   [workspace node-id list-kw evaluation-context]
@@ -188,6 +196,14 @@
   "Checks if a node-type is extended to define a list-kw list"
   [workspace node-id list-kw evaluation-context]
   (some? (get-list-definition workspace node-id list-kw evaluation-context)))
+
+(defn list-kws
+  "Return a set of all list keywords defined for a node"
+  [workspace node-id {:keys [basis] :as evaluation-context}]
+  (let [current-state (workspace/node-attachments basis workspace)]
+    (coll/into-> (alternatives workspace node-id evaluation-context) #{}
+      (keep #(:lists (clojure.core/get current-state (g/node-type* basis %))))
+      (mapcat keys))))
 
 (defn- list-definition-editable? [list-definition node-id evaluation-context]
   (and (contains? list-definition :add)
@@ -240,7 +256,7 @@
     (assert (list-definition-editable? list-definition parent-node-id evaluation-context))
     (let [tx-attach-fn (-> list-definition :add (clojure.core/get child-node-type))]
       (assert tx-attach-fn)
-      (let [child-node-id (first (g/take-node-ids (g/node-id->graph-id parent-node-id) 1))]
+      (let [child-node-id (first (g/take-node-ids 1))]
         (concat
           (g/add-node (g/construct child-node-type :_node-id child-node-id))
           (init-fn parent-node-id child-node-id)
@@ -340,7 +356,7 @@
   [child-node-type]
   (fn get-nodes-by-type [node evaluation-context]
     (let [basis (:basis evaluation-context)]
-      (coll/transfer (g/explicit-arcs-by-target basis node :nodes) []
+      (coll/into-> (g/explicit-inputs basis node :nodes) []
         (map gt/source-id)
         (filter #(= child-node-type (g/node-type* basis %)))))))
 
@@ -353,4 +369,4 @@
   (let [basis (:basis evaluation-context)]
     (if (g/override? basis node)
       (g/node-value node :nodes evaluation-context)
-      (mapv gt/source-id (g/explicit-arcs-by-target basis node :nodes)))))
+      (mapv gt/source-id (g/explicit-inputs basis node :nodes)))))

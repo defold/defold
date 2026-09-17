@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,46 +17,66 @@
 
 #include <glfw/glfw3.h>
 
-#include "platform_window.h"
+#include "window.hpp"
+
+struct dmWindow
+{
+    GLFWwindow*                    m_Window;
+    GLFWwindow*                    m_AuxWindow;
+
+    FWindowResizeCallback          m_ResizeCallback;
+    void*                          m_ResizeCallbackUserData;
+    FWindowCloseCallback           m_CloseCallback;
+    void*                          m_CloseCallbackUserData;
+    FWindowFocusCallback           m_FocusCallback;
+    void*                          m_FocusCallbackUserData;
+    FWindowIconifyCallback         m_IconifyCallback;
+    void*                          m_IconifyCallbackUserData;
+    FWindowAddKeyboardCharCallback m_AddKeyboarCharCallBack;
+    void*                          m_AddKeyboarCharCallBackUserData;
+    FWindowSetMarkedTextCallback   m_SetMarkedTextCallback;
+    void*                          m_SetMarkedTextCallbackUserData;
+    FWindowDeviceChangedCallback   m_DeviceChangedCallback;
+    void*                          m_DeviceChangedCallbackUserData;
+    double                         m_MouseScrollX;
+    double                         m_MouseScrollY;
+    float                          m_XScale;
+    float                          m_YScale;
+    int32_t                        m_Width;
+    int32_t                        m_Height;
+    int32_t                        m_WidthScreen;
+    int32_t                        m_HeightScreen;
+    uint32_t                       m_Samples               : 8;
+    uint32_t                       m_HighDPI               : 1;
+    uint32_t                       m_SwapIntervalSupported : 1;
+    uint32_t                       m_WindowOpened          : 1;
+    uint32_t                       m_FullscreenWindowed    : 1;
+};
 
 namespace dmPlatform
 {
-    struct dmWindow
+    struct WindowModeParams
     {
-        GLFWwindow*                   m_Window;
-        GLFWwindow*                   m_AuxWindow;
-
-        WindowResizeCallback          m_ResizeCallback;
-        void*                         m_ResizeCallbackUserData;
-        WindowCloseCallback           m_CloseCallback;
-        void*                         m_CloseCallbackUserData;
-        WindowFocusCallback           m_FocusCallback;
-        void*                         m_FocusCallbackUserData;
-        WindowIconifyCallback         m_IconifyCallback;
-        void*                         m_IconifyCallbackUserData;
-        WindowAddKeyboardCharCallback m_AddKeyboarCharCallBack;
-        void*                         m_AddKeyboarCharCallBackUserData;
-        WindowSetMarkedTextCallback   m_SetMarkedTextCallback;
-        void*                         m_SetMarkedTextCallbackUserData;
-        WindowDeviceChangedCallback   m_DeviceChangedCallback;
-        void*                         m_DeviceChangedCallbackUserData;
-        double                        m_MouseScrollX;
-        double                        m_MouseScrollY;
-        float                         m_XScale;
-        float                         m_YScale;
-        int32_t                       m_Width;
-        int32_t                       m_Height;
-        int32_t                       m_WidthScreen;
-        int32_t                       m_HeightScreen;
-        uint32_t                      m_Samples               : 8;
-        uint32_t                      m_HighDPI               : 1;
-        uint32_t                      m_SwapIntervalSupported : 1;
-        uint32_t                      m_WindowOpened          : 1;
+        GLFWmonitor* m_Monitor;
+        int          m_Width;
+        int          m_Height;
+        int          m_X;
+        int          m_Y;
+        bool         m_WindowedFullscreen;
     };
 
     void FocusWindowNative(HWindow window);
     void CenterWindowNative(HWindow wnd, GLFWmonitor* monitor);
     void SetWindowsIconNative(HWindow window);
+    void SetWindowedFullscreenFocusNative(HWindow window, bool focused);
+    void SetWindowedSizeFromSettingsNative(HWindow window, int32_t width, int32_t height);
+    void SetFullscreenWindowModeParamsNative(GLFWmonitor* monitor, const GLFWvidmode* mode, WindowModeParams* mode_params);
+    bool CanSetOpenGLCoreProfileHintNative(bool use_highest_version);
+#if defined(_WIN32)
+    const char* GetJoystickDeviceGuidNative(HWindow window, uint32_t joystick_index, const char* glfw_guid);
+#endif
+    void InstallWindowCloseHandlerNative(HWindow window);
+    void UninstallWindowCloseHandlerNative(HWindow window);
 }
 
 #endif // DM_PLATFORM_WINDOW_GLFW3_PRIVATE_H

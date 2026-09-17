@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -54,7 +54,9 @@ public class Texc {
         PF_RGBA_ASTC_10x8(28),
         PF_RGBA_ASTC_10x10(29),
         PF_RGBA_ASTC_12x10(30),
-        PF_RGBA_ASTC_12x12(31);
+        PF_RGBA_ASTC_12x12(31),
+        PF_RGBA16F(32),
+        PF_RGBA32F(33);
         private final int value;
         private PixelFormat(int value) {
             this.value = value;
@@ -225,4 +227,3 @@ public class Texc {
         public PixelFormat outPixelFormat = PixelFormat.PF_L8;
     };
 }
-

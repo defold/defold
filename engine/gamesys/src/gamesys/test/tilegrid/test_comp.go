@@ -1,8 +1,8 @@
 components {
   id: "tilemap"
-  component: "/tile/valid.tilegrid"
+  component: "/tilegrid/tile_valid.tilegrid"
 }
 components {
   id: "script"
-  component: "/script/test_component.script"
+  component: "/tilegrid/script_test_component.script"
 }

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,7 +22,9 @@
   (:import [clojure.lang Named]
            [com.defold.util IDigestable]
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
-           [java.io BufferedWriter OutputStreamWriter Writer]))
+           [com.dynamo.graphics.proto Graphics$ShaderDesc]
+           [java.io BufferedWriter OutputStreamWriter Writer]
+           [java.util Arrays]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -127,38 +129,61 @@
   (let [tag-sym (symbol (.getSimpleName (class resource)))]
     (digest-tagged! tag-sym (resource/resource-hash resource) writer opts)))
 
-(defn- to-sorted-map [map]
-  {:pre [(map? map)]}
-  (if (or (sorted? map)
-          (< (count map) 2))
-    map
-    (into (sorted-map)
-          map)))
-
 (defn- digest-map! [coll writer opts]
-  (let [sorted-map (to-sorted-map coll)
-        last-index (dec (count sorted-map))]
-    (digest-raw! "{" writer)
-    (reduce-kv (fn digest-map-entry! [^long index key value]
-                 (if (ignored-key? key)
-                   index
-                   (try
-                     (digest! key writer opts)
-                     (digest-raw! " " writer)
-                     (if (node-id-entry? key value)
-                       (digest-tagged! 'Node (persistent-node-id-value value opts) writer opts)
-                       (digest! value writer opts))
-                     (when (< index last-index)
-                       (digest-raw! ", " writer))
-                     (inc index)
-                     (catch Throwable error
-                       (throw (augment-throwable-with-path error coll key))))))
-               0
-               sorted-map)
-    (digest-raw! "}" writer)))
+  {:pre [(map? coll)]}
+  (digest-raw! "{" writer)
+  (let [n (count coll)
+        last-index (dec n)]
+    (if (or (sorted? coll)
+            (< n 2))
+      (reduce-kv
+        (fn digest-map-entry! [^long index key value]
+          (if (ignored-key? key)
+            index
+            (try
+              (digest! key writer opts)
+              (digest-raw! " " writer)
+              (if (node-id-entry? key value)
+                (digest-tagged! 'Node (persistent-node-id-value value opts) writer opts)
+                (digest! value writer opts))
+              (when (< index last-index)
+                (digest-raw! ", " writer))
+              (inc index)
+              (catch Throwable error
+                (throw (augment-throwable-with-path error coll key))))))
+        0
+        coll)
+      (let [^objects keys-array (object-array n)]
+        (reduce-kv
+          (fn put-key-in-array! [^long index key _value]
+            (aset keys-array index key)
+            (unchecked-inc-int index))
+          0
+          coll)
+        (Arrays/sort keys-array compare)
+        (loop [array-index 0
+               output-index 0]
+          (when (< array-index n)
+            (let [key (aget keys-array array-index)]
+              (if (ignored-key? key)
+                (recur (unchecked-inc-int array-index) output-index)
+                (do
+                  (try
+                    (digest! key writer opts)
+                    (digest-raw! " " writer)
+                    (let [value (get coll key)]
+                      (if (node-id-entry? key value)
+                        (digest-tagged! 'Node (persistent-node-id-value value opts) writer opts)
+                        (digest! value writer opts)))
+                    (when (< output-index last-index)
+                      (digest-raw! ", " writer))
+                    (catch Throwable error
+                      (throw (augment-throwable-with-path error coll key))))
+                  (recur (unchecked-inc-int array-index) (unchecked-inc-int output-index))))))))))
+  (digest-raw! "}" writer))
 
 (defn- to-sorted-set [set]
-  {:pre [(set? set)]}
+  {:pre [(instance? java.util.Set set)]}
   (if (or (sorted? set)
           (< (count set) 2))
     set
@@ -168,6 +193,12 @@
 (defn- digest-set! [coll writer opts]
   (let [sorted-set (to-sorted-set coll)]
     (digest-sequence! "#{" sorted-set "}" writer opts)))
+
+(defn- digest-array! [^Class component-class coll writer opts]
+  (digest-raw! "#dg/" writer)
+  (digest-raw! (.getName component-class) writer)
+  (digest-raw! "_ARRAY " writer)
+  (digest-sequence! "[" coll "]" writer opts))
 
 (let [simple-digestable-impl {:digest! (fn digest-simple-value! [value writer _opts]
                                          (print-method value writer))}
@@ -200,7 +231,7 @@
   (digest! [value writer opts]
     (digest-tagged! 'Function (fn->symbol value) writer opts))
 
-  clojure.lang.IPersistentSet
+  java.util.Set
   (digest! [value writer opts]
     (digest-set! value writer opts))
 
@@ -218,6 +249,10 @@
   (digest! [value writer opts]
     (digest-tagged! 'LayoutResult (str value) writer opts))
 
+  Graphics$ShaderDesc
+  (digest! [value writer opts]
+    (digest-tagged! 'ShaderDesc (str value) writer opts))
+
   Class
   (digest! [value writer opts]
     (digest-tagged! 'Class (symbol (.getName value)) writer opts))
@@ -228,9 +263,13 @@
     (.digest value writer))
 
   Object
-  (digest! [value _writer _opts]
-    (throw (ex-info (str "Encountered undigestable value: " value)
-                    {:value value}))))
+  (digest! [value writer opts]
+    (let [value-class (class value)]
+      (if (.isArray value-class)
+        (digest-array! (.getComponentType value-class) value writer opts)
+        (throw (ex-info (str "Encountered undigestable value: " value)
+                        {:value value
+                         :class value-class}))))))
 
 (defn sha1-hash
   (^String [object]
@@ -243,3 +282,27 @@
      (digest/completed-stream->hex digest-output-stream))))
 
 (def sha1-hash? digest/sha1-hex?)
+
+(defn sha1s->unordered-sha1-hex
+  "Takes a collection of SHA-1 byte arrays, and adds them all together
+  as 160-bit unsigned integers (mod 2^160) to produce an order-independent hash."
+  [byte-arrays]
+  (let [modulus (.shiftLeft BigInteger/ONE 160)
+        sum (reduce
+              (fn [acc ba]
+                (-> (BigInteger. 1 ^bytes ba)
+                    (.add acc)
+                    (.mod modulus)))
+              BigInteger/ZERO
+              byte-arrays)
+        result-bytes ^bytes (.toByteArray ^BigInteger sum)
+        ;; NOTE: BigInteger.toByteArray() returns variable length:
+        ;; 21 bytes if high bit set (adds sign byte), <20 if leading zeros, else 20
+        len (alength result-bytes)
+        normalized (case len
+                     20 result-bytes
+                     21 (Arrays/copyOfRange result-bytes 1 21)
+                     (let [padded (byte-array 20)]
+                       (System/arraycopy result-bytes 0 padded (- 20 len) len)
+                       padded))]
+    (util.digest/bytes->hex normalized)))

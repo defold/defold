@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -58,6 +58,24 @@
                   (fn [val]
                     (when val (val))
                     (make-exception-notifier notify-fn))))
+
+;;--------------------------------------------------------------------
+;; disabled functionality notification
+
+(defonce ^:private ^:redef disabled-functionality-notifier
+  ;; default noop notifier
+  (fn []))
+
+(defn init-disabled-functionality-notifier!
+  [notify-fn]
+  (alter-var-root #'disabled-functionality-notifier (constantly notify-fn)))
+
+(defn report-disabled-functionality!
+  "Report that an exception forced us to disable editor functionality. The
+  installed notifier is expected to offer the user a way to re-enable it."
+  []
+  (disabled-functionality-notifier)
+  nil)
 
 ;;--------------------------------------------------------------------
 ;; sentry

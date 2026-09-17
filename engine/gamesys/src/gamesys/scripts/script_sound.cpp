@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -47,6 +47,33 @@ namespace dmGameSystem
      * @language Lua
      */
 
+    /*# Sound playback completion data
+     *
+     * Data passed to the completion callback of [ref:sound.play]. The callback's
+     * `message_id` indicates whether playback finished or was stopped manually.
+     *
+     * @struct
+     * @name sound.play_completion
+     * @member play_id [type:number] The sequential play identifier for the playback.
+     */
+
+    /*# Sound playback properties
+     * @struct
+     * @name sound.play_properties
+     * @member delay? [type:number] Delay in seconds before playback starts. The default is 0.
+     * @member gain? [type:number] Gain from 0 to 1. The default is 1; this combines with the group and master gains.
+     * @member pan? [type:number] Pan from -1 to 1. The default is 0; this is added to the component pan.
+     * @member speed? [type:number] Playback speed from 0 to 50. The default is 1; this is multiplied by the component speed.
+     * @member start_time? [type:number] Playback offset in seconds. Mutually exclusive with `start_frame`.
+     * @member start_frame? [type:number] Playback offset in frames or samples. Takes precedence over `start_time`.
+     */
+
+    /*# Sound stop properties
+     * @struct
+     * @name sound.stop_properties
+     * @member play_id [type:number] Sequential playback identifier returned by [ref:sound.play].
+     */
+
 
     /*# [type:number] sound gain
      *
@@ -87,7 +114,7 @@ namespace dmGameSystem
     /*# [type:number] sound speed
      *
      * The speed on the sound-component where 1.0 is normal speed, 0.5 is half
-     * speed and 2.0 is double speed.
+     * speed and 2.0 is double speed. Valid range is 0.0 to 50.0.
      *
      * @name speed
      * @property
@@ -320,7 +347,7 @@ namespace dmGameSystem
      * Get a table of all mixer group names (hashes).
      *
      * @name sound.get_groups
-     * @return groups [type:table] table of mixer group names
+     * @return groups [type:hash[]] table of mixer group names
      * @examples
      *
      * Get the mixer groups, set all gains to 0 except for "master" and "soundfx"
@@ -428,31 +455,17 @@ namespace dmGameSystem
      *
      * @name sound.play
      * @param url [type:string|hash|url] the sound that should play
-     * @param [play_properties] [type:table] optional table with properties:
-     * `delay`
-     * : [type:number] delay in seconds before the sound starts playing, default is 0.
-     *
-     * `gain`
-     * : [type:number] sound gain between 0 and 1, default is 1. The final gain of the sound will be a combination of this gain, the group gain and the master gain.
-     *
-     * `pan`
-     * : [type:number] sound pan between -1 and 1, default is 0. The final pan of the sound will be an addition of this pan and the sound pan.
-     *
-     * `speed`
-     * : [type:number] sound speed where 1.0 is normal speed, 0.5 is half speed and 2.0 is double speed. The final speed of the sound will be a multiplication of this speed and the sound speed.
-     *
-     * @param [complete_function] [type:function(self, message_id, message, sender)] function to call when the sound has finished playing or stopped manually via [ref:sound.stop].
+     * @param [play_properties] [type:sound.play_properties] optional playback properties
+     * @param [complete_function] [type:fun(self:script_instance, message_id:hash, message:sound.play_completion, sender:url)] function to call when the sound has finished playing or stopped manually via [ref:sound.stop].
      *
      * `self`
-     * : [type:object] The current object.
+     * : [type:script_instance] The current script instance.
      *
      * `message_id`
      * : [type:hash] The name of the completion message, which can be either `"sound_done"` if the sound has finished playing, or `"sound_stopped"` if it was stopped manually.
      *
      * `message`
-     * : [type:table] Information about the completion:
-     *
-     * - [type:number] `play_id` - the sequential play identifier that was given by the sound.play function.
+     * : [type:sound.play_completion] Information about the completed or stopped playback.
      *
      * `sender`
      * : [type:url] The invoker of the callback: the sound component.
@@ -493,6 +506,8 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
         float delay = 0.0f, gain = 1.0f, pan = 0.0f, speed = 1.0f;
+        float start_time = 0.0f;
+        uint32_t start_frame = 0u;
 
         if (top > 1 && !lua_isnil(L,2)) // table with args
         {
@@ -513,6 +528,23 @@ namespace dmGameSystem
 
             lua_getfield(L, -1, "speed");
             speed = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "start_time");
+            if (!lua_isnil(L, -1))
+            {
+                start_time = (float)luaL_checknumber(L, -1);
+                if (start_time < 0.0f) start_time = 0.0f;
+            }
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "start_frame");
+            if (!lua_isnil(L, -1))
+            {
+                double v = luaL_checknumber(L, -1);
+                if (v < 0.0) v = 0.0;
+                start_frame = (uint32_t)v;
+            }
             lua_pop(L, 1);
 
             lua_pop(L, 1);
@@ -539,6 +571,9 @@ namespace dmGameSystem
         msg.m_Pan    = pan;
         msg.m_Speed = speed;
         msg.m_PlayId = play_id;
+        // If both are set, start_frame wins
+        msg.m_StartFrame = start_frame;
+        msg.m_StartTime  = (start_frame != 0) ? 0.0f : start_time;
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, 0, functionref, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
 
@@ -552,9 +587,7 @@ namespace dmGameSystem
      *
      * @name sound.stop
      * @param url [type:string|hash|url] the sound component that should stop
-     * @param [stop_properties] [type:table] optional table with properties:
-     * `play_id`
-     * : [type:number] the sequential play identifier that should be stopped (was given by the sound.play() function)
+     * @param [stop_properties] [type:sound.stop_properties] optional playback to stop
      *
      * @examples
      *
@@ -752,6 +785,8 @@ namespace dmGameSystem
      * @param [delay] [type:number] delay in seconds before the sound starts playing, default is 0.
      * @param [gain] [type:number] sound gain between 0 and 1, default is 1.
      * @param [play_id] [type:number] the identifier of the sound, can be used to distinguish between consecutive plays from the same component.
+     * @param [start_time] [type:number] optional start offset (seconds). Mutually exclusive with `start_frame`.
+     * @param [start_frame] [type:number] optional start offset (frames). If both are provided, `start_frame` is used.
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:

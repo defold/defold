@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,10 +27,14 @@
 
 #include <script/script.h>
 
+#include <font/text_layout.h>
+
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/gui/gui.h>
 #include <dmsdk/render/render.h>
 #include <dmsdk/gameobject/gameobject.h>
+
+#include <dlib/safe_windows.h>
 
 /**
  * Defold GUI system
@@ -46,6 +50,12 @@
  */
 namespace dmGui
 {
+    struct CustomPropertyDesc
+    {
+        dmhash_t       m_Key;
+        CustomProperty m_Property;
+    };
+
     /**
      * Default layout id
      */
@@ -76,10 +86,9 @@ namespace dmGui
                         m_Playback              == other.m_Playback;
             }
 
-            uint32_t m_Start : 13;
-            uint32_t m_End : 13;
-            uint32_t m_Playback : 4;
-            uint32_t : 2;
+            uint32_t m_Start;
+            uint32_t m_End;
+            uint8_t  m_Playback;
             uint16_t m_OriginalTextureWidth;
             uint16_t m_OriginalTextureHeight;
             uint8_t  m_FPS;
@@ -117,6 +126,11 @@ namespace dmGui
     typedef void (*OnWindowResizeCallback)(const HScene scene, uint32_t width, uint32_t height);
 
     /**
+     * Callback for applying a layout from script
+     */
+    typedef void (*ApplyLayoutCallback)(const HScene scene, dmhash_t layout_id);
+
+    /**
      * Callback to create custom node data
      */
     typedef void* (*CreateCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type);
@@ -135,6 +149,11 @@ namespace dmGui
      * Callback to update custom node data
      */
     typedef void (*UpdateCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
+
+    /**
+     * Callback to prepare a text layout for a node
+     */
+    typedef void (*PrepareNodeTextLayoutCallback)(dmGui::HScene scene, dmGui::HNode node);
 
     /**
      * Callback to get custom resource data
@@ -164,7 +183,7 @@ namespace dmGui
     /**
      * Callback to create a texture resource
      */
-    typedef HTextureSource (*NewTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    typedef HTextureSource (*NewTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
 
     /**
      * Callback to delete a texture resource
@@ -174,7 +193,13 @@ namespace dmGui
     /**
      * Callback to set the data for a texture resource
      */
-    typedef void (*SetTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    typedef void (*SetTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
+
+    /**
+     * Callback to query display profile resolution for a layout id
+     * Should return true and fill out parameters when found; false otherwise
+     */
+    typedef bool (*GetDisplayProfileDescCallback)(HScene scene, dmhash_t layout_id, uint32_t* out_width, uint32_t* out_height);
 
     /**
      * Scene creation
@@ -201,6 +226,7 @@ namespace dmGui
         CloneCustomNodeCallback        m_CloneCustomNodeCallback;
         UpdateCustomNodeCallback       m_UpdateCustomNodeCallback;
         void*                          m_CreateCustomNodeCallbackContext;
+        PrepareNodeTextLayoutCallback  m_PrepareNodeTextLayoutCallback;
         GetResourceCallback            m_GetResourceCallback;
         void*                          m_GetResourceCallbackContext;
         GetMaterialPropertyCallback    m_GetMaterialPropertyCallback;
@@ -211,6 +237,8 @@ namespace dmGui
         CloneRenderConstantsCallback   m_CloneRenderConstantsCallback;
         FetchTextureSetAnimCallback    m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback         m_OnWindowResizeCallback;
+        ApplyLayoutCallback            m_ApplyLayoutCallback;
+        GetDisplayProfileDescCallback  m_GetDisplayProfileDescCallback;
         NewTextureResourceCallback     m_NewTextureResourceCallback;
         DeleteTextureResourceCallback  m_DeleteTextureResourceCallback;
         SetTextureResourceCallback     m_SetTextureResourceCallback;
@@ -244,6 +272,12 @@ namespace dmGui
         float m_MaxAscent;
         /// Max descent of font, positive value
         float m_MaxDescent;
+    };
+
+    struct TextLayout
+    {
+        HTextLayout m_Handle;
+        uint64_t    m_Key;
     };
     /** callback for retrieving text metrics
      * The function is expected to fill out the supplied metrics struct with metrics of the supplied font and text.
@@ -295,6 +329,12 @@ namespace dmGui
             SetDefaultNewContextParams(this);
         }
     };
+
+    void SetContextCallbacks(HContext context,
+                             GetURLCallback get_url_callback,
+                             GetUserDataCallback get_user_data_callback,
+                             ResolvePathCallback resolve_path_callback,
+                             GetTextMetricsCallback get_text_metrics_callback);
 
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -501,6 +541,20 @@ namespace dmGui
     void DeleteContext(HContext context, dmScript::HContext script_context);
 
     void SetPhysicalResolution(HContext context, uint32_t width, uint32_t height);
+    void SetSafeAreaAdjust(HContext context, bool enabled, uint32_t width, uint32_t height, float offset_x, float offset_y);
+
+    enum SafeAreaMode
+    {
+        SAFE_AREA_NONE = 0,
+        SAFE_AREA_LONG = 1,
+        SAFE_AREA_SHORT = 2,
+        SAFE_AREA_BOTH = 3,
+    };
+
+    SafeAreaMode ParseSafeAreaMode(const char* mode);
+    void UpdateSafeAreaAdjust(HContext context, SafeAreaMode mode, uint32_t window_width, uint32_t window_height,
+                              int32_t inset_left, int32_t inset_top, int32_t inset_right, int32_t inset_bottom);
+    void SetSceneSafeAreaMode(HScene scene, SafeAreaMode mode);
 
     void GetPhysicalResolution(HContext context, uint32_t& width, uint32_t& height);
 
@@ -592,12 +646,13 @@ namespace dmGui
      * @param width
      * @param height
      * @param type
+     * @param compression_type
      * @param flip
      * @param buffer
      * @param buffer_size
      * @return
      */
-    Result NewDynamicTexture(HScene scene, const dmhash_t path, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
+    Result NewDynamicTexture(HScene scene, const dmhash_t path, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, bool flip, const void* buffer, uint32_t buffer_size);
 
     /**
      * Delete dynamic texture
@@ -614,12 +669,13 @@ namespace dmGui
      * @param width
      * @param height
      * @param type
+     * @param compression_type
      * @param flip
      * @param buffer
      * @param buffer_size
      * @return
      */
-    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
+    Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, bool flip, const void* buffer, uint32_t buffer_size);
 
     /**
      * Get texture data for a dynamic texture
@@ -866,6 +922,9 @@ namespace dmGui
     void SetNodeId(HScene scene, HNode node, const char* id);
     dmhash_t GetNodeId(HScene scene, HNode node);
 
+    // Ownershipt of string values are transferred to the GUI node on success.
+    Result SetNodeCustomProperties(HScene scene, HNode node, const CustomPropertyDesc* properties, uint32_t property_count);
+
     HNode GetNodeById(HScene scene, const char* id);
     HNode GetNodeById(HScene scene, dmhash_t id);
 
@@ -930,6 +989,10 @@ namespace dmGui
     void SetNodeText(HScene scene, HNode node, const char* text);
     void SetNodeLineBreak(HScene scene, HNode node, bool line_break);
     bool GetNodeLineBreak(HScene scene, HNode node);
+    // Authored base style, stored separately from script-visible properties.
+    void SetNodeTextStyle(HScene scene, HNode node, dmhash_t style);
+    dmhash_t GetNodeTextStyle(HScene scene, HNode node);
+
     void SetNodeTextLeading(HScene scene, HNode node, float leading);
     float GetNodeTextLeading(HScene scene, HNode node);
     void SetNodeTextTracking(HScene scene, HNode node, float tracking);
@@ -972,6 +1035,7 @@ namespace dmGui
     Result SetNodeFont(HScene scene, HNode node, const char* font_id);
 
     dmhash_t GetNodeLayerId(HScene scene, HNode node);
+    uint16_t GetNodeLayerIndex(HScene scene, HNode node);
     Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id);
     Result SetNodeLayer(HScene scene, HNode node, const char* layer_id);
 
@@ -1036,6 +1100,12 @@ namespace dmGui
 
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
+    // Invokes the scene callback that prepares the current text layout for a node.
+    void PrepareNodeTextLayout(HScene scene, HNode node);
+    // Returns the node-owned text layout as a borrowed handle.
+    void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout);
+    // Stores a node-owned text layout reference. The incoming handle remains owned by the caller.
+    void SetNodeTextLayout(HScene scene, HNode node, const TextLayout& text_layout);
 
     BlendMode GetNodeBlendMode(HScene scene, HNode node);
     void SetNodeBlendMode(HScene scene, HNode node, BlendMode blend_mode);
@@ -1110,6 +1180,16 @@ namespace dmGui
      * @return true if the node was picked, false otherwise
      */
     bool PickNode(HScene scene, HNode node, float x, float y);
+
+    /** converts project-space input coordinates to the local transform used to render a node
+     * @param scene the scene the node exists in
+     * @param node node to convert coordinates for
+     * @param x project-space x-coordinate
+     * @param y project-space y-coordinate
+     * @param position local render position (out)
+     * @return true when the position could be projected onto the node plane
+     */
+    bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, dmVMath::Point3* position);
 
     /** retrieves if a node is enabled or not
      * Only enabled nodes are animated and rendered.
@@ -1197,18 +1277,6 @@ namespace dmGui
      * @return current scene, or 0
      */
     HScene GetSceneFromLua(lua_State* L);
-
-    // Used only in engine_service.cpp for resource profiling
-    typedef bool (*FDynamicTextturesIterator)(dmhash_t gui_res_id, dmhash_t name_hash, uint32_t size, void* user_ctx);
-    /**
-     * Iterates over all dynamic textures in GUI component, and invokes the callback function with the dyn. texture information
-     * @param gui_res_id The GUI component resource id
-     * @param scene      The scene we get dynamic textures information from
-     * @param callback   The callback function which is invoked for each dynamic texture.
-                         It should return true if the iteration should continue, and false otherwise.
-     * @param user_ctx   The user defined context which is passed along with each callback
-     */
-    void IterateDynamicTextures(dmhash_t gui_res_id, HScene scene, FDynamicTextturesIterator callback, void* user_ctx);
 }
 
 #endif

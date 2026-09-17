@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,11 +17,13 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.graphics :as graphics]
+            [editor.graphics.types :as graphics.types]
             [editor.material :as material]
             [editor.particle-lib :as plib]
             [editor.properties :as properties]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt])
   (:import [javax.vecmath Matrix4d]))
 
 (defn- dump-outline [outline]
@@ -30,14 +32,14 @@
 (deftest basic
   (testing "Basic scene"
            (test-util/with-loaded-project
-             (let [node-id   (test-util/resource-node project "/particlefx/default.particlefx")
+             (let [node-id (test-util/resource-node project "/particlefx/default.particlefx")
                    scene (g/node-value node-id :scene)]
                (is (= 1 (count (:children scene))))))))
 
 (deftest modifiers
   (testing "Basic scene"
            (test-util/with-loaded-project
-             (let [node-id   (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
+             (let [node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
                    outline (g/node-value node-id :node-outline)]
                (is (= 4 (count (:children outline))))
                (let [mod-drag (get-in outline [:children 3 :node-id])
@@ -47,17 +49,21 @@
 
 (deftest simulation
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/particlefx/default.particlefx")
+    (let [node-id (test-util/resource-node project "/particlefx/default.particlefx")
           prototype-msg (g/node-value node-id :rt-pb-data)
           emitter-sim-data (g/node-value node-id :emitter-sim-data)
           fetch-anim-fn (fn [index] (get emitter-sim-data index))
           transforms [(doto (Matrix4d.) (.setIdentity))]
           sim (plib/make-sim 16 256 prototype-msg transforms)
-          attribute-infos [(-> :position
-                               (graphics/attribute-key->default-attribute-info)
-                               (assoc :coordinate-space :coordinate-space-world))]
-          vertex-description (graphics/make-vertex-description attribute-infos)
-          attribute-bytes (graphics/attribute-bytes-by-attribute-key node-id attribute-infos 0 {})]
+          attribute-infos [{:name "position"
+                            :name-key :position
+                            :vector-type :vector-type-vec3
+                            :data-type :type-float
+                            :normalize false
+                            :semantic-type :semantic-type-position
+                            :coordinate-space :coordinate-space-world
+                            :step-function :vertex-step-function-vertex}]
+          vertex-description (graphics.types/make-vertex-description attribute-infos)]
       (testing "Sim sleeping"
                (is (plib/sleeping? sim))
                (plib/simulate sim 1/60 fetch-anim-fn transforms)
@@ -66,7 +72,7 @@
                (let [sim (-> sim
                              (plib/simulate 1/60 fetch-anim-fn transforms)
                              (plib/simulate 1/60 fetch-anim-fn transforms))
-                     _stats (do (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0] 32 vertex-description attribute-infos attribute-bytes)
+                     _stats (do (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0] 32 vertex-description {})
                                (plib/stats sim))]
                  (is (< 0 (:particles (plib/stats sim))))))
       (testing "Rendering"
@@ -92,6 +98,14 @@
         (test-util/with-prop [emitter :animation v]
           (is (g/error? (test-util/prop-error emitter :animation))))))))
 
+(deftest delete-last-emitter
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/particlefx/default.particlefx")
+          emitter (:node-id (test-util/outline node-id [0]))]
+      (g/delete-node! emitter)
+      (let [outline (g/node-value node-id :node-outline)]
+        (is (= [] (:children outline)))))))
+
 (deftest particle-scene
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/particlefx/default.particlefx")
@@ -114,17 +128,18 @@
 
 (deftest manip-scale-preserves-types
   (test-util/with-loaded-project
-    (let [project-graph (g/node-id->graph-id project)
-          particlefx-path "/particlefx/fireworks_big.particlefx"
+    (let [particlefx-path "/particlefx/fireworks_big.particlefx"
           particlefx (project/get-resource-node project particlefx-path)
-          [[emitter] _ [modifier]] (g/sources-of particlefx :child-scenes)
+          child-scene-arcs (g/inputs (g/now) particlefx :child-scenes)
+          emitter (gt/source-id (nth child-scene-arcs 0))
+          modifier (gt/source-id (nth child-scene-arcs 2))
           check! (fn check! [node-id prop-kw]
                    (doseq [original-curve-spread
                            [(properties/->curve-spread [[(float 0.0) (float 1.0) (float 1.0) (float 0.0)]] (float 0.0))
                             (properties/->curve-spread [[(double 0.0) (double 1.0) (double 1.0) (double 0.0)]] (double 0.0))
                             (properties/->curve-spread [(vector-of :float 0.0 1.0 1.0 0.0)] (float 0.0))
                             (properties/->curve-spread [(vector-of :double 0.0 1.0 1.0 0.0)] (double 0.0))]]
-                     (with-open [_ (test-util/make-graph-reverter project-graph)]
+                     (with-open [_ (test-util/make-system-reverter)]
                        (g/set-property! node-id prop-kw original-curve-spread)
                        (test-util/manip-scale! node-id [2.0 2.0 2.0])
                        (let [modified-curve-spread (g/node-value node-id prop-kw)]

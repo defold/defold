@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,16 +13,17 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.game-project-test
-  (:require [clojure.test :refer :all]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system spit-until-new-mtime]]
-            [integration.test-util :as test-util]
+            [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [editor.defold-project :as project]
-            [service.log :as log])
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
+            [service.log :as log]
+            [support.test-support :refer [spit-until-new-mtime with-clean-system]])
   (:import [java.io File]))
 
 (def ^:dynamic ^String *project-path*)
@@ -35,14 +36,14 @@
                                                 (.getAbsolutePath))))
    (fs/copy-directory! (io/file project-path) (io/file *project-path*))))
 
-(defn- load-test-project [ws-graph]
-  (let [workspace (test-util/setup-workspace! ws-graph *project-path*)
+(defn- load-test-project []
+  (let [workspace (test-util/setup-workspace! *project-path*)
         project (test-util/setup-project! workspace)]
     [workspace project]))
 
-(defn- setup [ws-graph]
+(defn- setup []
   (create-test-project)
-  (load-test-project ws-graph))
+  (load-test-project))
 
 (defn- file-in-project ^File [^String name] (io/file (io/file *project-path*) name))
 
@@ -63,12 +64,28 @@
 (defn- title [settings]
   (settings ["project" "title"]))
 
+(defn- ensure-game-project-connections! [project game-project]
+  (let [basis (g/now)
+        script-intelligence (g/valid-node-value project :script-intelligence)]
+    (is (contains? (set (g/outputs basis script-intelligence :build-errors))
+                   (gt/->Arc script-intelligence :build-errors game-project :build-errors)))
+    (is (contains? (set (g/inputs basis project :display-profiles))
+                   (gt/->Arc game-project :display-profiles-data project :display-profiles)))
+    (is (contains? (set (g/inputs basis project :texture-profiles))
+                   (gt/->Arc game-project :texture-profiles-data project :texture-profiles)))
+    (is (contains? (set (g/inputs basis project :use-font-layout))
+                   (gt/->Arc game-project :use-font-layout project :use-font-layout)))
+    (is (contains? (set (g/inputs basis project :settings))
+                   (gt/->Arc game-project :settings-map project :settings)))))
+
 (deftest load-ok-project
   (with-clean-system
-    (let [[workspace project] (setup world)]
+    (let [[_workspace project] (setup)]
       (testing "Settings loaded"
-        (let [settings (g/node-value project :settings)]
-          (is (= "Side-scroller" (title settings))))))))
+        (let [settings (g/node-value project :settings)
+              game-project (project/get-resource-node project "/game.project")]
+          (is (= "Side-scroller" (title settings)))
+          (ensure-game-project-connections! project game-project))))))
 
 (deftest load-incomplete-project
   (testing "Missing ResourceNodes are shared among all references to it."
@@ -79,7 +96,7 @@
                     "missing_component.go"          ; references "/non-existent.script"
                     "missing_go.collection"]]       ; references "/non-existent.go"
         (copy-file path (str "duplicate_" path)))
-      (let [project (second (log/without-logging (load-test-project world)))
+      (let [project (second (log/without-logging (load-test-project)))
             num-nodes-by-proj-path (frequencies (map resource/proj-path (test-util/project-node-resources project)))]
         (is (= 1 (num-nodes-by-proj-path "/non-existent.collection")))
         (is (= 1 (num-nodes-by-proj-path "/non-existent.script")))
@@ -89,18 +106,20 @@
   (with-clean-system
     (create-test-project)
     (write-file "game.project" "bad content")
-    (let [[workspace project] (log/without-logging (load-test-project world))]
+    (let [[workspace project] (log/without-logging (load-test-project))
+          game-project (project/get-resource-node project "/game.project")]
       (testing "Defaults if can't load"
         (let [settings (g/node-value project :settings)]
           (is (= "unnamed" (title settings)))))
       (testing "Game project node is defective"
-        (let [gpn (project/get-resource-node project "/game.project")
-              gpn-settings-map (g/node-value gpn :settings-map)]
-          (is (error? :invalid-content gpn-settings-map)))))))
+        (let [gpn-settings-map (g/node-value game-project :settings-map)]
+          (is (error? :invalid-content gpn-settings-map))))
+      (testing "Connections"
+        (ensure-game-project-connections! project game-project)))))
 
 (deftest break-ok-project
   (with-clean-system
-    (let [[workspace project] (setup world)]
+    (let [[workspace project] (setup)]
       (copy-file "game.project" "game.project.backup")
       (testing "Settings loaded"
         (let [settings (g/node-value project :settings)]
@@ -112,7 +131,8 @@
               gpn (project/get-resource-node project "/game.project")
               gpn-settings-map (g/node-value gpn :settings-map)]
           (is (= "unnamed" (title settings)))
-          (is (error? :invalid-content gpn-settings-map)))
+          (is (error? :invalid-content gpn-settings-map))
+          (ensure-game-project-connections! project gpn))
         (copy-file "game.project.backup" "game.project")
         (workspace/resource-sync! workspace))
       (testing "Restoring gives normal settings"
@@ -120,4 +140,5 @@
               gpn (project/get-resource-node project "/game.project")
               gpn-settings-map (g/node-value gpn :settings-map)]
           (is (= "Side-scroller" (title settings)))
-          (is (no-error? gpn-settings-map)))))))
+          (is (no-error? gpn-settings-map))
+          (ensure-game-project-connections! project gpn))))))

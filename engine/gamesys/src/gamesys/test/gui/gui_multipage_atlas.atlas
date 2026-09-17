@@ -1,8 +1,8 @@
 images {
-  image: "/texture/valid_png_128.png"
+  image: "/gui/texture_valid_png_128.png"
 }
 images {
-  image: "/texture/valid_png.png"
+  image: "/gui/texture_valid_png.png"
 }
 margin: 0
 extrude_borders: 0

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@ package com.defold.extension.pipeline.texture;
 
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
+import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.graphics.proto.Graphics;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 
@@ -104,6 +105,24 @@ public class TextureCompressorASTC implements ITextureCompressor {
     }
 
     public int getAlignedWidth(TextureImage.TextureFormat format, int width) {
+        if (!supportsTextureFormat(format)) {
+            System.err.println("Format " + format + " is not an ASTC format.");
+            return 0;
+        }
+
+        return width;
+    }
+
+    public int getAlignedHeight(TextureImage.TextureFormat format, int height) {
+        if (!supportsTextureFormat(format)) {
+            System.err.println("Format " + format + " is not an ASTC format.");
+            return 0;
+        }
+
+        return height;
+    }
+
+    public static int getCompressedDataSize(TextureImage.TextureFormat format, int width, int height) {
         int[] blockSizes = pixelFormatToBlockSize.get(format);
 
         if (blockSizes == null) {
@@ -112,19 +131,16 @@ public class TextureCompressorASTC implements ITextureCompressor {
         }
 
         int blockSizeX = blockSizes[0];
-        return ((width + blockSizeX - 1) / blockSizeX) * blockSizeX;
-    }
-
-    public int getAlignedHeight(TextureImage.TextureFormat format, int height) {
-        int[] blockSizes = pixelFormatToBlockSize.get(format);
-
-        if (blockSizes == null) {
-            System.err.println("Format " + format + " is not an ASTC format.");
-            return 0;
-        }
-
         int blockSizeY = blockSizes[1];
-        return ((height + blockSizeY - 1) / blockSizeY) * blockSizeY;
+
+        // ASTC byte length follows the Khronos formula, generalized by block size:
+        // floor((width + block_width - 1) / block_width) *
+        // floor((height + block_height - 1) / block_height) * 16.
+        // For ASTC 6x6 this matches:
+        // floor((width + 5) / 6) * floor((height + 5) / 6) * 16.
+        // https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_astc/
+        // https://registry.khronos.org/OpenGL/extensions/KHR/KHR_texture_compression_astc_hdr.txt
+        return ((width + blockSizeX - 1) / blockSizeX) * ((height + blockSizeY - 1) / blockSizeY) * 16;
     }
 
     public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input)
@@ -138,7 +154,7 @@ public class TextureCompressorASTC implements ITextureCompressor {
         settings.height = params.getHeight();
         settings.pixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormat());
         settings.colorSpace = Texc.ColorSpace.fromValue(params.getColorSpace());
-        settings.numThreads = 4;
+        settings.numThreads = TextureGenerator.maxThreads;
         settings.data = input;
         settings.outPixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormatOut());
 
@@ -148,5 +164,4 @@ public class TextureCompressorASTC implements ITextureCompressor {
         return TexcLibraryJni.ASTCEncode(settings);
     }
 }
-
 

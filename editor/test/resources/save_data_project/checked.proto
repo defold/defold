@@ -1,0 +1,8 @@
+syntax = "proto2";
+
+message ConvexHull
+{
+    required uint32 index           = 1 [default = 0];
+    required uint32 count           = 2 [default = 0];
+    required string collision_group = 3 [default = "tile"];
+}

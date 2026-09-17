@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -57,7 +57,7 @@ public class PluginScanner {
 				throw new CompileExceptionError("PluginScanner found more than one class implementing " + pluginBaseClass + " in package " + packageName);
 			}
 			// get the plugin (or null if none was found) and cache it
-			plugin = (T)plugins.get(0);
+			plugin = plugins.get(0);
 		}
 		return plugin;
 	}
@@ -109,10 +109,10 @@ public class PluginScanner {
 				boolean isPrivate = Modifier.isPrivate(klass.getModifiers());
 				if (pluginBaseClass.isAssignableFrom(klass) && !isAbstract && !isPrivate) {
 					logger.fine("Found plugin " + className);
-					plugins.add((T)klass.newInstance());
+					plugins.add((T)klass.getDeclaredConstructor().newInstance());
 				}
 			}
-			catch(InstantiationException | IllegalAccessException e) {
+			catch(InstantiationException | IllegalAccessException | NoSuchMethodException e) {
 				throw new CompileExceptionError("Unable to create plugin " + className, e);
 			}
 			catch (Exception e) {

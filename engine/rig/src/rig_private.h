@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,6 +21,20 @@
 
 namespace dmRig
 {
+    /// One slot per MeshSet model that has morph targets. Maps a model id to a slice of
+    /// RigInstance::m_MorphWeightsBuffer (m_BufferOffset .. +m_MorphCount floats) where
+    /// animation and sampling read/write blend-shape weights for that model.
+    ///
+    /// m_MorphCount is the maximum morph-target count among meshes on that model (one shared
+    /// weight vector for the whole model, matching morph animation tracks). Reset clears this
+    /// slice to zero; glTF/rest defaults live on mesh DDF (m_MorphBaseWeights) for render fallback.
+    struct MorphWeightSlot
+    {
+        uint64_t m_ModelId;
+        uint32_t m_MorphCount;
+        uint32_t m_BufferOffset;
+    };
+
     struct RigPlayer
     {
         RigPlayer() : m_Animation(0x0),
@@ -78,6 +92,10 @@ namespace dmRig
         /// User IK constraint targets
         dmArray<IKTarget>             m_IKTargets;
 
+        dmArray<MorphWeightSlot>      m_MorphSlots;
+        dmArray<float>                m_MorphWeightsBuffer;
+        dmArray<float>                m_MorphScratch;
+
         const dmRigDDF::Model*        m_Model;      // Currently selected model
         uint32_t                      m_NumModels;
 
@@ -93,7 +111,8 @@ namespace dmRig
         uint8_t                       m_Blending : 1;
         uint8_t                       m_Enabled : 1;
         uint8_t                       m_DoRender : 1;
-        uint8_t                       : 4;
+        uint8_t                       m_HasPoseMatrixCacheAnimatedPose : 1;
+        uint8_t                       : 3;
     };
 
     /** Pose matrix cache

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,9 +16,8 @@
   (:require [clojure.string :as string]
             [editor.system :as system]
             [editor.url :as url]
-            [internal.util :as util]
             [util.coll :as coll]
-            [util.fn :as fn]
+            [util.eduction :as e]
             [util.text-util :as text-util])
   (:import [clojure.lang MultiFn]))
 
@@ -101,18 +100,6 @@
     empty-parse-state
     (line-seq reader)))
 
-(defn inject-jvm-properties [^String raw-setting-value]
-  ;; Replace patterns such as {{defold.extension.spine.url}} with JVM property values.
-  (string/replace
-    raw-setting-value
-    #"\{\{(.+?)\}\}" ; Match the text inside the an {{...}} expression.
-    (fn [[_ jvm-property-key]]
-      (or (System/getProperty jvm-property-key)
-          (throw (ex-info (format "Required JVM property `%s` is not defined."
-                                  jvm-property-key)
-                          {:jvm-property-key jvm-property-key
-                           :raw-setting-value raw-setting-value}))))))
-
 (defmulti parse-setting-value (fn [meta-setting ^String raw] (:type meta-setting)))
 
 (defmethod parse-setting-value :string [_ raw]
@@ -144,7 +131,7 @@
 ;; branch of an extension in the integration tests as we develop new features.
 (if (system/defold-dev?)
   (defmethod parse-setting-value :url [_ raw]
-    (some-> raw inject-jvm-properties url/try-parse))
+    (some-> raw ((requiring-resolve 'local-extensions/inject-jvm-properties)) url/try-parse))
   (defmethod parse-setting-value :url [_ raw]
     (some-> raw url/try-parse)))
 
@@ -188,32 +175,9 @@
                                 (type-defaults type)))))
                   settings))))
 
-(declare render-raw-setting-value)
-
-(defn- add-to-from-string [meta-info]
-  (update meta-info :settings
-          (fn [settings]
-            (mapv (fn [meta-setting]
-                    (if (contains? meta-setting :options)
-                      (assoc meta-setting
-                        :from-string (fn/partial parse-setting-value meta-setting)
-                        :to-string (fn/partial render-raw-setting-value meta-setting))
-                      meta-setting))
-                  settings))))
-
-(defn remove-to-from-string [meta-info]
-  (update meta-info :settings
-          (fn [settings]
-            (mapv (fn [meta-setting]
-                    (if (contains? meta-setting :options)
-                      (dissoc meta-setting :from-string :to-string)
-                      meta-setting))
-                  settings))))
-
 (defn finalize-meta-info [meta-info]
   (-> meta-info
-      ensure-type-defaults
-      add-to-from-string))
+      ensure-type-defaults))
 
 (defn label [key]
   (->> (string/split (name key) #"(_|\s+)")
@@ -230,7 +194,7 @@
                    {:path setting-path
                     :type :string
                     :help (label (last setting-path))
-                    :unknown-setting? true})))
+                    :unknown-setting true})))
           settings)))
 
 (defn add-meta-info-for-unknown-settings [meta-info settings]
@@ -242,6 +206,13 @@
 (def ^:private empty-meta-info
   {:settings []})
 
+(defn- meta-setting-default-values [meta-setting]
+  (if-let [default-values (:defaults meta-setting)]
+    default-values
+    (if (contains? meta-setting :default)
+      [(:default meta-setting)]
+      [])))
+
 (defn merge-meta-infos
   ([] empty-meta-info)
   ([a] a)
@@ -249,7 +220,33 @@
    (coll/merge-with-kv
      (fn [k a b]
        (case k
-         :settings (into [] (comp cat (util/distinct-by :path)) [a b])
+         :settings (->> (e/concat a b)
+                        (reduce
+                          (fn [e setting]
+                            (let [path->index (key e)
+                                  settings (val e)]
+                              (if-let [index (path->index (:path setting))]
+                                (let [existing-setting (settings index)
+                                      merged-setting (if (and (:unknown-setting existing-setting)
+                                                              (not (:unknown-setting setting)))
+                                                       setting
+                                                       existing-setting)
+                                      default-values (into (meta-setting-default-values existing-setting)
+                                                           (meta-setting-default-values setting))]
+                                  (coll/pair
+                                    path->index
+                                    (assoc! settings index
+                                            (cond-> merged-setting
+                                                    (coll/not-empty default-values)
+                                                    (assoc :defaults default-values)))))
+                                (coll/pair
+                                  (assoc! path->index (:path setting) (count settings))
+                                  (conj! settings setting)))))
+                          (coll/pair
+                            #_path->index (transient {})
+                            #_settings (transient [])))
+                        val
+                        persistent!)
          :group-order (into [] (comp cat (distinct)) [a b])
          :categories (coll/merge-with coll/merge a b)
          b))
@@ -373,6 +370,17 @@
 (defn sanitize-settings [meta-settings settings]
   (mapv (partial sanitize-setting (make-meta-settings-map meta-settings)) settings))
 
+(defn resolve-resource-settings [settings value-field resolve-resource-fn]
+  (mapv (fn [setting]
+          (cond-> setting
+                  ;; Resolve string resource values so the form gets typed values.
+                  ;; This covers raw settings without ResourceSettingNodes, and
+                  ;; defaults from metadata merged after load.
+                  (and (= :resource (:type setting))
+                       (string? (get setting value-field)))
+                  (update value-field resolve-resource-fn)))
+        settings))
+
 (defn make-default-settings [meta-settings]
   (mapv (fn [meta-setting]
           {:path (:path meta-setting)
@@ -483,9 +491,15 @@
   (when-let [index (setting-index meta-settings path)]
     (:default (nth meta-settings index))))
 
+(defn get-default-setting-values [meta-settings path]
+  (if-let [index (setting-index meta-settings path)]
+    (meta-setting-default-values (nth meta-settings index))
+    []))
+
 (defn get-setting-or-default [meta-settings settings path]
-  (or (get-setting settings path)
-      (get-default-setting meta-settings path)))
+  (if-let [index (setting-index settings path)]
+    (:value (nth settings index))
+    (get-default-setting meta-settings path)))
 
 (defn get-meta-setting
   [meta-settings path]

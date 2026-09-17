@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,37 +14,17 @@
 
 (ns editor.pipeline.shader-gen
   (:require [clojure.string :as string]
-            [util.coll :as coll :refer [pair]])
+            [editor.graphics.types :as graphics.types]
+            [internal.util :as util]
+            [util.coll :as coll :refer [pair]]
+            [util.eduction :as e])
   (:import [com.dynamo.bob CompileExceptionError]
-           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ShaderResource]
+           [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ResourceType Shaderc$ResourceTypeInfo Shaderc$ShaderPrecision Shaderc$ShaderResource Shaderc$ShaderStage]
            [com.dynamo.bob.pipeline.shader SPIRVReflector]
-           [com.dynamo.graphics.proto Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderDataType Graphics$ShaderDesc$ShaderType]
-           [org.apache.commons.io FilenameUtils]))
+           [com.dynamo.graphics.proto Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderDataType]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-(defn filename->shader-type [^String filename]
-  {:pre [(string? filename)
-         (pos? (count filename))]}
-  (let [type-ext (string/lower-case (FilenameUtils/getExtension filename))]
-    (case type-ext
-      "vp" :shader-type-vertex
-      "fp" :shader-type-fragment
-      "cp" :shader-type-compute)))
-
-(defn- shader-type->pb-shader-type
-  ^Graphics$ShaderDesc$ShaderType [shader-type]
-  (case shader-type
-    :shader-type-vertex Graphics$ShaderDesc$ShaderType/SHADER_TYPE_VERTEX
-    :shader-type-fragment Graphics$ShaderDesc$ShaderType/SHADER_TYPE_FRAGMENT
-    :shader-type-compute Graphics$ShaderDesc$ShaderType/SHADER_TYPE_COMPUTE))
-
-(defn filename->pb-shader-type
-  ^Graphics$ShaderDesc$ShaderType [^String filename]
-  (-> filename
-      filename->shader-type
-      shader-type->pb-shader-type))
 
 (defn shader-language->pb-shader-language
   ^Graphics$ShaderDesc$Language [shader-language]
@@ -54,6 +34,7 @@
     :language-gles-sm100 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM100
     :language-gles-sm300 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM300
     :language-glsl-sm330 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM330
+    :language-msl-22 Graphics$ShaderDesc$Language/LANGUAGE_MSL_22
     :language-spirv Graphics$ShaderDesc$Language/LANGUAGE_SPIRV))
 
 ;; A resource namespace is the first literal up until the first dot in a
@@ -101,18 +82,30 @@
     Graphics$ShaderDesc$ShaderDataType/SHADER_TYPE_UVEC3 (pair :vector-type-vec3 :type-unsigned-int)
     Graphics$ShaderDesc$ShaderDataType/SHADER_TYPE_UVEC4 (pair :vector-type-vec4 :type-unsigned-int)))
 
+(defn- shader-resource-type->vector-type+data-type [shader-resource-type]
+  (let [pb-shader-data-type (ShaderProgramBuilder/resourceTypeToShaderDataType shader-resource-type)]
+    (pb-shader-data-type->vector-type+data-type pb-shader-data-type)))
+
 (defn- make-attribute-reflection-info [^Shaderc$ShaderResource attribute]
+  {:post [(graphics.types/attribute-reflection-info? %)]}
   (let [shader-resource-type (.-type attribute)
-        pb-shader-data-type (ShaderProgramBuilder/resourceTypeToShaderDataType shader-resource-type)
-        [vector-type data-type] (pb-shader-data-type->vector-type+data-type pb-shader-data-type)]
-    ;; We want to keep the keys here in sync with the attribute-info maps in the
-    ;; editor.graphics module. The idea is that you should be able to amend this
-    ;; map with attribute-info keys from the material to get a fully formed
-    ;; attribute-info map.
-    {:name (.-name attribute)
-     :location (.-location attribute)
+        reflected-location (.-location attribute)
+        array-size (.-arraySize shader-resource-type)
+        [vector-type data-type] (shader-resource-type->vector-type+data-type shader-resource-type)
+        name (.-name attribute)
+        name-key (graphics.types/attribute-name-key name)
+        inferred-semantic-type (graphics.types/infer-semantic-type name-key)]
+    ;; An attribute-reflection-info is an attribute-info with additional fields.
+    {:name name
+     :name-key name-key
+     :semantic-type inferred-semantic-type
      :vector-type vector-type
-     :data-type data-type}))
+     :data-type data-type
+     :normalize false ; We could infer this using graphics.types/infer-normalize, but the engine doesn't.
+     :coordinate-space :coordinate-space-default
+     :step-function :vertex-step-function-vertex
+     :location reflected-location
+     :array-size array-size}))
 
 (def ^:private transpile-target-pb-shader-language
   ;; Use the old GLES2-compatible shaders for rendering in the editor.
@@ -143,37 +136,159 @@
     ::shader-transpile-error true
     false))
 
+(defn- precision-string->enum
+  "Maps game.project precision string to Shaderc.ShaderPrecision."
+  ^Shaderc$ShaderPrecision [s]
+  (case s
+    "highp" Shaderc$ShaderPrecision/SHADER_PRECISION_HIGHP
+    "mediump" Shaderc$ShaderPrecision/SHADER_PRECISION_MEDIUMP
+    (throw (IllegalArgumentException.
+             (format "Invalid shader precision '%s'. Expected \"highp\" or \"mediump\"."
+                     (str s))))))
+
+(defonce ^{:private true :tag 'byte} vertex-shader-stage-flag (byte (.getValue Shaderc$ShaderStage/SHADER_STAGE_VERTEX)))
+
+(defn- vertex-shader-resource? [^Shaderc$ShaderResource shader-resource]
+  (pos? (bit-and (.-stageFlags shader-resource)
+                 vertex-shader-stage-flag)))
+
+(def ^:private preview-light-type-name "Light")
+
+(defn- preview-light-capacity
+  "Returns the array size of the Light UBO as reported by the SPIR-V reflector.
+  The Light UBO is identified by having a type named \"Light\" in the types list
+  and a matching UBO resource.  Returns 0 when the shader does not declare a
+  preview-light buffer."
+  ^long [^SPIRVReflector spirv-reflector]
+  (if-let [_ (some (fn [^Shaderc$ResourceTypeInfo t]
+                     (and t (= preview-light-type-name (.-name t))))
+                   (.getTypes spirv-reflector))]
+    (long
+      (or (some (fn [^Shaderc$ShaderResource ubo]
+                  (when (= preview-light-type-name (.-name ubo))
+                    (.-arraySize ^Shaderc$ResourceType (.-type ubo))))
+                (.getUBOs spirv-reflector))
+          0))
+    0))
+
 (defn transpile-shader-source
-  [^String shader-path-or-url ^String shader-source ^long max-page-count]
-  {:pre [(string? shader-path-or-url)
-         (pos? (count shader-path-or-url))
+  "Compiles a single shader source file, for example, a .vp or a .fp file into an
+  augmented-shader-info map with the transpiled shader source and various
+  reflection info. The precision strings should be either \"highp\" or \"mediump\";
+  when nil, mediump float and highp int are used."
+  [^String shader-path ^String shader-source max-page-count float-precision-str int-precision-str]
+  {:pre [(string? shader-path)
+         (pos? (count shader-path))
          (string? shader-source)
          (pos? (count shader-source))]}
-  (let [shader-type (filename->shader-type shader-path-or-url)
-        pb-shader-type (shader-type->pb-shader-type shader-type)
+  (let [shader-type (graphics.types/filename-shader-type shader-path)
+        pb-shader-type (graphics.types/shader-type-pb-shader-type shader-type)
 
         ^ShaderUtil$Common$GLSLCompileResult glsl-compile-result
         (try
-          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path-or-url shader-source pb-shader-type transpile-target-pb-shader-language max-page-count)
+          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type transpile-target-pb-shader-language ^long max-page-count (precision-string->enum float-precision-str) (precision-string->enum int-precision-str))
           (catch CompileExceptionError cause
             (let [error-line-number (.getLineNumber cause)
                   error-proj-path (or (some-> cause .getResource .getPath (str "/"))
-                                      shader-path-or-url)]
+                                      shader-path)]
               (throw (decorate-transpile-error
-                       cause shader-type shader-path-or-url shader-source max-page-count
+                       cause shader-type shader-path shader-source ^long max-page-count
                        :error-line-number error-line-number
                        :error-proj-path error-proj-path))))
           (catch Exception cause
             (throw (decorate-transpile-error
-                     cause shader-type shader-path-or-url shader-source max-page-count))))
+                     cause shader-type shader-path shader-source ^long max-page-count))))
 
         transpiled-shader-source (.source glsl-compile-result)
         array-sampler-names (vec (.arraySamplers glsl-compile-result))
         spirv-reflector (.reflector glsl-compile-result)
-        attribute-reflection-infos (mapv make-attribute-reflection-info (.getInputs spirv-reflector))
-        resource-binding-namespaces (resource-binding-namespaces spirv-reflector)]
+        resource-binding-namespaces (resource-binding-namespaces spirv-reflector)
+        preview-light-capacity (preview-light-capacity spirv-reflector)
+
+        attribute-reflection-infos
+        (coll/into-> (.getInputs spirv-reflector) []
+          (filter vertex-shader-resource?)
+          (map make-attribute-reflection-info))]
+
     {:shader-type shader-type
+     :max-page-count ^long max-page-count
      :transpiled-shader-source transpiled-shader-source
      :resource-binding-namespaces resource-binding-namespaces
+     :preview-light-capacity preview-light-capacity
      :array-sampler-names array-sampler-names
      :attribute-reflection-infos attribute-reflection-infos}))
+
+(defn- resource-binding-namespaces->regex-str
+  ^String [resource-binding-namespaces]
+  (str "^(" (string/join "|" resource-binding-namespaces) ")\\."))
+
+(defn combined-shader-info
+  "Combines several augmented-shader-infos from, for example, a `.vp` and a
+  `.fp` file returned from the transpile-shader-source function into a map with
+  all the information required to construct a ShaderLifecycle."
+  [augmented-shader-infos]
+  (let [max-page-count
+        (or (coll/unanimous-value (e/map :max-page-count augmented-shader-infos))
+            (throw (ex-info "The max page counts differ among the shaders."
+                            {:augmented-shader-infos augmented-shader-infos})))
+
+        shader-type+source-pairs
+        (coll/into-> augmented-shader-infos []
+          (map (fn [{:keys [shader-type transpiled-shader-source]}]
+                 (pair shader-type transpiled-shader-source))))
+
+        array-sampler-name->slice-sampler-names
+        (coll/into-> augmented-shader-infos {}
+          (mapcat :array-sampler-names)
+          (distinct)
+          (map (fn [array-sampler-name]
+                 (pair array-sampler-name
+                       (mapv (fn [page-index]
+                               (str array-sampler-name "_" page-index))
+                             (range max-page-count))))))
+
+        strip-resource-binding-namespace-regex-str
+        (resource-binding-namespaces->regex-str
+          (coll/into-> augmented-shader-infos (sorted-set)
+            (mapcat :resource-binding-namespaces)))
+
+        attribute-reflection-infos
+        (->> augmented-shader-infos
+             (transduce
+               (comp (mapcat :attribute-reflection-infos)
+                     (util/distinct-by :name-key)) ; The first encountered shader attribute takes precedence.
+               (fn
+                 ([result] result)
+                 ([[attribute-reflection-infos taken-locations] attribute-reflection-info]
+                  ;; Ensure each attribute maps to a specific shader location.
+                  ;; We will associate the attribute names with these locations
+                  ;; as we link the shader.
+                  (let [attribute-count (graphics.types/vector-type-attribute-count (:vector-type attribute-reflection-info))
+                        reflected-location (:location attribute-reflection-info)
+                        base-location (coll/first-where
+                                        #(not (contains? taken-locations %))
+                                        (iterate inc reflected-location))
+                        attribute-reflection-info (assoc attribute-reflection-info :location base-location)
+                        attribute-reflection-infos (conj attribute-reflection-infos attribute-reflection-info)
+                        location-range (range base-location (+ (long base-location) attribute-count))
+                        taken-locations (into taken-locations location-range)]
+                    [attribute-reflection-infos taken-locations])))
+               (pair [] #{}))
+             (first)
+             (sort-by :location)
+             (vec))
+
+        location+attribute-name-pairs
+        (mapv (coll/pair-fn :location :name)
+              attribute-reflection-infos)
+
+        preview-light-capacity
+        (reduce max 0 (map :preview-light-capacity augmented-shader-infos))]
+
+    {:array-sampler-name->slice-sampler-names array-sampler-name->slice-sampler-names
+     :attribute-reflection-infos attribute-reflection-infos
+     :location+attribute-name-pairs location+attribute-name-pairs
+     :max-page-count max-page-count
+     :shader-type+source-pairs shader-type+source-pairs
+     :preview-light-capacity preview-light-capacity
+     :strip-resource-binding-namespace-regex-str strip-resource-binding-namespace-regex-str}))

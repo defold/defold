@@ -1,0 +1,11 @@
+@PACKAGE_INIT@
+
+set(Defold_FOUND TRUE)
+
+# Import exported targets
+include("${CMAKE_CURRENT_LIST_DIR}/DefoldTargets.cmake")
+
+if(NOT TARGET Defold::defold_sdk AND TARGET defold_sdk)
+  add_library(Defold::defold_sdk ALIAS defold_sdk)
+endif()
+

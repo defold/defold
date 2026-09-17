@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,13 +16,13 @@
 #define DMSDK_GAMESYS_RES_COLLECTION_PROXY_H
 
 #include <dmsdk/dlib/hash.h>
-#include <gamesys/gamesys_ddf.h>
+#include <gamesys/collectionproxy_ddf.h>
 
 namespace dmGameSystem
 {
     struct CollectionProxyResource
     {
-        dmGameSystemDDF::CollectionProxyDesc* m_DDF;
+        dmCollectionProxyDDF::CollectionProxyDesc* m_DDF;
         dmhash_t m_UrlHash;
     };
 }

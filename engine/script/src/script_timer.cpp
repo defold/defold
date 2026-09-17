@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -40,6 +40,36 @@ namespace dmScript
      * @name Timer
      * @namespace timer
      * @language Lua
+     */
+
+    /*# Timer handle
+     *
+     * An opaque numeric identifier returned by [ref:timer.delay]. Pass it to
+     * [ref:timer.cancel], [ref:timer.trigger], or [ref:timer.get_info] to control
+     * the timer. Timers are owned by the script that created them and are removed
+     * automatically when the script is deleted. A failed creation returns
+     * `timer.INVALID_TIMER_HANDLE`.
+     *
+     * @typedef
+     * @name timer_handle
+     * @param value [type:number] timer identifier
+     * @examples
+     *
+     * ```lua
+     * local handle = timer.delay(1, true, function()
+     *     print("tick")
+     * end)
+     *
+     * timer.cancel(handle)
+     * ```
+     */
+
+    /*# Timer information
+     * @struct
+     * @name timer.info
+     * @member time_remaining [type:number] Time remaining until the next callback.
+     * @member delay [type:number] Timer interval.
+     * @member repeating [type:boolean] Whether the timer repeats until cancelled.
      */
 
     /*
@@ -88,8 +118,10 @@ namespace dmScript
         dmSet<uint16_t>     m_Instances; // the pool indices
         dmArray<uint16_t>   m_ScratchBuffer; // When doing operations on the timer instances, we need a copy to avoid self modification of m_Instances
         uint16_t            m_Version;   // Incremented to avoid collisions each time we push timer indexes back to the m_IndexPool
+        uint16_t            m_CallbackInvocationDepth;
         uint16_t            m_InUpdate : 1;
         uint16_t            m_IsDirty : 1;
+        uint16_t            m_HasDeferredDeadTimers : 1;
     };
 
     dmArray<TimerWorld*> g_Worlds;
@@ -167,14 +199,17 @@ namespace dmScript
         timer_world->m_Instances.SetCapacity(INITIAL_TIMER_CAPACITY);
 
         timer_world->m_Version = 0;
+        timer_world->m_CallbackInvocationDepth = 0;
         timer_world->m_InUpdate = 0;
         timer_world->m_IsDirty = 0;
+        timer_world->m_HasDeferredDeadTimers = 0;
         return timer_world;
     }
 
     void DeleteTimerWorld(HTimerWorld timer_world)
     {
         assert(timer_world->m_InUpdate == 0);
+        assert(timer_world->m_CallbackInvocationDepth == 0);
         delete timer_world;
     }
 
@@ -202,16 +237,52 @@ namespace dmScript
     static uint32_t CopyIndices(dmSet<uint16_t>& src, dmArray<uint16_t>& tgt)
     {
         uint32_t size = src.Size();
-        if (size > tgt.Capacity())
-        {
-            tgt.SetCapacity(size);
-        }
-        tgt.SetSize(size);
+        tgt.EnsureSize(size);
         for (uint32_t i = 0; i < size; ++i)
         {
             tgt[i] = src[i];
         }
         return size;
+    }
+
+    static uint32_t FreeDeadTimers(HTimerWorld timer_world)
+    {
+        assert(timer_world != 0x0);
+
+        uint32_t size = CopyIndices(timer_world->m_Instances, timer_world->m_ScratchBuffer);
+        uint32_t free_count = 0;
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            Timer* timer = GetTimerFromIndex(timer_world, timer_world->m_ScratchBuffer[i]);
+            if (timer && timer->m_IsAlive == 0)
+            {
+                FreeTimer(timer_world, timer);
+                ++free_count;
+            }
+        }
+        return free_count;
+    }
+
+    static void BeginLuaTimerCallback(HTimerWorld timer_world)
+    {
+        assert(timer_world != 0x0);
+        ++timer_world->m_CallbackInvocationDepth;
+    }
+
+    static void EndLuaTimerCallback(HTimerWorld timer_world)
+    {
+        assert(timer_world != 0x0);
+        assert(timer_world->m_CallbackInvocationDepth > 0);
+        --timer_world->m_CallbackInvocationDepth;
+
+        if (timer_world->m_CallbackInvocationDepth == 0 && timer_world->m_InUpdate == 0 && timer_world->m_HasDeferredDeadTimers)
+        {
+            timer_world->m_HasDeferredDeadTimers = 0;
+            if (FreeDeadTimers(timer_world) > 0)
+            {
+                ++timer_world->m_Version;
+            }
+        }
     }
 
     void UpdateTimers(HTimerWorld timer_world, float dt)
@@ -301,6 +372,12 @@ namespace dmScript
             }
         }
 
+        if (timer_world->m_HasDeferredDeadTimers)
+        {
+            timer_world->m_HasDeferredDeadTimers = 0;
+            FreeDeadTimers(timer_world);
+        }
+
         if (timer_world->m_IsDirty)
         {
             ++timer_world->m_Version;
@@ -351,10 +428,14 @@ namespace dmScript
         timer->m_IsAlive = 0;
         timer->m_Callback(timer_world, TIMER_EVENT_CANCELLED, timer->m_Handle, 0.f, timer->m_Owner, timer->m_UserData);
 
-        if (timer_world->m_InUpdate == 0)
+        if (timer_world->m_InUpdate == 0 && timer_world->m_CallbackInvocationDepth == 0)
         {
             FreeTimer(timer_world, timer);
             ++timer_world->m_Version;
+        }
+        else
+        {
+            timer_world->m_HasDeferredDeadTimers = 1;
         }
 
         return true;
@@ -387,9 +468,13 @@ namespace dmScript
                 ++cancelled_count;
             }
 
-            if (timer_world->m_InUpdate == 0)
+            if (timer_world->m_InUpdate == 0 && timer_world->m_CallbackInvocationDepth == 0)
             {
                 FreeTimer(timer_world, timer);
+            }
+            else
+            {
+                timer_world->m_HasDeferredDeadTimers = 1;
             }
         }
 
@@ -527,15 +612,9 @@ namespace dmScript
         {
             LuaTimerCallbackArgs args = { timer_handle, time_elapsed };
 
+            BeginLuaTimerCallback(timer_world);
             InvokeCallback(callback, LuaTimerCallbackArgsCB, &args);
-        }
-
-        if ((event_type != TIMER_EVENT_TRIGGER_WILL_REPEAT) && IsCallbackValid(callback))
-        {
-            DestroyCallback(callback);
-
-            Timer* timer = GetTimerFromHandle(timer_world, timer_handle);
-            timer->m_UserData = 0;
+            EndLuaTimerCallback(timer_world);
         }
     }
 
@@ -581,18 +660,18 @@ namespace dmScript
      * @name timer.delay
      * @param delay [type:number] time interval in seconds
      * @param repeating [type:boolean] true = repeat timer until cancel, false = one-shot timer
-     * @param callback [type:function(self, handle, time_elapsed)] timer callback function
+     * @param callback [type:fun(self:script_instance, handle:timer_handle, time_elapsed:number)] timer callback function
      *
      * `self`
-     * : [type:object] The current object
+     * : [type:script_instance] The current script instance
      *
      * `handle`
-     * : [type:number] The handle of the timer
+     * : [type:timer_handle] The handle of the timer
      *
      * `time_elapsed`
      * : [type:number] The elapsed time - on first trigger it is time since timer.delay call, otherwise time since last trigger
      *
-     * @return handle [type:number] identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
+     * @return handle [type:timer_handle] identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
      * @examples
      *
      * A simple one-shot timer
@@ -647,15 +726,15 @@ namespace dmScript
      * Cancelling a timer that is already executed or cancelled is safe.
      *
      * @name timer.cancel
-     * @param handle [type:number] the timer handle returned by timer.delay()
-     * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
+     * @param handle [type:timer_handle] the timer handle returned by timer.delay()
+     * @return cancelled [type:boolean] `true` if the timer was active and cancelled, `false` if the timer was already cancelled or complete
      * @examples
      *
      * ```lua
      * self.handle = timer.delay(1, true, function() print("print every second") end)
      * ...
-     * local result = timer.cancel(self.handle)
-     * if not result then
+     * local cancelled = timer.cancel(self.handle)
+     * if not cancelled then
      *    print("the timer is already cancelled")
      * end
      * ```
@@ -679,15 +758,15 @@ namespace dmScript
      * Manual triggering a callback for a timer.
      *
      * @name timer.trigger
-     * @param handle [type:number] the timer handle returned by timer.delay()
-     * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
+     * @param handle [type:timer_handle] the timer handle returned by timer.delay()
+     * @return triggered [type:boolean] `true` if the timer was active and triggered, `false` if the timer was already cancelled or complete
      * @examples
      *
      * ```lua
      * self.handle = timer.delay(1, true, function() print("print every second or manually by timer.trigger") end)
      * ...
-     * local result = timer.trigger(self.handle)
-     * if not result then
+     * local triggered = timer.trigger(self.handle)
+     * if not triggered then
      *    print("the timer is already cancelled or complete")
      * end
      * ```
@@ -700,7 +779,7 @@ namespace dmScript
         dmScript::HTimerWorld timer_world = CheckTimerWorld(L);
 
         Timer* timer = GetTimerFromHandle(timer_world, timer_handle);
-        if (!timer)
+        if (!timer || timer->m_IsAlive == 0)
         {
             lua_pushboolean(L, 0);
             return 1;
@@ -714,7 +793,9 @@ namespace dmScript
         }
 
         LuaTimerCallbackArgs args = { timer->m_Handle, timer->m_Delay - timer->m_Remaining };
+        BeginLuaTimerCallback(timer_world);
         InvokeCallback(callback, LuaTimerCallbackArgsCB, &args);
+        EndLuaTimerCallback(timer_world);
 
         lua_pushboolean(L, 1);
         return 1;
@@ -725,17 +806,8 @@ namespace dmScript
      * Get information about timer.
      *
      * @name  timer.get_info
-     * @param handle [type:number] the timer handle returned by timer.delay()
-     * @return data [type:table|nil] table or `nil` if timer is cancelled/completed. table with data in the following fields:
-     *
-     * `time_remaining`
-     * : [type:number] Time remaining until the next time a timer.delay() fires.
-     *
-     * `delay`
-     * : [type:number] Time interval.
-     *
-     * `repeating`
-     * : [type:boolean] true = repeat timer until cancel, false = one-shot timer.
+     * @param handle [type:timer_handle] the timer handle returned by timer.delay()
+     * @return data [type:timer.info|nil] timer information, or `nil` if the timer is cancelled or complete
      * @examples
      *
      * ```lua
@@ -759,7 +831,7 @@ namespace dmScript
         dmScript::HTimerWorld timer_world = CheckTimerWorld(L);
 
         Timer* timer = GetTimerFromHandle(timer_world, timer_handle);
-        if (!timer)
+        if (!timer || timer->m_IsAlive == 0)
         {
             lua_pushnil(L);
             return 1;
@@ -797,7 +869,7 @@ namespace dmScript
         /*# Indicates an invalid timer handle
          *
          * @name timer.INVALID_TIMER_HANDLE
-         * @constant
+         * @constant [type:timer_handle]
          */
         SETCONSTANT(INVALID_TIMER_HANDLE);
 

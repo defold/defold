@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -59,7 +59,7 @@ public class ShaderPreprocessor {
         public String                             source;
         public IncludeNode                        parent;
         public LinkedHashMap<String, IncludeNode> children = new LinkedHashMap<String, IncludeNode>();
-    };
+    }
 
     private static class IncludeDirectiveTreeIterator implements Iterator<IncludeNode> {
         private final IncludeNode            root;

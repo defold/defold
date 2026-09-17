@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -30,8 +30,17 @@ namespace dmGameSystem
 
     void  PushWorld(struct lua_State* L, void* world);
     void  PushBody(struct lua_State* L, void* body, dmGameObject::HCollection collection, dmhash_t gameobject_id);
+    void  PushBox2DVersion(struct lua_State* L);
 
     void  ScriptBox2DInitializeBody(struct lua_State* L);
+    void  ScriptBox2DInvalidateBody(void* body);
+    void  ScriptBox2DFinalizeBody();
+    void  ScriptBox2DInitializeJoint(struct lua_State* L);
+    void  ScriptBox2DInvalidateJoint(void* joint);
+    void  ScriptBox2DFinalizeJoint();
+    void  ScriptBox2DInitializeWorld(struct lua_State* L);
+    void  ScriptBox2DInitializeFixture(struct lua_State* L);
+    void  ScriptBox2DInitializeShape(struct lua_State* L);
 }
 
 #endif // DM_GAMESYS_SCRIPT_BOX2D_H

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,7 +16,7 @@
   "Essential node types"
   (:require [cognitect.transit :as transit]
             [dynamo.graph :as g]
-            [editor.types :as types]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.util :as util]))
 
@@ -60,7 +60,7 @@
    (direct-owned-node-ids (g/now) scope-id))
   ([basis scope-id]
    {:pre [(g/node-id? scope-id)]}
-   (let [incoming-arcs (g/explicit-arcs-by-target basis scope-id)
+   (let [incoming-arcs (g/explicit-inputs basis scope-id)
          scope-node-type (g/node-type* basis scope-id)
          cascade-delete-input-labels (g/cascade-deletes scope-node-type)
          arc-connects-to-cascade-delete-input? (comp cascade-delete-input-labels gt/target-label)]
@@ -83,8 +83,8 @@
    (owner-node-id (g/now) node-id))
   ([basis node-id]
    {:pre [(g/node-id? node-id)]}
-   (let [targets (g/targets basis node-id)
-         target-id->labels (util/group-into {} [] #(% 0) #(% 1) targets)]
+   (let [outputs (g/outputs basis node-id)
+         target-id->labels (util/group-into {} [] gt/target-id gt/target-label outputs)]
      (some (fn [[target-id labels]]
              (let [target-node-type (g/node-type* basis target-id)
                    cascade-delete-input-label? (g/cascade-deletes target-node-type)]
@@ -108,7 +108,7 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
    (some (fn [outgoing-arc]
            (when (= :nodes (gt/target-label outgoing-arc))
              (gt/target-id outgoing-arc)))
-         (gt/arcs-by-source basis node-id :_node-id))))
+         (ig/arcs-by-source basis node-id :_node-id))))
 
 (defn scope-of-type
   ([node-id node-type]
@@ -119,38 +119,5 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
        scope-id
        (recur basis scope-id node-type)))))
 
-(g/defnode Saveable
-  "Mixin. Content root nodes (i.e., top level nodes for an editor tab) can inherit
-this node to indicate that 'Save' is a meaningful action.
-
-Inheritors are required to supply a production function for the :save output."
-  (output save g/Keyword :abstract))
-
-
-(g/defnode ResourceNode
-  "Mixin. Any node loaded from the filesystem should inherit this."
-  (property filename types/PathManipulation (dynamic visible (g/constantly false)))
-
-  (output content g/Any :abstract))
-
-(g/defnode OutlineNode
-  "Mixin. Any OutlineNode can be shown in an outline view.
-
-Inputs:
-- children `[OutlineItem]` - Input values that will be nested beneath this node.
-
-Outputs:
-- tree `OutlineItem` - A single value that contains the display info for this node and all its children."
-  (output outline-children [types/OutlineItem] (g/constantly []))
-  (output outline-label    g/Str :abstract)
-  (output outline-commands [types/OutlineCommand] (g/constantly []))
-  (output outline-tree     types/OutlineItem
-          (g/fnk [_node-id outline-label outline-commands outline-children]
-               {:label outline-label
-                ;; :icon "my type of icon"
-                :node-ref _node-id
-                :commands outline-commands
-                :children outline-children})))
-
 (defprotocol Adaptable
-  (adapt [this t]))
+  (adapt [this t evaluation-context]))

@@ -1,0 +1,4 @@
+images {
+  image: "/stateless_directory/referenced.png"
+}
+extrude_borders: 2

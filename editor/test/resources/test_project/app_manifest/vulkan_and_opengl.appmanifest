@@ -37,15 +37,6 @@ platforms:
             dynamicLibs: ["vulkan"]
             linkFlags: []
 
-    js-web:
-        context:
-            excludeLibs: []
-            excludeJsLibs: []
-            excludeSymbols: []
-            symbols: []
-            libs: []
-            linkFlags: []
-
     wasm-web:
         context:
             excludeLibs: []
@@ -64,39 +55,47 @@ platforms:
             libs: []
             linkFlags: []
 
-    x86-win32:
-        context:
-            excludeLibs: ["libplatform"]
-            excludeSymbols: []
-            symbols: ["GraphicsAdapterVulkan"]
-            libs: ["libgraphics_vulkan.lib", "libplatform_vulkan.lib", "vulkan-1.lib"]
-            linkFlags: []
-
     x86_64-win32:
         context:
-            excludeLibs: ["libplatform"]
+            excludeLibs: ["platform"]
             excludeSymbols: []
             symbols: ["GraphicsAdapterVulkan"]
-            libs: ["libgraphics_vulkan.lib", "libplatform_vulkan.lib", "vulkan-1.lib"]
+            libs: ["graphics_vulkan.lib", "platform_vulkan.lib", "vulkan-1.lib"]
             linkFlags: []
 
     armv7-android:
         context:
-            excludeLibs: []
+            excludeLibs: ["dmglfw_vulkan"]
             excludeJars: []
+            excludeDynamicLibs: ["vulkan"]
             excludeSymbols: []
-            symbols: ["GraphicsAdapterVulkan"]
-            libs: ["graphics_vulkan"]
+            symbols: ["GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan"]
+            libs: ["graphics_opengles", "graphics_vulkan", "dmglfw"]
+            dynamicLibs: ["EGL", "GLESv1_CM", "GLESv2"]
             linkFlags: []
             jetifier: true
 
     arm64-android:
         context:
-            excludeLibs: []
+            excludeLibs: ["dmglfw_vulkan"]
             excludeJars: []
+            excludeDynamicLibs: ["vulkan"]
             excludeSymbols: []
-            symbols: ["GraphicsAdapterVulkan"]
-            libs: ["graphics_vulkan"]
+            symbols: ["GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan"]
+            libs: ["graphics_opengles", "graphics_vulkan", "dmglfw"]
+            dynamicLibs: ["EGL", "GLESv1_CM", "GLESv2"]
+            linkFlags: []
+            jetifier: true
+
+    x86_64-android:
+        context:
+            excludeLibs: ["dmglfw_vulkan"]
+            excludeJars: []
+            excludeDynamicLibs: ["vulkan"]
+            excludeSymbols: []
+            symbols: ["GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan"]
+            libs: ["graphics_opengles", "graphics_vulkan", "dmglfw"]
+            dynamicLibs: ["EGL", "GLESv1_CM", "GLESv2"]
             linkFlags: []
             jetifier: true
 
@@ -118,7 +117,7 @@ platforms:
             frameworks: ["Metal","IOSurface","QuartzCore"]
             linkFlags: []
 
-    x86_64-ios:
+    arm64_sim-ios:
         context:
             excludeLibs: []
             excludeSymbols: []
@@ -126,4 +125,3 @@ platforms:
             libs: []
             frameworks: []
             linkFlags: []
-

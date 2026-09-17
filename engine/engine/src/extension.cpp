@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,21 +18,25 @@ namespace dmEngine
 {
     dmConfigFile::HConfig GetConfigFile(dmExtension::AppParams* app_params)
     {
-        return (HConfigFile)ExtensionAppParamsGetContext(app_params, dmHashString64("config"));
+        HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(app_params);
+        return (HConfigFile)ContextRegistryGet(context_registry, CONFIGFILE_CONTEXT_NAME);
     }
 
     dmWebServer::HServer GetWebServer(dmExtension::AppParams* app_params)
     {
-        return (dmWebServer::HServer)ExtensionAppParamsGetContext(app_params, dmHashString64("webserver"));
+        HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(app_params);
+        return (dmWebServer::HServer)ContextRegistryGet(context_registry, WEBSERVER_CONTEXT_NAME);
     }
 
     dmGameObject::HRegister GetGameObjectRegister(dmExtension::AppParams* app_params)
     {
-        return (dmGameObject::HRegister)ExtensionAppParamsGetContext(app_params, dmHashString64("register"));
+        HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(app_params);
+        return (dmGameObject::HRegister)ContextRegistryGet(context_registry, GAMEOBJECT_CONTEXT_NAME);
     }
 
     dmHID::HContext GetHIDContext(dmExtension::AppParams* app_params)
     {
-        return (dmHID::HContext)ExtensionAppParamsGetContext(app_params, dmHashString64("hid"));
+        HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(app_params);
+        return (dmHID::HContext)ContextRegistryGet(context_registry, HID_CONTEXT_NAME);
     }
 }

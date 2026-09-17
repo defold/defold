@@ -1,4 +1,4 @@
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -64,25 +64,48 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
     def validate_resource_files(task, msg):
         import google.protobuf
         from google.protobuf.descriptor import FieldDescriptor
+        from collections.abc import Mapping
 
-        descriptor = getattr(msg, 'DESCRIPTOR')
-        for field in descriptor.fields:
-            value = getattr(msg, field.name)
-            if field.type == FieldDescriptor.TYPE_MESSAGE:
-                if field.label == FieldDescriptor.LABEL_REPEATED:
+        def _validate_field(task, field, value):
+            # Handle regular message fields (non-map)
+            if field.type == FieldDescriptor.TYPE_MESSAGE and not (field.message_type and field.message_type.GetOptions().map_entry):
+                if field.is_repeated:
                     for x in value:
-                        validate_resource_files(task, x)
+                        if isinstance(x, google.protobuf.message.Message):
+                            if not validate_resource_files(task, x):
+                                return False
                 else:
-                    validate_resource_files(task, value)
-            elif is_resource(field):
+                    if isinstance(value, google.protobuf.message.Message):
+                        if not validate_resource_files(task, value):
+                            return False
+                return True
 
-                if field.label == FieldDescriptor.LABEL_REPEATED:
+            # Handle map<key, value> fields
+            if field.type == FieldDescriptor.TYPE_MESSAGE and field.message_type and field.message_type.GetOptions().map_entry:
+                # Map fields are represented as a Mapping (MapContainer)
+                if isinstance(value, Mapping):
+                    entry_desc = field.message_type
+                    key_field = entry_desc.fields_by_name.get('key')
+                    value_field = entry_desc.fields_by_name.get('value')
+                    for k, v in value.items():
+                        if key_field:
+                            if not _validate_field(task, key_field, k):
+                                return False
+                        if value_field:
+                            if not _validate_field(task, value_field, v):
+                                return False
+                return True
+
+            # Handle scalar resource fields
+            if is_resource(field):
+
+                if field.is_repeated:
                     lst = value
                 else:
                     lst = [value]
 
                 for x in lst:
-                    if field.label == FieldDescriptor.LABEL_OPTIONAL and len(x) == 0:
+                    if not field.is_repeated and not field.is_required and len(x) == 0:
                         # Skip not specified optional fields
                         # These are accepted as "resources"
                         # NOTE: Somewhat strange to test this predicate in a loop
@@ -96,6 +119,13 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
                     if not os.path.exists(path):
                         print ('%s:0: error: is missing dependent resource file "%s"' % (task.inputs[0].srcpath(), x), file=sys.stderr)
                         return False
+            return True
+
+        descriptor = getattr(msg, 'DESCRIPTOR')
+        for field in descriptor.fields:
+            value = getattr(msg, field.name)
+            if not _validate_field(task, field, value):
+                return False
         return True
 
     def compile(task):
@@ -117,11 +147,11 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
                 out_f.write(msg.SerializeToString())
 
             return 0
-        except (google.protobuf.text_format.ParseError,e):
+        except google.protobuf.text_format.ParseError as e:
             print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
             return 1
 
-        except (google.protobuf.message.EncodeError,e):
+        except google.protobuf.message.EncodeError as e:
             print ('%s:%s' % (task.inputs[0].srcpath(), str(e)), file=sys.stderr)
             return 1
 
@@ -170,20 +200,40 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
     def scan_msg(task, msg):
         import google.protobuf
         from google.protobuf.descriptor import FieldDescriptor
+        from collections.abc import Mapping
         depnodes = []
 
-        descriptor = getattr(msg, 'DESCRIPTOR')
-        for field in descriptor.fields:
-            value = getattr(msg, field.name)
-            if field.type == FieldDescriptor.TYPE_MESSAGE:
-                if field.label == FieldDescriptor.LABEL_REPEATED:
-                    for x in value:
-                        scan_msg(task, x)
-                else:
-                    scan_msg(task, value)
-            elif is_resource(field):
+        def _scan_field(task, field, value):
+            local_depnodes = []
 
-                if field.label == FieldDescriptor.LABEL_REPEATED:
+            # Handle regular message fields (non-map)
+            if field.type == FieldDescriptor.TYPE_MESSAGE and not (field.message_type and field.message_type.GetOptions().map_entry):
+                if field.is_repeated:
+                    for x in value:
+                        if isinstance(x, google.protobuf.message.Message):
+                            local_depnodes.extend(scan_msg(task, x))
+                else:
+                    if isinstance(value, google.protobuf.message.Message):
+                        local_depnodes.extend(scan_msg(task, value))
+                return local_depnodes
+
+            # Handle map<key, value> fields
+            if field.type == FieldDescriptor.TYPE_MESSAGE and field.message_type and field.message_type.GetOptions().map_entry:
+                if isinstance(value, Mapping):
+                    entry_desc = field.message_type
+                    key_field = entry_desc.fields_by_name.get('key')
+                    value_field = entry_desc.fields_by_name.get('value')
+                    for k, v in value.items():
+                        if key_field:
+                            local_depnodes.extend(_scan_field(task, key_field, k))
+                        if value_field:
+                            local_depnodes.extend(_scan_field(task, value_field, v))
+                return local_depnodes
+
+            # Handle scalar resource fields
+            if is_resource(field):
+
+                if field.is_repeated:
                     lst = value
                 else:
                     lst = [value]
@@ -192,7 +242,13 @@ def proto_compile_task(name, module, msg_type, input_ext, output_ext, transforme
                     # NOTE: find_resource doesn't handle unicode string. Thats why str(.) is required
                     n = task.generator.path.find_resource(str(x[1:]))
                     if n:
-                        depnodes.append(n)
+                        local_depnodes.append(n)
+            return local_depnodes
+
+        descriptor = getattr(msg, 'DESCRIPTOR')
+        for field in descriptor.fields:
+            value = getattr(msg, field.name)
+            depnodes.extend(_scan_field(task, field, value))
         return depnodes
 
     def scan(task):

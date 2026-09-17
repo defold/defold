@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,6 +14,8 @@
 
 #include <jc_test/jc_test.h>
 
+#include <dlib/path.h>
+#include <dlib/testutil.h>
 #include <resource/resource.h>
 
 #include "../gameobject.h"
@@ -22,14 +24,15 @@
 class IdTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/id");
+        char path[DMPATH_MAX_PATH];
+        m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gameobject/test/id"));
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
@@ -53,7 +56,7 @@ protected:
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0x0);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGameObject::DeleteCollection(m_Collection);
         dmGameObject::PostUpdate(m_Register);
@@ -125,4 +128,32 @@ TEST_F(IdTest, TestHierarchies)
     ASSERT_EQ(sub2_id, dmGameObject::GetAbsoluteIdentifier(sub1_instance, "go2"));
     ASSERT_EQ(id, dmGameObject::GetAbsoluteIdentifier(sub2_instance, "/go"));
     dmResource::Release(m_Factory, collection);
+}
+
+// Tests that recreating a game object with a reused identifier, still gets a new generation number
+TEST_F(IdTest, TestGenerationChangesOnIdentifierReuse)
+{
+    dmGameObject::HInstance go1 = dmGameObject::New(m_Collection, "/go.goc");
+    ASSERT_NE((void*)0, (void*)go1);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go1, "go1"));
+
+    dmhash_t id = dmGameObject::GetIdentifier(go1);
+    uint32_t generation1 = dmGameObject::GetGeneration(go1);
+
+    ASSERT_EQ(go1, dmGameObject::GetInstanceFromIdentifier(m_Collection, id));
+
+    dmGameObject::Delete(m_Collection, go1, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_EQ((void*)0, (void*)dmGameObject::GetInstanceFromIdentifier(m_Collection, id));
+
+    dmGameObject::HInstance go2 = dmGameObject::New(m_Collection, "/go.goc");
+    ASSERT_NE((void*)0, (void*)go2);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go2, "go1"));
+
+    uint32_t generation2 = dmGameObject::GetGeneration(go2);
+
+    ASSERT_LT(generation1, generation2);
+    ASSERT_EQ(go2, dmGameObject::GetInstanceFromIdentifier(m_Collection, id));
+
+    dmGameObject::Delete(m_Collection, go2, false);
 }

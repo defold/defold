@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,7 +18,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -26,6 +25,7 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 
 import com.dynamo.gamesys.proto.ModelProto.Material;
 import com.dynamo.gamesys.proto.ModelProto.Model;
@@ -33,6 +33,7 @@ import com.dynamo.gamesys.proto.ModelProto.ModelDesc;
 import com.dynamo.gamesys.proto.ModelProto.Texture;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.render.proto.Material.MaterialDesc;
+import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.RigScene;
 
 // for editing we use ModelDesc but in runtime Model
@@ -41,7 +42,45 @@ import com.dynamo.rig.proto.Rig.RigScene;
 @BuilderParams(name="Model", inExts=".model", outExt=".modelc")
 public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
-    private static Logger logger = Logger.getLogger(ModelBuilder.class.getName());
+    private Task createSubTaskOutput(String inputPath, String field, Task.TaskBuilder taskBuilder,
+                                     int outputIndex) throws CompileExceptionError {
+        IResource inputResource = BuilderUtil.checkResource(project, taskBuilder.firstInput(), field, inputPath);
+        Task subTask = project.createTask(inputResource);
+        if (subTask == null || subTask.output(outputIndex) == null) {
+            throw new CompileExceptionError(inputResource, 0,
+                    String.format("Unsupported resource type for '%s': '%s'", field, inputResource.getPath()));
+        }
+        taskBuilder.addInput(subTask.output(outputIndex));
+        return subTask;
+    }
+
+    private int resolveMeshIndex(ModelDesc.Builder modelDescBuilder, IResource modelResource) throws CompileExceptionError {
+        String meshName = modelDescBuilder.getMeshName();
+        if (meshName.isEmpty()) {
+            if (modelDescBuilder.hasMeshIndex()) {
+                throw new CompileExceptionError(modelResource, 0, "Model mesh has an index but no name");
+            }
+            return -1;
+        }
+
+        String meshPath = modelDescBuilder.getMesh();
+        String suffix = BuilderUtil.getSuffix(meshPath).toLowerCase();
+        if (!suffix.equals("gltf") && !suffix.equals("glb")) {
+            throw new CompileExceptionError(modelResource, 0, "Model mesh is only supported for glTF and GLB scenes");
+        }
+
+        IResource sceneResource = BuilderUtil.checkResource(project, modelResource, "mesh", meshPath);
+        try {
+            IResource meshSetResource = sceneResource.changeExt(".meshsetc");
+            MeshSet meshSet = MeshSet.parseFrom(meshSetResource.getContent());
+            int requestedMeshIndex = modelDescBuilder.hasMeshIndex() ? modelDescBuilder.getMeshIndex() : -1;
+            return ModelUtil.resolveNamedMesh(meshSet, meshName, requestedMeshIndex).getMeshIndex();
+        } catch (IllegalArgumentException e) {
+            throw new CompileExceptionError(sceneResource, 0, e.getMessage());
+        } catch (IOException e) {
+            throw new CompileExceptionError(sceneResource, 0, e.getMessage(), e);
+        }
+    }
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
@@ -53,13 +92,17 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
             .addOutput(input.changeExt(params.outExt()))
             .addOutput(input.changeExt(".rigscenec"));
 
-        createSubTask(modelDescBuilder.getMesh(), "mesh", taskBuilder);
+        createSubTaskOutput(modelDescBuilder.getMesh(), "mesh", taskBuilder, 0);
 
         if(!modelDescBuilder.getSkeleton().isEmpty()) {
-            createSubTask(modelDescBuilder.getSkeleton(), "skeleton", taskBuilder);
+            String suffix = BuilderUtil.getSuffix(modelDescBuilder.getSkeleton()).toLowerCase();
+            createSubTaskOutput(modelDescBuilder.getSkeleton(), "skeleton", taskBuilder,
+                    suffix.equals("gltf") || suffix.equals("glb") ? 1 : 0);
         }
         if((!modelDescBuilder.getAnimations().isEmpty())) {
-            createSubTask(modelDescBuilder.getAnimations(), "animations", taskBuilder);
+            String suffix = BuilderUtil.getSuffix(modelDescBuilder.getAnimations()).toLowerCase();
+            createSubTaskOutput(modelDescBuilder.getAnimations(), "animations", taskBuilder,
+                    suffix.equals("gltf") || suffix.equals("glb") ? 2 : 0);
         }
 
         if (modelDescBuilder.getMaterialsCount() > 0) {
@@ -92,26 +135,27 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         ModelDesc.Builder modelDescBuilder = getSrcBuilder(task.firstInput());
+        int selectedMeshIndex = resolveMeshIndex(modelDescBuilder, task.firstInput());
 
         // Rigscene
         RigScene.Builder rigBuilder = RigScene.newBuilder();
-        rigBuilder.setMeshSet(BuilderUtil.replaceExt(modelDescBuilder.getMesh(), ".meshsetc"));
+        rigBuilder.setMeshSet(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getMesh(), ".meshsetc"));
         if(!modelDescBuilder.getSkeleton().isEmpty()) {
-            rigBuilder.setSkeleton(BuilderUtil.replaceExt(modelDescBuilder.getSkeleton(), ".skeletonc"));
+            rigBuilder.setSkeleton(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getSkeleton(), ".skeletonc"));
         }
 
-        if (modelDescBuilder.getAnimations().equals("")) {
+        if (modelDescBuilder.getAnimations().isEmpty()) {
             // No animations
         }
         else if(modelDescBuilder.getAnimations().endsWith(".animationset")) {
-            // if an animsetdesc file is animation input, use animations and skeleton from that file(s) and other related data (weights, boneindices..) from the mesh collada file
-            rigBuilder.setAnimationSet(BuilderUtil.replaceExt(modelDescBuilder.getAnimations(), ".animationsetc"));
+            // if an animsetdesc file is animation input, use animations and skeleton from that file(s) and other related data (weights, boneindices..) from the mesh scene file
+            rigBuilder.setAnimationSet(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getAnimations(), ".animationsetc"));
         }
         else if(!modelDescBuilder.getAnimations().isEmpty()) {
-            // if a collada file is animation input, use animations from that file and other related data (weights, boneindices..) from the mesh collada file
-            // we define this a generated file as the animation set does not come from an .animationset resource, but is exported directly from this collada file
+            // if a model scene file is animation input, use animations from that file and other related data (weights, boneindices..) from the mesh scene file
+            // we define this a generated file as the animation set does not come from an .animationset resource, but is exported directly from this model scene file
             // and because we also avoid possible resource name collision (ref: atlas <-> texture).
-            rigBuilder.setAnimationSet(BuilderUtil.replaceExt(modelDescBuilder.getAnimations(), "_generated_0.animationsetc"));
+            rigBuilder.setAnimationSet(ResourceUtil.minifyPathAndChangeExt(modelDescBuilder.getAnimations(), "_generated_0.animationsetc"));
         } else {
             throw new CompileExceptionError(task.firstInput(), -1, "No animation set in model!");
         }
@@ -125,7 +169,10 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         // Model
         IResource resource = task.firstInput();
         Model.Builder model = Model.newBuilder();
-        model.setRigScene(task.output(1).getPath().replace(this.project.getBuildDirectory(), ""));
+        model.setRigScene(BuilderUtil.getRelativePath(this.project, task.output(1)));
+        if (selectedMeshIndex >= 0) {
+            model.setMeshIndex(selectedMeshIndex);
+        }
 
         if (modelDescBuilder.getMaterialsCount() > 0)
         {
@@ -134,7 +181,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
                 IResource materialSourceResource = BuilderUtil.checkResource(this.project, resource, "material", material.getMaterial());
                 materialBuilder.setName(material.getName());
-                materialBuilder.setMaterial(BuilderUtil.replaceExt(material.getMaterial(), ".material", ".materialc"));
+                materialBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(material.getMaterial(), ".material", ".materialc"));
 
                 List<Texture> texturesList = new ArrayList<>();
                 for (Texture t : material.getTexturesList()) {
@@ -179,7 +226,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
                 Material.Builder materialBuilder = Material.newBuilder();
                 materialBuilder.setName("default");
-                materialBuilder.setMaterial(BuilderUtil.replaceExt(singleMaterial, ".material", ".materialc"));
+                materialBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(singleMaterial, ".material", ".materialc"));
 
                 List<Texture> texturesList = new ArrayList<>();
                 for (String t : modelDescBuilder.getTexturesList()) {

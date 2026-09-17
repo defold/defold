@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,14 +21,17 @@
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/log.h>
+#include <dlib/math.h>
 #include <dlib/memory.h>
 #include <dlib/message.h>
-#include <dlib/log.h>
+#include <dlib/mutex.h>
 #include <dlib/time.h>
-#include <dlib/math.h>
+#include <dlib/thread.h> // DM_HAS_THREADS
 #include "../sound.h"
 #include "../sound_private.h"
 #include "../sound_codec.h"
+#include "../sound_decoder.h"
 #include "../sound_pfb.h"
 #include "../stb_vorbis/stb_vorbis.h"
 
@@ -65,6 +68,7 @@
 #include "test/stereo_tone_440_44100_11025.wav.embed.h"
 #include "test/stereo_tone_440_44100_88200.wav.embed.h"
 #include "test/stereo_tone_440_48000_12000.wav.embed.h"
+#include "test/stereo_tone_440_96000_24000.wav.embed.h"
 #include "test/stereo_tone_2000_48000_12000.wav.embed.h"
 
 #include "test/mono_tone_440_22050_44100.wav.embed.h"
@@ -111,6 +115,203 @@ extern unsigned char MUSIC_ADPCM_WAV[];
 extern uint32_t MUSIC_ADPCM_WAV_SIZE;
 extern unsigned char AMBIENCE_ADPCM_WAV[];
 extern uint32_t AMBIENCE_ADPCM_WAV_SIZE;
+
+static uint32_t ReadLE32(const uint8_t* src)
+{
+    return src[0] | ((uint32_t)src[1] << 8) | ((uint32_t)src[2] << 16) | ((uint32_t)src[3] << 24);
+}
+
+static void WriteLE32(uint8_t* dst, uint32_t value)
+{
+    dst[0] = (uint8_t)value;
+    dst[1] = (uint8_t)(value >> 8);
+    dst[2] = (uint8_t)(value >> 16);
+    dst[3] = (uint8_t)(value >> 24);
+}
+
+static void PushLE32(dmArray<uint8_t>& out, uint32_t value)
+{
+    uint8_t bytes[4];
+    WriteLE32(bytes, value);
+    out.PushArray(bytes, sizeof(bytes));
+}
+
+static void PushPacketLacing(dmArray<uint8_t>& out, uint32_t packet_size)
+{
+    while (packet_size >= 255)
+    {
+        out.Push(255);
+        packet_size -= 255;
+    }
+    out.Push((uint8_t)packet_size);
+}
+
+static uint32_t OggCrcUpdate(uint32_t crc, uint8_t value)
+{
+    crc ^= (uint32_t)value << 24;
+    for (uint32_t i = 0; i < 8; ++i)
+    {
+        crc = (crc & 0x80000000) ? (crc << 1) ^ 0x04c11db7 : crc << 1;
+    }
+    return crc;
+}
+
+static uint32_t OggCrc(const uint8_t* data, uint32_t size)
+{
+    uint32_t crc = 0;
+    for (uint32_t i = 0; i < size; ++i)
+    {
+        crc = OggCrcUpdate(crc, data[i]);
+    }
+    return crc;
+}
+
+static bool GetOggPage(const uint8_t* data, uint32_t size, uint32_t page_index, uint32_t* page_offset, uint32_t* page_size)
+{
+    uint32_t offset = 0;
+    for (uint32_t i = 0; offset + 27 <= size; ++i)
+    {
+        if (memcmp(data + offset, "OggS", 4) != 0)
+            return false;
+
+        uint32_t segment_count = data[offset + 26];
+        if (offset + 27 + segment_count > size)
+            return false;
+
+        uint32_t body_size = 0;
+        for (uint32_t s = 0; s < segment_count; ++s)
+        {
+            body_size += data[offset + 27 + s];
+        }
+
+        uint32_t total_size = 27 + segment_count + body_size;
+        if (offset + total_size > size)
+            return false;
+
+        if (i == page_index)
+        {
+            *page_offset = offset;
+            *page_size = total_size;
+            return true;
+        }
+
+        offset += total_size;
+    }
+
+    return false;
+}
+
+static bool MakeOggWithLargeVorbisComment(const uint8_t* src, uint32_t src_size, dmArray<uint8_t>& out)
+{
+    uint32_t page_offset;
+    uint32_t old_page_size;
+    if (!GetOggPage(src, src_size, 1, &page_offset, &old_page_size))
+        return false;
+
+    uint32_t old_segment_count = src[page_offset + 26];
+    const uint8_t* old_segments = src + page_offset + 27;
+
+    uint32_t first_packet_size = 0;
+    uint32_t first_packet_segment_count = 0;
+    for (uint32_t i = 0; i < old_segment_count; ++i)
+    {
+        first_packet_size += old_segments[i];
+        ++first_packet_segment_count;
+        if (old_segments[i] < 255)
+            break;
+    }
+
+    if (first_packet_segment_count == old_segment_count)
+        return false;
+
+    uint32_t old_body_size = old_page_size - 27 - old_segment_count;
+    uint32_t body_offset = page_offset + 27 + old_segment_count;
+    uint32_t comment_offset = body_offset;
+    uint32_t comment_end = comment_offset + first_packet_size;
+
+    if (comment_end > src_size || first_packet_size < 8 || src[comment_offset] != 3 || memcmp(src + comment_offset + 1, "vorbis", 6) != 0)
+        return false;
+
+    uint32_t cursor = comment_offset + 7;
+    uint32_t vendor_size = ReadLE32(src + cursor);
+    cursor += 4 + vendor_size;
+    if (cursor + 4 >= comment_end)
+        return false;
+
+    uint32_t comment_count_offset = cursor;
+    uint32_t comment_count = ReadLE32(src + comment_count_offset);
+    cursor += 4;
+
+    for (uint32_t i = 0; i < comment_count; ++i)
+    {
+        if (cursor + 4 >= comment_end)
+            return false;
+        uint32_t comment_size = ReadLE32(src + cursor);
+        cursor += 4 + comment_size;
+        if (cursor >= comment_end)
+            return false;
+    }
+
+    uint32_t framing_flag_offset = cursor;
+    if (framing_flag_offset + 1 != comment_end || src[framing_flag_offset] != 1)
+        return false;
+
+    const uint32_t large_comment_size = 20 * 1024;
+    const char* comment_prefix = "id3v2_priv.XMP=";
+    const uint32_t comment_prefix_size = (uint32_t)strlen(comment_prefix);
+
+    dmArray<uint8_t> comment_packet;
+    comment_packet.SetCapacity(first_packet_size + 4 + large_comment_size);
+    comment_packet.PushArray(src + comment_offset, comment_count_offset - comment_offset);
+    PushLE32(comment_packet, comment_count + 1);
+    comment_packet.PushArray(src + comment_count_offset + 4, framing_flag_offset - (comment_count_offset + 4));
+    PushLE32(comment_packet, large_comment_size);
+    for (uint32_t i = 0; i < large_comment_size; ++i)
+    {
+        comment_packet.Push(i < comment_prefix_size ? (uint8_t)comment_prefix[i] : (uint8_t)'x');
+    }
+    comment_packet.PushArray(src + framing_flag_offset, comment_end - framing_flag_offset);
+
+    dmArray<uint8_t> new_segments;
+    new_segments.SetCapacity(255);
+    PushPacketLacing(new_segments, comment_packet.Size());
+    for (uint32_t i = first_packet_segment_count; i < old_segment_count; ++i)
+    {
+        new_segments.Push(old_segments[i]);
+    }
+
+    if (new_segments.Size() > 255)
+        return false;
+
+    uint32_t new_page_size = 27 + new_segments.Size() + comment_packet.Size() + old_body_size - first_packet_size;
+    out.SetCapacity(src_size - old_page_size + new_page_size);
+    out.SetSize(0);
+    out.PushArray(src, page_offset);
+
+    uint32_t new_page_offset = out.Size();
+    out.PushArray(src + page_offset, 27);
+    out[new_page_offset + 22] = 0;
+    out[new_page_offset + 23] = 0;
+    out[new_page_offset + 24] = 0;
+    out[new_page_offset + 25] = 0;
+    out[new_page_offset + 26] = (uint8_t)new_segments.Size();
+    out.PushArray(new_segments.Begin(), new_segments.Size());
+    out.PushArray(comment_packet.Begin(), comment_packet.Size());
+    out.PushArray(src + body_offset + first_packet_size, old_body_size - first_packet_size);
+
+    uint32_t crc = OggCrc(out.Begin() + new_page_offset, new_page_size);
+    WriteLE32(out.Begin() + new_page_offset + 22, crc);
+
+    out.PushArray(src + page_offset + old_page_size, src_size - page_offset - old_page_size);
+    return true;
+}
+
+#if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_IOS)
+extern "C" int dmSoundTestAVAudioReconfigureHandlesEngineStoppedAfterRestart();
+#endif
+#if defined(DM_PLATFORM_IOS)
+extern "C" int dmSoundTestConfigureIOSAudioSessionForPlayback();
+#endif
 
 struct TestParams
 {
@@ -179,7 +380,7 @@ struct TestParams
         m_BufferFrameCount = buffer_frame_count;
     }
 
-    float LengthInSeconds()
+    float LengthInSeconds() const
     {
         if (!m_MixRate)
             return 0.0f;
@@ -187,6 +388,14 @@ struct TestParams
         return (m_FrameCount / (float)m_MixRate) * m_Speed;
     }
 };
+
+static float SoundTestPlaybackDuration(const TestParams& params, float fallback_duration)
+{
+    float length = params.LengthInSeconds();
+    if (length <= 0.0f)
+        return fallback_duration;
+    return length;
+}
 
 struct TestParams2
 {
@@ -245,7 +454,6 @@ struct TestParams2
     }
 };
 
-
 #define MAX_BUFFERS 32
 #define MAX_SOURCES 16
 
@@ -258,7 +466,7 @@ public:
         m_DeviceName = GetParam().m_DeviceName;
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmSound::InitializeParams params;
         params.m_MaxBuffers = MAX_BUFFERS;
@@ -269,9 +477,15 @@ public:
 
         dmSound::Result r = dmSound::Initialize(0, &params);
         ASSERT_EQ(dmSound::RESULT_OK, r);
+#if defined(DM_PLATFORM_IOS)
+        if (strcmp(m_DeviceName, "default") == 0)
+        {
+            ASSERT_EQ(0, dmSoundTestConfigureIOSAudioSessionForPlayback());
+        }
+#endif
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmTime::Sleep(10000); // waiting for sounds to finish playing (to make it less choppy)
         dmSound::Result r = dmSound::Finalize();
@@ -288,7 +502,7 @@ public:
         m_DeviceName = GetParam().m_DeviceName;
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmSound::InitializeParams params;
         params.m_MaxBuffers = MAX_BUFFERS;
@@ -301,7 +515,7 @@ public:
         ASSERT_EQ(dmSound::RESULT_OK, r);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmSound::Result r = dmSound::Finalize();
         ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -375,6 +589,22 @@ struct LoopbackDevice
     int              m_QueueTime; // write cursor (frames)
     int              m_NumWrites;
     uint32_t         m_DeviceFrameCount;
+    dmMutex::HMutex  m_Mutex;
+
+    LoopbackDevice()
+    {
+#if defined(DM_HAS_THREADS)
+        m_Mutex = dmMutex::New();
+#else
+        m_Mutex = 0;
+#endif
+    }
+
+    ~LoopbackDevice()
+    {
+        if (m_Mutex)
+            dmMutex::Delete(m_Mutex);
+    }
 };
 
 
@@ -425,6 +655,9 @@ static dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const void* 
     const int16_t* samples = (const int16_t*)_samples;
 
     LoopbackDevice* loopback = (LoopbackDevice*) device;
+
+    DM_MUTEX_OPTIONAL_SCOPED_LOCK(loopback->m_Mutex);
+
     loopback->m_NumWrites++;
 
     loopback->m_TotalBuffersQueued++;
@@ -455,6 +688,8 @@ static dmSound::Result DeviceLoopbackQueue(dmSound::HDevice device, const void* 
 static uint32_t DeviceLoopbackFreeBufferSlots(dmSound::HDevice device)
 {
     LoopbackDevice* loopback = (LoopbackDevice*) device;
+
+    DM_MUTEX_OPTIONAL_SCOPED_LOCK(loopback->m_Mutex);
 
     uint32_t n = 0;
     for (uint32_t i = 0; i < loopback->m_Buffers.Size(); ++i) {
@@ -627,8 +862,6 @@ TEST_P(dmSoundVerifyTest, Mix)
     const double level = 1.0f;
 
     ASSERT_GE(g_LoopbackDevice->m_AllOutput.Size(), n * 2U);
-
-
 
     // We need to check that the panning works as intended.
     // Instead of checking the panning cintinuously, we check the -1 (left), 1 (right) and 0 (center)
@@ -1290,6 +1523,46 @@ const TestParams params_verify_ogg_test[] = {TestParams("loopback",
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyOggTest, dmSoundVerifyOggTest, jc_test_values_in(params_verify_ogg_test));
 #endif
 
+// Regression for Ogg/Vorbis files whose metadata pushes the setup headers past
+// the initial STB Vorbis input block.
+TEST(SoundDecoder, StbVorbisLargeStartupComment)
+{
+    dmArray<uint8_t> ogg;
+    ASSERT_TRUE(MakeOggWithLargeVorbisComment(MONO_RESAMPLE_FRAMECOUNT_16000_OGG, MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE, ogg));
+
+    dmSound::InitializeParams params;
+    params.m_MaxBuffers = MAX_BUFFERS;
+    params.m_MaxSources = MAX_SOURCES;
+    params.m_OutputDevice = "loopback";
+    params.m_FrameCount = 2048;
+    params.m_UseThread = false;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+
+    dmSound::HSoundData sound_data = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(ogg.Begin(), ogg.Size(), dmSound::SOUND_DATA_TYPE_OGG_VORBIS, &sound_data, dmHashString64("large_startup_comment_ogg")));
+
+    const dmSoundCodec::DecoderInfo* decoder = dmSoundCodec::FindDecoderByName("VorbisDecoderStb");
+    ASSERT_NE((const dmSoundCodec::DecoderInfo*)0, decoder);
+
+    dmSoundCodec::HDecodeStream stream = 0;
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_OpenStream(sound_data, &stream));
+
+    dmSoundCodec::Info info;
+    decoder->m_GetStreamInfo(stream, &info);
+    ASSERT_EQ((uint8_t)1, info.m_Channels);
+    ASSERT_EQ((uint32_t)16000, info.m_Rate);
+
+    float samples[64];
+    char* buffers[1] = {(char*)samples};
+    uint32_t decoded = 0;
+    ASSERT_EQ(dmSoundCodec::RESULT_OK, decoder->m_DecodeStream(stream, buffers, sizeof(samples), &decoded));
+    ASSERT_GT(decoded, 0U);
+
+    decoder->m_CloseStream(stream);
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(sound_data));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
 #if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
 TEST_P(dmSoundVerifyOpusTest, Mix)
 {
@@ -1718,7 +1991,7 @@ TEST_P(dmSoundTestPlayTest, Panning)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     bool playing = false;
-    float length = params.LengthInSeconds();
+    float duration = SoundTestPlaybackDuration(params, 0.5f);
     uint64_t tstart = dmTime::GetMonotonicTime();
     do {
         r = dmSound::Update();
@@ -1734,12 +2007,15 @@ TEST_P(dmSoundTestPlayTest, Panning)
         uint64_t tend = dmTime::GetMonotonicTime();
         float elapsed = (tend - tstart) / 1000000.0f;
 
-        if (length > 0.0f)
-            playing = elapsed <= length;
-        else
-            playing = dmSound::IsPlaying(instance);
+        playing = elapsed <= duration && dmSound::IsPlaying(instance);
 
     } while (playing);
+
+    if (dmSound::IsPlaying(instance))
+    {
+        r = dmSound::Stop(instance);
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+    }
 
     r = dmSound::DeleteSoundInstance(instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
@@ -2020,7 +2296,6 @@ TEST_P(dmSoundMixerTest, Mixer)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 
     r = dmSound::NewSoundInstance(sd2, &instance2);
-    r = dmSound::NewSoundInstance(sd2, &instance2);
     ASSERT_EQ(dmSound::RESULT_OK, r);
     ASSERT_NE((dmSound::HSoundInstance) 0, instance2);
     r = dmSound::SetInstanceGroup(instance2, "g2");
@@ -2088,6 +2363,8 @@ TEST_P(dmSoundMixerTest, Mixer)
 
         const int abs_error = 36;
         if ((uint32_t)i > params.m_BufferFrameCount * 2) {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_LoopbackDevice->m_Mutex);
+
             ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, abs_error);
             ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i + 1], as, abs_error);
             ASSERT_NEAR(g_LoopbackDevice->m_AllOutput[2 * i], as, abs_error);
@@ -2103,10 +2380,14 @@ TEST_P(dmSoundMixerTest, Mixer)
     ASSERT_NEAR(rms_left, last_rms, rms_tol);
     ASSERT_NEAR(rms_right, last_rms, rms_tol);
 
-    ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput.Size() % 2);
-    for (uint32_t i = 2 * n; i < g_LoopbackDevice->m_AllOutput.Size() / 2; ++i) {
-        ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[2 * i]);
-        ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[2 * i + 1]);
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_LoopbackDevice->m_Mutex);
+
+        ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput.Size() % 2);
+        for (uint32_t i = 2 * n; i < g_LoopbackDevice->m_AllOutput.Size() / 2; ++i) {
+            ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[2 * i]);
+            ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[2 * i + 1]);
+        }
     }
 
     r = dmSound::DeleteSoundData(sd1);
@@ -2182,7 +2463,8 @@ const TestParams2 params_mixer_test[] = {
                 2048,
                 false),
 
-    // Threaded
+#if !defined(DM_PLATFORM_IOS)
+    // Threaded loopback does not make forward progress on iOS device tests.
     TestParams2("loopback",
                 MONO_TONE_440_22050_44100_WAV,
                 MONO_TONE_440_22050_44100_WAV_SIZE,
@@ -2204,6 +2486,7 @@ const TestParams2 params_mixer_test[] = {
 
                 2048,
                 true)
+#endif
 };
 INSTANTIATE_TEST_CASE_P(dmSoundMixerTest, dmSoundMixerTest, jc_test_values_in(params_mixer_test));
 #endif
@@ -2337,9 +2620,365 @@ static int PlaySound(const char* path, dmSound::SoundDataType type)
     return 0;
 }
 
+#if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_IOS)
+TEST(SoundAVAudio, ReconfigureHandlesEngineStoppedAfterRestart)
+{
+    // The Objective-C++ helper fakes the AVAudio runtime so this exercises the
+    // backend reconfigure path without depending on host audio components.
+    int result = dmSoundTestAVAudioReconfigureHandlesEngineStoppedAfterRestart();
+    if (result == 0)
+    {
+        SKIP();
+    }
+    ASSERT_EQ(1, result);
+}
+#endif
+
+TEST(SoundSdk, HighSpeedPlaybackCompletes)
+{
+    dmSound::InitializeParams params;
+    params.m_MaxBuffers = MAX_BUFFERS;
+    params.m_MaxSources = MAX_SOURCES;
+    params.m_OutputDevice = "loopback";
+    params.m_FrameCount = 2048;
+    params.m_UseThread = false;
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+
+    dmSound::HSoundData sd = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(STEREO_TONE_440_96000_24000_WAV, STEREO_TONE_440_96000_24000_WAV_SIZE, dmSound::SOUND_DATA_TYPE_WAV, &sd, dmHashString64("high_speed_wav")));
+
+    dmSound::HSoundInstance instance = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(sd, &instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(5.0f, 0.0f, 0.0f, 0.0f)));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Play(instance));
+
+    for (uint32_t i = 0; i < 256 && dmSound::IsPlaying(instance); ++i)
+    {
+        ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+    }
+    ASSERT_FALSE(dmSound::IsPlaying(instance));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(instance));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(sd));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+// New tests for start_time/start_frame offset support
+
+TEST(SoundStartOffset, FrameIndependentOfSpeed)
+{
+    dmSound::InitializeParams params;
+    params.m_MaxBuffers = MAX_BUFFERS;
+    params.m_MaxSources = MAX_SOURCES;
+    params.m_OutputDevice = "loopback";
+    params.m_FrameCount = 2048;
+    params.m_UseThread = false;
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+
+    dmSound::HSoundData sd = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(MONO_TONE_440_44100_88200_WAV, MONO_TONE_440_44100_88200_WAV_SIZE, dmSound::SOUND_DATA_TYPE_WAV, &sd, dmHashString64("startoffset_wav")));
+
+    dmSound::HSoundInstance a = 0, b = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(sd, &a));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(sd, &b));
+
+    // Different speeds should not affect starting offset
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetParameter(a, dmSound::PARAMETER_SPEED, dmVMath::Vector4(0.5f,0,0,0)));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetParameter(b, dmSound::PARAMETER_SPEED, dmVMath::Vector4(2.0f,0,0,0)));
+
+    const uint32_t start_frame = 22050; // 0.5 seconds @ 44100
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetStartFrame(a, start_frame));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetStartFrame(b, start_frame));
+
+    int64_t posa = dmSound::GetInternalPos(a);
+    int64_t posb = dmSound::GetInternalPos(b);
+
+    ASSERT_EQ((int64_t)start_frame, posa);
+    ASSERT_EQ((int64_t)start_frame, posb);
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(a));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(b));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(sd));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+TEST(SoundStartOffset, TimeIndependentOfSpeed)
+{
+    dmSound::InitializeParams params;
+    params.m_MaxBuffers = MAX_BUFFERS;
+    params.m_MaxSources = MAX_SOURCES;
+    params.m_OutputDevice = "loopback";
+    params.m_FrameCount = 2048;
+    params.m_UseThread = false;
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+
+    dmSound::HSoundData sd = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(MONO_TONE_440_44100_88200_WAV, MONO_TONE_440_44100_88200_WAV_SIZE, dmSound::SOUND_DATA_TYPE_WAV, &sd, dmHashString64("startoffset_time_wav")));
+
+    dmSound::HSoundInstance a = 0, b = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(sd, &a));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(sd, &b));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetParameter(a, dmSound::PARAMETER_SPEED, dmVMath::Vector4(0.5f,0,0,0)));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetParameter(b, dmSound::PARAMETER_SPEED, dmVMath::Vector4(2.0f,0,0,0)));
+
+    const float start_time = 0.5f; // 0.5 seconds @ 44100 -> 22050 frames
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetStartTime(a, start_time));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetStartTime(b, start_time));
+
+    int64_t posa = dmSound::GetInternalPos(a);
+    int64_t posb = dmSound::GetInternalPos(b);
+
+    ASSERT_EQ(22050, posa);
+    ASSERT_EQ(22050, posb);
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(a));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(b));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(sd));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+TEST(SoundStartOffset, BeyondLengthCompletes)
+{
+    dmSound::InitializeParams params;
+    params.m_MaxBuffers = MAX_BUFFERS;
+    params.m_MaxSources = MAX_SOURCES;
+    params.m_OutputDevice = "loopback";
+    params.m_FrameCount = 2048;
+    params.m_UseThread = false;
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+
+    dmSound::HSoundData sd = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(MONO_TONE_440_44100_11025_WAV, MONO_TONE_440_44100_11025_WAV_SIZE, dmSound::SOUND_DATA_TYPE_WAV, &sd, dmHashString64("startoffset_beyond_wav")));
+
+    dmSound::HSoundInstance inst = 0;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(sd, &inst));
+
+    // Set start offset well beyond the clip length
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetStartFrame(inst, 20000));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Play(inst));
+
+    // Run a few updates; instance should quickly end
+    for (int i = 0; i < 8; ++i)
+    {
+        dmSound::Update();
+    }
+    ASSERT_FALSE(dmSound::IsPlaying(inst));
+
+    // Ensure no error log on delete
+    dmSound::Stop(inst);
+    // Ensure no error log on delete
+    dmSound::Stop(inst);
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(inst));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(sd));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+#if !defined(GITHUB_CI) || (defined(GITHUB_CI) && !defined(WIN32))
+class dmSoundTestStartTimePlayTest : public dmSoundTest
+{
+};
+
+TEST_P(dmSoundTestStartTimePlayTest, StartTime)
+{
+    TestParams params = GetParam();
+    dmSound::Result r;
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+    ASSERT_NE((dmSound::HSoundInstance) 0, instance);
+
+    // Start at 1.585 seconds
+    r = dmSound::SetStartTime(instance, 1.618f);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(0.8f,0,0,0));
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::Play(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    float duration = SoundTestPlaybackDuration(params, 0.5f);
+    uint64_t tstart = dmTime::GetMonotonicTime();
+    bool playing = false;
+    do {
+        r = dmSound::Update();
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+
+        uint64_t tend = dmTime::GetMonotonicTime();
+        float elapsed = (tend - tstart) / 1000000.0f;
+        playing = elapsed <= duration && dmSound::IsPlaying(instance);
+    } while (playing);
+
+    if (dmSound::IsPlaying(instance))
+    {
+        r = dmSound::Stop(instance);
+        ASSERT_EQ(dmSound::RESULT_OK, r);
+    }
+
+    r = dmSound::DeleteSoundInstance(instance);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+
+    r = dmSound::DeleteSoundData(sd);
+    ASSERT_EQ(dmSound::RESULT_OK, r);
+}
+
+const TestParams params_starttime_play_test[] = {
+    TestParams("default", MONO_RESAMPLE_FRAMECOUNT_16000_OGG, MONO_RESAMPLE_FRAMECOUNT_16000_OGG_SIZE, dmSound::SOUND_DATA_TYPE_OGG_VORBIS, 0, 0, 0, 2048, 1),
+    TestParams("default", MONO_RESAMPLE_FRAMECOUNT_16000_ADPCM_WAV, MONO_RESAMPLE_FRAMECOUNT_16000_ADPCM_WAV_SIZE, dmSound::SOUND_DATA_TYPE_WAV, 0, 0, 0, 2048, 1),
+};
+INSTANTIATE_TEST_CASE_P(dmSoundTestStartTimePlayTest, dmSoundTestStartTimePlayTest, jc_test_values_in(params_starttime_play_test));
+#endif
+
+TEST(SoundSdk, MasterMuteSilencesWithoutChangingGain)
+{
+    dmSound::InitializeParams params;
+    dmSound::SetDefaultInitializeParams(&params);
+    params.m_FrameCount   = 2048;
+    params.m_UseThread    = false;
+    params.m_OutputDevice = "loopback";
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(nullptr, &params));
+
+    const dmhash_t master_hash = dmHashString64("master");
+    float master_gain = 0.0f;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::GetGroupGain(master_hash, &master_gain));
+    EXPECT_NEAR(1.0f, master_gain, 1e-6f);
+    EXPECT_FALSE(dmSound::IsGroupMuted(master_hash));
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::SetGroupMute(master_hash, true));
+    EXPECT_TRUE(dmSound::IsGroupMuted(master_hash));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::GetGroupGain(master_hash, &master_gain));
+    EXPECT_NEAR(1.0f, master_gain, 1e-6f);
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::ToggleGroupMute(master_hash));
+    EXPECT_FALSE(dmSound::IsGroupMuted(master_hash));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::GetGroupGain(master_hash, &master_gain));
+    EXPECT_NEAR(1.0f, master_gain, 1e-6f);
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+TEST(SoundSdk, MasterMuteRestoresPreviousGain)
+{
+    dmSound::InitializeParams params;
+    dmSound::SetDefaultInitializeParams(&params);
+    params.m_FrameCount   = 2048;
+    params.m_UseThread    = false;
+    params.m_OutputDevice = "loopback";
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(nullptr, &params));
+
+    const dmhash_t master_hash = dmHashString64("master");
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetGroupGain(master_hash, 0.35f));
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::SetGroupMute(master_hash, true));
+    EXPECT_TRUE(dmSound::IsGroupMuted(master_hash));
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::SetGroupMute(master_hash, false));
+    EXPECT_FALSE(dmSound::IsGroupMuted(master_hash));
+
+    float master_gain = 0.0f;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::GetGroupGain(master_hash, &master_gain));
+    EXPECT_NEAR(0.35f, master_gain, 1e-6f);
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+TEST(SoundSdk, GroupMuteSilencesWithoutChangingGain)
+{
+    dmSound::InitializeParams params;
+    dmSound::SetDefaultInitializeParams(&params);
+    params.m_FrameCount   = 2048;
+    params.m_UseThread    = false;
+    params.m_OutputDevice = "loopback";
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(nullptr, &params));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::AddGroup("ads"));
+    const dmhash_t group_hash = dmHashString64("ads");
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetGroupGain(group_hash, 0.25f));
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::SetGroupMute(group_hash, true));
+    float gain = 1.0f;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::GetGroupGain(group_hash, &gain));
+    EXPECT_NEAR(0.25f, gain, 1e-6f);
+    EXPECT_TRUE(dmSound::IsGroupMuted(group_hash));
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::SetGroupMute(group_hash, false));
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::GetGroupGain(group_hash, &gain));
+    EXPECT_NEAR(0.25f, gain, 1e-6f);
+    EXPECT_FALSE(dmSound::IsGroupMuted(group_hash));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+TEST(SoundSdk, GroupMuteDefaultsToUnityGainWhenMuted)
+{
+    dmSound::InitializeParams params;
+    dmSound::SetDefaultInitializeParams(&params);
+    params.m_FrameCount   = 2048;
+    params.m_UseThread    = false;
+    params.m_OutputDevice = "loopback";
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(nullptr, &params));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::AddGroup("ui"));
+    const dmhash_t group_hash = dmHashString64("ui");
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetGroupGain(group_hash, 0.0f));
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::SetGroupMute(group_hash, false));
+    float gain = 0.0f;
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::GetGroupGain(group_hash, &gain));
+    EXPECT_NEAR(0.0f, gain, 1e-6f);
+    EXPECT_FALSE(dmSound::IsGroupMuted(group_hash));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
+TEST(SoundSdk, GroupToggleMute)
+{
+    dmSound::InitializeParams params;
+    dmSound::SetDefaultInitializeParams(&params);
+    params.m_FrameCount   = 2048;
+    params.m_UseThread    = false;
+    params.m_OutputDevice = "loopback";
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(nullptr, &params));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::AddGroup("amb"));
+    const dmhash_t group_hash = dmHashString64("amb");
+
+    EXPECT_FALSE(dmSound::IsGroupMuted(group_hash));
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::ToggleGroupMute(group_hash));
+    EXPECT_TRUE(dmSound::IsGroupMuted(group_hash));
+
+    EXPECT_EQ(dmSound::RESULT_OK, dmSound::ToggleGroupMute(group_hash));
+    EXPECT_FALSE(dmSound::IsGroupMuted(group_hash));
+
+    const dmhash_t missing_hash = dmHashString64("missing-group");
+    EXPECT_EQ(dmSound::RESULT_NO_SUCH_GROUP, dmSound::ToggleGroupMute(missing_hash));
+    EXPECT_FALSE(dmSound::IsGroupMuted(missing_hash));
+
+    ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+}
+
 int main(int argc, char **argv)
 {
     dmExportedSymbols();
+
+#if defined(__EMSCRIPTEN__)
+    printf("Skipping sound tests on html5: WebAudio requires a browser window.\n");
+    return 0;
+#endif
 
     dmSound::SoundDataType sound_type;
     const char* sound_file = FindSoundFile(argc, argv, &sound_type);

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,6 +18,7 @@
             [editor.app-view :as app-view]
             [editor.collection :as collection]
             [editor.game-object :as game-object]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [integration.test-util :as test-util]
             [service.log :as log]
@@ -116,9 +117,9 @@
 (deftest copy-paste-ref-component
   (test-util/with-loaded-project
     (let [root (test-util/resource-node project "/logic/main.go")]
-      (is (= 5 (child-count root)))
+      (is (= 4 (child-count root)))
       (copy-paste! project app-view root [0])
-      (is (= 6 (child-count root))))))
+      (is (= 5 (child-count root))))))
 
 (deftest copy-paste-double-embed
   (test-util/with-loaded-project
@@ -156,7 +157,7 @@
 
 (deftest delete-component
   (with-clean-system
-    (let [[workspace project app-view] (test-util/setup! world)
+    (let [[workspace project app-view] (test-util/setup!)
           root (test-util/resource-node project "/logic/atlas_sprite.go")]
       ; 1 comp instance
       (is (= 1 (child-count root)))
@@ -388,29 +389,30 @@
 
 (deftest outline-shows-missing-parts
   (with-clean-system
-    (let [[workspace project] (log/without-logging (test-util/setup! world "test/resources/missing_project"))]  ; no logging as purposely partially broken project
+    (let [[workspace project] (log/without-logging (test-util/setup! "test/resources/missing_project"))]  ; no logging as purposely partially broken project
       (testing "Missing go file visible in collection outline"
-       (let [root (test-util/resource-node project "/missing_go.collection")]
-         (is (= 1 (child-count root)))
-         (is (.startsWith (:label (outline root [0])) "non-existent"))))
+        (let [root (test-util/resource-node project "/missing_go.collection")]
+          (is (= 1 (child-count root)))
+          (is (.startsWith (:label (outline root [0])) "non-existent"))))
       (testing "Missing sub collection visible in collection outline"
-       (let [root (test-util/resource-node project "/missing_collection.collection")]
-         (is (= 1 (child-count root)))
-         (is (.startsWith  (:label (outline root [0])) "non-existent"))))
+        (let [root (test-util/resource-node project "/missing_collection.collection")]
+          (is (= 1 (child-count root)))
+          (is (.startsWith  (:label (outline root [0])) "non-existent"))))
       (testing "Missing script visible in go outline"
         (let [root (test-util/resource-node project "/missing_component.go")]
           (is (= 1 (child-count root)))
           (is (.startsWith (:label (outline root [0])) "non-existent"))))
       (testing "Missing script visible in collection-go-outline"
         (let [root (test-util/resource-node project "/missing_go_component.collection")
-              labels (map :label (outline-seq root))
-              expected-prefixes ["Collection" "missing_component" "non-existent"]]
-          (is (= 3 (count labels))) ; collection + go + script
-          (is (every? true? (map #(.startsWith %1 %2) labels expected-prefixes))))))))
+              labels (map :label (outline-seq root))]
+          (is (= [(localization/message "outline.collection")
+                  "missing_component"
+                  "non-existent"]
+                 labels)))))))
 
 (deftest outline-shows-nil-parts
   (with-clean-system
-    (let [[workspace project] (log/without-logging (test-util/setup! world "test/resources/nil_project"))]  ; no logging as purposely partially broken project
+    (let [[workspace project] (log/without-logging (test-util/setup! "test/resources/nil_project"))]  ; no logging as purposely partially broken project
       (testing "Nil go file visible in collection outline"
         (let [root (test-util/resource-node project "/nil_go.collection")]
           (is (= 1 (child-count root)))
@@ -425,10 +427,11 @@
           (is (.startsWith (:label (outline root [0])) "nil-component"))))
       (testing "Nil script visible in collection-go-outline"
         (let [root (test-util/resource-node project "/nil_go_component.collection")
-              labels (map :label (outline-seq root))
-              expected-prefixes ["Collection" "nil-go" "nil-component"]]
-          (is (= 3 (count labels))) ; collection + go + script
-          (is (every? true? (map #(.startsWith %1 %2) labels expected-prefixes))))))))
+              labels (map :label (outline-seq root))]
+          (is (= [(localization/message "outline.collection")
+                  "nil-go"
+                  "nil-component"]
+                 labels)))))))
 
 (deftest outline-tile-source
   (test-util/with-loaded-project
@@ -594,7 +597,7 @@
       (cut! project root [0 0 0])
       (is (= 0 (child-count root [0 0])))
 
-      (is (= "Collection" (:label (outline root))))
+      (is (= (localization/message "outline.collection") (:label (outline root))))
       (is (= 1 (child-count root)))
       (paste! project app-view root)
       (is (= 2 (child-count root)))
@@ -662,7 +665,7 @@
       (cut! project root [0 0 1 0])
       (is (= 0 (child-count root [0 0 1])))
 
-      (is (= "Nodes" (:label (outline root [0]))))
+      (is (= (localization/message "outline.gui.nodes") (:label (outline root [0]))))
       (is (nil? (outline-labeled root "sub_box")))
       (is (= 1 (child-count root [0])))
       (paste! project app-view root [0])
@@ -792,20 +795,21 @@
 (deftest add-pfx-emitter-modifier
   (test-util/with-loaded-project
     (let [pfx (test-util/open-tab! project app-view "/particlefx/blob.particlefx")
-          children-fn (fn [] (mapv :label (:children (test-util/outline pfx []))))]
-      (is (= ["emitter" "Acceleration"] (children-fn)))
+          children-fn (fn [] (mapv :label (:children (test-util/outline pfx []))))
+          acceleration (localization/message "command.edit.add-secondary-embedded-component.variant.particlefx.option.acceleration")]
+      (is (= ["emitter" acceleration] (children-fn)))
       ;; Add emitter through command
       (handler-run :edit.add-embedded-component app-view [pfx] {:emitter-type :emitter-type-circle})
-      (is (= ["emitter" "emitter1" "Acceleration"] (children-fn)))
+      (is (= ["emitter" "emitter1" acceleration] (children-fn)))
       ;; Copy-paste 'emitter'
       (copy-paste! project app-view pfx [0])
-      (is (= ["emitter" "emitter1" "emitter2" "Acceleration"] (children-fn)))
+      (is (= ["emitter" "emitter1" "emitter2" acceleration] (children-fn)))
       ;; Add modifier through command
       (handler-run :edit.add-secondary-embedded-component app-view [pfx] {:modifier-type :modifier-type-acceleration})
-      (is (= ["emitter" "emitter1" "emitter2" "Acceleration" "Acceleration"] (children-fn)))
+      (is (= ["emitter" "emitter1" "emitter2" acceleration acceleration] (children-fn)))
       ;; Copy-paste 'Acceleration'
       (copy-paste! project app-view pfx [3])
-      (is (= ["emitter" "emitter1" "emitter2" "Acceleration" "Acceleration" "Acceleration"] (children-fn))))))
+      (is (= ["emitter" "emitter1" "emitter2" acceleration acceleration acceleration] (children-fn))))))
 
 (deftest add-to-referenced-collection
   (test-util/with-loaded-project
@@ -863,8 +867,8 @@
       (is (= 3 (child-count props-collection)))
 
       ;; Verify connections.
-      (let [added-game-object (:node-id (outline root [0 0 0]))
-            sibling-game-object (:node-id (outline root [0 0 1]))]
+      (let [added-game-object (:node-id (outline root [0 0 2]))
+            sibling-game-object (:node-id (outline root [0 0 0]))]
         (is (g/override? added-game-object))
         (is (= "go" (g/node-value added-game-object :id)))
         (is (= "props" (g/node-value sibling-game-object :id)))
@@ -885,11 +889,11 @@
         (g/set-property! sibling-game-object :id "props"))
 
       ;; Add game object instance to "props" game object.
-      (is (= "props" (:label (outline root [0 0 1]))))
+      (is (= "props" (:label (outline root [0 0 0]))))
       (is (= 3 (count (keys (g/node-value props-collection :go-inst-ids)))))
-      (is (= 1 (child-count root [0 0 1])))
-      (add-child-game-object! root [0 0 1])
-      (is (= 2 (child-count root [0 0 1])))
+      (is (= 1 (child-count root [0 0 0])))
+      (add-child-game-object! root [0 0 0])
+      (is (= 2 (child-count root [0 0 0])))
       (is (= 4 (count (keys (g/node-value props-collection :go-inst-ids))))))))
 
 (deftest gen-node-outline-keys-test

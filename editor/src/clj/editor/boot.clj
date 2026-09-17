@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,15 +13,19 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.boot
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.stacktrace :as stack]
             [clojure.tools.cli :as cli]
             [editor.analytics :as analytics]
             [editor.connection-properties :refer [connection-properties]]
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
+            [editor.fs :as fs]
             [editor.gl :as gl]
-            [editor.keymap :as keymap]
+            [editor.launcher :as launcher]
+            [editor.localization :as localization]
+            [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.system :as system]
@@ -29,9 +33,12 @@
             [editor.updater :as updater]
             [editor.welcome :as welcome]
             [service.log :as log]
+            [util.coll :as coll]
+            [util.path :as path]
             [util.repo :as repo])
-  (:import [com.defold.editor Shutdown]
+  (:import [com.defold.editor MacOSDockMenu Shutdown]
            [com.dynamo.bob.archive EngineVersion]
+           [java.time Instant]
            [java.util Arrays]
            [javax.imageio ImageIO]))
 
@@ -46,23 +53,26 @@
     (fn [prefix lib & options]
       (when-let [progress-reporter @namespace-progress-reporter]
         (let [pos (swap! namespace-counter inc)
-              msg (str "Initializing editor " (if prefix
-                                                (str prefix "." lib)
-                                                (str lib)))]
+              msg (localization/message
+                    "progress.initializing-editor"
+                    {"lib" (if prefix
+                             (str prefix "." lib)
+                             (str lib))})]
           (progress-reporter
             #(progress/jump % pos msg))))
       (apply core-load-lib-fn prefix lib options))))
 
 (defn- open-project-with-progress-dialog
-  [namespace-loader user-prefs cli-options project updater newly-created?]
+  [namespace-loader user-prefs localization cli-options project updater newly-created?]
   (dialogs/make-load-project-dialog
+    localization
     (fn [render-progress!]
-      (let [namespace-progress (progress/make "Loading editor" 2867) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
-            render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 0) 1)
-            render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 1) 4)
+      (let [namespace-progress (progress/make (localization/message "progress.loading-editor") 2867) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
+            render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make (localization/message "progress.loading") 5 0) 1)
+            render-project-progress! (progress/nest-render-progress render-progress! (progress/make (localization/message "progress.loading") 5 1) 4)
             project-file (io/file project)
             project-dir (.getParentFile project-file)
-            project-prefs (doto (prefs/project project-dir user-prefs) prefs/migrate-project-prefs!)]
+            project-prefs (prefs/project project-dir user-prefs)]
         (welcome/add-recent-project! project-prefs project-file)
         (reset! namespace-progress-reporter #(render-namespace-progress! (% namespace-progress)))
 
@@ -76,32 +86,32 @@
         (log/info :message "Finished loading editor namespaces." :namespace-counter @namespace-counter)
 
         ;; Initialize the system and load the project.
-        (let [system-config (apply (var-get (ns-resolve 'editor.shared-editor-settings 'load-project-system-config)) [project-dir])]
-          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-systems!)) [project-prefs])
-          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project!)) [system-config])
-          (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project!)) [project-file project-prefs cli-options render-project-progress! updater newly-created?]))))))
+        (let [system-config ((resolve `editor.shared-editor-settings/load-project-system-config) project-dir localization)]
+          ((resolve `editor.boot-open-project/initialize-systems!) project-prefs)
+          ((resolve `editor.boot-open-project/initialize-project!) system-config)
+          ((resolve `editor.boot-open-project/open-project!) project-file project-prefs localization cli-options render-project-progress! updater newly-created?))))))
 
 (defn- select-project-from-welcome
-  [namespace-loader prefs cli-options updater]
+  [namespace-loader prefs localization cli-options updater]
   (ui/run-later
-    (welcome/show-welcome-dialog! prefs updater
+    (welcome/show-welcome-dialog! prefs localization updater
                                   (fn [project newly-created?]
-                                    (open-project-with-progress-dialog namespace-loader prefs cli-options project updater newly-created?)))))
+                                    (open-project-with-progress-dialog namespace-loader prefs localization cli-options project updater newly-created?)))))
 
 (defn notify-user
-  [ex-map sentry-id-promise]
+  [localization ex-map sentry-id-promise]
   (when (.isShowing (ui/main-stage))
     (ui/run-now
-      (dialogs/make-unexpected-error-dialog ex-map sentry-id-promise))))
+      (dialogs/make-unexpected-error-dialog ex-map sentry-id-promise localization))))
 
 (defn- set-sha1-revisions-from-repo! []
   ;; Use the sha1 of the HEAD commit as the editor revision.
-  (when (empty? (system/defold-editor-sha1))
+  (when (coll/empty? (system/defold-editor-sha1))
     (when-some [editor-sha1 (repo/detect-editor-sha1)]
       (system/set-defold-editor-sha1! editor-sha1)))
 
   ;; If we don't have an engine sha1 specified, use the sha1 from Bob.
-  (when (empty? (system/defold-engine-sha1))
+  (when (coll/empty? (system/defold-engine-sha1))
     (system/set-defold-engine-sha1! EngineVersion/sha1)))
 
 (defn disable-imageio-cache!
@@ -109,51 +119,104 @@
   ;; Disabling ImageIO cache speeds up reading images from disk significantly
   (ImageIO/setUseCache false))
 
+(extend-type MacOSDockMenu
+  localization/Localizable
+  (apply-localization [dock-menu label]
+    (.setLabel dock-menu label)))
+
+(defn- install-dock-menu! [localization]
+  (when (os/is-mac-os?)
+    (try
+      (localization/localize!
+        (MacOSDockMenu/install #(ui/run-later (launcher/start!)))
+        localization
+        (localization/message "menu.dock.new-window"))
+      (catch Exception e
+        (log/warn :message "Failed to install macOS Dock menu."
+                  :exception e)))))
+
 (def cli-options
   ;; Path to preference file, mainly used for testing
   [["-prefs" "--preferences PATH" "Path to preferences file"]
    ["-p" "--port PORT" "Editor server port" :default 0 :parse-fn ^[String] Long/valueOf]])
 
+(defn write-installations-json! [launcher-path resources-path]
+  (try
+    (let [os (os/os)
+          launcher-path (str (path/real launcher-path))
+          registry-path (path/of
+                          (case os
+                            :macos (fs/evaluate-path "~/Library/Application Support")
+                            :linux (or (fs/evaluate-path "$XDG_STATE_HOME")
+                                       (fs/evaluate-path "~/.local/state"))
+                            :win32 (or (fs/evaluate-path "$LOCALAPPDATA")
+                                       (fs/evaluate-path "~/AppData/Local")))
+                          "Defold"
+                          "installations.json")]
+      (path/atomic-replace!
+        registry-path
+        (fn write-installations-json-temp-file [temp-path]
+          (with-open [writer (io/writer temp-path :encoding "UTF-8")]
+            (-> (when (path/exists? registry-path)
+                  (try
+                    (with-open [reader (io/reader registry-path :encoding "UTF-8")]
+                      (json/read reader :key-fn keyword))
+                    (catch Exception _)))
+                (coll/into->
+                  [{:launcherPath launcher-path
+                    :installPath (str (case os
+                                        :macos (path/real resources-path "../..")
+                                        (:linux :win32) (path/real resources-path)))
+                    :lastLaunchedAt (str (Instant/now))}]
+                  (remove #(= launcher-path (:launcherPath %))))
+                (json/write writer))))))
+    (catch Exception e
+      (log/warn :message "Failed to write installations.json." :exception e))))
+
 ;; Entry point from java EditorApplication is in editor.bootloader/main, which calls this function.
 (defn main [args namespace-loader]
   (when (system/defold-dev?)
     (set-sha1-revisions-from-repo!))
-  (error-reporting/setup-error-reporting! {:notifier {:notify-fn notify-user}
-                                           :sentry (get connection-properties :sentry)})
-  (disable-imageio-cache!)
-
-  (when-let [support-error (gl/gl-support-error)]
-    (when (= (dialogs/make-gl-support-error-dialog support-error) :quit)
-      (System/exit -1)))
-
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
         cli-options (:options opts)
-        prefs (doto
-                (if-let [prefs-path (:preferences cli-options)]
-                  (prefs/global prefs-path)
-                  (doto (prefs/global) prefs/migrate-global-prefs!))
-                keymap/migrate-from-file!)
-        updater (updater/start!)
-        analytics-url (get connection-properties :analytics-url)
-        analytics-send-interval 300]
-    (when (some? updater)
-      (updater/delete-backup-files! updater))
-    (analytics/start! analytics-url analytics-send-interval)
+        prefs (if-let [prefs-path (:preferences cli-options)]
+                (prefs/global prefs-path)
+                (prefs/global))
+        localization (localization/make-editor prefs error-reporting/report-exception!)
+        analytics-url (:analytics-url connection-properties)
+        analytics-send-interval 300
+        cid (analytics/start! analytics-url localization analytics-send-interval)]
+    (when-not (system/defold-dev?)
+      (when-let [launcher-path (system/defold-launcherpath)]
+        (when-let [resources-path (system/defold-resourcespath)]
+          (write-installations-json! launcher-path resources-path))))
     (Shutdown/addShutdownAction analytics/shutdown!)
-    (try
-      (let [game-project-path (get-in opts [:arguments 0])
-            game-project-file (io/file game-project-path)]
-        (if (and game-project-path
-                 (.exists game-project-file))
-          (open-project-with-progress-dialog namespace-loader prefs cli-options (.getAbsolutePath game-project-file) updater false)
-          (select-project-from-welcome namespace-loader prefs cli-options updater)))
-      (catch Throwable t
-        (log/error :exception t)
-        (stack/print-stack-trace t)
-        (.flush *out*)
-        ;; note - i'm not sure System/exit is a good idea here. it
-        ;; means that failing to open one project causes the whole
-        ;; editor to quit, maybe losing unsaved work in other open
-        ;; projects.
-        (System/exit -1)))))
+    (error-reporting/setup-error-reporting! {:notifier {:notify-fn (partial notify-user localization)}
+                                             :sentry (-> connection-properties
+                                                         :sentry
+                                                         (assoc :user {:id cid}))})
+    (disable-imageio-cache!)
+    (install-dock-menu! localization)
+    (when-let [support-error (gl/gl-support-error)]
+      (when (= (dialogs/make-gl-support-error-dialog support-error localization) :quit)
+        (System/exit -1)))
+    (let [updater (updater/start! prefs)]
+      (when (some? updater)
+        (updater/delete-backup-files! updater))
+      (try
+        (let [game-project-path (get-in opts [:arguments 0])
+              game-project-file (io/file game-project-path)]
+          (if (and game-project-path
+                   (.exists game-project-file))
+            (open-project-with-progress-dialog namespace-loader prefs localization cli-options (.getAbsolutePath game-project-file) updater false)
+            (select-project-from-welcome namespace-loader prefs localization cli-options updater)))
+        (catch Throwable t
+          (log/error :exception t)
+          (stack/print-stack-trace t)
+          (.flush *out*)
+          ;; note - i'm not sure System/exit is a good idea here. it
+          ;; means that failing to open one project causes the whole
+          ;; editor to quit, maybe losing unsaved work in other open
+          ;; projects.
+          (System/exit -1))))))

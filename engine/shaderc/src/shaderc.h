@@ -1,5 +1,4 @@
-
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,7 +31,8 @@ namespace dmShaderc
         SHADER_LANGUAGE_NONE  = 0,
         SHADER_LANGUAGE_GLSL  = 1,
         SHADER_LANGUAGE_HLSL  = 2,
-        SHADER_LANGUAGE_SPIRV = 3,
+        SHADER_LANGUAGE_MSL   = 3,
+        SHADER_LANGUAGE_SPIRV = 4,
     };
 
     enum ShaderStage
@@ -130,24 +130,54 @@ namespace dmShaderc
         IMAGE_ACCESS_QUALIFIER_READ_WRITE,
     };
 
+    enum ShaderPrecision
+    {
+        SHADER_PRECISION_MEDIUMP,
+        SHADER_PRECISION_HIGHP,
+    };
+
+    enum ShaderCompilerPlatform
+    {
+        SHADER_COMPILER_PLATFORM_DEFAULT,
+        SHADER_COMPILER_PLATFORM_MACOS,
+        SHADER_COMPILER_PLATFORM_IOS,
+        SHADER_COMPILER_PLATFORM_XBONE,
+    };
+
     struct ShaderCompilerOptions
     {
         ShaderCompilerOptions()
         : m_Version(330)
         , m_EntryPoint("main")
+        , m_GlslEsDefaultFloatPrecision(SHADER_PRECISION_MEDIUMP)
+        , m_GlslEsDefaultIntPrecision(SHADER_PRECISION_HIGHP)
+        , m_TargetPlatform(SHADER_COMPILER_PLATFORM_DEFAULT)
         , m_RemoveUnusedVariables(true)
         , m_No420PackExtension(true)
         , m_GlslEmitUboAsPlainUniforms(true)
         , m_GlslEs(false)
+        , m_ExternalCompilerPath(0)
+        , m_ExternalCompilerArgs(0)
+        , m_RootSignatureOverride(0)
         {}
 
-        uint32_t    m_Version;
-        const char* m_EntryPoint;
+        uint32_t        m_Version;
+        const char*     m_EntryPoint;
+        ShaderPrecision m_GlslEsDefaultFloatPrecision;
+        ShaderPrecision m_GlslEsDefaultIntPrecision;
+        ShaderCompilerPlatform m_TargetPlatform;
+        uint8_t         m_RemoveUnusedVariables      : 1;
+        uint8_t         m_No420PackExtension         : 1;
+        uint8_t         m_GlslEmitUboAsPlainUniforms : 1;
+        uint8_t         m_GlslEs                     : 1;
 
-        uint8_t     m_RemoveUnusedVariables      : 1;
-        uint8_t     m_No420PackExtension         : 1;
-        uint8_t     m_GlslEmitUboAsPlainUniforms : 1;
-        uint8_t     m_GlslEs                     : 1;
+        // Optional external compiler invocation driven from Java.
+        // If both fields are set, shaderc will invoke this tool for final blob generation.
+        const char* m_ExternalCompilerPath;
+        const char* m_ExternalCompilerArgs;
+
+        // Optional HLSL [RootSignature("...")] override injected by shaderc.
+        const char* m_RootSignatureOverride;
     };
 
     struct ResourceType
@@ -216,19 +246,51 @@ namespace dmShaderc
         uint8_t     m_ShaderResourceBinding;
     };
 
+    struct MSLResourceMapping
+    {
+        const char* m_Name;
+        uint64_t    m_NameHash;
+
+        uint32_t    m_MetalResourceIndex;
+        uint8_t     m_ShaderResourceSet;
+        uint8_t     m_ShaderResourceBinding;
+    };
+
     struct ShaderCompileResult
     {
         dmArray<uint8_t> m_Data;
         const char*      m_LastError;
 
+        // SPIRV-Cross assigns Metal argument-buffer resource indices independently
+        // of the original shader set/binding pairs. The Metal backend needs this
+        // mapping to encode each reflected Defold resource at the correct MSL index.
+        dmArray<MSLResourceMapping> m_MSLResourceMappings;
+
         // In case of compiling HLSL, we generate a separate reflection structure
         // that embeds a list of resources (called root signature) and their HLSL bind points (registers)
         // This must match resource bind points in the engine, so we need to output that information here.
         dmArray<HLSLResourceMapping> m_HLSLResourceMappings;
+
+        // In case of compiling HLSL > version 50, we want to have the root signature available for merging
+        dmArray<uint8_t> m_HLSLRootSignature;
+
         // When compiling compute shaders for HLSL, we need to store a reference to the
         // manufactured gl_NumWorkGroups constant buffer that was generated.
         // The value will be set to 0xFF otherwise.
         uint8_t                    m_HLSLNumWorkGroupsId;
+
+        // Currently used for MSL/Metal only
+        uint32_t                   m_WorkGroupSizeX;
+        uint32_t                   m_WorkGroupSizeY;
+        uint32_t                   m_WorkGroupSizeZ;
+    };
+
+    struct HLSLRootSignature
+    {
+        const char*      m_LastError;
+
+        // In case of compiling HLSL > version 50, we want to have the root signature available for merging
+        dmArray<uint8_t> m_HLSLRootSignature;
     };
 
     // Shader context
@@ -246,6 +308,7 @@ namespace dmShaderc
     extern "C" DM_DLLEXPORT void                    SetResourceBinding(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t binding);
     extern "C" DM_DLLEXPORT void                    SetResourceSet(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t set);
     extern "C" DM_DLLEXPORT ShaderCompileResult*    Compile(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions& options);
+    extern "C" DM_DLLEXPORT HLSLRootSignature*      HLSLMergeRootSignatures(ShaderCompileResult* shaders, uint32_t shaders_size);
     extern "C" DM_DLLEXPORT void                    FreeShaderCompileResult(ShaderCompileResult* result);
 
     void DebugPrintReflection(const ShaderReflection* reflection);

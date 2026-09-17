@@ -12,16 +12,23 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef _ANDROID_JNI_H_
-#define _ANDROID_JNI_H_
+#ifndef DM_GLFW_ANDROID_JNI_H
+#define DM_GLFW_ANDROID_JNI_H
 
 #include "internal.h"
 #include <jni.h>
 
 extern struct android_app* g_AndroidApp;
+extern int g_AndroidArgc;
+extern char** g_AndroidArgv;
+extern char g_AndroidCommandLineProgramName[];
 
 JNIEnv* JNIAttachCurrentThread();
 void JNIDetachCurrentThread();
-jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, char* method, char* signature);
+void JNIAttachCurrentThreadIfNeeded(int* did_attach);
+void JNIDetachCurrentThreadIfNeeded(int did_attach);
+int JNICheckAndClearException(JNIEnv* env);
+jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, const char* method, const char* signature);
+int JNIAndroidSetCommandLine(ANativeActivity* activity);
 
-#endif // _ANDROID_JNI_H_
+#endif // DM_GLFW_ANDROID_JNI_H

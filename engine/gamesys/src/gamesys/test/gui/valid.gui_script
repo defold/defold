@@ -1,4 +1,4 @@
--- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2020-2026 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,4 +21,23 @@ end
 function update(self, dt)
     assert(self.x == 1)
     self.x = self.x + 1
+end
+
+local function assert_layout_object_message(message)
+    assert(message.type == hash("link"))
+    assert(message.id == hash("docs"))
+    assert(message.src == "https://www.defold.com", message.src)
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("text_object_hovered") then
+        assert_layout_object_message(message)
+        gui.set_color(gui.get_node("text"), vmath.vector4(0.25, 1.0, 1.0, 1.0))
+    elseif message_id == hash("text_object_unhovered") then
+        assert_layout_object_message(message)
+        gui.set_color(gui.get_node("text"), vmath.vector4(0.5, 1.0, 1.0, 1.0))
+    elseif message_id == hash("text_object_clicked") then
+        assert_layout_object_message(message)
+        gui.set_text(gui.get_node("text"), "clicked")
+    end
 end

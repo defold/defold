@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,6 +26,8 @@
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
+            [internal.system :as is]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
@@ -74,6 +76,7 @@
     ["display" "variable_dt"] :deprecated
     ["html5" "custom_heap_size"] :deprecated
     ["html5" "set_custom_heap_size"] :deprecated
+    ["liveupdate" "exclude_entries_from_main_manifest"] :deprecated
     ["shader" "output_spirv"] :deprecated}})
 
 (def ^:private pb-type-field-names
@@ -85,8 +88,8 @@
   an enum field in the specified protobuf type."
   {'dmBufferDDF.StreamDesc "value_type"
    'dmGameObjectDDF.PropertyDesc "type"
-   'dmGameSystemDDF.LightDesc "type"
    'dmGraphics.VertexAttribute "data_type"
+   'dmGuiDDF.Property "type"
    'dmGuiDDF.NodeDesc "type"
    'dmInputDDF.GamepadMapEntry "type"
    'dmParticleDDF.Emitter "type"
@@ -101,10 +104,7 @@
    {"[PROPERTY_TYPE_MATRIX4]" :unimplemented} ; There's currently no way to edit matrix script properties. But they can be declared and used at runtime.
 
    'dmGuiDDF.NodeDesc.Type
-   {"[TYPE_SPINE]" :deprecated} ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
-
-   'dmPhysicsDDF.CollisionShape.Type
-   {"[TYPE_HULL]" :runtime-only}}) ; If the .collisionobject file specifies a .convexshape for its collision_shape, it gets embedded as a TYPE_HULL in the compiled binary. We don't have any way of creating these from the editor yet.
+   {"[TYPE_SPINE]" :deprecated}}) ; Migration tested in integration.extension-spine-test/legacy-spine-project-user-migration-test.
 
 (def ^:private pb-ignored-fields
   "This structure is used to exclude certain fields in protobuf-based file
@@ -186,14 +186,8 @@
 
    'dmGameSystemDDF.LabelDesc
    {:default
-    {"scale" :deprecated}} ; Migration tested in integration.label-test/label-migration-test.
-
-   ['dmGameSystemDDF.LightDesc "[POINT]"]
-   {:default
-    {"type" :allowed-default
-     "cone_angle" :unused
-     "drop_off" :unused
-     "penumbra_angle" :unused}}
+    {"scale" :deprecated ; Migration tested in integration.label-test/label-migration-test.
+     "style_hash" :runtime-only}}
 
    'dmGameSystemDDF.SpineSceneDesc
    {:default
@@ -221,9 +215,67 @@
     {"data_type" :allowed-default
      "long_values" :unused}}
 
+   ['dmGuiDDF.Property "[TYPE_NUMBER]"]
+   {:default
+    {"boolean" :unused
+     "quat" :unused
+     "string" :unused
+     "type" :allowed-default
+     "vector3" :unused
+     "vector4" :unused}}
+
+   ['dmGuiDDF.Property "[TYPE_BOOLEAN]"]
+   {:default
+    {"number" :unused
+     "quat" :unused
+     "string" :unused
+     "vector3" :unused
+     "vector4" :unused}}
+
+   ['dmGuiDDF.Property "[TYPE_HASH]"]
+   {:default
+    {"boolean" :unused
+     "number" :unused
+     "quat" :unused
+     "vector3" :unused
+     "vector4" :unused}}
+
+   ['dmGuiDDF.Property "[TYPE_STRING]"]
+   {:default
+    {"boolean" :unused
+     "number" :unused
+     "quat" :unused
+     "vector3" :unused
+     "vector4" :unused}}
+
+   ['dmGuiDDF.Property "[TYPE_VECTOR3]"]
+   {:default
+    {"boolean" :unused
+     "number" :unused
+     "quat" :unused
+     "string" :unused
+     "vector4" :unused}}
+
+   ['dmGuiDDF.Property "[TYPE_VECTOR4]"]
+   {:default
+    {"boolean" :unused
+     "number" :unused
+     "quat" :unused
+     "string" :unused
+     "vector3" :unused}}
+
+   ['dmGuiDDF.Property "[TYPE_QUAT]"]
+   {:default
+    {"boolean" :unused
+     "number" :unused
+     "string" :unused
+     "vector3" :unused
+     "vector4" :unused}}
+
    'dmGuiDDF.NodeDesc
    {:default
-    {"overridden_fields" :non-editable ; Not editable, but used to determine which fields are overridden when loading.
+    {"custom_type_name" :unused
+     "overridden_fields" :non-editable ; Not editable, but used to determine which fields are overridden when loading.
      "type" :non-overridable}
 
     [["gui" "layouts" "nodes"]]
@@ -233,7 +285,8 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_BOX]"]
    {:default
-    {"custom_type" :unused
+    {"custom_properties" :unused
+     "custom_type" :unused
      "font" :unused
      "innerRadius" :unused
      "line_break" :unused
@@ -245,10 +298,12 @@
      "pieFillAngle" :unused
      "shadow" :unused
      "shadow_alpha" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
      "spine_skin" :unused
+     "style" :unused
      "template" :unused
      "text" :unused
      "text_leading" :unused
@@ -257,7 +312,9 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_CUSTOM]"]
    {:default
-    {"custom_type" :non-overridable
+    {"custom_type" :deprecated ; Project files use custom_type_name. Runtime numeric custom_type coverage is tested in GUI build tests.
+     "custom_properties" :non-overridable ; Custom property entries signal overrides individually; the field itself is not listed among overridden_fields.
+     "custom_type_name" :non-overridable
      "font" :unused
      "innerRadius" :unused
      "line_break" :unused
@@ -272,7 +329,12 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
-     "spine_node_child" :deprecated ; This was a legacy setting in our own Spine implementation. The Spine/Rive extensions now create GUI bones themselves.
+     "spine_create_bones" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
+     "spine_default_animation" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
+     "spine_scene" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
+     "spine_skin" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
+     "spine_node_child" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test. This was a legacy setting in our own Spine implementation. The Spine/Rive extensions now create GUI bones themselves.
+     "style" :unused
      "template" :unused
      "template_node_child" :unused
      "text" :unused
@@ -286,6 +348,7 @@
      "clipping_inverted" :unused
      "clipping_mode" :unused
      "clipping_visible" :unused
+     "custom_properties" :unused
      "custom_type" :unused
      "font" :unused
      "innerRadius" :unused
@@ -301,10 +364,12 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
      "spine_skin" :unused
+     "style" :unused
      "template" :unused
      "text" :unused
      "text_leading" :unused
@@ -313,7 +378,8 @@
 
    ['dmGuiDDF.NodeDesc "[TYPE_PIE]"]
    {:default
-    {"custom_type" :unused
+    {"custom_properties" :unused
+     "custom_type" :unused
      "font" :unused
      "line_break" :unused
      "outline" :unused
@@ -322,10 +388,12 @@
      "shadow" :unused
      "shadow_alpha" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
      "spine_skin" :unused
+     "style" :unused
      "template" :unused
      "text" :unused
      "text_leading" :unused
@@ -339,6 +407,7 @@
      "clipping_mode" :unused
      "clipping_visible" :unused
      "color" :unused
+     "custom_properties" :unused
      "custom_type" :unused
      "font" :unused
      "innerRadius" :unused
@@ -356,10 +425,12 @@
      "size" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
      "spine_skin" :unused
+     "style" :unused
      "template" :non-overridable
      "text" :unused
      "text_leading" :unused
@@ -377,6 +448,7 @@
     {"clipping_inverted" :unused
      "clipping_mode" :unused
      "clipping_visible" :unused
+     "custom_properties" :unused
      "custom_type" :unused
      "innerRadius" :unused
      "outerBounds" :unused
@@ -385,6 +457,7 @@
      "pieFillAngle" :unused
      "size_mode" :unused
      "slice9" :unused
+     "spine_create_bones" :unused
      "spine_default_animation" :unused
      "spine_node_child" :unused
      "spine_scene" :unused
@@ -396,6 +469,11 @@
    {:default
     {"background_color" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
      "spine_scenes" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
+
+   'dmGraphics.TextureFormatAlternative
+   {:default
+    {"compression_level" :deprecated ; Migration tested in integration.save-data-test/silent-migrations-test.
+     "compression_type" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    ['dmInputDDF.GamepadMapEntry "[GAMEPAD_TYPE_AXIS]"]
    {:default
@@ -470,9 +548,32 @@
    {:default
     {"index" :allowed-default}}
 
+   ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_BOX]"]
+   {:default
+    {"mesh_index" :unused
+     "mesh_name" :unused
+     "mesh_scene" :unused}}
+
+   ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_CAPSULE]"]
+   {:default
+    {"mesh_index" :unused
+     "mesh_name" :unused
+     "mesh_scene" :unused}}
+
+   ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_HULL]"]
+   {:default
+    {"count" :allowed-default}}
+
+   ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_MESH]"]
+   {:default
+    {"count" :allowed-default}}
+
    ['dmPhysicsDDF.CollisionShape.Shape "[TYPE_SPHERE]"]
    {:default
-    {"shape_type" :allowed-default}}
+    {"mesh_index" :unused
+     "mesh_name" :unused
+     "mesh_scene" :unused
+     "shape_type" :allowed-default}}
 
    ['dmPhysicsDDF.ConvexShape "[TYPE_SPHERE]"]
    {:default
@@ -500,7 +601,51 @@
 
    'dmRigDDF.AnimationSetDesc
    {:default
-    {"skeleton" :deprecated}}}) ; Non-default depth/stencil format not supported yet.
+    {"skeleton" :deprecated}} ; Non-default depth/stencil format not supported yet.
+
+   ;; Light component data uses dmStructDDF.Value for struct fields; in practice only
+   ;; struct / number / list variants appear. Other oneof branches are never written.
+   'dmStructDDF.Value
+   {[["ambient_light" "data"]
+     ["point_light" "data"]
+     ["directional_light" "data"]
+     ["spot_light" "data"]]
+    {"null" :unused
+     "bool" :unused
+     "number" :unused
+     "string" :unused
+     "list" :unused}
+    [["ambient_light" "data" "struct" "fields" "value"]
+     ["point_light" "data" "struct" "fields" "value"]
+     ["directional_light" "data" "struct" "fields" "value"]
+     ["spot_light" "data" "struct" "fields" "value"]]
+    {"null" :unused
+     "bool" :unused
+     "string" :unused
+     "struct" :unused}
+    [["ambient_light" "data" "struct" "fields" "value" "list" "values"]
+     ["point_light" "data" "struct" "fields" "value" "list" "values"]
+     ["directional_light" "data" "struct" "fields" "value" "list" "values"]
+     ["spot_light" "data" "struct" "fields" "value" "list" "values"]]
+    {"null" :unused
+     "bool" :unused
+     "string" :unused
+     "struct" :unused
+     "list" :unused}
+    [["ambient_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]
+     ["point_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]
+     ["directional_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]
+     ["spot_light" "data" "struct" "fields" "value" "list" "values" "list" "values"]]
+    {"null" :unused
+     "bool" :unused
+     "string" :unused
+     "struct" :unused
+     "list" :unused}}
+
+   'dmRiveDDF.RiveModelDesc
+   {:default
+    {"auto_play" :unimplemented ; Not currently implemented in the editor or runtime.
+     "blit_material" :non-editable}}}) ; Not currently editable, but perhaps will be in the future.
 
 (definline ^:private pb-descriptor-key [^Descriptors$Descriptor pb-desc]
   `(symbol (.getFullName ~(with-meta pb-desc {:tag `Descriptors$GenericDescriptor}))))
@@ -645,8 +790,8 @@
     (testing "collection"
       (let [uniform-scale-collection (project/get-resource-node project "/silently_migrated/uniform_scale.collection")
             referenced-collection (:node-id (test-util/outline uniform-scale-collection [0]))
-            embedded-go (:node-id (test-util/outline uniform-scale-collection [1]))
-            referenced-go (:node-id (test-util/outline uniform-scale-collection [2]))]
+            referenced-go (:node-id (test-util/outline uniform-scale-collection [1]))
+            embedded-go (:node-id (test-util/outline uniform-scale-collection [2]))]
         (is (= collection/CollectionInstanceNode (g/node-type* referenced-collection)))
         (is (= collection/EmbeddedGOInstanceNode (g/node-type* embedded-go)))
         (is (= collection/ReferencedGOInstanceNode (g/node-type* referenced-go)))
@@ -675,7 +820,10 @@
       (let [legacy-spine-resources-gui (test-util/resource-node project "/silently_migrated/legacy_spine_resources.gui")]
         (is (= [{:name "first_spinescene"
                  :path "/checked.spinescene"}]
-               (g/node-value legacy-spine-resources-gui :resource-msgs)))))
+               (g/node-value legacy-spine-resources-gui :resource-msgs))))
+      (let [legacy-spine-fields-gui (test-util/resource-node project "/silently_migrated/legacy_spine_fields.gui")]
+        (is (= (g/node-value legacy-spine-fields-gui :source-value)
+               (g/node-value legacy-spine-fields-gui :save-value)))))
 
     (testing "material"
       (let [legacy-textures-material (project/get-resource-node project "/silently_migrated/legacy_textures.material")]
@@ -684,13 +832,15 @@
                  :max-anisotropy 1.0
                  :name "albedo"
                  :wrap-u :wrap-mode-clamp-to-edge
-                 :wrap-v :wrap-mode-clamp-to-edge}
+                 :wrap-v :wrap-mode-clamp-to-edge
+                 :wrap-w :wrap-mode-repeat}
                 {:filter-mag :filter-mode-mag-linear
                  :filter-min :filter-mode-min-linear
                  :max-anisotropy 1.0
                  :name "normal"
                  :wrap-u :wrap-mode-clamp-to-edge
-                 :wrap-v :wrap-mode-clamp-to-edge}]
+                 :wrap-v :wrap-mode-clamp-to-edge
+                 :wrap-w :wrap-mode-repeat}]
                (g/node-value legacy-textures-material :samplers))))
       (let [legacy-element-count-material (project/get-resource-node project "/silently_migrated/legacy_vertex_attribute_element_count.material")
             legacy-attributes (g/node-value legacy-element-count-material :attributes)
@@ -729,6 +879,19 @@
                  :attributes {}}]
                (g/node-value legacy-material-and-textures-model :materials)))))
 
+    (testing "rivemodel"
+      (let [deprecated-fields-rive-model (project/get-resource-node project "/silently_migrated/deprecated_fields.rivemodel")]
+        (is (= (g/node-value deprecated-fields-rive-model :source-value)
+               (g/node-value deprecated-fields-rive-model :save-value))))
+      (let [fullscreen-coordinate-system-rive-model (project/get-resource-node project "/silently_migrated/fullscreen_coordinate_system.rivemodel")]
+        (is (= (g/node-value fullscreen-coordinate-system-rive-model :source-value)
+               (g/node-value fullscreen-coordinate-system-rive-model :save-value)))))
+
+    (testing "rivescene"
+      (let [deprecated-fields-rive-scene (project/get-resource-node project "/silently_migrated/deprecated_fields.rivescene")]
+        (is (= (g/node-value deprecated-fields-rive-scene :source-value)
+               (g/node-value deprecated-fields-rive-scene :save-value)))))
+
     (testing "sprite"
       (let [legacy-tile-set-sprite (project/get-resource-node project "/silently_migrated/legacy_tile_set.sprite")]
         (is (= [{:sampler "texture_sampler"
@@ -746,7 +909,7 @@
             legacy-texture-profiles-save-value (g/node-value legacy-texture-profiles :save-value)
             legacy-texture-profiles-formats (set (get-in legacy-texture-profiles-save-value [:profiles 0 :platforms 0 :formats]))
             all-format-combinations (set texture-profile-format-combinations)]
-        (is (= legacy-texture-profiles-formats all-format-combinations))))))
+        (is (= all-format-combinations legacy-texture-profiles-formats))))))
 
 (defn- coll-value-comparator
   "The standard comparison will order shorter vectors above longer ones.
@@ -1481,3 +1644,34 @@
 
       (testing "Save-related data is in cache after saving the project."
         (is (= {} (test-util/uncached-save-data-outputs-by-proj-path project)))))))
+
+(deftest no-substructure-remains-after-resource-node-deletion-test
+  (testing "Owned substructure is cleaned up after deleting resource nodes."
+    (let [surviving-node-type-kw?
+          #{:editor.code.preprocessors/CodePreprocessorsNode
+            :editor.code.script-annotations/ScriptAnnotations
+            :editor.code.script-intelligence/ScriptIntelligenceNode
+            :editor.code.transpilers/CodeTranspilersNode
+            :editor.code.transpilers/TranspilerNode
+            :editor.defold-project/Project
+            :editor.editor-extensions/EditorExtensions
+            :editor.editor-localization-bundle/EditorLocalizationBundle
+            :editor.notifications/NotificationsNode
+            :editor.workspace/Workspace
+            :integration.test-util/MockAppView}]
+      (test-util/with-loaded-project project-path
+        (let [resource-node-ids (vals (g/node-value project :nodes-by-resource-path))]
+          (g/transact
+            (g/delete-nodes resource-node-ids))
+          (let [leaked-node-frequencies
+                (->> @g/*the-system*
+                     (is/basis)
+                     gt/nodes
+                     (eduction
+                       (map val)
+                       (map g/node-type)
+                       (map :k)
+                       (remove surviving-node-type-kw?))
+                     (frequencies)
+                     (into (sorted-map)))]
+            (is (= {} leaked-node-frequencies))))))))

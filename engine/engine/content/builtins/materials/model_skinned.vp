@@ -15,15 +15,16 @@ out highp vec4 var_position;
 out mediump vec3 var_normal;
 out mediump vec2 var_texcoord0;
 out mediump vec4 var_light;
+out highp mat4 var_view;
 
 uniform vs_uniforms
 {
-    uniform mediump mat4 mtx_worldview;
-    uniform mediump mat4 mtx_view;
-    uniform mediump mat4 mtx_proj;
-    uniform mediump mat4 mtx_normal;
-    uniform mediump vec4 light;
-    uniform mediump vec4 animation_data;
+    mediump mat4 mtx_worldview;
+    mediump mat4 mtx_view;
+    mediump mat4 mtx_proj;
+    mediump mat4 mtx_normal;
+    mediump vec4 light;
+    mediump vec4 animation_data;
 };
 
 #include "/builtins/materials/skinning.glsl"
@@ -31,10 +32,12 @@ uniform vs_uniforms
 void main()
 {
     vec4 skinned_position = get_skinned_position(position);
+    vec3 skinned_normal = get_skinned_normal(normal);
     vec4 p = mtx_worldview * vec4(skinned_position.xyz, 1.0);
     var_light = mtx_view * vec4(light.xyz, 1.0);
+    var_view = mtx_view;
     var_position = p;
     var_texcoord0 = texcoord0;
-    var_normal = normalize((mtx_normal * vec4(normal, 0.0)).xyz);
+    var_normal = normalize((mtx_normal * vec4(skinned_normal, 0.0)).xyz);
     gl_Position = mtx_proj * p;
 }

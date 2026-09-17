@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,10 +32,16 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.font.FontStyles;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.gamesys.proto.Gui.Property;
+import com.dynamo.gamesys.proto.Gui.Property.PropertyType;
+import com.dynamo.proto.DdfMath.Quat;
+import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.proto.DdfMath.Vector4One;
 import com.dynamo.gamesys.proto.Gui.NodeDesc;
@@ -58,6 +64,13 @@ import org.apache.commons.io.FilenameUtils;
 @ProtoParams(srcClass = SceneDesc.class, messageClass = SceneDesc.class)
 @BuilderParams(name="Gui", inExts=".gui", outExt=".guic")
 public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
+    private final Map<String, Set<String>> fontStyleNames = new HashMap<>();
+
+    private void validateStyleSelection(String input, NodeDesc node, Map<String, Set<String>> styles) throws CompileExceptionError {
+        if (node.getType() == Type.TYPE_TEXT && styles.containsKey(node.getFont()) && !styles.get(node.getFont()).contains(node.getStyle()))
+            throw new CompileExceptionError(project.getResource(input), 0, "Node '" + node.getId() + "': font style '" + node.getStyle() + "' does not exist");
+    }
+
 
     private static void quatToEuler(Quat4d quat, Tuple3d euler) {
         double heading;
@@ -189,16 +202,27 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     }
 
     private static void validateNodeResources(NodeDesc n, GuiBuilder builder, String input, Set<String> resourceNames, Set<String> fontNames, Set<String> particlefxNames, Set<String> textureNames, Set<String> layerNames, Set<String> materialNames) throws CompileExceptionError {
-        if(builder == null) {
-            return;
-        }
-
         List<String> nodeResources = new ArrayList<>();
 
         // TODO: Do resource validation in the plugin. I.e. how to get the resources?
         // Perhaps "getResourceProperties()" or "getResources()"
         if (n.hasSpineScene() && !n.getSpineScene().isEmpty()){
             nodeResources.add(n.getSpineScene());
+        }
+
+        if (n.getType() == Type.TYPE_CUSTOM) {
+            GuiCustomTypeRegistry.Type customType = builder.project.getGuiCustomTypeRegistry().getByHash(n.getCustomType());
+            if (customType != null) {
+                for (Property property : n.getCustomPropertiesList()) {
+                    GuiCustomTypeRegistry.Property propertyDefinition = property.hasId() && !property.getId().isEmpty()
+                            ? customType.getProperty(property.getId())
+                            : customType.getProperty(property.getIdHash());
+
+                    if (propertyDefinition != null && propertyDefinition.isResource() && property.hasString() && !property.getString().isEmpty()) {
+                        nodeResources.add(property.getString());
+                    }
+                }
+            }
         }
 
         for (String resource : nodeResources) {
@@ -233,7 +257,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             }
         }
         if (n.getType() == Type.TYPE_TEMPLATE && n.getTemplate().isEmpty()) {
-            throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_EMPTY_RESOURCE, "template"));
+            throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_EMPTY_RESOURCE, "template", input));
         }
     }
 
@@ -268,13 +292,251 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
     private static NodeDesc.Builder ApplyOverriddenFieldValues(NodeDesc.Builder targetBuilder, NodeDesc overrideNode) {
         Descriptors.Descriptor typeDesc = NodeDesc.getDescriptor();
 
+        if (overrideNode.getCustomPropertiesCount() != 0) {
+            mergeCustomPropertiesByIdHash(targetBuilder, overrideNode);
+        }
+
         for (int fieldNumber : overrideNode.getOverriddenFieldsList()) {
-            FieldDescriptor fieldDesc = typeDesc.findFieldByNumber(fieldNumber);
-            assert fieldDesc != null;
-            targetBuilder.setField(fieldDesc, overrideNode.getField(fieldDesc));
+            if (fieldNumber == NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER) {
+            } else {
+                FieldDescriptor fieldDesc = typeDesc.findFieldByNumber(fieldNumber);
+                assert fieldDesc != null;
+                targetBuilder.setField(fieldDesc, overrideNode.getField(fieldDesc));
+            }
         }
 
         return targetBuilder;
+    }
+
+    private static long hashPropertyName(String name) {
+        return MurmurHash.hash64(name);
+    }
+
+    private static Property.Builder buildCustomProperty(String name, Object value, PropertyType propertyType) {
+        Property.Builder propertyBuilder = Property.newBuilder();
+        propertyBuilder.setIdHash(hashPropertyName(name));
+        propertyBuilder.setType(propertyType);
+
+        switch (propertyType) {
+        case TYPE_BOOLEAN:
+            if (!(value instanceof Boolean)) {
+                throw new IllegalArgumentException("Custom gui property '" + name + "' must have a boolean default value");
+            }
+            propertyBuilder.setBoolean((Boolean) value);
+            break;
+        case TYPE_NUMBER:
+            if (!(value instanceof Number)) {
+                throw new IllegalArgumentException("Custom gui property '" + name + "' must have a numeric default value");
+            }
+            propertyBuilder.setNumber(((Number) value).floatValue());
+            break;
+        case TYPE_HASH:
+            if (value instanceof Number) {
+                propertyBuilder.setHash(((Number) value).longValue());
+            } else {
+                propertyBuilder.setHash(hashPropertyName(value == null ? "" : value.toString()));
+            }
+            break;
+        case TYPE_STRING:
+            propertyBuilder.setString(value == null ? "" : value.toString());
+            break;
+        case TYPE_VECTOR3:
+            if (!(value instanceof Vector3)) {
+                throw new IllegalArgumentException("Custom gui property '" + name + "' must have a Vector3 default value");
+            }
+            propertyBuilder.setVector3((Vector3) value);
+            break;
+        case TYPE_VECTOR4:
+            if (!(value instanceof Vector4)) {
+                throw new IllegalArgumentException("Custom gui property '" + name + "' must have a Vector4 default value");
+            }
+            propertyBuilder.setVector4((Vector4) value);
+            break;
+        case TYPE_QUAT:
+            if (!(value instanceof Quat)) {
+                throw new IllegalArgumentException("Custom gui property '" + name + "' must have a Quat default value");
+            }
+            propertyBuilder.setQuat((Quat) value);
+            break;
+        default:
+            throw new IllegalArgumentException("Unsupported custom gui property type '" + propertyType + "' for property '" + name + "'");
+        }
+
+        return propertyBuilder;
+    }
+
+    private static Property canonicalizeCustomProperty(Property property) {
+        Property.Builder propertyBuilder = property.toBuilder();
+
+        if (property.hasId() && !property.getId().isEmpty()) {
+            propertyBuilder.setIdHash(hashPropertyName(property.getId()));
+        }
+        if (property.getType() == PropertyType.TYPE_HASH && property.hasString()) {
+            propertyBuilder.setHash(hashPropertyName(property.getString()));
+        }
+
+        propertyBuilder.clearId();
+        return propertyBuilder.build();
+    }
+
+    private static void mergeCustomPropertiesByIdHash(NodeDesc.Builder targetBuilder, NodeDesc overrideNode) {
+        Map<Long, Integer> customPropertyIndices = new HashMap<>();
+        List<Property> customProperties = new ArrayList<>(targetBuilder.getCustomPropertiesCount() + overrideNode.getCustomPropertiesCount());
+
+        for (Property property : targetBuilder.getCustomPropertiesList()) {
+            Property canonicalProperty = canonicalizeCustomProperty(property);
+            if (canonicalProperty.hasIdHash()) {
+                customPropertyIndices.put(canonicalProperty.getIdHash(), customProperties.size());
+            }
+            customProperties.add(canonicalProperty);
+        }
+
+        for (Property property : overrideNode.getCustomPropertiesList()) {
+            Property canonicalProperty = canonicalizeCustomProperty(property);
+            if (canonicalProperty.hasIdHash()) {
+                Integer propertyIndex = customPropertyIndices.get(canonicalProperty.getIdHash());
+                if (propertyIndex != null) {
+                    customProperties.set(propertyIndex, canonicalProperty);
+                } else {
+                    customPropertyIndices.put(canonicalProperty.getIdHash(), customProperties.size());
+                    customProperties.add(canonicalProperty);
+                }
+            } else {
+                customProperties.add(canonicalProperty);
+            }
+        }
+
+        targetBuilder.clearCustomProperties();
+        targetBuilder.addAllCustomProperties(customProperties);
+    }
+
+    private static void putLegacySpineProperties(NodeDesc node, Map<String, Object> properties) {
+        if (node.hasSpineScene()) {
+            properties.put("spine_scene", node.getSpineScene());
+        }
+        if (node.hasSpineDefaultAnimation()) {
+            properties.put("spine_default_animation", node.getSpineDefaultAnimation());
+        }
+        if (node.hasSpineSkin()) {
+            properties.put("spine_skin", node.getSpineSkin());
+        }
+        if (node.hasSpineNodeChild()) {
+            properties.put("spine_node_child", node.getSpineNodeChild());
+        }
+        if (node.hasSpineCreateBones()) {
+            properties.put("spine_create_bones", node.getSpineCreateBones());
+        }
+    }
+
+    private static NodeDesc migrateCustomNode(GuiBuilder builder, String input, NodeDesc node) throws CompileExceptionError {
+        GuiCustomTypeRegistry customTypeRegistry = builder.project.getGuiCustomTypeRegistry();
+        GuiCustomTypeRegistry.Type customType;
+
+        if (node.getType() == Type.TYPE_SPINE) {
+            customType = customTypeRegistry.getByName("Spine");
+        } else if (node.getType() == Type.TYPE_CUSTOM) {
+            if (node.hasCustomTypeName() && !node.getCustomTypeName().isEmpty()) {
+                customType = customTypeRegistry.getByName(node.getCustomTypeName());
+            } else {
+                customType = customTypeRegistry.getByHash(node.getCustomType());
+            }
+        } else {
+            return node;
+        }
+
+        if (customType == null) {
+            String customTypeName = node.getType() == Type.TYPE_SPINE ? "Spine" : node.getCustomTypeName();
+            String message = customTypeName.isEmpty()
+                    ? "Unknown GUI custom node type hash '" + Integer.toUnsignedLong(node.getCustomType()) + "' for node '" + node.getId() + "'"
+                    : "Unknown GUI custom node type '" + customTypeName + "' for node '" + node.getId() + "'";
+            IResource resource = builder.project.getResource(input);
+            throw new CompileExceptionError(resource, 0, message);
+        }
+
+        var migratedProperties = new LinkedHashMap<String, Object>();
+        putLegacySpineProperties(node, migratedProperties);
+        var legacyPropertyNames = new HashSet<String>(migratedProperties.keySet());
+        customType.migrateProperties(migratedProperties);
+
+        var overriddenFields = new ArrayList<Integer>(node.getOverriddenFieldsCount());
+        for (int fieldNumber : node.getOverriddenFieldsList()) {
+            var customPropertyName = switch (fieldNumber) {
+                case NodeDesc.SPINE_SCENE_FIELD_NUMBER -> "spine_scene";
+                case NodeDesc.SPINE_DEFAULT_ANIMATION_FIELD_NUMBER -> "spine_default_animation";
+                case NodeDesc.SPINE_SKIN_FIELD_NUMBER -> "spine_skin";
+                case NodeDesc.SPINE_NODE_CHILD_FIELD_NUMBER -> "spine_node_child";
+                case NodeDesc.SPINE_CREATE_BONES_FIELD_NUMBER -> "spine_create_bones";
+                default -> null;
+            };
+            if (fieldNumber == NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER) {
+            } else if (customPropertyName == null || !legacyPropertyNames.contains(customPropertyName)) {
+                overriddenFields.add(fieldNumber);
+            }
+        }
+
+        var migratedPropertyHashes = new HashSet<Long>();
+        for (String propertyName : migratedProperties.keySet()) {
+            migratedPropertyHashes.add(hashPropertyName(propertyName));
+        }
+
+        var existingPropertyHashes = new HashSet<Long>();
+        var customProperties = new ArrayList<Property>(node.getCustomPropertiesCount() + customType.getProperties().size());
+        for (Property property : node.getCustomPropertiesList()) {
+            var canonicalProperty = canonicalizeCustomProperty(property);
+            if (canonicalProperty.hasIdHash()) {
+                if (!property.hasId() && migratedPropertyHashes.contains(canonicalProperty.getIdHash())) {
+                    continue;
+                }
+                existingPropertyHashes.add(canonicalProperty.getIdHash());
+            }
+            customProperties.add(canonicalProperty);
+        }
+
+        for (GuiCustomTypeRegistry.Property property : customType.getProperties()) {
+            var propertyNameHash = property.getNameHash();
+            if (existingPropertyHashes.contains(propertyNameHash)) {
+                continue;
+            }
+
+            var value = migratedProperties.containsKey(property.getName()) ? migratedProperties.get(property.getName()) : property.getDefaultValue();
+            customProperties.add(buildCustomProperty(property.getName(), value, property.getPropertyType()).build());
+            existingPropertyHashes.add(propertyNameHash);
+        }
+
+        var nodeBuilder = node.toBuilder();
+        nodeBuilder.setType(Type.TYPE_CUSTOM);
+        nodeBuilder.setCustomType(customType.getNameHash());
+        nodeBuilder.clearCustomTypeName();
+        nodeBuilder.clearCustomProperties();
+        nodeBuilder.addAllCustomProperties(customProperties);
+        nodeBuilder.clearOverriddenFields();
+        nodeBuilder.addAllOverriddenFields(overriddenFields);
+        nodeBuilder.clearSpineScene();
+        nodeBuilder.clearSpineDefaultAnimation();
+        nodeBuilder.clearSpineSkin();
+        nodeBuilder.clearSpineNodeChild();
+        nodeBuilder.clearSpineCreateBones();
+        return nodeBuilder.build();
+    }
+
+    private static NodeDesc clearEditorOnlyCustomNodeFields(NodeDesc node) {
+        if (!node.hasCustomTypeName()) {
+            return node;
+        }
+
+        return node.toBuilder().clearCustomTypeName().build();
+    }
+
+    private static void clearEditorOnlyCustomNodeFields(SceneDesc.Builder sceneBuilder) {
+        for (int i = 0, len = sceneBuilder.getNodesCount(); i < len; ++i) {
+            sceneBuilder.setNodes(i, clearEditorOnlyCustomNodeFields(sceneBuilder.getNodes(i)));
+        }
+
+        for (LayoutDesc.Builder layoutBuilder : sceneBuilder.getLayoutsBuilderList()) {
+            for (int i = 0, len = layoutBuilder.getNodesCount(); i < len; ++i) {
+                layoutBuilder.setNodes(i, clearEditorOnlyCustomNodeFields(layoutBuilder.getNodes(i)));
+            }
+        }
     }
 
     private static void ApplyLayoutOverrides(NodeDesc.Builder builder, HashMap<String, NodeDesc> nodeMapDefault, HashMap<String, NodeDesc> nodeMap) {
@@ -282,14 +544,14 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         if((parentSceneNode == null) && (nodeMapDefault != null)) {
             parentSceneNode = nodeMapDefault.get(builder.getId());
         }
-        if(parentSceneNode != null && parentSceneNode.getOverriddenFieldsCount() != 0) {
+        if(parentSceneNode != null && (parentSceneNode.getOverriddenFieldsCount() != 0 || parentSceneNode.getCustomPropertiesCount() != 0)) {
             ApplyOverriddenFieldValues(builder, parentSceneNode);
         }
         // opt fields ignored by run-time
         builder.clearOverriddenFields();
     }
 
-    private static ArrayList<NodeDesc> mergeNodes(NodeDesc parentNode, List<NodeDesc> nodes, HashMap<String, NodeDesc> layoutNodes, HashMap<String, HashMap<String, NodeDesc>> parentSceneNodeMap, String layout, boolean applyDefaultLayout) {
+    private static ArrayList<NodeDesc> mergeNodes(GuiBuilder builder, String input, NodeDesc parentNode, List<NodeDesc> nodes, HashMap<String, NodeDesc> layoutNodes, HashMap<String, HashMap<String, NodeDesc>> parentSceneNodeMap, String layout, boolean applyDefaultLayout) throws CompileExceptionError {
         ArrayList<NodeDesc> newNodes = new ArrayList<NodeDesc>(nodes.size());
         for(NodeDesc n : nodes) {
             // pick default node if no layout version exist
@@ -315,7 +577,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             if (layoutNodes != null) {
                 ApplyLayoutOverrides(b, layoutNodes, parentSceneNodeMap.get(layout));
             }
-            newNodes.add(b.build());
+            newNodes.add(migrateCustomNode(builder, input, b.build()));
         }
         return newNodes;
     }
@@ -369,8 +631,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                  throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_WRONG_RESOURCE_TYPE,
                          new String[] { scriptPath, suffix, "gui_script" } ));
             }
-            sceneBuilder.setScript(BuilderUtil.replaceExt(scriptPath, ".gui_script", ".gui_scriptc"));
-            sceneBuilder.setMaterial(BuilderUtil.replaceExt(sceneBuilder.getMaterial(), ".material", ".materialc"));
+            sceneBuilder.setScript(ResourceUtil.minifyPathAndReplaceExt(scriptPath, ".gui_script", ".gui_scriptc"));
+            sceneBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(sceneBuilder.getMaterial(), ".material", ".materialc"));
 
             for (FontDesc f : sceneBuilder.getFontsList()) {
                 if (fontNames.contains(f.getName())) {
@@ -378,7 +640,9 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             f.getName()));
                 }
                 fontNames.add(f.getName());
-                newFontList.add(FontDesc.newBuilder().mergeFrom(f).setFont(BuilderUtil.replaceExt(f.getFont(), ".font", ".fontc")).build());
+                String compiledPath = ResourceUtil.minifyPathAndReplaceExt(f.getFont(), ".font", ".fontc");
+                builder.fontStyleNames.put(compiledPath, FontStyles.readStyleNames(builder.project.getResource(f.getFont())));
+                newFontList.add(FontDesc.newBuilder().mergeFrom(f).setFont(ResourceUtil.minifyPathAndReplaceExt(f.getFont(), ".font", ".fontc")).build());
             }
 
             for (SpineSceneDesc f : sceneBuilder.getSpineScenesList()) {
@@ -387,7 +651,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             f.getName()));
                 }
                 resourceNames.add(f.getName());
-                ResourceDesc desc = ResourceDesc.newBuilder().setName(f.getName()).setPath(BuilderUtil.replaceExt(f.getSpineScene(), ".spinescene", ".spinescenec")).build();
+                ResourceDesc desc = ResourceDesc.newBuilder().setName(f.getName()).setPath(ResourceUtil.minifyPathAndReplaceExt(f.getSpineScene(), ".spinescene", ".spinescenec")).build();
                 newResourcesList.add(desc);
             }
 
@@ -397,7 +661,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             f.getName()));
                 }
                 particlefxNames.add(f.getName());
-                newParticleFXList.add(ParticleFXDesc.newBuilder().mergeFrom(f).setParticlefx(BuilderUtil.replaceExt(f.getParticlefx(), ".particlefx", ".particlefxc")).build());
+                newParticleFXList.add(ParticleFXDesc.newBuilder().mergeFrom(f).setParticlefx(ResourceUtil.minifyPathAndReplaceExt(f.getParticlefx(), ".particlefx", ".particlefxc")).build());
             }
 
             for (TextureDesc f : sceneBuilder.getTexturesList()) {
@@ -415,7 +679,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             f.getName()));
                 }
                 materialNames.add(f.getName());
-                newMaterialList.add(MaterialDesc.newBuilder().mergeFrom(f).setMaterial(BuilderUtil.replaceExt(f.getMaterial(), ".material", ".materialc")).build());
+                newMaterialList.add(MaterialDesc.newBuilder().mergeFrom(f).setMaterial(ResourceUtil.minifyPathAndReplaceExt(f.getMaterial(), ".material", ".materialc")).build());
             }
 
             for (ResourceDesc f : sceneBuilder.getResourcesList()) {
@@ -423,9 +687,12 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                     throw new CompileExceptionError(builder.project.getResource(input), 0, BobNLS.bind(Messages.BuilderUtil_DUPLICATE_RESOURCE,
                             f.getName()));
                 }
-                // TODO: use the plugin for this
                 resourceNames.add(f.getName());
-                newResourcesList.add(ResourceDesc.newBuilder().mergeFrom(f).setPath(BuilderUtil.replaceExt(f.getPath(), ".spinescene", ".spinescenec")).build());
+                String resourceSuffix = ResourceUtil.getSuffix(f.getPath());
+                String buildPath = resourceSuffix == null
+                        ? ResourceUtil.minifyPath(f.getPath())
+                        : ResourceUtil.minifyPathAndReplaceExt(f.getPath(), resourceSuffix, ResourceUtil.getOutputExt(resourceSuffix));
+                newResourcesList.add(ResourceDesc.newBuilder().mergeFrom(f).setPath(buildPath).build());
             }
 
             // transform scene internal resources
@@ -469,13 +736,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 continue;
             }
 
-            // backwards compatibility
-            if(node.getType() == Type.TYPE_SPINE) {
-                NodeDesc.Builder newNode = node.toBuilder();
-                newNode.setType(Type.TYPE_CUSTOM);
-                newNode.setCustomType(MurmurHash.hash32("Spine"));
-                node = newNode.build();
-            }
+            node = migrateCustomNode(builder, input, node);
 
             // add current scene nodes
             newScene.get("").add(node);
@@ -483,6 +744,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
             for(String layout : layouts) {
                 NodeDesc n = nodeMap.get(layout).get(node.getId());
                 if(n != null) {
+                    n = migrateCustomNode(builder, input, n);
                     validateNodeResources(n, builder, input, resourceNames, fontNames, particlefxNames, textureNames, layerNames, materialNames);
                     newScene.get(layout).add(n);
                 }
@@ -494,7 +756,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 templateBuilder = transformScene(builder, node.getTemplate(), templateBuilder, sceneIO, sceneResourceCache, false);
 
                 // merge template scene nodes with overrides of current scene
-                List<NodeDesc> nodes = mergeNodes(node, templateBuilder.getNodesList(), null, nodeMap, "", true);
+                List<NodeDesc> nodes = mergeNodes(builder, input, node, templateBuilder.getNodesList(), null, nodeMap, "", true);
                 newScene.get("").addAll(nodes);
 
                 List<String> templateLayouts = new ArrayList<String>(templateBuilder.getLayoutsCount());
@@ -516,14 +778,14 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                                 break;
                             }
                         }
-                        nodes = mergeNodes(node, templateBuilder.getNodesList(), layoutNodes, nodeMap, templateLayoutName, false);
+                        nodes = mergeNodes(builder, input, node, templateBuilder.getNodesList(), layoutNodes, nodeMap, templateLayoutName, false);
                     } else {
                         templateLayoutName = "";
                         layoutNodes = new HashMap<String, NodeDesc>(templateBuilder.getNodesCount());
                         for(NodeDesc n : templateBuilder.getNodesList()) {
                             layoutNodes.put(n.getId(), n);
                         }
-                        nodes = mergeNodes(node, templateBuilder.getNodesList(), layoutNodes, nodeMap, layout.getName(), true);
+                        nodes = mergeNodes(builder, input, node, templateBuilder.getNodesList(), layoutNodes, nodeMap, layout.getName(), true);
                     }
 
                     ArrayList<NodeDesc> layoutNodeList = newScene.get(layout.getName());
@@ -622,6 +884,18 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         sceneBuilder.clearResources();
         sceneBuilder.addAllResources(newResourcesList);
 
+        clearEditorOnlyCustomNodeFields(sceneBuilder);
+
+        if (builder != null) {
+            Map<String, Set<String>> styles = new HashMap<>();
+            for (FontDesc font : sceneBuilder.getFontsList()) {
+                Set<String> names = builder.fontStyleNames.get(font.getFont());
+                if (names != null) styles.put(font.getName(), names);
+            }
+            for (NodeDesc node : sceneBuilder.getNodesList()) builder.validateStyleSelection(input, node, styles);
+            for (LayoutDesc layout : sceneBuilder.getLayoutsList())
+                for (NodeDesc node : layout.getNodesList()) builder.validateStyleSelection(input, node, styles);
+        }
         return sceneBuilder;
     }
 
@@ -648,7 +922,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private class SceneBuilderIO implements ISceneBuilderIO {
+    private static class SceneBuilderIO implements ISceneBuilderIO {
         com.dynamo.bob.Project project;
         SceneBuilderIO(com.dynamo.bob.Project project) {
             this.project = project;

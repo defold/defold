@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,8 +28,21 @@
 namespace dmGameSystem
 {
     struct CompGuiContext;
+    struct FontResource;
     struct GuiSceneResource;
     struct MaterialResource;
+
+    typedef const dmGuiDDF::NodeDesc* HNodeDDF;
+
+    struct GuiLayoutObjectTarget
+    {
+        // HTextLayout borrows the font collection. The resource generation guards
+        // collection access after a font recreation.
+        HTextLayout   m_Layout;
+        FontResource* m_FontResource;
+        uint64_t      m_ObjectId;
+        uint32_t      m_FontVersion;
+    };
 
     struct GuiComponent
     {
@@ -38,12 +51,15 @@ namespace dmGameSystem
         dmGui::HScene           m_Scene;
         dmGameObject::HInstance m_Instance;
         MaterialResource*       m_Material;
+        GuiLayoutObjectTarget   m_HoveredLayoutObject;
+        GuiLayoutObjectTarget   m_PressedLayoutObject;
         uint16_t                m_ComponentIndex;
         uint8_t                 m_Enabled       : 1;
         uint8_t                 m_AddedToUpdate : 1;
         uint8_t                 m_Initialized   : 1;
         uint8_t                 m_Padding       : 5;
         dmArray<void*>          m_ResourcePropertyPointers;
+        dmHashTable64<HNodeDDF> m_DefaultNodeDescs;
     };
 
     struct BoxVertex
@@ -104,7 +120,8 @@ namespace dmGameSystem
      * @member m_Render [type: dmRender::HRender] The render context
      * @member m_Contexts [type: dmHashTable64<void*>] Mappings between names and contexts
      */
-    struct CompGuiNodeTypeCtx {
+    struct CompGuiNodeTypeCtx
+    {
         dmConfigFile::HConfig    m_Config;
         dmResource::HFactory     m_Factory;
         dmRender::HRenderContext m_Render;

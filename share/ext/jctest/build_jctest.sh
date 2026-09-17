@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,8 +16,8 @@
 
 
 readonly PRODUCT=jctest
-readonly VERSION=0.10.2
-readonly BASE_URL=https://github.com/JCash/jctest/archive/
+readonly VERSION=0.14
+readonly BASE_URL=https://github.com/JCash/jctest/archive/refs/tags
 readonly FILE_URL=v${VERSION}.tar.gz
 
 export CONF_TARGET=$1

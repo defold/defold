@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,13 +21,14 @@ import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.util.FileUtil;
 
 import java.nio.file.Files;
 import java.io.File;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Map;
 
 import org.junit.After;
@@ -94,32 +95,51 @@ public class BobProjectPropertiesTest {
     public void testExtensionMetaProperties() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
         createFile(contentRoot, "game.project", "[project]\ntitle = random\ncustom_property = just content");
         createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
-        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_EXTENSION_FILE, "[project]\ncustom_property.private = 1");
+        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_property.private = 1");
 
-        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.loadProjectFile(true);
-        BobProjectProperties properties = project.getProjectProperties();
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.loadProjectFile(true);
+            BobProjectProperties properties = project.getProjectProperties();
 
-        assertEquals(true, properties.isPrivate("project", "custom_property"));
+            assertEquals(true, properties.isPrivate("project", "custom_property"));
+        }
     }
 
     @Test
     public void testOverrideExtensionMetaProperties() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
         createFile(contentRoot, "game.project", "[project]\ntitle = random\ncustom_property = just content");
         createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
-        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_EXTENSION_FILE, "[project]\ncustom_property.private = 1");
+        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_property.private = 1");
         createFile(contentRoot, BobProjectProperties.PROPERTIES_PROJECT_FILE, "[project]\ncustom_property.private = 0");
 
-        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.loadProjectFile(true);
-        BobProjectProperties properties = project.getProjectProperties();
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.loadProjectFile(true);
+            BobProjectProperties properties = project.getProjectProperties();
 
-        assertEquals(false, properties.isPrivate("project", "custom_property"));
+            assertEquals(false, properties.isPrivate("project", "custom_property"));
+        }
+    }
+
+    @Test
+    public void testMergedStringArrayValueIncludesExtensionDefaults() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+        createFile(contentRoot, "game.project", "[project]\ntitle = random\ncustom_resources = /project_resource");
+        createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
+        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_resources.default = /extension1_resource");
+        createFile(contentRoot, "extension2/ext.manifest", "name: Extension2\n");
+        createFile(contentRoot, "extension2/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_resources.default = /extension2_resource");
+
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.loadProjectFile(true);
+            BobProjectProperties properties = project.getProjectProperties();
+
+            String[] customResources = properties.getStringArrayValueMerged("project", "custom_resources", new String[0]);
+            assertEquals(new HashSet<>(Arrays.asList("/extension1_resource", "/extension2_resource", "/project_resource")),
+                         new HashSet<>(Arrays.asList(customResources)));
+        }
     }
 
     private String createFile(String root, String name, String content) throws IOException {
         File file = new File(root, name);
-        FileUtil.deleteOnExit(file);
         FileUtils.copyInputStreamToFile(new ByteArrayInputStream(content.getBytes()), file);
         return file.getAbsolutePath();
     }

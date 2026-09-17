@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,8 +14,10 @@
 
 (ns integration.test-util
   (:require [clojure.java.io :as io]
+            [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [clojure.test :as test :refer [is testing]]
+            [clojure.test.check.clojure-test]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.atlas :as atlas]
@@ -30,6 +32,10 @@
             [editor.game-object :as game-object]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.input :as input]
+            [editor.library :as library]
+            [editor.localization :as localization]
+            [editor.lsp :as lsp]
             [editor.material :as material]
             [editor.math :as math]
             [editor.outline :as outline]
@@ -51,19 +57,24 @@
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.system :as is]
             [internal.util :as util]
             [lambdaisland.deep-diff2 :as deep-diff]
+            [local-extensions :as local-extensions]
+            [potemkin.namespaces :as namespaces]
             [service.log :as log]
             [support.test-support :as test-support]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.diff :as diff]
             [util.fn :as fn]
             [util.http-server :as http-server]
+            [util.path :as path]
             [util.text-util :as text-util]
             [util.thread-util :as thread-util])
   (:import [ch.qos.logback.classic Level Logger]
            [clojure.core Vec]
+           [com.dynamo.bob.util Library$Result]
            [com.google.protobuf ByteString]
            [editor.properties Curve CurveSpread]
            [java.awt.image BufferedImage]
@@ -77,6 +88,7 @@
            [javafx.event ActionEvent]
            [javafx.scene Parent Scene]
            [javafx.scene.control Button Cell ColorPicker Control Label ScrollBar Slider TextField ToggleButton]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout VBox]
            [javafx.scene.paint Color]
            [javax.imageio ImageIO]
@@ -86,7 +98,27 @@
 
 (set! *warn-on-reflection* true)
 
+(namespaces/import-vars [support.test-support cached-endpoints])
+
 (.setLevel ^Logger (LoggerFactory/getLogger "org.eclipse.jetty") Level/ERROR)
+(.setLevel ^Logger (LoggerFactory/getLogger "cognitect.aws.credentials") Level/ERROR)
+
+;; Disable defspec logs:
+;; {:result true, :num-tests 100, :seed 1761047757693, :time-elapsed-ms 41, :test-var "some-spec"}
+(alter-var-root #'clojure.test.check.clojure-test/*report-completion* (constantly false))
+
+;; Use shared lib dir to skip re-downloading deps
+(def ^:dynamic *shared-lib-dir* (path/of "tmp/lib"))
+
+(alter-var-root
+  #'library/directory
+  (fn [f]
+    (fn overridden-library-directory [& args]
+      (or *shared-lib-dir* (apply f args)))))
+
+(defmacro with-project-default-library-directory [& body]
+  `(binding [*shared-lib-dir* nil]
+     ~@body))
 
 (def project-path "test/resources/test_project")
 
@@ -96,11 +128,11 @@
 ;; These extensions register additional protobuf resource types that we want to
 ;; cover in our tests.
 (def sanctioned-extension-urls
-  (mapv #(System/getProperty %)
-        ["defold.extension.rive.url"
-         "defold.extension.simpledata.url"
-         "defold.extension.spine.url"
-         "defold.extension.texturepacker.url"]))
+  (mapv local-extensions/inject-jvm-properties
+        ["{{defold.extension.rive.url}}"
+         "{{defold.extension.simpledata.url}}"
+         "{{defold.extension.spine.url}}"
+         "{{defold.extension.texturepacker.url}}"]))
 
 (defn number-type-preserving? [a b]
   (assert (or (number? a) (vector? a) (instance? Curve a) (instance? CurveSpread a)))
@@ -148,9 +180,19 @@
 (defmethod set-control-value! Slider [^Slider slider num-value]
   (.setValue slider num-value))
 
-(defmethod set-control-value! TextField [^TextField text-field num-value]
-  (.setText text-field (field-expression/format-number num-value))
-  (.fireEvent text-field (ActionEvent. text-field text-field)))
+(defmethod set-control-value! TextField [^TextField text-field value]
+  (.setText text-field (cond-> value (number? value) field-expression/format-number))
+  (.fireEvent text-field (KeyEvent.
+                           #_source text-field
+                           #_target text-field
+                           #_eventType KeyEvent/KEY_PRESSED
+                           #_character ""
+                           #_text "\r"
+                           #_code KeyCode/ENTER
+                           #_shiftDown false
+                           #_controlDown false
+                           #_altDown false
+                           #_metaDown false)))
 
 (defmethod set-control-value! ToggleButton [^ToggleButton toggle-button _num-value]
   (.fire toggle-button))
@@ -166,7 +208,12 @@
 (defn make-directory-deleter
   "Returns an AutoCloseable that deletes the directory at the specified
   path when closed. Suitable for use with the (with-open) macro. The
-  directory path must be a temp directory."
+  directory path must be a temp directory.
+
+  IMPORTANT! If you use the deleter for a project directory where you set up a
+  system, you need to use (lsp/await (lsp/get-lsp)) before the
+  body returns, otherwise you might get `:editor.resource/project-directory`
+  spec failures in the output."
   ^AutoCloseable [directory-path]
   (let [directory (io/file directory-path)]
     (assert (string/starts-with? (.getCanonicalPath directory)
@@ -226,6 +273,13 @@
   (prefs/make :scopes {:global shared-test-prefs-file :project shared-test-prefs-file}
               :schemas [:default]))
 
+(def localization
+  (localization/make
+    (make-test-prefs)
+    ::test
+    {"en.editor_localization" #(io/reader (io/resource "localization/en.editor_localization"))}
+    ^[] Throwable/.printStackTrace))
+
 (declare resolve-prop)
 
 (defn code-editor-lines [script-id]
@@ -281,8 +335,8 @@
     (shared-editor-settings/shared-editor-settings-file project-path)
     (shared-editor-settings/map->save-data-content
       (cond-> {}
-              (seq non-editable-directory-proj-paths)
-              (assoc :non-editable-directories (vec non-editable-directory-proj-paths))))))
+        (seq non-editable-directory-proj-paths)
+        (assoc :non-editable-directories (vec non-editable-directory-proj-paths))))))
 
 (defn write-defunload-patterns!
   ^File [project-path patterns]
@@ -311,14 +365,14 @@
     file))
 
 (defn setup-workspace!
-  ([graph]
-   (setup-workspace! graph project-path))
-  ([graph project-path]
-   (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path)
-         workspace (workspace/make-workspace graph
-                                             project-path
+  ([]
+   (setup-workspace! project-path))
+  ([project-path]
+   (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
+         workspace (workspace/make-workspace project-path
                                              {}
-                                             workspace-config)]
+                                             workspace-config
+                                             localization)]
      (g/transact
        (concat
          (scene/register-view-types workspace)))
@@ -333,18 +387,31 @@
     temp-project-path))
 
 (defn setup-scratch-workspace!
-  ([graph]
-   (setup-scratch-workspace! graph project-path))
-  ([graph project-path]
+  ([]
+   (setup-scratch-workspace! project-path))
+  ([project-path]
    (let [temp-project-path (make-temp-project-copy! project-path)]
-     (setup-workspace! graph temp-project-path))))
+     (setup-workspace! temp-project-path))))
+
+(defn fetch-library-results! [project-directory library-uris]
+  (let [lib-results (library/fetch! project-directory library-uris progress/null-render-progress!)]
+    (when-let [problem-results (coll/not-empty (filterv Library$Result/.problem lib-results))]
+      (throw
+        (IllegalStateException.
+          (str "Failed to fetch test project libraries:\n"
+               (localization (localization/join "\n" (mapv library/result-message problem-results)))))))
+    lib-results))
 
 (defn fetch-libraries! [workspace]
   (let [game-project-resource (workspace/find-resource workspace "/game.project")
         dependencies (project/read-dependencies game-project-resource)]
-    (->> (workspace/fetch-and-validate-libraries workspace dependencies progress/null-render-progress!)
-         (workspace/install-validated-libraries! workspace))
+    (->> (fetch-library-results! (workspace/project-directory workspace) dependencies)
+         (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
+
+(defn set-cached-project-dependencies! [workspace library-uris]
+  (->> (library/cached (workspace/project-directory workspace) library-uris)
+       (workspace/set-project-dependencies! workspace)))
 
 (defn set-libraries! [workspace library-uris]
   (let [library-uris
@@ -356,8 +423,8 @@
                   :else (throw (ex-info "library-uris contain invalid values."
                                         {:library-uris library-uris}))))
               library-uris)]
-    (->> (workspace/fetch-and-validate-libraries workspace library-uris progress/null-render-progress!)
-         (workspace/install-validated-libraries! workspace))
+    (->> (fetch-library-results! (workspace/project-directory workspace) library-uris)
+         (workspace/set-project-dependencies! workspace))
     (workspace/resource-sync! workspace [] progress/null-render-progress!)))
 
 (defn distinct-resource-types-by-editability
@@ -381,20 +448,22 @@
      {:editable (mapv val editable-protobuf-resource-types)
       :non-editable (mapv val distinctly-non-editable-protobuf-resource-types)})))
 
+(defn gui-node-type-info [workspace node-type]
+  (get-in (get (workspace/get-resource-type-map workspace :editable) "gui")
+          [:gui-node-type-registry :node-type->type-info node-type]))
+
 (defn setup-project!
   ([workspace]
-   (let [proj-graph (g/make-graph! :history true :volatility 1)
-         extensions (extensions/make proj-graph)
-         project (project/make-project proj-graph workspace extensions)
+   (let [extensions (extensions/make)
+         project (project/make-project workspace extensions)
          project (project/load-project! project)]
-     (g/reset-undo! proj-graph)
+     (g/reset-undo! :undo/global)
      project))
   ([workspace resources]
-   (let [proj-graph (g/make-graph! :history true :volatility 1)
-         extensions (extensions/make proj-graph)
-         project (project/make-project proj-graph workspace extensions)
+   (let [extensions (extensions/make)
+         project (project/make-project workspace extensions)
          project (project/load-project! project progress/null-render-progress! resources)]
-     (g/reset-undo! proj-graph)
+     (g/reset-undo! :undo/global)
      project)))
 
 (defn project-node-resources [project]
@@ -406,10 +475,11 @@
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type [this] (resource/lookup-resource-type (g/now) workspace this))
+  (resource-type [this] (resource/lookup-resource-type (g/unsafe-basis) workspace this))
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)
+  (symlink? [this] false)
   (path [this] (if (= "" (.getName file)) "" (resource/relative-path (io/file ^String root) file)))
   (abs-path [this] (.getAbsolutePath  file))
   (proj-path [this] (if (= "" (.getName file)) "" (str "/" (resource/path this))))
@@ -464,21 +534,18 @@
   (property active-view g/NodeID)
   (output active-view g/NodeID (gu/passthrough active-view)))
 
-(defn make-view-graph! []
-  (g/make-graph! :history false :volatility 2))
-
 (defn setup-app-view! [project]
-  (let [view-graph (make-view-graph!)]
-    (-> (g/make-nodes view-graph [app-view [MockAppView
-                                            :active-tool :move
-                                            :manip-space :world
-                                            :scene (Scene. (VBox.))]]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (g/make-nodes [app-view [MockAppView
+                                 :active-tool :move
+                                 :manip-space :world
+                                 :scene (Scene. (VBox.))]]
           (g/connect project :_node-id app-view :project-id)
           (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
-            (g/connect project label app-view label)))
-      g/transact
-      g/tx-nodes-added
-      first)))
+            (g/connect project label app-view label)))))))
 
 (defn- make-tab! [project app-view path make-view-fn!]
   (let [node-id (project/get-resource-node project path)
@@ -487,14 +554,17 @@
         view (get views-by-node-id node-id)]
     (if view
       (do
-        (g/set-property! app-view :active-view view)
-        [node-id view])
-      (let [view-graph (g/make-graph! :history false :volatility 2)
-            view (make-view-fn! view-graph node-id)]
         (g/transact
+          {:undoable false}
+          (g/set-property app-view :active-view view))
+        [node-id view])
+      (let [view (make-view-fn! node-id)]
+        (g/transact
+          {:undoable false}
           (concat
             (g/connect node-id :_node-id view :resource-node)
             (g/connect node-id :valid-node-id+type+resource view :node-id+type+resource)
+            (g/connect app-view :selected-node-properties view :selected-node-properties)
             (g/connect view :view-data app-view :open-views)
             (g/set-property app-view :active-view view)))
         (app-view/select! app-view [node-id])
@@ -502,28 +572,31 @@
 
 (defn open-tab! [project app-view path]
   (first
-    (make-tab! project app-view path (fn [view-graph resource-node]
-                                      (->> (g/make-node view-graph MockView)
-                                        g/transact
-                                        g/tx-nodes-added
-                                        first)))))
+    (make-tab! project app-view path (fn [_resource-node]
+                                       (->> (g/make-node MockView)
+                                            (g/transact {:undoable false})
+                                            g/tx-nodes-added
+                                            first)))))
 
-(defn open-scene-view! [project app-view path width height]
-  (make-tab! project app-view path (fn [view-graph resource-node]
-                                     (scene/make-preview view-graph resource-node {:prefs (make-build-stage-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
+(defn open-scene-view!
+  ([project app-view path width height]
+   (open-scene-view! project app-view path width height {}))
+  ([project app-view path width height tool-opts]
+   (make-tab! project app-view path (fn [resource-node]
+                                      (scene/make-preview resource-node (merge {:prefs (make-build-stage-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} tool-opts) width height)))))
 
 (defn close-tab! [project app-view path]
   (let [node-id (project/get-resource-node project path)
         view (some (fn [[view-id {:keys [resource-node]}]]
                      (when (= resource-node node-id) view-id)) (g/node-value app-view :open-views))]
     (when view
-      (g/delete-graph! (g/node-id->graph-id view)))))
+      (g/transact {:undoable false} (g/delete-node view)))))
 
 (defn setup!
-  ([graph]
-   (setup! graph project-path))
-  ([graph project-path]
-   (let [workspace (setup-workspace! graph project-path)
+  ([]
+   (setup! project-path))
+  ([project-path]
+   (let [workspace (setup-workspace! project-path)
          project (setup-project! workspace)
          app-view (setup-app-view! project)]
      [workspace project app-view])))
@@ -531,28 +604,18 @@
 (defn- load-system-and-project-raw [path]
   (test-support/with-clean-system {:cache-size system-cache-size
                                    :cache-retain? project/cache-retain?}
-    (let [workspace (setup-workspace! world path)]
+    (let [workspace (setup-workspace! path)]
       (fetch-libraries! workspace)
       (let [project (setup-project! workspace)]
         [@g/*the-system* workspace project]))))
 
 (def load-system-and-project (fn/memoize load-system-and-project-raw))
 
-(defn clear-cached-libraries! []
-  (fn/clear-memoized! (var-get #'editor.library/fetch-library!)))
-
 (defn clear-cached-projects! []
   (fn/clear-memoized! load-system-and-project))
 
 (defn evict-cached-project! [path]
   (fn/evict-memoized! load-system-and-project path))
-
-(defn cached-endpoints
-  ([] (cached-endpoints (g/cache)))
-  ([cache]
-   (into (sorted-set)
-         (map key)
-         cache)))
 
 (defn cacheable-save-data-endpoints
   ([node-id]
@@ -600,13 +663,14 @@
    (uncached-save-data-outputs-by-proj-path basis (g/cache) project))
   ([basis cache project]
    (into (sorted-map)
-         (keep (fn [[node-id]]
-                 (when-not (g/defective? basis node-id)
-                   (let [resource (resource-node/resource basis node-id)
+         (keep (fn [arc]
+                 (let [node-id (gt/source-id arc)]
+                   (when-not (g/defective? basis node-id)
+                     (let [resource (resource-node/resource basis node-id)
                          proj-path (resource/proj-path resource)]
-                     (when-some [uncached-save-data-outputs (not-empty (uncached-save-data-outputs basis cache node-id))]
-                       (pair proj-path uncached-save-data-outputs))))))
-         (g/sources-of basis project :save-data))))
+                       (when-some [uncached-save-data-outputs (not-empty (uncached-save-data-outputs basis cache node-id))]
+                         (pair proj-path uncached-save-data-outputs)))))))
+         (g/inputs basis project :save-data))))
 
 (defn- split-keyword-options [forms]
   (let [keyword-options (into {}
@@ -630,8 +694,7 @@
                                                (load-system-and-project ~project-path))
                                              (load-system-and-project ~project-path))
            system-clone# (is/clone-system system#)
-           ~'cache (:cache system-clone#)
-           ~'world (g/node-id->graph-id ~'workspace)]
+           ~'cache (:cache system-clone#)]
        (binding [g/*the-system* (atom system-clone#)]
          (let [~'app-view (setup-app-view! ~'project)]
            ~@forms)))))
@@ -642,7 +705,7 @@
     `(let [options# ~options]
        (test-support/with-clean-system {:cache-size ~system-cache-size
                                         :cache-retain? project/cache-retain?}
-         (let [~'workspace (setup-scratch-workspace! ~'world ~project-path)]
+         (let [~'workspace (setup-scratch-workspace! ~project-path)]
            (fetch-libraries! ~'workspace)
            (let [~'project (if (:logging-suppressed options#)
                              (log/without-logging
@@ -658,14 +721,16 @@
      (with-open [project-directory-deleter# (make-directory-deleter ~'project-path)]
        (test-support/with-clean-system {:cache-size ~system-cache-size
                                         :cache-retain? project/cache-retain?}
-         (let [~'workspace (setup-workspace! ~'world ~'project-path)]
+         (let [~'workspace (setup-workspace! ~'project-path)]
            (doseq [[proj-path# save-value#] save-values-by-proj-path#]
              (write-file-resource! ~'workspace proj-path# save-value#))
            (workspace/resource-sync! ~'workspace)
            (fetch-libraries! ~'workspace)
            (let [~'project (setup-project! ~'workspace)
-                 ~'app-view (setup-app-view! ~'project)]
-             ~@body))))))
+                 ~'app-view (setup-app-view! ~'project)
+                 ret# (do ~@body)]
+             (lsp/await (lsp/get-lsp))
+             ret#))))))
 
 (defmacro with-ui-run-later-rebound
   [& forms]
@@ -712,13 +777,13 @@
   ([view type x y modifiers click-count button]
    (let [pos [x y 0.0]]
      (g/transact (g/set-property view :tool-picking-rect (scene-selection/calc-picking-rect pos pos))))
-   (let [handlers (g/sources-of view :input-handlers)
+   (let [handlers (g/inputs (g/now) view :input-handlers)
          user-data (g/node-value view :selected-tool-renderables)
-         action (reduce #(assoc %1 %2 true)
-                        {:type type :x x :y y :click-count click-count :button button}
-                        modifiers)
+         action (-> {:type type :x x :y y :click-count click-count :button button}
+                    (assoc :modifiers (set modifiers)))
          action (scene/augment-action view action)]
-     (scene/dispatch-input handlers action user-data))))
+     ;; NOTE: When we start adding tests for input handlers that do check input-state, like the camera, we need to update this
+     (scene/dispatch-input handlers (input/make-input-state) action user-data))))
 
 (defn mouse-press!
   ([view x y]
@@ -759,19 +824,31 @@
   {:pre [(vector? offset-xyz)]}
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-move evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath offset-xyz))))))
+      (let [delta (doto (Vector3d.) (math/clj->vecmath offset-xyz))]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-move scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn manip-rotate! [scene-node-id euler-xyz]
   {:pre [(vector? euler-xyz)]}
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-rotate evaluation-context scene-node-id (math/euler->quat euler-xyz)))))
+      (let [delta (math/euler->quat euler-xyz)]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-rotate scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn manip-scale! [scene-node-id scale-xyz]
   {:pre [(vector? scale-xyz)]}
   (g/transact
     (g/with-auto-evaluation-context evaluation-context
-      (scene-tools/manip-scale evaluation-context scene-node-id (doto (Vector3d.) (math/clj->vecmath scale-xyz))))))
+      (let [delta (doto (Vector3d.) (math/clj->vecmath scale-xyz))]
+        (s/assert
+          :manip/tx-data
+          (:manip/tx-data
+            (scene-tools/manip-scale scene-node-id delta :manip-phase/commit evaluation-context)))))))
 
 (defn dump-frame! [view path]
   (let [^BufferedImage image (g/node-value view :frame)]
@@ -801,14 +878,14 @@
   :node-outline info at the resulting path. Throws an exception if the path does
   not lead up to a valid node."
   [node-id & outline-labels]
-  {:pre [(every? string? outline-labels)]}
+  {:pre [(every? (some-fn string? localization/message-pattern?) outline-labels)]}
   (reduce (fn [node-outline outline-label]
             (or (some (fn [child-outline]
                         (when (= outline-label (:label child-outline))
                           child-outline))
                       (:children node-outline))
                 (let [candidates (into (sorted-set)
-                                       (map :label)
+                                       (map (comp localization :label))
                                        (:children node-outline))]
                   (throw (ex-info (format "node-outline for %s '%s' has no child-outline '%s'. Candidates: %s"
                                           (symbol (g/node-type-kw node-id))
@@ -904,8 +981,8 @@
 
 (defn dump-outline [root path]
   (-> (outline root path)
-    outline->str
-    println))
+      outline->str
+      println))
 
 (defn resolve-prop [node-id label]
   (let [prop (get-in (g/node-value node-id :_properties) [:properties label])
@@ -948,9 +1025,9 @@
   (File. (workspace/project-directory workspace) path))
 
 (defn selection [app-view]
-  (-> app-view
-    app-view/->selection-provider
-    handler/selection))
+  (let [selection-provider (app-view/->selection-provider app-view)]
+    (g/with-auto-evaluation-context evaluation-context
+      (handler/selection selection-provider evaluation-context))))
 
 ;; Extension library server
 
@@ -981,20 +1058,34 @@
 (defn lib-server-uri [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))
 
+(defn handler-enabled? [command command-contexts user-data]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+          handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+      (if (nil? handler+command-context)
+        false
+        (handler/enabled? handler+command-context evaluation-context)))))
+
 (defn handler-run [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts true)]
-    (-> (handler/active command command-contexts user-data)
-      handler/run)))
+  (g/let-ec [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+             handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+    (when handler+command-context
+      (handler/run handler+command-context))))
 
 (defn handler-options [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts true)]
-    (-> (handler/active command command-contexts user-data)
-      handler/options)))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+          handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+      (when handler+command-context
+        (handler/options handler+command-context evaluation-context)))))
 
 (defn handler-state [command command-contexts user-data]
-  (let [command-contexts (handler/eval-contexts command-contexts true)]
-    (-> (handler/active command command-contexts user-data)
-      handler/state)))
+  (g/with-auto-evaluation-context evaluation-context
+    (let [command-contexts (handler/eval-contexts command-contexts true evaluation-context)
+          handler+command-context (handler/active command command-contexts user-data evaluation-context)]
+      (if (nil? handler+command-context)
+        false
+        (handler/state handler+command-context evaluation-context)))))
 
 (defmacro with-prop [binding & forms]
   (let [[node-id# property# value#] binding]
@@ -1005,27 +1096,28 @@
          (finally
            (prop! ~node-id# ~property# old-value#))))))
 
-(defn make-graph-reverter
-  "Returns an AutoCloseable that reverts the specified graph to the state it was
+(defn make-undo-reverter
+  "Returns an AutoCloseable that reverts the specified undo to the state it was
   at construction time when its close method is invoked. Suitable for use with
   the (with-open) macro."
-  ^AutoCloseable [graph-id]
-  (let [initial-undo-stack-count (g/undo-stack-count graph-id)]
+  ^AutoCloseable [undo-key]
+  (let [initial-undo-stack-count (g/undo-stack-count undo-key)]
     (reify AutoCloseable
       (close [_]
-        (loop [undo-stack-count (g/undo-stack-count graph-id)]
+        (loop [undo-stack-count (g/undo-stack-count undo-key)]
           (when (< initial-undo-stack-count undo-stack-count)
-            (g/undo! graph-id)
-            (recur (g/undo-stack-count graph-id))))))))
+            (g/undo! undo-key)
+            (recur (g/undo-stack-count undo-key))))))))
 
-(defn make-project-graph-reverter
-  "Returns an AutoCloseable that reverts the project graph to the state it was
-  at construction time when its close method is invoked. Suitable for use with
+(defn make-system-reverter
+  "Returns an AutoCloseable that reverts *g/the-system* to the state it was at
+  construction time when its close method is invoked. Suitable for use with
   the (with-open) macro."
-  ^AutoCloseable [project]
-  {:pre [(g/node-instance? project/Project project)]}
-  (let [project-graph-id (g/node-id->graph-id project)]
-    (make-graph-reverter project-graph-id)))
+  ^AutoCloseable []
+  (let [system-snapshot (g/clone-system)]
+    (reify AutoCloseable
+      (close [_]
+        (reset! g/*the-system* system-snapshot)))))
 
 (defn- throw-invalid-component-resource-node-id-exception [basis node-id]
   (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."
@@ -1033,11 +1125,11 @@
                    :node-type (g/node-type* basis node-id)})))
 
 (defmacro with-changes-reverted
-  "Evaluates the body expressions in a try expression, and reverts any changes
-  to the project graph in the finally clause. Returns the result of the last
-  body expression."
-  [project & body]
-  `(with-open [project-graph-reverter# (make-project-graph-reverter ~project)]
+  "Evaluates the body expressions in a try expression, then reverts
+  *g/the-system* to the state it was in at the beginning of the code block.
+  Returns the result of the body expression."
+  [& body]
+  `(with-open [_undo-reverter# (make-system-reverter)]
      ~@body))
 
 (defn- validate-component-resource-node-id
@@ -1146,7 +1238,7 @@
      (add-embedded-game-object! collection-id collection-id)))
   ([collection-or-instance-id parent-id]
    (let [collection-id (to-collection-node-id collection-or-instance-id)
-         project (project/get-project collection-id)
+         project (project/get-project)
          workspace (project/workspace project)
          select-fn (fn/make-call-logger)]
      (collection/add-embedded-game-object! workspace project collection-id parent-id select-fn)
@@ -1175,14 +1267,15 @@
                        {:target-node-id target-node-id
                         :target-node-type target-node-type
                         :required-target-input target-input})))
-     (mapv (fn [[source-node-id _source-label]]
-             (if (g/node-instance? basis expected-source-node-type source-node-id)
-               source-node-id
-               (throw (ex-info "Source node does not match the expected source node type."
-                               {:source-node-id source-node-id
-                                :source-node-type (g/node-type* basis source-node-id)
-                                :expected-source-node-type expected-source-node-type}))))
-           (g/sources-of basis target-node-id target-input)))))
+     (mapv (fn [arc]
+             (let [source-node-id (gt/source-id arc)]
+               (if (g/node-instance? basis expected-source-node-type source-node-id)
+                 source-node-id
+                 (throw (ex-info "Source node does not match the expected source node type."
+                                 {:source-node-id source-node-id
+                                  :source-node-type (g/node-type* basis source-node-id)
+                                  :expected-source-node-type expected-source-node-type})))))
+           (g/inputs basis target-node-id target-input)))))
 
 (def single util/only-or-throw)
 
@@ -1307,16 +1400,16 @@
           (is (= (dissoc (get-in scene-data (conj gpu-texture-path :params)) :default-tex-params)
                  (dissoc (material/sampler->tex-params (first (g/node-value material-node :samplers))) :default-tex-params))))))))
 
-(defn- build-node-result! [resource-node]
-  (let [project (project/get-project resource-node)
+(defn- build-node-result! [resource-node opts]
+  (let [project (project/get-project)
         workspace (project/workspace project)
         old-artifact-map (workspace/artifact-map workspace)]
     (g/with-auto-evaluation-context evaluation-context
-      (build/build-project! project resource-node old-artifact-map nil evaluation-context))))
+      (build/build-project! project resource-node old-artifact-map opts evaluation-context))))
 
-(defn build-node! [resource-node]
-  (let [build-result (build-node-result! resource-node)]
-    (when-some [error (:error build-result)]
+(defn build-node! [resource-node opts]
+  (let [build-result (build-node-result! resource-node opts)]
+    (when-let [error (:error build-result)]
       (throw (ex-info "Build produced an ErrorValue."
                       {:resource resource
                        :node-type-kw (g/node-type-kw resource-node)
@@ -1328,14 +1421,14 @@
   (let [resource (resource-node/resource resource-node)
         workspace (resource/workspace resource)
         build-directory (workspace/build-path workspace)]
-    (build-node! resource-node)
+    (build-node! resource-node nil)
     (make-directory-deleter build-directory)))
 
 (defn build-error! [resource-node]
   (let [resource (resource-node/resource resource-node)
         workspace (resource/workspace resource)
         build-directory (workspace/build-path workspace)
-        build-result (build-node-result! resource-node)]
+        build-result (build-node-result! resource-node nil)]
     (fs/delete-directory! build-directory {:fail :silently})
     (:error build-result)))
 
@@ -1388,7 +1481,7 @@
   [node-id]
   (into #{}
         (map :resource)
-        (build/resolve-node-dependencies node-id (project/get-project node-id))))
+        (build/resolve-node-dependencies node-id (project/get-project))))
 
 (defn node-built-source-paths
   "Returns the set of all source resource proj-paths that will be built when
@@ -1396,22 +1489,33 @@
   [node-id]
   (into #{}
         (keep (comp resource/proj-path :resource :resource))
-        (build/resolve-node-dependencies node-id (project/get-project node-id))))
+        (build/resolve-node-dependencies node-id (project/get-project))))
 
 (defmacro saved-pb [node-id pb-class]
   (with-meta `(protobuf/str->pb ~pb-class (resource-node/save-data-content (g/node-value ~node-id :save-data)))
-             {:tag pb-class}))
+    {:tag pb-class}))
 
 (defmacro built-pb [node-id pb-class]
   (with-meta `(protobuf/bytes->pb ~pb-class (node-build-output ~node-id))
-             {:tag pb-class}))
+    {:tag pb-class}))
+
+(defn- resource-type-for-build-output-path [resource-types-by-build-ext ^String build-output-path]
+  ;; Return the resource-type with the longest build-ext that matches the end of
+  ;; the build-output-path. We do this to ensure multipart build-exts like
+  ;; `/lightbulb.point_light.lightc` are matched correctly.
+  (reduce-kv
+    (fn [best-resource-type build-ext resource-type]
+      (if (and (string/ends-with? build-output-path (str "." build-ext))
+               (> (count build-ext)
+                  (count (:build-ext best-resource-type ""))))
+        resource-type
+        best-resource-type))
+    nil
+    resource-types-by-build-ext))
 
 (defn- make-build-output-infos-by-path-impl [workspace resource-types-by-build-ext ^String build-output-path]
-  (let [build-ext (resource/filename->type-ext build-output-path)
-        resource-type (some (fn [[_ resource-type]]
-                              (when (= build-ext (:build-ext resource-type))
-                                resource-type))
-                            (workspace/get-resource-type-map workspace))
+  (let [resource-type (resource-type-for-build-output-path resource-types-by-build-ext build-output-path)
+        _ (assert (some? resource-type) (format "Unknown resource type for: '%s'" build-output-path))
         test-info (:test-info resource-type)
         pb-class (case (:type test-info)
                    (:code :ddf) (:built-pb-class test-info)
@@ -1422,7 +1526,6 @@
                            :file built-file
                            :resource-type resource-type
                            :bytes built-bytes}]
-    (assert (some? resource-type) (format "Unknown resource type for: '%s'" build-output-path))
     (if (nil? pb-class)
       (sorted-map build-output-path build-output-info)
       (let [dependencies-fn (resource-node/make-ddf-dependencies-fn pb-class)
@@ -1555,7 +1658,7 @@
 (defn save-project! [project]
   (let [workspace (project/workspace project)
         save-data (project/dirty-save-data project)
-        post-save-actions (disk/write-save-data-to-disk! save-data nil nil)]
+        post-save-actions (disk/write-save-data-to-disk! save-data nil localization nil)]
     (disk/process-post-save-actions! workspace post-save-actions)))
 
 (defn dirty-proj-paths [project]
@@ -1660,8 +1763,21 @@
 (defmethod edit-resource-node "label" [resource-node-id]
   (g/update-property resource-node-id :tracking type-preserving-add 0.1))
 
-(defmethod edit-resource-node "light" [resource-node-id]
-  (g/update-property resource-node-id :pb update :range type-preserving-add 1))
+(defn- edit-light-resource-node [resource-node-id]
+  ;; All light types expose :intensity; :range is only for point/spot.
+  (g/update-property resource-node-id :intensity type-preserving-add 1))
+
+(defmethod edit-resource-node "point_light" [resource-node-id]
+  (edit-light-resource-node resource-node-id))
+
+(defmethod edit-resource-node "ambient_light" [resource-node-id]
+  (edit-light-resource-node resource-node-id))
+
+(defmethod edit-resource-node "directional_light" [resource-node-id]
+  (edit-light-resource-node resource-node-id))
+
+(defmethod edit-resource-node "spot_light" [resource-node-id]
+  (edit-light-resource-node resource-node-id))
 
 (defmethod edit-resource-node "material" [resource-node-id]
   (g/update-property resource-node-id :tags conj "new_tag"))
@@ -1686,7 +1802,7 @@
   (g/update-property resource-node-id :color-attachments update-in [0 :width] type-preserving-add 1))
 
 (defmethod edit-resource-node "rivemodel" [resource-node-id]
-  (g/update-property resource-node-id :create-go-bones not))
+  (g/update-property resource-node-id :auto-bind not))
 
 (defmethod edit-resource-node "rivescene" [resource-node-id]
   (g/set-property resource-node-id :rive-file nil))

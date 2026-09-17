@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -30,15 +30,13 @@ import com.dynamo.liveupdate.proto.Manifest.ManifestFile;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
 
 public class ArchiveReader {
-    public static final int VERSION = 5;
+    public static final int VERSION_6 = 6;
+    public static final int VERSION = VERSION_6;
     public static final int HASH_BUFFER_BYTESIZE = 64; // 512 bits
+    private static final int V6_FLAGS_SHIFT = 60;
+    private static final long V6_OFFSET_MASK = 0x0fffffffffffffffL;
 
     private ArrayList<ArchiveEntry> entries = null;
-
-    private int entryCount = 0;
-    private int entryOffset = 0;
-    private int hashOffset = 0;
-    private int hashLength = 0;
 
     private final String archiveIndexFilepath;
     private final String archiveDataFilepath;
@@ -68,7 +66,7 @@ public class ArchiveReader {
 
         // Version
         int indexVersion = this.archiveIndexFile.readInt();
-        if (indexVersion == ArchiveReader.VERSION) {
+        if (indexVersion == ArchiveReader.VERSION_6) {
             readArchiveData();
         } else {
             throw new IOException("Unsupported archive index version: " + indexVersion);
@@ -78,11 +76,11 @@ public class ArchiveReader {
     private void readArchiveData() throws IOException {
         // INDEX
         archiveIndexFile.readInt(); // Pad
-        archiveIndexFile.readLong(); // UserData, should be 0
-        entryCount = archiveIndexFile.readInt();
-        entryOffset = archiveIndexFile.readInt();
-        hashOffset = archiveIndexFile.readInt();
-        hashLength = archiveIndexFile.readInt();
+        archiveIndexFile.readLong(); // UserData
+        int entryCount = archiveIndexFile.readInt();
+        int entryOffset = archiveIndexFile.readInt();
+        int hashOffset = archiveIndexFile.readInt();
+        int hashLength = archiveIndexFile.readInt();
 
         entries = new ArrayList<ArchiveEntry>(entryCount);
 
@@ -116,13 +114,14 @@ public class ArchiveReader {
 
         // Read entries
         archiveIndexFile.seek(entryOffset);
-        for (int i=0; i<entryCount; ++i) {
+        for (int i = 0; i< entryCount; ++i) {
             ArchiveEntry e = entries.get(i);
 
-            e.setResourceOffset(archiveIndexFile.readInt());
+            long offsetAndFlags = archiveIndexFile.readLong();
+            e.setResourceOffset(offsetAndFlags & V6_OFFSET_MASK);
             e.setSize(archiveIndexFile.readInt());
             e.setCompressedSize(archiveIndexFile.readInt());
-            e.setFlags(archiveIndexFile.readInt());
+            e.setFlags((int) (offsetAndFlags >>> V6_FLAGS_SHIFT));
         }
     }
 
@@ -130,9 +129,13 @@ public class ArchiveReader {
         return entries;
     }
 
+    private static long getResourceOffset(ArchiveEntry entry) {
+        return entry.getResourceOffset();
+    }
+
     public byte[] getEntryContent(ArchiveEntry entry) throws IOException {
         byte[] buf = new byte[entry.getSize()];
-        archiveDataFile.seek(entry.getResourceOffset());
+        archiveDataFile.seek(getResourceOffset(entry));
         archiveDataFile.read(buf, 0, entry.getSize());
 
         return buf;
@@ -151,7 +154,7 @@ public class ArchiveReader {
 
             // extract
             byte[] buf = new byte[entry.getSize()];
-            archiveDataFile.seek(entry.getResourceOffset());
+            archiveDataFile.seek(getResourceOffset(entry));
             archiveDataFile.read(buf, 0, readSize);
 
             File fo = new File(outdir);

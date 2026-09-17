@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,7 +26,7 @@ namespace dmGraphics
     void* VulkanTextureToMetal(HContext _context, const HTexture& texture)
     {
         VulkanContext* context    = (VulkanContext*) _context;
-        VulkanTexture* vk_texture = GetAssetFromContainer<VulkanTexture>(context->m_AssetHandleContainer, texture);
+        VulkanTexture* vk_texture = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
 
         VkExportMetalTextureInfoEXT textureInfo = {};
         textureInfo.sType     = VK_STRUCTURE_TYPE_EXPORT_METAL_TEXTURE_INFO_EXT;

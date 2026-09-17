@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,15 +12,34 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
+(defn- pathname
+  ^String [^java.io.File file]
+  (.replace (.getPath file) \\ \/))
+
+(defn- local-maven-repository-directory
+  ^java.io.File []
+  (let [project-directory (.getParentFile (.getCanonicalFile (java.io.File. *file*)))
+        local-maven-repository-directory (.getCanonicalFile (java.io.File. project-directory ".m2/repository"))]
+    (when-not (or (.isDirectory local-maven-repository-directory) (.mkdirs local-maven-repository-directory))
+      (throw (ex-info (format "Unable to create local Maven repository directory '%s'." local-maven-repository-directory)
+                      {:local-maven-repository-directory (str local-maven-repository-directory)})))
+    local-maven-repository-directory))
+
+(defn- local-maven-jar-file
+  ^java.io.File [^String relative-jar-path]
+  (java.io.File. (local-maven-repository-directory) relative-jar-path))
+
 (defproject defold-editor "2.0.0-SNAPSHOT"
   :description      "Defold game editor"
   :url              "https://www.defold.com/learn/"
 
-  :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))
-                     "jogamp" "https://jogamp.org/deployment/maven"}
+  :local-repo       ~(pathname (local-maven-repository-directory))
 
-  :plugins          [[lein-protobuf-minimal-mg "0.4.5" :hooks false]
+  :plugins          [[dev.weavejester/lein-cljfmt "0.16.4"]
+                     [lein-protobuf-minimal-mg "0.4.5" :hooks false]
                      [codox "0.9.3"]]
+
+  :cljfmt           {:load-config-file? true}
 
   :dependencies     [[org.clojure/clojure                         "1.12.0"]
                      [org.clojure/core.cache                      "0.7.1"]
@@ -33,35 +52,27 @@
                      [com.cognitect/transit-clj                   "0.8.285"]
                      [prismatic/schema                            "1.1.9"]
                      [prismatic/plumbing                          "0.5.2"]
-                     [com.google.protobuf/protobuf-java           "3.20.1"]
                      [ch.qos.logback/logback-classic              "1.2.1"]
                      [org.slf4j/jul-to-slf4j                      "1.7.22"]
-                     [joda-time/joda-time                         "2.9.2"]
                      [commons-io/commons-io                       "2.4"]
-                     [org.apache.commons/commons-configuration2   "2.0"]
                      [commons-codec/commons-codec                 "1.10"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.2.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.2.0"]
                      [potemkin                                    "0.4.3"]
-                     [com.nanohttpd/nanohttpd                     "2.1.1"]
                      [com.sun.jersey/jersey-core                  "1.19"]
                      [com.sun.jersey/jersey-client                "1.19"]
                      [com.sun.jersey.contribs/jersey-multipart    "1.19"]
                      [javax.vecmath/vecmath                       "1.5.2"]
                      [org.codehaus.jackson/jackson-core-asl       "1.9.13"]
                      [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
-                     [org.eclipse.jgit/org.eclipse.jgit           "4.2.0.201601211800-r"]
-                     [clj-antlr                                   "0.2.2"
-                      :exclusions [org.antlr/antlr4 org.antlr/antlr4-runtime]]
-                     [org.antlr/antlr4 "4.7.2"]
-                     [org.antlr/antlr4-runtime "4.7.2"]
+                     [org.eclipse.jgit/org.eclipse.jgit           "7.6.0.202603022253-r"]
                      [org.apache.commons/commons-compress         "1.18"]
 
                      [net.java.dev.jna/jna                        "4.1.0"]
                      [net.java.dev.jna/jna-platform               "4.1.0"]
 
                      [com.defold.lib/bob                          "1.0"]
-                     [com.defold.lib/openmali                     "1.0"]
+                     [com.defold.lib/icu4j                        "1.0"]
 
                      [metosin/reitit-core "0.8.0-alpha1"]
 
@@ -70,21 +81,17 @@
                      [org.commonmark/commonmark-ext-gfm-tables "0.25.1"]
                      [org.commonmark/commonmark-ext-yaml-front-matter "0.25.1"]
                      [org.commonmark/commonmark-ext-heading-anchor "0.25.1"]
+                     [org.jsoup/jsoup "1.11.3"]
 
                      [com.cognitect.aws/api "0.8.673"]
                      [com.cognitect.aws/endpoints "1.1.12.478"]
                      [com.cognitect.aws/s3 "847.2.1387.0"]
 
-                     ;; bob needs javax.xml.bind, and it's removed in jdk 11
-                     [javax.xml.bind/jaxb-api "2.3.0"]
-                     [com.sun.xml.bind/jaxb-core "2.3.0"]
-                     [com.sun.xml.bind/jaxb-impl "2.3.0"]
-
                      [org.luaj/luaj-jse "3.0.1"]
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.9.5"
+                     [cljfx "1.10.362"
                       :exclusions [org.clojure/clojure
                                    org.openjfx/javafx-base
                                    org.openjfx/javafx-graphics
@@ -92,29 +99,30 @@
                                    org.openjfx/javafx-media
                                    org.openjfx/javafx-web]]
 
-                     [org.jogamp.gluegen/gluegen-rt "2.4.0"]
-                     [org.jogamp.gluegen/gluegen-rt "2.4.0" :classifier "natives-linux-amd64"]
-                     [org.jogamp.gluegen/gluegen-rt "2.4.0" :classifier "natives-macosx-universal"]
-                     [org.jogamp.gluegen/gluegen-rt "2.4.0" :classifier "natives-windows-amd64"]
-                     [org.jogamp.jogl/jogl-all      "2.4.0"]
-                     [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-linux-amd64"]
-                     [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-macosx-universal"]
-                     [org.jogamp.jogl/jogl-all      "2.4.0" :classifier "natives-windows-amd64"]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0"]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-linux-amd64"]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-macosx-universal"]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-windows-amd64"]
+                     [org.jogamp.jogl/jogl-all      "2.6.0"]
+                     [org.jogamp.jogl/jogl-all      "2.6.0" :classifier "natives-linux-amd64"]
+                     [org.jogamp.jogl/jogl-all      "2.6.0" :classifier "natives-macosx-universal"]
+                     [org.jogamp.jogl/jogl-all      "2.6.0" :classifier "natives-windows-amd64"]
 
                      [org.snakeyaml/snakeyaml-engine "1.0"]
 
                      [net.objecthunter/exp4j "0.4.8"]]
 
+  :icu4j {:version "77.1"}
+
   :source-paths      ["src/clj"]
 
   :test-paths        ["test"]
 
-  :java-source-paths ["src/java"]
+  :java-source-paths ["src/java" "src/antlr" "src/common"]
 
   :resource-paths    ["resources" "generated-resources"]
 
-  :proto-paths       ["../com.dynamo.cr/com.dynamo.cr.common/proto"
-                      "../engine/ddf/src"
+  :proto-paths       ["../engine/ddf/src"
                       "../engine/engine/proto"
                       "../engine/gameobject/proto"
                       "../engine/gamesys/proto"
@@ -145,7 +153,11 @@
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"
-                      :lua-language-server-version "v1.7795"}
+                      :lua-language-server {:version "3.19.1"
+                                            :sha256 {"arm64-macos" "0bc077f4447f076b4c92c14e9fd303f5b569eda2ec74b4dca2b55f75fae2e90c"
+                                                     "x86_64-macos" "eb373c159cbe556711d7cd316315de2dce969bfd54b31edb7eb9cab2937f2cca"
+                                                     "x86_64-linux" "e9235d2d72ef55bc41cf8c99cda2ed64777682024b4bb81f5dea425060c5cbb8"
+                                                     "x86_64-win32" "fdb9a59108cf62517813c97fa5549b0e16d1ef0688306bac728b08434db7e4cd"}}}
 
   :codox             {:sources                   ["src/clj"]
                       :output-dir                "target/doc/api"
@@ -156,6 +168,8 @@
 
   :jvm-opts          ["-Djna.nosys=true"
                       "-Djava.net.preferIPv4Stack=true"
+                      "-Ddefold.library.connectTimeoutMillis=10000"
+                      "-Ddefold.library.hostProbeTimeoutMillis=10000"
                       "-Dfile.encoding=UTF-8"
                       ;; hide warnings about illegal reflective access by jogl
                       "--add-opens=java.base/java.lang=ALL-UNNAMED"
@@ -166,7 +180,10 @@
                       ;; hide warnings about illegal reflective access by clojure
                       "--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp=ALL-UNNAMED"
                       ;; used in editor.scene$read_to_buffered_image
-                      "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"]
+                      "--add-opens=java.desktop/sun.awt.image=ALL-UNNAMED"
+                      "--enable-native-access=ALL-UNNAMED"
+                      "--sun-misc-unsafe-memory-access=allow"
+                      "-XX:+UseCompactObjectHeaders"]
                       ;; "-XX:MaxJavaStackTraceDepth=1073741823"
 
   :main ^:skip-aot   com.defold.editor.Main
@@ -177,7 +194,34 @@
 
   ;; Skip native extensions tests:
   ;; lein test :no-native-extensions
-  :test-selectors {:no-native-extensions (complement :native-extensions)}
+  ;;
+  ;; Skip specific tests or test namespaces:
+  ;; lein test :skip integration.lsp-test integration.library-test/fetch-libraries
+  :test-selectors {:no-native-extensions (complement :native-extensions)
+                   :skip [(fn [test-ns-symbol & symbol-args]
+                            ;; Returning false from this first predicate allows
+                            ;; the test runner to completely skip loading a
+                            ;; particular test namespace.
+                            (not-any? #(= test-ns-symbol %) symbol-args))
+                          (fn [test-var-metadata & symbol-args]
+                            ;; We've already skipped over entire namespaces by
+                            ;; this point, so all that remains is to skip any
+                            ;; specific tests that match the listed symbol args.
+                            (let [test-ns-name (-> test-var-metadata :ns ns-name name)
+                                  test-name (-> test-var-metadata :name name)
+                                  test-var-symbol (symbol test-ns-name test-name)]
+                              (not-any? #(= test-var-symbol %) symbol-args)))]}
+
+  :prep-tasks [["with-profile" "antlr" "run" "-m" "org.antlr.v4.Tool"
+                "LSPSnippet.g4"
+                "-o" "src/antlr/com/defold/editor"
+                "-package" "com.defold.editor"
+                "-no-listener"
+                "-no-visitor"]
+               "javac"
+               "compile"]
+
+  :clean-targets ^{:protect false} [:target-path "src/antlr"]
 
   :profiles          {:test    {:injections [(com.defold.libs.ResourceUnpacker/unpackResources)]
                                 :resource-paths ["test/resources"]
@@ -190,15 +234,28 @@
                              ;; Docs are generated by the engine build scripts at a point BEFORE
                              ;; the bob is even built, so we need a separate "project" without bob
                              ;; dependency to generate docs
-                             :java-source-paths ^:replace []
+                             :java-source-paths ^:replace ["src/antlr" "src/common"]
                              :dependencies ^:replace [[org.clojure/clojure "1.12.0"]
                                                       [commons-io/commons-io "2.4"]
                                                       [prismatic/schema "1.1.9"]
                                                       [org.luaj/luaj-jse "3.0.1"]
-                                                      [clj-antlr "0.2.2"
-                                                       :exclusions [org.antlr/antlr4 org.antlr/antlr4-runtime]]
-                                                      [org.antlr/antlr4 "4.7.2"]
-                                                      [org.antlr/antlr4-runtime "4.7.2"]]}
+                                                      ;; editor.code.data reaches util.diff,
+                                                      ;; which needs jgit
+                                                      [org.eclipse.jgit/org.eclipse.jgit "7.6.0.202603022253-r"]
+                                                      ;; normally, we get this from bob,
+                                                      ;; but docs are built before bob
+                                                      [org.antlr/antlr4-runtime "4.9.1"]]}
+                      :antlr {:prep-tasks ^:replace []
+                              :java-source-paths ^:replace []
+                              :dependencies ^:replace [[org.clojure/clojure "1.12.0"]
+                                                       [org.antlr/antlr4 "4.9.1"]]}
+                      :zip-parallel {:prep-tasks ^:replace []
+                                     :source-paths ^:replace ["src/zip_parallel"]
+                                     :java-source-paths ^:replace []
+                                     :resource-paths ^:replace []
+                                     :dependencies ^:replace [[org.clojure/clojure "1.12.0"]
+                                                              [commons-io/commons-io "2.4"]
+                                                              [org.apache.commons/commons-compress "1.18"]]}
                       :uberjar {:prep-tasks  ^:replace []
                                 :aot          :all
                                 :auto-clean   false
@@ -217,15 +274,14 @@
                       :portal {:source-paths ["src/portal"]
                                :dependencies [[djblue/portal "0.60.2"]]}
                       :reveal {:source-paths ["src/reveal"]
-                               :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading" "-Dvlaaad.reveal.prefs={:use-eval-file-metadata-namespace,true}"]
+                               :jvm-opts ["-Djol.magicFieldOffset=true" "-XX:+EnableDynamicAgentLoading"]
                                :injections [(require 'editor.reveal)]
-                               :dependencies [[vlaaad/reveal "1.3.292"]
-                                              [org.openjfx/javafx-web "23.0.1"]]}
+                               :dependencies [[vlaaad/reveal "1.3.312"]
+                                              [org.openjfx/javafx-web "27"]]
+                               :repl-options {:nrepl-middleware [vlaaad.reveal.nrepl/middleware]}}
                       :metrics {:jvm-opts ["-Ddefold.metrics=true"]}
                       :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]
-                             :jvm-opts [~(str "-javaagent:"
-                                           (.replace (System/getProperty "user.home") \\ \/)
-                                           "/.m2/repository/com/github/jbellis/jamm/0.4.0/jamm-0.4.0.jar")
+                             :jvm-opts [~(str "-javaagent:" (pathname (local-maven-jar-file "com/github/jbellis/jamm/0.4.0/jamm-0.4.0.jar")))
                                         "-Ddefold.jamm=true"
                                         "--add-opens=java.base/java.util=ALL-UNNAMED"
                                         "--add-opens=java.base/java.util.function=ALL-UNNAMED"
@@ -233,6 +289,7 @@
                                         "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"
                                         "--add-opens=java.net.http/jdk.internal.net.http=ALL-UNNAMED"
                                         "--add-opens=java.net.http/jdk.internal.net.http.common=ALL-UNNAMED"]}
+                      :strict-ec-scopes {:jvm-opts ["-Ddefold.graph.strict-evaluation-context-scopes=log-once"]}
                       :strict-pb-map-keys {:jvm-opts ["-Ddefold.protobuf.strict.enable=true"]}
                       :no-asserts {:global-vars {*assert* false}}
                       :no-decorated-exceptions {:jvm-opts ["-Ddefold.exception.decorate.disable=true"]}
@@ -240,64 +297,77 @@
                       :no-spec-asserts {:jvm-opts ["-Dclojure.spec.compile-asserts=false"]}
                       :performance [:no-decorated-exceptions :no-schemas :no-spec-asserts]
                       :16gb {:jvm-opts ["-Xmx16g"]}
-                      :x86_64-linux {:dependencies [[org.openjfx/javafx-base "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-controls "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-graphics "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-media "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-fxml "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                    [org.openjfx/javafx-swing "23.0.1" :classifier "linux" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :x86_64-linux {:dependencies [[org.openjfx/javafx-base "27" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-controls "27" :classifier "linux" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-graphics "27" :classifier "linux" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-media "27" :classifier "linux" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-fxml "27" :classifier "linux" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                    [org.openjfx/javafx-swing "27" :classifier "linux" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-linux/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
+                                                          #"^[^/]+\.(?:dll|dylib)$"]
                                      :uberjar-name "editor-x86_64-linux-standalone.jar"}
-                      :x86_64-win32 {:dependencies [[org.openjfx/javafx-base "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-controls "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-graphics "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-media "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-fxml "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                    [org.openjfx/javafx-swing "23.0.1" :classifier "win" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :x86_64-win32 {:dependencies [[org.openjfx/javafx-base "27" :classifier "win" :exclusions [org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-controls "27" :classifier "win" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-graphics "27" :classifier "win" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-media "27" :classifier "win" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-fxml "27" :classifier "win" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                    [org.openjfx/javafx-swing "27" :classifier "win" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-win32/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
+                                                          #"^[^/]+\.(?:so|dylib)$"]
                                      :uberjar-name "editor-x86_64-win32-standalone.jar"}
-                      :x86_64-macos {:dependencies [[org.openjfx/javafx-base "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-controls "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-graphics "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                    [org.openjfx/javafx-media "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                    [org.openjfx/javafx-fxml "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                    [org.openjfx/javafx-swing "23.0.1" :classifier "mac" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :x86_64-macos {:dependencies [[org.openjfx/javafx-base "27" :classifier "mac" :exclusions [org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-controls "27" :classifier "mac" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-graphics "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                    [org.openjfx/javafx-media "27" :classifier "mac" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                    [org.openjfx/javafx-fxml "27" :classifier "mac" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                    [org.openjfx/javafx-swing "27" :classifier "mac" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
+                                                          #"^[^/]+\.(?:so|dll)$"]
                                      :uberjar-name "editor-x86_64-macos-standalone.jar"}
-                      :arm64-macos {:dependencies [[org.openjfx/javafx-base "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-base]]
-                                                   [org.openjfx/javafx-controls "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
-                                                   [org.openjfx/javafx-graphics "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
-                                                   [org.openjfx/javafx-media "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
-                                                   [org.openjfx/javafx-fxml "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
-                                                   [org.openjfx/javafx-swing "23.0.1" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                      :arm64-macos {:dependencies [[org.openjfx/javafx-base "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-base]]
+                                                   [org.openjfx/javafx-controls "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
+                                                   [org.openjfx/javafx-graphics "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
+                                                   [org.openjfx/javafx-media "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-media org.openjfx/javafx-graphics]]
+                                                   [org.openjfx/javafx-fxml "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-fxml org.openjfx/javafx-controls]]
+                                                   [org.openjfx/javafx-swing "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-swing org.openjfx/javafx-graphics]]]
+                                    :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!arm64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
+                                                         #"^[^/]+\.(?:so|dll)$"]
                                     :uberjar-name "editor-arm64-macos-standalone.jar"}
                       :dev     {:dependencies      [;; generic javafx dep picks up natives for the current platform
-                                                    [org.openjfx/javafx-base "23.0.1"]
-                                                    [org.openjfx/javafx-controls "23.0.1"]
-                                                    [org.openjfx/javafx-graphics "23.0.1"]
-                                                    [org.openjfx/javafx-media "23.0.1"]
-                                                    [org.openjfx/javafx-fxml "23.0.1"]
-                                                    [org.openjfx/javafx-swing "23.0.1"]
-                                                    [com.clojure-goes-fast/clj-async-profiler "0.5.1"]
+                                                    [org.openjfx/javafx-base "27"]
+                                                    [org.openjfx/javafx-controls "27"]
+                                                    [org.openjfx/javafx-graphics "27"]
+                                                    [org.openjfx/javafx-media "27"]
+                                                    [org.openjfx/javafx-fxml "27"]
+                                                    [org.openjfx/javafx-swing "27"]
+                                                    [nrepl/nrepl "1.7.0"]
+                                                    [cider/cider-nrepl "0.62.2"]
+                                                    [com.clojure-goes-fast/clj-async-profiler "2.0.0-beta1"]
                                                     [criterium "0.4.3"]
                                                     [lambdaisland/deep-diff2 "2.10.211"]
-                                                    [io.github.cljfx/dev "1.0.39"]
+                                                    [io.github.cljfx/dev "1.10.6.42"]
+                                                    [io.github.cljfx/plorer "1.25" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
                                                     [org.clojure/test.check "1.1.1"]
-                                                    [org.clojure/tools.trace "0.7.9"]
-                                                    [org.mockito/mockito-core "1.10.19"]]
+                                                    [org.clojure/tools.trace "0.7.9"]]
                                 :source-paths      ["src/dev"]
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
-                                :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.1.3.zip"
-                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/3.9.0.zip"
-                                                    "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.1.0.zip"
-                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/3.9.2.zip"
-                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.4.zip"
-                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.2.0.zip"
+                                :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/refs/tags/1.2.0.zip"
+                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/13.2.0.zip"
+                                                    "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.2.0.zip"
+                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.9.0.zip"
+                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.5.zip"
+                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.8.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="
+                                                    "-Ddefold.dev=true"
+                                                    "-Djavafx.cachedir=.openjfx/cache"
                                                     ;"-Djogl.verbose=true"
                                                     ;"-Djogl.debug=true"
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
+                                                    "-Djogl.windows.cpu_affinity_mode=0"
                                                     "-Djogl.texture.notexrect=true"
                                                     "-XX:MaxRAMPercentage=75"
                                                     ;"-XX:+UnlockCommercialFeatures"

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,19 +15,16 @@
 #ifndef GRAPHICS_DEVICE_WEBGPU
 #define GRAPHICS_DEVICE_WEBGPU
 
+#include <cstddef>
 #include <vector>
 
 #include <dlib/hashtable.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dlib/opaque_handle_container.h>
 
-#include "../graphics_private.h"
+#include <dmsdk/graphics/graphics_webgpu.h>
 
-#ifdef __EMSCRIPTEN__
-#include <webgpu/webgpu.h>
-#elif defined(__APPLE__)
-#include <webgpu/webgpu.h>
-#endif
+#include "../graphics_private.h"
 
 #ifdef DM_GRAPHICS_WEBGPU_WAGYU
 #define DM_GRAPHICS_WEBGPU2
@@ -39,6 +36,8 @@ namespace dmGraphics
 
     struct WebGPUBuffer
     {
+        Buffer                     m_Base = {};
+
 #if defined(DM_GRAPHICS_WEBGPU2)
         WebGPUBuffer(WGPUBufferUsage usage) : m_Usage(usage) { }
         const WGPUBufferUsage m_Usage; // uint32_t
@@ -48,14 +47,11 @@ namespace dmGraphics
 #endif
 
         WGPUBuffer                 m_Buffer = NULL;
-
-
-        size_t                     m_Size = 0;
         size_t                     m_Used = 0;
         size_t                     m_LastRenderPass = 0;
     };
 
-    struct WebGPUUniformBuffer
+    struct WebGPUScratchUniformBuffer
     {
         struct Alloc
         {
@@ -67,10 +63,17 @@ namespace dmGraphics
         size_t          m_Alloc = 0;
     };
 
+    struct WebGPUUniformBuffer
+    {
+        UniformBuffer m_BaseUniformBuffer;
+        WGPUBuffer    m_Buffer;
+    };
+
     struct WebGPUShaderModule
     {
         WGPUShaderModule m_Module = NULL;
         uint64_t         m_Hash;
+        char*            m_FlippedEntryPoint = NULL;
     };
 
     struct WebGPUProgram
@@ -105,8 +108,10 @@ namespace dmGraphics
         WebGPUTexture()
         {
             memset(this, 0, sizeof(*this));
-            m_Type = TEXTURE_TYPE_2D;
-            m_GraphicsFormat = TEXTURE_FORMAT_RGBA;
+            m_Base.m_Type = TEXTURE_TYPE_2D;
+            m_Base.m_Format = TEXTURE_FORMAT_RGBA;
+            m_Base.m_MipMapCount = 1;
+            m_Base.m_NumTextureIds = 1;
             m_Format = WGPUTextureFormat_Undefined;
             m_UsageFlags = WGPUTextureUsage_None;
             m_Texture = NULL;
@@ -114,27 +119,21 @@ namespace dmGraphics
             m_Sampler = NULL;
         }
 
-        WGPUTexture           m_Texture;
-        WGPUTextureView       m_TextureView;
-        WGPUSampler           m_Sampler;
-        TextureType           m_Type;
-        TextureFormat         m_GraphicsFormat;
-        WGPUTextureFormat     m_Format;
+        Texture                 m_Base;
+        WGPUTexture             m_Texture;
+        WGPUTextureView         m_TextureView;
+        // Depth/stencil textures that are sampled use a depth-only view for
+        // shader binding and a separate all-aspects view as an attachment.
+        WGPUTextureView         m_RenderTargetView;
+        WGPUSampler             m_Sampler;
+        WGPUTextureFormat       m_Format;
 #if defined(DM_GRAPHICS_WEBGPU2)
-        WGPUTextureUsage      m_UsageFlags;
+        WGPUTextureUsage        m_UsageFlags;
 #else
-        WGPUTextureUsageFlags m_UsageFlags;
+        WGPUTextureUsageFlags   m_UsageFlags;
 #endif
-        uint32_t              m_Width;
-        uint32_t              m_Height;
-        uint32_t              m_OriginalWidth;
-        uint32_t              m_OriginalHeight;
-        uint16_t              m_Depth;
-        uint16_t              m_TextureSamplerIndex : 10;
-        uint16_t              m_MipMapCount : 5;
-        uint8_t               m_UsageHintFlags;
-        uint8_t               m_PageCount; // page count of texture array
-        uint8_t               m_Destroyed : 1;
+        uint16_t                m_TextureSamplerIndex;
+        uint8_t                 m_Destroyed : 1;
     };
 
     struct WebGPURenderTarget
@@ -144,19 +143,20 @@ namespace dmGraphics
             memset(this, 0, sizeof(*this));
         }
 
+        RenderTarget m_Base;
         AttachmentOp m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float        m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
-
-        HTexture     m_TextureResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
+        BufferType   m_ColorBufferTypes[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture     m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture     m_TextureResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture     m_TextureDepthStencil;
-
         float        m_Scissor[4];
         uint32_t     m_Width;
         uint32_t     m_Height;
+        uint32_t     m_BufferTypeFlags;
+        uint32_t     m_TransientBufferTypes;
         uint8_t      m_Multisample;
-        uint32_t     m_ColorBufferCount : 7;
     };
 
     struct WebGPUComputePass
@@ -169,6 +169,7 @@ namespace dmGraphics
     {
         WGPUBindGroup         m_BindGroups[MAX_SET_COUNT];
         WGPUBuffer            m_VertexBuffers[MAX_VERTEX_BUFFERS];
+        uint64_t              m_VertexBufferOffsets[MAX_VERTEX_BUFFERS];
         WebGPURenderTarget*   m_Target;
         WGPURenderPassEncoder m_Encoder;
         WGPURenderPipeline    m_Pipeline;
@@ -182,31 +183,31 @@ namespace dmGraphics
         TextureFilter m_MagFilter;
         TextureWrap   m_AddressModeU;
         TextureWrap   m_AddressModeV;
+        TextureWrap   m_AddressModeW;
         float         m_MaxAnisotropy;
         uint8_t       m_MaxLod;
     };
 
     struct WebGPUContext
     {
+        GraphicsContext                    m_BaseContext;
         dmHashTable64<WGPURenderPipeline>  m_RenderPipelineCache;
         dmHashTable64<WGPUComputePipeline> m_ComputePipelineCache;
         dmHashTable64<WGPUBindGroup>       m_BindGroupCache;
         dmHashTable64<WGPUSampler>         m_SamplerCache;
 
-        dmPlatform::HWindow                m_Window;
-
         WebGPUTexture*                     m_CurrentTextureUnits[MAX_TEXTURE_COUNT];
         VertexDeclaration                  m_VertexDeclaration[MAX_VERTEX_BUFFERS];
+        dmArray<VertexDeclaration::Stream> m_VertexDeclarationStreams[MAX_VERTEX_BUFFERS];
+        HVertexDeclaration                 m_EnabledVertexDeclarations[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
-        dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         int32_t                            m_ScissorRect[4];
         int32_t                            m_ViewportRect[4];
 
         WebGPUBuffer*                      m_CurrentVertexBuffers[MAX_VERTEX_BUFFERS];
-        uint64_t                           m_TextureFormatSupport;
+        uint32_t                           m_CurrentVertexBufferOffsets[MAX_VERTEX_BUFFERS];
+        WebGPUUniformBuffer*               m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
-        TextureFilter                      m_DefaultTextureMinFilter;
-        TextureFilter                      m_DefaultTextureMagFilter;
         WebGPUTexture*                     m_DefaultTexture2D;
         WebGPUTexture*                     m_DefaultTexture2DArray;
         WebGPUTexture*                     m_DefaultTextureCubeMap;
@@ -232,22 +233,22 @@ namespace dmGraphics
         uint32_t                           m_LastSubmittedRenderPass;
 
         // Current state
-        PipelineState       m_CurrentPipelineState;
-        WebGPURenderPass    m_CurrentRenderPass;
-        WebGPUComputePass   m_CurrentComputePass;
-        WebGPUUniformBuffer m_CurrentUniforms;
-        WebGPUProgram*      m_CurrentProgram;
-        WebGPURenderTarget* m_CurrentRenderTarget;
+        PipelineState                      m_CurrentPipelineState;
+        WebGPURenderPass                   m_CurrentRenderPass;
+        WebGPUComputePass                  m_CurrentComputePass;
+        WebGPUScratchUniformBuffer         m_CurrentScratchUniforms;
+        WebGPUProgram*                     m_CurrentProgram;
+        WebGPURenderTarget*                m_CurrentRenderTarget;
 
         uint32_t            m_OriginalWidth;
         uint32_t            m_OriginalHeight;
-        uint32_t            m_Width;
-        uint32_t            m_Height;
 
-        uint32_t            m_PrintDeviceInfo : 1;
-        uint32_t            m_ContextFeatures : 3;
         uint32_t            m_ViewportChanged : 1;
+        uint32_t            m_ApplyRenderTargetLoadOps : 1;
+        uint32_t            m_HasValidationError : 1;
         uint32_t            m_InitComplete : 1;
+        uint32_t            m_OpaqueSurface : 1;
+        uint32_t            m_InitializeOpaqueSurface : 1;
 
         // StorageBufferBinding             m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
     };

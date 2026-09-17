@@ -37,7 +37,11 @@ import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
 import android.view.Gravity;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
+import android.view.DisplayCutout;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnectionWrapper;
 import android.view.inputmethod.InputConnection;
@@ -51,7 +55,6 @@ import java.util.ArrayList;
 import android.content.pm.PackageInfo;
 
 public class DefoldActivity extends NativeActivity {
-
     // Must match values from sys.h
     private enum NetworkConnectivity {
         NETWORK_DISCONNECTED       (0),
@@ -84,19 +87,43 @@ public class DefoldActivity extends NativeActivity {
     private ArrayList<Integer> mGameControllerDeviceIds = new ArrayList<Integer>();
 
     private void updateFullscreenMode() {
+        final Window window = getWindow();
         if (mImmersiveMode) {
-            getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(false);
+
+                WindowInsetsController controller = window.getInsetsController();
+                if (controller != null) {
+                    controller.hide(WindowInsets.Type.systemBars());
+                    controller.setSystemBarsBehavior(
+                            WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    );
+                }
+            } else {
+                @SuppressWarnings("deprecation")
+                View decorView = window.getDecorView();
+                @SuppressWarnings("deprecation")
+                int flags =
+                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+
+                decorView.setSystemUiVisibility(flags);
+            }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             if (mDisplayCutout) {
                 WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
-                layoutParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    // Android 11+ also has ALWAYS, and on Android 15 SHORT_EDGES is treated like ALWAYS for non-floating windows
+                    layoutParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+                } else {
+                    // Android 9-10
+                    layoutParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                }
                 getWindow().setAttributes(layoutParams);
             }
         }
@@ -220,6 +247,7 @@ public class DefoldActivity extends NativeActivity {
     }
 
     public static native void nativeOnCreate(Activity activity);
+    public static native void glfwSetPendingResizeBecauseOfInsets();
 
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -258,6 +286,18 @@ public class DefoldActivity extends NativeActivity {
         }
 
         nativeOnCreate(this);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+            View decorView = getWindow().getDecorView();
+            decorView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+                @Override
+                public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+                    glfwSetPendingResizeBecauseOfInsets();
+                    return v.onApplyWindowInsets(insets);
+                }
+            });
+            decorView.requestApplyInsets();
+        }
     }
 
     @Override
@@ -491,6 +531,30 @@ public class DefoldActivity extends NativeActivity {
         });
     }
 
+    public int[] getSafeAreaInsets() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            return new int[] { 0, 0, 0, 0 };
+        }
+
+        View decor = getWindow().getDecorView();
+        WindowInsets insets = decor.getRootWindowInsets();
+        if (insets == null) {
+            return new int[] { 0, 0, 0, 0 };
+        }
+
+        DisplayCutout cutout = insets.getDisplayCutout();
+        if (cutout != null) {
+            return new int[] {
+                cutout.getSafeInsetLeft(),
+                cutout.getSafeInsetTop(),
+                cutout.getSafeInsetRight(),
+                cutout.getSafeInsetBottom()
+            };
+        }
+
+        return new int[] { 0, 0, 0, 0 };
+    }
+
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         nativeOnActivityResult(this, requestCode,resultCode, data);
     }
@@ -506,12 +570,17 @@ public class DefoldActivity extends NativeActivity {
         mGameControllerDeviceIds.clear();
         for (int deviceId : InputDevice.getDeviceIds()) {
             InputDevice device = InputDevice.getDevice(deviceId);
-            int sources = device.getSources();
-            // filter out only gamepads, joysticks and things which has a dpad
-            if (((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) ||
-                ((sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK) ||
-                ((sources & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD)) {
+            // a device can become disconnected or reconfigured in between the
+            // call to getDeviceIds() and getDevice()
+            if (device != null) {
+                int sources = device.getSources();
+                // Filter game controller discovery to gamepads and joysticks. DPAD-only devices
+                // are still handled as key input in android_init.c, but should not be registered
+                // as gamepads here.
+                if (((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) ||
+                    ((sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK)) {
                     mGameControllerDeviceIds.add(deviceId);
+                }
             }
         }
 
@@ -534,9 +603,61 @@ public class DefoldActivity extends NativeActivity {
         String name = "Android Controller";
         InputDevice device = InputDevice.getDevice(deviceId);
         if (device != null) {
-            name = device.getName();
+            String deviceName = device.getName();
+            if (deviceName != null && !deviceName.isEmpty()) {
+                name = deviceName;
+            }
         }
         return name;
+    }
+
+    /**
+     * Method to get controller descriptor
+     * Called from glfwAndroid.
+     * @param deviceId
+     * @return Device descriptor
+     */
+    public String getGameControllerDeviceDescriptor(int deviceId) {
+        InputDevice device = InputDevice.getDevice(deviceId);
+        if (device != null) {
+            String descriptor = device.getDescriptor();
+            if (descriptor != null && !descriptor.isEmpty()) {
+                return descriptor;
+            }
+            String deviceName = device.getName();
+            if (deviceName != null && !deviceName.isEmpty()) {
+                return deviceName;
+            }
+        }
+        return "Android Controller";
+    }
+
+    /**
+     * Method to get controller vendor id
+     * Called from glfwAndroid.
+     * @param deviceId
+     * @return Device vendor id
+     */
+    public int getGameControllerDeviceVendorId(int deviceId) {
+        InputDevice device = InputDevice.getDevice(deviceId);
+        if (device != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            return device.getVendorId();
+        }
+        return 0;
+    }
+
+    /**
+     * Method to get controller product id
+     * Called from glfwAndroid.
+     * @param deviceId
+     * @return Device product id
+     */
+    public int getGameControllerDeviceProductId(int deviceId) {
+        InputDevice device = InputDevice.getDevice(deviceId);
+        if (device != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            return device.getProductId();
+        }
+        return 0;
     }
 
     /**

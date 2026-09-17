@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,109 +18,21 @@
 #include <map>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include "../dlib/endian.hpp"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
 #include "../dlib/time.h"
 
+extern "C" int dmEndianCTest(void);
+
 class dlib : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmHashEnableReverseHash(true);
     }
 };
-
-TEST_F(dlib, Hash)
-{
-    uint32_t h1 = dmHashBuffer32("foo", 3);
-    uint64_t h2 = dmHashBuffer64("foo", 3);
-
-    HashState32 hs32;
-    dmHashInit32(&hs32, true);
-    dmHashUpdateBuffer32(&hs32, "f", 1);
-    dmHashUpdateBuffer32(&hs32, "o", 1);
-    dmHashUpdateBuffer32(&hs32, "o", 1);
-    uint32_t h1_i = dmHashFinal32(&hs32);
-
-    HashState64 hs64;
-    dmHashInit64(&hs64, true);
-    dmHashUpdateBuffer64(&hs64, "f", 1);
-    dmHashUpdateBuffer64(&hs64, "o", 1);
-    dmHashUpdateBuffer64(&hs64, "o", 1);
-    uint64_t h2_i = dmHashFinal64(&hs64);
-
-    ASSERT_EQ(0xd861e2f7L, h1);
-    ASSERT_EQ(0xd861e2f7L, h1_i);
-    ASSERT_EQ(0x97b476b3e71147f7LL, h2);
-    ASSERT_EQ(0x97b476b3e71147f7LL, h2_i);
-}
-
-TEST_F(dlib, HashIncremental32)
-{
-    for (uint32_t i = 0; i < 1000; ++i)
-    {
-        std::string s;
-        uint32_t n = rand() % 32 + 1;
-        for (uint32_t j = 0; j < n; ++j)
-        {
-            char tmp[] = { (char)rand(), 0 };
-            s += tmp;
-        }
-        uint32_t h1 = dmHashString32(s.c_str());
-
-        HashState32 hs;
-        dmHashInit32(&hs, true);
-        dmHashUpdateBuffer32(&hs, s.c_str(), s.size());
-        uint32_t h2 = dmHashFinal32(&hs);
-
-        dmHashInit32(&hs, true);
-        while (s.size() > 0)
-        {
-            int nchars = (rand() % s.size()) + 1;
-
-            dmHashUpdateBuffer32(&hs, s.substr(0, nchars).c_str(), nchars);
-            s = s.substr(nchars, s.size() - nchars);
-        }
-        uint32_t h3 = dmHashFinal32(&hs);
-
-        ASSERT_EQ(h1, h2);
-        ASSERT_EQ(h1, h3);
-    }
-}
-
-TEST_F(dlib, HashIncremental64)
-{
-    for (uint32_t i = 0; i < 1000; ++i)
-    {
-        std::string s;
-        uint32_t n = rand() % 32 + 1;
-        for (uint32_t j = 0; j < n; ++j)
-        {
-            char tmp[] = { (char)rand(), 0 };
-            s += tmp;
-        }
-        uint64_t h1 = dmHashString64(s.c_str());
-
-        HashState64 hs;
-        dmHashInit64(&hs, true);
-        dmHashUpdateBuffer64(&hs, s.c_str(), s.size());
-        uint64_t h2 = dmHashFinal64(&hs);
-
-        dmHashInit64(&hs, true);
-        while (s.size() > 0)
-        {
-            int nchars = (rand() % s.size()) + 1;
-
-            dmHashUpdateBuffer64(&hs, s.substr(0, nchars).c_str(), nchars);
-            s = s.substr(nchars, s.size() - nchars);
-        }
-        uint64_t h3 = dmHashFinal64(&hs);
-
-        ASSERT_EQ(h1, h2);
-        ASSERT_EQ(h1, h3);
-    }
-}
 
 TEST_F(dlib, HashToString32)
 {
@@ -211,6 +123,37 @@ TEST_F(dlib, ReverseHashSafeDeprecated)
     }
 }
 
+TEST_F(dlib, Endian)
+{
+    ASSERT_EQ(0, dmEndianCTest());
+
+    ASSERT_EQ((uint16_t)0x1234U, EndianToHost16(EndianToNetwork16((uint16_t)0x1234U)));
+    ASSERT_EQ((uint32_t)0x12345678U, EndianToHost32(EndianToNetwork32((uint32_t)0x12345678U)));
+    ASSERT_EQ((uint64_t)0x123456789abcdef0ULL, EndianToHost64(EndianToNetwork64((uint64_t)0x123456789abcdef0ULL)));
+
+    ASSERT_EQ((uint16_t)0x1234U, dmEndian::ToHost(dmEndian::ToNetwork((uint16_t)0x1234U)));
+    ASSERT_EQ((uint32_t)0x12345678U, dmEndian::ToHost(dmEndian::ToNetwork((uint32_t)0x12345678U)));
+    ASSERT_EQ((uint64_t)0x123456789abcdef0ULL, dmEndian::ToHost(dmEndian::ToNetwork((uint64_t)0x123456789abcdef0ULL)));
+
+#if DM_ENDIAN == DM_ENDIAN_LITTLE
+    ASSERT_EQ((uint16_t)0x3412U, EndianToNetwork16((uint16_t)0x1234U));
+    ASSERT_EQ((uint32_t)0x78563412U, EndianToNetwork32((uint32_t)0x12345678U));
+    ASSERT_EQ((uint64_t)0xf0debc9a78563412ULL, EndianToNetwork64((uint64_t)0x123456789abcdef0ULL));
+
+    ASSERT_EQ((uint16_t)0x3412U, dmEndian::ToNetwork((uint16_t)0x1234U));
+    ASSERT_EQ((uint32_t)0x78563412U, dmEndian::ToNetwork((uint32_t)0x12345678U));
+    ASSERT_EQ((uint64_t)0xf0debc9a78563412ULL, dmEndian::ToNetwork((uint64_t)0x123456789abcdef0ULL));
+#elif DM_ENDIAN == DM_ENDIAN_BIG
+    ASSERT_EQ((uint16_t)0x1234U, EndianToNetwork16((uint16_t)0x1234U));
+    ASSERT_EQ((uint32_t)0x12345678U, EndianToNetwork32((uint32_t)0x12345678U));
+    ASSERT_EQ((uint64_t)0x123456789abcdef0ULL, EndianToNetwork64((uint64_t)0x123456789abcdef0ULL));
+
+    ASSERT_EQ((uint16_t)0x1234U, dmEndian::ToNetwork((uint16_t)0x1234U));
+    ASSERT_EQ((uint32_t)0x12345678U, dmEndian::ToNetwork((uint32_t)0x12345678U));
+    ASSERT_EQ((uint64_t)0x123456789abcdef0ULL, dmEndian::ToNetwork((uint64_t)0x123456789abcdef0ULL));
+#endif
+}
+
 
 TEST_F(dlib, ReverseHashSafeStack)
 {
@@ -233,9 +176,9 @@ TEST_F(dlib, ReverseHashSafeStack)
     {
         DM_HASH_REVERSE_MEM(hash_ctx, 52+21);
 
-        const char* reverse64 = dmHashReverseSafe64Alloc(&hash_ctx, h64);
+        const char* reverse64 = dmHashReverseSafe64Alloc(&hash_ctx, h64unk);
         ASSERT_STREQ("<unknown:16993514797287668626>", reverse64); // 30 chars
-        ASSERT_STREQ("<unknown:3053055052>", dmHashReverseSafe32Alloc(&hash_ctx, h32)); // 20 chars
+        ASSERT_STREQ("<unknown:3053055052>", dmHashReverseSafe32Alloc(&hash_ctx, h32unk)); // 20 chars
         ASSERT_STREQ("<unknown:16993514797287668626>", reverse64); // Check that the null termination wasn't messed up
 
         // Test that the string will get truncated, and we'll fallback to the default string
@@ -250,6 +193,8 @@ TEST_F(dlib, ReverseHashSafeStack)
         // Making sure the macro works and that the variables names don't collide
         DM_HASH_REVERSE_MEM(hash_ctx2, 32);
         DM_HASH_REVERSE_MEM(hash_ctx3, 32);
+        (void)hash_ctx2;
+        (void)hash_ctx3;
     }
 }
 

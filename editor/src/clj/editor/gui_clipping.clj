@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -472,7 +472,7 @@
   (-> scene
       (update-in [:renderable :user-data] dissoc :clipping) ; don't want to treat this node as a clipper
       (assoc-in [:renderable :user-data :visible-clipper-scene?] true) ; tag it
-      (dissoc :children :transform :aabb)))
+      (dissoc :aabb :children :pose :transform)))
 
 (defn- visible-clipper-scene? [scene]
   (get-in scene [:renderable :user-data :visible-clipper-scene?]))

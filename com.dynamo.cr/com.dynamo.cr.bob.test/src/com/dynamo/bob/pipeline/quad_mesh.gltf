@@ -1,0 +1,123 @@
+{
+  "asset" : {
+    "version" : "2.0",
+    "generator" : "Defold GLTF test fixture generator"
+  },
+  "scene" : 0,
+  "scenes" : [
+    {
+      "nodes" : [
+        0
+      ]
+    }
+  ],
+  "nodes" : [
+    {
+      "mesh" : 0,
+      "name" : "QuadMesh"
+    }
+  ],
+  "meshes" : [
+    {
+      "name" : "Quad",
+      "primitives" : [
+        {
+          "attributes" : {
+            "POSITION" : 0,
+            "NORMAL" : 1,
+            "TEXCOORD_0" : 2
+          },
+          "indices" : 3,
+          "material" : 0
+        }
+      ]
+    }
+  ],
+  "materials" : [
+    {
+      "name" : "Default",
+      "pbrMetallicRoughness" : {
+        "baseColorFactor" : [
+          1,
+          1,
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "buffers" : [
+    {
+      "byteLength" : 140,
+      "uri" : "data:application/octet-stream;base64,AACAvwAAAAAAAIA/AACAPwAAAAAAAIA/AACAvwAAAAAAAIC/AACAPwAAAAAAAIC/AAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AACAPwAAgD8AAAEAAgACAAEAAwA="
+    }
+  ],
+  "bufferViews" : [
+    {
+      "buffer" : 0,
+      "byteOffset" : 0,
+      "byteLength" : 48,
+      "target" : 34962
+    },
+    {
+      "buffer" : 0,
+      "byteOffset" : 48,
+      "byteLength" : 48,
+      "target" : 34962
+    },
+    {
+      "buffer" : 0,
+      "byteOffset" : 96,
+      "byteLength" : 32,
+      "target" : 34962
+    },
+    {
+      "buffer" : 0,
+      "byteOffset" : 128,
+      "byteLength" : 12,
+      "target" : 34963
+    }
+  ],
+  "accessors" : [
+    {
+      "bufferView" : 0,
+      "componentType" : 5126,
+      "count" : 4,
+      "type" : "VEC3",
+      "min" : [
+        -1.0,
+        0.0,
+        -1.0
+      ],
+      "max" : [
+        1.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "bufferView" : 1,
+      "componentType" : 5126,
+      "count" : 4,
+      "type" : "VEC3"
+    },
+    {
+      "bufferView" : 2,
+      "componentType" : 5126,
+      "count" : 4,
+      "type" : "VEC2"
+    },
+    {
+      "bufferView" : 3,
+      "componentType" : 5123,
+      "count" : 6,
+      "type" : "SCALAR",
+      "min" : [
+        0
+      ],
+      "max" : [
+        3
+      ]
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -271,7 +271,7 @@ namespace dmSocket
         int r = dmFileDescriptor::Wait(&selector->m_Poller, (timeout < 0) ? 0 : timeout);
         if (r < 0)
         {
-            return NativeToResult(__FUNCTION__, __LINE__, DM_SOCKET_ERRNO);
+            return NativeToResult(__FUNCTION__, __LINE__, DM_SOCKET_ERRNO());
         }
         else if(timeout > 0 && r == 0)
         {

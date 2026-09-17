@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,6 +18,8 @@
 
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/path.h>
+#include <dlib/testutil.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/resource/resource.h>
 #include "../gameobject.h"
@@ -28,14 +30,15 @@ using namespace dmVMath;
 class BonesTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/bones");
+        char path[DMPATH_MAX_PATH];
+        m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gameobject/test/bones"));
         dmScript::ContextParams script_context_params = {};
         script_context_params.m_Factory = m_Factory;
         m_ScriptContext = dmScript::NewContext(script_context_params);
@@ -79,7 +82,7 @@ protected:
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);

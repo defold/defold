@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,6 +14,7 @@
 
 #include <dlib/math.h>
 #include <dlib/log.h>
+#include <dmsdk/dlib/atomic.h>
 
 #include "graphics_vulkan_defines.h"
 #include "graphics_vulkan_private.h"
@@ -22,31 +23,31 @@ namespace dmGraphics
 {
     void InitializeVulkanTexture(VulkanTexture* t)
     {
-        t->m_Type                = TEXTURE_TYPE_2D;
-        t->m_GraphicsFormat      = TEXTURE_FORMAT_RGBA;
-        t->m_DeviceBuffer        = 0;
-        t->m_Format              = VK_FORMAT_UNDEFINED;
-        t->m_Width               = 0;
-        t->m_Height              = 0;
-        t->m_OriginalWidth       = 0;
-        t->m_OriginalHeight      = 0;
-        t->m_MipMapCount         = 0;
-        t->m_TextureSamplerIndex = 0;
-        t->m_Destroyed           = 0;
+        memset(&t->m_Base, 0, sizeof(t->m_Base));
+        t->m_Base.m_Type                = TEXTURE_TYPE_2D;
+        t->m_Base.m_Format              = TEXTURE_FORMAT_RGBA;
+        dmAtomicStore32(&t->m_Base.m_DataState, 0);
+        t->m_DeviceBuffer               = 0;
+        t->m_Format                     = VK_FORMAT_UNDEFINED;
+        t->m_TextureSamplerIndex        = 0;
+        t->m_Destroyed                  = 0;
         memset(&t->m_Handle, 0, sizeof(t->m_Handle));
     }
 
-    RenderTarget::RenderTarget(const uint32_t rtId)
-        : m_SubPasses(0)
-        , m_TextureDepthStencil(0)
-        , m_Id(rtId)
-        , m_IsBound(0)
+    VulkanRenderTarget::VulkanRenderTarget(const uint32_t rtId)
+        : m_Base()
+        , m_DepthAttachmentClearValue(1.0f)
+        , m_StencilAttachmentClearValue(0)
+        , m_SubPasses(0)
+        , m_Destroyed(0)
+        , m_HasPendingClearColor(0)
+        , m_HasPendingClearDepth(0)
         , m_SubPassCount(0)
         , m_SubPassIndex(0)
     {
+        m_Base.m_Id = rtId;
         m_Extent.width  = 0;
         m_Extent.height = 0;
-        memset(m_TextureColor, 0, sizeof(m_TextureColor));
         memset(&m_Handle, 0, sizeof(m_Handle));
     }
 
@@ -247,47 +248,13 @@ namespace dmGraphics
         }
     }
 
-    VkResult OneTimeCommandBuffer::Begin()
-    {
-        assert(m_Context != 0);
-
-        VkCommandBuffer vk_command_buffer;
-        CreateCommandBuffers(m_Context->m_LogicalDevice.m_Device, m_Context->m_LogicalDevice.m_CommandPool, 1, &vk_command_buffer);
-        VkCommandBufferBeginInfo vk_command_buffer_begin_info;
-        memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
-
-        vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        VkResult res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
-        m_CmdBuffer = vk_command_buffer;
-        return res;
-    }
-
-    VkResult OneTimeCommandBuffer::End()
-    {
-        vkEndCommandBuffer(m_CmdBuffer);
-
-        VkSubmitInfo vk_submit_info = {};
-        vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        vk_submit_info.commandBufferCount = 1;
-        vk_submit_info.pCommandBuffers    = &m_CmdBuffer;
-
-        VkResult res = vkQueueSubmit(m_Context->m_LogicalDevice.m_GraphicsQueue, 1, &vk_submit_info, VK_NULL_HANDLE);
-        vkQueueWaitIdle(m_Context->m_LogicalDevice.m_GraphicsQueue);
-        vkFreeCommandBuffers(m_Context->m_LogicalDevice.m_Device, m_Context->m_LogicalDevice.m_CommandPool, 1, &m_CmdBuffer);
-
-        m_Context   = 0;
-        m_CmdBuffer = VK_NULL_HANDLE;
-        return res;
-    }
-
     VkResult DeviceBuffer::MapMemory(VkDevice vk_device, uint32_t offset, uint32_t size)
     {
         if (m_MappedDataPtr)
         {
             return VK_SUCCESS;
         }
-        return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_MemorySize, 0, &m_MappedDataPtr);
+        return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_Base.m_Size, 0, &m_MappedDataPtr);
     }
 
     void DeviceBuffer::UnmapMemory(VkDevice vk_device)
@@ -315,7 +282,7 @@ namespace dmGraphics
         return RESOURCE_TYPE_PROGRAM;
     }
 
-    const VulkanResourceType RenderTarget::GetType()
+    const VulkanResourceType VulkanRenderTarget::GetType()
     {
         return RESOURCE_TYPE_RENDER_TARGET;
     }
@@ -346,7 +313,10 @@ namespace dmGraphics
 
             vkGetPhysicalDeviceProperties(vk_device, &device_list[i].m_Properties);
             vkGetPhysicalDeviceFeatures(vk_device, &device_list[i].m_Features);
-            vkGetPhysicalDeviceFeatures2(vk_device, &device_list[i].m_Features2);
+            if (pNextFeatures && vkGetPhysicalDeviceFeatures2)
+            {
+                vkGetPhysicalDeviceFeatures2(vk_device, &device_list[i].m_Features2);
+            }
             vkGetPhysicalDeviceMemoryProperties(vk_device, &device_list[i].m_MemoryProperties);
 
             vkGetPhysicalDeviceQueueFamilyProperties(vk_device, &vk_queue_family_count, 0);
@@ -419,171 +389,153 @@ namespace dmGraphics
         vkGetPhysicalDeviceFormatProperties(vk_physical_device, vk_format, properties);
     }
 
-    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount)
+    VkSampleCountFlags GetSupportedSampleCountFlags(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits)
     {
-        VkSampleCountFlags vk_sample_count = VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM;
+        VkSampleCountFlags vk_sample_count =
+            VK_SAMPLE_COUNT_1_BIT  |
+            VK_SAMPLE_COUNT_2_BIT  |
+            VK_SAMPLE_COUNT_4_BIT  |
+            VK_SAMPLE_COUNT_8_BIT  |
+            VK_SAMPLE_COUNT_16_BIT |
+            VK_SAMPLE_COUNT_32_BIT |
+            VK_SAMPLE_COUNT_64_BIT;
 
-        if (bufferFlagBits & BUFFER_TYPE_COLOR0_BIT)
+        if (bufferFlagBits & (BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_COLOR1_BIT | BUFFER_TYPE_COLOR2_BIT | BUFFER_TYPE_COLOR3_BIT))
         {
-            vk_sample_count = physicalDevice->m_Properties.limits.framebufferColorSampleCounts;
+            vk_sample_count &= physicalDevice->m_Properties.limits.framebufferColorSampleCounts;
         }
 
         if (bufferFlagBits & BUFFER_TYPE_DEPTH_BIT)
         {
-            vk_sample_count = dmMath::Min<VkSampleCountFlags>(vk_sample_count, physicalDevice->m_Properties.limits.framebufferColorSampleCounts);
+            vk_sample_count &= physicalDevice->m_Properties.limits.framebufferDepthSampleCounts;
         }
 
         if (bufferFlagBits & BUFFER_TYPE_STENCIL_BIT)
         {
-            vk_sample_count = dmMath::Min<VkSampleCountFlags>(vk_sample_count, physicalDevice->m_Properties.limits.framebufferStencilSampleCounts);
+            vk_sample_count &= physicalDevice->m_Properties.limits.framebufferStencilSampleCounts;
         }
 
-        const uint8_t sample_count_index_requested = (uint8_t) sampleCount == 0 ? 0 : (uint8_t) log2f((float) sampleCount);
-        const uint8_t sample_count_index_max       = (uint8_t) log2f((float) vk_sample_count);
-        const VkSampleCountFlagBits vk_count_bits[] = {
-            VK_SAMPLE_COUNT_1_BIT,
-            VK_SAMPLE_COUNT_2_BIT,
-            VK_SAMPLE_COUNT_4_BIT,
-            VK_SAMPLE_COUNT_8_BIT,
-            VK_SAMPLE_COUNT_16_BIT,
-            VK_SAMPLE_COUNT_32_BIT,
-            VK_SAMPLE_COUNT_64_BIT,
-        };
-
-        return vk_count_bits[dmMath::Min<uint8_t>(sample_count_index_requested, sample_count_index_max)];
+        return vk_sample_count;
     }
 
-    void TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count)
+    VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount)
     {
-        VkImageLayout vk_from_layout = texture->m_ImageLayout[base_mip_level];
+        VkSampleCountFlags supported_sample_counts = GetSupportedSampleCountFlags(physicalDevice, bufferFlagBits);
+        return (VkSampleCountFlagBits) GetClosestSupportedSampleCount(sampleCount, (uint32_t) supported_sample_counts);
+    }
 
-        if (vk_from_layout == vk_to_layout)
+    struct LayoutTransitionInfo
+    {
+        VkAccessFlags        m_AccessMask;
+        VkPipelineStageFlags m_StageMask;
+    };
+
+    static LayoutTransitionInfo GetAccessMaskAndStage(VkImageLayout layout)
+    {
+        switch (layout)
         {
+            case VK_IMAGE_LAYOUT_UNDEFINED:
+                return { 0, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
+
+            case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+                return { VK_ACCESS_SHADER_READ_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT };
+
+            case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+                return { VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
+
+            case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+                return { VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT };
+
+            case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+                return { VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+            case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+                return { VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                         VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT };
+
+            case VK_IMAGE_LAYOUT_GENERAL:
+                return { VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT }; // conservative
+
+            case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+                // Presentation happens outside the graphics pipeline, so there is no matching
+                // access mask to wait on. BOTTOM_OF_PIPE is a conservative stage for transitions
+                // to and from the present engine.
+                return { 0, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT };
+
+            default:
+                assert(false && "Unsupported VkImageLayout in GetAccessMaskAndStage");
+                // Fallback: allow everything, conservative but safe
+                return { 0, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT };
+        }
+    }
+
+    void TransitionImageLayoutWithCmdBuffer(
+            VkCommandBuffer vk_command_buffer,
+            VulkanTexture* texture,
+            VkImageAspectFlags vk_image_aspect,
+            VkImageLayout new_layout,
+            uint32_t base_mip_level,
+            uint32_t layer_count)
+    {
+        VkImageLayout old_layout = texture->m_ImageLayout[base_mip_level];
+        if (old_layout == new_layout)
             return;
-        }
 
-        VkImageMemoryBarrier vk_memory_barrier            = {};
-        vk_memory_barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        vk_memory_barrier.oldLayout                       = vk_from_layout;
-        vk_memory_barrier.newLayout                       = vk_to_layout;
-        vk_memory_barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        vk_memory_barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
-        vk_memory_barrier.image                           = texture->m_Handle.m_Image;
-        vk_memory_barrier.subresourceRange.aspectMask     = vk_image_aspect;
-        vk_memory_barrier.subresourceRange.baseMipLevel   = base_mip_level;
-        vk_memory_barrier.subresourceRange.levelCount     = 1;
-        vk_memory_barrier.subresourceRange.baseArrayLayer = 0;
-        vk_memory_barrier.subresourceRange.layerCount     = layer_count;
+        LayoutTransitionInfo src = GetAccessMaskAndStage(old_layout);
+        LayoutTransitionInfo dst = GetAccessMaskAndStage(new_layout);
 
-        VkPipelineStageFlags vk_source_stage      = VK_IMAGE_LAYOUT_UNDEFINED;
-        VkPipelineStageFlags vk_destination_stage = VK_IMAGE_LAYOUT_UNDEFINED;
-
-        // These stage changes are explicit in our case:
-        //   1) undefined -> shader read. This transition is used when uploading texture without a stage buffer.
-        //   2) undefined -> transfer. This transition is used for staging buffers when uploading texture data
-        //   3) transfer  -> shader read. This transition is used when the staging transfer is complete.
-        //   4) undefined -> depth stencil. This transition is used when creating a depth buffer attachment.
-        //   5) undefined -> color attachment. This transition is used when creating a color buffer attachment.
-        if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_HOST_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        }
-        else if ((vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED || vk_from_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && vk_to_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        }
-        else if ((vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED || vk_from_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) && vk_to_layout == VK_IMAGE_LAYOUT_GENERAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        }
-        else if (vk_from_layout == VK_IMAGE_LAYOUT_UNDEFINED && vk_to_layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
-        {
-            vk_memory_barrier.srcAccessMask = 0;
-            vk_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-            vk_source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            vk_destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        }
-        else
-        {
-            // Transition not supported, so we early out
-            return;
-        }
+        VkImageMemoryBarrier barrier{};
+        barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout                       = old_layout;
+        barrier.newLayout                       = new_layout;
+        barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image                           = texture->m_Handle.m_Image;
+        barrier.subresourceRange.aspectMask     = vk_image_aspect;
+        barrier.subresourceRange.baseMipLevel   = base_mip_level;
+        barrier.subresourceRange.levelCount     = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount     = layer_count;
+        barrier.srcAccessMask                   = src.m_AccessMask;
+        barrier.dstAccessMask                   = dst.m_AccessMask;
 
         vkCmdPipelineBarrier(
             vk_command_buffer,
-            vk_source_stage,
-            vk_destination_stage,
-            0, 0, 0, 0, 0, 1,
-            &vk_memory_barrier);
+            src.m_StageMask,
+            dst.m_StageMask,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &barrier
+        );
 
-        texture->m_ImageLayout[base_mip_level] = vk_to_layout;
+        texture->m_ImageLayout[base_mip_level] = new_layout;
     }
 
-    VkResult TransitionImageLayout(VkDevice vk_device, VkCommandPool vk_command_pool, VkQueue vk_graphics_queue, VulkanTexture* texture,
-        VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout,
-        uint32_t base_mip_level, uint32_t layer_count)
+    VkResult TransitionImageLayout(LogicalDevice* logical_device,
+        VulkanTexture* texture,
+        VkImageAspectFlags vk_image_aspect,
+        VkImageLayout vk_to_layout,
+        uint32_t base_mip_level,
+        uint32_t layer_count)
     {
-        // Create a one-time-execute command buffer that will only be used for the transition
-        VkCommandBuffer vk_command_buffer;
-        CreateCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
-
-        VkCommandBufferBeginInfo vk_command_buffer_begin_info = {};
-        vk_command_buffer_begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vk_command_buffer_begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-        vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
+        VkDevice vk_device = logical_device->m_Device;
+        VkCommandPool vk_command_pool = logical_device->m_CommandPool;
+        VkCommandBuffer vk_command_buffer = BeginSingleTimeCommands(vk_device, vk_command_pool);
 
         TransitionImageLayoutWithCmdBuffer(vk_command_buffer, texture, vk_image_aspect, vk_to_layout, base_mip_level, layer_count);
 
-        vkEndCommandBuffer(vk_command_buffer);
+        VkFence fence;
+        SubmitCommandBuffer(logical_device, vk_command_buffer, &fence);
 
-        VkSubmitInfo vk_submit_info;
-        memset(&vk_submit_info, 0, sizeof(VkSubmitInfo));
-
-        vk_submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        vk_submit_info.commandBufferCount = 1;
-        vk_submit_info.pCommandBuffers    = &vk_command_buffer;
-
-        vkQueueSubmit(vk_graphics_queue, 1, &vk_submit_info, VK_NULL_HANDLE);
-        vkQueueWaitIdle(vk_graphics_queue);
+        // Wait for the copy command to finish
+        vkWaitForFences(vk_device, 1, &fence, VK_TRUE, UINT64_MAX);
+        vkDestroyFence(vk_device, fence, NULL);
         vkFreeCommandBuffers(vk_device, vk_command_pool, 1, &vk_command_buffer);
 
         return VK_SUCCESS;
@@ -677,6 +629,67 @@ namespace dmGraphics
         return vkAllocateCommandBuffers(vk_device, &vk_buffers_allocate_info, vk_command_buffers_out);
     }
 
+    VkCommandBuffer BeginSingleTimeCommands(VkDevice device, VkCommandPool cmd_pool)
+    {
+        VkCommandBufferAllocateInfo alloc_info = {};
+        alloc_info.sType                       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        alloc_info.level                       = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        alloc_info.commandPool                 = cmd_pool;
+        alloc_info.commandBufferCount          = 1;
+
+        VkCommandBuffer cmd_buffer;
+        vkAllocateCommandBuffers(device, &alloc_info, &cmd_buffer);
+
+        VkCommandBufferBeginInfo begin_info = {};
+        begin_info.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin_info.flags                    = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(cmd_buffer, &begin_info);
+
+        return cmd_buffer;
+    }
+
+    VkResult QueueSubmit(LogicalDevice* logical_device, uint32_t submit_count, const VkSubmitInfo* submit_info, VkFence fence)
+    {
+        DM_MUTEX_SCOPED_LOCK(logical_device->m_QueueMutex);
+        return vkQueueSubmit(logical_device->m_GraphicsQueue, submit_count, submit_info, fence);
+    }
+
+    VkResult QueuePresent(LogicalDevice* logical_device, const VkPresentInfoKHR* present_info)
+    {
+        DM_MUTEX_SCOPED_LOCK(logical_device->m_QueueMutex);
+        return vkQueuePresentKHR(logical_device->m_PresentQueue, present_info);
+    }
+
+    VkResult SubmitCommandBuffer(LogicalDevice* logical_device, VkCommandBuffer cmd, VkFence* fence_out)
+    {
+        VkDevice vk_device = logical_device->m_Device;
+        VkResult res = vkEndCommandBuffer(cmd);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        VkFenceCreateInfo fence_info = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+        VkFence fence = VK_NULL_HANDLE;
+        res = vkCreateFence(vk_device, &fence_info, NULL, &fence);
+
+        VkSubmitInfo submit_info = {};
+        submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit_info.commandBufferCount = 1;
+        submit_info.pCommandBuffers = &cmd;
+
+        res = QueueSubmit(logical_device, 1, &submit_info, fence);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
+        *fence_out = fence;
+
+        return res;
+    }
+
     VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, ShaderModule* shaderModuleOut)
     {
         assert(shaderModuleOut);
@@ -761,8 +774,8 @@ namespace dmGraphics
             return res;
         }
 
-        bufferOut->m_MemorySize = (size_t) vk_buffer_memory_req.size;
-        bufferOut->m_Destroyed  = 0;
+        bufferOut->m_Base.m_Size = (uint32_t) vk_size;
+        bufferOut->m_Destroyed   = 0;
 
         return VK_SUCCESS;
 bail:
@@ -831,7 +844,7 @@ bail:
         VulkanTexture*        textureOut)
     {
         DeviceBuffer& device_buffer = textureOut->m_DeviceBuffer;
-        TextureType tex_type = textureOut->m_Type;
+        TextureType tex_type = textureOut->m_Base.m_Type;
 
         VkImageViewType vk_view_type = VK_IMAGE_VIEW_TYPE_2D;
 
@@ -860,7 +873,6 @@ bail:
         else if (tex_type == TEXTURE_TYPE_2D_ARRAY)
         {
             assert(imageLayers > 0);
-            vk_image_create_info.flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
             vk_view_type = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
         }
         else if (tex_type == TEXTURE_TYPE_3D || tex_type == TEXTURE_TYPE_IMAGE_3D || tex_type == TEXTURE_TYPE_TEXTURE_3D)
@@ -914,7 +926,7 @@ bail:
             goto bail;
         }
 
-        device_buffer.m_MemorySize = vk_memory_req.size;
+        device_buffer.m_Base.m_Size = (uint32_t) vk_memory_req.size;
 
         VkImageViewCreateInfo vk_view_create_info;
         memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
@@ -935,9 +947,9 @@ bail:
 
         if (imageMips == 0)
         {
-            textureOut->m_Width  = imageWidth;
-            textureOut->m_Height = imageHeight;
-            textureOut->m_Depth  = imageDepth;
+            textureOut->m_Base.m_Width  = imageWidth;
+            textureOut->m_Base.m_Height = imageHeight;
+            textureOut->m_Base.m_Depth  = imageDepth;
         }
 
         return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_Handle.m_ImageView);
@@ -947,7 +959,7 @@ bail:
     }
 
     VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode,
-        VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out)
+        VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, VkSamplerAddressMode vk_wrap_w, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out)
     {
         VkSamplerCreateInfo vk_sampler_create_info;
         memset(&vk_sampler_create_info, 0, sizeof(vk_sampler_create_info));
@@ -957,7 +969,7 @@ bail:
         vk_sampler_create_info.minFilter               = vk_min_filter;
         vk_sampler_create_info.addressModeU            = vk_wrap_u;
         vk_sampler_create_info.addressModeV            = vk_wrap_v;
-        vk_sampler_create_info.addressModeW            = vk_wrap_u;
+        vk_sampler_create_info.addressModeW            = vk_wrap_w;
         vk_sampler_create_info.anisotropyEnable        = max_anisotropy > 1.0f;
         vk_sampler_create_info.maxAnisotropy           = max_anisotropy;
         vk_sampler_create_info.borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
@@ -975,20 +987,25 @@ bail:
     VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags,
         RenderPassAttachment* colorAttachments, uint8_t numColorAttachments,
         RenderPassAttachment* depthStencilAttachment,
-        RenderPassAttachment* resolveAttachment,
+        RenderPassAttachment* resolveAttachments,
         VkRenderPass* renderPassOut)
     {
         assert(*renderPassOut == VK_NULL_HANDLE);
 
         const uint8_t num_depth_attachments = (depthStencilAttachment ? 1 : 0);
-        const uint8_t num_attachments       = numColorAttachments + num_depth_attachments + (resolveAttachment ? 1 : 0);
-        VkAttachmentDescription* vk_attachment_desc     = new VkAttachmentDescription[num_attachments];
-        VkAttachmentReference* vk_attachment_color_ref  = new VkAttachmentReference[numColorAttachments];
-        VkAttachmentReference vk_attachment_depth_ref   = {};
-        VkAttachmentReference vk_attachment_resolve_ref = {};
+        const uint8_t num_resolve_attachments = resolveAttachments ? numColorAttachments : 0;
+        const uint8_t num_attachments       = numColorAttachments + num_depth_attachments + num_resolve_attachments;
+        VkAttachmentDescription* vk_attachment_desc      = new VkAttachmentDescription[num_attachments];
+        VkAttachmentReference* vk_attachment_color_ref   = new VkAttachmentReference[numColorAttachments];
+        VkAttachmentReference* vk_attachment_resolve_ref = resolveAttachments ? new VkAttachmentReference[numColorAttachments] : 0;
+        VkAttachmentReference vk_attachment_depth_ref    = {};
 
         memset(vk_attachment_desc, 0, sizeof(VkAttachmentDescription) * num_attachments);
         memset(vk_attachment_color_ref, 0, sizeof(VkAttachmentReference) * numColorAttachments);
+        if (vk_attachment_resolve_ref)
+        {
+            memset(vk_attachment_resolve_ref, 0, sizeof(VkAttachmentReference) * numColorAttachments);
+        }
 
         for (uint16_t i=0; i < numColorAttachments; i++)
         {
@@ -1019,32 +1036,43 @@ bail:
 
             attachment_depth.format         = depthStencilAttachment->m_Format;
             attachment_depth.samples        = vk_sample_flags;
-            attachment_depth.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachment_depth.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachment_depth.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+            attachment_depth.loadOp         = depthStencilAttachment->m_LoadOp;
+            attachment_depth.storeOp        = depthStencilAttachment->m_StoreOp;
+            // Keep depth and stencil load ops in sync for packed depth/stencil attachments so
+            // the render-pass CLEAR fast path actually clears stencil too.
+            attachment_depth.stencilLoadOp  = depthStencilAttachment->m_LoadOp;
             attachment_depth.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
             attachment_depth.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachment_depth.finalLayout    = depthStencilAttachment->m_ImageLayout;
+
+            if (depthStencilAttachment->m_LoadOp != VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+            {
+                attachment_depth.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            }
 
             vk_attachment_depth_ref.attachment = numColorAttachments;
             vk_attachment_depth_ref.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         }
 
-        if (resolveAttachment)
+        if (resolveAttachments)
         {
-            const uint8_t resolve_index = numColorAttachments + num_depth_attachments;
-            VkAttachmentDescription& attachment_resolve = vk_attachment_desc[resolve_index];
-            attachment_resolve.format         = resolveAttachment->m_Format;
-            attachment_resolve.samples        = VK_SAMPLE_COUNT_1_BIT;
-            attachment_resolve.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachment_resolve.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-            attachment_resolve.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-            attachment_resolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-            attachment_resolve.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-            attachment_resolve.finalLayout    = resolveAttachment->m_ImageLayout;
+            const uint8_t first_resolve_index = numColorAttachments + num_depth_attachments;
+            for (uint16_t i=0; i < numColorAttachments; i++)
+            {
+                const uint8_t resolve_index = first_resolve_index + i;
+                VkAttachmentDescription& attachment_resolve = vk_attachment_desc[resolve_index];
+                attachment_resolve.format         = resolveAttachments[i].m_Format;
+                attachment_resolve.samples        = VK_SAMPLE_COUNT_1_BIT;
+                attachment_resolve.loadOp         = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+                attachment_resolve.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+                attachment_resolve.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+                attachment_resolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+                attachment_resolve.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+                attachment_resolve.finalLayout    = resolveAttachments[i].m_ImageLayout;
 
-            vk_attachment_resolve_ref.attachment = resolve_index;
-            vk_attachment_resolve_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                vk_attachment_resolve_ref[i].attachment = resolve_index;
+                vk_attachment_resolve_ref[i].layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            }
         }
 
         // Subpass dependencies describe access patterns between several 'sub-passes',
@@ -1072,7 +1100,7 @@ bail:
         vk_sub_pass_description.colorAttachmentCount    = numColorAttachments;
         vk_sub_pass_description.pColorAttachments       = vk_attachment_color_ref;
         vk_sub_pass_description.pDepthStencilAttachment = depthStencilAttachment ? &vk_attachment_depth_ref : 0;
-        vk_sub_pass_description.pResolveAttachments     = resolveAttachment ? &vk_attachment_resolve_ref : 0;
+        vk_sub_pass_description.pResolveAttachments     = vk_attachment_resolve_ref;
 
         VkRenderPassCreateInfo render_pass_create_info;
         memset(&render_pass_create_info, 0, sizeof(render_pass_create_info));
@@ -1089,6 +1117,7 @@ bail:
 
         delete[] vk_attachment_desc;
         delete[] vk_attachment_color_ref;
+        delete[] vk_attachment_resolve_ref;
 
         return res;
     }
@@ -1164,6 +1193,11 @@ bail:
         VK_CULL_MODE_FRONT_AND_BACK
     };
 
+    static const VkFrontFace g_vk_face_windings[] = {
+        VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        VK_FRONT_FACE_CLOCKWISE
+    };
+
     static const VkBlendFactor g_vk_blend_factors[] = {
         VK_BLEND_FACTOR_ZERO,
         VK_BLEND_FACTOR_ONE,
@@ -1175,7 +1209,20 @@ bail:
         VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
         VK_BLEND_FACTOR_DST_ALPHA,
         VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
-        VK_BLEND_FACTOR_SRC_ALPHA_SATURATE
+        VK_BLEND_FACTOR_SRC_ALPHA_SATURATE,
+        VK_BLEND_FACTOR_CONSTANT_COLOR,
+        VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR,
+        VK_BLEND_FACTOR_CONSTANT_ALPHA,
+        VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
+    };
+    DM_STATIC_ASSERT(DM_ARRAY_SIZE(g_vk_blend_factors) == BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA + 1, Invalid_Vulkan_Blend_Factor_Count);
+
+    static const VkBlendOp g_vk_blend_equations[] = {
+        VK_BLEND_OP_ADD,
+        VK_BLEND_OP_SUBTRACT,
+        VK_BLEND_OP_REVERSE_SUBTRACT,
+        VK_BLEND_OP_MIN,
+        VK_BLEND_OP_MAX
     };
 
     static const VkStencilOp g_vk_stencil_ops[] = {
@@ -1200,7 +1247,7 @@ bail:
         VK_COMPARE_OP_ALWAYS
     };
 
-    VkResult CreateComputePipeline(VkDevice vk_device, VulkanProgram* program, Pipeline* pipelineOut)
+    VkResult CreateComputePipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VulkanProgram* program, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -1212,12 +1259,12 @@ bail:
         vk_pipeline_create_info.layout             = program->m_Handle.m_PipelineLayout;
         vk_pipeline_create_info.pNext              = 0;
         vk_pipeline_create_info.stage              = program->m_ComputeModule->m_PipelineStageInfo;
-        return vkCreateComputePipelines(vk_device, 0, 1, &vk_pipeline_create_info, 0, pipelineOut);
+        return vkCreateComputePipelines(vk_device, vk_pipeline_cache, 1, &vk_pipeline_create_info, 0, pipelineOut);
     }
 
-    VkResult CreateGraphicsPipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
+    VkResult CreateGraphicsPipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
         PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
-        RenderTarget* render_target, Pipeline* pipelineOut)
+        VulkanRenderTarget* render_target, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -1255,7 +1302,10 @@ bail:
 
         vk_input_assembly.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
         vk_input_assembly.topology               = vk_primitive_type;
-        vk_input_assembly.primitiveRestartEnable = VK_TRUE;
+        // Only enable restart for strip topologies
+        vk_input_assembly.primitiveRestartEnable =
+            (vk_primitive_type == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP ||
+             vk_primitive_type == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP) ? VK_TRUE : VK_FALSE;
 
         VkViewport vk_viewport;
         memset(&vk_viewport, 0, sizeof(vk_viewport));
@@ -1285,8 +1335,8 @@ bail:
         vk_rasterizer.polygonMode             = VK_POLYGON_MODE_FILL;
         vk_rasterizer.lineWidth               = 1.0f;
         vk_rasterizer.cullMode                = vk_cull_mode;
-        vk_rasterizer.frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-        vk_rasterizer.depthBiasEnable         = VK_FALSE;
+        vk_rasterizer.frontFace               = g_vk_face_windings[pipelineState.m_FaceWinding];
+        vk_rasterizer.depthBiasEnable         = pipelineState.m_PolygonOffsetFillEnabled ? VK_TRUE : VK_FALSE;
         vk_rasterizer.depthBiasConstantFactor = 0.0f;
         vk_rasterizer.depthBiasClamp          = 0.0f;
         vk_rasterizer.depthBiasSlopeFactor    = 0.0f;
@@ -1313,7 +1363,7 @@ bail:
         vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_B) ? VK_COLOR_COMPONENT_B_BIT : 0;
         vk_color_write_mask        |= (state_write_mask & DM_GRAPHICS_STATE_WRITE_A) ? VK_COLOR_COMPONENT_A_BIT : 0;
 
-        uint8_t blend_attachment_count = render_target->m_ColorAttachmentCount;
+        uint8_t blend_attachment_count = render_target->m_Base.m_ColorAttachmentCount;
 
         if (render_target->m_SubPasses)
         {
@@ -1328,10 +1378,10 @@ bail:
             blend_attachment.blendEnable         = pipelineState.m_BlendEnabled;
             blend_attachment.srcColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
             blend_attachment.dstColorBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-            blend_attachment.colorBlendOp        = VK_BLEND_OP_ADD;
-            blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactor];
-            blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactor];
-            blend_attachment.alphaBlendOp        = VK_BLEND_OP_ADD;
+            blend_attachment.colorBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquationColor];
+            blend_attachment.srcAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendSrcFactorAlpha];
+            blend_attachment.dstAlphaBlendFactor = g_vk_blend_factors[pipelineState.m_BlendDstFactorAlpha];
+            blend_attachment.alphaBlendOp        = g_vk_blend_equations[pipelineState.m_BlendEquationAlpha];
         }
 
         VkPipelineColorBlendStateCreateInfo vk_color_blending;
@@ -1378,7 +1428,7 @@ bail:
         vk_depth_stencil_create_info.front                 = vk_stencil_op_state_front;
         vk_depth_stencil_create_info.back                  = vk_stencil_op_state_back;
 
-        const VkDynamicState vk_dynamic_state[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+        const VkDynamicState vk_dynamic_state[3] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_BIAS};
 
         VkPipelineDynamicStateCreateInfo vk_dynamic_state_create_info;
         vk_dynamic_state_create_info.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -1417,12 +1467,13 @@ bail:
         vk_pipeline_info.pColorBlendState    = &vk_color_blending;
         vk_pipeline_info.pDynamicState       = &vk_dynamic_state_create_info;
         vk_pipeline_info.layout              = program->m_Handle.m_PipelineLayout;
+
         vk_pipeline_info.renderPass          = render_target->m_Handle.m_RenderPass;
         vk_pipeline_info.subpass             = render_target->m_SubPassIndex;
         vk_pipeline_info.basePipelineHandle  = VK_NULL_HANDLE;
         vk_pipeline_info.basePipelineIndex   = -1;
 
-        return vkCreateGraphicsPipelines(vk_device, VK_NULL_HANDLE, 1, &vk_pipeline_info, 0, pipelineOut);
+        return vkCreateGraphicsPipelines(vk_device, vk_pipeline_cache, 1, &vk_pipeline_info, 0, pipelineOut);
     }
 
     void ResetScratchBuffer(VkDevice vk_device, ScratchBuffer* scratchBuffer)
@@ -1471,7 +1522,7 @@ bail:
     void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* allocator)
     {
         assert(allocator);
-        delete[] allocator->m_DescriptorSets;
+        free(allocator->m_DescriptorSets);
         allocator->m_DescriptorSets = 0x0;
 
         for (int i = 0; i < allocator->m_DescriptorPools.Size(); ++i)
@@ -1506,12 +1557,26 @@ bail:
         }
     }
 
-    void DestroyRenderTarget(VkDevice vk_device, RenderTarget::VulkanHandle* handle)
+    void DestroyRenderTarget(VkDevice vk_device, VulkanRenderTarget::VulkanHandle* handle)
     {
         DestroyFrameBuffer(vk_device, handle->m_Framebuffer);
         DestroyRenderPass(vk_device, handle->m_RenderPass);
-        handle->m_Framebuffer = VK_NULL_HANDLE;
-        handle->m_RenderPass = VK_NULL_HANDLE;
+        // Only destroy CLEAR variants if they are distinct objects. For the main RT both alias
+        // context->m_MainRenderPass, which is destroyed by the context teardown instead.
+        if (handle->m_RenderPassClear != VK_NULL_HANDLE && handle->m_RenderPassClear != handle->m_RenderPass)
+        {
+            DestroyRenderPass(vk_device, handle->m_RenderPassClear);
+        }
+        if (handle->m_RenderPassClearColorDepth != VK_NULL_HANDLE &&
+            handle->m_RenderPassClearColorDepth != handle->m_RenderPass &&
+            handle->m_RenderPassClearColorDepth != handle->m_RenderPassClear)
+        {
+            DestroyRenderPass(vk_device, handle->m_RenderPassClearColorDepth);
+        }
+        handle->m_Framebuffer              = VK_NULL_HANDLE;
+        handle->m_RenderPass               = VK_NULL_HANDLE;
+        handle->m_RenderPassClear          = VK_NULL_HANDLE;
+        handle->m_RenderPassClearColorDepth = VK_NULL_HANDLE;
     }
 
     void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle)
@@ -1545,7 +1610,9 @@ bail:
     void DestroyLogicalDevice(LogicalDevice* device)
     {
         vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
+        vkDestroyCommandPool(device->m_Device, device->m_CommandPoolWorker, 0);
         vkDestroyDevice(device->m_Device, 0);
+        dmMutex::Delete(device->m_QueueMutex);
         memset(device, 0, sizeof(*device));
     }
 
@@ -1562,6 +1629,24 @@ bail:
 
     #define QUEUE_FAMILY_INVALID 0xffff
 
+    QueueFamily GetGraphicsQueueFamily(PhysicalDevice* device)
+    {
+        QueueFamily qf;
+
+        for (uint32_t i = 0; i < device->m_QueueFamilyCount; ++i)
+        {
+            VkQueueFamilyProperties vk_properties = device->m_QueueFamilyProperties[i];
+            if (vk_properties.queueCount > 0 && vk_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            {
+                qf.m_GraphicsQueueIx = i;
+                qf.m_PresentQueueIx  = i;
+                break;
+            }
+        }
+
+        return qf;
+    }
+
     // All GPU operations are pushed to various queues. The physical device can have multiple
     // queues with different properties supported, so we need to find a combination of queues
     // that will work for our needs. Note that the present queue might not be the same queue as the
@@ -1569,6 +1654,7 @@ bail:
     QueueFamily GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface)
     {
         assert(device);
+        assert(vkGetPhysicalDeviceSurfaceSupportKHR && "Vulkan function table not initialized for current instance");
 
         QueueFamily qf;
 
@@ -1585,7 +1671,11 @@ bail:
         for (uint32_t i = 0; i < device->m_QueueFamilyCount; ++i)
         {
             QueueFamily candidate;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device->m_Device, i, surface, vk_present_queues+i);
+            VkResult present_support_res = vkGetPhysicalDeviceSurfaceSupportKHR(device->m_Device, i, surface, vk_present_queues+i);
+            if (present_support_res != VK_SUCCESS)
+            {
+                continue;
+            }
             VkQueueFamilyProperties vk_properties = device->m_QueueFamilyProperties[i];
 
             if (vk_properties.queueCount > 0 && vk_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
@@ -1689,6 +1779,11 @@ bail:
                 vk_create_pool_info.flags            = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
 
                 res = vkCreateCommandPool(logicalDeviceOut->m_Device, &vk_create_pool_info, 0, &logicalDeviceOut->m_CommandPoolWorker);
+            }
+
+            if (res == VK_SUCCESS)
+            {
+                logicalDeviceOut->m_QueueMutex = dmMutex::New();
             }
         }
 

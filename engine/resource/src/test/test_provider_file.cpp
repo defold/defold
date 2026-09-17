@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -65,7 +65,7 @@ TEST(FileProviderBasic, CanMount)
 class FileProviderArchive : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Loader = dmResourceProvider::FindLoaderByName(dmHashString64("file"));
         ASSERT_NE((ArchiveLoader*)0, m_Loader);
@@ -84,7 +84,7 @@ protected:
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmResourceProvider::Result result = dmResourceProvider::Unmount(m_Archive);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
@@ -169,5 +169,8 @@ int main(int argc, char **argv)
     dmLog::LogInitialize(&logparams);
 
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+    int result = jc_test_run_all();
+
+    dmLog::LogFinalize();
+    return result;
 }

@@ -1,0 +1,72 @@
+local M = {}
+
+local function print_properties(gp)
+    print("  project.title: " .. editor.get(gp, "project.title"))
+    print("  sound.gain: " .. editor.get(gp, "sound.gain"))
+    print("  display.width: " .. editor.get(gp, "display.width"))
+    print("  display.fullscreen: " .. tostring(editor.get(gp, "display.fullscreen")))
+    print("  input.game_binding: " .. editor.get(gp, "input.game_binding"))
+    print("  physics.type: " .. editor.get(gp, "physics.type"))
+    local deps_str = table.concat(editor.get(gp, "project.dependencies"), ",")
+    if #deps_str == 0 then
+        deps_str = "-"
+    end
+    print("  project.dependencies: " .. deps_str)
+end
+
+local function expect_error(message, ...) 
+    local success, ret_or_error_message = pcall(...)
+    local error_message
+    if success then
+        error_message = "??? unexpected success ???"
+    else
+        error_message = ret_or_error_message
+    end
+    print(("  %s => %s"):format(message, error_message))
+end
+
+function M.get_commands()
+    return {editor.command({
+        label = "Test",
+        locations = {"Edit"},
+        id = "defold.test",
+        run = function()
+            local gp = "/game.project"
+            print("Initial state:")
+            print_properties(gp)
+            print("Set settings...")
+            editor.transact({
+                -- string
+                editor.tx.set(gp, "project.title", "Set from Editor Script!"),
+                -- number
+                editor.tx.set(gp, "sound.gain", 0.5),
+                -- integer
+                editor.tx.set(gp, "display.width", 1000),
+                -- boolean
+                editor.tx.set(gp, "display.fullscreen", true),
+                -- resource
+                editor.tx.set(gp, "input.game_binding", "/builtins/input/all.input_binding"),
+                -- enum
+                editor.tx.set(gp, "physics.type", "3D"),
+                -- deps
+                editor.tx.set(gp, "project.dependencies", {
+                    "https://github.com/defold/extension-spine/archive/refs/tags/3.10.0.zip"
+                })
+            })
+            print("After transaction:")
+            print_properties(gp)
+            print("Expected errors:")
+            expect_error("set undefined property", editor.tx.set, gp, "gooboo.gaabaa", 1)
+            expect_error("not a string type", editor.tx.set, gp, "project.title", 1)
+            expect_error("not a number type", editor.tx.set, gp, "sound.gain", "max")
+            expect_error("not an integer type", editor.tx.set, gp, "display.width", 0.5)
+            expect_error("not a boolean type", editor.tx.set, gp, "display.fullscreen", 1)
+            expect_error("not a valid resource type", editor.tx.set, gp, "input.game_binding", "/game.project")
+            expect_error("not a valid enum value", editor.tx.set, gp, "physics.type", "2D+3D")
+            expect_error("not an array", editor.tx.set, gp, "project.dependencies", "https://defold.com/")
+            expect_error("not a valid url", editor.tx.set, gp, "project.dependencies", {"latest spine"})
+        end
+    })}
+end
+
+return M

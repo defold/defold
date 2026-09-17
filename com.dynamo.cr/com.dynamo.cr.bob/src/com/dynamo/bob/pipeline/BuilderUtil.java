@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,33 +17,28 @@ package com.dynamo.bob.pipeline;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.BobNLS;
 
 public class BuilderUtil {
 
-    public static String replaceExt(String str, String from, String to) {
-        if (str.endsWith(from)) {
-            return str.substring(0, str.lastIndexOf(from)).concat(to);
-        }
-        return str;
-    }
-
-    public static String replaceExt(String str, String to) {
-        int last_dot = str.lastIndexOf(".");
-        if (last_dot != -1) {
-            return str.substring(0, last_dot).concat(to);
-        }
-        return str.concat(to);
-    }
-
-    // Returns "dae" from "path/to.dae"
+    // Returns "gltf" from "path/to.gltf"
     public static String getSuffix(String path) {
         return path.substring(path.lastIndexOf(".") + 1);
     }
 
+    /**
+     * Backward compatible shim for builders/extensions compiled against older bob.jar versions.
+     * Prefer {@link ResourceUtil#replaceExt(String, String, String)} in new code.
+     */
+    @Deprecated
+    public static String replaceExt(String path, String from, String to) {
+        return ResourceUtil.minifyPathAndReplaceExt(path, from, to);
+    }
+
     public static IResource checkResource(Project project, IResource owner, String field, String path) throws CompileExceptionError {
         if (path.isEmpty()) {
-            String message = BobNLS.bind(Messages.BuilderUtil_EMPTY_RESOURCE, field);
+            String message = BobNLS.bind(Messages.BuilderUtil_EMPTY_RESOURCE, field, owner.getPath());
             throw new CompileExceptionError(owner, 0, message);
         }
         IResource resource = project.getResource(path);
@@ -52,6 +47,20 @@ public class BuilderUtil {
             throw new CompileExceptionError(owner, 0, message);
         }
         return resource;
+    }
+
+    /**
+     * Converts a build output resource path to the runtime resource path stored in compiled resources.
+     * For example, "build/default/main/generated.texturec" becomes "/main/generated.texturec".
+     */
+    public static String getRelativePath(Project project, IResource outputResource) {
+        String path = outputResource.getPath();
+        String buildDirectory = project.getBuildDirectory();
+        String buildDirectoryPrefix = buildDirectory + "/";
+        if (!path.startsWith(buildDirectoryPrefix)) {
+            throw new IllegalArgumentException(String.format("Expected output resource path '%s' to start with build directory '%s'", path, buildDirectoryPrefix));
+        }
+        return path.substring(buildDirectory.length());
     }
 
 }

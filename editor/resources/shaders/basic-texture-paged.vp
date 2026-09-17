@@ -1,0 +1,18 @@
+#version 140
+
+in highp vec3 position;
+in mediump vec2 texcoord0;
+in mediump float page_index;
+
+uniform vertex_uniforms {
+    highp mat4 mtx_world_view_proj;
+};
+
+out mediump vec2 var_texcoord0;
+out mediump float var_page_index;
+
+void main() {
+    var_texcoord0 = texcoord0;
+    var_page_index = page_index;
+    gl_Position = mtx_world_view_proj * vec4(position, 1.0);
+}

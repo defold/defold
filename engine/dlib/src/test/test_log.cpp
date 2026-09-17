@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <testmain/testmain.h>
 #include "../dlib/array.h"
 #include "../dlib/atomic.h"
@@ -241,6 +242,7 @@ static void TestLogCaptureCallback(LogSeverity severity, const char* domain, con
 
 TEST(dmLog, TestCapture)
 {
+    g_LogListenerOutput.SetSize(0);
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
     dmLogRegisterListener(TestLogCaptureCallback);
@@ -266,6 +268,92 @@ TEST(dmLog, TestCapture)
     ASSERT_STREQ(ExpectedOutput, g_LogListenerOutput.Begin());
 }
 
+static bool WaitForPendingLogCount()
+{
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 5000000;
+    while (dmLog::GetPendingLogCount() != 0 && dmTime::GetMonotonicTime() < stop_time)
+    {
+        dmTime::Sleep(1000);
+    }
+    return dmLog::GetPendingLogCount() == 0;
+}
+
+TEST(dmLog, TestPendingLogCount)
+{
+    g_LogListenerOutput.SetSize(0);
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+    dmLogRegisterListener(TestLogCaptureCallback);
+
+    dmLogInfo("Pending marker");
+    ASSERT_TRUE(WaitForPendingLogCount());
+    ASSERT_EQ(0u, dmLog::GetPendingLogCount());
+
+    g_LogListenerOutput.SetCapacity(g_LogListenerOutput.Size() + 1);
+    g_LogListenerOutput.Push('\0');
+
+    ASSERT_STREQ("INFO:DLIB: Pending marker\n", g_LogListenerOutput.Begin());
+
+    dmLogUnregisterListener(TestLogCaptureCallback);
+    dmLog::LogFinalize();
+}
+
+TEST(dmLog, TestMaxUntruncatedMessageLength)
+{
+    g_LogListenerOutput.SetSize(0);
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+    dmLogRegisterListener(TestLogCaptureCallback);
+
+    const size_t expected_size = dmLog::MAX_STRING_SIZE;
+    char* expected = (char*)malloc(expected_size);
+    const char prefix[] = "INFO:DLIB: ";
+    const size_t prefix_length = sizeof(prefix) - 1;
+    memcpy(expected, prefix, prefix_length);
+    memset(expected + prefix_length, 'x', expected_size - prefix_length - 2);
+    strcpy(expected + expected_size - 2, "\n");
+
+    expected[expected_size - 2] = '\0'; // let input length be one short of the output length to leave space for dmLog to append a newline
+    dmLogInfo("%s", expected + prefix_length);
+    expected[expected_size - 2] = '\n'; // add the expected newline at the end
+
+    dmLog::LogFinalize();
+    g_LogListenerOutput.SetCapacity(g_LogListenerOutput.Size() + 1);
+    g_LogListenerOutput.Push('\0');
+
+    ASSERT_STREQ(expected, g_LogListenerOutput.Begin());
+
+    free(expected);
+}
+
+TEST(dmLog, TestMessageTruncationThreshold)
+{
+    g_LogListenerOutput.SetSize(0);
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+    dmLogRegisterListener(TestLogCaptureCallback);
+
+    const size_t expected_size = dmLog::MAX_STRING_SIZE;
+    char* expected = (char*)malloc(expected_size);
+    const char prefix[] = "INFO:DLIB: ";
+    const size_t prefix_length = sizeof(prefix) - 1;
+    memcpy(expected, prefix, prefix_length);
+    memset(expected + prefix_length, 'x', expected_size - prefix_length - 2);
+    strcpy(expected + expected_size - 2, "\n");
+
+    expected[expected_size - 2] = '!'; // let input length be one too long, i.e. leave no space for dmLog to append a newline
+    dmLogInfo("%s", expected + prefix_length);
+    const char truncation_msg[] = "...\n[Output truncated]\n"; // copied from log.cpp
+    strcpy(expected + expected_size - sizeof(truncation_msg), truncation_msg);
+
+    dmLog::LogFinalize();
+    g_LogListenerOutput.SetCapacity(g_LogListenerOutput.Size() + 1);
+    g_LogListenerOutput.Push('\0');
+
+    ASSERT_STREQ(expected, g_LogListenerOutput.Begin());
+
+    free(expected);
+}
 
 static void LogThreadWithLogCalls(void* arg)
 {
@@ -286,28 +374,39 @@ static void LogThreadWithLogCallsListener(LogSeverity severity, const char* doma
 
 TEST(dmLog, TestLogThreadWithLogCalls)
 {
+    // Writers can pass the initialized check just before finalization. Keep one
+    // logging across repeated restarts to exercise delayed lock acquisition and
+    // verify that each new logger still dispatches messages to its listener.
     int32_atomic_t run = 1;
     dLib::SetDebugMode(false); // avoid spam in the unit tests
 
     dmThread::Thread log_thread = dmThread::New(LogThreadWithLogCalls, 0x80000, (void*)&run, "test");
 
-    dmLog::LogParams params;
-    dmLog::LogInitialize(&params);
+    bool received_logs = true;
+    for (int cycle = 0; cycle < 16; ++cycle)
+    {
+        dmLog::LogParams params;
+        dmLog::LogInitialize(&params);
 
-    g_LogThreadWithLogCallsCount = 0;
-    dmLogRegisterListener(LogThreadWithLogCallsListener);
+        dmAtomicStore32(&g_LogThreadWithLogCallsCount, 0);
+        dmLogRegisterListener(LogThreadWithLogCallsListener);
 
-    while (dmAtomicGet32(&g_LogThreadWithLogCallsCount) < 40)
-        dmTime::Sleep(1000);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        while (dmAtomicGet32(&g_LogThreadWithLogCallsCount) < 40 && dmTime::GetMonotonicTime() < deadline)
+            dmTime::Sleep(1000);
+        received_logs = dmAtomicGet32(&g_LogThreadWithLogCallsCount) >= 40;
 
-    dmLog::LogFinalize();
-
-    dmTime::Sleep(1000); // make sure we write some more logs
+        dmLog::LogFinalize();
+        dmTime::Sleep(1000); // make sure we write some more logs after finalization
+        if (!received_logs)
+            break;
+    }
 
     // wait for thread to join
     dmAtomicStore32(&run, 0);
     dmThread::Join(log_thread);
     dLib::SetDebugMode(true);
+    ASSERT_TRUE(received_logs);
 }
 
 int main(int argc, char **argv)

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,7 +24,7 @@ class ScriptTypesTest : public dmScriptTest::ScriptTest
     ExtensionAppParams  m_AppParams;
     ExtensionParams     m_Params;
 
-    virtual void SetUp() override
+    void SetUp() override
     {
         dmScriptTest::ScriptTest::SetUp();
 
@@ -36,7 +36,7 @@ class ScriptTypesTest : public dmScriptTest::ScriptTest
         dmExtension::Initialize(&m_Params);
     }
 
-    virtual void TearDown() override
+    void TearDown() override
     {
         dmExtension::Finalize(&m_Params);
         dmExtension::AppFinalize(&m_AppParams);

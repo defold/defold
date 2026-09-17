@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -37,6 +37,8 @@ DM_PROPERTY_U32(rmtp_SoundPlaying, 0, PROFILE_PROPERTY_FRAME_RESET, "# sounds pl
 
 namespace dmGameSystem
 {
+    static const char* SOUND_MAX_COMPONENT_COUNT_KEY = "sound.max_component_count";
+
     static const dmhash_t SOUND_EXT_HASHES[] = { dmHashString64("wavc"), dmHashString64("oggc"), dmHashString64("opusc") };
 
     struct PlayEntry
@@ -128,8 +130,8 @@ namespace dmGameSystem
         SoundWorld* world = (SoundWorld*)params.m_World;
         if (world->m_Components.Full())
         {
-            ShowFullBufferError("Sound", "sound.max_component_count", world->m_Components.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            ShowFullBufferError("Sound", SOUND_MAX_COMPONENT_COUNT_KEY, world->m_Components.Capacity());
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
 
         uint32_t index = world->m_Components.Alloc();
@@ -378,6 +380,25 @@ namespace dmGameSystem
                     dmSound::SetParameter(entry.m_SoundInstance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(speed, 0, 0, 0));
                     dmSound::SetLooping(entry.m_SoundInstance, sound->m_Looping, (sound->m_Looping && !sound->m_Loopcount) ? -1 : sound->m_Loopcount ); // loopcounter semantics differ a bit from loopcount. If -1, it means loopforever, otherwise it contains the # of loops remaining.
 
+                    // Apply start offset before playback (initial-only; not re-applied on loops)
+                    // If both are provided via message, start_frame wins
+                    if (play_sound->m_StartFrame != 0)
+                    {
+                        dmSound::Result rskip = dmSound::SetStartFrame(entry.m_SoundInstance, play_sound->m_StartFrame);
+                        if (rskip != dmSound::RESULT_OK)
+                        {
+                            dmLogWarning("Failed to set start_frame offset (%d)", rskip);
+                        }
+                    }
+                    else if (play_sound->m_StartTime > 0.0f)
+                    {
+                        dmSound::Result rskip = dmSound::SetStartTime(entry.m_SoundInstance, play_sound->m_StartTime);
+                        if (rskip != dmSound::RESULT_OK)
+                        {
+                            dmLogWarning("Failed to set start_time offset (%d)", rskip);
+                        }
+                    }
+
                     entry.m_Listener = params.m_Message->m_Sender;
                     uintptr_t callback = params.m_Message->m_UserData2;
                     if (callback == UINTPTR_MAX)
@@ -514,7 +535,7 @@ namespace dmGameSystem
     {
         SoundContext* context = new SoundContext;
         context->m_Factory = ctx->m_Factory;
-        context->m_MaxComponentCount  = dmConfigFile::GetInt(ctx->m_Config, "sound.max_component_count", 32);
+        context->m_MaxComponentCount  = dmConfigFile::GetInt(ctx->m_Config, SOUND_MAX_COMPONENT_COUNT_KEY, 32);
         context->m_MaxSoundInstances  = dmConfigFile::GetInt(ctx->m_Config, "sound.max_sound_instances", 256);
 
         int32_t stream_chunk_size = dmConfigFile::GetInt(ctx->m_Config, "sound.stream_chunk_size", 16384);
@@ -522,8 +543,6 @@ namespace dmGameSystem
 
         int32_t sound_streaming_cache_size = dmConfigFile::GetInt(ctx->m_Config, "sound.stream_cache_size", 2 * 1024*1024);
         ResSoundDataSetStreamingCacheSize((uint32_t)sound_streaming_cache_size);
-
-        uint32_t cache_size = dmConfigFile::GetInt(ctx->m_Config, "sound.max_sound_instances", 256);
 
         ComponentTypeSetPrio(type, 600);
         ComponentTypeSetContext(type, context);

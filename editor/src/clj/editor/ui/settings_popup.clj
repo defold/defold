@@ -1,0 +1,393 @@
+;; Copyright 2020-2026 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;;
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;;
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
+(ns editor.ui.settings-popup
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.button :as fx.button]
+            [cljfx.fx.check-box :as fx.check-box]
+            [cljfx.fx.region :as fx.region]
+            [cljfx.fx.separator :as fx.separator]
+            [cljfx.fx.toggle-button :as fx.toggle-button]
+            [cljfx.fx.toggle-group :as fx.toggle-group]
+            [clojure.string :as string]
+            [editor.fxui :as fxui]
+            [editor.handler :as handler]
+            [editor.keymap :as keymap]
+            [editor.localization :as localization]
+            [editor.math :as math]
+            [editor.os :as os]
+            [editor.ui :as ui])
+  (:import [antlr.collections List]
+           [com.sun.javafx.util Utils]
+           [javafx.css Styleable]
+           [javafx.event ActionEvent]
+           [javafx.geometry HPos Point2D VPos]
+           [javafx.scene Cursor Node Parent]
+           [javafx.scene.control ColorPicker PopupControl Skin Slider ToggleButton]
+           [javafx.scene.input MouseEvent ScrollEvent]
+           [javafx.scene.layout StackPane]
+           [javafx.scene.paint Color]
+           [javafx.stage PopupWindow$AnchorLocation]))
+
+(set! *warn-on-reflection* true)
+
+(defonce ^List axes [:x :y :z])
+
+(def ^:private ^:dynamic *suppress-dispose*
+  "Bound true only while the color row hides its popup for a pick (see
+  `make-color-row`), so the on-closed handler skips disposing the popup content
+  (it is about to be shown again)."
+  false)
+
+(defn- make-toggle-row [{:keys [key label accelerator command disabled? state swap-state on-selected-changed style-class]}]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created (fn [_]
+                 (when command
+                   (handler/add-listener! [::toggle-setting key] command #(swap-state update key not))))
+   :on-deleted (fn [_]
+                 (when command
+                   (handler/remove-listener! [::toggle-setting key] command)))
+   :desc
+   {:fx/type fxui/horizontal
+    :style-class (cond-> ["toggle-row" "spaced"]
+                   style-class (conj style-class))
+    :alignment :center-left
+    :on-mouse-clicked (fn [_]
+                        (swap-state assoc key (not (boolean (key state))))
+                        (when on-selected-changed
+                          (on-selected-changed (not (boolean (key state))))))
+    :disable (boolean (when disabled? (disabled? state)))
+    :children [{:fx/type fxui/label
+                :style-class "slide-switch-label"
+                :text (or label "")
+                :h-box/hgrow :always
+                :max-width Double/MAX_VALUE}
+               {:fx/type fxui/label
+                :style-class "accelerator-label"
+                :style (if (os/is-mac-os?) "-fx-font-family: 'Lucida Grande';" "")
+                :text (or accelerator "")}
+               {:fx/type fx.check-box/lifecycle
+                :style-class ["slide-switch"]
+                :selected (key state)
+                :on-selected-changed (fn [v]
+                                       (swap-state assoc key v)
+                                       (when on-selected-changed
+                                         (on-selected-changed v)))}]}})
+
+(def ^:private scroll-slider-step-ratio 0.03)
+
+(defn- slider-tick-spacing ^double [^Slider slider]
+  (if (zero? (.getMinorTickCount slider))
+    (.getMajorTickUnit slider)
+    (/ (.getMajorTickUnit slider) (inc (.getMinorTickCount slider)))))
+
+(defn- scroll-slider-value [^Slider slider ^ScrollEvent event]
+  (let [direction (compare (.getDeltaY event) 0.0)
+        min-value (.getMin slider)
+        max-value (.getMax slider)
+        step (if (.isSnapToTicks slider)
+               (slider-tick-spacing slider)
+               (* ^double scroll-slider-step-ratio (- max-value min-value)))
+        value (+ (.getValue slider) (* direction step))]
+    (-> value (max min-value) (min max-value))))
+
+(defn- ext-popup-slider
+  [{:keys [popup] :as props}]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created (fn [^Slider slider]
+                 (.addEventFilter slider ScrollEvent/SCROLL
+                                  (ui/event-handler event
+                                    (when (and (not (.isDisabled slider))
+                                               (not (zero? (.getDeltaY ^ScrollEvent event))))
+                                      (let [value (scroll-slider-value slider event)]
+                                        (.consume ^ScrollEvent event)
+                                        (when (not= value (.getValue slider))
+                                          (.adjustValue slider value))))))
+                 (doto slider
+                   (.setOnMouseEntered (ui/event-handler _ (.setAutoHide ^PopupControl popup false)))
+                   (.setOnMouseExited  (ui/event-handler _ (.setAutoHide ^PopupControl popup true)))))
+   :desc (assoc (dissoc props :popup) :fx/type fxui/slider)})
+
+(defn- make-slider-row [{:keys [popup key label disabled? min max snap-to state swap-state slider-value->string on-value-changed]}]
+  (let [slider-value->string (or slider-value->string #(str (math/round-with-precision % 0.01)))]
+    {:fx/type fxui/horizontal
+     :style-class "spaced"
+     :disable (boolean (when disabled? (disabled? state)))
+     :children [{:fx/type fxui/label
+                 :text (or label "")
+                 :h-box/hgrow :always
+                 :max-width Double/MAX_VALUE}
+                {:fx/type fxui/label
+                 :style-class "slider-value-label"
+                 :text (slider-value->string (key state))}
+                (cond-> {:fx/type ext-popup-slider
+                         :popup popup
+                         :min min
+                         :max max
+                         :value (key state)
+                         :block-increment 0.1
+                         :on-value-changed (fn [v]
+                                             (on-value-changed v)
+                                             (swap-state assoc key v))}
+                  snap-to
+                  (assoc :snap-to-ticks true
+                         :major-tick-unit snap-to
+                         :minor-tick-count 0
+                         :show-tick-marks true))]}))
+
+;; FIX: The popup loses focus when we open the "Custom Color..." color picker window, so
+;; we apply the same workaround the slider's get by disabling auto-hide and enabling it once it closes.
+(defn- ext-color-picker-focus-traversable [{:keys [desc popup]}]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created (fn [^javafx.scene.Node node]
+                 (when-let [cp (.lookup node ".ext-color-picker-icon")]
+                   (when (instance? ColorPicker cp)
+                     (let [^javafx.scene.control.ColorPicker cp cp]
+                       (.setOnShowing cp (fn [_] (.setAutoHide ^PopupControl popup false)))
+                       (.setOnHidden  cp (fn [_] (.setAutoHide ^PopupControl popup true)))))))
+   :desc desc})
+
+(defn- make-color-row [{:keys [popup key label state swap-state on-value-changed]}]
+  {:fx/type fxui/horizontal
+   :children [{:fx/type fxui/label
+               :text (or label "")
+               :h-box/hgrow :always
+               :max-width Double/MAX_VALUE}
+              {:fx/type ext-color-picker-focus-traversable
+               :popup popup
+               :desc
+               {:fx/type fxui/color-picker
+                :value (let [[r g b a] (key state)]
+                         (Color. (float r) (float g) (float b) (float a)))
+                :on-value-changed (fn [^Color c]
+                                    (let [color [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
+                                      (swap-state assoc key color)
+                                      (on-value-changed color)))
+                ;; During a pick, hide the popup so it doesn't cover the magnifier (*suppress-dispose*
+                ;; keeps on-closed from tearing it down), then show it again in place afterward.
+                :on-dropper-activated (fn [] (binding [*suppress-dispose* true] (.hide ^PopupControl popup)))
+                :on-dropper-deactivated (fn [] (let [^PopupControl p popup]
+                                                 (.show p (.getOwnerNode p) (.getAnchorX p) (.getAnchorY p))))
+                :ignore-alpha false}}]})
+
+(defn- make-vec3-floats-row [{:keys [key state swap-state on-value-changed]}]
+  {:fx/type fxui/horizontal
+   :style-class "spaced"
+   :children (into []
+                   (mapcat (fn [axis]
+                             [{:fx/type fxui/label
+                               :text (string/upper-case (name axis))
+                               :min-width :use-pref-size}
+                              {:fx/type fxui/value-field
+                               :value (get (key state) axis)
+                               :to-value (fn [s]
+                                           (try (let [v (Float/parseFloat s)]
+                                                  (when (pos? v) v))
+                                                (catch Exception _ nil)))
+                               :on-value-changed (fn [v]
+                                                   (let [new-vec3 (assoc (key state) axis v)]
+                                                     (swap-state assoc key new-vec3)
+                                                     (when on-value-changed
+                                                       (on-value-changed new-vec3))))}]))
+                   axes)})
+
+(defn- make-vec3-toggle-row [{:keys [key label state swap-state on-value-changed]}]
+  {:fx/type fx/ext-let-refs
+   :refs {::toggle-group {:fx/type fx.toggle-group/lifecycle}}
+   :desc
+   {:fx/type fxui/horizontal
+    :style-class "spaced"
+    :children (into [{:fx/type fxui/label
+                      :text (or label "")
+                      :h-box/hgrow :always
+                      :max-width Double/MAX_VALUE}]
+                    (map (fn [axis]
+                           {:fx/type fx.toggle-button/lifecycle
+                            :toggle-group {:fx/type fx/ext-get-ref
+                                           :ref ::toggle-group}
+                            :style-class ["toggle-button" "plane-toggle" "spaced"]
+                            :text (string/upper-case (name axis))
+                            :selected (= axis (key state))
+                            :on-action (fn [^ActionEvent e]
+                                         (let [btn ^ToggleButton (.getSource e)]
+                                           (when-not (.isSelected btn)
+                                             (.setSelected btn true))))
+                            :on-selected-changed (fn [selected?]
+                                                   (when selected?
+                                                     (swap-state assoc key axis)
+                                                     (when on-value-changed
+                                                       (on-value-changed axis))))}))
+                    axes)}})
+
+(defn- make-reset-button [{:keys [text swap-state on-reset]}]
+  {:fx/type fxui/horizontal
+   :style-class "reset-button"
+   :children [{:fx/type fx.button/lifecycle
+               :text text
+               :max-width Double/MAX_VALUE
+               :on-action (fn [^javafx.event.ActionEvent e]
+                            (on-reset swap-state)
+                            (.requestFocus (.getParent ^Node (.getSource e))))}]})
+
+(defn- make-row [popup keymap localization-state state swap-state descriptor]
+  (let [descriptor-with-state (merge descriptor {:state state :swap-state swap-state :popup popup})
+        label #(localization-state (localization/message (:label descriptor)))]
+    (case (:type descriptor)
+      :toggle      (assoc descriptor-with-state
+                          :fx/type make-toggle-row
+                          :label (label)
+                          :accelerator (keymap/display-text keymap (:command descriptor) "")
+                          :on-selected-changed (:on-value-changed descriptor))
+      :slider      (assoc descriptor-with-state :fx/type make-slider-row :label (label))
+      :color       (assoc descriptor-with-state :fx/type make-color-row :label (label))
+      :vec3-floats (assoc descriptor-with-state :fx/type make-vec3-floats-row)
+      :vec3-toggle (assoc descriptor-with-state :fx/type make-vec3-toggle-row :label (label))
+      :reset-all   {:fx/type make-reset-button
+                    :text (localization-state (localization/message "scene-popup.reset-defaults-button"))
+                    :swap-state swap-state
+                    :on-reset (:on-reset descriptor)}
+      :space     {:fx/type fxui/horizontal :style-class "settings-divider-row"
+                  :children [{:fx/type fx.region/lifecycle}]}
+      :separator {:fx/type fxui/horizontal :style-class "settings-divider-row"
+                  :children [{:fx/type fx.separator/lifecycle :h-box/hgrow :always :max-width Double/MAX_VALUE}]}
+      nil)))
+
+(ui/defc cljfx-popup-view
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:localization props)
+              :key :localization-state}
+             {:fx/type fx/ext-state
+              :initial-state (:state props)}]}
+  [{:keys [popup descriptors keymap state swap-state localization-state]}]
+  {:fx/type fxui/vertical
+   :style-class "popup-settings"
+   :children (keep (fn [descriptor]
+                     (make-row popup keymap localization-state state swap-state descriptor))
+                   descriptors)})
+
+(defn settings-visible? [^Parent owner]
+  (some? (ui/user-data owner ::popup)))
+
+(defn- pref-popup-position
+  ^Point2D [^Parent container width]
+  (Utils/pointRelativeTo container width 0 HPos/RIGHT VPos/BOTTOM 0.0 10.0 true))
+
+(defn- make-popup
+  ^PopupControl [^Styleable styleable-parent ^Node content]
+  (let [popup (proxy [PopupControl] []
+                (getStyleableParent [] styleable-parent))
+        *skinnable (atom popup)
+        popup-skin (reify Skin
+                     (getSkinnable [_] @*skinnable)
+                     (getNode [_] content)
+                     (dispose [_] (reset! *skinnable nil)))]
+    (doto popup
+      (.setSkin popup-skin)
+      (.setConsumeAutoHidingEvents false)
+      (.setAutoHide true)
+      (.setAutoFix true)
+      (.setHideOnEscape true))))
+
+(defn show!
+  "Shows a settings popup anchored to `owner`, or hides it if already visible.
+
+  Returns an `advance!` function that can be called with a new state map to
+  update the popup's displayed values, or nil if the popup was hidden.
+
+  Arguments:
+    owner                JavaFX Parent node the popup is anchored to
+    keymap               keymap used to resolve accelerator labels for :toggle rows
+    localization         localization watcher ref used for label translation
+    state                initial state map, keyed by the :key of each descriptor.
+                         May include a :disabled set of keys for toggle-rows that are
+                         grayed out
+    width                preferred width of the popup content in pixels
+    setting-descriptors  sequence of row descriptor maps (see below)
+    on-closed            0-argument callback invoked when the popup is closed
+
+  Row descriptor maps have the following shape (all keys optional unless noted):
+    :key     required for most types, keyword identifying this setting in state
+    :type    required, one of:
+               :toggle       a labeled checkbox row
+               :slider       a labeled slider with a value label
+               :color        a labeled color picker
+               :vec3-floats  three labeled float input fields for X/Y/Z
+               :vec3-toggle  a labeled group of X/Y/Z toggle buttons
+               :reset-all    a button that resets all settings to defaults
+               :space        an empty spacer row
+               :separator    a horizontal rule divider
+    :label                 localization message key for the row label
+    :command               keymap command used to display an accelerator label and
+                           auto-register a handler listener that toggles the setting when
+                           the command is invoked, used for :toggle
+    :min / :max            numeric bounds, used for :slider
+    :snap-to               snaps value to multiples of this number, used for :slider
+    :slider-value->string  1-arg fn formatting the displayed value, used for :slider
+    :on-value-changed      1-arg callback invoked when this setting's value changes
+    :disabled?             1-arg fn of state returning truthy to disable the row,
+                           used for :toggle and :slider
+    :on-reset              1-arg callback receiving swap-state, used for :reset-all"
+  ([^Parent owner keymap localization state width setting-descriptors]
+   (show! owner keymap localization state width setting-descriptors nil))
+  ([^Parent owner keymap localization state width setting-descriptors on-closed]
+   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
+     (do (.hide popup) nil)
+     (let [content (StackPane.)
+           ;; The popup inherits its CSS through this node (see make-popup); the #toolbar element is a
+           ;; stable ancestor to anchor styling to.
+           styleable-parent (or (ui/closest-node-where (fn [^Node n] (= "toolbar" (.getId n))) owner)
+                                owner)
+           popup (make-popup styleable-parent content)
+           anchor ^Point2D (pref-popup-position (.getParent owner) width)
+           screen-x (.getX anchor)
+           screen-y (.getY anchor)
+           advance! (fn [state]
+                      (ui/advance-ui-user-data-component!
+                        content ::popup
+                        {:fx/type fxui/ext-with-stack-pane-props
+                         :desc {:fx/type ui/ext-value :value content}
+                         :props {:children [{:fx/type fx.region/lifecycle
+                                             :style-class "popup-shadow"}
+                                            {:fx/type cljfx-popup-view
+                                             :descriptors setting-descriptors
+                                             :keymap keymap
+                                             :popup popup
+                                             :localization localization
+                                             :state state}]}}))]
+       (.setPrefWidth content width)
+       (advance! state)
+       (ui/user-data! owner ::popup popup)
+       (doto popup
+         (.setAnchorLocation PopupWindow$AnchorLocation/CONTENT_TOP_RIGHT)
+         ;; The color row hides the popup during a pick with *suppress-dispose* bound (see
+         ;; make-color-row), so we skip disposal and it gets shown again.
+         (ui/on-closed! (fn [_]
+                          (when-not *suppress-dispose*
+                            (ui/advance-ui-user-data-component! content ::popup nil)
+                            (when on-closed (on-closed))
+                            (ui/user-data! owner ::popup nil))))
+         (.show owner screen-x screen-y))
+       ;; WORKAROUND: scene-visibility opens the popup right next to the outline's split pane divider, when you mouse over
+       ;; the edge, the cursor gets set to H_RESIZE. If you move your cursor fast enough from the divider to the popup, the H_RESIZE
+       ;; persists and only gets reset to DEFAULT when you leave the popup and reenter. The scene apparently still thinks it's
+       ;; the DEFAULT cursor, so if you set it to DEFAULT, it's a NOOP, so we set it to NONE first, then DEFAULT, and it works.
+       ;; Note that this might just be linux specific, but wouldn't hurt to just do it for everyone.
+       (.addEventHandler content MouseEvent/MOUSE_ENTERED
+                         (ui/event-handler e
+                           (let [scene (.getScene owner)]
+                             (.setCursor scene Cursor/NONE)
+                             (.setCursor scene Cursor/DEFAULT))))
+       ;; Request focus so the first UI element loses focus
+       (.requestFocus content)
+       advance!))))

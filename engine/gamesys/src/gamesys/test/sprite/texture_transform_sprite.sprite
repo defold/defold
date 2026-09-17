@@ -1,0 +1,3 @@
+tile_set: "/sprite/tile_valid.tileset"
+default_animation: "anim"
+material: "/sprite/material_attributes_texture_transform_valid.material"

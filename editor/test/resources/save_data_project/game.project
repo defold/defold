@@ -2,9 +2,6 @@
 main_collection = /checked.collectionc
 render = /checked.renderc
 
-[script]
-shared_state = 1
-
 [display]
 width = 800
 height = 600
@@ -42,8 +39,8 @@ push_icon_large_xxhdpi = /referenced/images/diamond.png
 push_icon_large_xxxhdpi = /referenced/images/diamond.png
 push_field_title = push_field_title
 push_field_text = push_field_text
-target_sdk_version = 32
-minimum_sdk_version = 18
+target_sdk_version = 36
+minimum_sdk_version = 21
 version_code = 2
 package = com.defold.save-data-project
 debuggable = 1
@@ -53,7 +50,7 @@ iap_provider = Amazon
 gcm_sender_id = com.defold.save-data-project
 fcm_application_id = com.defold.save-data-project
 manifest = /builtins/manifests/android/AndroidManifest.xml
-proguard = /builtins/manifests/android/dmengine.pro
+r8_keep_rules = /builtins/manifests/android/dmengine.keep
 extract_native_libs = 1
 
 [project]
@@ -62,8 +59,10 @@ version = 1.1
 publisher = Defold Foundation
 developer = Defold Foundation
 write_log = 1
+write_log_file = 1
 minimum_log_level = 2
 compress_archive = 1
+dependencies_metadata = 1
 custom_resources = /referenced/custom
 bundle_resources = /referenced/bundle
 bundle_exclude_resources = /referenced/bundle/log.txt
@@ -77,6 +76,8 @@ game_binding = /checked.input_bindingc
 repeat_delay = 0.4
 repeat_interval = 0.1
 gamepads = /checked.gamepadsc
+gamepad_database = /referenced/gamecontrollerdb.txt
+gamepad_deadzone = 0.35
 use_accelerometer = 0
 
 [html5]
@@ -88,6 +89,7 @@ archive_location_prefix = archive_prefix
 archive_location_suffix = archive_suffix
 engine_arguments = --verify-graphics-calls=false
 wasm_streaming = 1
+verify_downloaded_file_size = 0
 show_fullscreen_button = 0
 show_made_with_defold = 0
 show_console_banner = 0
@@ -145,10 +147,14 @@ max_count = 128
 max_particlefx_count = 128
 max_animation_count = 512
 max_particle_count = 512
+safe_area_mode = long
 
 [label]
 max_count = 32
 subpixels = 0
+
+[light]
+max_count = 32
 
 [mesh]
 max_count = 64
@@ -158,6 +164,8 @@ max_count = 64
 split_meshes = 1
 max_bone_matrix_texture_width = 512
 max_bone_matrix_texture_height = 512
+max_morph_target_texture_width = 1024
+max_morph_target_texture_height = 1024
 
 [particle_fx]
 max_count = 128
@@ -205,9 +213,12 @@ max_font_batches = 128
 max_debug_vertices = 8192
 texture_profiles = /checked.texture_profiles
 verify_graphics_calls = 0
+webgl_version_hint = 1
 opengl_version_hint = 33
 opengl_core_profile_hint = 1
 memory_size = 512
+vulkan_version_minor = 1
+vulkan_version_major = 0
 
 [iap]
 auto_finish_transactions = 0
@@ -247,8 +258,10 @@ sub_step_count = 3
 
 [profiler]
 track_cpu = 1
+track_detailed_memory = 1
 sleep_between_server_updates = 10
 performance_timeline_enabled = 0
+max_sample_count = 8192
 enabled = 1
 
 [render]
@@ -264,11 +277,11 @@ uri = http://localhost:1234/save-data-project
 
 [library]
 include_dirs = library
+defold_min_version = 1.10.0
 
 [liveupdate]
 enabled = 1
 settings = /liveupdate.settings
-mount_on_start = 0
 
 [native_extension]
 app_manifest = /checked.appmanifest
@@ -279,7 +292,8 @@ player_health = 120
 
 [shader]
 exclude_gles_sm100 = 0
+glsl_es_default_precision_float = highp
+glsl_es_default_precision_int = mediump
 
 [font]
 runtime_generation = 1
-

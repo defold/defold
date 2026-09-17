@@ -45,6 +45,11 @@ local function pprint_resource(resource, props)
     pprint(entity)
 end
 
+local function expect_error(label, fn, ...)
+    local success, message = pcall(fn, ...)
+    print(("%s => %s"):format(label, success and "ok!" or message))
+end
+
 function M.get_commands()
     return {
         editor.command({
@@ -70,6 +75,15 @@ function M.get_commands()
                 create_resources({"/test/../../../outside.txt"})
                 create_resources({"/test/npc.go"})
                 create_resources({"/test/repeated.go", "/test/repeated.go"})
+                create_resources({
+                    {"/test/invalid.go", "\"name\":\"invalid\""}
+                })
+                expect_error("editor.tx.set(\"/test/invalid.go\", \"text\", ...)", editor.tx.set, "/test/invalid.go", "text", "name: \"invalid\"")
+                expect_error("editor.tx.add(\"/test/invalid.go\", \"components\", ...)", editor.tx.add, "/test/invalid.go", "components", {type = "label"})
+                expect_error("editor.tx.clear(\"/test/invalid.go\", \"components\")", editor.tx.clear, "/test/invalid.go", "components")
+                expect_error("editor.tx.remove(\"/test/invalid.go\", \"components\", ...)", editor.tx.remove, "/test/invalid.go", "components", "/test/invalid.go")
+                expect_error("editor.tx.reorder(\"/test/invalid.go\", \"components\", ...)", editor.tx.reorder, "/test/invalid.go", "components", {})
+                expect_error("editor.tx.reset(\"/test/invalid.go\", \"text\")", editor.tx.reset, "/test/invalid.go", "text")
 
                 editor.delete_directory("/test")
             end

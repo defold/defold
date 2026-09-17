@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,7 +17,6 @@
 #include <dlib/log.h>
 #include <dmsdk/dlib/vmath.h>
 #include <render/render.h>
-#include <dmsdk/gamesys/render_constants.h>
 #include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
@@ -570,11 +569,35 @@ int AreRenderConstantsUpdated(HComponentRenderConstants constants)
     return constants->m_Updated ? 1 : 0;
 }
 
+// TODO: Can this be improved? The "SetRenderConstant" call feels extremely expensive.
+void CopyRenderConstants(HComponentRenderConstants dst, HComponentRenderConstants src)
+{
+    if (!src || !dst)
+        return;
+
+    uint32_t size_src = src->m_RenderConstants.Size();
+    for (int i = 0; i < size_src; ++i)
+    {
+        dmRender::HConstant src_constant = src->m_RenderConstants[i];
+        uint32_t src_num_values;
+        dmVMath::Vector4* src_values = dmRender::GetConstantValues(src_constant, &src_num_values);
+        dmhash_t src_name_hash = dmRender::GetConstantName(src_constant);
+        SetRenderConstant(dst, src_name_hash, src_values, src_num_values);
+    }
+
+    dst->m_Updated = true;
+}
+
 void EnableRenderObjectConstants(dmRender::RenderObject* ro, HComponentRenderConstants constants)
 {
     ro->m_ConstantBuffer = constants->m_ConstantBuffer;
     dmRender::ClearNamedConstantBuffer(ro->m_ConstantBuffer);
     dmRender::SetNamedConstants(ro->m_ConstantBuffer, constants->m_RenderConstants.Begin(), constants->m_RenderConstants.Size());
+}
+
+dmRender::HNamedConstantBuffer GetRenderConstantsNamedBuffer(HComponentRenderConstants constants)
+{
+    return constants->m_ConstantBuffer;
 }
 
 

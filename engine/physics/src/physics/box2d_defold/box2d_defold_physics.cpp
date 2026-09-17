@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -229,6 +229,8 @@ namespace dmPhysics
             DeleteContext2D(context);
             return 0x0;
         }
+
+        dmLogInfo("Created physics context: Box2D v%d.%d.%d", b2_version.major, b2_version.minor, b2_version.revision);
         return context;
     }
 
@@ -266,11 +268,26 @@ namespace dmPhysics
         return world;
     }
 
+    static void ClearPendingRayCasts2D(HWorld2D world)
+    {
+        uint32_t size = world->m_RayCastRequests.Size();
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            const RayCastRequest& request = world->m_RayCastRequests[i];
+            if (request.m_UserData)
+            {
+                free(request.m_UserData);
+            }
+        }
+        world->m_RayCastRequests.SetSize(0);
+    }
+
     void DeleteWorld2D(HContext2D context, HWorld2D world)
     {
         for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
             if (context->m_Worlds[i] == world)
                 context->m_Worlds.EraseSwap(i);
+        ClearPendingRayCasts2D(world);
         delete world;
     }
 
@@ -371,6 +388,8 @@ namespace dmPhysics
         return dmMath::Min(v[0], v[1]);
     }
 
+    static const float SCALE_EPSILON = 0.000001f;
+
     static void UpdateScale(HWorld2D world, b2Body* body)
     {
         dmTransform::Transform world_transform;
@@ -379,16 +398,16 @@ namespace dmPhysics
         float object_scale = GetUniformScale2D(world_transform);
 
         b2Fixture* fix = body->GetFixtureList();
-        bool allow_sleep = true;
+        bool scale_changed = false;
         while( fix )
         {
             b2Shape* shape = fix->GetShape();
-            if (shape->m_lastScale == object_scale )
+            if (fabsf(shape->m_lastScale - object_scale) <= SCALE_EPSILON )
             {
                 break;
             }
             shape->m_lastScale = object_scale;
-            allow_sleep = false;
+            scale_changed = true;
 
             if (fix->GetShape()->GetType() == b2Shape::e_circle) {
                 // creation scale for circles, is the initial radius
@@ -411,7 +430,7 @@ namespace dmPhysics
             fix = fix->GetNext();
         }
 
-        if (!allow_sleep)
+        if (scale_changed)
         {
             body->SetAwake(true);
         }
@@ -454,11 +473,7 @@ namespace dmPhysics
                         b2Vec2 b2_position;
                         ToB2(position, b2_position, scale);
                         body->SetTransform(b2_position, angle);
-                        body->SetSleepingAllowed(false);
-                    }
-                    else
-                    {
-                        body->SetSleepingAllowed(true);
+                        body->SetAwake(true);
                     }
                 }
 
@@ -896,6 +911,33 @@ namespace dmPhysics
         }
     }
 
+    static bool IsPolygonAreaValid(const b2Shape* shape, const b2Transform& transform, float scale)
+    {
+        if (shape->m_type != b2Shape::e_polygon)
+            return true;
+
+        const b2PolygonShape* poly_shape = (const b2PolygonShape*) shape;
+        int32 count = poly_shape->GetVertexCount();
+        if (count < 3)
+            return false;
+
+        b2Vec2 vertices[b2_maxPolygonVertices];
+        for (int32 i = 0; i < count; ++i)
+        {
+            vertices[i] = TransformScaleB2(transform, scale, poly_shape->GetVertex(i));
+        }
+
+        b2Vec2 origin = vertices[0];
+        float area = 0.0f;
+        for (int i = 1; i < count - 1; ++i)
+        {
+            b2Vec2 e1 = vertices[i] - origin;
+            b2Vec2 e2 = vertices[i + 1] - origin;
+            area += 0.5f * b2Cross(e1, e2);
+        }
+        return area > FLT_EPSILON;
+    }
+
     /*
      * NOTE: In order to support shape transform we create a copy of shapes using the function TransformCopyShape() above
      * This is required as the transform is part of the shape and due to absence of a compound shape, aka list shape
@@ -946,6 +988,34 @@ namespace dmPhysics
             else
             {
                 dmLogWarning("Collision object created at origin, this will result in a performance hit if multiple objects are created there in the same frame.");
+            }
+        }
+        // NOTE: Box2D's ComputeCentroid contains an assert that fires when a polygon's area is too close to zero, which
+        // would crash the editor with an ugly callstack. To prevent this, we replicate the same area computation here
+        // so we can detect the issue early and fail gracefully instead of hitting the assert.
+        for (uint32_t i = 0; i < shape_count; ++i)
+        {
+            b2Shape* s = (b2Shape*)shapes[i];
+            if (s->m_type != b2Shape::e_polygon)
+                continue;
+            b2Vec2 t;
+            b2Rot r;
+            if (translations && rotations)
+            {
+                ToB2(translations[i], t, context->m_Scale * scale);
+                r.SetComplex(1 - 2 * rotations[i].getZ() * rotations[i].getZ(),
+                             2 * rotations[i].getZ() * rotations[i].getW());
+            }
+            else
+            {
+                t.SetZero();
+                r.SetIdentity();
+            }
+            b2Transform transform(t, r);
+            if (!IsPolygonAreaValid(s, transform, scale))
+            {
+                dmLogError("Collision object has a polygon shape with invalid (near-zero) area.");
+                return 0x0;
             }
         }
         switch (data.m_Type)
@@ -1094,10 +1164,10 @@ namespace dmPhysics
             b2Transform transform(t, r);
             b2PolygonShape* polygon_shape = (b2PolygonShape*) _shape;
             b2Vec2* vertices = polygon_shape->m_vertices;
-            float min_x = INT32_MAX,
-              min_y = INT32_MAX,
-              max_x = -INT32_MAX,
-              max_y = -INT32_MAX;
+            float min_x = (float)INT32_MAX,
+                  min_y = (float)INT32_MAX,
+                  max_x = (float)-INT32_MAX,
+                  max_y = (float)-INT32_MAX;
             float inv_scale = world->m_Context->m_InvScale;
             for (int i = 0; i < polygon_shape->GetVertexCount(); i += 1)
             {
@@ -1352,7 +1422,7 @@ namespace dmPhysics
         return false;
     }
 
-    void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
+    bool RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())
         {
@@ -1363,16 +1433,19 @@ namespace dmPhysics
             if (lengthSqr(to2d - from2d) <= 0.0f)
             {
                 dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
+                return false;
             }
             else
             {
                 world->m_RayCastRequests.Push(request);
+                return true;
             }
         }
         else
         {
             dmLogWarning("Ray cast query buffer is full (%d), ignoring request. See 'physics.ray_cast_limit_2d' in game.project", world->m_RayCastRequests.Capacity());
         }
+        return false;
     }
 
     static int Sort_RayCastResponse(const dmPhysics::RayCastResponse* a, const dmPhysics::RayCastResponse* b)
@@ -1389,25 +1462,29 @@ namespace dmPhysics
 
         const Point3 from2d = Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
         const Point3 to2d = Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
-        if (lengthSqr(to2d - from2d) <= 0.0f)
+
+        float scale = world->m_Context->m_Scale;
+        
+        b2Vec2 from;
+        ToB2(from2d, from, scale);
+        b2Vec2 to;
+        ToB2(to2d, to, scale);
+        
+        if ((to - from).LengthSquared() <= 0.0f)
         {
-            dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
+            dmLogWarning("Ray had 0 length when ray casting after applying physics scale, ignoring request.");
             return;
         }
 
-        float scale = world->m_Context->m_Scale;
         ProcessRayCastResultCallback2D query;
         query.m_Request = &request;
         query.m_ReturnAllResults = request.m_ReturnAllResults;
         query.m_Context = world->m_Context;
         query.m_Results = &results;
-        b2Vec2 from;
-        ToB2(from2d, from, scale);
-        b2Vec2 to;
-        ToB2(to2d, to, scale);
         query.m_IgnoredUserData = request.m_IgnoredUserData;
         query.m_CollisionMask = request.m_Mask;
         query.m_Response.m_Hit = 0;
+
         world->m_World.RayCast(&query, from, to);
 
         if (!request.m_ReturnAllResults) {

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,10 +18,11 @@
 
 (defn hex-color->color [str]
   (let [conv (fn [s] (/ (Integer/parseInt s 16) 255.0))]
-    [(conv (subs str 1 3))
-     (conv (subs str 3 5))
-     (conv (subs str 5 7))
-     1.0]))
+    (vector-of :double
+      (conv (subs str 1 3))
+      (conv (subs str 3 5))
+      (conv (subs str 5 7))
+      1.0)))
 
 (def defold-light-blue (hex-color->color "#60a8ff"))
 (def defold-blue (hex-color->color "#0084ff"))

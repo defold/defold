@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,12 +16,39 @@
 #define DM_GRAPHICS_UTIL_H
 
 #include <dlib/endian.h>
+
 #include <dmsdk/dlib/vmath.h>
 
 #include "graphics.h"
 
 namespace dmGraphics
 {
+    inline void RepackRGB16FToRGBA16F(uint32_t num_pixels, const uint16_t* rgb, uint16_t* rgba)
+    {
+        for (uint32_t px = 0; px < num_pixels; ++px)
+        {
+            rgba[0] = rgb[0];
+            rgba[1] = rgb[1];
+            rgba[2] = rgb[2];
+            rgba[3] = 0x3c00; // Half-float 1.0
+            rgba += 4;
+            rgb += 3;
+        }
+    }
+
+    inline void RepackRGB32FToRGBA32F(uint32_t num_pixels, const float* rgb, float* rgba)
+    {
+        for (uint32_t px = 0; px < num_pixels; ++px)
+        {
+            rgba[0] = rgb[0];
+            rgba[1] = rgb[1];
+            rgba[2] = rgb[2];
+            rgba[3] = 1.0f;
+            rgba += 4;
+            rgb += 3;
+        }
+    }
+
     inline uint32_t PackRGBA(const dmVMath::Vector4& in_color)
     {
         uint8_t r = (uint8_t)(in_color.getX() * 255.0f);
@@ -53,7 +80,5 @@ namespace dmGraphics
         return dmVMath::Vector4(r,g,b,a);
     }
 }
-
-
 
 #endif // #ifndef DM_GRAPHICS_UTIL_H

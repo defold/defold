@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -42,6 +42,7 @@ namespace dmDDF
         void     SetString(LoadContext* load_context, const FieldDescriptor* field, const char* buffer, int buffer_len);
         void     AddString(LoadContext* load_context, const FieldDescriptor* field, const char* buffer, int buffer_len);
         void     SetBytes(LoadContext* load_context, const FieldDescriptor* field, const char* buffer, int buffer_len);
+        void     SetOneOf(const Descriptor* desc, const FieldDescriptor* field);
 
         Message  SubMessage(const FieldDescriptor* field);
 
@@ -66,7 +67,7 @@ namespace dmDDF
                                 const FieldDescriptor* field,
                                 InputBuffer* input_buffer);
 
-        char* GetBuffer(uint32_t offset)     { return (char*)(m_Start + offset); }
+        char* GetBuffer(uint32_t offset) { return (char*)(m_Start + offset); }
 
         const Descriptor*     m_MessageDescriptor;
         uintptr_t             m_Start;

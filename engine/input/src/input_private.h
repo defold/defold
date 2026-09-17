@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -126,25 +126,32 @@ namespace dmInput
         uint16_t m_Negate : 1;
         uint16_t m_Scale : 1;
         uint16_t m_Clamp : 1;
+        uint16_t : 11;
     };
 
     struct GamepadConfig
     {
-        uint32_t m_DeviceId;
-        float m_DeadZone;
+        dmHID::GamepadGuid m_Guid;
+        char m_DeviceName[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+        char* m_RawMapping;
         GamepadInput m_Inputs[dmInputDDF::MAX_GAMEPAD_COUNT];
+        float m_DeadZone; // Deprecated
+        uint32_t m_DeviceId; // hash of device id
+        uint8_t m_Legacy : 1;
     };
 
     struct Context
     {
         dmIndexPool8                    m_GamepadIndices;
-        dmHashTable32< GamepadConfig >  m_GamepadMaps;
+        dmArray<GamepadConfig>          m_GamepadConfigs;
+        dmHashTable32< uint32_t >       m_GamepadMaps;
         dmHashTable32<bool>             m_UnmappedGamepads;
         dmHID::HContext                 m_HidContext;
         Binding*                        m_Binding;
         float                           m_RepeatDelay;
         float                           m_RepeatInterval;
         float                           m_PressedThreshold;
+        float                           m_GamepadDeadZone;
     };
 }
 

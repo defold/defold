@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,7 @@
 #include <dmsdk/gameobject/gameobject.h>
 
 #include <dlib/easing.h>
+#include <dlib/context_registry.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 #include <dlib/transform.h>
@@ -78,7 +79,7 @@ namespace dmGameObject
     /**
      * Set default capacity of collections in this register. This does not affect existing collections.
      * @param regist Register
-     * @param capacity Default capacity of collections in this register (0-32766).
+     * @param capacity Default capacity of collections in this register (0-65534).
      * @return RESULT_OK on success or RESULT_INVALID_OPERATION if max_count is not within range
      */
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity);
@@ -89,6 +90,9 @@ namespace dmGameObject
      * @return Default capacity
      */
     uint32_t GetCollectionDefaultCapacity(HRegister regist);
+
+    void SetContextRegistry(HRegister regist, HContextRegistry context_registry);
+    HContextRegistry GetContextRegistry(HRegister regist);
 
     /**
      * Set default input stack capacity of collections in this register. This does not affect existing collections.
@@ -289,22 +293,21 @@ namespace dmGameObject
     /**
      * Retrieve a property from a component.
      * @param instance Instance of the game object
-     * @param component_id Id of the component
-     * @param property_id Id of the property
-     * @param out_value Description of the retrieved property value
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param options [type:PropertyOptions] Additional options when getting value
+     * @param out_value [type:PropertyDesc] Description of the retrieved property value
      * @return PROPERTY_RESULT_OK if the out-parameters were written
      */
     PropertyResult GetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value);
 
     /**
-     * Sets the value of a property.
+     * Sets the value of a property on a component.
      * @param instance Instance of the game object
-     * @param component_id Id of the component
-     * @param property_id Id of the property
-     * @param var Value and type of the property
-     * @param finished If the animation finished or not
-     * @param userdata1 User specified data
-     * @param userdata2 User specified data
+     * @param component_id [type:dmhash_t] Id of the component
+     * @param property_id [type:dmhash_t] Id of the property
+     * @param options [type:PropertyOptions] Additional options when setting value
+     * @param value [type:PropertyVar] Value and type of the property
      * @return PROPERTY_RESULT_OK if the value could be set
      */
     PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, const PropertyVar& value);
@@ -353,9 +356,9 @@ namespace dmGameObject
     void UpdateTransforms(HCollection hcollection);
 
     /**
-     * Remove the reference to a dynamically created resource. This implies
-     * that the resource has been externally removed and should no longer be
-     * tracked by the collection, e.g resource.release(id) has been called
+     * Remove the reference to a dynamically created resource from all collections
+     * in the collection register. This implies that the resource has been externally
+     * removed and should no longer be tracked, e.g resource.release(id) has been called.
      */
     void RemoveDynamicResourceHash(HCollection collection, dmhash_t resource_hash);
 }

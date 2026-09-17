@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,6 +26,7 @@ import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -52,9 +53,8 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
-import com.dynamo.bob.util.FileUtil;
 
-@BundlerParams(platforms = {"arm64-ios", "x86_64-ios"})
+@BundlerParams(platforms = {"arm64-ios", "arm64_sim-ios"})
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
 
@@ -65,7 +65,7 @@ public class IOSBundler implements IBundler {
             ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
             IOUtils.copy(errorIn, errorOut);
             errorIn.close();
-            String errorMessage = new String(errorOut.toByteArray());
+            String errorMessage = errorOut.toString();
 
             int ret = process.waitFor();
             if (ret != 0) {
@@ -77,89 +77,8 @@ public class IOSBundler implements IBundler {
         }
     }
 
-    private static File createTempDirectory() throws IOException {
-        final File temp;
-
-        temp = File.createTempFile("temp_defold_", Long.toString(System.nanoTime()));
-
-        if(!(temp.delete()))
-        {
-            throw new IOException("Could not delete temp file: " + temp.getAbsolutePath());
-        }
-
-        if(!(temp.mkdir()))
-        {
-            throw new IOException("Could not create temp directory: " + temp.getAbsolutePath());
-        }
-
-        return (temp);
-    }
-
-    public static String getFileDescription(File file) {
-        if (file == null) {
-            return "null";
-        }
-
-        try {
-            if (file.isDirectory()) {
-                return file.getAbsolutePath() + " (directory)";
-            }
-
-            long byteSize = file.length();
-
-            if (byteSize > 0) {
-                return file.getAbsolutePath() + " (" + byteSize + " bytes)";
-            }
-
-            return file.getAbsolutePath() + " (unknown size)";
-        }
-        catch (Exception e) {
-            // Ignore.
-        }
-
-        return file.getPath();
-    }
-
-    public static void lipoBinaries(File resultFile, List<File> binaries) throws IOException, CompileExceptionError {
-        if (binaries.size() == 1) {
-            FileUtils.copyFile(binaries.get(0), resultFile);
-            return;
-        }
-
-        String exe = resultFile.getPath();
-        List<String> lipoArgList = new ArrayList<String>();
-        lipoArgList.add(Bob.getExe(Platform.getHostPlatform(), "lipo"));
-        lipoArgList.add("-create");
-        for (File bin : binaries) {
-            lipoArgList.add(bin.getAbsolutePath());
-        }
-        lipoArgList.add("-output");
-        lipoArgList.add(exe);
-
-        Result lipoResult = Exec.execResult(lipoArgList.toArray(new String[0]));
-        if (lipoResult.ret == 0) {
-            logger.info("Result of lipo command is a universal binary: " + getFileDescription(resultFile));
-        }
-        else {
-            logger.severe("Error executing lipo command:\n" + new String(lipoResult.stdOutErr));
-        }
-    }
-
-    public static boolean isMacOS(Platform platform) {
-        return platform == Platform.X86_64MacOS ||
-               platform == Platform.Arm64MacOS;
-    }
-
-    public static void stripExecutable(Platform platform, File exe) throws IOException {
-        // Currently, we don't have a "strip_darwin.exe" for win32/linux, so we have to pass on those platforms
-        if (isMacOS(Platform.getHostPlatform())) {
-            String stripName = isMacOS(platform) ? "strip" : "strip_ios";
-
-            Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip"), exe.getPath()); // Using the same executable
-            if (stripResult.ret != 0) {
-                logger.severe("Error executing strip command:\n" + new String(stripResult.stdOutErr));
-            }
-        }
+    private static File createTempDirectory(Project project) throws IOException {
+        return project.createTempDirectory("temp_defold_");
     }
 
     public static List<File> getBinariesFromArchitectures(Project project, List<Platform> architectures, String variant) throws IOException {
@@ -176,13 +95,13 @@ public class IOSBundler implements IBundler {
             }
 
             File binary = bins.get(0);
-            logger.info(architecture.getPair() + " exe: " + getFileDescription(binary));
+            logger.info(architecture.getPair() + " exe: " + BundleHelper.getFileDescription(binary));
             binaries.add(binary);
         }
         return binaries;
     }
 
-    private static final String SYMBOL_EXE_RELATIVE_PATH = String.format("Contents/Resources/DWARF/dmengine");
+    private static final String SYMBOL_EXE_RELATIVE_PATH = "Contents/Resources/DWARF/dmengine";
 
     public static List<File> getSymbolDirsFromArchitectures(File buildDir, List<Platform> architectures) {
         final String[] prefixes = {"", "src" + File.separator};
@@ -221,13 +140,16 @@ public class IOSBundler implements IBundler {
                 dSYMBinaries.add(symbols);
         }
 
-        lipoBinaries(destSymbolsExeTmp, dSYMBinaries);
+        BundleHelper.lipoBinaries(destSymbolsExeTmp, dSYMBinaries);
         destSymbolsExeTmp.renameTo(destSymbolsExe);
 
-        logger.info("Symbols binary: " + getFileDescription(destSymbolsExe));
+        logger.info("Symbols binary: " + BundleHelper.getFileDescription(destSymbolsExe));
     }
 
     private static String MANIFEST_NAME = "Info.plist";
+
+    // codesign uses "-" to select ad-hoc signing
+    private static final String ADHOC_SIGN_IDENTITY = "-";
 
     @Override
     public IResource getManifestResource(Project project, Platform platform) throws IOException {
@@ -308,6 +230,80 @@ public class IOSBundler implements IBundler {
         FileUtils.write(manifestFile, manifest);
     }
 
+    private void codesign(File target, String identity, String... extraArgs) throws IOException {
+        List<String> args = new ArrayList<String>();
+        args.add("codesign");
+        args.addAll(Arrays.asList(extraArgs));
+        args.add("-f");
+        args.add("-s");
+        args.add(identity);
+        args.add(target.getAbsolutePath());
+
+        ProcessBuilder processBuilder = new ProcessBuilder(args);
+        processBuilder.environment().put("CODESIGN_ALLOCATE", Bob.getExe(Platform.getHostPlatform(), "codesign_allocate"));
+        logProcess(processBuilder.start());
+    }
+
+    // Nested code must be signed before the enclosing application bundle
+    private void signNestedCode(File appDir, File frameworksDir, String identity, ICanceled canceled) throws IOException, CompileExceptionError {
+        if (frameworksDir.exists()) {
+            logger.info("Signing ./Frameworks folder");
+            for (File file : frameworksDir.listFiles()) {
+
+                BundleHelper.throwIfCanceled(canceled);
+
+                if (!file.getName().endsWith(".dylib") && !file.getName().endsWith(".framework"))
+                    continue;
+
+                codesign(file, identity);
+            }
+        }
+        else {
+            System.out.print("No ./Framework folder to sign\n");
+        }
+
+        File pluginsDir = new File(appDir, "PlugIns");
+        if (pluginsDir.exists()) {
+            logger.info("Signing ./PlugIns folder");
+            for (File file : pluginsDir.listFiles()) {
+
+                BundleHelper.throwIfCanceled(canceled);
+
+                if (!file.getName().endsWith(".appex")) {
+                    continue;
+                }
+
+                // -f discards the previous signature, so carry the entitlements over
+                codesign(file, identity, "--preserve-metadata=entitlements");
+            }
+        }
+        else {
+            System.out.print("No ./PlugIns folder to sign\n");
+        }
+    }
+
+    private static void plutilReplace(File manifestFile, String key, String type, String value) throws IOException {
+        Result result = Exec.execResult("plutil", "-replace", key, type, value, manifestFile.getAbsolutePath());
+        if (result.ret != 0) {
+            throw new IOException(String.format("Failed to update '%s' in '%s' for the iOS Simulator:%n%s",
+                    key, manifestFile, new String(result.stdOutErr)));
+        }
+    }
+
+    // simctl refuses to install a bundle that declares the iPhoneOS platform
+    private static void updateManifestForSimulator(File manifestFile) throws IOException {
+        plutilReplace(manifestFile, "CFBundleSupportedPlatforms", "-json", "[\"iPhoneSimulator\"]");
+        plutilReplace(manifestFile, "DTPlatformName", "-string", "iphonesimulator");
+
+        Result sdkName = Exec.execResult("plutil", "-extract", "DTSDKName", "raw", "-o", "-", manifestFile.getAbsolutePath());
+        if (sdkName.ret == 0) {
+            String value = new String(sdkName.stdOutErr).trim();
+            if (value.startsWith("iphoneos")) {
+                plutilReplace(manifestFile, "DTSDKName", "-string", value.replace("iphoneos", "iphonesimulator"));
+            }
+        }
+    }
+
     @Override
     public void bundleApplication(Project project, Platform platform, File bundleDir, ICanceled canceled) throws IOException, CompileExceptionError {
         logger.info("Entering IOSBundler.bundleApplication()");
@@ -342,7 +338,14 @@ public class IOSBundler implements IBundler {
 
         String provisioningProfile = project.option("mobileprovisioning", null);
         String identity = project.option("identity", null);
-        Boolean shouldSign = provisioningProfile != null && identity != null;
+        boolean shouldSign = provisioningProfile != null && identity != null;
+
+        // The simulator cannot use device signing; simctl installs ad-hoc signed bundles
+        final boolean isSimulator = platform == Platform.Arm64IosSim;
+        if (isSimulator && shouldSign) {
+            logger.info("Signing identity and provisioning profile are not used for iOS Simulator bundles. Using ad-hoc signing.");
+            shouldSign = false;
+        }
 
         // Verify that the user supplied both of the needed arguments if the application should be signed.
         if (shouldSign) {
@@ -446,8 +449,11 @@ public class IOSBundler implements IBundler {
             logger.warning("ios.icons_asset is not set");
         }
 
-        BundleHelper helper = new BundleHelper(project, Platform.Arm64Ios, bundleDir, variant, this);
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant, this);
         copyManifestFile(helper, architectures.get(0), appDir);
+        if (isSimulator) {
+            updateManifestForSimulator(new File(appDir, MANIFEST_NAME));
+        }
         helper.copyIosIcons();
 
         BundleHelper.throwIfCanceled(canceled);
@@ -466,8 +472,7 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
         // Create fat/universal binary
-        File exe = File.createTempFile("dmengine", "");
-        FileUtil.deleteOnExit(exe);
+        File exe = project.createTempFile("dmengine", "");
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -476,11 +481,11 @@ public class IOSBundler implements IBundler {
         List<File> binaries = getBinariesFromArchitectures(project, architectures, variant);
 
         // Run lipo on supplied architecture binaries.
-        lipoBinaries(exe, binaries);
+        BundleHelper.lipoBinaries(exe, binaries);
 
         BundleHelper.throwIfCanceled(canceled);
         if( strip_executable ) {
-            stripExecutable(platform, exe);
+            BundleHelper.stripExecutable(exe);
         }
 
         BundleHelper.throwIfCanceled(canceled);
@@ -489,6 +494,15 @@ public class IOSBundler implements IBundler {
         File destExecutable = new File(appDir, exeName);
         FileUtils.copyFile(exe, destExecutable);
         destExecutable.setExecutable(true);
+
+        // copy dynamic libraries
+        if (architectures.size() == 1) {
+            Platform architecture = architectures.get(0);
+            File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), architecture.getExtenderPair()));
+            BundleHelper.copySharedLibraries(architecture, binaryDir, appDir);
+        } else {
+            BundleHelper.createFatLibrary(project, architectures, project.getBinaryOutputDirectory(), appDir, canceled);
+        }
 
         // Copy extension frameworks
         for (Platform architecture : architectures) {
@@ -538,8 +552,7 @@ public class IOSBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
 
         // Package zip file
-        File tmpZipDir = createTempDirectory();
-        FileUtil.deleteOnExit(tmpZipDir);
+        File tmpZipDir = createTempDirectory(project);
         File swiftSupportDir = new File(tmpZipDir, "SwiftSupport");
 
         // Copy any libswift*.dylib files from the Frameworks folder
@@ -569,21 +582,29 @@ public class IOSBundler implements IBundler {
             }
         }
 
+        if (isSimulator) {
+            // Simulator runtimes refuse unsigned binaries, and stripping invalidates
+            // the ad-hoc signature added by the linker
+            BundleHelper.throwIfCanceled(canceled);
+            signNestedCode(appDir, frameworksDir, ADHOC_SIGN_IDENTITY, canceled);
+
+            BundleHelper.throwIfCanceled(canceled);
+            codesign(appDir, ADHOC_SIGN_IDENTITY, "--timestamp=none");
+        }
+
         // Sign (only if identity and provisioning profile set)
-        // iOS simulator can install non signed apps
         if (shouldSign && !identity.isEmpty() && !provisioningProfile.isEmpty()) {
             // Copy Provisioning Profile
             FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
 
-            File textProvisionFile = File.createTempFile("mobileprovision", ".plist");
-            FileUtil.deleteOnExit(textProvisionFile);
+            File textProvisionFile = project.createTempFile("mobileprovision", ".plist");
 
             Result securityResult = Exec.execResult("security", "cms", "-D", "-i", provisioningProfile, "-o", textProvisionFile.getAbsolutePath());
             if (securityResult.ret != 0) {
                 logger.severe("Error executing security command:\n" + new String(securityResult.stdOutErr));
             }
 
-            File entitlementOut = File.createTempFile("entitlement", ".xcent");
+            File entitlementOut = project.createTempFile("entitlement", ".xcent");
             String customEntitlementsProperty = projectProperties.getStringValue("ios", "entitlements");
             Boolean overrideEntitlementsProperty = projectProperties.getBooleanValue("ios", "override_entitlements", false);
 
@@ -650,7 +671,6 @@ public class IOSBundler implements IBundler {
                     entitlements.initFileLocator(locator);
                     entitlements.write(writer);
                     writer.close();
-                    FileUtil.deleteOnExit(entitlementOut);
                 }
                 catch (ConfigurationException e) {
                     logger.severe("Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );
@@ -662,50 +682,7 @@ public class IOSBundler implements IBundler {
                 }
             }
 
-            // Sign any .dylib files in the Frameworks folder
-            if (frameworksDir.exists()) {
-                logger.info("Signing ./Frameworks folder");
-                for (File file : frameworksDir.listFiles()) {
-
-                    BundleHelper.throwIfCanceled(canceled);
-
-                    if (!file.getName().endsWith(".dylib") && !file.getName().endsWith(".framework"))
-                        continue;
-
-                    ProcessBuilder processBuilder = new ProcessBuilder("codesign", "-f", "-s", identity, file.getAbsolutePath());
-                    processBuilder.environment().put("CODESIGN_ALLOCATE", Bob.getExe(Platform.getHostPlatform(), "codesign_allocate"));
-
-                    Process process = processBuilder.start();
-                    logProcess(process);
-                }
-            }
-            else {
-                System.out.printf("No ./Framework folder to sign\n");
-            }
-
-            // Sign any .appex files in the PlugIns folder
-            File pluginsDir = new File(appDir, "PlugIns");
-            if (pluginsDir.exists()) {
-                logger.info("Signing ./PlugIns folder");
-                for (File file : pluginsDir.listFiles()) {
-
-                    BundleHelper.throwIfCanceled(canceled);
-
-                    if (!file.getName().endsWith(".appex")) {
-                        continue;
-                    }
-
-                    ProcessBuilder processBuilder = new ProcessBuilder("codesign", "--preserve-metadata=entitlements", "-f", "-s", identity, file.getAbsolutePath());
-                    processBuilder.environment().put("CODESIGN_ALLOCATE", Bob.getExe(Platform.getHostPlatform(), "codesign_allocate"));
-
-                    Process process = processBuilder.start();
-                    logProcess(process);
-                }
-            }
-            else {
-                System.out.printf("No ./PlugIns folder to sign\n");
-            }
-
+            signNestedCode(appDir, frameworksDir, identity, canceled);
 
             BundleHelper.throwIfCanceled(canceled);
             ProcessBuilder processBuilder = new ProcessBuilder("codesign",
@@ -752,8 +729,9 @@ public class IOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
         Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        logger.info("Finished ipa: " + getFileDescription(zipFile));
+        logger.info("Finished ipa: " + BundleHelper.getFileDescription(zipFile));
 
         BundleHelper.moveBundleIfNeed(project, bundleDir);
     }
+
 }

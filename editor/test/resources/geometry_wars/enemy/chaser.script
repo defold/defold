@@ -1,4 +1,4 @@
--- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2020-2026 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,8 +32,8 @@ local spawn_bob_mag = 0.5
 function init(self)
 	self.timer = 0
 	self.velocity = vmath.vector3(0, 0, 0)
-	sprite.set_constant("#sprite", "tint", color)
-	sprite.set_constant("#light_mask", "tint", color)
+	go.set("#sprite", "tint", color)
+	go.set("#light_mask", "tint", color)
 	self.target = go.get_world_position("/player/player")
 	self.spawning = true
 	self.spawn_timer = spawn_duration

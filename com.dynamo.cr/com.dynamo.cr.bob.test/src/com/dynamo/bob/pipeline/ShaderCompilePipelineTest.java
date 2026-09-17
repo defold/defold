@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -159,7 +159,7 @@ public class ShaderCompilePipelineTest {
                 in mediump vec2 texcoord0;
                 out mediump vec2 var_texcoord0;
                 uniform vs_uniforms { highp mat4 view_proj; };
-                uniform shared_uniforms { vec4 tint; };  
+                uniform shared_uniforms { vec4 tint; };
                 uniform sampler2D shared_texture;
                 void main()
                 {
@@ -251,7 +251,7 @@ public class ShaderCompilePipelineTest {
                 """
                 #version 430
                 out vec4 out_fragColor;
-               
+
                 struct nested
                 {
                     float nested;
@@ -283,23 +283,27 @@ public class ShaderCompilePipelineTest {
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescs = toShaderDescs(vsShader, fsShader);
 
         ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testCompareTypes");
-        ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, new ShaderCompilePipeline.Options());
+        try {
+            ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, new ShaderCompilePipeline.Options());
 
-        SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
-        SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+            SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
+            SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
 
-        assertTrue(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "equal"));
-        assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal"));
-        assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal_two"));
+            assertTrue(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "equal"));
+            assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal"));
+            assertFalse(SPIRVReflector.AreResourceTypesEqual(reflectorVs, reflectorFs, "not_equal_two"));
 
-        // The "equal" ubos should be merged, which means that it will only be part of the VS reflection and not the FS
-        Shaderc.ShaderResource equalUboA = getShaderResource(reflectorVs, "equal");
-        Shaderc.ShaderResource equalUboB = getShaderResource(reflectorFs, "equal");
-        assert equalUboA != null;
-        assert equalUboB == null;
+            // The "equal" ubos should be merged, which means that it will only be part of the VS reflection and not the FS
+            Shaderc.ShaderResource equalUboA = getShaderResource(reflectorVs, "equal");
+            Shaderc.ShaderResource equalUboB = getShaderResource(reflectorFs, "equal");
+            assert equalUboA != null;
+            assert equalUboB == null;
 
-        int combinedShaderStages = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() + Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
-        assertEquals(combinedShaderStages, equalUboA.stageFlags);
+            int combinedShaderStages = Shaderc.ShaderStage.SHADER_STAGE_VERTEX.getValue() + Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue();
+            assertEquals(combinedShaderStages, equalUboA.stageFlags);
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
     }
 
     private Shaderc.ShaderResource getShaderResource(SPIRVReflector reflector, String name) {
@@ -326,8 +330,7 @@ public class ShaderCompilePipelineTest {
         return null;
     }
 
-    @Test
-    public void testRemapInputOutputs() throws Exception {
+    private void assertRemapInputOutputs(ShaderCompilePipeline.Options options) throws Exception {
         String vsShader =
                  """
                 #version 140
@@ -336,14 +339,14 @@ public class ShaderCompilePipelineTest {
                 in vec4 color;
                 out vec2 var_texcoord0;
                 out vec4 var_color;
-                out vec3 var_position;          
+                out vec3 var_position;
                 void main()
                 {
                     var_position = position;
                     var_texcoord0 = texcoord0;
                     var_color = vec4(color.rgb * color.a, color.a);
                     gl_Position = vec4(position.xyz, 1.0);
-                }                    
+                }
                 """;
 
         String fsShader =
@@ -362,7 +365,7 @@ public class ShaderCompilePipelineTest {
         ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescs = toShaderDescs(vsShader, fsShader);
 
         ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testRemapping");
-        ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, new ShaderCompilePipeline.Options());
+        ShaderCompilePipeline.createShaderPipeline(pipeline, shaderModuleDescs, options);
 
         SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
         SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
@@ -382,6 +385,131 @@ public class ShaderCompilePipelineTest {
         }
 
         ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+    }
+
+    @Test
+    public void testRemapInputOutputs() throws Exception {
+        assertRemapInputOutputs(new ShaderCompilePipeline.Options());
+    }
+
+    @Test
+    public void testRemapInputOutputsForHLSL() throws Exception {
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.remapVertexFragmentIOForHLSL = true;
+        assertRemapInputOutputs(options);
+    }
+
+    @Test
+    public void testLegacyRemapsStageLocationsAfterUnusedVaryingRemoval() throws Exception {
+        // The unused first fragment varying is optimized away after glslang
+        // assigns locations, leaving the two live fragment inputs at locations
+        // 1 and 2 while the corresponding vertex outputs occupy locations 0 and 1.
+        String vsShader =
+                """
+                precision mediump float;
+                precision highp int;
+                uniform mediump mat4 view_proj;
+                attribute mediump vec4 position;
+                attribute mediump vec2 texcoord0;
+                attribute lowp vec4 color;
+                varying mediump vec2 var_texcoord0;
+                varying lowp vec4 var_color;
+                void main()
+                {
+                    var_texcoord0 = texcoord0;
+                    var_color = color;
+                    gl_Position = view_proj * vec4(position.xyz, 1.0);
+                }
+                """;
+
+        String fsShader =
+                """
+                precision mediump float;
+                #ifdef GL_FRAGMENT_PRECISION_HIGH
+                    precision highp int;
+                #else
+                    precision mediump int;
+                #endif
+                varying mediump vec4 unused_varying;
+                varying mediump vec2 var_texcoord0;
+                varying lowp vec4 var_color;
+                uniform lowp sampler2D texture_sampler;
+                void main()
+                {
+                    gl_FragColor = texture2D(texture_sampler, var_texcoord0.xy) * var_color;
+                }
+                """;
+
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescs = toShaderDescs(vsShader, fsShader);
+        shaderModuleDescs.get(0).resourcePath = "/test/location_remap.vp";
+        shaderModuleDescs.get(1).resourcePath = "/test/location_remap.fp";
+
+        ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(
+                "/test/location_remap",
+                shaderModuleDescs,
+                new ShaderCompilePipeline.Options());
+        try {
+            assertTrue(pipeline instanceof ShaderCompilePipelineLegacy);
+
+            SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
+            SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+            assertEquals(0, Byte.toUnsignedInt(getShaderResource(reflectorVs, "var_texcoord0").location));
+            assertEquals(0, Byte.toUnsignedInt(getShaderResource(reflectorFs, "var_texcoord0").location));
+            assertEquals(1, Byte.toUnsignedInt(getShaderResource(reflectorVs, "var_color").location));
+            assertEquals(1, Byte.toUnsignedInt(getShaderResource(reflectorFs, "var_color").location));
+
+            // Verify that crossCompile returns the remapped module, not the original
+            // per-stage bytes emitted by glslang.
+            Shaderc.ShaderCompileResult fragmentSpirv = pipeline.crossCompile(
+                    ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                    ShaderDesc.Language.LANGUAGE_SPIRV);
+            long fragmentContext = ShadercJni.NewShaderContext(
+                    Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue(),
+                    fragmentSpirv.data);
+            try {
+                SPIRVReflector serializedReflector = new SPIRVReflector(fragmentContext, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+                assertEquals(0, Byte.toUnsignedInt(getShaderResource(serializedReflector, "var_texcoord0").location));
+                assertEquals(1, Byte.toUnsignedInt(getShaderResource(serializedReflector, "var_color").location));
+            } finally {
+                ShadercJni.DeleteShaderContext(fragmentContext);
+            }
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
+    }
+
+    @Test
+    public void testLegacyRejectsCrossStageVaryingTypeMismatch() throws Exception {
+        String vsShader =
+                """
+                attribute vec4 position;
+                varying vec2 var_texcoord0;
+                void main()
+                {
+                    var_texcoord0 = position.xy;
+                    gl_Position = position;
+                }
+                """;
+        String fsShader =
+                """
+                varying vec3 var_texcoord0;
+                void main()
+                {
+                    gl_FragColor = vec4(var_texcoord0, 1.0);
+                }
+                """;
+
+        ShaderCompilePipelineLegacy pipeline = new ShaderCompilePipelineLegacy("testLegacyStageValidation");
+        try {
+            try {
+                ShaderCompilePipeline.createShaderPipeline(pipeline, toShaderDescs(vsShader, fsShader), new ShaderCompilePipeline.Options());
+                fail("Expected cross-stage varying validation to fail");
+            } catch (CompileExceptionError e) {
+                assertTrue(e.getMessage().contains("Shader stage type mismatch for 'var_texcoord0'"));
+            }
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
     }
 
     @Test
@@ -471,6 +599,34 @@ public class ShaderCompilePipelineTest {
     }
 
     @Test
+    public void testWGSLFlippedEntryPointNameCollision() throws Exception {
+        String vsShader =
+                """
+                #version 140
+                in vec4 main_flipped;
+                void main() {
+                    gl_Position = main_flipped;
+                }
+                """;
+
+        ShaderCompilePipeline.ShaderModuleDesc vsDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+        vsDesc.type = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
+        vsDesc.source = vsShader;
+
+        ShaderCompilePipeline pipelineVertex = new ShaderCompilePipeline("testWGSLFlippedEntryPointNameCollision");
+        ShaderCompilePipeline.createShaderPipeline(pipelineVertex, vsDesc, new ShaderCompilePipeline.Options());
+        Shaderc.ShaderCompileResult compileResult = pipelineVertex.crossCompile(
+                ShaderDesc.ShaderType.SHADER_TYPE_VERTEX,
+                ShaderDesc.Language.LANGUAGE_WGSL);
+        String compiledStr = new String(compileResult.data);
+
+        assertTrue(compiledStr.contains("// defold-webgpu-flipped-entry-point: _defold_webgpu_main_flipped"));
+        assertTrue(compiledStr.contains("fn _defold_webgpu_main_flipped("));
+        assertFalse(compiledStr.contains("fn main_flipped("));
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineVertex);
+    }
+
+    @Test
     public void testUnusedResources() throws Exception {
         String fsShader =
                 """
@@ -547,6 +703,51 @@ public class ShaderCompilePipelineTest {
         assertEquals(1, ubos.size());
         assertEquals("_DMENGINE_GENERATED_UB_FS_0", ubos.get(0).name);
         assertEquals("tint", types.get(0).members[0].name);
+
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineFragmentLegacy);
+    }
+
+    @Test
+    public void testLegacyPipelineGlesSm100HighpPrecisionWorkaround() throws Exception {
+        String fsShaderLegacy =
+                """
+                varying vec4 frag_color;
+                void main() {
+                    gl_FragColor = frag_color;
+                }
+                """;
+
+        ShaderCompilePipeline.ShaderModuleDesc fsDescLegacy = new ShaderCompilePipeline.ShaderModuleDesc();
+        fsDescLegacy.source = fsShaderLegacy;
+        fsDescLegacy.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.glslEsDefaultFloatPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+        options.glslEsDefaultIntPrecision = Shaderc.ShaderPrecision.SHADER_PRECISION_HIGHP;
+
+        ShaderCompilePipelineLegacy pipelineFragmentLegacy = new ShaderCompilePipelineLegacy("testLegacyPrecisionWorkaround");
+        ShaderCompilePipeline.createShaderPipeline(pipelineFragmentLegacy, fsDescLegacy, options);
+
+        Shaderc.ShaderCompileResult compileResult = pipelineFragmentLegacy.crossCompile(
+                ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                ShaderDesc.Language.LANGUAGE_GLES_SM100);
+        String src = new String(compileResult.data);
+
+        String expectedFloatHighpPrecision =
+                "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+                "    precision highp float;\n" +
+                "#else\n" +
+                "    precision mediump float;\n" +
+                "#endif";
+        String expectedIntHighpPrecision =
+                "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+                "    precision highp int;\n" +
+                "#else\n" +
+                "    precision mediump int;\n" +
+                "#endif";
+
+        assertTrue(src.contains(expectedFloatHighpPrecision));
+        assertTrue(src.contains(expectedIntHighpPrecision));
 
         ShaderCompilePipeline.destroyShaderPipeline(pipelineFragmentLegacy);
     }

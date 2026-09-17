@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -182,7 +182,7 @@ namespace dmHttpCacheVerify
         params.m_HttpWrite = HttpWrite;
         params.m_HttpContent = HttpContent;
         params.m_Userdata = &context;
-        dmHttpClient::HClient client = dmHttpClient::New(&params, uri->m_Hostname, uri->m_Port);
+        dmHttpClient::HClient client = dmHttpClient::New(&params, uri);
         if (client == 0)
         {
             return RESULT_OUT_OF_RESOURCES;

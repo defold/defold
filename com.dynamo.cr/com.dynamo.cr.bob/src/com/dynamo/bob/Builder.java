@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -87,6 +87,11 @@ public abstract class Builder {
      */
     protected Task createSubTask(IResource input, Class<? extends Builder> builderClass, Task.TaskBuilder builder) throws CompileExceptionError {
         Task subTask = project.createTask(input, builderClass);
+        if (subTask == null) {
+            throw new CompileExceptionError(input,
+                    0,
+                    String.format("Failed to create build task for '%s'", input.getPath()));
+        }
         builder.addInputsFromOutputs(subTask);
         return subTask;
     }
@@ -118,6 +123,11 @@ public abstract class Builder {
     protected Task createSubTask(String inputPath, String field, Task.TaskBuilder builder) throws CompileExceptionError {
         IResource res = BuilderUtil.checkResource(project, builder.firstInput(), field, inputPath);
         Task subTask = project.createTask(res);
+        if (subTask == null) {
+            throw new CompileExceptionError(res,
+                    0,
+                    String.format("Unsupported resource type for '%s': '%s'", field, res.getPath()));
+        }
         builder.addInputsFromOutputs(subTask);
         return subTask;
     }

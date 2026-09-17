@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,7 +28,18 @@ namespace dmRender
      * @language Lua
      */
 
+    /*# Orthographic projection modes
+     * @enum
+     * @name camera.ORTHO_MODE
+     * @member camera.ORTHO_MODE_AUTO_COVER auto-cover orthographic zoom mode Computes zoom so the original display area covers the entire window while preserving aspect ratio. Equivalent to using max(window_width/width, window_height/height). The result is multiplied by the user-controlled orthographic zoom.
+     * @member camera.ORTHO_MODE_AUTO_FIT auto-fit orthographic zoom mode Computes zoom so the original display area (game.project width/height) fits inside the window while preserving aspect ratio. Equivalent to using min(window_width/width, window_height/height). The result is multiplied by the user-controlled orthographic zoom.
+     * @member camera.ORTHO_MODE_FIXED fixed orthographic zoom mode Uses the manually set orthographic zoom value (camera.set_orthographic_zoom).
+     */
+
     #define RENDER_SCRIPT_CAMERA_LIB_NAME "camera"
+
+
+
 
     struct RenderScriptCameraModule
     {
@@ -70,12 +81,167 @@ namespace dmRender
         return camera;
     }
 
+    // Resolve a camera from an optional argument. If no argument is given (or nil),
+    // prefer the last enabled camera (matching default render script behavior).
+    static RenderCamera* CheckRenderCameraOrDefault(lua_State* L, int index, HRenderContext render_context)
+    {
+        int top = lua_gettop(L);
+
+        if (index <= top && !lua_isnil(L, index))
+        {
+            return CheckRenderCamera(L, index, render_context);
+        }
+
+        // Pick the last enabled camera (iterate from the end)
+        for (int i = render_context->m_RenderCameras.Capacity() - 1; i >= 0; --i)
+        {
+            RenderCamera* camera = render_context->m_RenderCameras.GetByIndex(i);
+            if (camera && camera->m_Enabled)
+            {
+                return camera;
+            }
+        }
+
+        return (RenderCamera*) (uintptr_t) luaL_error(L, "No camera found.");
+    }
+
+    /*# Convert screen XY to world point at near plane
+     * Converts 2D screen coordinates (x,y) to the 3D world-space point on the camera's near plane for that pixel.
+     * If a camera isn't specified, the last enabled camera is used.
+     *
+     * @name camera.screen_xy_to_world
+     * @param x [type:number] X coordinate on screen.
+     * @param y [type:number] Y coordinate on screen.
+     * @param [camera] [type:url|number|nil] optional camera id
+     * @return world_pos [type:vector3] the world coordinate on the camera near plane
+     *
+     * @examples
+     * Place objects at the touch point.
+     *
+     * ```lua
+     *  function on_input(self, action_id, action)
+     *      if action_id == hash("touch") then
+     *          if action.pressed then
+     *              local world_position = camera.screen_xy_to_world(action.screen_x, action.screen_y)
+     *              go.set_position(world_position, "/go1")
+     *          end
+     *      end
+     *  end
+     * ```
+     *
+     */
+    static int RenderScriptCamera_ScreenXYToWorld(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        float sx = (float) luaL_checknumber(L, 1);
+        float sy = (float) luaL_checknumber(L, 2);
+
+        HRenderContext render_context = g_RenderScriptCameraModule.m_RenderContext;
+        RenderCamera* camera = CheckRenderCameraOrDefault(L, 3, render_context);
+
+        dmVMath::Vector3 world;
+        float near_z = camera->m_Data.m_NearZ;
+        const float eps = 0.0001;
+        dmRender::Result r = dmRender::CameraScreenToWorld(render_context, camera->m_Handle, sx, sy, near_z + eps, &world);
+        if (r != dmRender::RESULT_OK)
+        {
+            return DM_LUA_ERROR("Can't convert position (%d)", r);
+        }
+        dmScript::PushVector3(L, world);
+        return 1;
+    }
+
+    /*# Convert screen vector3 position to world
+     * Converts a screen-space 2D point with view depth to a 3D world point.
+     * z is the view depth in world units measured from the camera plane along the camera forward axis.
+     * If a camera isn't specified, the last enabled camera is used.
+     *
+     * @name camera.screen_to_world
+     * @param pos [type:vector3] Screen-space position (x, y) with z as view depth in world units
+     * @param [camera] [type:url|number|nil] optional camera id
+     * @return world_pos [type:vector3] the world coordinate
+     *
+     * @examples
+     * Place objects at the touch point with a random Z position, keeping them within the visible view zone.
+     *
+     * ```lua
+     *  function on_input(self, action_id, action)
+     *      if action_id == hash("touch") then
+     *          if action.pressed then
+     *              local percpective_camera = msg.url("#perspective_camera")
+     *              local random_z = math.random(camera.get_near_z(percpective_camera) + 0.01, camera.get_far_z(percpective_camera) - 0.01)
+     *              local world_position = camera.screen_to_world(vmath.vector3(action.screen_x, action.screen_y, random_z), percpective_camera)
+     *              go.set_position(world_position, "/go1")
+     *          end
+     *      end
+     *  end
+     * ```
+     *
+     */
+    static int RenderScriptCamera_ScreenToWorld(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmVMath::Vector3* pos = dmScript::CheckVector3(L, 1);
+        HRenderContext render_context = g_RenderScriptCameraModule.m_RenderContext;
+        RenderCamera* camera = CheckRenderCameraOrDefault(L, 2, render_context);
+        dmVMath::Vector3 world;
+        dmRender::Result r = dmRender::CameraScreenToWorld(render_context, camera->m_Handle, pos->getX(), pos->getY(), pos->getZ(), &world);
+        if (r != dmRender::RESULT_OK)
+        {
+            return DM_LUA_ERROR("Can't convert position (%d)", r);
+        }
+        dmScript::PushVector3(L, world);
+        return 1;
+    }
+
+    /*# Convert world vector3 position to screen
+     * Converts a 3D world position to screen-space coordinates with view depth.
+     * Returns a vector3 where x and y are in screen pixels and z is the view depth in world units
+     * measured from the camera plane along the camera forward axis. The returned z can be used with
+     * camera.screen_to_world to reconstruct the world position on the same pixel ray.
+     * If a camera isn't specified, the last enabled camera is used.
+     *
+     * @name camera.world_to_screen
+     * @param world_pos [type:vector3] World-space position
+     * @param [camera] [type:url|number|nil] optional camera id
+     * @return screen_pos [type:vector3] Screen position (x,y in pixels, z is view depth)
+     *
+     * @examples
+     * Convert go position into screen pisition
+     *
+     * ```lua
+     *  go.update_world_transform("/go1")
+     *  local world_pos = go.get_world_position("/go1")
+     *  local screen_pos = camera.world_to_screen(world_pos)
+     * ```
+     *
+     */
+    static int RenderScriptCamera_WorldToScreen(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        dmVMath::Vector3* world = dmScript::CheckVector3(L, 1);
+        HRenderContext render_context = g_RenderScriptCameraModule.m_RenderContext;
+        RenderCamera* camera = CheckRenderCameraOrDefault(L, 2, render_context);
+
+        dmVMath::Vector3 screen;
+        dmRender::Result r = dmRender::CameraWorldToScreen(render_context, camera->m_Handle, *world, &screen);
+        if (r != dmRender::RESULT_OK)
+        {
+            return DM_LUA_ERROR("Can't convert position (%d)", r);
+        }
+        dmScript::PushVector3(L, screen);
+        return 1;
+    }
+
     /*# get all camera URLs
     * This function returns a table with all the camera URLs that have been
     * registered in the render context.
     *
     * @name camera.get_cameras
-    * @return cameras [type:table] a table with all camera URLs
+    * @return cameras [type:url[]] a table with all camera URLs
     *
     * @examples
     * ```lua
@@ -214,12 +380,31 @@ namespace dmRender
     GET_CAMERA_DATA_PROPERTY_FN(NearZ, lua_pushnumber);
 
     /*# get orthographic zoom
+    * Gets the positive user-controlled orthographic zoom multiplier. In auto-fit and auto-cover
+    * modes, this value is multiplied with camera.get_orthographic_auto_zoom(camera).
     *
     * @name camera.get_orthographic_zoom
     * @param camera [type:url|number|nil] camera id
-    * @return orthographic_zoom [type:number] the zoom level when the camera uses orthographic projection.
+    * @return orthographic_zoom [type:number] the positive zoom multiplier when the camera uses orthographic projection.
     */
     GET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_pushnumber);
+
+    /*# get orthographic auto zoom
+    * Gets the orthographic zoom calculated from the current window and project dimensions
+    * in auto-fit and auto-cover modes. Returns 1.0 in fixed mode.
+    *
+    * @name camera.get_orthographic_auto_zoom
+    * @param camera [type:url|number|nil] camera id
+    * @return orthographic_auto_zoom [type:number] the calculated orthographic auto zoom.
+    */
+    static int RenderScriptCamera_GetOrthographicAutoZoom(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        float auto_zoom = GetRenderCameraOrthographicAutoZoom(g_RenderScriptCameraModule.m_RenderContext, camera->m_Handle);
+        lua_pushnumber(L, auto_zoom);
+        return 1;
+    }
 
     /*# set aspect ratio
     * Sets the manual aspect ratio for the camera. This value is only used when
@@ -257,12 +442,57 @@ namespace dmRender
     SET_CAMERA_DATA_PROPERTY_FN(NearZ, lua_tonumber);
 
     /*# set orthographic zoom
+    * Sets the positive user-controlled orthographic zoom multiplier. In auto-fit and auto-cover
+    * modes, this value is multiplied with camera.get_orthographic_auto_zoom(camera).
     *
     * @name camera.set_orthographic_zoom
     * @param camera [type:url|number|nil] camera id
-    * @param orthographic_zoom [type:number] the zoom level when the camera uses orthographic projection.
+    * @param orthographic_zoom [type:number] the positive zoom multiplier when the camera uses orthographic projection.
     */
-    SET_CAMERA_DATA_PROPERTY_FN(OrthographicZoom, lua_tonumber);
+    static int RenderScriptCamera_SetOrthographicZoom(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        float orthographic_zoom = (float) luaL_checknumber(L, 2);
+        if (!(orthographic_zoom > 0.0f))
+        {
+            return luaL_error(L, "Orthographic zoom must be greater than 0.");
+        }
+        camera->m_Data.m_OrthographicZoom = orthographic_zoom;
+        camera->m_Dirty = 1;
+        return 0;
+    }
+
+    /*# get orthographic zoom mode
+    *
+    * @name camera.get_orthographic_mode
+    * @param camera [type:url|number|nil] camera id
+    * @return mode [type:camera.ORTHO_MODE] one of camera.ORTHO_MODE_FIXED, camera.ORTHO_MODE_AUTO_FIT or
+    * camera.ORTHO_MODE_AUTO_COVER
+    */
+    GET_CAMERA_DATA_PROPERTY_FN(OrthographicMode, lua_pushnumber);
+
+    // Helper for enum parameter validation used by macro setter
+    static uint8_t LuaCheckOrthoZoomMode(lua_State* L, int index)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        int mode = luaL_checkinteger(L, index);
+        if (mode != ORTHO_MODE_FIXED &&
+            mode != ORTHO_MODE_AUTO_FIT &&
+            mode != ORTHO_MODE_AUTO_COVER)
+        {
+            return (uint8_t) DM_LUA_ERROR("Invalid orthographic zoom mode: %d", mode);
+        }
+        return (uint8_t) mode;
+    }
+
+    /*# set orthographic zoom mode
+    *
+    * @name camera.set_orthographic_mode
+    * @param camera [type:url|number|nil] camera id
+    * @param mode [type:camera.ORTHO_MODE] camera.ORTHO_MODE_FIXED, camera.ORTHO_MODE_AUTO_FIT or camera.ORTHO_MODE_AUTO_COVER
+    */
+    SET_CAMERA_DATA_PROPERTY_FN(OrthographicMode, LuaCheckOrthoZoomMode);
 
     /*# get auto aspect ratio
     * Returns whether auto aspect ratio is enabled. When enabled, the camera automatically
@@ -311,6 +541,11 @@ namespace dmRender
         {"get_view",                RenderScriptCamera_GetView},
         {"get_enabled",             RenderScriptCamera_GetEnabled},
 
+        // CONVERSIONS
+        {"screen_xy_to_world",      RenderScriptCamera_ScreenXYToWorld},
+        {"screen_to_world",         RenderScriptCamera_ScreenToWorld},
+        {"world_to_screen",         RenderScriptCamera_WorldToScreen},
+
         // READ-WRITE
         {"get_aspect_ratio",        RenderScriptCamera_GetAspectRatio},
         {"set_aspect_ratio",        RenderScriptCamera_SetAspectRatio},
@@ -322,8 +557,11 @@ namespace dmRender
         {"set_far_z",               RenderScriptCamera_SetFarZ},
         {"get_orthographic_zoom",   RenderScriptCamera_GetOrthographicZoom},
         {"set_orthographic_zoom",   RenderScriptCamera_SetOrthographicZoom},
-        {"get_auto_aspect_ratio",   RenderScriptCamera_GetAutoAspectRatio},
-        {"set_auto_aspect_ratio",   RenderScriptCamera_SetAutoAspectRatio},
+        {"get_orthographic_auto_zoom", RenderScriptCamera_GetOrthographicAutoZoom},
+        {"get_auto_aspect_ratio",      RenderScriptCamera_GetAutoAspectRatio},
+        {"set_auto_aspect_ratio",      RenderScriptCamera_SetAutoAspectRatio},
+        {"get_orthographic_mode",      RenderScriptCamera_GetOrthographicMode},
+        {"set_orthographic_mode",      RenderScriptCamera_SetOrthographicMode},
         {0, 0}
     };
 
@@ -333,6 +571,17 @@ namespace dmRender
         DM_LUA_STACK_CHECK(L, 0);
 
         luaL_register(L, RENDER_SCRIPT_CAMERA_LIB_NAME, RenderScriptCamera_Methods);
+
+        // Add constants: camera.ORTHO_MODE_FIXED/AUTO_FIT/AUTO_COVER
+        #define SETCONSTANT(name, val) \
+            lua_pushnumber(L, (lua_Number) (val)); \
+            lua_setfield(L, -2, #name);
+
+        SETCONSTANT(ORTHO_MODE_FIXED,      dmRender::ORTHO_MODE_FIXED);
+        SETCONSTANT(ORTHO_MODE_AUTO_FIT,   dmRender::ORTHO_MODE_AUTO_FIT);
+        SETCONSTANT(ORTHO_MODE_AUTO_COVER, dmRender::ORTHO_MODE_AUTO_COVER);
+
+        #undef SETCONSTANT
 
         lua_pop(L, 1);
 

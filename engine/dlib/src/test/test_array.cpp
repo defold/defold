@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -151,6 +151,34 @@ TEST(dmArray, PushArray)
     {
         ASSERT_EQ(i-1, a[i]);
     }
+}
+
+TEST(dmArray, EnsureSize)
+{
+    dmArray<uint32_t> a;
+
+    a.EnsureSize(2);
+    ASSERT_EQ(2u, a.Size());
+    ASSERT_EQ(2u, a.Capacity());
+
+    for (uint32_t i = 0; i < a.Size(); ++i)
+    {
+        a[i] = i;
+    }
+
+    a.EnsureSize(8);
+    ASSERT_EQ(8u, a.Size());
+    ASSERT_EQ(8u, a.Capacity());
+    ASSERT_EQ(0u, a[0]);
+    ASSERT_EQ(1u, a[1]);
+
+    uint32_t* storage = a.Begin();
+    a.EnsureSize(4);
+    ASSERT_EQ(4u, a.Size());
+    ASSERT_EQ(8u, a.Capacity());
+    ASSERT_EQ(storage, a.Begin());
+    ASSERT_EQ(0u, a[0]);
+    ASSERT_EQ(1u, a[1]);
 }
 
 TEST(dmArray, Swap)

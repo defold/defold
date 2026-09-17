@@ -32,19 +32,19 @@
             <RowConstraints maxHeight="20.0" minHeight="10.0" prefHeight="20.0" vgrow="SOMETIMES"/>
           </rowConstraints>
           <children>
-            <Label text="Version:">
+            <Label id="version-label" text="Version:">
               <padding>
                 <Insets right="4.0"/>
               </padding>
             </Label>
             <Label GridPane.columnIndex="1" id="version" styleClass="about-value" text="2.0.0"/>
-            <Label GridPane.rowIndex="1" text="Channel:">
+            <Label GridPane.rowIndex="1" id="channel-label" text="Channel:">
               <padding>
                 <Insets right="4.0"/>
               </padding>
             </Label>
             <Label GridPane.columnIndex="1" GridPane.rowIndex="1" id="channel" styleClass="about-value" text="No Channel"/>
-            <Label GridPane.rowIndex="2" text="Build time:">
+            <Label GridPane.rowIndex="2" id="build-time-label" text="Build time:">
               <padding>
                 <Insets right="4.0"/>
               </padding>
@@ -62,12 +62,12 @@
             <RowConstraints minHeight="10.0" prefHeight="36.0" vgrow="SOMETIMES"/>
           </rowConstraints>
           <children>
-            <Label text="Editor SHA1:">
+            <Label id="editor-sha1-label" text="Editor SHA1:" minWidth="-Infinity">
               <padding>
                 <Insets right="4.0"/>
               </padding>
             </Label>
-            <Label GridPane.rowIndex="1" text="Engine SHA1:">
+            <Label GridPane.rowIndex="1" id="engine-sha1-label" text="Engine SHA1:" minWidth="-Infinity">
               <padding>
                 <Insets right="4.0"/>
               </padding>
@@ -92,12 +92,12 @@
               <Insets top="20.0"/>
             </VBox.margin>
         </TextFlow>
-        <Label alignment="CENTER" maxWidth="1.7976931348623157E308" text="Copyright © 2009-2025">
+        <Label alignment="CENTER" id="copyright-label" maxWidth="1.7976931348623157E308" text="Copyright © 2009-2025">
           <VBox.margin>
             <Insets top="20.0"/>
           </VBox.margin>
         </Label>
-        <Label alignment="CENTER" maxWidth="1.7976931348623157E308" text="Defold Foundation"/>
+        <Label alignment="CENTER" id="foundation-label" maxWidth="1.7976931348623157E308" text="Defold Foundation"/>
       </children>
       <padding>
         <Insets top="10.0"/>

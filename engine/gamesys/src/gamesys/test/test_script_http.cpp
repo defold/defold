@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,10 +14,16 @@
 
 #include "../scripts/script_http.h" // to set the timeout
 
-#include <script/test_script.h>
+#include <test_script.h>
+
+#include <dmsdk/dlib/configfile.h>
+#include <dmsdk/render/render.h>
+#include <dmsdk/script/script.h>
+
 #include <script/script.h>
 #include <testmain/testmain.h>
 #include <dlib/configfile.h>
+#include <dlib/context_registry.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -27,7 +33,9 @@
 #include <dlib/testutil.h>
 #include <dlib/sys.h>
 #include <dlib/testutil.h>
+#include <extension/extension.h>
 #include <extension/extension.hpp>
+#include <platform/window.hpp>
 
 static int g_HttpPort = 9001;
 char g_HttpAddress[128] = "localhost";
@@ -94,18 +102,19 @@ public:
     dmScript::HContext m_ScriptContext;
     lua_State* L;
     dmMessage::URL m_DefaultURL;
-    dmPlatform::HWindow m_Window;
+    HWindow m_Window;
     dmResource::HFactory m_Factory;
     dmConfigFile::HConfig m_ConfigFile;
     dmGraphics::HContext m_GraphicsContext;
     dmRender::HRenderContext m_RenderContext;
     ExtensionAppParams  m_AppParams;
     ExtensionParams     m_Params;
+    HContextRegistry    m_ContextRegistry;
     int m_NumberOfFails;
 
 protected:
 
-    virtual void SetUp()
+    void SetUp() override
     {
         char path[1024];
         dmTestUtil::MakeHostPath(path, sizeof(path), "src/gamesys/test/http/test_http.config.raw");
@@ -115,7 +124,8 @@ protected:
 
         m_HttpResponseCount = 0;
 
-        dmPlatform::WindowParams win_params = {};
+        WindowCreateParams win_params;
+        WindowCreateParamsInitialize(&win_params);
         m_Window = dmPlatform::NewWindow();
         dmPlatform::OpenWindow(m_Window, win_params);
 
@@ -131,10 +141,10 @@ protected:
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
 
-        dmGraphics::InstallAdapter();
+        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_Window = m_Window;
-        // graphics_context_params.m_JobThread = m_JobThread;
+        // graphics_context_params.m_JobContext = m_JobContext;
 
         m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
@@ -149,15 +159,19 @@ protected:
 
         ExtensionAppParamsInitialize(&m_AppParams);
         ExtensionParamsInitialize(&m_Params);
+        m_ContextRegistry = ContextRegistryCreate();
+        ExtensionAppParamsSetContextRegistry(&m_AppParams, m_ContextRegistry);
+        ExtensionParamsSetContextRegistry(&m_Params, m_ContextRegistry);
 
         m_Params.m_L = dmScript::GetLuaState(m_ScriptContext);
         m_Params.m_ConfigFile = m_ConfigFile;
         m_Params.m_ResourceFactory = m_Factory;
-        ExtensionParamsSetContext(&m_Params, "lua", dmScript::GetLuaState(m_ScriptContext));
-        ExtensionParamsSetContext(&m_Params, "config", m_ConfigFile);
-        ExtensionParamsSetContext(&m_Params, "render", m_RenderContext);
+        ContextRegistrySet(m_ContextRegistry, LUA_CONTEXT_NAME, dmScript::GetLuaState(m_ScriptContext));
+        ContextRegistrySet(m_ContextRegistry, CONFIGFILE_CONTEXT_NAME, m_ConfigFile);
+        ContextRegistrySet(m_ContextRegistry, RENDER_CONTEXT_NAME, m_RenderContext);
 
         dmExtension::AppInitialize(&m_AppParams);
+        ASSERT_NE((void*)0, ContextRegistryGet(m_ContextRegistry, "http_service"));
         dmExtension::Initialize(&m_Params);
 
         L = dmScript::GetLuaState(m_ScriptContext);
@@ -188,9 +202,11 @@ protected:
         dmScript::SetInstance(L);
         assert(top == lua_gettop(L));
         m_NumberOfFails = 0;
+
+        dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmScript::GetInstance(L);
         ScriptInstance* script_instance = (ScriptInstance*)lua_touserdata(L, -1);
@@ -210,8 +226,10 @@ protected:
 
         ExtensionParamsFinalize(&m_Params);
         ExtensionAppParamsFinalize(&m_AppParams);
+        ContextRegistryDestroy(m_ContextRegistry);
 
         dmRender::DeleteRenderContext(m_RenderContext, m_ScriptContext);
+        dmGraphics::CloseWindow(m_GraphicsContext);
         dmGraphics::DeleteContext(m_GraphicsContext);
 
         dmScript::Finalize(m_ScriptContext);
@@ -464,5 +482,6 @@ int main(int argc, char **argv)
     int ret = jc_test_run_all();
 
     Destroy();
+    dmLog::LogFinalize();
     return ret;
 }

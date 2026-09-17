@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -81,7 +81,7 @@ public:
         self->m_Quit = true;
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Quit = false;
         m_ServerStarted = false;
@@ -103,7 +103,7 @@ public:
         dmWebServer::AddHandler(m_Server, "/header_mul", &handler_params);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (m_Server)
         {

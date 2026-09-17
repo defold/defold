@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,10 +16,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-namespace dmFont
-{
 
-void DebugPrintBitmap(uint8_t* bitmap, int w, int h)
+void FontDebugPrintBitmap(uint8_t* bitmap, int w, int h)
 {
     printf("--------------------------------------------\n");
     for (int j=0; j < h; ++j)
@@ -35,7 +33,7 @@ void DebugPrintBitmap(uint8_t* bitmap, int w, int h)
     printf("--------------------------------------------\n");
 }
 
-void* ReadFile(const char* path, uint32_t* file_size)
+void* FontReadFile(const char* path, uint32_t* file_size)
 {
     FILE* file = fopen(path, "rb");
     if (!file)
@@ -64,6 +62,4 @@ void* ReadFile(const char* path, uint32_t* file_size)
         *file_size = size;
 
     return mem;
-}
-
 }

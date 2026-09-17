@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,7 +26,8 @@ public class Shaderc {
         SHADER_LANGUAGE_NONE(0),
         SHADER_LANGUAGE_GLSL(1),
         SHADER_LANGUAGE_HLSL(2),
-        SHADER_LANGUAGE_SPIRV(3);
+        SHADER_LANGUAGE_MSL(3),
+        SHADER_LANGUAGE_SPIRV(4);
         private final int value;
         private ShaderLanguage(int value) {
             this.value = value;
@@ -203,13 +204,59 @@ public class Shaderc {
         }
     };
 
+    public enum ShaderPrecision {
+        SHADER_PRECISION_MEDIUMP(0),
+        SHADER_PRECISION_HIGHP(1);
+        private final int value;
+        private ShaderPrecision(int value) {
+            this.value = value;
+        }
+        public int getValue() {
+            return this.value;
+        }
+        static public ShaderPrecision fromValue(int value) throws IllegalArgumentException {
+            for (ShaderPrecision e : ShaderPrecision.values()) {
+                if (e.value == value)
+                    return e;
+            }
+            throw new IllegalArgumentException(String.format("Invalid value to ShaderPrecision: %d", value) );
+        }
+    };
+
+    public enum ShaderCompilerPlatform {
+        SHADER_COMPILER_PLATFORM_DEFAULT(0),
+        SHADER_COMPILER_PLATFORM_MACOS(1),
+        SHADER_COMPILER_PLATFORM_IOS(2),
+        SHADER_COMPILER_PLATFORM_XBONE(3);
+        private final int value;
+        private ShaderCompilerPlatform(int value) {
+            this.value = value;
+        }
+        public int getValue() {
+            return this.value;
+        }
+        static public ShaderCompilerPlatform fromValue(int value) throws IllegalArgumentException {
+            for (ShaderCompilerPlatform e : ShaderCompilerPlatform.values()) {
+                if (e.value == value)
+                    return e;
+            }
+            throw new IllegalArgumentException(String.format("Invalid value to ShaderCompilerPlatform: %d", value) );
+        }
+    };
+
     public static class ShaderCompilerOptions {
         public int version = 0;
         public String entryPoint;
+        public ShaderPrecision glslEsDefaultFloatPrecision = ShaderPrecision.SHADER_PRECISION_MEDIUMP;
+        public ShaderPrecision glslEsDefaultIntPrecision = ShaderPrecision.SHADER_PRECISION_MEDIUMP;
+        public ShaderCompilerPlatform targetPlatform = ShaderCompilerPlatform.SHADER_COMPILER_PLATFORM_DEFAULT;
         public byte removeUnusedVariables = 0;
         public byte no420PackExtension = 0;
         public byte glslEmitUboAsPlainUniforms = 0;
         public byte glslEs = 0;
+        public String externalCompilerPath;
+        public String externalCompilerArgs;
+        public String rootSignatureOverride;
     };
     public static class ResourceType {
         public BaseType baseType = BaseType.BASE_TYPE_UNKNOWN;
@@ -263,11 +310,27 @@ public class Shaderc {
         public byte shaderResourceSet = 0;
         public byte shaderResourceBinding = 0;
     };
+    public static class MSLResourceMapping {
+        public String name;
+        public long nameHash = 0;
+        public int metalResourceIndex = 0;
+        public byte shaderResourceSet = 0;
+        public byte shaderResourceBinding = 0;
+    };
     public static class ShaderCompileResult {
         public byte[] data;
         public String lastError;
+        public MSLResourceMapping[] mSLResourceMappings;
         public HLSLResourceMapping[] hLSLResourceMappings;
+        public byte[] hLSLRootSignature;
         public byte hLSLNumWorkGroupsId = 0;
+        public int workGroupSizeX = 0;
+        public int workGroupSizeY = 0;
+        public int workGroupSizeZ = 0;
+    };
+    public static class HLSLRootSignature {
+        public String lastError;
+        public byte[] hLSLRootSignature;
     };
 }
 

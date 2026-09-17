@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,6 +15,9 @@
 
 
 
+set -e
+
+./scripts/build.py build_ext
 ./scripts/build.py build_platform_sdk
 
 # Unpack the sdk to a new folder

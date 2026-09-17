@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,12 +13,12 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.gviz-test
-  (:require [clojure.java.io :as io]
-            [clojure.test :refer :all]
+  (:require [clojure.test :refer :all]
+            [dynamo.graph :as g]
             [editor.gviz :as gviz]
             [integration.test-util :as test-util]
-            [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system tx-nodes]]))
+            [internal.graph.types :as gt]
+            [support.test-support :refer [tx-nodes with-clean-system]]))
 
 (deftest installed []
   (gviz/installed?))
@@ -30,30 +30,29 @@
 
 (deftest simple []
   (with-clean-system
-    (let [g (g/make-graph!)
-          nodes (tx-nodes (g/make-nodes g [n0 [SimpleNode :prop "test"]
-                                           n1 [SimpleNode :prop "test2"]]
-                                        (g/connect n0 :out n1 :in)))
-          dot (gviz/subgraph->dot (g/now))]
+    (g/transact
+      (g/make-nodes [n0 [SimpleNode :prop "test"]
+                     n1 [SimpleNode :prop "test2"]]
+        (g/connect n0 :out n1 :in)))
+    (let [dot (gviz/subgraph->dot (g/now))]
       (is (re-find #"SimpleNode" dot)))))
 
 (deftest broken-graph []
   (with-clean-system
-    (let [g (g/make-graph!)
-          nodes (tx-nodes (g/make-nodes g [n0 [SimpleNode :prop "test"]
-                                           n1 [SimpleNode :prop "test2"]]
-                                        (g/connect n0 :out n1 :in)))
-          basis (update-in (g/now) [:graphs g :nodes] dissoc (first nodes))
+    (let [nodes (tx-nodes (g/make-nodes [n0 [SimpleNode :prop "test"]
+                                         n1 [SimpleNode :prop "test2"]]
+                            (g/connect n0 :out n1 :in)))
+          basis (update (g/now) :nodes dissoc (first nodes))
           dot (gviz/subgraph->dot basis)]
       (is (re-find #"red" dot)))))
 
 (deftest gui []
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
+    (let [workspace (test-util/setup-workspace!)
           project (test-util/setup-project! workspace)
           node-id (test-util/resource-node project "/logic/main.gui")
           basis (g/now)
-          dot (gviz/subgraph->dot basis :root-id node-id :input-fn (fn [[s sl t tl]]
-                                                                     (when-let [type (g/node-type* basis t)]
-                                                                       ((g/cascade-deletes type) tl))))]
+          dot (gviz/subgraph->dot basis :root-id node-id :input-fn (fn [arc]
+                                                                     (when-let [type (g/node-type* basis (gt/target-id arc))]
+                                                                       ((g/cascade-deletes type) (gt/target-label arc)))))]
       (is (< 1000 (count dot))))))

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,6 +23,7 @@
             [editor.gl.vertex2 :as vtx]
             [editor.gl.pass :as pass]
             [editor.image-util :as image-util]
+            [editor.shaders :as shaders]
             [editor.types :as types])
   (:import  [com.jogamp.opengl GL GL2]
             [java.awt.image BufferedImage]
@@ -78,25 +79,7 @@
   (vec2 texcoord0)
   (vec4 color))
 
-(shader/defshader tex-vertex-shader
-  (attribute vec2 position)
-  (attribute vec2 texcoord0)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq var_texcoord0 texcoord0)
-    (setq var_color color)
-    (setq gl_Position (* gl_ModelViewProjectionMatrix (vec4 position 0.0 1.0)))))
-
-(shader/defshader tex-fragment-shader
-  (varying vec4 var_color)
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
-  (defn void main []
-    (setq gl_FragColor (* (texture2D texture_sampler var_texcoord0.xy) var_color))))
-
-(def tex-shader (shader/make-shader ::tex-shader tex-vertex-shader tex-fragment-shader))
+(def tex-shader shaders/basic-texture-color-straight-alpha-world-space)
 
 ;; Render functions
 
@@ -175,7 +158,7 @@
               []))))
 
 (defn- unproject [camera viewport x y]
-  (let [p (c/camera-unproject camera viewport x y 0)]
+  (let [p (c/camera-unproject camera viewport (Point3d. x y 0.0))]
     [(.x p) (.y p)]))
 
 (defn- num-format [vals]

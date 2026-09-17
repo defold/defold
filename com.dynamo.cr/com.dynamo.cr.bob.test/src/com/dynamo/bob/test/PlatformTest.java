@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,9 +14,10 @@
 
 package com.dynamo.bob.test;
 
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 
 import org.junit.Test;
 
@@ -29,46 +30,44 @@ import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 public class PlatformTest {
 
     static void testPlatformGet(Platform p) {
-        assertTrue(p == Platform.get(p.getPair()));
+        assertSame(p, Platform.get(p.getPair()));
     }
 
     @Test
     public void testPlatformGetFn() {
-        testPlatformGet(Platform.X86Win32);
         testPlatformGet(Platform.X86_64Win32);
+        assertNull(Platform.get("win32"));
+        assertNull(Platform.get("x86-win32"));
         testPlatformGet(Platform.X86_64MacOS);
         testPlatformGet(Platform.Arm64MacOS);
-        testPlatformGet(Platform.X86_64Ios);
+        testPlatformGet(Platform.Arm64IosSim);
         testPlatformGet(Platform.Arm64Ios);
         testPlatformGet(Platform.X86_64Linux);
         testPlatformGet(Platform.Arm64Linux);
         testPlatformGet(Platform.Armv7Android);
         testPlatformGet(Platform.Arm64Android);
-        testPlatformGet(Platform.JsWeb);
         testPlatformGet(Platform.WasmWeb);
         testPlatformGet(Platform.WasmPthreadWeb);
     }
 
     @Test
     public void testPlatformOS() {
-        assertTrue(Platform.get("x86-win32").getOsID() == PlatformProfile.OS.OS_ID_WINDOWS);
-        assertTrue(Platform.get("x86_64-win32").getOsID() == PlatformProfile.OS.OS_ID_WINDOWS);
+        assertSame(PlatformProfile.OS.OS_ID_WINDOWS, Platform.get("x86_64-win32").getOsID());
 
-        assertTrue(Platform.get("x86_64-macos").getOsID() == PlatformProfile.OS.OS_ID_OSX);
-        assertTrue(Platform.get("arm64-macos").getOsID() == PlatformProfile.OS.OS_ID_OSX);
+        assertSame(PlatformProfile.OS.OS_ID_OSX, Platform.get("x86_64-macos").getOsID());
+        assertSame(PlatformProfile.OS.OS_ID_OSX, Platform.get("arm64-macos").getOsID());
 
-        assertTrue(Platform.get("arm64-ios").getOsID() == PlatformProfile.OS.OS_ID_IOS);
-        assertTrue(Platform.get("x86_64-ios").getOsID() == PlatformProfile.OS.OS_ID_IOS);
+        assertSame(PlatformProfile.OS.OS_ID_IOS, Platform.get("arm64-ios").getOsID());
+        assertSame(PlatformProfile.OS.OS_ID_IOS, Platform.get("arm64_sim-ios").getOsID());
 
-        assertTrue(Platform.get("armv7-android").getOsID() == PlatformProfile.OS.OS_ID_ANDROID);
-        assertTrue(Platform.get("arm64-android").getOsID() == PlatformProfile.OS.OS_ID_ANDROID);
+        assertSame(PlatformProfile.OS.OS_ID_ANDROID, Platform.get("armv7-android").getOsID());
+        assertSame(PlatformProfile.OS.OS_ID_ANDROID, Platform.get("arm64-android").getOsID());
 
-        assertTrue(Platform.get("js-web").getOsID() == PlatformProfile.OS.OS_ID_WEB);
-        assertTrue(Platform.get("wasm-web").getOsID() == PlatformProfile.OS.OS_ID_WEB);
-        assertTrue(Platform.get("wasm_pthread-web").getOsID() == PlatformProfile.OS.OS_ID_WEB);
+        assertSame(PlatformProfile.OS.OS_ID_WEB, Platform.get("wasm-web").getOsID());
+        assertSame(PlatformProfile.OS.OS_ID_WEB, Platform.get("wasm_pthread-web").getOsID());
 
-        assertTrue(Platform.get("x86_64-linux").getOsID() == PlatformProfile.OS.OS_ID_LINUX);
-        assertTrue(Platform.get("arm64-linux").getOsID() == PlatformProfile.OS.OS_ID_LINUX);
+        assertSame(PlatformProfile.OS.OS_ID_LINUX, Platform.get("x86_64-linux").getOsID());
+        assertSame(PlatformProfile.OS.OS_ID_LINUX, Platform.get("arm64-linux").getOsID());
 
         assertNull(Platform.get(""));
     }
@@ -80,8 +79,8 @@ public class PlatformTest {
             List<String> availableArchitectures = Arrays.asList(platform.getArchitectures().getArchitectures());
             if (!availableArchitectures.contains(platform.getPair()))
             {
-                System.out.println(String.format("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s", platform.getPair(), platform.getPair(), String.join(", ", availableArchitectures)));
-                assertTrue(false);
+                System.out.printf("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s%n", platform.getPair(), platform.getPair(), String.join(", ", availableArchitectures));
+                fail();
             }
         }
     }
@@ -89,22 +88,20 @@ public class PlatformTest {
     @Test
     public void testPlatformMatching() {
 
-        assertTrue(Platform.X86Win32.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
         assertTrue(Platform.X86_64MacOS.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
-        assertTrue(Platform.X86_64Ios.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
+        assertTrue(Platform.Arm64IosSim.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
         assertTrue(Platform.X86_64Linux.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
         assertTrue(Platform.Arm64Android.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
         assertTrue(Platform.WasmWeb.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
         assertTrue(Platform.WasmPthreadWeb.matchesOS(PlatformProfile.OS.OS_ID_GENERIC));
 
-        assertTrue(Platform.X86Win32.matchesOS(PlatformProfile.OS.OS_ID_WINDOWS));
         assertTrue(Platform.X86_64Win32.matchesOS(PlatformProfile.OS.OS_ID_WINDOWS));
 
         assertTrue(Platform.Arm64MacOS.matchesOS(PlatformProfile.OS.OS_ID_OSX));
         assertTrue(Platform.X86_64MacOS.matchesOS(PlatformProfile.OS.OS_ID_OSX));
 
         assertTrue(Platform.Arm64Ios.matchesOS(PlatformProfile.OS.OS_ID_IOS));
-        assertTrue(Platform.X86_64Ios.matchesOS(PlatformProfile.OS.OS_ID_IOS));
+        assertTrue(Platform.Arm64IosSim.matchesOS(PlatformProfile.OS.OS_ID_IOS));
 
         assertTrue(Platform.Arm64Linux.matchesOS(PlatformProfile.OS.OS_ID_LINUX));
         assertTrue(Platform.X86_64Linux.matchesOS(PlatformProfile.OS.OS_ID_LINUX));
@@ -112,7 +109,6 @@ public class PlatformTest {
         assertTrue(Platform.Armv7Android.matchesOS(PlatformProfile.OS.OS_ID_ANDROID));
         assertTrue(Platform.Arm64Android.matchesOS(PlatformProfile.OS.OS_ID_ANDROID));
 
-        assertTrue(Platform.JsWeb.matchesOS(PlatformProfile.OS.OS_ID_WEB));
         assertTrue(Platform.WasmWeb.matchesOS(PlatformProfile.OS.OS_ID_WEB));
         assertTrue(Platform.WasmPthreadWeb.matchesOS(PlatformProfile.OS.OS_ID_WEB));
     }

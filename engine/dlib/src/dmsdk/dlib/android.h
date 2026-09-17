@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,7 +20,7 @@
 #include <jni.h>
 #include <android_native_app_glue.h> // For ANativeActivity
 
-/*# SDK Android API documentation
+/*# Android API documentation
  * Android utility functions
  *
  * @document
@@ -31,8 +31,20 @@
 
 namespace dmAndroid {
 
+/*# sets the android app
+ * @name SetAndroidApp
+ * @param app [type: struct android_app*] The registered android app
+ */
+void SetAndroidApp(struct android_app* app);
+
+/*# get's the previously registered android app
+ * @name GetAndroidApp
+ * @return app [type: struct android_app*] The registered android app
+ */
+struct android_app* GetAndroidApp();
+
 /*#
- * Struct attaching the JNI environment. Detaches the
+ * Struct attaching the JNI environment.
  * @class
  * @name ThreadAttacher
  */

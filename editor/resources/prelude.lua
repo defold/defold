@@ -1,4 +1,4 @@
--- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2020-2026 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -178,19 +178,30 @@ end
 
 local desktop_variants = {"debug", "release", "headless"}
 local common_variants = {"debug", "release"}
-local variant_to_string = editor.bundle.make_to_string_lookup({ debug = "Debug", release = "Release", headless = "Headless" })
+local variant_to_string = editor.bundle.make_to_string_lookup({
+    debug = localization.message("dialog.bundle.option.variant.debug"),
+    release = localization.message("dialog.bundle.option.variant.release"),
+    headless = localization.message("dialog.bundle.option.variant.headless")
+})
 function editor.bundle.desktop_variant_grid_row(config, set_config)
-    return editor.bundle.grid_row("Variant", editor.bundle.select_box(config, set_config, "variant", desktop_variants, variant_to_string))
+    return editor.bundle.grid_row(localization.message("dialog.bundle.label.variant"), editor.bundle.select_box(config, set_config, "variant", desktop_variants, variant_to_string))
 end
 
 function editor.bundle.common_variant_grid_row(config, set_config)
-    return editor.bundle.grid_row("Variant", editor.bundle.select_box(config, set_config, "variant", common_variants, variant_to_string))
+    return editor.bundle.grid_row(localization.message("dialog.bundle.label.variant"), editor.bundle.select_box(config, set_config, "variant", common_variants, variant_to_string))
 end
 
 local texture_compressions = {"enabled", "disabled", "editor"}
-local texture_compression_to_string = editor.bundle.make_to_string_lookup({ enabled = "Enabled", disabled = "Disabled", editor = "Use Editor Preference"})
+local texture_compression_to_string = editor.bundle.make_to_string_lookup({
+    enabled = localization.message("dialog.bundle.option.texture-compression.enabled"),
+    disabled = localization.message("dialog.bundle.option.texture-compression.disabled"),
+    editor = localization.message("dialog.bundle.option.texture-compression.editor")
+})
 function editor.bundle.texture_compression_grid_row(config, set_config)
-    return editor.bundle.grid_row("Texture Compression", editor.bundle.select_box(config, set_config, "texture_compression", texture_compressions, texture_compression_to_string))
+    return editor.bundle.grid_row(
+        localization.message("dialog.bundle.label.texture-compression"),
+        editor.bundle.select_box(config, set_config, "texture_compression", texture_compressions, texture_compression_to_string)
+    )
 end
 
 function editor.bundle.check_box(config, set_config, key, text, rest_props)
@@ -203,10 +214,10 @@ end
 
 function editor.bundle.check_boxes_grid_row(config, set_config)
     return editor.bundle.grid_row(nil, {
-        editor.bundle.check_box(config, set_config, "with_symbols", "Generate debug symbols"),
-        editor.bundle.check_box(config, set_config, "build_report", "Generate build report"),
-        editor.bundle.check_box(config, set_config, "liveupdate", "Publish Live Update content"),
-        editor.bundle.check_box(config, set_config, "contentless", "Contentless bundle")
+        editor.bundle.check_box(config, set_config, "with_symbols", localization.message("dialog.bundle.label.with-symbols")),
+        editor.bundle.check_box(config, set_config, "build_report", localization.message("dialog.bundle.label.build-report")),
+        editor.bundle.check_box(config, set_config, "liveupdate", localization.message("dialog.bundle.label.liveupdate")),
+        editor.bundle.check_box(config, set_config, "contentless", localization.message("dialog.bundle.label.contentless"))
     })
 end
 
@@ -227,13 +238,13 @@ function editor.bundle.external_file_field(config, set_config, key, error, rest_
     return editor.ui.external_file_field(props)
 end
 
-function editor.bundle.dialog(heading, config, hint, error, content)
+function editor.bundle.dialog(header, config, hint, error, content)
     return editor.ui.dialog({
-        title = "Bundle Application",
+        title = localization.message("dialog.bundle.title"),
         header = editor.ui.vertical({children = {
-            editor.ui.heading({text = heading}),
+            editor.ui.heading({text = header}),
             editor.ui.paragraph({
-                text = error or hint or "Proceed to select output folder.",
+                text = error or hint or localization.message("dialog.bundle.hint.select-output-folder"),
                 color = error and editor.ui.COLOR.ERROR or editor.ui.COLOR.HINT
             })
         }}),
@@ -246,11 +257,11 @@ function editor.bundle.dialog(heading, config, hint, error, content)
         }),
         buttons = {
             editor.ui.dialog_button({
-                text = "Close",
+                text = localization.message("dialog.button.close"),
                 cancel = true
             }),
             editor.ui.dialog_button({
-                text = "Create Bundle...",
+                text = localization.message("dialog.bundle.button.create"),
                 default = true,
                 result = config,
                 enabled = not error
@@ -289,7 +300,7 @@ function editor.bundle.output_directory(requested_dialog, output_subdir)
     local prompt_overwrite = requested_dialog or #output_root == 0
     if prompt_overwrite then
         output_root = editor.ui.show_external_directory_dialog({
-            title = "Output Directory",
+            title = localization.message("dialog.bundle.output-directory.title"),
             path = #output_root > 0 and output_root or nil
         })
         if output_root then
@@ -306,23 +317,31 @@ function editor.bundle.output_directory(requested_dialog, output_subdir)
     if attrs.exists then
         if attrs.is_file then
             editor.ui.show_dialog(editor.ui.dialog({
-                title = "Cannot Overwrite File",
-                header = editor.ui.heading({text = "Cannot create a directory"}),
+                title = localization.message("dialog.bundle.output-directory.error-file.title"),
+                header = editor.ui.heading({text = localization.message("dialog.bundle.output-directory.error-file.header")}),
                 content = editor.ui.vertical({ padding = editor.ui.PADDING.LARGE, children = {
-                    editor.ui.paragraph({text = "Cannot create directory at path \"" .. attrs.path .. "\", there is a file with the same name as the directory we are trying to create"})
+                    editor.ui.paragraph({text = localization.message("dialog.bundle.output-directory.error-file.message", {path = attrs.path})})
                 }})
             }))
             error(editor.bundle.abort_message)
         else
             local overwrite = editor.ui.show_dialog(editor.ui.dialog({
-                title = "Overwrite Existing Directory?",
+                title = localization.message("dialog.bundle.output-directory.overwrite.title"),
                 header = editor.ui.vertical({children = {
-                    editor.ui.heading({text = "A directory already exists"}),
-                    editor.ui.paragraph({text = "Overwrite \"" .. attrs.path .. "\"?"})
+                    editor.ui.heading({text = localization.message("dialog.bundle.output-directory.overwrite.header")}),
+                    editor.ui.paragraph({text = localization.message("dialog.bundle.output-directory.overwrite.message", {path = attrs.path})})
                 }}),
                 buttons = {
-                    editor.ui.dialog_button({text = "Cancel", cancel = true, result = false}),
-                    editor.ui.dialog_button({text = "Overwrite", default = true, result = true}),
+                    editor.ui.dialog_button({
+                        text = localization.message("dialog.button.cancel"),
+                        cancel = true,
+                        result = false
+                    }),
+                    editor.ui.dialog_button({
+                        text = localization.message("dialog.bundle.output-directory.button.overwrite"),
+                        default = true,
+                        result = true
+                    }),
                 }
             }))
             if not overwrite then
@@ -383,12 +402,15 @@ function editor.bundle.command(label, id, fn, rest)
         if success or ret_or_message == editor.bundle.abort_message then
             return
         end
-        io.stderr:write(("Bundling '%s' failed: %s\n"):format(label, tostring(ret_or_message))):flush()
+        io.stderr:write(("Bundling '%s' failed: %s\n"):format(tostring(label), tostring(ret_or_message))):flush()
         editor.ui.show_dialog(editor.ui.dialog({
-            title = "Bundle Failed",
+            title = localization.message("dialog.bundle.failed.title"),
             header = editor.ui.vertical({children={
-                editor.ui.heading({text = "Failed to bundle the project"}),
-                editor.ui.paragraph({text = "Please fix build errors and try again", color = editor.ui.COLOR.HINT})
+                editor.ui.heading({text = localization.message("dialog.bundle.failed.header")}),
+                editor.ui.paragraph({
+                    text = localization.message("dialog.bundle.failed.hint"),
+                    color = editor.ui.COLOR.HINT
+                })
             }})
         }))
     end

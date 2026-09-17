@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,10 +14,7 @@
 
 (ns editor.field-expression
   (:require [editor.math :as math])
-  (:import [java.math MathContext]
-           [java.text DecimalFormat DecimalFormatSymbols]
-           [java.util Locale]
-           [net.objecthunter.exp4j ExpressionBuilder]))
+  (:import [net.objecthunter.exp4j ExpressionBuilder]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)

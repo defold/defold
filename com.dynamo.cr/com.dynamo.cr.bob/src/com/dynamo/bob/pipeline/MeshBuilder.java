@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,6 +27,7 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 
 import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
 import com.google.protobuf.TextFormat;
@@ -44,9 +45,9 @@ public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
 
         IResource resource = task.input(0);
         BuilderUtil.checkResource(this.project, resource, "vertices", meshDescBuilder.getVertices());
-        meshDescBuilder.setVertices(BuilderUtil.replaceExt(meshDescBuilder.getVertices(), ".buffer", ".bufferc"));
+        meshDescBuilder.setVertices(ResourceUtil.minifyPathAndReplaceExt(meshDescBuilder.getVertices(), ".buffer", ".bufferc"));
         BuilderUtil.checkResource(this.project, resource, "material", meshDescBuilder.getMaterial());
-        meshDescBuilder.setMaterial(BuilderUtil.replaceExt(meshDescBuilder.getMaterial(), ".material", ".materialc"));
+        meshDescBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(meshDescBuilder.getMaterial(), ".material", ".materialc"));
 
         List<String> newTextureList = new ArrayList<String>();
         for (String t : meshDescBuilder.getTexturesList()) {

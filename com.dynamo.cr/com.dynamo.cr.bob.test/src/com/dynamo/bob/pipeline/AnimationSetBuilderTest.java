@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,11 +15,13 @@
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotNull;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +31,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 import com.dynamo.rig.proto.Rig.RigAnimation;
@@ -66,86 +70,145 @@ public class AnimationSetBuilderTest extends AbstractProtoBuilderTest {
         addFile(resourcFilePath, os.toByteArray());
     }
 
+    private void addExternalBufferTestFile(String sourcePath, String gltfPath, String bufferPath) {
+        InputStream is = getClass().getResourceAsStream(sourcePath);
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        try {
+            IOUtils.copy(is, os);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            IOUtils.closeQuietly(is);
+        }
+
+        String gltf = os.toString(StandardCharsets.UTF_8);
+        String dataUriPrefix = "data:application/octet-stream;base64,";
+        int dataStart = gltf.indexOf(dataUriPrefix);
+        int dataEnd = gltf.indexOf('"', dataStart);
+        String encodedBuffer = gltf.substring(dataStart + dataUriPrefix.length(), dataEnd);
+        String bufferUri = bufferPath.startsWith("/") ? bufferPath.substring(1) : bufferPath;
+
+        addFile(bufferPath, Base64.getDecoder().decode(encodedBuffer));
+        addFile(gltfPath, gltf.substring(0, dataStart) + bufferUri + gltf.substring(dataEnd));
+    }
+
+    private static int countInputs(Task task, String path) {
+        int count = 0;
+        for (IResource input : task.getInputs()) {
+            if (path.equals(input.getPath())) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
     @Test
     public void testAnimationSet() throws Exception {
-        addTestFile("testanim.dae", "testanim.dae");
-        StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/testanim.dae\" }");
-        src.append("skeleton: \"/testanim.dae\"");
-        List<Message> outputs = build("/test.animationset", src.toString());
+        addTestFile("bend2bones.gltf", "testanim.gltf");
+        String src = "animations { animation : \"/testanim.gltf\" }" +
+                "skeleton: \"/testanim.gltf\"";
+        List<Message> outputs = build("/test.animationset", src);
 
-        Map<Long, RigAnimation> anims = getAnims((AnimationSet)outputs.get(0));
+        Map<Long, RigAnimation> anims = getAnims(getMessage(outputs, AnimationSet.class));
         assertEquals(1,anims.size());
-        assertTrue(null != getAnim(anims, "testanim"));
+        assertNotNull(getAnim(anims, "testanim"));
+    }
+
+    @Test
+    public void testAnimationSetUsesCompiledMeshsetProducerOutput() throws Exception {
+        addExternalBufferTestFile("bend2bones.gltf", "/testanim.gltf", "/testanim.bin");
+        String source = "animations { animation : \"/testanim.gltf\" }";
+        addFile("/test.animationset", source);
+
+        Task animationSetTask = getProject().createTask(getProject().getResource("/test.animationset"), AnimationSetBuilder.class);
+        Task meshsetTask = getProject().createTask(getProject().getResource("/testanim.gltf"), MeshsetBuilder.class);
+
+        assertEquals(1, countInputs(animationSetTask, "build/testanim_generated_0.animationsetc"));
+        assertEquals(0, countInputs(animationSetTask, "testanim.gltf"));
+        assertEquals(0, countInputs(animationSetTask, "testanim.bin"));
+        assertEquals(2, animationSetTask.getInputs().size());
+
+        assertEquals(1, countInputs(meshsetTask, "testanim.gltf"));
+        assertEquals(1, countInputs(meshsetTask, "testanim.bin"));
+
+        build("/test.animationset", source);
+        AnimationSet animationSet = AnimationSet.parseFrom(animationSetTask.output(0).getContent());
+        Map<Long, RigAnimation> animations = getAnims(animationSet);
+        assertEquals(1, animations.size());
+        assertNotNull(getAnim(animations, "testanim"));
     }
 
     @Test
     public void testAnimationSetHierarchy() throws Exception {
-        addTestFile("testanim.dae", "testanim1.dae");
-        addTestFile("testanim.dae", "testanim2.dae");
-        addTestFile("testanim.dae", "testanim3.dae");
-        addTestFile("testanim.dae", "1/testanim3.dae");
+        addTestFile("bend2bones.gltf", "testanim1.gltf");
+        addTestFile("bend2bones.gltf", "testanim2.gltf");
+        addTestFile("bend2bones.gltf", "testanim3.gltf");
+        addTestFile("bend2bones.gltf", "1/testanim3.gltf");
 
         StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/1/testanim3.dae\" }");
-        src.append("skeleton: \"/testanim1.dae\"");
+        src.append("animations { animation : \"/1/testanim3.gltf\" }");
+        src.append("skeleton: \"/testanim1.gltf\"");
         addFile("testset2.animationset", src.toString());
         src = new StringBuilder();
-        src.append("animations { animation : \"/testanim3.dae\" }");
+        src.append("animations { animation : \"/testanim3.gltf\" }");
         src.append("animations { animation : \"/testset2.animationset\" }");
-        src.append("skeleton: \"/testanim1.dae\"");
+        src.append("skeleton: \"/testanim1.gltf\"");
         addFile("testset1.animationset", src.toString());
         src = new StringBuilder();
-        src.append("animations { animation : \"/testanim1.dae\" }");
-        src.append("animations { animation : \"/testanim2.dae\" }");
+        src.append("animations { animation : \"/testanim1.gltf\" }");
+        src.append("animations { animation : \"/testanim2.gltf\" }");
         src.append("animations { animation : \"/testset1.animationset\" }");
-        src.append("skeleton: \"/testanim1.dae\"");
+        src.append("skeleton: \"/testanim1.gltf\"");
         List<Message> outputs = build("/test.animationset", src.toString());
 
-        Map<Long, RigAnimation> anims = getAnims((AnimationSet)outputs.get(0));
+        Map<Long, RigAnimation> anims = getAnims(getMessage(outputs, AnimationSet.class));
         assertEquals(4,anims.size());
-        assertTrue(null != getAnim(anims, "testanim1"));
-        assertTrue(null != getAnim(anims, "testanim2"));
-        assertTrue(null != getAnim(anims, "testset1/testanim3"));
-        assertTrue(null != getAnim(anims, "testset2/testanim3"));
+        assertNotNull(getAnim(anims, "testanim1"));
+        assertNotNull(getAnim(anims, "testanim2"));
+        assertNotNull(getAnim(anims, "testset1/testanim3"));
+        assertNotNull(getAnim(anims, "testset2/testanim3"));
     }
 
     @Test(expected=CompileExceptionError.class)
     public void testAnimationSetMultipleAnimationReference() throws Exception {
-        addTestFile("testanim.dae", "testanim.dae");
-        StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/testanim.dae\" }");
-        src.append("animations { animation : \"/testanim.dae\" }");
-        build("/test.animationset", src.toString());
+        addTestFile("bend2bones.gltf", "testanim.gltf");
+        String src = "animations { animation : \"/testanim.gltf\" }" +
+                "animations { animation : \"/testanim.gltf\" }";
+        build("/test.animationset", src);
     }
 
     @Test(expected=CompileExceptionError.class)
     public void testAnimationSetMultipleAnimationId() throws Exception {
-        addTestFile("testanim.dae", "1/testanim.dae");
-        addTestFile("testanim.dae", "2/testanim.dae");
-        StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/1/testanim.dae\" }");
-        src.append("animations { animation : \"/2/testanim.dae\" }");
-        build("/test.animationset", src.toString());
+        addTestFile("bend2bones.gltf", "1/testanim.gltf");
+        addTestFile("bend2bones.gltf", "2/testanim.gltf");
+        String src = "animations { animation : \"/1/testanim.gltf\" }" +
+                "animations { animation : \"/2/testanim.gltf\" }";
+        build("/test.animationset", src);
     }
 
     @Test(expected=CompileExceptionError.class)
     public void testAnimationSetMultipleAnimationReferenceHierarchy() throws Exception {
-        addTestFile("testanim.dae", "testanim.dae");
+        addTestFile("bend2bones.gltf", "testanim.gltf");
         StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/testanim.dae\" }");
+        src.append("animations { animation : \"/testanim.gltf\" }");
         addFile("testset.animationset", src.toString());
         src = new StringBuilder();
-        src.append("animations { animation : \"/testanim.dae\" }");
+        src.append("animations { animation : \"/testanim.gltf\" }");
         src.append("animations { animation : \"/testset.animationset\" }");
         build("/test.animationset", src.toString());
     }
 
     @Test(expected=CompileExceptionError.class)
+    public void testAnimationSetDaeUnsupported() throws Exception {
+        addFile("testanim.dae", "unsupported");
+        String src = "animations { animation : \"/testanim.dae\" }" +
+                "skeleton: \"/testanim.dae\"";
+        build("/test.animationset", src);
+    }
+
+    @Test(expected=CompileExceptionError.class)
     public void testAnimationSetCircularReference() throws Exception {
-        StringBuilder src = new StringBuilder();
-        src.append("animations { animation : \"/test.animationset\" }");
-        build("/test.animationset", src.toString());
+        build("/test.animationset", "animations { animation : \"/test.animationset\" }");
     }
 
 }

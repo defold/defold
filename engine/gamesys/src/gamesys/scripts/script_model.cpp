@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -27,6 +28,8 @@
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/model_ddf.h>
 #include <extension/extension.hpp>
+#include <dmsdk/gamesys/script.h>
+#include <dmsdk/rig/rig.h>
 
 extern "C"
 {
@@ -46,6 +49,21 @@ namespace dmGameSystem
      * @name Model
      * @namespace model
      * @language Lua
+     */
+
+    /*# Model animation playback properties
+     * @struct
+     * @name model.play_properties
+     * @member blend_duration? [type:number] duration of a linear blend from the current animation
+     * @member offset? [type:number] normalized initial animation cursor
+     * @member playback_rate? [type:number] positive animation playback rate
+     */
+
+    /*# Axis-aligned bounding box
+     * @struct
+     * @name model.aabb
+     * @member min [type:vector3] minimum local-space bounds
+     * @member max [type:vector3] maximum local-space bounds
      */
 
     /*# [type:number] model cursor
@@ -146,64 +164,82 @@ namespace dmGameSystem
      * See [ref:resource.set_texture] for an example on how to set the texture of an atlas.
      */
 
-    /*# [type:hash] model material
-     *
-     * The material used when rendering the model. The type of the property is hash.
-     *
-     * @name material
-     * @property
-     *
-     * @examples
-     *
-     * How to set material using a script property (see [ref:resource.material]):
-     *
-     * ```lua
-     * go.property("my_material", resource.material("/material.material"))
-     * function init(self)
-     *   go.set("#model", "material", self.my_material)
-     * end
-     * ```
-     */
-
-    static int LuaModelComp_Play(lua_State* L)
+    struct AnimationCallbackContext
     {
-        dmLogOnceWarning(dmScript::DEPRECATION_FUNCTION_FMT, MODEL_MODULE_NAME, "play", MODEL_MODULE_NAME, "play_anim");
+        dmScript::LuaCallbackInfo* m_LuaCallback;
+        dmMessage::URL             m_Listener;
+    };
 
-        int top = lua_gettop(L);
-        // default values
-        float offset = 0.0f;
-        float playback_rate = 1.0f;
+    static void ScriptModelAnimationCallback(void* user_ctx, dmRig::RigEventType event_type, void* event_data)
+    {
+        AnimationCallbackContext* cbctx = (AnimationCallbackContext*)user_ctx;
 
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-
-        dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
-        lua_Integer playback = luaL_checkinteger(L, 3);
-        lua_Number blend_duration = luaL_checknumber(L, 4);
-
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-        int functionref = 0;
-        if (top > 4)
+        if (cbctx->m_LuaCallback)
         {
-            if (lua_isfunction(L, 5))
+            if (dmScript::IsCallbackValid(cbctx->m_LuaCallback))
             {
-                lua_pushvalue(L, 5);
-                functionref = dmScript::RefInInstance(L) - LUA_NOREF;
+                lua_State* L = dmScript::GetCallbackLuaContext(cbctx->m_LuaCallback);
+                DM_LUA_STACK_CHECK(L, 0);
+                if (!dmScript::SetupCallback(cbctx->m_LuaCallback))
+                {
+                    dmLogError("Failed to setup model animation callback");
+                    delete cbctx;
+                    return;
+                }
+
+                switch (event_type)
+                {
+                    case dmRig::RIG_EVENT_TYPE_COMPLETED:
+                    {
+                        dmRig::RigCompletedEventData* data = (dmRig::RigCompletedEventData*)event_data;
+                        dmModelDDF::ModelAnimationDone message;
+                        message.m_AnimationId = data->m_AnimationId;
+                        message.m_Playback    = data->m_Playback;
+
+                        dmScript::PushHash(L, dmModelDDF::ModelAnimationDone::m_DDFDescriptor->m_NameHash);
+                        dmScript::PushDDF(L, dmModelDDF::ModelAnimationDone::m_DDFDescriptor, (const char*)&message, false);
+                        int ret = dmScript::PCall(L, 3, 0);
+                        (void)ret;
+                        break;
+                    }
+                    default:
+                    {
+                        dmLogError("Unknown rig event received (%d).", event_type);
+                        break;
+                    }
+                }
+                dmScript::TeardownCallback(cbctx->m_LuaCallback);
+            }
+            dmScript::DestroyCallback(cbctx->m_LuaCallback);
+        }
+        else
+        {
+            switch (event_type)
+            {
+                case dmRig::RIG_EVENT_TYPE_COMPLETED:
+                {
+                    dmhash_t message_id = dmModelDDF::ModelAnimationDone::m_DDFDescriptor->m_NameHash;
+                    const dmRig::RigCompletedEventData* completed_event = (const dmRig::RigCompletedEventData*)event_data;
+
+                    dmModelDDF::ModelAnimationDone message;
+                    message.m_AnimationId = completed_event->m_AnimationId;
+                    message.m_Playback    = completed_event->m_Playback;
+
+                    uintptr_t descriptor = (uintptr_t)dmModelDDF::ModelAnimationDone::m_DDFDescriptor;
+                    uint32_t data_size = sizeof(dmModelDDF::ModelAnimationDone);
+                    dmMessage::Result result = dmMessage::Post(0, &cbctx->m_Listener, message_id, 0, 0, descriptor, &message, data_size, 0);
+                    if (result != dmMessage::RESULT_OK)
+                    {
+                        dmLogError("Could not send animation_done to listener.");
+                    }
+                    break;
+                }
+                default:
+                    dmLogError("Unknown rig event received (%d).", event_type);
+                    break;
             }
         }
-
-        dmModelDDF::ModelPlayAnimation msg;
-        msg.m_AnimationId = anim_id;
-        msg.m_Playback = playback;
-        msg.m_BlendDuration = blend_duration;
-        msg.m_Offset = offset;
-        msg.m_PlaybackRate = playback_rate;
-
-        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)functionref, (uintptr_t)dmModelDDF::ModelPlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
-        return 0;
+        delete cbctx;
     }
 
     /*# play an animation on a model
@@ -225,41 +261,18 @@ namespace dmGameSystem
      * @name model.play_anim
      * @param url [type:string|hash|url] the model for which to play the animation
      * @param anim_id [type:string|hash] id of the animation to play
-     * @param playback [type:constant] playback mode of the animation
-     *
-     * - `go.PLAYBACK_ONCE_FORWARD`
-     * - `go.PLAYBACK_ONCE_BACKWARD`
-     * - `go.PLAYBACK_ONCE_PINGPONG`
-     * - `go.PLAYBACK_LOOP_FORWARD`
-     * - `go.PLAYBACK_LOOP_BACKWARD`
-     * - `go.PLAYBACK_LOOP_PINGPONG`
-     *
-     * @param [play_properties] [type:table] optional table with properties
-     *
-     * Play properties table:
-     *
-     * `blend_duration`
-     * : [type:number] Duration of a linear blend between the current and new animation.
-     *
-     * `offset`
-     * : [type:number] The normalized initial value of the animation cursor when the animation starts playing.
-     *
-     * `playback_rate`
-     * : [type:number] The rate with which the animation will be played. Must be positive.
-     *
-     * @param [complete_function] [type:function(self, message_id, message, sender)] function to call when the animation has completed.
+     * @param playback [type:go.PLAYBACK] playback mode of the animation
+     * @param [play_properties] [type:model.play_properties] optional playback properties
+     * @param [complete_function] [type:fun(self:script_instance, message_id:hash, message:message.model.model_animation_done, sender:url)] function to call when the animation has completed.
      *
      * `self`
-     * : [type:object] The current object.
+     * : [type:script_instance] The current script instance.
      *
      * `message_id`
      * : [type:hash] The name of the completion message, `"model_animation_done"`.
      *
      * `message`
-     * : [type:table] Information about the completion:
-     *
-     * - [type:hash] `animation_id` - the animation that was completed.
-     * - [type:constant] `playback` - the playback mode for the animation.
+     * : [type:message.model.model_animation_done] Information about the completion.
      *
      * `sender`
      * : [type:url] The invoker of the callback: the model component.
@@ -324,25 +337,42 @@ namespace dmGameSystem
             lua_pop(L, 1);
         }
 
-        int functionref = 0;
-        if (top > 4) // completed cb
+        ModelWorld* world;
+        ModelComponent* component;
+        dmScript::GetComponentFromLua(L, 1, MODEL_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+
+        AnimationCallbackContext* callback_ctx = new AnimationCallbackContext();
+        callback_ctx->m_LuaCallback = 0;
+        callback_ctx->m_Listener = sender;
+
+        if (top > 4)
         {
             if (lua_isfunction(L, 5))
             {
-                lua_pushvalue(L, 5);
-                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, in order to have 0 for "no function"
-                functionref = dmScript::RefInInstance(L) - LUA_NOREF;
+                callback_ctx->m_LuaCallback = dmScript::CreateCallback(L, 5);
             }
         }
 
-        dmModelDDF::ModelPlayAnimation msg;
-        msg.m_AnimationId = anim_id;
-        msg.m_Playback = playback;
-        msg.m_BlendDuration = blend_duration;
-        msg.m_Offset = offset;
-        msg.m_PlaybackRate = playback_rate;
+        FModelAnimationCallback callback = ScriptModelAnimationCallback;
+        dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, (dmRig::RigPlayback)playback, blend_duration, offset, playback_rate, callback, callback_ctx);
+        if (dmRig::RESULT_ANIM_NOT_FOUND == result)
+        {
+            if (callback_ctx->m_LuaCallback)
+            {
+                dmScript::DestroyCallback(callback_ctx->m_LuaCallback);
+            }
+            delete callback_ctx;
+            dmLogError("'%s:%s#%s' has no animation named '%s'",
+                    dmMessage::GetSocketName(receiver.m_Socket),
+                    dmHashReverseSafe64(receiver.m_Path),
+                    dmHashReverseSafe64(receiver.m_Fragment),
+                    dmHashReverseSafe64(anim_id));
+        }
 
-        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)functionref, (uintptr_t)dmModelDDF::ModelPlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }
 
@@ -435,53 +465,6 @@ namespace dmGameSystem
 
         assert((top + 1) == lua_gettop(L));
         return 1;
-    }
-
-    /** DEPRECATED! set a shader constant for a model
-     * Sets a shader constant for a model component.
-     * The constant must be defined in the material assigned to the model.
-     * Setting a constant through this function will override the value set for that constant in the material.
-     * The value will be overridden until model.reset_constant is called.
-     * Which model to set a constant for is identified by the URL.
-     *
-     * @name model.set_constant
-     * @param url [type:string|hash|url] the model that should have a constant set
-     * @param constant [type:string|hash] name of the constant
-     * @param value [type:vector4] value of the constant
-     * @examples
-     *
-     * The following examples assumes that the model has id "model" and that the default-material in builtins is used, which defines the constant "tint".
-     * If you assign a custom material to the model, you can set the constants defined there in the same manner.
-     *
-     * How to tint a model to red:
-     *
-     * ```lua
-     * function init(self)
-     *     model.set_constant("#model", "tint", vmath.vector4(1, 0, 0, 1))
-     * end
-     * ```
-     */
-    static int LuaModelComp_SetConstant(lua_State* L)
-    {
-        int top = lua_gettop(L);
-
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-
-        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
-        dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
-
-        dmGameSystemDDF::SetConstant msg;
-        msg.m_NameHash = name_hash;
-        msg.m_Value = *value;
-        msg.m_Index = 0; // TODO: Pass a real index here?
-
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
-        return 0;
     }
 
     /** DEPRECATED! reset a shader constant for a model
@@ -613,11 +596,9 @@ namespace dmGameSystem
 
     /*# get the AABB of the whole model in local coordinate space
      * Get AABB of the whole model in local coordinate space.
-     * AABB information return as a table with `min` and `max` fields, where `min` and `max` has type `vmath.vector3`.
-     *
      * @name model.get_aabb
      * @param url [type:string|hash|url] the model
-     * @return aabb [type:table] A table containing AABB of the model. If model has no meshes - return vmath.vector3(0,0,0) for min and max fields.
+     * @return aabb [type:model.aabb] model bounds; an empty model returns zero vectors
      * @examples
      *
      * ```lua
@@ -650,11 +631,9 @@ namespace dmGameSystem
 
     /*# get the AABB of all meshes
      * Get AABB of all meshes.
-     * AABB information return as a table with `min` and `max` fields, where `min` and `max` has type `vmath.vector3`.
-     *
      * @name model.get_mesh_aabb
      * @param url [type:string|hash|url] the model
-     * @return aabb [type:table] A table containing info about all AABB in the format <hash(mesh_id), aabb_info>
+     * @return aabb [type:table<hash, model.aabb>] mesh bounds keyed by mesh identifier
      * @examples
      *
      * ```lua
@@ -693,19 +672,131 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# get current morph (blend shape) weights
+     * Returns a table of numbers with one entry per morph target on the first mesh of the model that has morph targets.
+     * Values reflect the rig state at call time (after animation, and any active script override from [ref:model.set_blend_weights]).
+     *
+     * @name model.get_blend_weights
+     * @param url [type:string|hash|url] the model component
+     * @return weights [type:number[]] array of weight values, or empty table if the model has no morph targets
+     * @examples
+     *
+     * ```lua
+     * local w = model.get_blend_weights("#model")
+     * for i = 1, #w do
+     *   print(i, w[i])
+     * end
+     * -- change the data in the table and then set the weights again
+     * w[1] = 0.75
+     * w[2] = 0.25
+     * model.set_blend_weights("#model", w)
+     * ```
+     */
+    static int LuaModelComp_GetBlendWeights(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        ModelComponent* component = 0;
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+
+        const float* w = 0;
+        uint32_t wc = 0;
+        if (!CompModelGetBlendWeights(component, &w, &wc))
+        {
+            lua_createtable(L, 0, 0);
+            return 1;
+        }
+
+        lua_createtable(L, (int)wc, 0);
+        for (uint32_t i = 0; i < wc; ++i)
+        {
+            lua_pushnumber(L, (lua_Number)w[i]);
+            lua_rawseti(L, -2, (int)(i + 1));
+        }
+        return 1;
+    }
+
+    /*# set morph (blend shape) weights from a table
+     * Copies numeric values from `weights` into each morph target slot for every mesh on the model that has morph targets.
+     * At most as many weights are applied as each mesh has morph targets; extra entries in the table are ignored.
+     * Missing weights leave the tail zero-filled for meshes with more targets than entries.
+     *
+     * The override is re-applied every frame after animations run, until cleared by omitting `weights` or passing `nil`.
+     * To reset the weights, use `model.set_blend_weights(url)` or `model.set_blend_weights(url, nil)`.
+     *
+     * @name model.set_blend_weights
+     * @param url [type:string|hash|url] the model component
+     * @param [weights] [type:number[]|nil] array of weight values (1-based indices). Omit or pass `nil` to clear the override and return morphs to animation only
+     * @examples
+     *
+     * ```lua
+     * -- set the weights for the first 4 morph targets
+     * model.set_blend_weights("#model", { 0, 1, 0.5, 0 })
+     * -- clear the override, animation will continue if the weights are driven by an animation
+     * model.set_blend_weights("#model") -- clear script override
+     * ```
+     */
+    static int LuaModelComp_SetBlendWeights(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        ModelComponent* component = 0;
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+
+        if (lua_gettop(L) < 2 || lua_isnil(L, 2))
+        {
+            CompModelResetBlendWeights(component);
+            return 0;
+        }
+
+        luaL_checktype(L, 2, LUA_TTABLE);
+        const size_t len = lua_objlen(L, 2);
+        if (len == 0)
+        {
+            return luaL_error(L, "blend weights table must not be empty (use model.set_blend_weights without weights or pass nil to reset)");
+        }
+
+        dmArray<float> buffer;
+        buffer.SetCapacity((uint32_t)len);
+        buffer.SetSize((uint32_t)len);
+        for (size_t i = 0; i < len; ++i)
+        {
+            lua_rawgeti(L, 2, (int)(i + 1));
+            if (!lua_isnumber(L, -1))
+            {
+                lua_pop(L, 1);
+                buffer.SetCapacity(0); // Required as luaL_error longjmps and skips the destructor
+                return luaL_error(L, "blend weights must be numbers (bad value at index %d)", (int)(i + 1));
+            }
+            buffer[(uint32_t)i] = (float)lua_tonumber(L, -1);
+            lua_pop(L, 1);
+        }
+        CompModelSetBlendWeights(component, buffer.Begin(), buffer.Size());
+        return 0;
+    }
+
     static const luaL_reg MODEL_COMP_FUNCTIONS[] =
     {
-        {"play",    LuaModelComp_Play}, // Deprecated
         {"play_anim", LuaModelComp_PlayAnim},
         {"cancel",  LuaModelComp_Cancel},
         {"get_go",  LuaModelComp_GetGO},
-        {"set_constant",    LuaModelComp_SetConstant},
         {"reset_constant",  LuaModelComp_ResetConstant},
-
         {"set_mesh_enabled",  LuaModelComp_SetMeshEnabled},
         {"get_mesh_enabled",  LuaModelComp_GetMeshEnabled},
         {"get_aabb",          LuaModelComp_GetAabb},
         {"get_mesh_aabb",     LuaModelComp_GetMeshAabb},
+        {"get_blend_weights", LuaModelComp_GetBlendWeights},
+        {"set_blend_weights", LuaModelComp_SetBlendWeights},
         {0, 0}
     };
 

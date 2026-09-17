@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,6 +23,7 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.render.proto.Compute.ComputeDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
@@ -47,7 +48,7 @@ public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
     }
 
     private IResource getShaderProgram(ComputeDesc.Builder fromBuilder) {
-        String shaderPath = BuilderUtil.replaceExt(fromBuilder.getComputeProgram(), ".cp", ShaderProgramBuilderBundle.EXT);
+        String shaderPath = ResourceUtil.replaceExt(fromBuilder.getComputeProgram(), ".cp", ShaderProgramBuilderBundle.EXT);
         return this.project.getResource(shaderPath);
     }
 
@@ -57,7 +58,8 @@ public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
 
         // The material should depend on the finally built shader resource file
         // that is a combination of one or more shader modules
-        IResource shaderResourceOut = getShaderProgram(computeBuilder);
+        IResource shaderResource = getShaderProgram(computeBuilder);
+        IResource shaderResourceOut = shaderResource.disableMinifyPath().changeExt(ShaderProgramBuilderBundle.EXT_OUT);
 
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
         modules.addModule(computeBuilder.getComputeProgram());
@@ -82,7 +84,7 @@ public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
         BuilderUtil.checkResource(this.project, res, "compute program", computeBuilder.getComputeProgram());
         IResource shaderResourceOut = getShaderProgram(computeBuilder);
 
-        computeBuilder.setComputeProgram("/" + BuilderUtil.replaceExt(shaderResourceOut.getPath(), ".spc"));
+        computeBuilder.setComputeProgram(ResourceUtil.minifyPathAndChangeExt(shaderResourceOut.getPath(), ".spc"));
 
         buildSamplers(computeBuilder);
 

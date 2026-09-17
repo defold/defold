@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,6 +28,8 @@
 #include "data/gray_alpha_check_2x2.png.embed.h"
 #include "data/defold_64.jpg.embed.h"
 #include "data/defold_64_progressive.jpg.embed.h"
+#include "data/valid.astc.embed.h"
+#include "data/invalid.astc.embed.h"
 
 /*
  * Imagemagick conversion
@@ -248,6 +250,43 @@ TEST(dmImage, PngGrayAlpha)
     dmImage::Free(&image);
 }
 
+TEST(dmImage, Hdr)
+{
+    static const uint8_t HDR_2X2[] = {
+        '#', '?', 'R', 'A', 'D', 'I', 'A', 'N', 'C', 'E', '\n',
+        'F', 'O', 'R', 'M', 'A', 'T', '=', '3', '2', '-', 'b', 'i', 't', '_', 'r', 'l', 'e', '_', 'r', 'g', 'b', 'e', '\n',
+        '\n',
+        '-', 'Y', ' ', '2', ' ', '+', 'X', ' ', '2', '\n',
+        128, 0, 0, 129,
+        0, 128, 0, 129,
+        0, 0, 128, 129,
+        128, 128, 128, 129,
+    };
+
+    ASSERT_TRUE(dmImage::IsHDR(HDR_2X2, sizeof(HDR_2X2)));
+    ASSERT_EQ((dmImage::HImage)0, dmImage::NewImage(HDR_2X2, sizeof(HDR_2X2), false));
+
+    dmImage::Image image;
+    dmImage::Result r = dmImage::Load(HDR_2X2, sizeof(HDR_2X2), false, false, &image);
+    ASSERT_EQ(dmImage::RESULT_OK, r);
+    ASSERT_EQ(2U, image.m_Width);
+    ASSERT_EQ(2U, image.m_Height);
+    ASSERT_EQ(dmImage::TYPE_RGBA32F, image.m_Type);
+    ASSERT_NE((void*)0, image.m_Buffer);
+
+    const float* b = (const float*)image.m_Buffer;
+    ASSERT_NEAR(1.0f, b[0], 0.0001f);
+    ASSERT_NEAR(0.0f, b[1], 0.0001f);
+    ASSERT_NEAR(0.0f, b[2], 0.0001f);
+    ASSERT_NEAR(1.0f, b[3], 0.0001f);
+    ASSERT_NEAR(0.0f, b[4], 0.0001f);
+    ASSERT_NEAR(1.0f, b[5], 0.0001f);
+    ASSERT_NEAR(0.0f, b[6], 0.0001f);
+    ASSERT_NEAR(1.0f, b[7], 0.0001f);
+
+    dmImage::Free(&image);
+}
+
 TEST(dmImage, Jpeg)
 {
     dmImage::Image image;
@@ -296,6 +335,37 @@ TEST(dmImage, case2319)
     ASSERT_EQ(16U, (uint32_t) b[i++]);
 
     dmImage::Free(&image);
+}
+
+TEST(dmImage, AstcBlockSize)
+{
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t depth = 0;
+    ASSERT_TRUE(dmImage::GetAstcBlockSize(VALID_ASTC, VALID_ASTC_SIZE, &width, &height, &depth));
+    ASSERT_EQ(8U, width);
+    ASSERT_EQ(6U, height);
+    ASSERT_EQ(1U, depth);
+}
+
+TEST(dmImage, AstcDimensions)
+{
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t depth = 0;
+    ASSERT_TRUE(dmImage::GetAstcDimensions(VALID_ASTC, VALID_ASTC_SIZE, &width, &height, &depth));
+    ASSERT_EQ(128U, width);
+    ASSERT_EQ(64U, height);
+    ASSERT_EQ(1U, depth);
+}
+
+TEST(dmImage, AstcInvalidHeader)
+{
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t depth = 0;
+    ASSERT_FALSE(dmImage::GetAstcBlockSize(INVALID_ASTC, INVALID_ASTC_SIZE, &width, &height, &depth));
+    ASSERT_FALSE(dmImage::GetAstcDimensions(INVALID_ASTC, 4, &width, &height, &depth));
 }
 
 int main(int argc, char **argv)

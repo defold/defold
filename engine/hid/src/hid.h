@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,19 +23,13 @@
 
 #include <stdint.h>
 
-#include <dmsdk/hid/hid.h>
-
-namespace dmPlatform
-{
-    struct dmWindow;
-    typedef dmWindow* HWindow;
-};
+#include "dmsdk/hid/hid.h"
+#include <dmsdk/platform/window.h>
 
 namespace dmHID
 {
     /// Constant that defines invalid context handles
     const HContext INVALID_CONTEXT = 0;
-    const uint8_t MAX_GAMEPAD_NAME_LENGTH = 128;
     const uint8_t MAX_GAMEPAD_NAME_COUNT  = 2;
 
     enum KeyboardType
@@ -123,9 +117,9 @@ namespace dmHID
      * Set the window handle.
      *
      * @param context context for which the window handle should be set
-     * @param window [type: dmPlatform::HWindow] the window handle
+     * @param window [type: HWindow] the window handle
      */
-    void SetWindow(HContext context, dmPlatform::HWindow window);
+    void SetWindow(HContext context, HWindow window);
 
     /**
      * Initializes a hid context.
@@ -146,8 +140,69 @@ namespace dmHID
      * Updates a hid context by polling input from the connected hid devices.
      *
      * @param context the context to poll from
+     * @return true if it has any input events
      */
-    void Update(HContext context);
+    bool Update(HContext context);
+
+    /**
+     * Tells the gamepad to use legacy (non SDL) button/axis layout
+     *
+     * @param gamepad gamepad handle
+     * @param legacy true if the legacy layout is to be used (currently true by default)
+     */
+    void SetGamepadLayoutLegacy(HGamepad gamepad, bool legacy);
+
+    /**
+     * Stable SDL-style packet indices used by drivers that provide automatic
+     * semantic gamepad mappings.
+     */
+    enum GamepadMappedAxis
+    {
+        GAMEPAD_MAPPED_AXIS_LEFT_X = 0,
+        GAMEPAD_MAPPED_AXIS_LEFT_Y,
+        GAMEPAD_MAPPED_AXIS_RIGHT_X,
+        GAMEPAD_MAPPED_AXIS_RIGHT_Y,
+        GAMEPAD_MAPPED_AXIS_LEFT_TRIGGER,
+        GAMEPAD_MAPPED_AXIS_RIGHT_TRIGGER,
+        GAMEPAD_MAPPED_AXIS_COUNT,
+    };
+
+    enum GamepadMappedButton
+    {
+        GAMEPAD_MAPPED_BUTTON_A = 0,
+        GAMEPAD_MAPPED_BUTTON_B,
+        GAMEPAD_MAPPED_BUTTON_X,
+        GAMEPAD_MAPPED_BUTTON_Y,
+        GAMEPAD_MAPPED_BUTTON_BACK,
+        GAMEPAD_MAPPED_BUTTON_START,
+        GAMEPAD_MAPPED_BUTTON_LEFT_THUMB,
+        GAMEPAD_MAPPED_BUTTON_RIGHT_THUMB,
+        GAMEPAD_MAPPED_BUTTON_LEFT_SHOULDER,
+        GAMEPAD_MAPPED_BUTTON_RIGHT_SHOULDER,
+        GAMEPAD_MAPPED_BUTTON_GUIDE,
+        GAMEPAD_MAPPED_BUTTON_CAPTURE,
+        GAMEPAD_MAPPED_BUTTON_COUNT,
+    };
+
+    enum GamepadMappingSupport
+    {
+        GAMEPAD_MAPPING_SUPPORT_NONE = 0,
+        GAMEPAD_MAPPING_SUPPORT_AUTOMATIC = 1 << 0,
+        GAMEPAD_MAPPING_SUPPORT_PHYSICAL_DATABASE = 1 << 1,
+    };
+
+    /**
+     * Returns the semantic mapping capabilities supplied by the owning native
+     * driver for this gamepad.
+     */
+    uint32_t GetGamepadMappingSupport(HContext context, HGamepad gamepad);
+
+    /**
+     * Supplies the SDL database row selected by the input system at runtime.
+     * Native drivers that expose semantic controls may use it to reproduce the
+     * physical packet layout described by the mapping.
+     */
+    void SetGamepadMapping(HContext context, HGamepad gamepad, const char* mapping);
 
     /**
      * Retrieves the number of buttons on a given gamepad.
@@ -166,16 +221,6 @@ namespace dmHID
     uint32_t GetGamepadAxisCount(HGamepad gamepad);
 
     uint32_t GetGamepadHatCount(HGamepad gamepad);
-
-    /**
-     * Retrieves the platform-specific device name of a given gamepad.
-     *
-     * @param context the hid context
-     * @param gamepad gamepad handle
-     * @param buffer a pointer to memory where the name should be stored
-     * @param buffer_length the size of the buffer parameter
-     */
-    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char device_name[MAX_GAMEPAD_NAME_LENGTH]);
 
     /**
      * Check if a keyboard is connected.

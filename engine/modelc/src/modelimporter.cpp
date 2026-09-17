@@ -1,5 +1,4 @@
-
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,7 +16,7 @@
 #include <dmsdk/dlib/log.h>
 #include <dmsdk/dlib/dstrings.h>
 #include <stdio.h>
-#include <stdlib.h> // getenv
+#include <stdlib.h> // getenv, free, strdup
 #include <string.h>
 
 
@@ -49,12 +48,41 @@ struct ModelImporterInitializer
     }
 } g_ModelImporterInitializer;
 
-
 namespace dmModelImporter
 {
 
 Options::Options()
 {
+}
+
+void SetLoadError(Scene* scene, const char* message)
+{
+    if (!scene)
+        return;
+    free(scene->m_LoadError);
+    scene->m_LoadError = 0;
+    if (message && message[0])
+    {
+        scene->m_LoadError = strdup(message);
+    }
+}
+
+static void DestroySampler(Sampler* sampler)
+{
+    free((void*)sampler->m_Name);
+}
+
+static void DestroyTexture(Texture* texture)
+{
+    free((void*)texture->m_Name);
+}
+
+static void DestroyImage(Image* image)
+{
+    free((void*)image->m_Name);
+    free((void*)image->m_Uri);
+    free((void*)image->m_MimeType);
+    //buffer->m_Buffer Memory owned by the gltf data
 }
 
 static void DestroyMesh(Mesh* mesh)
@@ -67,6 +95,15 @@ static void DestroyMesh(Mesh* mesh)
     mesh->m_Bones.SetCapacity(0);
     mesh->m_TexCoords0.SetCapacity(0);
     mesh->m_TexCoords1.SetCapacity(0);
+    mesh->m_Indices.SetCapacity(0);
+    for (uint32_t i = 0; i < mesh->m_MorphTargets.Size(); ++i)
+    {
+        mesh->m_MorphTargets[i].m_Positions.SetCapacity(0);
+        mesh->m_MorphTargets[i].m_Normals.SetCapacity(0);
+        mesh->m_MorphTargets[i].m_Tangents.SetCapacity(0);
+    }
+    mesh->m_MorphTargets.SetCapacity(0);
+    mesh->m_MorphBaseWeights.SetCapacity(0);
     free((void*)mesh->m_Name);
 }
 
@@ -81,6 +118,7 @@ static void DestroyModel(Model* model)
 static void DestroyNode(Node* node)
 {
     free((void*)node->m_Name);
+    node->m_Children.SetCapacity(0);
 }
 
 static void DestroyBone(Bone* bone)
@@ -104,6 +142,9 @@ static void DestroyNodeAnimation(NodeAnimation* node_animation)
     node_animation->m_TranslationKeys.SetCapacity(0);
     node_animation->m_RotationKeys.SetCapacity(0);
     node_animation->m_ScaleKeys.SetCapacity(0);
+    node_animation->m_MorphWeightKeyTimes.SetCapacity(0);
+    node_animation->m_MorphWeightKeyValues.SetCapacity(0);
+    node_animation->m_MorphWeightDimensions = 0;
 }
 
 static void DestroyAnimation(Animation* animation)
@@ -149,18 +190,12 @@ bool LoadFinalize(Scene* scene)
     return true;
 }
 
-void DestroyScene(Scene* scene)
+void ClearScene(Scene* scene)
 {
     if (!scene)
-    {
         return;
-    }
-
     if (!scene->m_OpaqueSceneData)
-    {
-        printf("Already deleted!\n");
         return;
-    }
 
     scene->m_DestroyFn(scene);
     scene->m_OpaqueSceneData = 0;
@@ -188,13 +223,42 @@ void DestroyScene(Scene* scene)
     scene->m_Materials.SetCapacity(0);
 
     for (uint32_t i = 0; i < scene->m_DynamicMaterials.Size(); ++i)
+    {
         DestroyMaterial(scene->m_DynamicMaterials[i]);
+        delete scene->m_DynamicMaterials[i];
+    }
     scene->m_DynamicMaterials.SetCapacity(0);
 
     for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
         DestroyBuffer(&scene->m_Buffers[i]);
     scene->m_Buffers.SetCapacity(0);
 
+    for (uint32_t i = 0; i < scene->m_Images.Size(); ++i)
+        DestroyImage(&scene->m_Images[i]);
+    scene->m_Images.SetCapacity(0);
+
+    for (uint32_t i = 0; i < scene->m_Textures.Size(); ++i)
+        DestroyTexture(&scene->m_Textures[i]);
+    scene->m_Textures.SetCapacity(0);
+
+    for (uint32_t i = 0; i < scene->m_Samplers.Size(); ++i)
+        DestroySampler(&scene->m_Samplers[i]);
+    scene->m_Samplers.SetCapacity(0);
+
+    scene->m_LoadFinalizeFn = 0;
+    scene->m_ValidateFn = 0;
+    scene->m_DestroyFn = 0;
+}
+
+void DestroyScene(Scene* scene)
+{
+    if (!scene)
+        return;
+
+    free(scene->m_LoadError);
+    scene->m_LoadError = 0;
+
+    ClearScene(scene);
     delete scene;
 }
 
@@ -239,6 +303,20 @@ Scene* LoadFromPath(Options* options, const char* path)
     if (!scene)
     {
         dmLogError("Failed to create scene from path '%s'", path);
+        free(data);
+        return 0;
+    }
+
+    if (scene->m_LoadError && scene->m_LoadError[0])
+    {
+        char errbuf[512];
+        errbuf[0] = 0;
+        dmStrlCpy(errbuf, scene->m_LoadError, sizeof(errbuf));
+        DestroyScene(scene);
+        printf("Failed to load '%s'\n", path);
+        if (errbuf[0])
+            dmLogError("%s", errbuf);
+        free(data);
         return 0;
     }
 
@@ -265,8 +343,15 @@ Scene* LoadFromPath(Options* options, const char* path)
 
     if (!dmModelImporter::LoadFinalize(scene))
     {
+        char errbuf[512];
+        errbuf[0] = 0;
+        if (scene->m_LoadError && scene->m_LoadError[0])
+            dmStrlCpy(errbuf, scene->m_LoadError, sizeof(errbuf));
         DestroyScene(scene);
         printf("Failed to load '%s'\n", path);
+        if (errbuf[0])
+            dmLogError("%s", errbuf);
+        free(data);
         return 0;
     }
 

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -281,6 +281,16 @@ public:
      */
     void SetSize(uint32_t size);
 
+    /*# allocate and set size
+     *
+     * Set size of the array, allocate if necessary
+     * @note May grow but not shrink capacity
+     *
+     * @name EnsureSize
+     * @param size [type:uint32_t] size of the array
+     */
+    void EnsureSize(uint32_t size);
+
     /*# Set user-allocated memory
      *
      * user-allocated array with initial size and capacity
@@ -515,6 +525,16 @@ void dmArray<T>::SetSize(uint32_t size)
 }
 
 template <typename T>
+void dmArray<T>::EnsureSize(uint32_t size)
+{
+    if (Capacity() < size)
+    {
+        SetCapacity(size);
+    }
+    SetSize(size);
+}
+
+template <typename T>
 void dmArray<T>::Set(T* user_array, uint32_t size, uint32_t capacity, bool user_allocated)
 {
     assert(user_array != 0);
@@ -553,14 +573,14 @@ T& dmArray<T>::EraseSwapRef(T& element)
 template <typename T>
 void dmArray<T>::Push(const T& element)
 {
-    assert(Capacity() - Size() > 0);
+    assert(Size() < Capacity());
     *m_End++ = element;
 }
 
 template <typename T>
 void dmArray<T>::PushArray(const T* array, uint32_t count)
 {
-    assert(Capacity() - Size() >= count);
+    assert((Size() + count) <= Capacity());
     memcpy(m_End, array, sizeof(T) * count);
     m_End += count;
 }

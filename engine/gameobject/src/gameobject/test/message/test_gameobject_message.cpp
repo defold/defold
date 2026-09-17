@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,11 +22,13 @@
 #include <dlib/message.h>
 
 #include <dlib/log.h>
+#include <dlib/path.h>
+#include <dlib/testutil.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 #include "gameobject/test/message/test_gameobject_message_ddf.h"
 
-#include "../../../proto/gameobject/gameobject_ddf.h"
+#include <gameobject/gameobject_ddf.h>
 
 #include <dmsdk/resource/resource.h>
 
@@ -35,14 +37,15 @@ void DispatchCallback(dmMessage::Message *message, void* user_ptr);
 class MessageTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_UpdateContext.m_DT = 1.0f / 60.0f;
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-        m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/message");
+        char path[DMPATH_MAX_PATH];
+        m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/gameobject/test/message"));
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
@@ -92,7 +95,7 @@ protected:
     }
 
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmMessage::DeleteSocket(m_Socket);
         dmGameObject::DeleteCollection(m_Collection);

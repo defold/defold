@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,25 +20,27 @@ import java.lang.reflect.Method;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ProtoUtil;
 import com.dynamo.proto.DdfExtensions;
 import com.google.protobuf.DescriptorProtos;
 import com.google.protobuf.Descriptors;
-import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.MessageOrBuilder;
 import com.google.protobuf.Message;
 
-public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> extends Builder {
+public abstract class ProtoBuilder<B extends GeneratedMessage.Builder<B>> extends Builder {
 
     private ProtoParams protoParams;
     private HashMap<IResource, B> srcBuilders = new HashMap<>();
 
-    private static Map<String, Class<? extends GeneratedMessageV3>> extToMessageClass = new HashMap<String, Class<? extends GeneratedMessageV3>>();
-    private static Map<Class<? extends GeneratedMessageV3>,  byte[]> classToProtoDigest = new HashMap<Class<? extends GeneratedMessageV3>,  byte[]>();
+    private static Map<String, Class<? extends GeneratedMessage>> extToMessageClass = new HashMap<String, Class<? extends GeneratedMessage>>();
+    private static Map<Class<? extends GeneratedMessage>,  byte[]> classToProtoDigest = new HashMap<Class<? extends GeneratedMessage>,  byte[]>();
 
     public ProtoBuilder() {
         protoParams = getClass().getAnnotation(ProtoParams.class);
@@ -47,7 +49,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
         extToMessageClass.put(builderParams.outExt(), protoParams.messageClass());
     }
 
-    public static void addProtoDigest(Class<? extends GeneratedMessageV3> klass) throws NoSuchAlgorithmException {
+    public static void addProtoDigest(Class<? extends GeneratedMessage> klass) throws NoSuchAlgorithmException {
         if (classToProtoDigest.get(klass) == null) {
             MessageDigest digest = MessageDigest.getInstance("SHA1");
             digest.update(klass.getName().getBytes());
@@ -64,6 +66,15 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
     }
 
     private static void addFieldsToDigest(Descriptors.Descriptor descriptor, MessageDigest digest) {
+        addFieldsToDigest(descriptor, digest, new HashSet<Descriptors.Descriptor>());
+    }
+
+    private static void addFieldsToDigest(Descriptors.Descriptor descriptor, MessageDigest digest, Set<Descriptors.Descriptor> visited) {
+        // Avoid infinite recursion on cyclic descriptor graphs (e.g. recursive messages)
+        if (!visited.add(descriptor)) {
+            return;
+        }
+
         for (Descriptors.FieldDescriptor field : descriptor.getFields()) {
             digest.update(field.getName().getBytes());
             digest.update(field.getType().toString().getBytes());
@@ -76,31 +87,34 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
             if (field.getType() == Descriptors.FieldDescriptor.Type.MESSAGE) {
                 Descriptors.Descriptor subDescriptor = field.getMessageType();
                 digest.update(subDescriptor.getFullName().getBytes());
-                addFieldsToDigest(subDescriptor, digest);
+                addFieldsToDigest(subDescriptor, digest, visited);
             }
         }
+
+        // Allow the descriptor to appear again in a different independent path
+        visited.remove(descriptor);
     }
 
-    static public void addMessageClass(String ext, Class<? extends GeneratedMessageV3> klass) {
+    static public void addMessageClass(String ext, Class<? extends GeneratedMessage> klass) {
         extToMessageClass.put(ext, klass);
     }
 
-    static public Class<? extends GeneratedMessageV3> getMessageClassFromExt(String ext) {
+    static public Class<? extends GeneratedMessage> getMessageClassFromExt(String ext) {
         return extToMessageClass.get(ext);
     }
 
     static public boolean supportsType(String ext) {
-        Class<? extends GeneratedMessageV3> klass = getMessageClassFromExt(ext);
+        Class<? extends GeneratedMessage> klass = getMessageClassFromExt(ext);
         return klass != null;
     }
 
-    static public GeneratedMessageV3.Builder newBuilder(String ext) throws CompileExceptionError {
-        Class<? extends GeneratedMessageV3> klass = getMessageClassFromExt(ext);
+    static public GeneratedMessage.Builder newBuilder(String ext) throws CompileExceptionError {
+        Class<? extends GeneratedMessage> klass = getMessageClassFromExt(ext);
         if (klass != null) {
-            GeneratedMessageV3.Builder builder;
+            GeneratedMessage.Builder builder;
             try {
                 Method newBuilder = klass.getDeclaredMethod("newBuilder");
-                return (GeneratedMessageV3.Builder) newBuilder.invoke(null);
+                return (GeneratedMessage.Builder) newBuilder.invoke(null);
             } catch(Exception e) {
                 throw new RuntimeException(e);
             }
@@ -136,7 +150,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
                     }
                 }
             } else if (isResource && value instanceof String) {
-                boolean isOptional = fieldDescriptor.isOptional();
+                boolean isOptional = !fieldDescriptor.isRequired() && !fieldDescriptor.isRepeated();
                 String resValue =  (String) value;
                 // We don't require optional fields to be filled
                 // if such a field has no value - just ignore it

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,7 +15,7 @@
 #ifndef DM_PLATFORM_WINDOW_ANDROID_H
 #define DM_PLATFORM_WINDOW_ANDROID_H
 
-#include "platform_window.h"
+#include "window.hpp"
 
 #include <EGL/egl.h>
 #include <GLES/gl.h>
@@ -24,14 +24,20 @@
 
 namespace dmPlatform
 {
-    int32_t      AndroidVerifySurface(HWindow window);
-    void         AndroidBeginFrame(HWindow window);
-
-    EGLContext   GetAndroidEGLContext();
-    EGLSurface   GetAndroidEGLSurface();
-    JavaVM*      GetAndroidJavaVM();
-    jobject      GetAndroidActivity();
-    android_app* GetAndroidApp();
+    int32_t        AndroidVerifySurface(HWindow window);
+    void           AndroidBeginFrame(HWindow window);
+    EGLContext     GetAndroidEGLContext();
+    EGLSurface     GetAndroidEGLSurface();
+    JavaVM*        GetAndroidJavaVM();
+    jobject        GetAndroidActivity();
+    android_app*   GetAndroidApp();
+    ANativeWindow* AcquireAndroidWindow();
+    ANativeWindow* WaitForAndroidWindow();
+    bool           IsAndroidWindowCurrent(ANativeWindow* window);
+    void           ReleaseAndroidWindow(ANativeWindow* window);
+    bool           GetSafeAreaAndroid(HWindow window, WindowSafeArea* out);
+    void           SetAndroidInputMethod(bool use_hidden_inputfield);
+    void           SetAndroidFullscreenParameters(bool immersive_mode, bool display_cutout);
 }
 
 #endif // DM_PLATFORM_WINDOW_ANDROID_H

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.util;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -25,7 +26,7 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.pipeline.BuilderUtil;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.pipeline.ProtoBuilders;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
@@ -60,6 +61,12 @@ public class PropertiesUtil {
                 entryBuilder.setIndex(builder.getStringValuesCount());
                 builder.addStringValues(desc.getValue());
                 builder.addUrlEntries(entryBuilder);
+                break;
+            case PROPERTY_TYPE_TEXT:
+                entryBuilder.setIndex(builder.getStringValuesCount());
+                entryBuilder.setValueLength(desc.getValue().getBytes(StandardCharsets.UTF_8).length);
+                builder.addStringValues(desc.getValue());
+                builder.addTextEntries(entryBuilder);
                 break;
             case PROPERTY_TYPE_VECTOR3:
                 entryBuilder.setIndex(builder.getFloatValuesCount());
@@ -135,9 +142,9 @@ public class PropertiesUtil {
     public static String transformResourcePropertyValue(IResource resource, String value) throws CompileExceptionError {
         String ext = "." + FilenameUtils.getExtension(value);
         // This is not optimal, but arguably ok for this case.
-        value = BuilderUtil.replaceExt(value, ".material", ".materialc");
-        value = BuilderUtil.replaceExt(value, ".font", ".fontc");
-        value = BuilderUtil.replaceExt(value, ".buffer", ".bufferc");
+        value = ResourceUtil.replaceExt(value, ".material", ".materialc");
+        value = ResourceUtil.replaceExt(value, ".font", ".fontc");
+        value = ResourceUtil.replaceExt(value, ".buffer", ".bufferc");
         value = ProtoBuilders.replaceTextureName(value);
         try {
             if (TextureUtil.isAtlasFileType(ext))
@@ -147,6 +154,7 @@ public class PropertiesUtil {
         } catch (Exception e) {
             throw new CompileExceptionError(resource, -1, e.getMessage(), e);
         }
+        value = ResourceUtil.minifyPath(value);
         return value;
     }
 

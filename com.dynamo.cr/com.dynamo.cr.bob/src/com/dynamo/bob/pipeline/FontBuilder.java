@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,13 +16,16 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 
+import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
+import com.dynamo.bob.font.FontStyles;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
@@ -37,8 +40,11 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         if (!enabled)
             return false;
 
+        if (fontDesc.getOutputFormat() != FontTextureFormat.TYPE_DISTANCE_FIELD)
+            return false;
+
         String path = fontDesc.getFont().toLowerCase();
-        return path.endsWith(".ttf");
+        return path.endsWith(".ttf") || path.endsWith(".otf");
     }
 
     @Override
@@ -61,7 +67,8 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         if (useRuntimeGeneration(fontDesc))
         {
             // input(2)
-            subTask = createSubTask(fontResource, CopyBuilders.TTFBuilder.class, taskBuilder);
+            Class<? extends Builder> fontBuilderClass = project.getBuilderFromExtension(fontResource);
+            subTask = createSubTask(fontResource, fontBuilderClass, taskBuilder);
         }
         else
         {
@@ -87,16 +94,15 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         {
             BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
             // leave glyphbank field empty, as we use that to check at runtime (to toggle runtime generation or not)
-            fontMapBuilder.setFont(fontDesc.getFont()); // Keep the suffix as-is (i.e. ".ttf")
+            fontMapBuilder.setFont(fontDesc.getFont()); // Keep the suffix as-is (i.e. ".ttf" or ".otf")
         }
         else
         {
-            int buildDirLen        = this.project.getBuildDirectory().length();
-            String glyphBankPath   = task.input(3).getPath().substring(buildDirLen);
+            String glyphBankPath   = BuilderUtil.getRelativePath(this.project, task.input(3));
             fontMapBuilder.setGlyphBank(glyphBankPath);
         }
 
-        fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
+        fontMapBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
 
         boolean allChars = fontDesc.getAllChars();
 
@@ -109,6 +115,11 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             fontMapBuilder.setCharacters(fontDesc.getCharacters());
         }
 
+        try {
+            fontMapBuilder.addAllStyles(FontStyles.compileStyles(fontDesc));
+        } catch (IllegalArgumentException error) {
+            throw new CompileExceptionError(task.firstInput(), 0, error.getMessage(), error);
+        }
         fontMapBuilder.setSize(fontDesc.getSize());
         fontMapBuilder.setAntialias(fontDesc.getAntialias());
         fontMapBuilder.setShadowX(fontDesc.getShadowX());
@@ -128,8 +139,6 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             fontMapBuilder.setSdfOutline(Fontc.GetFontMapSdfOutline(fontDesc));
             fontMapBuilder.setSdfShadow(Fontc.GetFontMapSdfShadow(fontDesc));
         }
-
-        fontMapBuilder.setPadding(Fontc.GetFontMapPadding(fontDesc));
 
         fontMapBuilder.setOutputFormat(fontDesc.getOutputFormat());
         fontMapBuilder.setRenderMode(fontDesc.getRenderMode());

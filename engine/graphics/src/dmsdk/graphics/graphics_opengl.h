@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -37,6 +37,14 @@ namespace dmGraphics
      * @return id [type: uint32_t] the OpenGL render target id
      */
 	uint32_t OpenGLGetRenderTargetId(HContext context, HRenderTarget render_target);
+
+    /*#
+     * Get the default framebuffer ID
+     * @name OpenGLGetDefaultFramebufferId
+     * @param context [type: dmGraphics::HContext] the OpenGL context
+     * @return framebuffer [type: uint32_t] the framebuffer id
+     */
+    uint32_t OpenGLGetDefaultFramebufferId(HContext context);
 }
 
 #endif

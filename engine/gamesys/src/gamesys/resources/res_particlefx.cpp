@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -144,4 +144,18 @@ namespace dmGameSystem
         }
         return AcquireResources(params->m_Factory, params->m_Buffer, params->m_BufferSize, prototype, params->m_Filename);
     }
+
+    static ResourceResult RegisterResourceTypeParticleFX(HResourceTypeContext ctx, HResourceType type)
+    {
+        return (ResourceResult) dmResource::SetupType(ctx,
+                                                      type,
+                                                      0,
+                                                      ResParticleFXPreload,
+                                                      ResParticleFXCreate,
+                                                      0,
+                                                      ResParticleFXDestroy,
+                                                      ResParticleFXRecreate);
+    }
 }
+
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeParticleFX, "particlefxc", dmGameSystem::RegisterResourceTypeParticleFX, 0);

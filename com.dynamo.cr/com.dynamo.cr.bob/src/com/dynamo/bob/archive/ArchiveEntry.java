@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -27,7 +27,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
 
     private int size;
     private int compressedSize;
-    private int resourceOffset;
+    private long resourceOffset;
     private int flags = 0;
     private String relName;
     private String fileName;
@@ -123,11 +123,11 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this.hexDigest = hexDigest;
     }
 
-    public int getResourceOffset() {
+    public long getResourceOffset() {
         return resourceOffset;
     }
 
-    public void setResourceOffset(int resourceOffset) {
+    public void setResourceOffset(long resourceOffset) {
         this.resourceOffset = resourceOffset;
     }
 

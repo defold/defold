@@ -1,4 +1,4 @@
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,79 +12,81 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser
+import os, sys, subprocess, shutil, re, socket, stat, glob, zipfile, tempfile, configparser, shlex
 from waflib.Configure import conf
-from waflib import Utils, Build, Options, Task, Logs
+from waflib import Utils, Build, Options, Task, Logs, Errors, Scripting
 from waflib.TaskGen import extension, feature, after, before, task_gen
 from waflib.Logs import error
-from waflib.Task import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
+from waf_tests import get_test_harness
 from build_constants import TargetOS
+from cross_build import find_feature_files, find_platform_file, get_configured_platforms, get_private_library_paths, get_private_path_mirrors, remove_source_files
+from private_hooks import call_hook, get_hook_modules
 import sdk
+import wasm_runner
 
 if not 'DYNAMO_HOME' in os.environ:
     print ("You must define DYNAMO_HOME. Have you run './script/build.py shell' ?", file=sys.stderr)
     sys.exit(1)
 
-def import_lib(module_name, path):
-    import importlib
-    # Normally a finder would get you the loader and spec.
-    loader = importlib.machinery.SourceFileLoader(module_name, path)
-    spec = importlib.machinery.ModuleSpec(module_name, loader, origin=path)
-    # Basically what import does when there is no loader.create_module().
-    module = importlib.util.module_from_spec(spec)
-    # Now is the time to put the module in sys.modules if you want.
-    # How import initializes the module.
-    loader.exec_module(module)
+class waf_dynamo_vendor(object):
+    @classmethod
+    def options(cls, opt):
+        for module in get_hook_modules('waf_dynamo'):
+            if hasattr(module, 'options'):
+                module.options(opt)
 
-script_dir = os.path.dirname(__file__)
-defold_root = os.path.abspath(os.path.join(script_dir, ".."))
+    @classmethod
+    def setup_tools(cls, ctx, build_util):
+        return call_hook('waf_dynamo', build_util.get_target_platform(), 'setup_tools', None, ctx, build_util)
 
-# import the vendor specific build setup
-path = os.path.join(script_dir, 'waf_dynamo_vendor.py')
-if os.path.exists(path):
-    sys.dont_write_bytecode = True
-    import_lib('waf_dynamo_vendor', path)
-    print("Imported %s from %s" % ('waf_dynamo_vendor', path))
-    import waf_dynamo_vendor
-    sys.dont_write_bytecode = False
+    @classmethod
+    def setup_vars(cls, ctx, build_util):
+        return call_hook('waf_dynamo', build_util.get_target_platform(), 'setup_vars', None, ctx, build_util)
 
-if 'waf_dynamo_vendor' not in sys.modules:
-    class waf_dynamo_vendor(object):
-        @classmethod
-        def options(cls, opt):
-            pass
-        @classmethod
-        def setup_tools(cls, ctx, build_util):
-            pass
-        @classmethod
-        def setup_vars(cls, ctx, build_util):
-            pass
-        @classmethod
-        def supports_feature(cls, platform, feature, data):
-            return True
-        @classmethod
-        def transform_runnable_path(cls, platform, path):
-            return path
-    globals()['waf_dynamo_vendor'] = waf_dynamo_vendor
+    @classmethod
+    def supports_feature(cls, platform, feature, data):
+        return call_hook('waf_dynamo', platform, 'supports_feature', True, platform, feature, data)
+
+    @classmethod
+    def transform_runnable_path(cls, platform, path):
+        return call_hook('waf_dynamo', platform, 'transform_runnable_path', path, platform, path)
+
+def static_libs(conf, uselib, libs, exact_windows_libs = None):
+    # Waf expands STLIB entries to lib%s.lib on Windows. Libraries built outside Waf
+    # may need their exact .lib filename instead, while keeping the usual STLIB path elsewhere.
+    libs = Utils.to_list(libs)
+    exact_windows_libs = set(Utils.to_list(exact_windows_libs or libs))
+    if conf.env.PLATFORM == 'x86_64-win32':
+        conf.env['STLIB_%s' % uselib] = [lib for lib in libs if lib not in exact_windows_libs]
+        conf.env.append_unique('LINKFLAGS_%s' % uselib, ['%s.lib' % lib for lib in libs if lib in exact_windows_libs])
+    else:
+        conf.env['STLIB_%s' % uselib] = libs
 
 
 def is_platform_private(platform):
-    return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
+    return platform in ['arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone'] or platform in get_configured_platforms()
+
+def feature_enabled(feature):
+    return feature in getattr(Options.options, 'enable_features', [])
 
 def platform_supports_feature(platform, feature, data):
+    if feature == 'mbedtls' and feature_enabled(feature):
+        return True
     if is_platform_private(platform):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
     if feature == 'vulkan' or feature == 'compute':
-        return platform not in ['js-web', 'wasm-web', 'wasm_pthread-web', 'x86_64-ios']
+        return platform not in ['wasm-web', 'wasm_pthread-web', 'arm64_sim-ios']
     if feature == 'dx12':
         return platform in ['x86_64-win32']
     if feature == 'opengl_compute':
-        return platform not in ['js-web', 'wasm-web', 'wasm_pthread-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
+        return platform not in ['wasm-web', 'wasm_pthread-web', 'arm64-ios', 'arm64_sim-ios', 'arm64-macos', 'x86_64-macos']
     if feature == 'opengles':
-        return platform in ['arm64-linux']
+        return platform in ['arm64-linux', 'armv7-android', 'arm64-android', 'x86_64-android', 'arm64-ios', 'arm64_sim-ios']
     if feature == 'webgpu':
-        return platform in ['js-web', 'wasm-web', 'wasm_pthread-web', 'arm64-macos']
+        return platform in ['wasm-web', 'wasm_pthread-web', 'arm64-macos', 'x86_64-macos']
+    if feature == 'metal':
+        return platform in ['x86_64-macos', 'arm64-macos', 'arm64-ios', 'arm64_sim-ios']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -96,8 +98,132 @@ def platform_setup_vars(ctx, build_util):
 def transform_runnable_path(platform, path):
     return waf_dynamo_vendor.transform_runnable_path(platform, path)
 
+def _default_cmake_target_platform():
+    try:
+        machine = os.uname().machine
+    except AttributeError:
+        machine = os.environ.get('PROCESSOR_ARCHITECTURE', 'x86_64').lower()
+        if machine == 'amd64':
+            machine = 'x86_64'
+
+    if sys.platform == 'darwin':
+        return '%s-macos' % machine
+    if sys.platform.startswith('linux'):
+        return '%s-linux' % machine
+    if sys.platform == 'win32':
+        return '%s-win32' % machine
+    return '<platform>'
+
+def _has_waf_configure_state(path):
+    if os.path.exists(os.path.join(path, 'build', 'c4che', '_cache.py')):
+        return True
+
+    for lock_path in glob.glob(os.path.join(path, '.lock-waf*')):
+        try:
+            with open(lock_path, 'r') as f:
+                for line in f:
+                    match = re.match(r"out_dir = ['\"]([^'\"]+)['\"]", line)
+                    if match and os.path.exists(os.path.join(match.group(1), 'c4che', '_cache.py')):
+                        return True
+        except IOError:
+            pass
+
+    return False
+
+def _fail_if_unconfigured_cmake_library():
+    # Skip the CMake check when the user explicitly requested a pure‑Waf
+    # build via ``--with-waf``.  The flag is exposed as
+    # ``Options.options.with_waf`` by the command line parser.
+    if getattr(Options.options, 'with_waf', False):
+        return
+
+    if not set(Options.commands).intersection(['build', 'clean', 'install', 'uninstall', 'list', 'step']):
+        return
+
+    cwd = os.getcwd()
+    if not os.path.exists(os.path.join(cwd, 'CMakeLists.txt')):
+        return
+    if _has_waf_configure_state(cwd):
+        return
+
+    platform = _default_cmake_target_platform()
+    raise Errors.WafError('''\
+This library has CMakeLists.txt and has not been configured by Waf.
+Use CMake/Ninja for this library instead:
+
+  Defaults from ./scripts/build.py shell:
+    CMAKE_GENERATOR=Ninja, TARGET_PLATFORM=%s, CMAKE_BUILD_TYPE=RelWithDebInfo, BUILD_TESTS=ON
+
+  Configure with tests:
+    cmake -S . -B build
+
+  Configure without tests:
+    cmake -S . -B build -DBUILD_TESTS=OFF
+
+  Build after configuring with tests:
+    cmake --build build --target all build_tests install
+
+  Build after configuring without tests:
+    cmake --build build --target all install
+
+  Run tests:
+    cmake --build build --target run_tests
+''' % platform)
+
+_cmake_library_guard_installed = False
+
+def _install_unconfigured_cmake_library_guard():
+    global _cmake_library_guard_installed
+    if _cmake_library_guard_installed:
+        return
+
+    run_command = Scripting.run_command
+
+    def run_command_with_cmake_library_guard(cmd_name):
+        if cmd_name == 'init':
+            _fail_if_unconfigured_cmake_library()
+        return run_command(cmd_name)
+
+    Scripting.run_command = run_command_with_cmake_library_guard
+    _cmake_library_guard_installed = True
+
+_install_unconfigured_cmake_library_guard()
+
+def prepend_unique_paths(env, name, paths):
+    current_paths = env[name] if name in env else []
+    if not isinstance(current_paths, list):
+        current_paths = [current_paths]
+
+    result = []
+    seen = set()
+    for path in paths + current_paths:
+        if not path:
+            continue
+        key = os.path.normcase(os.path.normpath(path))
+        if key not in seen:
+            seen.add(key)
+            result.append(path)
+    env[name] = result
+
+def prepend_private_search_paths(env, platform):
+    prepend_unique_paths(env, 'LIBPATH', get_private_library_paths(platform))
+
+def include_path_contains_dmsdk(path):
+    path = os.path.normpath(path)
+    return os.path.basename(path) == 'dmsdk' or os.path.isdir(os.path.join(path, 'dmsdk'))
+
+def prepend_private_task_paths(task_gen, platform):
+    for name in ('includes', 'libpath'):
+        if hasattr(task_gen, name):
+            current_paths = task_gen.to_list(getattr(task_gen, name))
+            private_paths = get_private_path_mirrors(platform, task_gen.path.abspath(), current_paths)
+            if private_paths:
+                if name == 'includes':
+                    private_paths = [path for path in private_paths if not include_path_contains_dmsdk(path)]
+                setattr(task_gen, name, private_paths + current_paths)
+
 def platform_glfw_version(platform):
-    if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win32', 'win32', 'x86_64-linux', 'arm64-linux']:
+    if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win32', 'x86_64-linux', 'arm64-linux']:
         return 3
     return 2
 
@@ -107,10 +233,16 @@ def platform_get_glfw_lib(platform):
     return 'dmglfw'
 
 def platform_get_platform_lib(platform):
+    if is_platform_private(platform):
+        return 'PLATFORM'
+
+    if not (platform_supports_feature(platform, "opengl", None) or platform_supports_feature(platform, "vulkan", None)):
+        return 'PLATFORM_NULL'
+
     if platform_glfw_version(platform) == 3:
         if Options.options.with_vulkan or platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
-            return 'platform_vulkan'
-    return 'platform'
+            return 'PLATFORM_VULKAN'
+    return 'PLATFORM'
 
 def platform_graphics_libs_and_symbols(platform):
     graphics_libs = []
@@ -119,15 +251,22 @@ def platform_graphics_libs_and_symbols(platform):
     use_opengl = False
     use_opengles = False
     use_vulkan = False
-    use_webgpu = False
+    use_metal = Options.options.with_metal and platform_supports_feature(platform, 'metal', {})
 
-    if platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
+    if platform in ('arm64-ios', 'arm64_sim-ios'):
+        use_opengles = True
+        use_vulkan = Options.options.with_vulkan
+    elif platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
         use_opengl = Options.options.with_opengl
-        use_webgpu = Options.options.with_webgpu
-        use_vulkan = not (use_webgpu or use_opengl)
+        use_vulkan = True
+        if platform in ('arm64-macos', 'x86_64-macos') and Options.options.with_webgpu:
+            use_vulkan = Options.options.with_vulkan
     elif platform in ('arm64-linux'):
         use_opengles = True
         use_vulkan = Options.options.with_vulkan
+    elif platform in ('armv7-android', 'arm64-android', 'x86_64-android'):
+        use_opengles = Options.options.with_opengl or not Options.options.with_vulkan
+        use_vulkan = Options.options.with_vulkan or not Options.options.with_opengl
     else:
         use_opengl = True
         use_vulkan = Options.options.with_vulkan
@@ -141,18 +280,28 @@ def platform_graphics_libs_and_symbols(platform):
         graphics_lib_symbols += ['GraphicsAdapterOpenGL']
 
     if use_vulkan:
-        graphics_libs += ['GRAPHICS_VULKAN', 'DMGLFW', 'VULKAN']
+        glfw_lib = 'DMGLFW'
+        if platform in ('armv7-android', 'arm64-android', 'x86_64-android') and not use_opengles:
+            glfw_lib = 'DMGLFW_VULKAN'
+        graphics_libs += ['GRAPHICS_VULKAN', glfw_lib, 'VULKAN']
         graphics_lib_symbols.append('GraphicsAdapterVulkan')
 
     if Options.options.with_dx12 and platform_supports_feature(platform, 'dx12', {}):
-        graphics_libs += ['GRAPHICS_DX12']
+        graphics_libs += ['GRAPHICS_DX12', 'DX12']
         graphics_lib_symbols.append('GraphicsAdapterDX12')
 
     if Options.options.with_webgpu and platform_supports_feature(platform, 'webgpu', {}):
         graphics_libs += ['GRAPHICS_WEBGPU']
-        if platform in ['arm64-macos']:
+        if platform in ['arm64-macos', 'x86_64-macos']:
             graphics_libs += ['DAWN', 'DMGLFW']
         graphics_lib_symbols.append('GraphicsAdapterWebGPU')
+
+    if use_metal:
+        graphics_libs += ['GRAPHICS_METAL']
+        if platform in ('arm64-ios', 'arm64_sim-ios') and not use_opengl and not use_opengles and not use_vulkan:
+            graphics_libs += ['DMGLFW']
+        graphics_libs += ['METAL']
+        graphics_lib_symbols.append('GraphicsAdapterMetal')
 
     if platform in ('arm64-nx64'):
         graphics_libs = ['GRAPHICS_VULKAN', 'DMGLFW', 'VULKAN']
@@ -165,6 +314,10 @@ def platform_graphics_libs_and_symbols(platform):
     if platform in ('x86_64-ps5'):
         graphics_libs = ['GRAPHICS']
         graphics_lib_symbols = ['GraphicsAdapterPS5']
+
+    if platform in ['x86_64-xbone']:
+        graphics_lib = 'GRAPHICS'
+        graphics_lib_symbols = ['GraphicsAdapterDX12']
 
     return graphics_libs, graphics_lib_symbols
 
@@ -206,145 +359,11 @@ def copy_file_task(bld, src, name=None):
                name = name,
                shell = True)
 
-#   Extract api docs from source files and store the raw text in .apidoc
-#   files per file for later collation into .json and .sdoc files.
-def apidoc_extract_task(bld, src):
-    import re
-    from collections import defaultdict
-    all_docs = {}
-
-    def _strip_comment_stars(str):
-        lines = str.split('\n')
-        ret = []
-        for line in lines:
-            line = line.strip()
-            if line.startswith('*'):
-                line = line[1:]
-                if line.startswith(' '):
-                    line = line[1:]
-            ret.append(line)
-        return '\n'.join(ret)
-
-    def _parse_comment(source):
-        str = _strip_comment_stars(source)
-        # The regexp means match all strings that:
-        # * begins with line start, possible whitespace and an @
-        # * followed by non-white-space (the tag)
-        # * followed by possible spaces
-        # * followed by every character that is not an @ or is an @ but not preceded by a new line (the value)
-        lst = re.findall('^\s*@(\S+) *((?:[^@]|(?<!\n)@)*)', str, re.MULTILINE)
-        comment = {
-            "is_document": False,
-            "namespace": None,
-            "path": None
-        }
-        for (tag, value) in lst:
-            tag = tag.strip()
-            value = value.strip()
-            if tag == 'document':
-                comment["is_document"] = True
-            else:
-                comment[tag] = value
-        return comment
-
-    def _parse_source(source_path):
-        resource = bld.path.find_resource(source_path)
-        if not resource:
-            sys.exit("Couldn't find resource: %s" % s)
-            return
-
-        elements = {}
-        resource_path = resource.abspath()
-        resource_file = os.path.basename(resource_path)
-        relative_path = resource_path.replace(defold_root, "")[1:]
-
-        with open(resource_path, encoding='utf8') as in_f:
-            source = in_f.read()
-            lst = re.findall('/(\*#.*?)\*/', source, re.DOTALL)
-            default_namespace = None
-            for comment_str in lst:
-                comment = _parse_comment(comment_str)
-
-                namespace = comment.get("namespace")
-                if comment["is_document"]:
-                    comment_path = comment.get("path")
-                    if not comment_path:
-                        print("Missing @path in '%s', adding '%s'" % (resource_path, relative_path))
-                        comment_str = comment_str + ("* @path %s\n" % relative_path)
-                    else:
-                        # there really shouldn't be any files with hardcoded paths anymore
-                        # but let's keep this here for some time in case we introduce a hardcoded
-                        # path somewhere again
-                        print("Replacing @path in '%s' with '%s'" % (resource_path, relative_path))
-                        comment_str = comment_str.replace("@path " + comment_path, "@path " + relative_path)
-
-                    comment_file = comment.get("file")
-                    if not comment_file:
-                        print("Missing @file in '%s', adding '%s'" % (resource_path, resource_file))
-                        comment_str = comment_str + ("* @file %s\n" % resource_file)
-                    elif comment_file != resource_file:
-                        # there shouldn't be any of these, but let's keep it here anyway
-                        print("Replacing @file in '%s' with '%s'" % (resource_path, resource_file))
-                        comment_str = comment_str.replace("@file " + comment_file, "@file " + resource_file)
-
-                    comment_language = comment.get("language")
-                    if not comment_language:
-                        print("Missing @language in %s, assuming C++" % (resource_path))
-                        comment_str = comment_str + "* @language C++\n"
-
-                    if namespace:
-                        default_namespace = namespace
-
-                if not namespace:
-                    namespace = default_namespace
-                    comment["namespace"] = default_namespace
-
-                if namespace:
-                    if namespace not in elements:
-                        elements[namespace] = []
-                    elements[namespace].append('/' + comment_str + '*/')
-                else:
-                    if resource_path not in elements:
-                        elements[resource_path] = []
-                    elements[resource_path].append('/' + comment_str + '*/')
-
-        return elements
-
-    def extract_docs(bld, src):
-        docs = defaultdict(list)
-        # Gather data
-        for s in src:
-            elements = _parse_source(s)
-            for k,v in elements.items():
-                # turn path into key which will later be used as the
-                # build target filename
-                key = "-".join(os.path.normpath(s).split(os.sep))
-                key = key.replace("..-", "")
-                docs[key] = docs[key] + v
-        all_docs.update(docs)
-        return docs
-
-    def write_docs(task):
-        for o in task.outputs:
-            name = os.path.splitext(o.name)[0] # remove .apidoc
-            docs = all_docs[name]
-            with open(str(o.get_bld()), 'w+', encoding='utf-8') as out_f:
-                out_f.write('\n'.join(docs))
-
-    if not getattr(Options.options, 'skip_apidocs', False):
-        docs = extract_docs(bld, src)
-        target = []
-        for key in docs.keys():
-            target.append(key + '.apidoc')
-        return bld(rule=write_docs, name='apidoc_extract', source = src, target = target)
-
-
 # Add single dmsdk file.
 # * 'source' file is installed into 'target' directory
 # * 'source' file is added to documentation pipeline
 def dmsdk_add_file(bld, target, source):
     bld.install_files(target, source)
-    apidoc_extract_task(bld, source)
 
 # Add dmsdk files from 'source' recursively.
 # * 'source' files are installed into 'target' folder, preserving the hierarchy (subfolders in 'source' is appended to the 'target' path).
@@ -365,22 +384,31 @@ def dmsdk_add_files(bld, target, source):
             doc_files.append(f)
             sdk_dir = os.path.dirname(os.path.relpath(f, source))
             bld.install_files(os.path.join(target, sdk_dir), f)
-    apidoc_extract_task(bld, doc_files)
 
 def getAndroidNDKArch(target_arch):
-    return 'arm64' if 'arm64' == target_arch else 'arm'
+    if 'arm64' == target_arch:
+        return 'arm64'
+    if 'x86_64' == target_arch:
+        return 'x86_64'
+    return 'arm'
 
 def getAndroidArch(target_arch):
-    return 'arm64-v8a' if 'arm64' == target_arch else 'armeabi-v7a'
+    if 'arm64' == target_arch:
+        return 'arm64-v8a'
+    if 'x86_64' == target_arch:
+        return 'x86_64'
+    return 'armeabi-v7a'
 
 def getAndroidCompilerName(target_arch, api_version):
     if target_arch == 'arm64':
         return 'aarch64-linux-android%s-clang' % (api_version)
+    elif target_arch == 'x86_64':
+        return 'x86_64-linux-android%s-clang' % (api_version)
     else:
         return 'armv7a-linux-androideabi%s-clang' % (api_version)
 
 def getAndroidNDKAPIVersion(target_arch):
-    if target_arch == 'arm64':
+    if target_arch in ('arm64', 'x86_64'):
         return sdk.ANDROID_64_NDK_API_VERSION
     else:
         return sdk.ANDROID_NDK_API_VERSION
@@ -390,14 +418,19 @@ def getAndroidCompileFlags(target_arch):
     # -mthumb, -mfloat-abi, -mfpu are implicit on aarch64, removed from flags
     if 'arm64' == target_arch:
         return ['-D__aarch64__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-march=armv8-a', '-fvisibility=hidden']
+    # NOTE: no -march for x86_64. The NDK's x86_64-linux-android<api>-clang wrapper already
+    # targets the baseline mandated by the Android x86_64 ABI (SSE4.2 + POPCNT).
+    elif 'x86_64' == target_arch:
+        return ['-DGOOGLE_PROTOBUF_NO_RTTI', '-fvisibility=hidden']
     # NOTE:
     # -fno-exceptions added
     else:
-        return ['-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp', '-fvisibility=hidden']
+        return ['-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI', '-march=armv7-a', '-mfloat-abi=softfp', '-fvisibility=hidden']
 
 def getAndroidLinkFlags(target_arch):
     common_flags = ['-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text']
-    if target_arch == 'arm64':
+    # 16kb page alignment is required on 64 bit Android, x86_64 emulator images use it too
+    if target_arch in ('arm64', 'x86_64'):
         return common_flags + ['-Wl,-z,max-page-size=16384']
     else:
         return ['-Wl,--fix-cortex-a8'] + common_flags
@@ -422,40 +455,49 @@ after('process_source')(apply_framework)
 @before('process_source')
 def default_flags(self):
     build_util = create_build_utility(self.env)
+    target_platform = build_util.get_target_platform()
     target_os = build_util.get_target_os()
     target_arch = build_util.get_target_architecture()
+    prepend_private_task_paths(self, target_platform)
+
+    use_cl_exe = target_os in [TargetOS.WINDOWS, TargetOS.XBONE]
 
     opt_level = Options.options.opt_level
     if opt_level == "2" and TargetOS.WEB == target_os:
         opt_level = "3" # emscripten highest opt level
-    elif opt_level == "0" and TargetOS.WINDOWS in target_os:
+    elif opt_level == "0" and use_cl_exe:
         opt_level = "d" # how to disable optimizations in windows
 
     # For nicer output (i.e. in CI logs), and still get some performance, let's default to -O1
-    if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan) and opt_level != '0':
+    if (Options.options.with_asan or Options.options.with_ubsan or Options.options.with_tsan or Options.options.with_msan) and opt_level != '0':
         opt_level = 1
 
-    FLAG_ST = '/%s' if TargetOS.WINDOWS == target_os else '-%s'
+    FLAG_ST = '/%s' if use_cl_exe else '-%s'
 
     # Common for all platforms
     flags = []
     if target_os not in (TargetOS.WINDOWS, TargetOS.XBONE):
-        build_script_path = self.path.abspath()
-        parts = build_script_path.split(os.sep)
-        index = next((i for i, part in enumerate(parts) if part == "engine"), -1)
-        if index != -1 and (index + 1) < len(parts):
-            flags += ["-fdebug-compilation-dir=engine/{}".format(parts[index + 1])]
-        flags += ["-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"]
         flags += ["-Werror=return-type"]
 
+        # if we're building on CI, we want to setup special debug paths, as it makes it easier to use with extension builds
+        if os.environ.get('GITHUB_WORKFLOW', None) is not None:
+            build_script_path = self.path.abspath()
+            parts = build_script_path.split(os.sep)
+            index = next((i for i, part in enumerate(parts) if part == "engine"), -1)
+            if index != -1 and (index + 1) < len(parts):
+                flags += ["-fdebug-compilation-dir=engine/{}".format(parts[index + 1])]
+            flags += ["-fdebug-prefix-map=../src=src", "-fdebug-prefix-map=../../../tmp/dynamo_home=../../defoldsdk"]
+
     if Options.options.ndebug:
-        flags += [self.env.DEFINES_ST % 'NDEBUG']
+        self.env.append_value('DEFINES', 'NDEBUG')
 
     for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
+        if use_cl_exe and f == 'LINKFLAGS':
+            continue # There is no such option for link.exe
         self.env.append_value(f, [FLAG_ST % ('O%s' % opt_level)])
 
     if Options.options.show_includes:
-        if TargetOS.WINDOWS == target_os:
+        if use_cl_exe:
             flags += ['/showIncludes']
         else:
             flags += ['-H']
@@ -463,21 +505,22 @@ def default_flags(self):
     for f in ['CFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
 
-    use_cl_exe = build_util.get_target_platform() in ['win32', 'x86_64-win32']
-
-    if not use_cl_exe:
+    if Options.options.with_metal or platform_supports_feature(build_util.get_target_platform(), 'metal', {}):
+        self.env.append_value('CXXFLAGS', ['-std=c++17']) # Due to metal-cpp library
+    elif not use_cl_exe:
         self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library
 
     if os.environ.get('GITHUB_WORKFLOW', None) is not None:
-       for f in ['CFLAGS', 'CXXFLAGS']:
-           self.env.append_value(f, self.env.DEFINES_ST % "GITHUB_CI")
-           self.env.append_value(f, self.env.DEFINES_ST % "JC_TEST_USE_COLORS=1")
+        self.env.append_value('DEFINES', 'GITHUB_CI')
+        self.env.append_value('DEFINES', 'JC_TEST_USE_COLORS=1')
 
-    for f in ['CFLAGS', 'CXXFLAGS']:
-        if '64' in target_arch:
-            self.env.append_value(f, self.env.DEFINES_ST % 'DM_PLATFORM_64BIT')
-        else:
-            self.env.append_value(f, self.env.DEFINES_ST % 'DM_PLATFORM_32BIT')
+    if '64' in target_arch:
+        self.env.append_value('DEFINES', 'DM_PLATFORM_64BIT')
+    else:
+        self.env.append_value('DEFINES', 'DM_PLATFORM_32BIT')
+
+    if platform_supports_feature(build_util.get_target_platform(), 'compute', None):
+        self.env.append_unique('DEFINES', 'DM_HAVE_PLATFORM_COMPUTE_SUPPORT')
 
     if not hasattr(self, 'sdkinfo'):
         self.sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
@@ -510,20 +553,25 @@ def default_flags(self):
         if build_util.get_target_platform() == 'arm64-linux':
             clang_arch = 'aarch64-unknown-linux-gnu'
 
+        debug_flags = ['-g']
+        if Options.options.with_valgrind:
+            # Valgrind versions shipped with supported Linux CI images may not understand newer DWARF forms.
+            debug_flags.append('-gdwarf-4')
+
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, [f'--target={clang_arch}', '-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
+            self.env.append_value(f, [f'--target={clang_arch}'] + debug_flags + ['-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
 
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
 
-        self.env.append_value('LINKFLAGS', [f'--target={clang_arch}'])
+        self.env.append_value('LINKFLAGS', [f'--target={clang_arch}', '-fuse-ld=lld'])
 
     elif TargetOS.MACOS == target_os:
         sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
         swift_dir = "%s/usr/lib/swift-%s/macosx" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fPIC', '-fvisibility=hidden'])
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fPIC', '-fvisibility=hidden', '-fvisibility-inlines-hidden'])
             self.env.append_value(f, ['-DDM_PLATFORM_MACOS'])
 
             self.env.append_value(f, ['-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED', '-DGL_SILENCE_DEPRECATION'])
@@ -536,14 +584,18 @@ def default_flags(self):
                 self.env.append_value(f, ['-fno-rtti', '-stdlib=libc++', '-fno-exceptions', '-nostdinc++'])
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
 
-        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
+        self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon'])
         self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % target_arch])
+        # dead strip
+        self.env.append_value('LINKFLAGS', ['-flto','-dead_strip', '-Wl,-dead_strip_dylibs'])
         self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
         if 'linux' in self.env['BUILD_PLATFORM']:
             self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % target_arch])
 
-    elif TargetOS.IOS == target_os and target_arch in ('armv7', 'arm64', 'x86_64'):
+    elif TargetOS.IOS == target_os and target_arch == 'arm64':
+        is_simulator = build_util.get_target_platform() == 'arm64_sim-ios'
+        version_min_flag = '-m%s-version-min=%s' % ('ios-simulator' if is_simulator else 'iphoneos', sdk.VERSION_IPHONEOS_MIN)
         extra_ccflags = []
         extra_linkflags = []
         if 'linux' in self.env['BUILD_PLATFORM']:
@@ -556,13 +608,11 @@ def default_flags(self):
             extra_linkflags += ['-fobjc-link-runtime']
 
         sys_root = self.sdkinfo[build_util.get_target_platform()]['path']
-        swift_dir = "%s/usr/lib/swift-%s/iphoneos" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
-        if 'x86_64' == target_arch:
-            swift_dir = "%s/usr/lib/swift-%s/iphonesimulator" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
+        swift_dir = "%s/usr/lib/swift-%s/%s" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION, 'iphonesimulator' if is_simulator else 'iphoneos')
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, extra_ccflags + ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fvisibility=hidden',
-                                            '-arch', target_arch, '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN])
+                                            '-arch', target_arch, version_min_flag])
             self.env.append_value(f, ['-isysroot', sys_root])
 
             if f == 'CXXFLAGS':
@@ -570,10 +620,10 @@ def default_flags(self):
                 self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
 
             self.env.append_value(f, ['-DDM_PLATFORM_IOS'])
-            if 'x86_64' == target_arch:
+            if is_simulator:
                 self.env.append_value(f, ['-DIOS_SIMULATOR'])
 
-        self.env.append_value('LINKFLAGS', ['-arch', target_arch, '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN] + extra_linkflags)
+        self.env.append_value('LINKFLAGS', ['-arch', target_arch, '-stdlib=libc++', '-isysroot', sys_root, '-dead_strip', version_min_flag] + extra_linkflags)
         self.env.append_value('LIBPATH', ['%s/usr/lib' % sys_root, '%s/usr/lib' % sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), '%s' % swift_dir])
 
     elif TargetOS.ANDROID == target_os:
@@ -587,7 +637,7 @@ def default_flags(self):
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
-                                      '-fpic', '-ffunction-sections', '-fstack-protector',
+                                      '-fpic', '-ffunction-sections', '-fdata-sections', '-fstack-protector',
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-fno-exceptions', '-funwind-tables',
                                       '-I%s/sources/android/native_app_glue' % (self.sdkinfo['ndk']),
                                       '-I%s/sources/android/cpufeatures' % (self.sdkinfo['ndk']),
@@ -596,12 +646,15 @@ def default_flags(self):
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
 
+        self.env.append_value('DEFINES', ['DM_NO_SYSTEM_FUNCTION', 'JC_TEST_USE_COLORS=1'])
+
         # TODO: Should be part of shared libraries
         # -Wl,-soname,libnative-activity.so -shared
         # -lsupc++
         self.env.append_value('LINKFLAGS', [
                 '-isysroot=%s' % sysroot,
                 '-static-libstdc++',
+                '-Wl,--gc-sections',
                 '-Wl,--build-id=uuid'] + getAndroidLinkFlags(target_arch))
     elif TargetOS.WEB == target_os:
 
@@ -610,13 +663,17 @@ def default_flags(self):
         emflags_compile = zip(['-s'] * len(emflags_compile), emflags_compile)
         emflags_compile =[j for i in emflags_compile for j in i]
 
+        initial_memory = 'INITIAL_MEMORY=33554432'
+        if Options.options.with_asan and target_arch == 'wasm':
+            initial_memory = 'INITIAL_MEMORY=67108864'
+
         emflags_link = [
             'DISABLE_EXCEPTION_CATCHING=1',
             'ALLOW_UNIMPLEMENTED_SYSCALLS=0',
             'EXPORTED_RUNTIME_METHODS=["ccall","UTF8ToString","callMain","HEAPU8","stringToNewUTF8"]',
             'EXPORTED_FUNCTIONS=_main,_malloc,_free',
             'ERROR_ON_UNDEFINED_SYMBOLS=1',
-            'INITIAL_MEMORY=33554432',
+            initial_memory,
             'MAX_WEBGL_VERSION=2',
             'GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0',
             'IMPORTED_MEMORY=1',
@@ -643,19 +700,32 @@ def default_flags(self):
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
             if 'wagyu' in Options.options.enable_features:
                 # When building the executable locally, targeting wagyu, we need to link with the stubs
-                wagyu_port = '%s/ext/wagyu-port/new/webgpu-port.py:wagyu=true' % (os.environ['DYNAMO_HOME'])
+                wagyu_port = '%s/ext/wagyu-port/webgpu-port.py:wagyu=true' % (os.environ['DYNAMO_HOME'])
                 linkflags += ['--use-port=%s' % wagyu_port]
             else:
                 emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
-            emflags_link += ['ASYNCIFY']
+            emflags_link += ['ASYNCIFY', 'WASM_BIGINT=1']
             if int(opt_level) >= 3:
                 emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
 
+        if with_pthread:
+            # sound needs this to startup its thread with no deadlock
+            emflags_link += ['PTHREAD_POOL_SIZE=1']
+
         if 'wasm' == target_arch:
-            emflags_link += ['WASM=1', 'WASM_BIGINT=1', 'ALLOW_MEMORY_GROWTH=1']
+            if Options.options.with_ubsan:
+                emflags_link += ['ASSERTIONS=1']
+            emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
             if int(opt_level) < 2:
                 flags += ['-gseparate-dwarf', '-gsource-map']
                 linkflags += ['-gseparate-dwarf', '-gsource-map']
+            if Options.options.size_analyze:
+                # Keep source attribution outside the main wasm so size measurements
+                # still reflect the optimized binary while enabling deeper analysis.
+                flags += ['-gline-tables-only']
+                for flag in ['-gsource-map', '-gseparate-dwarf']:
+                    if flag not in linkflags:
+                        linkflags += [flag]
         else:
             emflags_link += ['WASM=0', 'LEGACY_VM_SUPPORT=1']
 
@@ -692,7 +762,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', emflags_link)
         self.env.append_value('LINKFLAGS', linkflags)
 
-    elif build_util.get_target_platform() in ['win32', 'x86_64-win32']:
+    elif target_platform == 'x86_64-win32':
         for f in ['CFLAGS', 'CXXFLAGS']:
             # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
             # 0x0600 = _WIN32_WINNT_VISTA
@@ -701,7 +771,7 @@ def default_flags(self):
                                         '/D_CRT_SECURE_NO_WARNINGS', '/wd4996', '/wd4200', '/DUNICODE', '/D_UNICODE'])
 
         self.env.append_value('LINKFLAGS', '/DEBUG')
-        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', 'Gdi32.lib'])
+        self.env.append_value('LINKFLAGS', ['shell32.lib', 'WS2_32.LIB', 'Iphlpapi.LIB', 'AdvAPI32.Lib', "Bcrypt.lib", 'Gdi32.lib'])
         self.env.append_unique('ARFLAGS', '/WX')
 
         # Make sure we prefix with lib*.lib on windows, since this is not done
@@ -711,6 +781,7 @@ def default_flags(self):
         self.env.cxxstlib_PATTERN = 'lib%s.lib'
 
     platform_setup_vars(self, build_util)
+    prepend_private_search_paths(self.env, target_platform)
 
     hostfs = ''
     if 'DM_HOSTFS' in self.env:
@@ -747,7 +818,7 @@ def web_exported_functions(self):
 
     for name in ('CFLAGS', 'CXXFLAGS', 'LINKFLAGS'):
         arr = self.env[name]
-        if use_crash and name in 'LINKFLAGS':
+        if use_crash and name == 'LINKFLAGS':
             for i, v in enumerate(arr):
                 if v.startswith('EXPORTED_FUNCTIONS'):
                     arr[i] = v + ",_JSWriteDump,_dmExportedSymbols"
@@ -766,14 +837,6 @@ def android_link_flags(self):
             # but it's probably to late. It works for the name though (libX.so and not X)
             self.env.append_value('LINKFLAGS', ['-shared'])
 
-@feature('cprogram', 'cxxprogram')
-@before('process_source')
-def osx_64_luajit(self):
-    # Was previously needed for 64bit OSX, but removed when we updated luajit-2.1.0-beta3,
-    # however it is still needed for 64bit iOS Simulator.
-    if self.env['PLATFORM'] == 'x86_64-ios':
-        self.env.append_value('LINKFLAGS', ['-pagezero_size', '10000', '-image_base', '100000000'])
-
 @feature('skip_asan')
 @before('process_source')
 def asan_skip(self):
@@ -791,8 +854,10 @@ def asan_cxxflags(self):
     if getattr(self, 'skip_asan', False):
         return
     build_util = create_build_utility(self.env)
+    target_os = build_util.get_target_os()
+    target_arch = build_util.get_target_architecture()
     if Options.options.with_asan:
-        if build_util.get_target_os() in ('macos','ios','android','ps4','ps5'):
+        if target_os in ('linux','macos','ios','android','ps4','ps5') or ('wasm' in target_arch):
             self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('CFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-fsanitize-address-use-after-scope'])
@@ -800,14 +865,19 @@ def asan_cxxflags(self):
             self.env.append_value('CXXFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             self.env.append_value('CFLAGS', ['/fsanitize=address', '-D_DISABLE_VECTOR_ANNOTATION', '-DDM_SANITIZE_ADDRESS'])
             # not a linker option
-    elif Options.options.with_ubsan and build_util.get_target_os() in ('macos','ios','android','ps4','ps5','nx64'):
-        self.env.append_value('CXXFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
-        self.env.append_value('CFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
-        self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
-    elif Options.options.with_tsan and build_util.get_target_os() in ('macos','ios','android','ps4','ps5'):
+    elif Options.options.with_ubsan:
+        if target_os in ('linux','macos','ios','android','ps4','ps5','nx64') or ('wasm' in target_arch):
+            self.env.append_value('CXXFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
+            self.env.append_value('CFLAGS', ['-fsanitize=undefined', '-DDM_SANITIZE_UNDEFINED'])
+            self.env.append_value('LINKFLAGS', ['-fsanitize=undefined'])
+    elif Options.options.with_tsan and build_util.get_target_os() in ('linux','macos','ios','android','ps4','ps5'):
         self.env.append_value('CXXFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('CFLAGS', ['-fsanitize=thread', '-DDM_SANITIZE_THREAD'])
         self.env.append_value('LINKFLAGS', ['-fsanitize=thread'])
+    elif Options.options.with_msan and build_util.get_target_os() in ('linux', 'ps5'):
+        self.env.append_value('CXXFLAGS', ['-fsanitize=memory', '-DDM_SANITIZE_MEMORY'])
+        self.env.append_value('CFLAGS', ['-fsanitize=memory', '-DDM_SANITIZE_MEMORY'])
+        self.env.append_value('LINKFLAGS', ['-fsanitize=memory'])
 
 @task_gen
 @feature('cprogram', 'cxxprogram')
@@ -994,7 +1064,13 @@ def codesign(task):
     if not hasattr(task.generator, 'sdkinfo'):
         task.generator.sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env['PLATFORM'])
 
-    ret = bld.exec_command('CODESIGN_ALLOCATE=%s/usr/bin/codesign_allocate codesign -f -s "%s" --resource-rules=%s --entitlements %s %s' % (sdk.get_toolchain_root(task.generator.sdkinfo, bld.env['PLATFORM']), identity, resource_rules_plist_file, entitlements_path, signed_exe_dir))
+    codesign_allocate = os.path.join(sdk.get_toolchain_root(task.generator.sdkinfo, bld.env['PLATFORM']), 'usr', 'bin', 'codesign_allocate')
+    ret = bld.exec_command('CODESIGN_ALLOCATE=%s codesign -f -s %s --resource-rules=%s --entitlements %s %s' % (
+        shlex.quote(codesign_allocate),
+        shlex.quote(identity),
+        shlex.quote(resource_rules_plist_file),
+        shlex.quote(entitlements_path),
+        shlex.quote(signed_exe_dir)))
     if ret != 0:
         error('Error running codesign')
         return 1
@@ -1035,10 +1111,13 @@ def create_export_symbols(task):
 
 task = Task.task_factory('create_export_symbols',
                          func  = create_export_symbols,
-                         color = 'PINK',
-                         before  = 'c cxx')
+                         color = 'PINK')
 
-task.runnable_status = lambda self: RUN_ME
+create_export_symbols_sig_explicit_deps = task.sig_explicit_deps
+def sig_export_symbols(self):
+    create_export_symbols_sig_explicit_deps(self)
+    self.m.update(Utils.h_list(Utils.to_list(getattr(self, 'exported_symbols', []))))
+task.sig_explicit_deps = sig_export_symbols
 
 @task_gen
 @feature('cprogram', 'cxxprogram')
@@ -1075,71 +1154,13 @@ Task.task_factory('app_bundle',
 
 def _strip_executable(bld, platform, target_arch, path):
     """ Strips the debug symbols from an executable """
-    if platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','armv7-android','arm64-android']:
+    if platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','arm64_sim-ios','armv7-android','arm64-android','x86_64-android']:
         return 0 # return ok, path is still unstripped
 
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env.PLATFORM)
-    strip = "strip"
-    if 'android' in platform:
-        host_names = {
-            'win32': 'windows',
-            'darwin': 'darwin',
-            'linux': 'linux',
-        }
-        home_names = {
-            'win32': 'USERPROFILE',
-            'darwin': 'HOME',
-            'linux': 'HOME',
-        }
-        HOME = os.environ[home_names.get(sys.platform)]
-        ANDROID_HOST = host_names.get(sys.platform)
-        strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (sdkinfo['ndk'], ANDROID_HOST)
+    strip = sdk.get_strip_executable(platform, sdkinfo)
 
-    return bld.exec_command("%s %s" % (strip, path))
-
-AUTHENTICODE_CERTIFICATE="Midasplayer Technology AB"
-
-def authenticode_certificate_installed(task):
-    if Options.options.skip_codesign:
-        return 0
-    ret = task.exec_command('powershell "Get-ChildItem cert: -Recurse | Where-Object {$_.FriendlyName -Like """%s*"""} | Measure | Foreach-Object { exit $_.Count }"' % AUTHENTICODE_CERTIFICATE, stdout=True, stderr=True)
-    return ret > 0
-
-def authenticode_sign(task):
-    if Options.options.skip_codesign:
-        return
-    exe_file = task.inputs[0].abspath()
-    exe_file_to_sign = task.inputs[0].change_ext('_to_sign.exe').abspath()
-    exe_file_signed = task.outputs[0].abspath()
-
-    ret = task.exec_command('copy /Y %s %s' % (exe_file, exe_file_to_sign), stdout=True, stderr=True)
-    if ret != 0:
-        error("Unable to copy file before signing")
-        return 1
-
-    ret = task.exec_command('"%s" sign /sm /n "%s" /fd sha256 /tr http://timestamp.comodoca.com /td sha256 /d defold /du https://www.defold.com /v %s' % (task.env['SIGNTOOL'], AUTHENTICODE_CERTIFICATE, exe_file_to_sign), stdout=True, stderr=True)
-    if ret != 0:
-        error("Unable to sign executable")
-        return 1
-
-    ret = task.exec_command('move /Y %s %s' % (exe_file_to_sign, exe_file_signed), stdout=True, stderr=True)
-    if ret != 0:
-        error("Unable to rename file after signing")
-        return 1
-
-    return 0
-
-Task.task_factory('authenticode_sign',
-                     func = authenticode_sign,
-                     after = 'link_task stlink_task')
-
-@task_gen
-@feature('authenticode')
-def authenticode(self):
-    exe_file = self.link_task.outputs[0].abspath(self.env)
-    sign_task = self.create_task('authenticode_sign')
-    sign_task.set_inputs(self.link_task.outputs)
-    sign_task.set_outputs([self.link_task.outputs[0].change_ext('_signed.exe')])
+    return bld.exec_command([strip, path])
 
 @task_gen
 @after('apply_link')
@@ -1167,7 +1188,7 @@ def create_app_bundle(self):
 
     self.app_bundle_task = app_bundle_task
 
-    if not Options.options.skip_codesign and not self.env["CODESIGN_UNSUPPORTED"]:
+    if Options.options.codesign and not self.env["CODESIGN_UNSUPPORTED"]:
         signed_exe = self.path.get_bld().make_node("%s.app/%s" % (exe_name, exe_name))
 
         codesign = self.create_task('codesign')
@@ -1181,9 +1202,15 @@ def create_app_bundle(self):
         codesign.signed_exe = signed_exe
 
 
+# Keep this as close as possible to the stub in build_input.yml
 ANDROID_STUB = """
-struct android_app;
+#include <dmsdk/dlib/android.h>
 
+#if __cplusplus
+extern "C" {
+#endif
+
+struct android_app;
 extern void _glfwPreMain(struct android_app* state);
 extern void app_dummy();
 
@@ -1191,8 +1218,13 @@ void android_main(struct android_app* state)
 {
     // Make sure glue isn't stripped.
     app_dummy();
-    _glfwPreMain(state);
+    dmAndroid::SetAndroidApp(state);
+    _glfwPreMain(state); // calls engine_main()
 }
+
+#if __cplusplus
+}
+#endif
 """
 
 def android_package(task):
@@ -1244,7 +1276,8 @@ def android_package(task):
         proguardjar = '%s/android-sdk/tools/proguard/lib/proguard.jar' % sdkinfo['path']
         dex_input = ['%s/share/java/classes.jar' % dynamo_home]
 
-        ret = bld.exec_command('%s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], proguardjar, proguardtxt, android_jar, ':'.join(dx_jars), dex_input[0]))
+        java_runtime_flags = task.env.get_flat('JAVA_RUNTIME_FLAGS')
+        ret = bld.exec_command('%s %s -jar %s -include %s -libraryjars %s -injars %s -outjar %s' % (task.env['JAVA'][0], java_runtime_flags, proguardjar, proguardtxt, android_jar, ':'.join(dx_jars), dex_input[0]))
         if ret != 0:
             error('Error running proguard')
             return 1
@@ -1271,10 +1304,8 @@ def android_package(task):
         print ('', file=f)
 
     with open(task.gdb_setup.abspath(), 'w') as f:
-        if 'arm64' == build_util.get_target_architecture():
-            print ('set solib-search-path ./libs/arm64-v8a:./obj/local/arm64-v8a/', file=f)
-        else:
-            print ('set solib-search-path ./libs/armeabi-v7a:./obj/local/armeabi-v7a/', file=f)
+        android_abi = getAndroidArch(build_util.get_target_architecture())
+        print ('set solib-search-path ./libs/%s:./obj/local/%s/' % (android_abi, android_abi), file=f)
 
     return 0
 
@@ -1287,7 +1318,7 @@ Task.task_factory('android_package',
 @after('apply_link')
 @feature('apk')
 def create_android_package(self):
-    if not re.match('arm.*?android', self.env['PLATFORM']):
+    if not re.match('.*?-android$', self.env['PLATFORM']):
         return
     Utils.def_attrs(self, android_package = None)
 
@@ -1311,10 +1342,8 @@ def create_android_package(self):
     except BuildUtilityException as ex:
         android_package_task.fatal(ex.msg)
 
-    if 'arm64' == build_util.get_target_architecture():
-        native_lib = self.path.get_bld().make_node("%s.android/libs/arm64-v8a/%s" % (exe_name, lib_name))
-    else:
-        native_lib = self.path.get_bld().make_node("%s.android/libs/armeabi-v7a/%s" % (exe_name, lib_name))
+    android_abi = getAndroidArch(build_util.get_target_architecture())
+    native_lib = self.path.get_bld().make_node("%s.android/libs/%s/%s" % (exe_name, android_abi, lib_name))
     android_package_task.native_lib = native_lib
     android_package_task.native_lib_in = self.link_task.outputs[0]
     android_package_task.classes_dex = self.path.get_bld().make_node("%s.android/classes.dex" % (exe_name))
@@ -1322,10 +1351,7 @@ def create_android_package(self):
     # NOTE: These files are required for ndk-gdb
     android_package_task.android_mk = self.path.get_bld().make_node("%s.android/jni/Android.mk" % (exe_name))
     android_package_task.application_mk = self.path.get_bld().make_node("%s.android/jni/Application.mk" % (exe_name))
-    if 'arm64' == build_util.get_target_architecture():
-        android_package_task.gdb_setup = self.path.get_bld().make_node("%s.android/libs/arm64-v8a/gdb.setup" % (exe_name))
-    else:
-        android_package_task.gdb_setup = self.path.get_bld().make_node("%s.android/libs/armeabi-v7a/gdb.setup" % (exe_name))
+    android_package_task.gdb_setup = self.path.get_bld().make_node("%s.android/libs/%s/gdb.setup" % (exe_name, android_abi))
 
     android_package_task.set_outputs([native_lib,
                                       android_package_task.android_mk, android_package_task.application_mk, android_package_task.gdb_setup])
@@ -1340,19 +1366,22 @@ def copy_stub(task):
 
 task = Task.task_factory('copy_stub',
                                 func  = copy_stub,
-                                color = 'PINK',
-                                before  = 'c cxx')
+                                color = 'PINK')
 
-task.runnable_status = lambda self: RUN_ME
+copy_stub_sig_explicit_deps = task.sig_explicit_deps
+def sig_copy_stub(self):
+    copy_stub_sig_explicit_deps(self)
+    self.m.update(ANDROID_STUB.encode('utf-8'))
+task.sig_explicit_deps = sig_copy_stub
 
 @task_gen
 @before('process_source')
 @feature('apk')
 def create_copy_glue(self):
-    if not re.match('arm.*?android', self.env['PLATFORM']):
+    if not re.match('.*?-android$', self.env['PLATFORM']):
         return
 
-    stub = self.path.get_bld().find_or_declare('android_stub.c')
+    stub = self.path.get_bld().find_or_declare('android_stub.cpp')
     self.source.append(stub)
     task = self.create_task('copy_stub')
     task.set_outputs([stub])
@@ -1405,14 +1434,13 @@ unsigned char DM_ALIGNED(16) %s[] =
 
 Task.task_factory('dex', '${D8} --dex --output ${TGT} ${SRC}',
                       color='YELLOW',
-                      after='jar_files',
                       shell=True)
 
 @task_gen
 @after('apply_java')
 @feature('dex')
 def apply_dex(self):
-    if not re.match('arm.*?android', self.env['PLATFORM']):
+    if not re.match('.*?-android$', self.env['PLATFORM']):
         return
 
     jar = self.path.find_or_declare(self.destfile)
@@ -1424,26 +1452,35 @@ def apply_dex(self):
 Task.task_factory('embed_file',
                   func = embed_build,
                   vars = ['SRC', 'DST'],
-                  color = 'RED',
-                  before  = 'c cxx')
+                  color = 'RED')
 
 @feature('embed')
 @before('process_source')
 def embed_file(self):
     Utils.def_attrs(self, embed_source=[])
     embed_out_nodes = []
+    embed_tasks = []
 
     for name in Utils.to_list(self.embed_source):
+        if isinstance(name, str):
+            name = name.strip()
+            if not name:
+                continue
+
         Logs.info("Embedding '%s' ..." % name)
-        node = self.path.find_resource(name)
+        node = name if hasattr(name, 'parent') else self.path.find_resource(name)
+
+        if node == None and isinstance(name, str):
+            node = self.path.find_node(name)
 
         if node == None:
-            Logs.info("File %s was not found in %s" % (name, self.path.abspath()))
+            raise Errors.WafError("Embed source '%s' was not found for target '%s' in %s" % (name, self.target, self.path.abspath()))
 
         cc_out = node.parent.find_or_declare([node.name + '.embed.cpp'])
         h_out = node.parent.find_or_declare([node.name + '.embed.h'])
 
         task = self.create_task('embed_file', node, [cc_out, h_out])
+        embed_tasks.append(task)
         embed_out_nodes.append(cc_out)
 
     # some sources are added as nodes and some are not
@@ -1451,12 +1488,24 @@ def embed_file(self):
     source_nodes = []
     for x in Utils.to_list(self.source):
         if type(x) == str:
-            source_nodes.append(self.path.find_node(x))
+            node = self.bld.root.find_node(x) if os.path.isabs(x) else self.path.find_node(x)
+            if node is None:
+                raise Errors.WafError("Source '%s' was not found for target '%s' in %s" % (x, self.target, self.path.abspath()))
+            source_nodes.append(node)
         else:
             source_nodes.append(x)
 
     # Add dependency on generated embed source files to the task gen
     self.source = source_nodes + embed_out_nodes
+    self.embed_tasks = embed_tasks
+
+@feature('embed')
+@after('process_source')
+def order_embed_file(self):
+    embed_tasks = getattr(self, 'embed_tasks', [])
+    for compiled_task in getattr(self, 'compiled_tasks', []):
+        for embed_task in embed_tasks:
+            compiled_task.set_run_after(embed_task)
 
 def do_find_file(file_name, path_list):
     for directory in Utils.to_list(path_list):
@@ -1479,6 +1528,20 @@ def find_file(self, file_name, path_list = [], var = None, mandatory = False):
 
     return ret
 
+def get_test_server_ip(platform, local_ip):
+    """The address a test device should use to reach a test server on this machine."""
+    if not 'android' in platform:
+        return local_ip
+
+    # The Android test harness sets up an 'adb reverse' tunnel for the port in the test
+    # config file, letting the device reach the server over its own loopback. The tunnel
+    # ends on whichever machine runs the adb server, so when we drive a device through a
+    # remote adb server we have to keep using the routable address instead.
+    if os.environ.get('ADB_SERVER_SOCKET', None) or os.environ.get('ANDROID_ADB_SERVER_ADDRESS', None):
+        return local_ip
+
+    return "localhost"
+
 def create_test_server_config(ctx, port=None, ip=None, config_name=None):
     local_ip = ip
     if local_ip is None:
@@ -1491,13 +1554,16 @@ def create_test_server_config(ctx, port=None, ip=None, config_name=None):
     config.set("server", "socket", port)
 
     if config_name is None:
-        config_name = tempfile.mktemp(".cfg", "unittest_")
-    configfilepath = os.path.basename(config_name)
-    with open(configfilepath, 'w') as f:
-        config.write(f)
-        print("Wrote test config file: %s" % configfilepath)
-        return configfilepath
-    return None
+        with tempfile.NamedTemporaryFile(mode='w', suffix=".cfg", prefix="unittest_", dir=".", delete=False) as f:
+            configfilepath = os.path.basename(f.name)
+            config.write(f)
+    else:
+        configfilepath = os.path.basename(config_name)
+        with open(configfilepath, 'w') as f:
+            config.write(f)
+
+    print("Wrote test config file: %s" % configfilepath)
+    return configfilepath
 
 def _should_run_test_taskgen(ctx, taskgen):
     if not 'test' in taskgen.features:
@@ -1529,93 +1595,75 @@ def _should_run_test_taskgen(ctx, taskgen):
     return True
 
 
-def run_tests(ctx, valgrind = False, configfile = None):
+def run_tests(ctx, configfile = None, folders = None):
     if ctx == None or ctx.env == None or getattr(Options.options, 'skip_tests', False):
         return
 
-    # TODO: Add something similar to this
-    # http://code.google.com/p/v8/source/browse/trunk/tools/run-valgrind.py
-    # to find leaks and set error code
+    if 'web' in ctx.env.PLATFORM and not ctx.env['WASM_TEST_RUNNER']:
+        ctx.fatal('Bun or Node.js is required to run wasm-web tests. Use --skip-tests to build without running tests.')
 
-    if not ctx.env['VALGRIND']:
-        valgrind = False
+    harness = get_test_harness(ctx.env.PLATFORM)
+    cwd = os.getcwd()
 
-    if not getattr(Options.options, 'with_valgrind', False):
-        valgrind = False
+    try:
+        harness.prepare(ctx.env, cwd, configfile, folders)
+    except Exception as e:
+        print("Failed to prepare test harness for platform %s" % (ctx.env.PLATFORM))
+        raise e
 
-    if 'web' in ctx.env.PLATFORM and not ctx.env['NODEJS']:
-        Logs.info('Not running tests. node.js not found')
-        return
+    try:
+        for t in ctx.get_all_task_gen():
+            if not _should_run_test_taskgen(ctx, t):
+                continue
 
-    for t in ctx.get_all_task_gen():
-        if not _should_run_test_taskgen(ctx, t):
-            continue
+            if not t.tasks:
+                print("No runnable task found in generator %s" % t.name)
+                continue
 
-        if not t.tasks:
-            print("No runnable task found in generator %s" % t.name)
-            continue
+            task = None
+            task_type = None
+            for _task in t.tasks:
+                for attr in ['link_task', 'jar_task']:
+                    if _task == getattr(t, attr, None):
+                        task = _task
+                        task_type = attr
+                        break
 
-        task = None
-        task_type = None
-        for _task in t.tasks:
-            for attr in ['link_task', 'jar_task']:
-                if _task == getattr(t, attr, None):
-                    task = _task
-                    task_type = attr
-                    break
+            # Create the environment for the task
+            env = dict(os.environ)
+            merged_table = t.env.get_merged_dict()
+            for key in merged_table:
+                env[key] = merged_table[key]
 
-        # Create the environment for the task
-        env = dict(os.environ)
-        merged_table = t.env.get_merged_dict()
-        keys=list(merged_table.keys())
-        for key in keys:
-            v = merged_table[key]
-            if isinstance(v, str):
-                env[key] = v
+            if task is None:
+                print("Skipping", t.name)
+                continue
 
-        launch_pattern = '%s %s'
-        if task_type == 'jar_task':
-            # java -cp <classpath> <main-class>
-            mainclass = getattr(t, 'mainclass', '')
-            classpath = Utils.to_list(getattr(t, 'classpath', []))
-            java_library_paths = Utils.to_list(getattr(t, 'java_library_paths', []))
-            jar_path = task.outputs[0].abspath()
-            jar_dir = os.path.dirname(jar_path)
-            java_library_paths.append(jar_dir)
-            classpath.append(jar_path)
-            debug_flags = ''
-            #debug_flags = '-Xcheck:jni'
-            #debug_flags = '-Xcheck:jni -Xlog:library=info -verbose:class'
-            launch_pattern = f'java {debug_flags} -Djava.library.path={os.pathsep.join(java_library_paths)} -Djni.library.path={os.pathsep.join(java_library_paths)} -cp {os.pathsep.join(classpath)} {mainclass} -verbose:class'
-            print("launch_pattern:", launch_pattern)
+            program = transform_runnable_path(ctx.env.PLATFORM, task.outputs[0].abspath())
+            if task_type == 'jar_task':
+                if not hasattr(harness, 'run_jar_test'):
+                    print("Skipping %s, harness has no jar runner for platform %s" % (t.name, ctx.env.PLATFORM))
+                    continue
 
-        if 'TEST_LAUNCH_PATTERN' in t.env:
-            launch_pattern = t.env.TEST_LAUNCH_PATTERN
+                ret = harness.run_jar_test(task, env, configfile)
+            else:
+                argv = [program]
+                if configfile:
+                    argv.append(configfile)
 
-        if task is None:
-            print("Skipping", t.name)
-            continue
+                ret = harness.run_test(program, configfile, env, argv)
 
-        program = transform_runnable_path(ctx.env.PLATFORM, task.outputs[0].abspath())
-
-        if task_type == 'jar_task':
-            cmd = launch_pattern
-        else:
-            cmd = launch_pattern % (program, configfile if configfile else '')
-
-            if 'web' in ctx.env.PLATFORM: # should be moved to TEST_LAUNCH_ARGS
-                cmd = '%s %s' % (ctx.env['NODEJS'][0], cmd)
-
-        # disable shortly during beta release, due to issue with jctest + test_gui
-        valgrind = False
-        if valgrind:
-            dynamo_home = os.getenv('DYNAMO_HOME')
-            cmd = "valgrind -q --leak-check=full --suppressions=%s/share/valgrind-python.supp --suppressions=%s/share/valgrind-libasound.supp --suppressions=%s/share/valgrind-libdlib.supp --suppressions=%s/ext/share/luajit/lj.supp --error-exitcode=1 %s" % (dynamo_home, dynamo_home, dynamo_home, dynamo_home, cmd)
-        proc = subprocess.Popen(cmd, shell = True, env = env)
-        ret = proc.wait()
-        if ret != 0:
-            print("test failed %s" %(t.target) )
-            sys.exit(ret)
+            if ret != 0:
+                print("test failed %s" %(t.target) )
+                sys.exit(ret)
+    finally:
+        propagating = sys.exc_info()[0] is not None
+        try:
+            harness.stop(ctx.env, cwd, configfile)
+        except Exception:
+            print("Failed to stop test harness for platform %s" % (ctx.env.PLATFORM))
+            if not propagating:
+                sys.exit(1)
 
 @feature('cprogram', 'cxxprogram', 'cstlib', 'cxxstlib', 'cshlib')
 @after('apply_obj_vars')
@@ -1626,10 +1674,12 @@ def linux_link_flags(self):
 
 @feature('cprogram', 'cxxprogram')
 @after('apply_obj_vars')
-def js_web_link_flags(self):
+def web_link_flags(self):
     platform = self.env['PLATFORM']
     if 'web' in platform and 'test' in self.features:
-        pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
+        pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "web-pre.js")
+        if not os.path.exists(pre_js):
+            pre_js = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'share', 'web-pre.js'))
         self.env.append_value('LINKFLAGS', ['--pre-js', pre_js, '-lnodefs.js'])
 
 @task_gen
@@ -1671,10 +1721,14 @@ def js_web_web_link_flags(self):
                 js = os.path.join(jsLibHome, lib)
             self.env.append_value('LINKFLAGS', ['--js-library', js])
 
-Task.task_factory('dSYM', '${DSYMUTIL} -o ${TGT} ${SRC}',
+def dsym(task):
+    dsymutil = Utils.to_list(task.env.DSYMUTIL)[0]
+    return task.exec_command([dsymutil, '-o', task.outputs[0].abspath(), task.inputs[0].abspath()])
+
+Task.task_factory('dSYM',
+                      func=dsym,
                       color='YELLOW',
-                      after='link_task',
-                      shell=True)
+                      after='link_task')
 
 Task.task_factory('DSYMZIP', '${ZIP} -r ${TGT} ${SRC}',
                       color='BROWN',
@@ -1696,6 +1750,7 @@ def extract_symbols(self):
 
     archive = link_output.change_ext('.dSYM.zip')
     ziptask = self.create_task('DSYMZIP')
+    ziptask.always_run = True
     ziptask.set_inputs(dsymtask.outputs[0])
     ziptask.set_outputs(archive)
 
@@ -1712,7 +1767,8 @@ def detect(conf):
     if Options.options.with_valgrind:
         conf.find_program('valgrind', var='VALGRIND', mandatory = False)
 
-    conf.find_program('ccache', var='CCACHE', mandatory = False)
+    if not Options.options.disable_ccache:
+        conf.find_program('ccache', var='CCACHE', mandatory = False)
 
     if Options.options.with_iwyu:
         conf.find_program('include-what-you-use', var='IWYU', mandatory = False)
@@ -1724,8 +1780,15 @@ def detect(conf):
     if not platform:
         platform = host_platform
 
+    conf.env['JAVA_RUNTIME_FLAGS'] = shlex.split(os.environ.get('DM_JAVA_RUNTIME_FLAGS', ''))
+
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = host_platform
+
+    try:
+        build_util = create_build_utility(conf.env)
+    except BuildUtilityException as ex:
+        conf.fatal(ex.msg)
 
     if platform in ('x86_64-linux', 'arm64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
         conf.env['IS_TARGET_DESKTOP'] = 'true'
@@ -1733,16 +1796,18 @@ def detect(conf):
     if host_platform in ('x86_64-linux', 'arm64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
         conf.env['IS_HOST_DESKTOP'] = 'true'
 
-    try:
-        build_util = create_build_utility(conf.env)
-    except BuildUtilityException as ex:
-        conf.fatal(ex.msg)
+    bindirs = [build_util.get_dynamo_ext('bin', host_platform)]
+
+    if conf.env.IS_HOST_DESKTOP:
+        conf.find_program('glslang', var='GLSLANG', mandatory = True, path_list = bindirs)
 
     target_os = build_util.get_target_os()
     conf.env['TARGET_OS'] = target_os
 
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
+
+    conf.find_program('protoc', var='PROTOC', mandatory = True, path_list = [os.path.join(dynamo_home, "ext", "bin", host_platform)])
 
     # these may be the same if we're building the host tools
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
@@ -1753,10 +1818,10 @@ def detect(conf):
         print ("Tests disabled (%s cannot run on %s)" % (build_util.get_target_platform(), host_platform))
 
         conf.env['CODESIGN_UNSUPPORTED'] = True
-        print ("Codesign disabled", Options.options.skip_codesign)
+        print ("Codesign unsupported (%s cannot codesign for %s)" % (host_platform, build_util.get_target_platform()))
 
     # Vulkan support
-    if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'x86_64-ios', 'js-web', 'wasm-web', 'wasm_pthread-web'):
+    if Options.options.with_vulkan and build_util.get_target_platform() in ('arm64-linux', 'arm64_sim-ios', 'wasm-web', 'wasm_pthread-web'):
         conf.fatal('Vulkan is unsupported on %s' % build_util.get_target_platform())
 
     if target_os == TargetOS.WINDOWS:
@@ -1769,7 +1834,7 @@ def detect(conf):
         else:
             conf.env['MSVC_INSTALLED_VERSIONS'] = [('msvc 14.0',[('x86', ('x86', (bindirs, includes, libdirs)))])]
 
-        if not Options.options.skip_codesign:
+        if Options.options.codesign:
             conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
 
     if target_os in (TargetOS.MACOS, TargetOS.IOS):
@@ -1795,13 +1860,13 @@ def detect(conf):
 
         conf.env['CC']      = '%s/clang' % bin_dir
         conf.env['CXX']     = '%s/clang++' % bin_dir
-        conf.env['LINK_CC'] = '%s/clang' % bin_dir
-        conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+        conf.env['LINK_CC'] = ['%s/clang' % bin_dir]
+        conf.env['LINK_CXX']= ['%s/clang++' % bin_dir]
         conf.env['CPP']     = '%s/clang -E' % bin_dir
         conf.env['AR']      = '%s/%sar' % (bin_dir, llvm_prefix)
         conf.env['RANLIB']  = '%s/%sranlib' % (bin_dir, llvm_prefix)
 
-    elif TargetOS.IOS == target_os and build_util.get_target_architecture() in ('armv7','arm64','x86_64'):
+    elif TargetOS.IOS == target_os and build_util.get_target_architecture() == 'arm64':
 
         # NOTE: If we are to use clang for OSX-builds the wrapper script must be qualifed, e.g. clang-ios.sh or similar
         if 'linux' in host_platform:
@@ -1809,8 +1874,8 @@ def detect(conf):
 
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
-            conf.env['LINK_CC'] = '%s/clang' % bin_dir
-            conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+            conf.env['LINK_CC'] = ['%s/clang' % bin_dir]
+            conf.env['LINK_CXX']= ['%s/clang++' % bin_dir]
             conf.env['CPP']     = '%s/clang -E' % bin_dir
             conf.env['AR']      = '%s/llvm-ar' % bin_dir
             conf.env['RANLIB']  = '%s/llvm-ranlib' % bin_dir
@@ -1820,8 +1885,8 @@ def detect(conf):
 
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
-            conf.env['LINK_CC'] = '%s/clang' % bin_dir
-            conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+            conf.env['LINK_CC'] = ['%s/clang' % bin_dir]
+            conf.env['LINK_CXX']= ['%s/clang++' % bin_dir]
             conf.env['CPP']     = '%s/clang -E' % bin_dir
             conf.env['AR']      = '%s/ar' % bin_dir
             conf.env['RANLIB']  = '%s/ranlib' % bin_dir
@@ -1831,7 +1896,7 @@ def detect(conf):
         conf.env['GCC-OBJCLINK'] = '-lobjc'
 
 
-    elif TargetOS.ANDROID == target_os and build_util.get_target_architecture() in ('armv7', 'arm64'):
+    elif TargetOS.ANDROID == target_os and build_util.get_target_architecture() in ('armv7', 'arm64', 'x86_64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         bp_arch, bp_os = host_platform.split('-')
         exe_suffix = ''
@@ -1856,7 +1921,7 @@ def detect(conf):
 
         conf.env['CC']       = f'{bintools}{sep}{clang_name}{cmd_suffix}'
         conf.env['CXX']      = f'{bintools}{sep}{clang_name}++{cmd_suffix}'
-        conf.env['LINK_CXX'] = f'{bintools}{sep}{clang_name}++{cmd_suffix}'
+        conf.env['LINK_CXX'] = [f'{bintools}{sep}{clang_name}++{cmd_suffix}']
         conf.env['CPP']      = f'{bintools}{sep}{clang_name}{cmd_suffix} -E'
 
         conf.env['AR']       = f'{bintools}{sep}llvm-ar{exe_suffix}'
@@ -1877,8 +1942,8 @@ def detect(conf):
             conf.env['CC']      = '%s/clang' % bin_dir
             conf.env['CXX']     = '%s/clang++' % bin_dir
             conf.env['CPP']     = '%s/clang -E' % bin_dir
-            conf.env['LINK_CC'] = '%s/clang' % bin_dir
-            conf.env['LINK_CXX']= '%s/clang++' % bin_dir
+            conf.env['LINK_CC'] = ['%s/clang' % bin_dir]
+            conf.env['LINK_CXX']= ['%s/clang++' % bin_dir]
             conf.env['AR']      = '%s/llvm-ar' % bin_dir
             conf.env['RANLIB']  = '%s/llvm-ranlib' % bin_dir
 
@@ -1891,34 +1956,40 @@ def detect(conf):
 
     platform_setup_tools(conf, build_util)
 
-    # jg: this whole thing is a 'dirty hack' to be able to pick up our own SDKs
-    if TargetOS.WINDOWS == target_os:
-        includes = sdkinfo['includes']['path']
-        libdirs = sdkinfo['lib_paths']['path']
-        bindirs = sdkinfo['bin_paths']['path']
+    if not is_platform_private(platform):
+        # jg: this whole thing is a 'dirty hack' to be able to pick up our own SDKs
+        if TargetOS.WINDOWS == target_os:
+            includes = sdkinfo['includes']['path']
+            libdirs = sdkinfo['lib_paths']['path']
+            bindirs = sdkinfo['bin_paths']['path']
 
-        bindirs.append(build_util.get_binary_path())
-        bindirs.append(build_util.get_dynamo_ext('bin', build_util.get_target_platform()))
+            bindirs.append(build_util.get_binary_path())
+            bindirs.append(build_util.get_dynamo_ext('bin', build_util.get_target_platform()))
 
-        # The JDK dir doesn't get added since we use no_autodetect
-        bindirs.append(os.path.join(os.getenv('JAVA_HOME'), 'bin'))
+            # The JDK dir doesn't get added since we use no_autodetect
+            bindirs.append(os.path.join(os.getenv('JAVA_HOME'), 'bin'))
 
-        # there's no lib prefix anymore so we need to set our our lib dir first so we don't
-        # pick up the wrong hid.lib from the windows sdk
-        libdirs.insert(0, build_util.get_dynamo_home('lib', build_util.get_target_platform()))
+            # there's no lib prefix anymore so we need to set our our lib dir first so we don't
+            # pick up the wrong hid.lib from the windows sdk
+            libdirs.insert(0, build_util.get_dynamo_home('lib', build_util.get_target_platform()))
+            bindirs_env = os.pathsep.join(bindirs)
+            os.environ['PATH'] = bindirs_env + os.pathsep + os.environ['PATH']
+            conf.environ['PATH'] = bindirs_env + os.pathsep + conf.environ['PATH']
+            conf.env['PATH']     = bindirs + sys.path + conf.env['PATH']
+            conf.env['INCLUDES'] = includes
+            conf.env['LIBPATH']  = libdirs
+            conf.load('msvc', funs='no_autodetect')
 
-        conf.env['PATH']     = bindirs + sys.path + conf.env['PATH']
-        conf.env['INCLUDES'] = includes
-        conf.env['LIBPATH']  = libdirs
-        conf.load('msvc', funs='no_autodetect')
+            if Options.options.codesign:
+                conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
+        else:
+            conf.options.check_c_compiler = 'clang gcc'
+            conf.options.check_cxx_compiler = 'clang++ g++'
 
-        if not Options.options.skip_codesign:
-            conf.find_program('signtool', var='SIGNTOOL', mandatory = True, path_list = bindirs)
-    else:
-        conf.options.check_c_compiler = 'clang gcc'
-        conf.options.check_cxx_compiler = 'clang++ g++'
-        conf.load('compiler_c')
-        conf.load('compiler_cxx')
+            conf.load('compiler_c')
+            conf.load('compiler_cxx')
+
+    prepend_private_search_paths(conf.env, platform)
 
     # Since we're using an old waf version, we remove unused arguments
     remove_flag(conf.env['shlib_CFLAGS'], '-compatibility_version', 1)
@@ -1942,12 +2013,25 @@ def detect(conf):
         if emsdk is None:
             conf.fatal('EMSDK environment variable not found.')
 
-        if not conf.env['NODEJS']:
+        if not conf.env['WASM_TEST_RUNNER']:
             emsdk_node = sdkinfo['emsdk']['node']
-            path_list = None
-            if emsdk_node is not None and os.path.exists(emsdk_node):
-                path_list = [os.path.dirname(emsdk_node)]
-            conf.find_program('node', var='NODEJS', mandatory = False, path_list = path_list)
+            node_candidates = [emsdk_node] if emsdk_node is not None else []
+            runner, errors = wasm_runner.find_wasm_runner(node_candidates = node_candidates)
+            if runner:
+                conf.env['WASM_TEST_RUNNER'] = runner.command()
+                conf.env['WASM_TEST_RUNNER_NAME'] = runner.name
+                if runner.name == 'bun':
+                    conf.env['BUN'] = runner.command()
+                else:
+                    conf.env['NODEJS'] = runner.command()
+                Logs.info('Found wasm test runner: %s' % runner.description())
+            elif not Options.options.skip_tests:
+                message = 'Bun or Node.js is required to run wasm-web tests. Use --skip-tests to build without running tests.'
+                if errors:
+                    message += '\nChecked runners:\n  ' + '\n  '.join(errors)
+                conf.fatal(message)
+            else:
+                Logs.warn('Bun or Node.js was not found. wasm-web tests will not run.')
 
         bin_dir = os.path.join(emsdk, 'upstream', 'emscripten')
 
@@ -1958,8 +2042,8 @@ def detect(conf):
 
         conf.env['CC'] = f'{bin_dir}/emcc'
         conf.env['CXX'] = f'{bin_dir}/em++'
-        conf.env['LINK_CC'] = f'{bin_dir}/emcc'
-        conf.env['LINK_CXX'] = f'{bin_dir}/em++'
+        conf.env['LINK_CC'] = [f'{bin_dir}/emcc']
+        conf.env['LINK_CXX'] = [f'{bin_dir}/em++']
         conf.env['CPP'] = f'{bin_dir}/em++'
         conf.env['AR'] = f'{bin_dir}/emar'
         conf.env['RANLIB'] = f'{bin_dir}/emranlib'
@@ -1971,7 +2055,7 @@ def detect(conf):
         conf.env['STLIB_MARKER']=''
         conf.env['SHLIB_MARKER']=''
 
-    if platform in ('x86_64-linux','arm64-linux','armv7-android','arm64-android'): # Currently the only platform exhibiting the behavior
+    if platform in ('x86_64-linux','arm64-linux','armv7-android','arm64-android','x86_64-android'): # Currently the only platform exhibiting the behavior
         conf.env['STLIB_MARKER'] = ['-Wl,-start-group', '-Wl,-Bstatic']
         conf.env['SHLIB_MARKER'] = ['-Wl,-end-group', '-Wl,-Bdynamic']
 
@@ -2014,6 +2098,7 @@ def detect(conf):
         conf.env['LIB_PLATFORM_SOCKET'] = ''
     elif TargetOS.ANDROID == target_os:
         conf.env['LIB_PLATFORM_SOCKET'] = ''
+        conf.load('waf_android')
     elif TargetOS.WINDOWS == target_os:
         conf.env['LIB_PLATFORM_SOCKET'] = 'WS2_32 Iphlpapi AdvAPI32'.split()
     else:
@@ -2024,17 +2109,17 @@ def detect(conf):
         use_vanilla = True
 
     if use_vanilla:
-        conf.env['STLIB_LUA'] = 'lua'
+        static_libs(conf, 'LUA', 'lua')
     else:
         conf.env['STLIB_LUA'] = 'luajit-5.1'
 
-    conf.env['STLIB_TESTMAIN'] = ['testmain'] # we'll use this for all internal tests/tools
+    static_libs(conf, 'TESTMAIN', ['testmain']) # we'll use this for all internal tests/tools
 
     if target_os != TargetOS.MACOS:
         conf.env['STLIB_UNWIND'] = 'unwind'
 
     if TargetOS.MACOS == target_os:
-        conf.env['FRAMEWORK_OPENGL'] = ['OpenGL', 'AGL']
+        conf.env['FRAMEWORK_OPENGL'] = ['OpenGL']
     elif TargetOS.ANDROID == target_os:
         conf.env['LIB_OPENGL'] = ['EGL', 'GLESv1_CM', 'GLESv2']
     elif TargetOS.WINDOWS == target_os:
@@ -2045,26 +2130,34 @@ def detect(conf):
 
     if TargetOS.MACOS == target_os:
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL']
+        conf.env['FRAMEWORK_SOUND'] = ['AVFoundation']
     elif TargetOS.IOS == target_os:
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL', 'AudioToolbox']
+        conf.env['FRAMEWORK_SOUND'] = ['AVFoundation']
     elif TargetOS.ANDROID == target_os:
         conf.env['LIB_OPENAL'] = ['OpenSLES']
     elif TargetOS.LINUX == target_os:
         conf.env['LIB_OPENAL'] = ['openal']
 
-    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'mbedtls', 'zip']
-    conf.env['STLIB_DDF'] = 'ddf'
+    static_libs(conf, 'DLIB', ['dlib', 'image', 'zip'])
+    if feature_enabled('mbedtls') or target_os not in (TargetOS.MACOS, TargetOS.IOS):
+        conf.env.append_unique('STLIB_DLIB', 'dmbedtls')
+    if target_os in (TargetOS.MACOS, TargetOS.IOS):
+        conf.env['FRAMEWORK_DLIB'] = ['CFNetwork', 'Security']
+
+    static_libs(conf, 'DDF', ['ddf'])
+    static_libs(conf, 'DDF_NOASAN', ['ddf_noasan'])
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
 
-    conf.env['STLIB_PROFILE'] = ['profile']
-    conf.env['STLIB_PROFILE_NULL'] = ['profile_null']
+    static_libs(conf, 'PROFILE', ['profile'])
+    static_libs(conf, 'PROFILE_NULL', ['profile_null'])
     conf.env['STLIB_PROFILER_BASIC'] = ['profiler_basic']
     conf.env['STLIB_PROFILER_REMOTERY'] = ['profiler_remotery']
     conf.env['STLIB_PROFILER_NULL'] = ['profiler_null']
 
     conf.env['DEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
-    conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan']
+    static_libs(conf, 'PROFILE_NULL_NOASAN', ['profile_null_noasan'])
 
     if ('record' not in Options.options.disable_features):
         conf.env['STLIB_RECORD'] = 'record_null'
@@ -2079,30 +2172,39 @@ def detect(conf):
     conf.env['STLIB_DAWN'] = ['webgpu_dawn']
     conf.env['DEFINES_DAWN'] = ['DM_GRAPHICS_WEBGPU2', 'DM_GRAPHICS_DAWN']
     if platform in ['x86_64-macos', 'arm64-macos']:
-        conf.env['FRAMEWORK_DAWN'] = ['Metal', 'IOSurface', 'QuartzCore']
+        conf.env['FRAMEWORK_DAWN'] = ['Metal', 'IOSurface', 'QuartzCore', 'IOKit']
 
     conf.env['STLIB_RECORD_NULL'] = 'record_null'
 
-    conf.env['STLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_OPENGLES'] = ['graphics_opengles', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'graphics_transcoder_basisu', 'basis_transcoder']
+    static_libs(conf, 'GRAPHICS',          ['graphics', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_OPENGLES', ['graphics_opengles', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_VULKAN',   ['graphics_vulkan', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_DX12',     ['graphics_dx12', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_METAL',    ['graphics_metal', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
     if 'wagyu' in Options.options.enable_features:
-        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu_wagyu', 'graphics_transcoder_basisu', 'basis_transcoder']
+        static_libs(conf, 'GRAPHICS_WEBGPU', ['graphics_webgpu_wagyu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
     else:
-        conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'graphics_transcoder_basisu', 'basis_transcoder']
-    conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
+        static_libs(conf, 'GRAPHICS_WEBGPU', ['graphics_webgpu', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
+    static_libs(conf, 'GRAPHICS_NULL', ['graphics_null', 'image', 'graphics_transcoder_null'])
+    static_libs(conf, 'GRAPHICS_PROTO', ['graphics_proto'])
+    static_libs(conf, 'GRAPHICS_NULL_NOASAN', ['graphics_null_noasan', 'image_noasan', 'graphics_proto_noasan'])
 
-    conf.env['STLIB_PLATFORM']        = ['platform']
-    conf.env['STLIB_PLATFORM_VULKAN'] = ['platform_vulkan']
-    conf.env['STLIB_PLATFORM_NULL']   = ['platform_null']
-
-    conf.env['STLIB_FONT']            = ['font']
+    static_libs(conf, 'FONT', ['font'])
+    static_libs(conf, 'FONT_LAYOUT', ['font_skribidi', 'harfbuzz', 'sheenbidi', 'unibreak', 'skribidi'], ['font_skribidi'])
 
     if platform_glfw_version(platform) == 3:
         conf.env['STLIB_DMGLFW'] = 'glfw3'
     else:
         conf.env['STLIB_DMGLFW'] = 'dmglfw'
+    conf.env['STLIB_DMGLFW_VULKAN'] = 'dmglfw_vulkan'
+
+    # ***********************************************************
+    # Metal
+    if TargetOS.MACOS == target_os:
+        conf.env['FRAMEWORK_METAL']  = ['Metal', 'IOSurface', 'QuartzCore']
+        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
+    elif TargetOS.IOS == target_os:
+        conf.env['FRAMEWORK_METAL']  = ['Metal', 'IOSurface', 'QuartzCore']
 
     # ***********************************************************
     # Vulkan
@@ -2113,7 +2215,7 @@ def detect(conf):
     elif TargetOS.IOS == target_os:
         conf.env['STLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface']
-        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics']
+        conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics', 'CoreMotion']
     elif TargetOS.LINUX == target_os:
         conf.env['LIB_VULKAN'] = ['vulkan', 'X11-xcb']
         # currently we only have the validation
@@ -2121,7 +2223,7 @@ def detect(conf):
             conf.env.append_value('LIB_VULKAN', ['VkLayer_khronos_validation'])
 
     elif TargetOS.ANDROID == target_os:
-        conf.env['SHLIB_VULKAN'] = ['vulkan']
+        conf.env['SHLIB_VULKAN'] = []
     elif TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_VULKAN'] = 'vulkan-1.lib' # because it doesn't have the "lib" prefix
 
@@ -2139,12 +2241,33 @@ def detect(conf):
 
     if TargetOS.WINDOWS == target_os:
         conf.env['LINKFLAGS_SOUND']     = ['ole32.lib'] # cocreateinstance in device_wasapi.cpp
+        conf.env['LINKFLAGS_DLIB']        = ['ole32.lib'] # CoTaskMemFree in sys_win32.cpp
+        conf.env['LINKFLAGS_DLIB_NOASAN'] = ['ole32.lib'] # CoTaskMemFree in sys_win32.cpp (mirrors LINKFLAGS_DLIB for noasan consumers like shaderc_shared/texc_shared/modelc_shared)
         conf.env['LINKFLAGS_DINPUT']    = ['dinput8.lib', 'dxguid.lib', 'xinput9_1_0.lib']
         conf.env['LINKFLAGS_APP']       = ['user32.lib', 'shell32.lib', 'dbghelp.lib'] + conf.env['LINKFLAGS_DINPUT']
         conf.env['LINKFLAGS_DX12']      = ['D3D12.lib', 'DXGI.lib', 'D3Dcompiler.lib']
 
-    conf.env['STLIB_EXTENSION'] = 'extension'
-    conf.env['STLIB_SCRIPT'] = 'script'
+
+    if conf.env.PLATFORM == 'x86_64-win32':
+        static_libs(conf, 'HID', ['hid'])
+        static_libs(conf, 'HID_NULL', ['hid_null'])
+        static_libs(conf, 'INPUT', ['input'])
+        static_libs(conf, 'PLATFORM', ['platform'])
+        static_libs(conf, 'PLATFORM_VULKAN', ['platform_vulkan'])
+        static_libs(conf, 'PLATFORM_NULL', ['platform_null'])
+    else:
+        conf.env['STLIB_HID']               = ['hid']
+        conf.env['STLIB_HID_NULL']          = ['hid_null']
+        conf.env['STLIB_INPUT']             = ['input']
+        conf.env['STLIB_PLATFORM']          = ['platform']
+        conf.env['STLIB_PLATFORM_VULKAN']   = ['platform_vulkan']
+        conf.env['STLIB_PLATFORM_NULL']     = ['platform_null']
+
+    if target_os in [TargetOS.MACOS, TargetOS.IOS]:
+        conf.env['FRAMEWORK_HID'] = ['GameController']
+
+    static_libs(conf, 'EXTENSION', ['extension'])
+    static_libs(conf, 'SCRIPT', ['script'])
 
     if conf.env.IS_TARGET_DESKTOP:
 
@@ -2174,6 +2297,11 @@ def detect(conf):
     if Options.options.generate_compile_commands:
         conf.load('clang_compilation_database')
 
+    conf.load('waf_csharp')
+
+    if Options.options.generate_compile_commands:
+        conf.load('clang_compilation_database')
+
 
 def configure(conf):
     detect(conf)
@@ -2191,7 +2319,7 @@ def options(opt):
     opt.add_option('--platform', default='', dest='platform', help='target platform, eg arm64-ios')
     opt.add_option('--skip-tests', action='store_true', default=False, dest='skip_tests', help='skip running unit tests')
     opt.add_option('--skip-build-tests', action='store_true', default=False, dest='skip_build_tests', help='skip building unit tests')
-    opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
+    opt.add_option('--codesign', action="store_true", default=False, dest='codesign', help='enable code signing')
     opt.add_option('--skip-apidocs', action='store_true', default=False, dest='skip_apidocs', help='skip extraction and generation of API docs.')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
     opt.add_option('--generate-compile-commands', action="store_true", default=False, dest='generate_compile_commands', help='generate (appending mode) compile_commands.json')
@@ -2199,21 +2327,27 @@ def options(opt):
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
+    # Flag to indicate that the build should use pure Waf (skip CMake checks)
+    opt.add_option('--with-waf', action='store_true', dest='with_waf', help='Build using Waf only (skip CMake checks)')
     opt.add_option('--with-ubsan', action='store_true', default=False, dest='with_ubsan', help='Enables undefined behavior sanitizer')
     opt.add_option('--with-tsan', action='store_true', default=False, dest='with_tsan', help='Enables thread sanitizer')
+    opt.add_option('--with-msan', action='store_true', default=False, dest='with_msan', help='Enables memory sanitizer')
     opt.add_option('--with-iwyu', action='store_true', default=False, dest='with_iwyu', help='Enables include-what-you-use tool (if installed)')
     opt.add_option('--show-includes', action='store_true', default=False, dest='show_includes', help='Outputs the tree of includes')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
+    opt.add_option('--with-openal', action='store_true', default=False, dest='with_openal', help='Enables OpenAL as the sound backend')
     opt.add_option('--with-opengl', action='store_true', default=False, dest='with_opengl', help='Enables OpenGL as the graphics backend')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
     opt.add_option('--with-vulkan-validation', action='store_true', default=False, dest='with_vulkan_validation', help='Enables Vulkan validation layers (on osx and ios)')
     opt.add_option('--with-dx12', action='store_true', default=False, dest='with_dx12', help='Enables DX12 as a graphics backend')
     opt.add_option('--with-opus', action='store_true', default=False, dest='with_opus', help='Enable Opus audio codec support in runtime')
     opt.add_option('--with-webgpu', action='store_true', default=False, dest='with_webgpu', help='Enables WebGPU as graphics backend')
+    opt.add_option('--with-metal', action='store_true', default=False, dest='with_metal', help='Enables Metal as graphics backend (on osx and ios)')
+    opt.add_option('--size-analyze', action='store_true', default=False, dest='size_analyze', help='Emit extra wasm-web analysis artifacts such as source maps and separate DWARF')
 
     # Currently supported features: physics
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
 
-    # Currently supported features: physics, simd (html5)
-    opt.add_option('--enable-feature', action='append', default=[], dest='enable_features', help='enable feature, --disable-feature=foo')
+    # Currently supported features: physics, font_layout, box2dv3, simd (html5), mbedtls
+    opt.add_option('--enable-feature', action='append', default=[], dest='enable_features', help='enable feature, --enable-feature=foo')

@@ -76,9 +76,10 @@
 	}
 
 	.canvas-app-canvas {
-		background-repeat:no-repeat;
+		background-repeat: no-repeat;
 		background-position: center center;
 {{#DEFOLD_SPLASH_IMAGE}}
+		background-size: contain;
 		background-image: url("{{DEFOLD_SPLASH_IMAGE}}");
 {{/DEFOLD_SPLASH_IMAGE}}
 {{^DEFOLD_SPLASH_IMAGE}}

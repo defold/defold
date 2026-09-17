@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,8 +15,7 @@
 #ifndef DM_RESOURCE_MANIFEST_PRIVATE_H
 #define DM_RESOURCE_MANIFEST_PRIVATE_H
 
-#include <dlib/hash.h>
-#include <dlib/hashtable.h>
+#include <string.h>
 
 namespace dmLiveUpdateDDF
 {
@@ -42,8 +41,6 @@ struct Manifest
     dmResourceArchive::HArchiveIndexContainer   m_ArchiveIndex;
     dmLiveUpdateDDF::ManifestFile*              m_DDF;
     dmLiveUpdateDDF::ManifestData*              m_DDFData;
-    // For mutable archives, we fill this just-in-time with the mappings from hex digest to url_path
-    dmHashTable64<dmhash_t>                     m_DigestToUrl;
 };
 
 }

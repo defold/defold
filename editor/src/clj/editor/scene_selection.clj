@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,8 +18,10 @@
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.math :as math]
             [editor.menu-items :as menu-items]
+            [editor.render-util :as render-util]
             [editor.scene-picking :as scene-picking]
             [editor.system :as system]
             [editor.types :as types]
@@ -29,62 +31,53 @@
             [util.eduction :as e])
   (:import [com.jogamp.opengl GL2]
            [editor.types Rect]
-           [java.lang Runnable Math]
+           [java.lang Math Runnable]
            [javafx.scene Node Scene]
+           [javafx.scene.control ContextMenu]
            [javafx.scene.input DragEvent]
-           [javax.vecmath Point2i Point3d Matrix4d Vector3d]))
+           [javax.vecmath Matrix4d Point2i Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
 
 (handler/register-menu! ::scene-context-menu
-                        [{:label "Cut"
-                          :command :edit.cut}
-                         {:label "Copy"
-                          :command :edit.copy}
-                         {:label "Paste"
-                          :command :edit.paste}
-                         {:label "Delete"
-                          :icon "icons/32/Icons_M_06_trash.png"
-                          :command :edit.delete}
-                         menu-items/separator
-                         {:label "Show/Hide Objects"
-                          :command :scene.visibility.toggle-selection}
-                         {:label "Hide Unselected Objects"
-                          :command :scene.visibility.hide-unselected}
-                         {:label "Show All Hidden Objects"
-                          :command :scene.visibility.show-all}
-                         (menu-items/separator-with-id ::context-menu-end)])
+  [{:label (localization/message "command.edit.cut")
+    :command :edit.cut}
+   {:label (localization/message "command.edit.copy")
+    :command :edit.copy}
+   {:label (localization/message "command.edit.paste")
+    :command :edit.paste}
+   {:label (localization/message "command.edit.delete")
+    :icon "icons/32/Icons_M_06_trash.png"
+    :command :edit.delete}
+   menu-items/separator
+   {:label (localization/message "command.scene.visibility.toggle-selection")
+    :command :scene.visibility.toggle-selection}
+   {:label (localization/message "command.scene.visibility.hide-unselected")
+    :command :scene.visibility.hide-unselected}
+   {:label (localization/message "command.scene.visibility.show-all")
+    :command :scene.visibility.show-all}
+   (menu-items/separator-with-id ::context-menu-end)])
 
-(defn render-selection-box [^GL2 gl _render-args renderables _count]
+(defn render-selection-box [^GL2 gl render-args renderables _count]
   (let [user-data (:user-data (first renderables))
         start (:start user-data)
         current (:current user-data)]
     (when (and start current)
-     (let [min-fn (fn [v1 v2] (map #(Math/min ^Double %1 ^Double %2) v1 v2))
-           max-fn (fn [v1 v2] (map #(Math/max ^Double %1 ^Double %2) v1 v2))
-           min-p (reduce min-fn [start current])
-           min-x (nth min-p 0)
-           min-y (nth min-p 1)
-           max-p (reduce max-fn [start current])
-           max-x (nth max-p 0)
-           max-y (nth max-p 1)
-           z 0.0
-           c (double-array (map #(/ % 255.0) [131 188 212]))]
-       (.glColor3d gl (nth c 0) (nth c 1) (nth c 2))
-       (.glBegin gl GL2/GL_LINE_LOOP)
-       (.glVertex3d gl min-x min-y z)
-       (.glVertex3d gl min-x max-y z)
-       (.glVertex3d gl max-x max-y z)
-       (.glVertex3d gl max-x min-y z)
-       (.glEnd gl)
-
-       (.glBegin gl GL2/GL_QUADS)
-       (.glColor4d gl (nth c 0) (nth c 1) (nth c 2) 0.2)
-       (.glVertex3d gl min-x, min-y, z);
-       (.glVertex3d gl min-x, max-y, z);
-       (.glVertex3d gl max-x, max-y, z);
-       (.glVertex3d gl max-x, min-y, z);
-       (.glEnd gl)))))
+      (let [min-fn (fn [v1 v2] (map #(Math/min ^Double %1 ^Double %2) v1 v2))
+            max-fn (fn [v1 v2] (map #(Math/max ^Double %1 ^Double %2) v1 v2))
+            min-p (reduce min-fn [start current])
+            min-x (nth min-p 0)
+            min-y (nth min-p 1)
+            max-p (reduce max-fn [start current])
+            max-x (nth max-p 0)
+            max-y (nth max-p 1)
+            color (mapv #(/ % 255.0) [131 188 212])
+            positions [[min-x min-y]
+                       [min-x max-y]
+                       [max-x max-y]
+                       [max-x min-y]]]
+        (render-util/render-color-line-loop! gl render-args ::selection-box-outline color positions)
+        (render-util/render-color-quad! gl render-args ::selection-box-fill (conj color 0.2) positions)))))
 
 (defn- select [controller op-seq mode toggle?]
   (let [select-fn (g/node-value controller :select-fn)
@@ -115,6 +108,12 @@
                       (filter #(not (nil? %)) [(g/node-value controller :root-id)]))]
     (select-fn selection op-seq)))
 
+(defn- init-scene-context-menu! ^ContextMenu [^Scene scene ^Node anchor-node]
+  (doto (ui/init-context-menu! ::scene-context-menu scene)
+    ;; Let the dismissing RMB press continue into scene input so pan can start immediately.
+    (.setConsumeAutoHidingEvents false)
+    (ui/hide-context-menu-on-anchor-pressed! anchor-node)))
+
 (def mac-toggle-modifiers #{:shift :meta})
 (def other-toggle-modifiers #{:shift})
 (def toggle-modifiers (if system/mac? mac-toggle-modifiers other-toggle-modifiers))
@@ -132,30 +131,31 @@
       (concat
         (drop-fn resources)
         (g/operation-sequence op-seq)
-        (g/operation-label "Drop Resources")))))
+        (g/operation-label (localization/message "operation.drop"))))))
 
 (defn- handle-drag-dropped!
   [drop-fn root-id select-fn action]
-  (let [op-seq (gensym)
-        {:keys [^DragEvent event string gesture-target world-pos world-dir]} action
-        _ (ui/request-focus! gesture-target)
-        env (-> gesture-target (ui/node-contexts false) first :env)
-        {:keys [selection workspace]} env
-        resource-strings (some-> string string/split-lines sort)
-        resources (e/keep (partial workspace/resolve-workspace-resource workspace) resource-strings)
-        z-plane-pos (math/line-plane-intersection world-pos world-dir (Point3d. 0.0 0.0 0.0) (Vector3d. 0.0 0.0 1.0))
-        drop-fn (partial drop-fn root-id selection workspace z-plane-pos)
-        added-nodes (add-dropped-resources! drop-fn resources op-seq)]
-    (.consume event)
-    (when (seq added-nodes)
-      (let [top-ids (->> (e/map g/node-by-id added-nodes)
-                         (scene-picking/top-nodes)
-                         (e/keep :_node-id))]
-        (select-fn top-ids op-seq))
-      (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
-      (.setDropCompleted event true))))
+  (let [{:keys [^DragEvent event string gesture-target world-pos world-dir]} action]
+    (ui/request-focus! gesture-target)
+    (g/let-ec [basis (:basis evaluation-context)
+               op-seq (gensym)
+               env (-> gesture-target (ui/node-contexts false evaluation-context) first :env)
+               {:keys [selection workspace]} env
+               resource-strings (some-> string string/split-lines sort)
+               resources (e/keep #(workspace/resolve-workspace-resource basis workspace %) resource-strings)
+               z-plane-pos (math/line-plane-intersection world-pos world-dir (Point3d. 0.0 0.0 0.0) (Vector3d. 0.0 0.0 1.0))
+               drop-fn (partial drop-fn root-id selection workspace z-plane-pos)]
+      (.consume event)
+      (when-some [added-nodes (not-empty (add-dropped-resources! drop-fn resources op-seq))]
+        (let [basis (g/now)
+              top-ids (->> (e/map #(g/node-by-id basis %) added-nodes)
+                           (scene-picking/top-nodes)
+                           (e/keep :_node-id))]
+          (select-fn top-ids op-seq))
+        (ui/user-data! (ui/main-scene) ::ui/refresh-requested? true)
+        (.setDropCompleted event true)))))
 
-(defn handle-selection-input [self action _user-data]
+(defn handle-selection-input [self _input-state action _user-data]
   (let [start (g/node-value self :start)
         op-seq (g/node-value self :op-seq)
         mode (g/node-value self :mode)
@@ -170,9 +170,10 @@
                         (handle-drag-dropped! drop-fn root-id select-fn action))
                       nil)
       :mouse-pressed (let [op-seq (gensym)
-                           toggle? (true? (some true? (map #(% action) toggle-modifiers)))
+                           toggle? (boolean (some (:modifiers action) toggle-modifiers))
                            mode :single]
                        (g/transact
+                         {:undoable false}
                          (concat
                            (g/set-property self :op-seq op-seq)
                            (g/set-property self :start cursor-pos)
@@ -185,6 +186,7 @@
       :mouse-released (do
                         (when start (select self op-seq mode toggle?))
                         (g/transact
+                          {:undoable false}
                           (concat
                             (g/set-property self :start nil)
                             (g/set-property self :current nil)
@@ -195,9 +197,12 @@
                             (g/set-property self :prev-selection nil)))
                         (when contextual?
                           (let [node ^Node (:target action)
-                                scene ^Scene (.getScene node)
-                                context-menu (ui/init-context-menu! ::scene-context-menu scene)]
-                            (.show context-menu node ^double (:screen-x action) ^double (:screen-y action))))
+                                screen-x (:screen-x action)
+                                screen-y (:screen-y action)]
+                            (ui/request-context-menu!
+                              #(when-let [scene (.getScene node)]
+                                 (-> (init-scene-context-menu! scene node)
+                                     (.show node ^double screen-x ^double screen-y))))))
                         nil)
       :mouse-moved (if start
                      (let [new-mode (if (and (= :single mode) (< min-pick-size (distance start cursor-pos)))
@@ -205,6 +210,7 @@
                                       mode)]
                        (when-not (g/node-value self :contextual?)
                          (g/transact
+                           {:undoable false}
                            (concat
                              (when (not= new-mode mode) (g/set-property self :mode new-mode))
                              (g/set-property self :current cursor-pos)))

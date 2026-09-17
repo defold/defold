@@ -140,7 +140,7 @@ def build(bld):
                 content = template_c.replace('{custom_include}', include)
                 f.write(content)
 
-            bld.stlib(features = 'c sdk_include_filter',
+            bld.stlib(features = 'c sdk_include_filter test',
                   includes = ['.','../'] + [extra_node],
                   source   = source_c,
                   target   = 'test_include_c_%s_%d' % (basename_c, index),

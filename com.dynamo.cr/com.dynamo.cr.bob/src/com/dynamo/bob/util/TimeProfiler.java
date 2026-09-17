@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,7 +22,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.BufferedWriter;
-import java.lang.Thread;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -171,7 +170,7 @@ public class TimeProfiler {
             String afterToken = templateString.substring(tokenIndex + token.length()+1);
             return new String[]{beforeToken, afterToken};
         } catch (IOException e) {
-            throw new IOException("Error while reading time report template: " + e.toString());
+            throw new IOException("Error while reading time report template: " + e);
         }
         finally {
             IOUtils.closeQuietly(templateStream);
@@ -245,7 +244,7 @@ public class TimeProfiler {
     }
 
     private static long getCurrentThreadId() {
-        return Thread.currentThread().getId();
+        return Thread.currentThread().threadId();
     }
 
     private static void setCurrentScope(ProfilingScope scope) {

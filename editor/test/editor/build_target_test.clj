@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -255,8 +255,8 @@
 
         session2-content-hashes-by-path
         (with-clean-system
-          (g/make-graph!) ; This causes all node ids to differ from session1.
-          (let [workspace (test-util/setup-workspace! world project-path)
+          (g/take-node-ids 1) ; This causes all node ids to differ from session1.
+          (let [workspace (test-util/setup-workspace! project-path)
                 project (test-util/setup-project! workspace)]
             (build-target-content-hashes-by-path project)))]
 
@@ -277,14 +277,14 @@
       (let [rev1-content-hashes-by-path
             (with-clean-system
               (system/set-defold-engine-sha1! "1111111111111111111111111111111111111111")
-              (let [workspace (test-util/setup-workspace! world project-path)
+              (let [workspace (test-util/setup-workspace! project-path)
                     project (test-util/setup-project! workspace)]
                 (build-target-content-hashes-by-path project)))
 
             rev2-content-hashes-by-path
             (with-clean-system
               (system/set-defold-engine-sha1! "2222222222222222222222222222222222222222")
-              (let [workspace (test-util/setup-workspace! world project-path)
+              (let [workspace (test-util/setup-workspace! project-path)
                     project (test-util/setup-project! workspace)]
                 (build-target-content-hashes-by-path project)))]
 

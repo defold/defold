@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -70,3 +70,18 @@
   (is (= original-type-defs [Type ->Type]))
   (is (= "Original Value" (.original (->Type "Original Value"))))
   (is (= "Original Result" (protocol-method (->Type "Original Value")))))
+
+;; -----------------------------------------------------------------------------
+;; defonce/interface
+;; -----------------------------------------------------------------------------
+
+(defonce/interface Interface
+  (interfaceMethod []))
+
+(defonce ^:private original-interface-defs [Interface])
+
+(defonce/interface Interface
+  (interfaceMethod []))
+
+(deftest interface-test
+  (= (identical? original-interface-defs [Interface])))

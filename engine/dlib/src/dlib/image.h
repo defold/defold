@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,6 +21,19 @@
 
 namespace dmImage
 {
+    // Internal float image type used by the texture build pipeline.
+    static const Type TYPE_RGBA32F = (Type)4;
+
+    // https://chromium.googlesource.com/external/github.com/ARM-software/astc-encoder/+/HEAD/Docs/FileFormat.md
+    struct AstcHeader
+    {
+        uint8_t m_Magic[4];
+        uint8_t m_BlockSizes[3];    // x, y, z block sizes (in texels)
+        uint8_t m_DimensionX[3];    // X dimension (in texels). Encoded as: dim[0] + (dim[1] << 8) + (dim[2] << 16);
+        uint8_t m_DimensionY[3];
+        uint8_t m_DimensionZ[3];
+    };
+
     struct Image
     {
         Image() : m_Width(0), m_Height(0), m_Type(TYPE_RGB), m_Buffer(0) {}
@@ -37,8 +50,9 @@ namespace dmImage
      *   Supported formats:
      *   png gray, gray + alpha, rgb and rgba
      *   jpg
+     *   hdr
      * </pre>
-     * 16-bit (or higher) channels are not supported.
+     * 16-bit (or higher) channels are not supported for png and jpg.
      *
      * @param buffer image buffer
      * @param buffer_size image buffer size
@@ -48,6 +62,14 @@ namespace dmImage
      * @return RESULT_OK on success
      */
     Result Load(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, HImage image);
+
+    /**
+     * Check if a buffer contains an HDR image.
+     * @param buffer image buffer
+     * @param buffer_size image buffer size
+     * @return true if the buffer contains an HDR image
+     */
+    bool IsHDR(const void* buffer, uint32_t buffer_size);
 
     /**
      * Free loaded image
@@ -72,6 +94,9 @@ namespace dmImage
             return 1;
         case dmImage::TYPE_LUMINANCE_ALPHA:
             return 2;
+        case dmImage::TYPE_RGBA32F:
+            // Float images are not exposed through the byte-oriented image consumers yet.
+            return 0;
         }
         return 0;
     }

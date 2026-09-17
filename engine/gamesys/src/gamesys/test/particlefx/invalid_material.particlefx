@@ -9,9 +9,9 @@ emitters {
       z: 0.0
       w: 1.0
     }
-    tile_source: "/tile/valid.tileset"
+    tile_source: "/particlefx/tile_valid.tileset"
     animation: ""
-    material: "/material/missing_name.material"
+    material: "/particlefx/material_missing_name.material"
     max_particle_count: 8
     type: EMITTER_TYPE_CONE
     pivot: { x: 0 y: 0 z: 0 }

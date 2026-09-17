@@ -1,0 +1,28 @@
+local M = {}
+
+function M.get_commands()
+    return {{
+        label = "Test",
+        locations = {"Edit"},
+        run = function()
+            editor.transact({
+                editor.tx.set("/game.project", "project.dependencies", {
+                    "http://localhost:58091/lib/lib_resource_project"
+                })
+            })
+            local ok = pcall(editor.fetch_libraries)
+            print("fetch libraries: " .. (ok and "ok" or "error"))
+            print("resource exists after fetch: " .. tostring(editor.resource_attributes("/lib_resource_project/simple.gui").exists))
+            editor.transact({
+                editor.tx.set("/game.project", "project.dependencies", {
+                    "http://localhost:58091/missing_lib_resource_project"
+                })
+            })
+            ok = pcall(editor.fetch_libraries)
+            print("fetch missing libraries: " .. (ok and "ok" or "error"))
+            print("resource exists after failed fetch: " .. tostring(editor.resource_attributes("/lib_resource_project/simple.gui").exists))
+        end
+    }}
+end
+
+return M

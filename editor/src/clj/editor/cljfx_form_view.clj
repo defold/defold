@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -34,28 +34,34 @@
             [cljfx.fx.table-view :as fx.table-view]
             [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.text-formatter :as fx.text-formatter]
-            [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
+            [cljfx.lifecycle :as fx.lifecycle]
+            [cljfx.mutator :as fx.mutator]
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.dialogs :as dialogs]
+            [editor.editor-extensions.node-types :as node-types]
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
             [editor.form :as form]
             [editor.fxui :as fxui]
+            [editor.fxui.combo-box :as fxui.combo-box]
             [editor.handler :as handler]
             [editor.icons :as icons]
+            [editor.localization :as localization]
+            [editor.markdown :as markdown]
+            [editor.math :as math]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.settings :as settings]
-            [editor.system :as system]
             [editor.ui :as ui]
             [editor.url :as url]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.util :as util]
             [util.coll :as coll]
+            [util.eduction :as e]
             [util.fn :as fn]
             [util.text-util :as text-util])
   (:import [com.defold.control DefoldStringConverter]
@@ -64,6 +70,7 @@
            [javafx.scene Node]
            [javafx.scene.control Cell ComboBox ListView ListView$EditEvent TableColumn TableColumn$CellEditEvent TableView TableView$ResizeFeatures]
            [javafx.scene.input KeyCode KeyEvent]
+           [javafx.scene.paint Color]
            [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
@@ -87,7 +94,10 @@
   (input form-data g/Any :substitute {})
   (property ui-state g/Any (default {:filter-term ""}))
   (property renderer g/Any)
+  (output sidebar-panes g/Any (g/constantly [:outline-pane]))
   (output form-view g/Any :cached produce-form-view))
+
+(node-types/register-node-type-name! CljfxFormView "form")
 
 (defmulti handle-event :event-type)
 
@@ -136,12 +146,12 @@
   (DefoldStringConverter.
     resource/resource->proj-path
     #(some->> (when-not (string/blank? %) %)
-              (workspace/to-absolute-path)
+              (workspace/to-absolute-proj-path)
               (workspace/resolve-workspace-resource workspace))))
 
 (defn- text-field [props]
   (assoc props :fx/type fx.text-field/lifecycle
-               :style-class ["text-field" "cljfx-form-text-field"]))
+         :style-class ["text-field" "cljfx-form-text-field"]))
 
 (defn- add-image-fit-size [{:keys [fit-size] :as props}]
   (-> props
@@ -154,25 +164,28 @@
               (assoc :graphic {:fx/type fx.image-view/lifecycle
                                :image (icons/get-image (:image props))}))
 
-          (contains? props :fit-size)
-          add-image-fit-size))
+    (contains? props :fit-size)
+    add-image-fit-size))
 
 (defn- icon-button [props]
   (cond-> (assoc props :fx/type fx.button/lifecycle
-                       :style-class ["button" "cljfx-form-icon-button"])
+                 :style-class ["button" "cljfx-form-icon-button"])
 
-          (contains? props :image)
-          add-image))
+    (contains? props :image)
+    add-image))
 
 (defmulti form-input-view
   "Form input component function
 
-  Expects a form field with specific keys for each `:type`, plus:
-  - `:value` - current-value
-  - `:on-value-changed` - a map event that will get notification of new value
-  - `:state` - this component's local state
-  - `:state-path` - a path for `assoc-in` used by component to change it's state
-  - `:resource-string-converter` - a resource string converter"
+  Expects a form field with specific keys for each :type, plus:
+    :value                        current-value
+    :on-value-changed             a map event that will get notification of new
+                                  value
+    :state                        this component's local state
+    :state-path                   assoc-in path used by component to change its
+                                  state
+    :resource-string-converter    a resource string converter
+    :localization-state           the localization state"
   :type)
 
 (defmethod form-input-view :default [{:keys [value]}]
@@ -207,7 +220,7 @@
 (defn- default-cell-input-view [field]
   (wrap-cancel-on-escape
     (assoc field :fx/type form-input-view
-                 :on-value-changed (:on-commit field))
+           :on-value-changed (:on-commit field))
     (:on-cancel field)))
 
 (defmethod cell-input-view :default [field]
@@ -349,7 +362,7 @@
    [:dispatch (assoc on-value-changed :fx/event event)]])
 
 (defmethod handle-event :commit-on-enter [{:keys [^KeyEvent fx/event on-commit state-path ui-state]}]
-  (when (and (= KeyCode/ENTER (.getCode event)))
+  (when (= KeyCode/ENTER (.getCode event))
     (let [value (get-in ui-state (conj state-path :value) ::no-value)]
       (when-not (= value ::no-value)
         {:dispatch (assoc on-commit :fx/event value)}))))
@@ -374,10 +387,51 @@
                                 :state-path state-path
                                 :on-value-changed on-value-changed})
       (cond-> (contains? state :form-input-state)
-              (assoc :state (:form-input-state state)))
+        (assoc :state (:form-input-state state)))
       (wrap-cancel-on-escape on-cancel)
       (wrap-commit-on-enter on-commit state-path)
       (wrap-focus-text-field)))
+
+;; endregion
+
+;; region color input
+
+(defn- clamp-unit ^double [^double n] (min 1.0 (max 0.0 n)))
+
+(defn- color->value
+  "Assocs the color into the old value to retain its vector and number types."
+  [value ^Color color]
+  (let [coerce (if (math/float32? (first value)) float double)]
+    (cond-> (assoc value
+              0 (coerce (.getRed color))
+              1 (coerce (.getGreen color))
+              2 (coerce (.getBlue color)))
+            (= 4 (count value))
+            (assoc 3 (coerce (.getOpacity color))))))
+
+;; The color picker calls :on-value-changed directly, so we need the
+;; map-event-handler to dispatch the form event ourselves.
+(ui/defc form-color-picker-view
+  {:compose [{:fx/type fxui/ext-map-event-handler}
+             {:fx/type fx/ext-get-env :env [:prefs]}]}
+  [{:keys [value on-value-changed map-event-handler prefs]}]
+  (let [[r g b a] value]
+    {:fx/type fxui/color-picker
+     :max-width normal-field-width
+     :prefs prefs
+     :ignore-alpha (not= 4 (count value))
+     :value (Color. (clamp-unit (double r))
+                    (clamp-unit (double g))
+                    (clamp-unit (double b))
+                    (clamp-unit (double (or a 1.0))))
+     :on-value-changed (fn [^Color color]
+                         (map-event-handler
+                           (assoc on-value-changed :fx/event (color->value value color))))}))
+
+(defmethod form-input-view :color [{:keys [value on-value-changed] :as field}]
+  {:fx/type form-color-picker-view
+   :value (ensure-value value field)
+   :on-value-changed on-value-changed})
 
 ;; endregion
 
@@ -450,23 +504,36 @@
 
 ;; region choicebox input
 
-(defmethod form-input-view :choicebox [{:keys [value
-                                               on-value-changed
-                                               options
-                                               from-string
-                                               to-string]
-                                        :or {to-string str}}]
+(ui/defc form-choicebox-combo-box-view
+  {:compose [{:fx/type fxui/ext-map-event-handler}]}
+  [{:keys [value on-value-changed options to-string show-on-focus map-event-handler]
+    :or {to-string str}}]
+  (let [value->label (into {} options)]
+    {:fx/type fxui.combo-box/view
+     :pref-width normal-field-width
+     :value value
+     :show-on-focus show-on-focus
+     :on-value-changed #(map-event-handler (assoc on-value-changed :fx/event %))
+     :to-string #(or (value->label %) (to-string %))
+     :items (mapv first options)}))
+
+(defn- form-editable-choicebox-view [{:keys [value
+                                             on-value-changed
+                                             options
+                                             from-string
+                                             to-string]
+                                      :or {to-string str}}]
   (let [value->label (into {} options)
         label->value (set/map-invert value->label)]
     {:fx/type fx.combo-box/lifecycle
      :style-class ["combo-box" "combo-box-base" "cljfx-form-combo-box"]
-     :min-width normal-field-width
+     :pref-width normal-field-width
      :value value
      :on-value-changed on-value-changed
      :converter (DefoldStringConverter.
                   #(get value->label % (to-string %))
-                  #(or (label->value %) (and from-string (from-string %))))
-     :editable (some? from-string)
+                  #(or (label->value %) (from-string %)))
+     :editable true
      :button-cell (fn [x]
                     {:text (value->label x)})
      :cell-factory (fn [x]
@@ -476,10 +543,19 @@
 (defn- show-combo-box! [^ComboBox combo-box]
   (.show combo-box))
 
-(defmethod cell-input-view :choicebox [field]
-  {:fx/type fx/ext-on-instance-lifecycle
-   :on-created show-combo-box!
-   :desc (default-cell-input-view field)})
+(defmethod form-input-view :choicebox [{:keys [from-string] :as field}]
+  (if (some? from-string)
+    (form-editable-choicebox-view field)
+    (assoc field :fx/type form-choicebox-combo-box-view)))
+
+(defmethod cell-input-view :choicebox [{:keys [from-string] :as field}]
+  (if (some? from-string)
+    {:fx/type fx/ext-on-instance-lifecycle
+     :on-created show-combo-box!
+     :desc (default-cell-input-view field)}
+    {:fx/type fxui/vertical
+     :children [{:fx/type fxui/ext-focused-by-default
+                 :desc (default-cell-input-view (assoc field :show-on-focus true))}]}))
 
 ;; endregion
 
@@ -512,11 +588,19 @@
     [[:dispatch (assoc on-added :fx/event added-list-elements)]
      [:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) added-indices)]]))
 
-(defmethod handle-event :add-list-element [{:keys [element fx/event project workspace] :as map-event}]
+(defn- dialog-title-text [localization-state localization-key title fallback-message]
+  (or (when localization-key
+        (let [title-key (str "form.title." localization-key)]
+          (when (localization/defines-message-key? localization-state title-key)
+            (localization-state (localization/message title-key)))))
+      title
+      (localization-state fallback-message)))
+
+(defmethod handle-event :add-list-element [{:keys [element fx/event project workspace localization localization-key] :as map-event}]
   (case (:type element)
     :directory
     (when-some [selected-directory (dialogs/make-directory-dialog
-                                     (or (:title element) "Select Directory")
+                                     (dialog-title-text @localization localization-key (:title element) (localization/message "dialog.directory.title.select"))
                                      (workspace/project-directory workspace)
                                      (fxui/event->window event))]
       (if-some [valid-directory-path (absolute-or-maybe-proj-path selected-directory workspace (:in-project element))]
@@ -525,7 +609,7 @@
 
     :file
     (when-some [selected-file (dialogs/make-file-dialog
-                                (or (:title element) "Select File")
+                                (dialog-title-text @localization localization-key (:title element) (localization/message "dialog.file.title.select"))
                                 (:filter element)
                                 nil
                                 (fxui/event->window event))]
@@ -534,18 +618,18 @@
         {:show-dialog :file-not-in-project}))
 
     :resource
-    (when-some [selected-resources (not-empty (resource-dialog/make
-                                                workspace project
-                                                {:ext (:filter element)
-                                                 :selection :multiple}))]
+    (when-some [selected-resources (coll/not-empty (resource-dialog/make
+                                                     workspace project
+                                                     {:ext (:filter element)
+                                                      :selection :multiple}))]
       (add-list-elements selected-resources map-event))
 
     ;; default
     (add-list-elements [(form/field-default element)] map-event)))
 
-(defmethod handle-event :remove-list-selection [{:keys [on-removed state-path ui-state]}]
+(defmethod handle-event :remove-list-selection [{:keys [on-removed state-path ui-state selected-indices]}]
   (let [indices-path (conj state-path :selected-indices)]
-    [[:dispatch (assoc on-removed :fx/event (set (get-in ui-state indices-path)))]
+    [[:dispatch (assoc on-removed :fx/event (set selected-indices))]
      [:set-ui-state (-> ui-state
                         (assoc-in indices-path [])
                         (update-in state-path dissoc :edit))]]))
@@ -567,7 +651,7 @@
 (defmethod handle-event :keep-list-edit [{:keys [ui-state state-path fx/event]}]
   {:set-ui-state (assoc-in ui-state (conj state-path :edit :value) event)})
 
-(defn- edited-list-cell-view [element {:keys [state-path state on-edited] :as field} item]
+(defn- edited-list-cell-view [element {:keys [state-path state on-edited resource-string-converter localization-state]} item]
   (let [edit (:edit state)]
     (-> element
         (assoc :fx/type cell-input-view
@@ -580,10 +664,19 @@
                            :state-path state-path
                            :on-edited on-edited
                            :index (:index edit)}
-               :resource-string-converter (:resource-string-converter field)
+               :localization-state localization-state
+               :resource-string-converter resource-string-converter
                :state-path (conj state-path :edit :state))
         (cond-> (contains? edit :state)
-                (assoc :state (:state edit))))))
+          (assoc :state (:state edit))))))
+
+(defn- display-value-text [{:keys [type] :as field} value]
+  (case type
+    :resource (resource/resource->proj-path value)
+    :choicebox (or (->> field :options (coll/some #(when (= (first %) value) (second %))))
+                   ((:to-string field str) value))
+    :vec4 (->> value (e/map field-expression/format-number) (coll/join-to-string "  "))
+    (str value)))
 
 (defn- list-cell-factory [element edit-index [i v]]
   (let [edited (= edit-index i)
@@ -599,10 +692,21 @@
          :graphic ref}
 
         {:graphic ref})
-      {:text (case (:type element)
-               :choicebox (get (into {} (:options element)) v)
-               :resource (resource/resource->proj-path v)
-               (str v))})))
+      {:text (display-value-text element v)})))
+
+(def ^:private add-message (localization/message "form.context-menu.add"))
+
+(def ^:private remove-message (localization/message "form.context-menu.remove"))
+
+(def ^:private prop-list-selected-indices
+  (fx/make-prop
+    (fx.mutator/setter
+      (fn [^ListView view [selected-indices _]]
+        (let [model (.getSelectionModel view)]
+          (.clearSelection model)
+          (when-not (coll/empty? selected-indices)
+            (.selectIndices (.getSelectionModel view) (first selected-indices) (into-array Integer/TYPE (rest selected-indices)))))))
+    fx.lifecycle/scalar))
 
 (defn- list-input [{:keys [;; state
                            state
@@ -613,21 +717,25 @@
                            on-edited                        ;; {:index int :item item}
                            on-removed                       ;; #{index ...}
                            ;; field
-                           element]
+                           element
+                           localization-key
+                           localization-state]
                     :or {state {:selected-indices []}
                          value []}
                     :as field}]
   (let [{:keys [selected-indices edit]} state
         disable-add (not (form/has-default? element))
-        disable-remove (empty? selected-indices)
+        disable-remove (coll/empty? selected-indices)
         add-event {:event-type :add-list-element
                    :value value
                    :on-added on-added
                    :state-path state-path
-                   :element element}
+                   :element element
+                   :localization-key localization-key}
         remove-event {:event-type :remove-list-selection
                       :on-removed on-removed
-                      :state-path state-path}]
+                      :state-path state-path
+                      :selected-indices selected-indices}]
     {:fx/type fx.v-box/lifecycle
      :spacing 4
      :children [{:fx/type fx/ext-let-refs
@@ -645,7 +753,9 @@
                          :desc
                          {:fx/type fx.ext.list-view/with-selection-props
                           :props {:selection-mode :multiple
-                                  :selected-indices selected-indices
+                                  ;; item count is used as a "refresh key", i.e.
+                                  ;; it forces re-selection on item remove
+                                  prop-list-selected-indices [selected-indices (count value)]
                                   :on-selected-indices-changed {:event-type :list-select
                                                                 :state-path state-path}}
                           :desc
@@ -666,11 +776,11 @@
                            :fixed-cell-size cell-height
                            :context-menu {:fx/type fx.context-menu/lifecycle
                                           :items [{:fx/type fx.menu-item/lifecycle
-                                                   :text "Add"
+                                                   :text (localization-state add-message)
                                                    :disable disable-add
                                                    :on-action add-event}
                                                   {:fx/type fx.menu-item/lifecycle
-                                                   :text "Remove"
+                                                   :text (localization-state remove-message)
                                                    :disable disable-remove
                                                    :on-action remove-event}]}}}}}}
                 {:fx/type fx.h-box/lifecycle
@@ -710,16 +820,16 @@
                                    :or {value []}
                                    :as field}]
   (assoc field :fx/type list-input
-               :max-width normal-field-width
-               :on-edited {:event-type :edit-list-item
-                           :value value
-                           :on-value-changed on-value-changed}
-               :on-added {:event-type :add-list-items
-                          :value value
-                          :on-value-changed on-value-changed}
-               :on-removed {:event-type :remove-list-items
-                            :value value
-                            :on-value-changed on-value-changed}))
+         :max-width normal-field-width
+         :on-edited {:event-type :edit-list-item
+                     :value value
+                     :on-value-changed on-value-changed}
+         :on-added {:event-type :add-list-items
+                    :value value
+                    :on-value-changed on-value-changed}
+         :on-removed {:event-type :remove-list-items
+                      :value value
+                      :on-value-changed on-value-changed}))
 
 ;; endregion
 
@@ -773,16 +883,19 @@
                                                    ^Event fx/event
                                                    title
                                                    in-project
-                                                   workspace]}]
-  (when-some [selected-file (dialogs/make-file-dialog (or title "Select File")
-                                                      filter
-                                                      nil
-                                                      (fxui/event->window event))]
+                                                   workspace
+                                                   localization
+                                                   localization-key]}]
+  (when-some [selected-file (dialogs/make-file-dialog
+                              (dialog-title-text @localization localization-key title (localization/message "dialog.file.title.select"))
+                              filter
+                              nil
+                              (fxui/event->window event))]
     (if-some [valid-file-path (absolute-or-maybe-proj-path selected-file workspace in-project)]
       {:dispatch (assoc on-value-changed :fx/event valid-file-path)}
       {:show-dialog :file-not-in-project})))
 
-(defmethod form-input-view :file [{:keys [on-value-changed value filter title in-project]}]
+(defmethod form-input-view :file [{:keys [on-value-changed value filter title in-project localization-key]}]
   {:fx/type fx.h-box/lifecycle
    :spacing 4
    :max-width normal-field-width
@@ -795,6 +908,7 @@
               {:fx/type icon-button
                :text "\u2026"
                :on-action {:event-type :on-file-selected
+                           :localization-key localization-key
                            :on-value-changed on-value-changed
                            :filter filter
                            :in-project in-project
@@ -804,13 +918,16 @@
 
 ;; region directory input
 
-(defmethod handle-event :on-directory-selected [{:keys [on-value-changed title fx/event in-project workspace]}]
-  (when-some [selected-directory (dialogs/make-directory-dialog (or title "Select Directory") nil (fxui/event->window event))]
+(defmethod handle-event :on-directory-selected [{:keys [on-value-changed title fx/event in-project workspace localization localization-key]}]
+  (when-some [selected-directory (dialogs/make-directory-dialog
+                                   (dialog-title-text @localization localization-key title (localization/message "dialog.directory.title.select"))
+                                   nil
+                                   (fxui/event->window event))]
     (if-some [valid-directory-path (absolute-or-maybe-proj-path selected-directory workspace in-project)]
       {:dispatch (assoc on-value-changed :fx/event valid-directory-path)}
       {:show-dialog :directory-not-in-project})))
 
-(defmethod form-input-view :directory [{:keys [on-value-changed value title in-project]}]
+(defmethod form-input-view :directory [{:keys [on-value-changed value title in-project localization-key]}]
   {:fx/type fx.h-box/lifecycle
    :spacing 4
    :max-width normal-field-width
@@ -823,6 +940,7 @@
               {:fx/type icon-button
                :text "\u2026"
                :on-action {:event-type :on-directory-selected
+                           :localization-key localization-key
                            :on-value-changed on-value-changed
                            :in-project in-project
                            :title title}}]})
@@ -857,8 +975,8 @@
   (let [edit (get-in ui-state (conj state-path :edit))]
     (cond-> [[:set-ui-state (update-in ui-state state-path dissoc :edit)]]
 
-            (some? (:value edit))
-            (conj [:dispatch (assoc on-value-changed :fx/event (value-with-edit value edit))]))))
+      (some? (:value edit))
+      (conj [:dispatch (assoc on-value-changed :fx/event (value-with-edit value edit))]))))
 
 (defmethod handle-event :commit-table-edit [{:keys [fx/event
                                                     edit-path
@@ -920,29 +1038,31 @@
                                        on-value-changed
                                        state-path
                                        state
+                                       localization-state
                                        resource-string-converter]
                                 :or {value []}}
                                item]
   (let [{:keys [edit]} state
         edit-path (into [(:index edit)] (:path column))
         input-state-path (conj state-path :edit :state)]
-      (-> column
-          (assoc :fx/type cell-input-view
-                 :value item
-                 :max-width normal-field-width
-                 :on-value-changed {:event-type :keep-table-edit
-                                    :state-path state-path}
-                 :on-cancel {:event-type :cancel-table-edit
-                             :state-path state-path}
-                 :on-commit {:event-type :commit-table-edit
-                             :edit-path edit-path
-                             :state-path state-path
-                             :value value
-                             :on-value-changed on-value-changed}
-                 :resource-string-converter resource-string-converter
-                 :state-path input-state-path)
-          (cond-> (contains? edit :state)
-                  (assoc :state (:state edit))))))
+    (-> column
+        (assoc :fx/type cell-input-view
+               :value item
+               :max-width normal-field-width
+               :on-value-changed {:event-type :keep-table-edit
+                                  :state-path state-path}
+               :on-cancel {:event-type :cancel-table-edit
+                           :state-path state-path}
+               :on-commit {:event-type :commit-table-edit
+                           :edit-path edit-path
+                           :state-path state-path
+                           :value value
+                           :on-value-changed on-value-changed}
+               :localization-state localization-state
+               :resource-string-converter resource-string-converter
+               :state-path input-state-path)
+        (cond-> (contains? edit :state)
+          (assoc :state (:state edit))))))
 
 (defn- table-cell-value-factory [path [i x]]
   [i (get-in x path)])
@@ -963,13 +1083,28 @@
       (case type
         (:integer :number) {:text (field-expression/format-number x)
                             :alignment :center-right}
-        :resource {:text (resource/resource->proj-path x)}
-        :choicebox {:text (get (into {} (:options column)) x)}
-        :vec4 {:text (->> x (mapv field-expression/format-number) (string/join "  "))}
-        {:text (str x)}))))
+        {:text (display-value-text column x)}))))
 
-(defn- table-column [{:keys [path label type] :as column}
-                     {:keys [state state-path value on-value-changed]
+(defn- get-label-text [localization-state {:keys [localization-key label title]}]
+  (let [fallback (or label title)]
+    (if localization-key
+      (let [label-key (str "form.label." localization-key)]
+        (if (localization/defines-message-key? localization-state label-key)
+          (localization-state (localization/message label-key))
+          fallback))
+      fallback)))
+
+(defn- get-help-text [localization-state {:keys [localization-key help]}]
+  (let [help (coll/not-empty help)]
+    (if localization-key
+      (let [help-key (str "form.help." localization-key)]
+        (if (localization/defines-message-key? localization-state help-key)
+          (localization-state (localization/message help-key))
+          help))
+      help)))
+
+(defn- table-column [{:keys [path type] :as column}
+                     {:keys [state state-path value on-value-changed localization-state]
                       :or {value []}}]
   (let [{:keys [edit]} state]
     {:fx/type fx.table-column/lifecycle
@@ -993,7 +1128,7 @@
                       :value value
                       :on-value-changed on-value-changed
                       :state-path state-path}
-     :text label
+     :text (get-label-text localization-state column)
      :cell-value-factory (fn/partial table-cell-value-factory path)
      :cell-factory (fn/partial table-cell-factory column (dissoc edit :value))}))
 
@@ -1020,11 +1155,12 @@
                                            on-value-changed
                                            columns
                                            state
-                                           state-path]
+                                           state-path
+                                           localization-state]
                                     :or {value []}
                                     :as field}]
   (let [{:keys [selected-indices edit]} state
-        disable-remove (empty? selected-indices)
+        disable-remove (coll/empty? selected-indices)
         default-row (form/table-row-defaults field)
         disable-add (nil? default-row)
         on-added {:event-type :on-table-element-added
@@ -1040,9 +1176,7 @@
      :refs (when edit
              (let [i (:index edit)
                    path (:path edit)
-                   edited-column (some #(when (= (:path edit) (:path %))
-                                          %)
-                                       columns)
+                   edited-column (coll/first-where #(= path (:path %)) columns)
                    edited-value (or (:value edit)
                                     (get-in value (into [i] path)))]
                {[::edit i path] (edited-table-cell-view edited-column field edited-value)}))
@@ -1072,11 +1206,11 @@
                                         :items (into [] (map-indexed vector) value)
                                         :context-menu {:fx/type fx.context-menu/lifecycle
                                                        :items [{:fx/type fx.menu-item/lifecycle
-                                                                :text "Add"
+                                                                :text (localization-state add-message)
                                                                 :disable disable-add
                                                                 :on-action on-added}
                                                                {:fx/type fx.menu-item/lifecycle
-                                                                :text "Remove"
+                                                                :text (localization-state remove-message)
                                                                 :disable disable-remove
                                                                 :on-action on-removed}]}}}}]}
                        {:fx/type fx.h-box/lifecycle
@@ -1152,11 +1286,13 @@
                                             state
                                             state-path
                                             panel-key
-                                            resource-string-converter]
+                                            resource-string-converter
+                                            localization-state]
                                      :as field}]
   (let [indented-label-column-width 150
         default-row (form/two-panel-defaults field)
         key-path (:path panel-key)
+        state (cond-> state (not (coll/empty? value)) (update :key update :selected-indices #(if (coll/empty? %) [0] %)))
         selected-index (-> state :key :selected-indices util/only)
         fn-setter (:set field)
 
@@ -1180,10 +1316,11 @@
                               :on-remove (:on-remove field)}
                  :state-path (conj state-path :key)
                  :element panel-key
+                 :localization-state localization-state
                  :resource-string-converter resource-string-converter}
 
-                (contains? state :key)
-                (assoc :state (:key state)))
+          (contains? state :key)
+          (assoc :state (:key state)))
 
         selected-item-fields
         (when selected-index
@@ -1217,31 +1354,32 @@
                                                 :grid-pane/column 0
                                                 :grid-pane/margin {:top 5}
                                                 :opacity 0.6
-                                                :text (:label field)}]
-                                              (and (form/optional-field? field)
-                                                   (not= field-value ::no-value))
-                                              (conj {:fx/type icon-button
-                                                     :grid-pane/column 1
-                                                     :image "icons/32/Icons_S_02_Reset.png"
-                                                     :on-action {:event-type :2panel-value-clear
-                                                                 :index selected-index
-                                                                 :value-path (:path field)
-                                                                 :set fn-setter
-                                                                 :value value
-                                                                 :on-value-changed on-value-changed}}))}
+                                                :text (get-label-text localization-state field)}]
+                                        (and (form/optional-field? field)
+                                             (not= field-value ::no-value))
+                                        (conj {:fx/type icon-button
+                                               :grid-pane/column 1
+                                               :image "icons/32/Icons_S_02_Reset.png"
+                                               :on-action {:event-type :2panel-value-clear
+                                                           :index selected-index
+                                                           :value-path (:path field)
+                                                           :set fn-setter
+                                                           :value value
+                                                           :on-value-changed on-value-changed}}))}
                            (cond->
                              (assoc field :fx/type form-input-view
-                                          :value (if (= ::no-value field-value)
-                                                   (form/field-default field)
-                                                   field-value)
-                                          :on-value-changed {:event-type :2panel-value-set
-                                                             :index selected-index
-                                                             :value-path (:path field)
-                                                             :value value
-                                                             :set fn-setter
-                                                             :on-value-changed on-value-changed}
-                                          :state-path field-state-path
-                                          :resource-string-converter resource-string-converter)
+                                    :value (if (= ::no-value field-value)
+                                             (form/field-default field)
+                                             field-value)
+                                    :on-value-changed {:event-type :2panel-value-set
+                                                       :index selected-index
+                                                       :value-path (:path field)
+                                                       :value value
+                                                       :set fn-setter
+                                                       :on-value-changed on-value-changed}
+                                    :state-path field-state-path
+                                    :localization-state localization-state
+                                    :resource-string-converter resource-string-converter)
                              (not= ::no-value field-state)
                              (assoc :state field-state))]}))))
                  (:sections
@@ -1259,113 +1397,121 @@
 
 ;; endregion
 
-(defn- make-row [values ui-state resource-string-converter row field]
-  (let [{:keys [path label help visible]} field
+(defn- make-row [values ui-state resource-string-converter row field localization-state project]
+  (let [{:keys [path visible]} field
         value (get values path ::no-value)
         state-path [:components path]
         state (get-in ui-state state-path ::no-value)
         error (settings/get-setting-error
                 (when-not (= value ::no-value) value)
                 field
-                :build-targets)]
+                :build-targets)
+        help-text (get-help-text localization-state field)]
     (cond-> []
-            :always
-            (conj (cond->
-                    {:fx/type fx.label/lifecycle
-                     :fx/key [:label path]
-                     :grid-pane/row row
-                     :grid-pane/column 0
-                     :grid-pane/valignment :top
-                     :grid-pane/margin {:top 5}
-                     :visible visible
-                     :managed visible
-                     :alignment :top-left
-                     :text label}
-                    (not-empty help)
-                    (assoc :tooltip {:fx/type fx.tooltip/lifecycle
-                                     :text help})))
+      :always
+      (conj (cond->
+              {:fx/type fx.label/lifecycle
+               :fx/key [:label path]
+               :grid-pane/row row
+               :grid-pane/column 0
+               :grid-pane/valignment :top
+               :grid-pane/margin {:top 5}
+               :visible visible
+               :managed visible
+               :alignment :top-left
+               :text (get-label-text localization-state field)}
+              help-text
+              (fxui/apply-tooltip
+                {:fx/type fxui/tooltip
+                 :content-display :graphic-only
+                 :style {:-fx-padding 0}
+                 :graphic {:fx/type markdown/view
+                           :content help-text
+                           :max-width 350.0
+                           :project project}})))
+      (and (form/optional-field? field)
+           (not= value ::no-value))
+      (conj {:fx/type icon-button
+             :fx/key [:clear path]
+             :grid-pane/row row
+             :grid-pane/column 1
+             :grid-pane/valignment :top
+             :grid-pane/halignment :right
+             :visible visible
+             :managed visible
+             :image "icons/32/Icons_S_02_Reset.png"
+             :on-action {:event-type :clear
+                         :path path}})
 
-            (and (form/optional-field? field)
-                 (not= value ::no-value))
-            (conj {:fx/type icon-button
-                   :fx/key [:clear path]
-                   :grid-pane/row row
-                   :grid-pane/column 1
-                   :grid-pane/valignment :top
-                   :grid-pane/halignment :right
-                   :visible visible
-                   :managed visible
-                   :image "icons/32/Icons_S_02_Reset.png"
-                   :on-action {:event-type :clear
-                               :path path}})
+      :always
+      (conj {:fx/type fx.v-box/lifecycle
+             :fx/key [:control path]
+             :style-class (case (:severity error)
+                            :fatal ["cljfx-form-error"]
+                            :warning ["cljfx-form-warning"]
+                            [])
+             :grid-pane/row row
+             :grid-pane/column 2
+             :visible visible
+             :managed visible
+             :min-height line-height
+             :alignment :center-left
+             :children [(cond-> field
+                          :always
+                          (assoc :fx/type form-input-view
+                                 :localization-state localization-state
+                                 :resource-string-converter resource-string-converter
+                                 :value (if (= ::no-value value)
+                                          (form/field-default field)
+                                          value)
+                                 :on-value-changed {:event-type :set
+                                                    :path path}
+                                 :state-path state-path)
 
-            :always
-            (conj {:fx/type fx.v-box/lifecycle
-                   :fx/key [:control path]
-                   :style-class (case (:severity error)
-                                  :fatal ["cljfx-form-error"]
-                                  :warning ["cljfx-form-warning"]
-                                  [])
-                   :grid-pane/row row
-                   :grid-pane/column 2
-                   :visible visible
-                   :managed visible
-                   :min-height line-height
-                   :alignment :center-left
-                   :children [(cond-> field
-                                      :always
-                                      (assoc :fx/type form-input-view
-                                             :resource-string-converter resource-string-converter
-                                             :value (if (= ::no-value value)
-                                                      (form/field-default field)
-                                                      value)
-                                             :on-value-changed {:event-type :set
-                                                                :path path}
-                                             :state-path state-path)
+                          (not= ::no-value state)
+                          (assoc :state state))]}))))
 
-                                      (not= ::no-value state)
-                                      (assoc :state state))]}))))
-
-(defn- section-view [{:keys [title help fields values ui-state resource-string-converter visible]}]
+(defn- section-view [{:keys [title help fields values ui-state resource-string-converter visible localization-state project]}]
   {:fx/type fx.v-box/lifecycle
    :visible visible
    :managed visible
    :children (cond-> []
 
-                     :always
-                     (conj {:fx/type fx.label/lifecycle
-                            :style-class ["label" "cljfx-form-title"]
-                            :text title})
+               :always
+               (conj {:fx/type fx.label/lifecycle
+                      :style-class ["label" "cljfx-form-title"]
+                      :text title})
 
-                     help
-                     (conj {:fx/type fx.label/lifecycle
-                            :text help})
+               help
+               (conj {:fx/type fx.label/lifecycle :text help})
 
-                     :always
-                     (conj {:fx/type fx.grid-pane/lifecycle
-                            :style-class "cljfx-form-fields"
-                            :vgap line-spacing
-                            :column-constraints [{:fx/type fx.column-constraints/lifecycle
-                                                  :min-width 150
-                                                  :max-width 150}
-                                                 {:fx/type fx.column-constraints/lifecycle
-                                                  :min-width line-height
-                                                  :max-width line-height}
-                                                 {:fx/type fx.column-constraints/lifecycle
-                                                  :hgrow :always
-                                                  :min-width 200
-                                                  :max-width large-field-width}]
-                            :children (first
-                                        (reduce
-                                          (fn [[acc row] field]
-                                            [(into acc (make-row values
-                                                                 ui-state
-                                                                 resource-string-converter
-                                                                 row
-                                                                 field))
-                                             (if (:visible field) (inc row) row)])
-                                          [[] 0]
-                                          fields))}))})
+               :always
+               (conj {:fx/type fx.grid-pane/lifecycle
+                      :style-class "cljfx-form-fields"
+                      :vgap line-spacing
+                      :column-constraints [{:fx/type fx.column-constraints/lifecycle
+                                            :min-width 150
+                                            :max-width 150}
+                                           {:fx/type fx.column-constraints/lifecycle
+                                            :min-width line-height
+                                            :max-width line-height}
+                                           {:fx/type fx.column-constraints/lifecycle
+                                            :hgrow :always
+                                            :min-width 200
+                                            :max-width large-field-width}]
+                      :children (first
+                                  (reduce
+                                    (fn [[acc row] field]
+                                      [(into acc (make-row values
+                                                           ui-state
+                                                           resource-string-converter
+                                                           row
+                                                           field
+                                                           localization-state
+                                                           project))
+                                       (if (:visible field) (inc row) row)])
+                                    [[] 0]
+                                    fields))}))})
 
 ;; region filtering
 
@@ -1391,15 +1537,15 @@
   (when (some? value)
     [((:to-string field str) value)]))
 
-(defn- set-field-visibility [field values filter-term section-visible]
+(defn- annotate-field [field values filter-term section-visible localization-state]
   (let [value (get values (:path field) ::no-value)
         visible (and (or section-visible
-                         (text-util/includes-ignore-case? (:label field) filter-term)
-                         (boolean (some #(text-util/includes-ignore-case? % filter-term)
-                                        (filterable-strings
-                                          (assoc field :value (if (= value ::no-value)
-                                                                (form/field-default field)
-                                                                value))))))
+                         (text-util/includes-ignore-case? (get-label-text localization-state field) filter-term)
+                         (coll/any? #(text-util/includes-ignore-case? % filter-term)
+                                    (filterable-strings
+                                      (assoc field :value (if (= value ::no-value)
+                                                            (form/field-default field)
+                                                            value)))))
                      (or (not (:deprecated field))
                          (some? (settings/get-setting-error
                                   (if (= value ::no-value) nil value)
@@ -1407,17 +1553,22 @@
                                   :build-targets))))]
     (assoc field :visible visible)))
 
-(defn- set-section-visibility [{:keys [title help fields] :as section} values filter-term]
-  (let [visible (or (text-util/includes-ignore-case? title filter-term)
+(defn- annotate-section [{:keys [fields] :as section} values filter-term localization-state]
+  (let [title (get-label-text localization-state section)
+        help (get-help-text localization-state section)
+        visible (or (text-util/includes-ignore-case? title filter-term)
                     (and (some? help)
                          (text-util/includes-ignore-case? help filter-term)))
         fields (into []
                      (comp
                        (remove :hidden)
-                       (map #(set-field-visibility % values filter-term visible)))
+                       (map #(annotate-field % values filter-term visible localization-state)))
                      fields)]
-    (assoc section :visible (boolean (some :visible fields))
-                   :fields fields)))
+    (-> section
+        (assoc :visible (coll/any? :visible fields)
+               :title title
+               :fields fields)
+        (cond-> help (assoc :help help)))))
 
 (defmethod handle-event :filter-text-changed [{:keys [ui-state fx/event]}]
   {:set-ui-state (assoc ui-state :filter-term event)})
@@ -1447,7 +1598,7 @@
 
           nil)))))
 
-(defn- filter-text-field [{:keys [text sections selected-section-title]}]
+(defn- filter-text-field [{:keys [text sections selected-section-title localization-state]}]
   (wrap-focus-text-field
     {:fx/type fx.text-field/lifecycle
      :id "filter-text-field"
@@ -1455,7 +1606,7 @@
      :pref-height 10
      :max-height :use-pref-size
      :style-class ["text-field" "filter-text-field"]
-     :prompt-text "Filter"
+     :prompt-text (localization-state (localization/message "form.filter"))
      :text text
      :event-filter {:event-type :navigate-sections
                     :sections sections
@@ -1465,7 +1616,7 @@
 
 ;; endregion
 
-(defn- make-section-views [sections values ui-state resource-string-converter]
+(defn- make-section-views [sections values ui-state resource-string-converter localization-state project]
   (first
     (reduce
       (fn
@@ -1474,9 +1625,11 @@
                               :fx/type section-view
                               :values values
                               :ui-state ui-state
+                              :localization-state localization-state
+                              :project project
                               :resource-string-converter resource-string-converter)
                visible (:visible section)]
-           (if (empty? acc)
+           (if (coll/empty? acc)
              [(conj acc section-view) visible]
              [(into acc [{:fx/type fx.separator/lifecycle
                           :style-class "cljfx-form-separator"
@@ -1492,7 +1645,13 @@
 (defmethod handle-event :jump-to [{:keys [section ui-state]}]
   {:set-ui-state (assoc ui-state :selected-section-title section)})
 
-(defn- form-sections [{:keys [groups sections selected-section-title]}]
+(defn- section-group-text [localization-state group]
+  (let [group-key (str "form.group." (string/lower-case group))]
+    (if (localization/defines-message-key? localization-state group-key)
+      (localization-state (localization/message group-key))
+      group)))
+
+(defn- form-sections [{:keys [groups sections selected-section-title localization-state]}]
   {:fx/type fx/ext-let-refs
    :refs (into {}
                (comp
@@ -1524,7 +1683,7 @@
                                                           :fill-width true
                                                           :children (into [{:fx/type fx.label/lifecycle
                                                                             :style-class "cljfx-form-section-header"
-                                                                            :text group}]
+                                                                            :text (section-group-text localization-state group)}]
                                                                           (map
                                                                             (fn [title]
                                                                               {:fx/type fx/ext-get-ref :ref title}))
@@ -1533,16 +1692,16 @@
 
 ;; endregion
 
-(defn- form-view [{:keys [parent form-data ui-state resource-string-converter]}]
+(defn- form-view [{:keys [parent form-data ui-state resource-string-converter localization-state project]}]
   (let [{:keys [sections values group-order default-section-name]} form-data
         filter-term (:filter-term ui-state)
-        sections-with-visibility (mapv #(set-section-visibility % values filter-term) sections)
+        annotated-sections (mapv #(annotate-section % values filter-term localization-state) sections)
         navigation (:navigation form-data true)]
     {:fx/type fxui/ext-with-anchor-pane-props
-     :desc {:fx/type fxui/ext-value
+     :desc {:fx/type ui/ext-value
             :value parent}
      :props {:children [(if navigation
-                          (let [visible-sections (filterv :visible sections-with-visibility)
+                          (let [visible-sections (filterv :visible annotated-sections)
                                 groups (->> visible-sections
                                             (util/group-into
                                               {}
@@ -1552,7 +1711,8 @@
                                             (sort-by #(group-order (key %) ##Inf)))
                                 visible-titles (into #{} (map :title) visible-sections)
                                 selected-section-title (or (-> ui-state :selected-section-title (or default-section-name) visible-titles)
-                                                           (some-> groups first val first visible-titles))]
+                                                           (some-> groups first val first visible-titles))
+                                selected-section (coll/first-where #(= selected-section-title (:title %)) visible-sections)]
                             {:fx/type fx.h-box/lifecycle
                              :anchor-pane/top 0
                              :anchor-pane/right 0
@@ -1565,34 +1725,34 @@
                                          :view-order 0
                                          :children [{:fx/type filter-text-field
                                                      :v-box/margin 12
+                                                     :localization-state localization-state
                                                      :text filter-term
                                                      :sections (mapcat val groups)
                                                      :selected-section-title selected-section-title}
                                                     {:fx/type form-sections
+                                                     :localization-state localization-state
                                                      :sections (mapcat val groups)
                                                      :selected-section-title selected-section-title
                                                      :groups groups}]}
-                                        {:fx/type fx/ext-let-refs
+                                        {:fx/type fx/ext-on-instance-lifecycle
                                          :h-box/hgrow :always
-                                         :refs (into {}
-                                                     (map (juxt :title
-                                                                #(assoc % :fx/type section-view
-                                                                          :values values
-                                                                          :ui-state ui-state
-                                                                          :resource-string-converter resource-string-converter)))
-                                                     sections-with-visibility)
-                                         :desc {:fx/type fx/ext-on-instance-lifecycle
-                                                :on-created #(ui/context! % :form {:root parent} nil)
-                                                :desc {:fx/type fx.scroll-pane/lifecycle
-                                                       :id "scroll-pane"
-                                                       :view-order 1
-                                                       :fit-to-width true
-                                                       :content {:fx/type fx.v-box/lifecycle
-                                                                 :style-class "cljfx-form"
-                                                                 :children (if selected-section-title
-                                                                             [{:fx/type fx/ext-get-ref
-                                                                               :ref selected-section-title}]
-                                                                             [])}}}}]})
+                                         :on-created #(ui/context! % :form {:root parent} nil)
+                                         :desc {:fx/type fx.scroll-pane/lifecycle
+                                                :id "scroll-pane"
+                                                :view-order 1
+                                                :fit-to-width true
+                                                :content (cond-> {:fx/type fx.v-box/lifecycle
+                                                                  :style-class "cljfx-form"}
+                                                           selected-section
+                                                           (assoc :children
+                                                             [(assoc selected-section
+                                                                :fx/type section-view
+                                                                :fx/key selected-section-title
+                                                                :values values
+                                                                :ui-state ui-state
+                                                                :localization-state localization-state
+                                                                :project project
+                                                                :resource-string-converter resource-string-converter)]))}}]})
 
                           {:fx/type fx/ext-on-instance-lifecycle
                            :anchor-pane/top 0
@@ -1607,103 +1767,119 @@
                                   :content {:fx/type fx.v-box/lifecycle
                                             :style-class "cljfx-form"
                                             :children (make-section-views
-                                                        sections-with-visibility
+                                                        annotated-sections
                                                         values
                                                         ui-state
-                                                        resource-string-converter)}}})]}}))
+                                                        resource-string-converter
+                                                        localization-state
+                                                        project)}}})]}}))
 
 (defn- wrap-force-refresh [f view-id]
   (fn [event]
     (f event)
     (g/node-value view-id :form-view)))
 
-
-
-(defn- create-renderer [view-id parent workspace project]
+(defn- create-renderer [view-id parent workspace project prefs localization]
   (let [resource-string-converter (make-resource-string-converter workspace)]
     (fx/create-renderer
       :error-handler error-reporting/report-exception!
-      :opts (cond->
-              {:fx.opt/map-event-handler
-               (-> handle-event
-                   (fx/wrap-co-effects
-                     {:ui-state #(g/node-value view-id :ui-state)
-                      :form-data #(g/node-value view-id :form-data)
-                      :workspace (constantly workspace)
-                      :project (constantly project)
-                      :parent (constantly parent)})
-                   (fx/wrap-effects
-                     {:dispatch fx/dispatch-effect
-                      :set (fn [[path value] _]
+      :opts {:fx.opt/map-event-handler
+             (-> handle-event
+                 (fx/wrap-co-effects
+                   {:ui-state #(g/node-value view-id :ui-state)
+                    :form-data #(g/node-value view-id :form-data)
+                    :workspace (constantly workspace)
+                    :project (constantly project)
+                    :parent (constantly parent)
+                    :localization (constantly localization)})
+                 (fx/wrap-effects
+                   {:dispatch fx/dispatch-effect
+                    :set (fn [[path value] _]
+                           (let [ops (:form-ops (g/node-value view-id :form-data))]
+                             (g/transact (form/set-value ops path value))))
+                    :clear (fn [path _]
                              (let [ops (:form-ops (g/node-value view-id :form-data))]
-                               (form/set-value! ops path value)))
-                      :clear (fn [path _]
-                               (let [ops (:form-ops (g/node-value view-id :form-data))]
-                                 (when (form/can-clear? ops)
-                                   (form/clear-value! ops path))))
-                      :set-ui-state (fn [ui-state _]
-                                      (g/set-property! view-id :ui-state ui-state))
-                      :cancel-edit (fn [x _]
-                                     (cond
-                                       (instance? Cell x)
-                                       (fx/run-later (.cancelEdit ^Cell x))
+                               (when (form/can-clear? ops)
+                                 (g/transact (form/clear-value ops path)))))
+                    :set-ui-state (fn [ui-state _event]
+                                    (g/transact
+                                      {:undoable false}
+                                      (g/set-property view-id :ui-state ui-state)))
+                    :cancel-edit (fn [x _]
+                                   (cond
+                                     (instance? Cell x)
+                                     (fx/run-later (.cancelEdit ^Cell x))
 
-                                       (instance? ListView x)
-                                       (.edit ^ListView x -1)))
-                      :open-resource (fn [[node value] _]
-                                       (ui/run-command node :file.open value))
-                      :show-dialog (fn [dialog-type _]
-                                     (case dialog-type
-                                       :directory-not-in-project
-                                       (dialogs/make-info-dialog
-                                         {:title "Invalid Directory"
-                                          :icon :icon/triangle-error
-                                          :header "The directory must reside within the project."})
+                                     (instance? ListView x)
+                                     (.edit ^ListView x -1)))
+                    :open-resource (fn [[node value] _]
+                                     (ui/run-command node :file.open value))
+                    :show-dialog (fn [dialog-type _]
+                                   (case dialog-type
+                                     :directory-not-in-project
+                                     (dialogs/make-info-dialog
+                                       localization
+                                       {:title (localization/message "dialog.form-view.directory-not-in-project.title")
+                                        :icon :icon/triangle-error
+                                        :header (localization/message "dialog.form-view.directory-not-in-project.header")})
 
-                                       :file-not-in-project
-                                       (dialogs/make-info-dialog
-                                         {:title "Invalid File"
-                                          :icon :icon/triangle-error
-                                          :header "The file must reside within the project."})))})
-                   (wrap-force-refresh view-id))}
-              (system/defold-dev?)
-              (assoc :fx.opt/type->lifecycle (requiring-resolve 'cljfx.dev/type->lifecycle)))
+                                     :file-not-in-project
+                                     (dialogs/make-info-dialog
+                                       localization
+                                       {:title (localization/message "dialog.form-view.file-not-in-project.title")
+                                        :icon :icon/triangle-error
+                                        :header (localization/message "dialog.form-view.file-not-in-project.header")})))})
+                 (wrap-force-refresh view-id))}
 
       :middleware (comp
                     fxui/wrap-dedupe-desc
                     (fx/wrap-map-desc
                       (fn [{:keys [form-data ui-state]}]
-                        {:fx/type form-view
-                         :form-data form-data
-                         :ui-state ui-state
-                         :parent parent
-                         :resource-string-converter resource-string-converter}))))))
+                        {:fx/type fx/ext-set-env
+                         :env {:prefs prefs}
+                         :desc {:fx/type fx/ext-watcher
+                                :ref localization
+                                :key :localization-state
+                                :desc {:fx/type form-view
+                                       :form-data form-data
+                                       :ui-state ui-state
+                                       :parent parent
+                                       :project project
+                                       :resource-string-converter resource-string-converter}}}))))))
 
-(defn- make-form-view-node [graph parent resource-node workspace project]
-  (g/make-nodes graph [view CljfxFormView]
-    (g/set-property view :renderer (create-renderer view parent workspace project))
+(defn- make-form-view-node [parent resource-node workspace project prefs localization]
+  (g/make-nodes [view CljfxFormView]
+    (g/set-property view :renderer (create-renderer view parent workspace project prefs localization))
     (g/connect resource-node :form-data view :form-data)))
 
-(def make-form-view-node! (comp first g/tx-nodes-added g/transact make-form-view-node))
+(defn make-form-view-node! [parent resource-node workspace project prefs localization]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (make-form-view-node parent resource-node workspace project prefs localization)))))
 
-(defn- make-form-view [graph parent resource-node opts]
-  (let [{:keys [workspace project tab]} opts
-        view-id (make-form-view-node! graph parent resource-node workspace project)
+(defn- make-form-view [parent resource-node opts]
+  (let [{:keys [workspace project prefs tab localization]} opts
+        view-id (make-form-view-node! parent resource-node workspace project prefs localization)
         repaint-timer (ui/->timer 30 "refresh-form-view"
                                   (fn [_timer _elapsed _dt]
                                     (g/node-value view-id :form-view)))]
     (g/node-value view-id :form-view)
     (ui/timer-start! repaint-timer)
-    (ui/timer-stop-on-closed! tab repaint-timer)
+    (ui/on-closed! tab (fn [_]
+                         (ui/timer-stop! repaint-timer)
+                         ;; dispose the state to e.g. unwatch the localization
+                         ((g/node-value view-id :renderer) nil)))
     view-id))
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
-                                :id :cljfx-form-view
-                                :label "Form"
-                                :make-view-fn make-form-view))
+    :id :form
+    :label (localization/message "resource.view.form")
+    :make-view-fn make-form-view))
 
 (handler/defhandler :edit.find :form
   (run [^Node root]
-       (when-let [node (.lookup root "#filter-text-field")]
-         (.requestFocus node))))
+    (when-let [node (.lookup root "#filter-text-field")]
+      (.requestFocus node))))

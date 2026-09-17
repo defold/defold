@@ -1,4 +1,4 @@
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -47,11 +47,16 @@ def _create_headers(headers, token):
     return headers
 
 # use GraphQL API
-def query(query, token, headers = None):
+def query(query, token, headers = None, variables = None):
     import requests
     try:
         url = URL_GRAPHQL_API
-        json = { 'query': "query " + query }
+        if query.strip().startswith("query"):
+            json = { 'query': query, "variables": variables }
+        elif query.strip().startswith("mutation"):
+            json = { 'query': query, "variables": variables }
+        else:
+            json = { 'query': "query " + query, "variables": variables }
         headers = _create_headers(headers, token)
         response = requests.post(url, json = json, headers = headers)
         response.raise_for_status()

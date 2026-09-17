@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -48,6 +48,41 @@ namespace dmScript
      * @name Message
      * @namespace msg
      * @language Lua
+     */
+
+    /*# Component URL
+     *
+     * A URL identifies a message endpoint in Defold. Its string form is
+     * `[socket:][path][#fragment]`: the socket identifies a collection, the path
+     * identifies a game object, and the fragment identifies a component. Missing
+     * parts are resolved relative to the script that creates the URL.
+     *
+     * Create URLs with [ref:msg.url]. The `socket`, `path`, and `fragment`
+     * components are exposed as [type:hash] values and can be inspected or
+     * replaced individually. URLs are commonly passed to [ref:msg.post] and to
+     * functions that address game objects or components.
+     *
+     * @class
+     * @name url
+     * @member socket [type:hash] socket component
+     * @member path [type:hash] path component
+     * @member fragment [type:hash] fragment component
+     * @examples
+     *
+     * Create a relative URL for a component on the current game object:
+     *
+     * ```lua
+     * local sprite_url = msg.url("#sprite")
+     * msg.post(sprite_url, "disable")
+     * print(sprite_url.fragment) --> hash: [sprite]
+     * ```
+     *
+     * Create an absolute URL by specifying all three components:
+     *
+     * ```lua
+     * local controller_url = msg.url("main:/player#controller")
+     * print(controller_url) --> url: [main:/player#controller]
+     * ```
      */
 
     const uint32_t MAX_MESSAGE_DATA_SIZE = 2048;
@@ -467,7 +502,7 @@ namespace dmScript
      * @name msg.post
      * @param receiver [type:string|url|hash] The receiver must be a string in URL-format, a URL object or a hashed string.
      * @param message_id [type:string|hash] The id must be a string or a hashed string.
-     * @param [message] [type:table|nil] a lua table with message parameters to send.
+     * @param [message] [type:table<any, any>|nil] a lua table with message parameters to send.
      * @examples
      *
      * Send "enable" to the sprite "my_sprite" in "my_gameobject":

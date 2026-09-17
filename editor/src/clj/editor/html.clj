@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,7 +15,8 @@
 (ns editor.html
   (:require [dynamo.graph :as g]
             [editor.code.data :as data]
-            [editor.code.resource :as r]))
+            [editor.code.resource :as r]
+            [editor.localization :as localization]))
 
 (g/defnode HtmlNode
   (inherits r/CodeEditorResourceNode)
@@ -25,7 +26,7 @@
 (defn register-resource-types [workspace]
   (r/register-code-resource-type workspace
     :ext "html"
-    :label "HTML"
+    :label (localization/message "resource.type.html")
     :node-type HtmlNode
     :view-types [:html :code]
     :view-opts nil))

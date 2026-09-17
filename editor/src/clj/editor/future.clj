@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,7 +14,7 @@
 
 (ns editor.future
   (:refer-clojure :exclude [future])
-  (:import [java.util.concurrent CompletableFuture CompletionException Executors ThreadFactory]
+  (:import [java.util.concurrent CompletableFuture CompletionException Executors]
            [java.util.function Function Supplier]))
 
 (set! *warn-on-reflection* true)
@@ -40,13 +40,7 @@
              ~@body))))))
 
 (def io-executor
-  (let [counter (atom 0)]
-    (Executors/newCachedThreadPool
-      (reify ThreadFactory
-        (newThread [_ r]
-          (doto (Thread. r)
-            (.setDaemon true)
-            (.setName (str "editor.future/io-executor#" (swap! counter inc)))))))))
+  (Executors/newVirtualThreadPerTaskExecutor))
 
 (defmacro io
   "Asynchronously perform an IO-intensive operation (see also: compute)"
@@ -63,6 +57,14 @@
   (if (instance? CompletableFuture x)
     x
     (completed x)))
+
+(defn unwrap [x]
+  (if-not (instance? CompletableFuture x)
+    x
+    (try
+      (.join ^CompletableFuture x)
+      (catch CompletionException ex
+        (throw (.getCause ex))))))
 
 (defn failed
   ^CompletableFuture [ex]

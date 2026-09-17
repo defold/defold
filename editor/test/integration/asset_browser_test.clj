@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,7 +14,6 @@
 
 (ns integration.asset-browser-test
   (:require [clojure.java.io :as io]
-            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
@@ -40,21 +39,25 @@
     (let [queries ["**/atlas.atlas" "**/env.cubemap"
                    "**/atlas.sprite" "**/atlas_sprite.go" "**/atlas_sprite.collection"]]
       (test-util/with-loaded-project
-        (let [view-graph (g/make-graph! :history false :volatility 2)]
-          (doseq [query queries
-                  :let [results (project/find-resources project query)]]
-            (is (= 1 (count results)))
-            (let [resource-node (get (first results) 1)
-                  resource (resource-node/resource resource-node)
-                  resource-type (resource/resource-type resource)
-                  view-type (first (:view-types resource-type))
-                  make-preview-fn (:make-preview-fn view-type)
-                  view-opts (assoc ((:id view-type) (:view-opts resource-type))
-                                   :app-view app-view
-                                   :project project)
-                  view (make-preview-fn view-graph resource-node view-opts 128 128)]
-              (let [image (g/node-value view :frame)]
-                (is (not (nil? image)))))))))))
+        (doseq [query queries
+                :let [results (project/find-resources project query)]]
+          (is (= 1 (count results)))
+          (let [resource-node (get (first results) 1)
+                resource (resource-node/resource resource-node)
+                resource-type (resource/resource-type resource)
+                view-type (first (:view-types resource-type))
+                make-preview-fn (:make-preview-fn view-type)
+                view-opts (assoc ((:id view-type) (:view-opts resource-type))
+                            :app-view app-view
+                            :project project)
+                preview (make-preview-fn resource-node view-opts 128 128)]
+            (try
+              (let [image (g/node-value preview :frame)]
+                (is (some? image)))
+              (finally
+                (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
+                  (dispose-preview-fn preview))
+                (g/transact {:undoable false} (g/delete-node preview))))))))))
 
 (deftest allow-resource-move
   (test-util/with-loaded-project
@@ -103,7 +106,7 @@
 
 (deftest paste
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world)
+    (let [workspace (test-util/setup-scratch-workspace!)
           root-dir (workspace/project-directory workspace)
           make-file (partial io/file root-dir)
           make-dir-resource (fn [path opts] (test-util/make-fake-file-resource workspace (.getPath root-dir) (make-file path) nil (merge opts {:source-type :folder})))
@@ -132,11 +135,13 @@
           true [writable-dir-1 read-only-dir-1] false))
       (testing "paste!"
         (are [target-resource src-files expected]
-            (let [alerted (atom false)
-                  message (atom "")]
-              (with-redefs [dialogs/make-info-dialog (fn [text] (reset! alerted true) (reset! message text))]
-                (asset-browser/paste! workspace target-resource src-files (constantly nil))
-                (= expected (not (or @alerted (string/includes? message "reserved"))))))
+          (let [alerted (atom false)
+                message (atom "")]
+            (with-redefs [dialogs/make-info-dialog (fn [_localization props]
+                                                     (reset! alerted true)
+                                                     (reset! message (:content props)))]
+              (asset-browser/paste! workspace target-resource src-files (constantly nil) test-util/localization)
+              (= expected (not (or @alerted (= "dialog.asset-paste-reserved.content" (:k @message)))))))
 
           root-resource [(make-file "car/car.script")] true
 
@@ -163,10 +168,10 @@
           [fixed-1] false))
       (testing "validate-rename"
         (are [parent-path new-name expected] (= expected (nil? (asset-browser/validate-new-resource-name root-dir parent-path new-name)))
-          
+
           "" "fine" true
           "" "game.project" true
-          
+
           "" "builtins" false
           "" "build" false
           "" ".internal" false
@@ -197,11 +202,10 @@
           [read-only-file-resource] false
           [writable-dir-resource] true
           [writable-file-resource] true
-          [writable-file-resource read-only-dir-resource] false
+          [writable-file-resource read-only-dir-resource] true
           [writable-file-resource writable-dir-resource] true
           [fixed-file-resource] false
           [fs-builtins-resource] true))))) ; this should never appear in the asset browser, but if we decide it should - it will be deletable
-
 
 (deftest new-folder
   (test-util/with-loaded-project
@@ -238,17 +242,17 @@
 
 (deftest drop-move
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world)
+    (let [workspace (test-util/setup-scratch-workspace!)
           root-dir (workspace/project-directory workspace)
           make-file (partial io/file root-dir)
-          resource-map (g/node-value workspace :resource-map)]
+          resource-map (g/raw-property-value (g/now) workspace :resource-map)]
       (testing "drag-moving game.project becomes copy"
         ;; moving /game.project and /car/car.script into the /collection directory
         (let [moved (asset-browser/drop-files! workspace [[(io/as-file (resource-map "/game.project")) (make-file "collection/game.project")]
                                                           [(io/as-file (resource-map "/car/car.script")) (make-file "collection/car.script")]]
                                                :move)]
           (workspace/resource-sync! workspace moved)
-          (let [resource-map (g/node-value workspace :resource-map)]
+          (let [resource-map (g/raw-property-value (g/now) workspace :resource-map)]
             (is (some? (resource-map "/game.project")))
             (is (some? (resource-map "/collection/game.project")))
             (is (not (some? (resource-map "/car/car.script"))))

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -62,7 +62,7 @@ static int g_DebuggerLightweightHook = 0;
 
 union SaveLoadBuffer
 {
-    uint32_t m_alignment; // This alignment is required for js-web
+    uint32_t m_alignment; // This alignment is required for web targets
     char m_buffer[MAX_BUFFER_SIZE]; // Resides in .bss
 } DM_ALIGNED(16) g_saveload;
 
@@ -77,6 +77,66 @@ union SaveLoadBuffer
      * @name System
      * @namespace sys
      * @language Lua
+     */
+
+    /*# Network connectivity states
+     * @enum
+     * @name sys.NETWORK
+     * @member sys.NETWORK_CONNECTED Connected through Wi-Fi or another non-cellular network.
+     * @member sys.NETWORK_CONNECTED_CELLULAR Connected through a cellular network.
+     * @member sys.NETWORK_DISCONNECTED No network connection was found.
+     */
+
+    /*# URL opening attributes
+     * @struct
+     * @name sys.open_url_attributes
+     * @member target? [type:string] HTML5 browsing context: `_self`, `_blank`, `_parent`, `_top`, or a named window.
+     */
+
+    /*# System-information options
+     * @struct
+     * @name sys.sys_info_options
+     * @member ignore_secure? [type:boolean] Omit operating-system-protected values such as `device_ident`.
+     */
+
+    /*# System information
+     * @struct
+     * @name sys.sys_info
+     * @member device_model? [type:string] Device model on iOS and Android.
+     * @member manufacturer? [type:string] Device manufacturer on iOS and Android.
+     * @member system_name [type:string] Operating-system name.
+     * @member system_version [type:string] Operating-system version.
+     * @member api_version [type:string] Platform API version.
+     * @member language [type:string] ISO 639 language code.
+     * @member device_language [type:string] Preferred device language, optionally followed by an ISO 15924 script code.
+     * @member territory [type:string] ISO 3166-1 alpha-2 country code or UN M.49 numeric region code.
+     * @member gmt_offset [type:number] Current GMT offset in minutes.
+     * @member device_ident? [type:string] Operating-system-protected device identifier.
+     * @member user_agent? [type:string] HTTP user agent on HTML5.
+     */
+
+    /*# Engine information
+     * @struct
+     * @name sys.engine_info
+     * @member version [type:string] Defold engine version.
+     * @member version_sha1 [type:string] Engine build SHA-1.
+     * @member is_debug [type:boolean] Whether this is a debug engine build.
+     */
+
+    /*# Application information
+     * @struct
+     * @name sys.application_info
+     * @member installed [type:boolean] Whether the queried application is installed.
+     */
+
+    /*# Network-interface information
+     * @struct
+     * @name sys.interface_info
+     * @member name [type:string] Interface name.
+     * @member address? [type:string] IP address, when available.
+     * @member mac? [type:string] Hardware MAC address, when available.
+     * @member up [type:boolean] Whether the interface can transmit and receive data.
+     * @member running [type:boolean] Whether the interface is running.
      */
 
     char* Sys_SetupTableSerializationBuffer(int required_size)
@@ -110,11 +170,11 @@ union SaveLoadBuffer
      * (i.e. a 16 bit range). When tables are used to represent arrays, the values of
      * keys are permitted to fall within a 32 bit range, supporting sparse arrays, however
      * the limit on the total number of rows remains in effect.
+     * This function will raise a Lua error if an error occurs while saving the table.
      *
      * @name sys.save
      * @param filename [type:string] file to write to
-     * @param table [type:table] lua table to save
-     * @return success [type:boolean] a boolean indicating if the table could be saved or not
+     * @param table [type:table<any, any>] lua table to save
      * @examples
      *
      * Save data:
@@ -123,17 +183,32 @@ union SaveLoadBuffer
      * local my_table = {}
      * table.insert(my_table, "my_value")
      * local my_file_path = sys.get_save_file("my_game", "my_file")
-     * if not sys.save(my_file_path, my_table) then
-     *   -- Alert user that the data could not be saved
-     * end
+     * sys.save(my_file_path, my_table)
      * ```
      */
 
     static int Sys_Save(lua_State* L)
     {
-        const char* filename = luaL_checkstring(L, 1);
+        size_t filename_len = 0;
+        const char* filename = luaL_checklstring(L, 1, &filename_len);
+
+        if (filename_len >= DMPATH_MAX_PATH)
+        {
+            return luaL_error(L, "Could not write to the file %s. Path too long.", filename);
+        }
 
         luaL_checktype(L, 2, LUA_TTABLE);
+
+        char tmp_filename[DMPATH_MAX_PATH];
+        // The counter and hash are there to make the files unique enough to avoid that the user
+        // accidentally writes to it.
+        static int save_counter = 0;
+        uint32_t hash = dmHashString32(filename);
+        int res = dmSnPrintf(tmp_filename, sizeof(tmp_filename), "%s.defoldtmp_%x_%d", filename, hash, save_counter++);
+        if (res == -1)
+        {
+            return luaL_error(L, "Could not write to the file %s. Path too long.", filename);
+        }
 
         uint32_t table_size = CheckTableSize(L, 2);
 
@@ -145,19 +220,6 @@ union SaveLoadBuffer
         uint32_t n_used = CheckTable(L, buffer, table_size, 2);
 
 #if !defined(__EMSCRIPTEN__)
-
-        char tmp_filename[DMPATH_MAX_PATH];
-        // The counter and hash are there to make the files unique enough to avoid that the user
-        // accidentally writes to it.
-        static int save_counter = 0;
-        uint32_t hash = dmHashString32(filename);
-        int res = dmSnPrintf(tmp_filename, sizeof(tmp_filename), "%s.defoldtmp_%x_%d", filename, hash, save_counter++);
-        if (res == -1)
-        {
-            Sys_FreeTableSerializationBuffer(buffer);
-            return luaL_error(L, "Could not write to the file %s. Path too long.", filename);
-        }
-
         FILE* file = fopen(tmp_filename, "wb");
         if (!file)
         {
@@ -224,10 +286,11 @@ union SaveLoadBuffer
 
     /*# loads a lua table from a file on disk
      * If the file exists, it must have been created by <code>sys.save</code> to be loaded.
+     * This function will raise a Lua error if an error occurs while loading the file.
      *
      * @name sys.load
      * @param filename [type:string] file to read from
-     * @return loaded [type:table] lua table, which is empty if the file could not be found
+     * @return loaded [type:table<any, any>] lua table, which is empty if the file could not be found
      * @examples
      *
      * Load data that was previously saved, e.g. an earlier game session:
@@ -333,6 +396,7 @@ union SaveLoadBuffer
 
     /*# gets the save-file path
      * The save-file path is operating system specific and is typically located under the user's home directory.
+     * This function will raise a Lua error if unable to get the save file path.
      *
      * @note Setting the environment variable `DM_SAVE_HOME` overrides the default application support path.
      *
@@ -359,8 +423,8 @@ union SaveLoadBuffer
      * -- Android package name: com.foobar.packagename
      * print(my_file_path) --> /data/data/0/com.foobar.packagename/files/my_file
      *
-     * -- iOS: /var/mobile/Containers/Data/Application/123456AB-78CD-90DE-12345678ABCD/my_game/my_file
-     * print(my_file_path) --> /var/containers/Bundle/Applications/123456AB-78CD-90DE-12345678ABCD/my_game.app
+     * -- iOS: my_game.app
+     * print(my_file_path) --> /var/mobile/Containers/Data/Application/123456AB-78CD-90DE-12345678ABCD/my_game/my_file
      *
      * -- HTML5 path inside the IndexedDB: /data/.my_game/my_file or /.my_game/my_file
      * print(my_file_path) --> /data/.my_game/my_file
@@ -395,6 +459,7 @@ union SaveLoadBuffer
 
     /*# gets the application path
      * The path from which the application is run.
+     * This function will raise a Lua error if unable to get the application support path.
      *
      * @name sys.get_application_path
      * @return path [type:string] path to application executable
@@ -452,13 +517,13 @@ union SaveLoadBuffer
      * @name sys.get_config_string
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
      * @param [default_value] [type:string] (optional) default value to return if the value does not exist
-     * @return value [type:string] config value as a string. default_value if the config key does not exist. nil if no default value was supplied.
+     * @return value [type:string|nil] config value as a string. default_value if the config key does not exist. nil if no default value was supplied.
      * @examples
      *
      * Get user config value
      *
      * ```lua
-     * local text = sys.get_config_string("my_game.text", "default text"))
+     * local text = sys.get_config_string("my_game.text", "default text")
      * ```
      *
      * Start the engine with a bootstrap config override and add a custom config value
@@ -582,20 +647,52 @@ union SaveLoadBuffer
         return 1;
     }
 
+    /*# get boolean config value with optional default value
+     * Get boolean config value from the game.project configuration file with optional default value
+     *
+     * @name sys.get_config_boolean
+     * @param key [type:string] key to get value for. The syntax is SECTION.KEY
+     * @param [default_value] [type:boolean] (optional) default value to return if the value does not exist
+     * @return value [type:boolean] config value as a boolean. default_value if the config key does not exist. false if no default value was supplied.
+     * @examples
+     *
+     * Get user config value
+     *
+     * ```lua
+     * local vsync = sys.get_config_boolean("display.vsync", false)
+     * ```
+     */
+    static int Sys_GetConfigBoolean(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const char* key = luaL_checkstring(L, 1);
+        bool default_value = false;
+        if (!lua_isnone(L, 2))
+        {
+            default_value = lua_toboolean(L, 2);
+        }
+
+        dmConfigFile::HConfig config_file = GetConfigFile(L);
+        if (config_file)
+        {
+            int32_t int_value = dmConfigFile::GetInt(config_file, key, default_value ? 1 : 0);
+            bool value = int_value != 0;
+            lua_pushboolean(L, value);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        return 1;
+    }
+
     /*# open url in default application
      * Open URL in default application, typically a browser
      *
      * @name sys.open_url
      * @param url [type:string] url to open
-     * @param [attributes] [type:table] table with attributes
-     *
-     * `target`
-     * - [type:string] [icon:html5]: Optional. Specifies the target attribute or the name of the window. The following values are supported:
-     * - `_self` - (default value) URL replaces the current page.
-     * - `_blank` - URL is loaded into a new window, or tab.
-     * - `_parent` - URL is loaded into the parent frame.
-     * - `_top` - URL replaces any framesets that may be loaded.
-     * - `name` - The name of the window (Note: the name does not specify the title of the new window).
+     * @param [attributes] [type:sys.open_url_attributes] optional URL opening attributes
      *
      * @return success [type:boolean] a boolean indicating if the url could be opened or not
      * @examples
@@ -695,42 +792,8 @@ union SaveLoadBuffer
      *
      * Returns a table with system information.
      * @name sys.get_sys_info
-     * @param [options] [type:table] optional options table
-     * - ignore_secure [type:boolean] this flag ignores values might be secured by OS e.g. `device_ident`
-     * @return sys_info [type:table] table with system information in the following fields:
-     *
-     * `device_model`
-     * : [type:string] [icon:ios][icon:android] Only available on iOS and Android.
-     *
-     * `manufacturer`
-     * : [type:string] [icon:ios][icon:android] Only available on iOS and Android.
-     *
-     * `system_name`
-     * : [type:string] The system name: "Darwin", "Linux", "Windows", "HTML5", "Android" or "iPhone OS"
-     *
-     * `system_version`
-     * : [type:string] The system OS version.
-     *
-     * `api_version`
-     * : [type:string] The API version on the system.
-     *
-     * `language`
-     * : [type:string] Two character ISO-639 format, i.e. "en".
-     *
-     * `device_language`
-     * : [type:string] Two character ISO-639 format (i.e. "sr") and, if applicable, followed by a dash (-) and an ISO 15924 script code (i.e. "sr-Cyrl" or "sr-Latn"). Reflects the device preferred language.
-     *
-     * `territory`
-     * : [type:string] Two character ISO-3166 format, i.e. "US".
-     *
-     * `gmt_offset`
-     * : [type:number] The current offset from GMT (Greenwich Mean Time), in minutes.
-     *
-     * `device_ident`
-     * : [type:string] This value secured by OS. [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android. On Android, you need to add `READ_PHONE_STATE` permission to be able to get this data. We don't use this permission in Defold.
-     *
-     * `user_agent`
-     * : [type:string] [icon:html5] The HTTP user agent, i.e. "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_3) AppleWebKit/602.4.8 (KHTML, like Gecko) Version/10.0.3 Safari/602.4.8"
+     * @param [options] [type:sys.sys_info_options] optional system-information options
+     * @return sys_info [type:sys.sys_info] system information
      *
      * @examples
      *
@@ -813,16 +876,7 @@ union SaveLoadBuffer
      * Returns a table with engine information.
      *
      * @name sys.get_engine_info
-     * @return engine_info [type:table] table with engine information in the following fields:
-     *
-     * `version`
-     * : [type:string] The current Defold engine version, i.e. "1.2.96"
-     *
-     * `version_sha1`
-     * : [type:string] The SHA1 for the current engine build, i.e. "0060183cce2e29dbd09c85ece83cbb72068ee050"
-     *
-     * `is_debug`
-     * : [type:boolean] If the engine is a debug or release version
+     * @return engine_info [type:sys.engine_info] engine information
      *
      * @examples
      *
@@ -869,10 +923,7 @@ union SaveLoadBuffer
      *
      * @name sys.get_application_info
      * @param app_string [type:string] platform specific string with application package or query, see above for details.
-     * @return app_info [type:table] table with application information in the following fields:
-     *
-     * `installed`
-     * : [type:boolean] `true` if the application is installed, `false` otherwise.
+     * @return app_info [type:sys.application_info] application information
      *
      * @examples
      *
@@ -937,22 +988,7 @@ union SaveLoadBuffer
      * Returns an array of tables with information on network interfaces.
      *
      * @name sys.get_ifaddrs
-     * @return ifaddrs [type:table] an array of tables. Each table entry contain the following fields:
-     *
-     * `name`
-     * : [type:string] Interface name
-     *
-     * `address`
-     * : [type:string] IP address. [icon:attention] might be `nil` if not available.
-     *
-     * `mac`
-     * : [type:string] Hardware MAC address. [icon:attention] might be nil if not available.
-     *
-     * `up`
-     * : [type:boolean] `true` if the interface is up (available to transmit and receive data), `false` otherwise.
-     *
-     * `running`
-     * : [type:boolean] `true` if the interface is running, `false` otherwise.
+     * @return ifaddrs [type:sys.interface_info[]] network interfaces
      *
      * @examples
      *
@@ -1055,7 +1091,7 @@ union SaveLoadBuffer
      * The error handler is a function which is called whenever a lua runtime error occurs.
      *
      * @name sys.set_error_handler
-     * @param error_handler [type:function(source, message, traceback)] the function to be called on error
+     * @param error_handler [type:fun(source:string, message:string, traceback:string)] the function to be called on error
      *
      * `source`
      * : [type:string] The runtime context of the error. Currently, this is always `"lua"`.
@@ -1138,11 +1174,7 @@ union SaveLoadBuffer
      * On desktop, this function always return `sys.NETWORK_CONNECTED`.
      *
      * @name sys.get_connectivity
-     * @return status [type:constant] network connectivity status:
-     *
-     * - `sys.NETWORK_DISCONNECTED` (no network connection is found)
-     * - `sys.NETWORK_CONNECTED_CELLULAR` (connected through mobile cellular)
-     * - `sys.NETWORK_CONNECTED` (otherwise, Wifi)
+     * @return status [type:sys.NETWORK] network connectivity status
      *
      * @examples
      *
@@ -1271,15 +1303,17 @@ union SaveLoadBuffer
     }
 
     /*# set vsync swap interval
-    * Set the vsync swap interval. The interval with which to swap the front and back buffers
-    * in sync with vertical blanks (v-blank), the hardware event where the screen image is updated
-    * with data from the front buffer. A value of 1 swaps the buffers at every v-blank, a value of
-    * 2 swaps the buffers every other v-blank and so on. A value of 0 disables waiting for v-blank
-    * before swapping the buffers. Default value is 1.
+    * Request a presentation interval relative to vertical blanks (v-blank).
+    * 0 requests disabling vsync and 1 requests presenting every refresh (the default).
+    * OpenGL may support larger intervals, such as 2 for every other refresh.
+    * Vulkan and Metal treat any nonzero interval as enabling vsync; DX12 clamps
+    * intervals to the supported range 0 through 4. Actual behavior depends on
+    * the backend, platform, and driver.
     *
-    * When setting the swap interval to 0 and having `vsync` disabled in
-    * "game.project", the engine will try to respect the set frame cap value from
-    * "game.project" in software instead.
+    * On platforms where Defold owns the application loop, a positive
+    * `display.update_frequency` or a positive value set by `sys.set_update_frequency()`
+    * uses timer pacing and requests a swap interval of 0. The requested
+    * swap interval is retained and applied again when the update frequency is set to 0.
     *
     * This setting may be overridden by driver settings.
     *
@@ -1287,7 +1321,7 @@ union SaveLoadBuffer
     * @param swap_interval [type:number] target swap interval.
     * @examples
     *
-    * Setting the swap intervall to swap every v-blank
+    * Setting the swap interval to swap every v-blank
     *
     * ```lua
     * sys.set_vsync_swap_interval(1)
@@ -1310,14 +1344,26 @@ union SaveLoadBuffer
     }
 
     /*# set update frequency
-    * Set game update-frequency (frame cap). This option is equivalent to `display.update_frequency` in
-    * the "game.project" settings but set in run-time. If `Vsync` checked in "game.project", the rate will
-    * be clamped to a swap interval that matches any detected main monitor refresh rate. If `Vsync` is
-    * unchecked the engine will try to respect the rate in software using timers. There is no
-    * guarantee that the frame cap will be achieved depending on platform specifics and hardware settings.
+    * Set game update-frequency (frame cap). This option is equivalent to
+    * `display.update_frequency` in the "game.project" settings but set at run-time.
+    * On platforms where Defold owns the application loop, a positive value uses
+    * timer pacing and requests a swap interval of 0 to avoid an additional vsync
+    * wait where supported. Setting the frequency to 0 restores the requested swap
+    * interval and uses variable-rate updates. Platform-owned loops, such as HTML5
+    * and iOS, retain their platform scheduling and presentation behavior. There is
+    * no guarantee that the frame cap will be achieved depending on platform and
+    * hardware constraints.
+    *
+    * With engine-side timer pacing, the update dt can be shortened or enlarged to
+    * account for elapsed time; the frame cap does not guarantee a constant dt.
+    * Elapsed time beyond max(engine.max_time_step, 1 / frequency) is discarded,
+    * so accumulated dt can trail wall-clock time after hitches. An intentional
+    * fixed interval longer than engine.max_time_step is allowed. This setting
+    * is separate from the fixed_update() timestep.
     *
     * @name sys.set_update_frequency
-    * @param frequency [type:number] target frequency. 60 for 60 fps
+    * @param frequency [type:number] target frequency in hertz. 0 selects a variable
+    * frame rate; negative values are treated as 0.
     * @examples
     *
     * Setting the update frequency to 60 frames per second
@@ -1344,10 +1390,11 @@ union SaveLoadBuffer
 
     /*# serializes a lua table to a buffer and returns it
      * The buffer can later deserialized by <code>sys.deserialize</code>.
-     * This method has all the same limitations as <code>sys.save</code>.
+     * This function has all the same limitations as <code>sys.save</code>.
+     * This function will raise a Lua error if an error occurs while serializing the table.
      *
      * @name sys.serialize
-     * @param table [type:table] lua table to serialize
+     * @param table [type:table<any, any>] lua table to serialize
      * @return buffer [type:string] serialized data buffer
      * @examples
      *
@@ -1380,10 +1427,11 @@ union SaveLoadBuffer
     }
 
     /*# deserializes buffer into a lua table
+     * This function will raise a Lua error if an error occurs while deserializing the buffer.
      *
      * @name sys.deserialize
      * @param buffer [type:string] buffer to deserialize from
-     * @return table [type:table] lua table with deserialized data
+     * @return table [type:table<any, any>] lua table with deserialized data
      * @examples
      *
      * Deserialize a lua table that was previously serialized:
@@ -1453,10 +1501,10 @@ union SaveLoadBuffer
         {"exists", Sys_Exists},
         {"get_host_path", Sys_GetHostPath},
         {"get_save_file", Sys_GetSaveFile},
-        {"get_config", Sys_GetConfigString}, // deprecated
         {"get_config_string", Sys_GetConfigString},
         {"get_config_int", Sys_GetConfigInt},
         {"get_config_number", Sys_GetConfigNumber},
+        {"get_config_boolean", Sys_GetConfigBoolean},
         {"open_url", Sys_OpenURL},
         {"load_resource", Sys_LoadResource},
         {"get_sys_info", Sys_GetSysInfo},
@@ -1479,20 +1527,8 @@ union SaveLoadBuffer
         {0, 0}
     };
 
-    /*# no network connection found
-     * @name sys.NETWORK_DISCONNECTED
-     * @constant
-     */
 
-    /*# network connected through mobile cellular
-     * @name sys.NETWORK_CONNECTED_CELLULAR
-     * @constant
-     */
 
-    /*# network connected through other, non cellular, connection
-     * @name sys.NETWORK_CONNECTED
-     * @constant
-     */
 
     void InitializeSys(lua_State* L)
     {

@@ -1,0 +1,102 @@
+defold_log("functions_platform.cmake:")
+
+# Link the correct platform library for a target and platform tuple.
+# Mirrors waf_dynamo.py platform_get_platform_lib/platform_glfw_version.
+#
+# Usage:
+#   include(functions_platform)
+#   defold_target_link_platform(<target> <platform> [SCOPE <PRIVATE|PUBLIC|INTERFACE>])
+#
+# Selection rules:
+# - A private platform may explicitly select its platform library
+# - Web targets -> platform
+# - GLFW3 desktop targets (macOS, Linux, Win32):
+#     - If WITH_VULKAN=ON OR platform in {arm64-macos,x86_64-macos}
+#       -> platform_vulkan
+#     - Else -> platform
+# - Other targets -> platform
+
+function(defold_target_link_platform target platform)
+    set(options)
+    set(oneValueArgs SCOPE)
+    set(multiValueArgs)
+    cmake_parse_arguments(DPL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+    if(NOT DPL_SCOPE)
+        set(DPL_SCOPE PRIVATE)
+    endif()
+
+    if(NOT platform)
+        message(FATAL_ERROR "functions_platform: platform argument is required")
+    endif()
+
+    if(DEFOLD_PLATFORM_WINDOW_LIBRARY)
+        set(_plat_lib "${DEFOLD_PLATFORM_WINDOW_LIBRARY}")
+    # Web platforms use their platform-native window integration.
+    elseif(platform STREQUAL "wasm-web" OR platform STREQUAL "wasm_pthread-web")
+        set(_plat_lib platform)
+    else()
+        # Platforms using GLFW 3 (same set as waf's platform_glfw_version == 3)
+        set(_glfw3_platforms "x86_64-macos;arm64-macos;x86_64-win32;x86_64-linux;arm64-linux")
+
+        list(FIND _glfw3_platforms "${platform}" _idx)
+        if(NOT _idx EQUAL -1)
+            # Vulkan if requested or on macOS
+            set(_WITH_VULKAN OFF)
+            if(DEFINED WITH_VULKAN AND WITH_VULKAN)
+                set(_WITH_VULKAN ON)
+            endif()
+
+            if(_WITH_VULKAN OR platform STREQUAL "arm64-macos" OR platform STREQUAL "x86_64-macos")
+                set(_plat_lib platform_vulkan)
+            else()
+                set(_plat_lib platform)
+            endif()
+        else()
+            set(_plat_lib platform)
+        endif()
+    endif()
+
+    # Prefer linking to a CMake target if it exists
+    target_link_libraries(${target} ${DPL_SCOPE} ${_plat_lib})
+endfunction()
+
+
+# Adds socket-related system libraries per platform (mirrors waf_dynamo.py LIB_PLATFORM_SOCKET).
+# Usage:
+#   defold_target_link_socket(<target> <platform> [SCOPE <PRIVATE|PUBLIC|INTERFACE>])
+function(defold_target_link_socket target platform)
+    set(options)
+    set(oneValueArgs SCOPE)
+    set(multiValueArgs)
+    cmake_parse_arguments(DPLS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+    if(NOT DPLS_SCOPE)
+        set(DPLS_SCOPE PRIVATE)
+    endif()
+
+    if(NOT platform)
+        message(FATAL_ERROR "functions_platform: platform argument is required for defold_target_link_socket")
+    endif()
+
+    # Derive OS from tuple (e.g., x86_64-win32 -> win32)
+    string(REGEX REPLACE "^[^-]+-" "" _PLAT_OS "${platform}")
+
+    set(_socket_libs)
+
+    if(_PLAT_OS STREQUAL "win32")
+        # Based on waf_dynamo.py: WS2_32 Iphlpapi AdvAPI32 Bcrypt.lib
+        list(APPEND _socket_libs WS2_32.lib Iphlpapi.lib AdvAPI32.lib Bcrypt.lib)
+    elseif(_PLAT_OS STREQUAL "xbone")
+        # Based on waf_dynamo_vendor.py: LIB_SOCKET and LINKFLAGS_DLIB.
+        list(APPEND _socket_libs Ws2_32.lib Iphlpapi.lib Bcrypt.lib)
+    else()
+        # Other platforms do not require additional socket libs in waf
+    endif()
+
+    if(DEFOLD_PLATFORM_SOCKET_LIBS)
+        list(APPEND _socket_libs ${DEFOLD_PLATFORM_SOCKET_LIBS})
+    endif()
+
+    if(_socket_libs)
+        target_link_libraries(${target} ${DPLS_SCOPE} ${_socket_libs})
+    endif()
+endfunction()

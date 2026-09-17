@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -110,21 +110,25 @@ namespace dmShaderc
             return CompileSPIRV(context, (ShaderCompilerSPIRV*) compiler, options);
         }
 
-    #ifdef DM_BINARY_HLSL_SUPPORTED
+#ifdef DM_BINARY_HLSL_SUPPORTED
         if (compiler->m_Language == SHADER_LANGUAGE_HLSL)
         {
             ShaderCompileResult* result_xcompiled = CompileSPVC(context, (ShaderCompilerSPVC*) compiler, options);
-            ShaderCompileResult* result_hlsl = CompileRawHLSLToBinary(context, compiler, result_xcompiled);
+            ShaderCompileResult* result_hlsl = CompileRawHLSLToBinary(context, compiler, &options, result_xcompiled);
 
             FreeShaderCompileResult(result_xcompiled);
             return result_hlsl;
         }
-    #endif
+#endif
         return CompileSPVC(context, (ShaderCompilerSPVC*) compiler, options);
     }
 
     void FreeShaderCompileResult(ShaderCompileResult* result)
     {
+        result->m_Data.SetCapacity(0);
+        result->m_MSLResourceMappings.SetCapacity(0);
+        result->m_HLSLResourceMappings.SetCapacity(0);
+        result->m_HLSLRootSignature.SetCapacity(0);
         free(result);
     }
 
@@ -163,4 +167,18 @@ namespace dmShaderc
             return res_texture;
         return 0;
     }
+
+#if !defined(DM_BINARY_HLSL_SUPPORTED)
+    HLSLRootSignature* HLSLMergeRootSignatures(ShaderCompileResult* shaders, uint32_t shaders_size)
+    {
+        (void) shaders;
+        (void) shaders_size;
+
+        static const char* kErr = "HLSL root signature merge is not supported on this platform";
+        HLSLRootSignature* result = new HLSLRootSignature;
+        result->m_LastError = kErr;
+        result->m_HLSLRootSignature.SetCapacity(0);
+        return result;
+    }
+#endif
 }

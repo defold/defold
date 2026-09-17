@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,11 +18,15 @@
   (:require [editor.colors :as colors]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.attribute :as attribute]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
+            [editor.gl.types :as gl.types]
             [editor.gl.vertex2 :as vtx]
+            [editor.graphics.types :as graphics.types]
             [editor.math :as math]
-            [editor.scene-picking :as scene-picking])
+            [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders])
   (:import [com.jogamp.opengl GL2]
            [javax.vecmath Point4d]))
 
@@ -34,27 +38,7 @@
   ;; the capsule shape.
   (vec4 position))
 
-(shader/defshader vertex-shader
-  (uniform mat4 world_view_proj)
-  (uniform vec4 point_scale)
-  (uniform vec4 point_offset_by_w)
-  (attribute vec4 position)
-  (defn void main []
-    (setq vec3 point
-          (+ (* position.xyz
-                point_scale.xyz)
-             (* position.w
-                point_offset_by_w.xyz)))
-    (setq gl_Position
-          (* world_view_proj
-             (vec4 point 1.0)))))
-
-(shader/defshader fragment-shader
-  (uniform vec4 color) ; `color` also used in selection pass to render picking id
-  (defn void main []
-    (setq gl_FragColor color)))
-
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader {"world_view_proj" :world-view-proj}))
+(def shader shaders/scene-shape-local-space)
 
 (def box-lines
   {:primitive-type GL2/GL_LINES
@@ -242,6 +226,77 @@
              (->pos-vtx (* 6 (count capsule-quads)) :static)
              capsule-quads))})
 
+(def ^:private light-cone-segments 24)
+
+(defn light-cone-lines
+  "Spot light wireframe in unit cone space (apex at origin, base at z=-1, outer radius 1).
+  `inner-radius-ratio` is inner_base_radius / outer_base_radius on that plane
+  (= tan(inner_half) / tan(outer_half)). Omit inner circle when out of (0,1) or ~equal to outer."
+  [^double inner-radius-ratio]
+  (let [n light-cone-segments
+        ring (fn [^double rscale]
+               (vec (for [k (range n)]
+                      (let [phi (* 2.0 Math/PI (/ (double k) n))]
+                        [(* rscale (Math/cos phi)) (* rscale (Math/sin phi)) -1.0]))))
+        outer-ring (ring 1.0)
+        outer-circle (for [k (range n)] [(outer-ring k) (outer-ring (mod (inc k) n))])
+        inner-circle (when (and (> inner-radius-ratio 1e-4)
+                                (< inner-radius-ratio 0.999))
+                       (let [ir (ring inner-radius-ratio)]
+                         (for [k (range n)] [(ir k) (ir (mod (inc k) n))])))
+        ;; Silhouette: apex to outer base along ±X and ±Y (perpendicular pairs)
+        silhouette [[0.0 0.0 0.0] [1.0 0.0 -1.0]
+                    [0.0 0.0 0.0] [-1.0 0.0 -1.0]
+                    [0.0 0.0 0.0] [0.0 1.0 -1.0]
+                    [0.0 0.0 0.0] [0.0 -1.0 -1.0]]
+        ;; Axis through the cone
+        axis [[0.0 0.0 0.0] [0.0 0.0 -1.0]]
+        pair-pairs (vec (concat outer-circle
+                                (or inner-circle [])
+                                (partition 2 silhouette)
+                                (partition 2 axis)))]
+    {:primitive-type GL2/GL_LINES
+     :vbuf (vtx/flip!
+             (reduce
+               (fn [vbuf [a b]]
+                 (let [[ax ay az] a
+                       [bx by bz] b]
+                   (-> vbuf
+                       (pos-vtx-put! ax ay az 0.0)
+                       (pos-vtx-put! bx by bz 0.0))))
+               (->pos-vtx (* 2 (count pair-pairs)) :static)
+               pair-pairs))}))
+
+(defn light-cone-triangles
+  "Closed outer spotlight cone in unit space (apex at origin, base at z=-1 with
+  radius 1). Same convention as [[light-cone-lines]]; use with identical
+  `point_scale` when rendering."
+  []
+  (let [n light-cone-segments
+        side-tris (vec (for [k (range n)]
+                         (let [t0 (* 2.0 Math/PI (/ (double k) n))
+                               t1 (* 2.0 Math/PI (/ (double (mod (inc k) n)) n))]
+                           [[0.0 0.0 0.0]
+                            [(Math/cos t0) (Math/sin t0) -1.0]
+                            [(Math/cos t1) (Math/sin t1) -1.0]])))
+        cap-tris (vec (for [k (range n)]
+                        (let [t0 (* 2.0 Math/PI (/ (double k) n))
+                              t1 (* 2.0 Math/PI (/ (double (mod (inc k) n)) n))]
+                          [[0.0 0.0 -1.0]
+                           [(Math/cos t0) (Math/sin t0) -1.0]
+                           [(Math/cos t1) (Math/sin t1) -1.0]])))
+        all-tris (into side-tris cap-tris)
+        vert-count (* 3 3 (count all-tris))]
+    {:primitive-type GL2/GL_TRIANGLES
+     :vbuf (vtx/flip!
+             (reduce (fn [vbuf tri]
+                       (reduce (fn [vbuf [x y z]]
+                                 (pos-vtx-put! vbuf x y z 0.0))
+                               vbuf
+                               tri))
+                     (->pos-vtx vert-count :static)
+                     all-tris))}))
+
 (def ^:private shape-alpha 0.1)
 
 (def ^:private selected-shape-alpha 0.3)
@@ -252,6 +307,18 @@
 
 (def ^:private no-point-offset-by-w (float-array 4 0.0))
 
+(def ^:private position-attribute-info
+  {:name-key :position
+   :semantic-type :semantic-type-position})
+
+(defn- geometry-vertex-binding [gl {:keys [position-buffer vbuf vertex-binding]}]
+  (or vertex-binding
+      (when position-buffer
+        (attribute/make-attribute-buffer-binding
+          position-buffer
+          (first (shader/attribute-locations shader gl [position-attribute-info]))))
+      (vtx/use-with (System/identityHashCode vbuf) vbuf shader)))
+
 (defn render-lines [^GL2 gl render-args renderables _num-renderables]
   (assert (not= pass/selection (:pass render-args)) "color not intended for picking")
   (let [{:keys [selected user-data world-transform]} (first renderables)
@@ -260,16 +327,17 @@
         color (float-array (or (colors/selection-color selected)
                                (colors/alpha color 1.0)))
         render-args (merge render-args
-                           (math/derive-render-transforms
+                           (math/derive-render-transforms ; TODO(instancing): Can we use the render-args as-is?
                              world-transform
                              (:view render-args)
                              (:projection render-args)
                              (:texture render-args)))
-        point-count (:point-count user-data (count vbuf))
+        point-count (long (or (:point-count user-data)
+                              (some-> vbuf count)
+                              0))
         point-scale (:point-scale user-data no-point-scale)
         point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
-        request-id (System/identityHashCode vbuf)
-        vertex-binding (vtx/use-with request-id vbuf shader)]
+        vertex-binding (geometry-vertex-binding gl geometry)]
     (gl/with-gl-bindings gl render-args [shader vertex-binding]
       (shader/set-uniform shader gl "point_scale" point-scale)
       (shader/set-uniform shader gl "point_offset_by_w" point-offset-by-w)
@@ -280,14 +348,14 @@
   (let [renderable (first renderables)
         {:keys [selected user-data world-transform]} renderable
         {:keys [color double-sided geometry]} user-data
-        {:keys [primitive-type vbuf]} geometry
+        {:keys [index-buffer primitive-type vbuf]} geometry
         color (float-array
                 (cond
                   (= pass/selection (:pass render-args))
                   (scene-picking/renderable-picking-id-uniform renderable)
 
                   (= :self-selected selected)
-                  (colors/alpha color selected-shape-alpha)
+                  (colors/alpha color (or (:preview-fill-alpha user-data) selected-shape-alpha))
 
                   (= :parent-selected selected)
                   (colors/alpha color parent-selected-shape-alpha)
@@ -295,44 +363,58 @@
                   :else
                   (colors/alpha color shape-alpha)))
         render-args (merge render-args
-                           (math/derive-render-transforms
+                           (math/derive-render-transforms ; TODO(instancing): Can we use the render-args as-is?
                              world-transform
                              (:view render-args)
                              (:projection render-args)
                              (:texture render-args)))
-        point-count (:point-count user-data (count vbuf))
+        point-count (long (or (:point-count user-data)
+                              (some-> vbuf count)
+                              0))
         point-scale (:point-scale user-data no-point-scale)
         point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
-        request-id (System/identityHashCode vbuf)
-        vertex-binding (vtx/use-with request-id vbuf shader)]
-    (gl/with-gl-bindings gl render-args [shader vertex-binding]
+        vertex-binding (geometry-vertex-binding gl geometry)
+        bindings (cond-> [shader vertex-binding]
+                   index-buffer (conj index-buffer))]
+    (gl/with-gl-bindings gl render-args bindings
       (when-not double-sided
         (gl/gl-enable gl GL2/GL_CULL_FACE)
         (gl/gl-cull-face gl GL2/GL_BACK))
       (shader/set-uniform shader gl "point_scale" point-scale)
       (shader/set-uniform shader gl "point_offset_by_w" point-offset-by-w)
       (shader/set-uniform shader gl "color" color)
-      (gl/gl-draw-arrays gl primitive-type 0 point-count)
+      (if index-buffer
+        (gl/gl-draw-elements gl
+                             primitive-type
+                             (gl.types/element-buffer-gl-type index-buffer)
+                             0
+                             (graphics.types/element-count index-buffer))
+        (gl/gl-draw-arrays gl primitive-type 0 point-count))
       (when-not double-sided
         (gl/gl-disable gl GL2/GL_CULL_FACE)))))
 
 (defn render-points [^GL2 gl render-args renderables _num-renderables]
-  (let [{:keys [selected user-data world-transform]} (first renderables)
+  (let [renderable (first renderables)
+        {:keys [selected user-data world-transform]} renderable
         {:keys [color geometry ^double point-size]} user-data
         {:keys [primitive-type vbuf]} geometry
-        color (float-array (or (colors/selection-color selected)
-                               (colors/alpha color 1.0)))
+        color (float-array
+                (if (= pass/selection (:pass render-args))
+                  (scene-picking/renderable-picking-id-uniform renderable)
+                  (or (colors/selection-color selected)
+                      (colors/alpha color 1.0))))
         render-args (merge render-args
-                           (math/derive-render-transforms
-                            world-transform
-                            (:view render-args)
-                            (:projection render-args)
-                            (:texture render-args)))
-        point-count (:point-count user-data (count vbuf))
+                           (math/derive-render-transforms ; TODO(instancing): Can we use the render-args as-is?
+                             world-transform
+                             (:view render-args)
+                             (:projection render-args)
+                             (:texture render-args)))
+        point-count (long (or (:point-count user-data)
+                              (some-> vbuf count)
+                              0))
         point-scale (:point-scale user-data no-point-scale)
         point-offset-by-w (:point-offset-by-w user-data no-point-offset-by-w)
-        request-id (System/identityHashCode vbuf)
-        vertex-binding (vtx/use-with request-id vbuf shader)]
+        vertex-binding (geometry-vertex-binding gl geometry)]
     (gl/with-gl-bindings gl render-args [shader vertex-binding]
       (.glPointSize gl point-size)
       (shader/set-uniform shader gl "point_scale" point-scale)

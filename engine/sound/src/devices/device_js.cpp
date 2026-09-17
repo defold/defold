@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,7 +26,10 @@
 extern "C" {
     // Implementation in library_sound.js
     int dmDeviceJSOpen(int buffers);
+    void dmDeviceJSClose(int device);
     int dmGetDeviceSampleRate(int device);
+    void dmDeviceJSPlaybackStarted(int device);
+    void dmDeviceJSPlaybackIdle(int device);
     void dmDeviceJSQueue(int device, const float* samples, uint32_t sample_count);
     int dmDeviceJSFreeBufferSlots(int device);
 }
@@ -48,6 +51,7 @@ namespace dmDeviceJS
         int deviceId = dmDeviceJSOpen(params->m_BufferCount);
         if (deviceId < 0)
         {
+            delete dev;
             return dmSound::RESULT_DEVICE_NOT_FOUND;
         }
         dev->devId = deviceId;
@@ -63,7 +67,9 @@ namespace dmDeviceJS
     void DeviceJSClose(dmSound::HDevice device)
     {
         assert(device);
-        delete (JSDevice*)(device);
+        JSDevice* dev = (JSDevice*) device;
+        dmDeviceJSClose(dev->devId);
+        delete dev;
     }
 
     dmSound::Result DeviceJSQueue(dmSound::HDevice device, const void* samples, uint32_t sample_count)
@@ -102,6 +108,7 @@ namespace dmDeviceJS
         assert(device);
         JSDevice *dev = (JSDevice*) device;
         dev->isStarted = true;
+        dmDeviceJSPlaybackStarted(dev->devId);
     }
 
     void DeviceJSStop(dmSound::HDevice device)
@@ -109,6 +116,7 @@ namespace dmDeviceJS
         assert(device);
         JSDevice *dev = (JSDevice*) device;
         dev->isStarted = false;
+        dmDeviceJSPlaybackIdle(dev->devId);
     }
 
     DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceJSOpen, DeviceJSClose, DeviceJSQueue,

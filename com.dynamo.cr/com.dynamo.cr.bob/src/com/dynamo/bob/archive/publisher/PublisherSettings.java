@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -34,7 +34,7 @@ public class PublisherSettings {
 
     public enum PublishMode {
         Amazon, Zip, Folder
-    };
+    }
 
     private Map<String, Map<String, String>> properties = new LinkedHashMap<String, Map<String, String>>();
 
@@ -73,24 +73,6 @@ public class PublisherSettings {
         }
 
         return null;
-    }
-
-    public void setManifestPublicKey(String value) {
-        this.setValue("liveupdate", "publickey", value);
-    }
-
-    public String getManifestPublicKey() {
-        String value = this.getValue("liveupdate", "publickey");
-        return value != null ? value : "";
-    }
-
-    public void setManifestPrivateKey(String value) {
-        this.setValue("liveupdate", "privatekey", value);
-    }
-
-    public String getManifestPrivateKey() {
-        String value = this.getValue("liveupdate", "privatekey");
-        return value != null ? value : "";
     }
 
     public void setSupportedVersions(String value) {

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,15 +16,8 @@
 #define DMSDK_FILE_DESCRIPTOR_H
 
 #include <dmsdk/dlib/array.h>
-#if defined(DM_PLATFORM_VENDOR)
-    #include <dmsdk/dlib/file_descriptor_vendor.h>
-#elif defined(_WIN32)
-    #include <dmsdk/dlib/file_descriptor_win32.h>
-#else
-    #include <dmsdk/dlib/file_descriptor_posix.h>
-#endif
 
-/*# SDK File Descriptor API documentation
+/*# File Descriptor API documentation
  * File Descriptor functions.
  *
  * @document
@@ -34,6 +27,13 @@
  */
 namespace dmFileDescriptor
 {
+    struct PollFD
+    {
+        int m_Fd;
+        int m_Events;
+        int m_REvents;
+    };
+
     /*#
      * Poll events
      * @enum

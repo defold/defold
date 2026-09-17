@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_PRIVER_H
-#define DM_GAMESYS_PRIVER_H
+#ifndef DM_GAMESYS_PRIVATE_H
+#define DM_GAMESYS_PRIVATE_H
 
 #include <dlib/message.h>
 #include <dlib/object_pool.h>
@@ -22,6 +22,7 @@
 #include <render/render.h>
 
 #include <gameobject/gameobject.h>
+#include <dmsdk/gamesys/render_constants.h>
 
 namespace dmScript
 {
@@ -60,6 +61,36 @@ namespace dmGameSystem
     extern const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     extern const dmhash_t PROP_TEXTURES;
     extern const dmhash_t PROP_TILE_SOURCE;
+    extern const dmhash_t PROP_ANIMATION;
+
+    extern const dmhash_t PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR;
+    extern const dmhash_t PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR;
+    extern const dmhash_t PBR_METALLIC_ROUGHNESS_TEXTURES;
+    extern const dmhash_t PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR;
+    extern const dmhash_t PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR;
+    extern const dmhash_t PBR_SPECULAR_GLOSSINESS_TEXTURES;
+    extern const dmhash_t PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR;
+    extern const dmhash_t PBR_CLEAR_COAT_TEXTURES;
+    extern const dmhash_t PBR_TRANSMISSION_TRANSMISSION_FACTOR;
+    extern const dmhash_t PBR_TRANSMISSION_TEXTURES;
+    extern const dmhash_t PBR_IOR_IOR_FACTOR;
+    extern const dmhash_t PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR;
+    extern const dmhash_t PBR_SPECULAR_TEXTURES;
+    extern const dmhash_t PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR;
+    extern const dmhash_t PBR_VOLUME_ATTENUATION_DISTANCE;
+    extern const dmhash_t PBR_VOLUME_TEXTURES;
+    extern const dmhash_t PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR;
+    extern const dmhash_t PBR_SHEEN_TEXTURES;
+    extern const dmhash_t PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH;
+    extern const dmhash_t PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX;
+    extern const dmhash_t PBR_IRIDESCENCE_TEXTURES;
+    extern const dmhash_t PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT;
+    extern const dmhash_t PBR_COMMON_TEXTURES;
+
+    struct MaterialInfo;
+    struct ModelResource;
+
+    bool FillPBRConstants(ModelResource* resource, const MaterialInfo* material_info, HComponentRenderConstants* render_constants, dmRender::HMaterial material, uint32_t material_index);
 
     static const dmGraphics::TextureFormat BIND_POSE_CACHE_TEXTURE_FORMAT = dmGraphics::TEXTURE_FORMAT_RGBA32F;
 
@@ -104,7 +135,7 @@ namespace dmGameSystem
         struct Info
         {
             dmhash_t m_NameHash;
-            float    m_Values[4]; // Enough to store a float vec4 property (no support for mat4 yet)
+            float    m_Values[16]; // Enough to store a float mat4 property
         };
 
         Info*   m_Infos;
@@ -114,19 +145,35 @@ namespace dmGameSystem
     typedef dmObjectPool<DynamicAttributeInfo> DynamicAttributePool;
     typedef bool (*CompGetMaterialAttributeCallback)(void* user_data, dmhash_t name_hash, const dmGraphics::VertexAttribute** attribute);
 
+    void    VertexAttributeToFloats(const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr, float* out);
     int32_t FindAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash);
-    void    FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos, dmGraphics::CoordinateSpace default_coordinate_space);
-    void    FillAttributeInfos(DynamicAttributePool* dynamic_attribute_pool, uint16_t component_dynamic_attribute_index, const dmGraphics::VertexAttribute* component_attributes, uint32_t num_component_attributes, dmGraphics::VertexAttributeInfos* material_infos, dmGraphics::VertexAttributeInfos* component_infos);
+    void    FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos);
+    void    FillAttributeInfos(DynamicAttributePool* dynamic_attribute_pool, uint16_t component_dynamic_attribute_index, const dmGraphics::VertexAttribute* component_attributes, uint32_t num_component_attributes, dmGraphics::VertexAttributeInfos* material_infos, dmGraphics::VertexAttributeInfos* component_infos, dmGraphics::CoordinateSpace default_coordinate_space);
+    void    CopyAttributeInfos(dmGraphics::VertexAttributeInfos* dst, dmGraphics::VertexAttributeInfos* src, dmGraphics::CoordinateSpace default_coordinate_space);
 
     int32_t                      FindMaterialAttributeIndex(const DynamicAttributeInfo& info, dmhash_t name_hash);
     void                         GetMaterialAttributeValues(const DynamicAttributeInfo& info, uint32_t dynamic_attribute_index, uint32_t max_value_size, const uint8_t** value_ptr, uint32_t* value_size);
-    void                         ConvertMaterialAttributeValuesToDataType(const DynamicAttributeInfo& info, uint32_t dynamic_attribute_index, const dmGraphics::VertexAttribute* attribute, uint8_t* value_ptr);
+    void                         ConvertMaterialAttributeValuesToDataType(const DynamicAttributeInfo& info, uint32_t dynamic_attribute_index, const dmGraphics::VertexAttributeInfo* attribute, uint8_t* value_ptr);
     void                         InitializeMaterialAttributeInfos(DynamicAttributePool& pool, uint32_t initial_capacity);
     void                         DestroyMaterialAttributeInfos(DynamicAttributePool& pool);
-    void                         FreeMaterialAttribute(DynamicAttributePool& pool, uint32_t dynamic_attribute_index);
+    void                         FreeMaterialAttribute(DynamicAttributePool& pool, uint16_t dynamic_attribute_index);
     dmGameObject::PropertyResult ClearMaterialAttribute(DynamicAttributePool& pool, uint32_t dynamic_attribute_index, dmhash_t name_hash);
-    dmGameObject::PropertyResult SetMaterialAttribute(DynamicAttributePool& pool, uint32_t* dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, CompGetMaterialAttributeCallback callback, void* callback_user_data);
-    dmGameObject::PropertyResult GetMaterialAttribute(DynamicAttributePool& pool, uint32_t dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, CompGetMaterialAttributeCallback callback, void* callback_user_data);
+    dmGameObject::PropertyResult SetMaterialAttribute(DynamicAttributePool& pool, uint16_t* dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, CompGetMaterialAttributeCallback callback, void* callback_user_data, const dmGraphics::VertexAttributeInfo** attribute_out);
+    dmGameObject::PropertyResult GetMaterialAttribute(DynamicAttributePool& pool, uint16_t dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, CompGetMaterialAttributeCallback callback, void* callback_user_data);
+
+    // Return a temporary vertex attribute infos buffer
+    dmGraphics::VertexAttributeInfos* GetScratchVertexAttributeInfos(uint32_t stream_count);
+
+    // Script resource helpers (Maybe these should be in a "gamesys_script.h" file?)
+    int   ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash);
+    void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext);
+    void  PushTextureInfo(lua_State* L, dmGraphics::HContext graphics_context, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path);
+    void  PushSampler(lua_State* L, dmRender::HSampler sampler);
+    void  PushRenderConstant(lua_State* L, dmRender::HConstant constant);
+    void  PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr);
+    void  PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttributeInfo* attribute, const uint8_t* value_ptr);
+    void  GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureWrap* w_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy);
+    void  GetConstantValuesFromLua(lua_State* L, dmRenderDDF::MaterialDesc::ConstantType* type, dmArray<dmVMath::Vector4>* scratch_values);
 
     // gamesys_resource.cpp
     struct CreateTextureResourceParams
@@ -141,11 +188,11 @@ namespace dmGameSystem
         dmGraphics::TextureImage::CompressionType m_CompressionType;
         dmBuffer::HBuffer                         m_Buffer;
         const void*                               m_Data;
+        uint32_t                                  m_DataSize;
         uint16_t                                  m_Width;
         uint16_t                                  m_Height;
         uint16_t                                  m_Depth;
         uint16_t                                  m_MaxMipMaps;
-        uint16_t                                  m_TextureBpp;
         uint16_t                                  m_UsageFlags;
         uint8_t                                   m_LayerCount;
     };
@@ -176,6 +223,7 @@ namespace dmGameSystem
     void FillTextureResourceBuffer(const dmGraphics::TextureImage* texture_image, dmArray<uint8_t>& texture_resource_buffer);
     dmResource::Result CreateTextureResource(dmResource::HFactory factory, const CreateTextureResourceParams& create_params, void** resource_out);
     dmResource::Result SetTextureResource(dmResource::HFactory factory, const SetTextureResourceParams& params);
+
 }
 
-#endif // DM_GAMESYS_PRIVER_H
+#endif // DM_GAMESYS_PRIVATE_H

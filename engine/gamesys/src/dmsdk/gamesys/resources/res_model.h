@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,6 +21,7 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
 #include <dmsdk/render/render.h>
+#include <rig/rig_ddf.h>
 
 namespace dmRigDDF
 {
@@ -63,6 +64,8 @@ namespace dmGameSystem
         ModelResourceBuffers*   m_Buffers; // Currently a vertex+index buffer per mesh
         dmRigDDF::Model*        m_Model;   // For the transform
         dmRigDDF::Mesh*         m_Mesh;
+        TextureResource*        m_MorphTargetTexture;
+        dmhash_t                m_MorphModelId;
     };
 
     struct MaterialTextureInfo
@@ -80,6 +83,7 @@ namespace dmGameSystem
         uint32_t                     m_AttributeCount;
         MaterialTextureInfo*         m_Textures;
         uint32_t                     m_TexturesCount;
+        int32_t                      m_SortOrder; // MeshSet material index used for resource load sorting
     };
 
     struct ModelResource
@@ -90,6 +94,7 @@ namespace dmGameSystem
 
         dmArray<MeshInfo>        m_Meshes;
         dmArray<MaterialInfo>    m_Materials;    // List matches the list of material names in the dmRigDDF::Model
+        dmRigDDF::Model          m_SelectedModel;
     };
 }
 

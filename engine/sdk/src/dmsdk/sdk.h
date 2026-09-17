@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,6 +36,7 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/graphics/graphics_native.h>
 #include <dmsdk/graphics/graphics.h>
+#include <dmsdk/sound/sound.h>
 #include <dmsdk/dlib/transform.h>
 #include <dmsdk/dlib/vmath.h>
 

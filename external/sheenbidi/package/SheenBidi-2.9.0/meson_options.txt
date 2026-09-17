@@ -1,0 +1,5 @@
+option('unity_mode', type: 'feature', value: 'enabled',
+  description: 'Build with a single unity source file')
+
+option('generator', type: 'feature', value: 'disabled',
+  description: 'Build the Unicode data generator tool')

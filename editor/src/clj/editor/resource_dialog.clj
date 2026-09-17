@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,7 @@
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.ui :as ui]
@@ -62,12 +63,12 @@
                               cascade-deletes (g/cascade-deletes node-type)
                               is-override (g/override? basis node-id)]
                           (->> cascade-deletes
-                               ;; important: we use sources instead of
-                               ;; explicit-arcs-by-target because the latter
+                               ;; important: we use inputs instead of
+                               ;; explicit-inputs because the latter
                                ;; does not return inherited override
                                ;; connections
-                               (e/mapcat #(g/sources basis node-id %))
-                               (e/map first)
+                               (e/mapcat #(g/inputs basis node-id %))
+                               (e/map gt/source-id)
                                ;; important: it's possible that an override
                                ;; "owns" a real node instead of another override
                                ;; node. For example, EmbeddedComponent of a
@@ -81,11 +82,11 @@
 
                     ;; resource nodes we depend on
                     (mapcat
-                      ;; important: here, we explicit-arcs-by-target
-                      ;; instead of sources because for overrides, we
-                      ;; are only interested on overrides that establish
+                      ;; important: here, we use explicit-inputs
+                      ;; instead of inputs because for overrides, we
+                      ;; are only interested in overrides that establish
                       ;; the connection
-                      #(g/explicit-arcs-by-target basis %))
+                      #(g/explicit-inputs basis %))
                     (map gt/source-id)
                     (filter #(g/node-instance? basis resource/ResourceNode %))
                     (map #(g/override-root basis %)))
@@ -107,7 +108,7 @@
                     (coll/tree-xf any? #(g/overrides basis %))
                     (map thread-util/abortable-identity!)
                     ;; nodes that depend on us
-                    (mapcat #(g/explicit-arcs-by-source basis %))
+                    (mapcat #(g/explicit-outputs basis %))
                     (map gt/target-id)
                     ;; their nearest holding resource nodes (possibly overrides)
                     (keep (fn [node-id]
@@ -146,7 +147,9 @@
                      (into children))})
 
 (defn make [workspace project options]
-  (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
+  (let [evaluation-context (g/make-evaluation-context)
+        localization (workspace/localization workspace evaluation-context)
+        exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
         accepted-ext (if (seq exts) (set exts) fn/constantly-true)
         accept-fn    (or (:accept-fn options) fn/constantly-true)
         items        (into []
@@ -155,12 +158,12 @@
                                          (resource/loaded? %)
                                          (not (resource/internal? %))
                                          (accept-fn %)))
-                           (g/node-value workspace :resource-list))
+                           (g/node-value workspace :resource-list evaluation-context))
         tooltip-gen (:tooltip-gen options)
         special-filter-fns {"refs" (partial refs-filter-fn project)
                             "deps" (partial deps-filter-fn project)}
-        options (-> {:title "Select Resource"
-                     :cell-fn (fn cell-fn [r]
+        options (-> {:title (localization/message "dialog.select-resource.title")
+                     :cell-fn (fn cell-fn [r _localization]
                                 (let [text (resource/proj-path r)
                                       icon (workspace/resource-icon r)
                                       tooltip (when tooltip-gen (tooltip-gen r))
@@ -180,4 +183,5 @@
                                         f (get special-filter-fns command fuzzy-resource-filter-fn)]
                                     (f arg items)))}
                     (merge options))]
-    (dialogs/make-select-list-dialog items options)))
+    (g/update-cache-from-evaluation-context! evaluation-context)
+    (dialogs/make-select-list-dialog items localization options)))

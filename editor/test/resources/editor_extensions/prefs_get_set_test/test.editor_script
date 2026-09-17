@@ -8,6 +8,10 @@ function M.get_prefs_schema()
         ["test.integer"] = editor.prefs.schema.integer(),
         ["test.keyword"] = editor.prefs.schema.keyword(),
         ["test.number"] = editor.prefs.schema.number(),
+        ["test.one_of"] = editor.prefs.schema.one_of({schemas = {
+            editor.prefs.schema.string(),
+            editor.prefs.schema.integer()
+        }}),
         ["test.object"] = editor.prefs.schema.object({properties = {
             string = editor.prefs.schema.string()
         }}),
@@ -29,6 +33,7 @@ function M.get_commands()
     return {{
         label = "Test",
         locations = {"Edit"},
+        id = "defold.test",
         run = function()
             editor.prefs.set("test.array", {})
             local array = editor.prefs.get("test.array")
@@ -70,6 +75,13 @@ function M.get_commands()
             editor.prefs.set("test.number", 0.1)
             number = editor.prefs.get("test.number")
             print(("number: %s"):format(number))
+
+            editor.prefs.set("test.one_of", "a string")
+            local one_of = editor.prefs.get("test.one_of")
+            print(("one_of: %s"):format(one_of))
+            editor.prefs.set("test.one_of", 17)
+            one_of = editor.prefs.get("test.one_of")
+            print(("one_of: %s"):format(one_of))
 
             editor.prefs.set("test.object", {string = "foo"})
             local object = editor.prefs.get("test.object")

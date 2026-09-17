@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,7 +14,6 @@
 
 (ns editor.game-object
   (:require [clojure.set :as set]
-            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.attachment :as attachment]
@@ -28,6 +27,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.id :as id]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
@@ -41,7 +41,9 @@
             [editor.util :as eutil]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [internal.util :as util]
+            [util.coll :as coll]
             [util.eduction :as e])
   (:import [com.dynamo.gameobject.proto GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
@@ -52,6 +54,10 @@
 (set! *warn-on-reflection* true)
 
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
+(def id-message (properties/label-message :id))
+(def path-message (properties/label-message :path))
+
+(declare add-embedded-component)
 
 (defn- gen-ref-ddf [id position rotation scale source-resource ddf-properties]
   (-> (protobuf/make-map-without-defaults GameObject$ComponentDesc
@@ -88,13 +94,11 @@
 
 (defn- source-outline-subst [err]
   (if-let [resource (get-in err [:user-data :resource])]
-    (let [rt (resource/resource-type resource)
-          label (or (:label rt) (:ext rt) "unknown")
-          icon (or (:icon rt) unknown-icon)]
+    (let [rt (resource/resource-type resource)]
       {:node-id (:node-id err)
-       :node-outline-key label
-       :label label
-       :icon icon})
+       :node-outline-key (or (:ext rt) "unknown")
+       :label (or (:label rt) (:ext rt) (localization/message "outline.unknown"))
+       :icon (or (:icon rt) unknown-icon)})
     {:node-id -1
      :node-outline-key ""
      :icon ""
@@ -148,9 +152,9 @@
                                (vec (distinct (concat display-order (:display-order source-properties))))))))
 
 (defn- resource-path-error [_node-id source-resource]
-    (or (validation/prop-error :fatal _node-id :path validation/prop-nil? source-resource "Path")
-        (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")
-        (validation/prop-error :fatal _node-id :script validation/prop-resource-not-component? source-resource "Path")))
+    (or (validation/prop-error :fatal _node-id :path validation/prop-nil? source-resource path-message)
+        (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource path-message)
+        (validation/prop-error :fatal _node-id :script validation/prop-resource-not-component? source-resource path-message)))
 
 (g/defnk produce-referenced-component-build-targets [_node-id source-resource ddf-message pose resource-property-build-targets source-build-targets]
   ;; Create a build-target for the referenced component. Also tag on
@@ -187,11 +191,11 @@
 
   (property id g/Str ; Required protobuf field.
             (dynamic error (g/fnk [_node-id id id-counts]
-                                  (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id "Id")
+                                  (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id id-message)
                                       (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id)
-                                      (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id "Id"))))
-            (dynamic read-only? (g/fnk [_node-id]
-                                  (g/override? _node-id))))
+                                      (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id id-message))))
+            (dynamic read-only? (g/fnk [_this]
+                                  (some? (gt/original _this)))))
   (property url g/Str ; Just for presentation.
             (value (g/fnk [base-url id] (format "%s#%s" (or base-url "") id)))
             (dynamic read-only? (g/constantly true)))
@@ -226,8 +230,8 @@
             (some-> source-resource resource/proj-path) (assoc :link source-resource :outline-reference? true)
             source-id (assoc :alt-outline source-outline))))))
   (output ddf-message g/Any :abstract)
-  (output scene g/Any :cached (g/fnk [_node-id id transform scene]
-                                (game-object-common/component-scene _node-id id transform scene)))
+  (output scene g/Any :cached (g/fnk [_node-id id pose scene]
+                                (game-object-common/component-scene _node-id id pose scene)))
   (output build-targets g/Any :abstract)
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output _properties g/Properties :cached produce-component-properties))
@@ -241,33 +245,28 @@
                               (gen-embed-ddf id position rotation scale source-resource source-save-value)))
   (output build-targets g/Any produce-embedded-component-build-targets))
 
-;; -----------------------------------------------------------------------------
-;; Currently some source resources have scale properties. This was done so
-;; that particular component types such as the Label component could support
-;; scaling. This is not ideal, since the scaling cannot differ between
-;; instances of the component. We probably want to remove this and move the
-;; scale attribute to the Component instance in the future.
-;;
-;; Here we delegate scaling to the embedded resource node. To support scaling,
-;; the ResourceNode needs to implement both manip-scalable? and manip-scale.
-
 (defmethod scene-tools/manip-scalable? ::EmbeddedComponent [node-id]
-  (or (some-> (g/node-value node-id :embedded-resource-id) scene-tools/manip-scalable?)
-      (contains? (g/node-value node-id :transform-properties) :scale)))
+  (g/with-auto-evaluation-context evaluation-context
+    (if-some [embedded-resource-id (g/node-value node-id :embedded-resource-id evaluation-context)]
+      (scene-tools/manip-scalable? embedded-resource-id)
+      (contains? (g/node-value node-id :transform-properties evaluation-context) :scale))))
 
-(defmethod scene-tools/manip-scale ::EmbeddedComponent [evaluation-context node-id ^Vector3d delta]
-  (let [embedded-resource-id (g/node-value node-id :embedded-resource-id evaluation-context)]
+(defmethod scene-tools/manip-scale-manips ::EmbeddedComponent [node-id]
+  (if-some [embedded-resource-id (g/node-value node-id :embedded-resource-id)]
+    (scene-tools/manip-scale-manips embedded-resource-id)
+    scene-tools/default-manip-scale-manips))
+
+(defmethod scene-tools/manip-scale ::EmbeddedComponent [node-id ^Vector3d delta manip-phase initial-evaluation-context]
+  (let [embedded-resource-id (g/node-value node-id :embedded-resource-id initial-evaluation-context)]
     (cond
       (some-> embedded-resource-id scene-tools/manip-scalable?)
-      (scene-tools/manip-scale evaluation-context embedded-resource-id delta)
+      (scene-tools/manip-scale embedded-resource-id delta manip-phase initial-evaluation-context)
 
-      (contains? (g/node-value node-id :transform-properties evaluation-context) :scale)
-      (scene/manip-scale-scene-node evaluation-context node-id delta)
+      (contains? (g/node-value node-id :transform-properties initial-evaluation-context) :scale)
+      (scene/manip-scale-scene-node node-id delta manip-phase initial-evaluation-context)
 
       :else
       nil)))
-
-;; -----------------------------------------------------------------------------
 
 (defn- get-all-comp-exts [workspace]
   (keep (fn [[ext {:keys [tags :as _resource-type]}]]
@@ -280,13 +279,13 @@
   (inherits ComponentNode)
 
   (property path g/Any ; Required protobuf field.
-            (dynamic edit-type (g/fnk [source-resource _node-id]
+            (dynamic edit-type (g/fnk [source-resource]
                                  (let [resource-type (some-> source-resource resource/resource-type)
                                        tags (:tags resource-type)]
                                    {:type resource/Resource
                                     :ext (or (and (or (contains? tags :component) (contains? tags :embeddable))
                                                   (some-> resource-type :ext))
-                                             (get-all-comp-exts (project/workspace (project/get-project _node-id))))
+                                             (get-all-comp-exts (project/workspace (project/get-project))))
                                     :to-type (fn [v] (:resource v))
                                     :from-type (fn [r] {:resource r :overrides []})})))
             (value (g/fnk [source-resource ddf-properties]
@@ -296,9 +295,10 @@
                    (concat
                      (when-some [old-source (g/node-value self :source-id evaluation-context)]
                        (g/delete-node old-source))
-                     (let [new-resource (:resource new-value)
+                     (let [basis (:basis evaluation-context)
+                           new-resource (:resource new-value)
                            resource-type (some-> new-resource resource/resource-type)
-                           project (project/get-project self)
+                           project (project/get-project basis)
 
                            [comp-node tx-data]
                            (if (resource/overridable-resource-type? resource-type)
@@ -441,9 +441,9 @@
 (g/defnk produce-go-outline [_node-id child-outlines]
   {:node-id _node-id
    :node-outline-key "Game Object"
-   :label "Game Object"
+   :label (localization/message "outline.game-object")
    :icon game-object-common/game-object-icon
-   :children (outline/natural-sort child-outlines)
+   :children (localization/annotate-as-sorted localization/natural-sort-by-label child-outlines)
    :child-reqs [{:node-type ReferencedComponent
                  :tx-attach-fn outline-attach-ref-component}
                 {:node-type EmbeddedComponent
@@ -487,8 +487,7 @@
 (defn- add-component [self source-resource id transform-properties properties select-fn]
   (let [path {:resource source-resource
               :overrides properties}]
-    (g/make-nodes (g/node-id->graph-id self)
-      [comp-node [ReferencedComponent :id id]]
+    (g/make-nodes [comp-node [ReferencedComponent :id id]]
       (gu/set-properties-from-pb-map comp-node GameObject$ComponentDesc transform-properties
         position :position
         rotation :rotation
@@ -502,22 +501,45 @@
   (let [id (gen-component-id go-id (resource/base-name resource))]
     (g/transact
       (concat
-        (g/operation-label "Add Component")
+        (g/operation-label (localization/message "operation.game-object.add-component"))
         (add-component go-id resource id nil nil select-fn)))))
 
-(defn add-component-handler [workspace project go-id select-fn]
-  (when-let [resources (resource-dialog/make workspace project {:ext (get-all-comp-exts workspace) :title "Select Component File" :selection :multiple})]
-    (doseq [resource resources]
-      (add-referenced-component! go-id resource select-fn))))
+(defn- raw-audio-resource? [resource]
+  (contains? sound/supported-audio-formats (resource/type-ext resource)))
 
-(defn- selection->game-object [selection]
-  (g/override-root (handler/adapt-single selection GameObjectNode)))
+(defn- add-embedded-sound-component! [go-id audio-resource select-fn]
+  (let [project (project/get-project)
+        workspace (project/workspace project)
+        resource-type (workspace/get-resource-type workspace "sound")
+        pb-map (assoc (game-object-common/template-pb-map workspace resource-type)
+                 :sound (resource/proj-path audio-resource))
+        id (gen-component-id go-id (resource/base-name audio-resource))]
+    (g/transact
+      (concat
+        (g/operation-label (localization/message "operation.game-object.add-component"))
+        (add-embedded-component go-id project "sound" pb-map id nil select-fn)))))
+
+(defn add-component-handler [workspace project go-id select-fn]
+  (when-let [resources (resource-dialog/make
+                         workspace project
+                         {:ext (get-all-comp-exts workspace)
+                          :title (localization/message "dialog.select-component-file.title")
+                          :selection :multiple})]
+    (doseq [resource resources]
+      (if (raw-audio-resource? resource)
+        (add-embedded-sound-component! go-id resource select-fn)
+        (add-referenced-component! go-id resource select-fn)))))
+
+(defn- selection->game-object [selection evaluation-context]
+  (let [basis (:basis evaluation-context)]
+    (g/override-root basis (handler/adapt-single selection GameObjectNode evaluation-context))))
 
 (handler/defhandler :edit.add-referenced-component :workbench
-  (active? [selection] (selection->game-object selection))
-  (label [] "Add Component File")
+  :label (localization/message "command.edit.add-referenced-component.variant.game-object")
+  (active? [selection evaluation-context] (selection->game-object selection evaluation-context))
   (run [workspace project selection app-view]
-       (add-component-handler workspace project (selection->game-object selection) (fn [node-ids] (app-view/select app-view node-ids)))))
+    (g/let-ec [game-object-node (selection->game-object selection evaluation-context)]
+      (add-component-handler workspace project game-object-node (fn [node-ids] (app-view/select app-view node-ids))))))
 
 (defn- connect-embedded-resource [node-type resource-node comp-node]
   (gu/connect-existing-outputs node-type resource-node comp-node
@@ -531,11 +553,10 @@
 
 (defn- add-embedded-component [self project type pb-map id transform-properties select-fn]
   {:pre [(map? pb-map)]}
-  (let [graph (g/node-id->graph-id self)
-        resource (project/make-embedded-resource project :editable type pb-map)
+  (let [resource (project/make-embedded-resource project :editable type pb-map)
         node-type (project/resource-node-type resource)]
-    (g/make-nodes graph [comp-node [EmbeddedComponent :id id]
-                         resource-node [node-type :resource resource]]
+    (g/make-nodes [comp-node [EmbeddedComponent :id id]
+                   resource-node [node-type :resource resource]]
       (gu/set-properties-from-pb-map comp-node GameObject$EmbeddedComponentDesc transform-properties
         position :position
         rotation :rotation
@@ -547,13 +568,13 @@
         (select-fn [comp-node])))))
 
 (defn add-embedded-component! [go-id resource-type select-fn]
-  (let [project (project/get-project go-id)
+  (let [project (project/get-project)
         workspace (project/workspace project)
         pb-map (game-object-common/template-pb-map workspace resource-type)
         id (gen-component-id go-id (:ext resource-type))]
     (g/transact
       (concat
-        (g/operation-label "Add Component")
+        (g/operation-label (localization/message "operation.game-object.add-component"))
         (add-embedded-component go-id project (:ext resource-type) pb-map id nil select-fn)))))
 
 (defn- add-embedded-component-handler [user-data select-fn]
@@ -561,55 +582,78 @@
         resource-type (:resource-type user-data)]
     (add-embedded-component! go-id resource-type select-fn)))
 
-(defn add-embedded-component-label [user-data]
-  (if-not user-data
-    "Add Component"
-    (let [rt (:resource-type user-data)]
-      (or (:label rt) (:ext rt)))))
-
-(defn- embeddable-component-resource-type? [resource-type workspace evaluation-context]
+(defn- embeddable-component-resource-type? [basis resource-type workspace]
   (let [{:keys [tags] :as resource-type} resource-type]
     (and (contains? tags :component)
          (not (contains? tags :non-embeddable))
-         (workspace/has-template? workspace resource-type evaluation-context))))
+         (workspace/has-template? basis workspace resource-type))))
 
 (defn embeddable-component-resource-types
   ([workspace]
-   (g/with-auto-evaluation-context evaluation-context
-     (embeddable-component-resource-types workspace evaluation-context)))
-  ([workspace evaluation-context]
+   (embeddable-component-resource-types (g/now) workspace))
+  ([basis workspace]
    (keep (fn [[_ext resource-type]]
-           (when (embeddable-component-resource-type? resource-type workspace evaluation-context)
+           (when (embeddable-component-resource-type? basis resource-type workspace)
              resource-type))
-         (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable))))
+         (resource/resource-types-by-type-ext basis workspace :editable))))
 
-(defn add-embedded-component-options [self workspace user-data]
+(defn- add-embedded-component-options [basis self workspace user-data]
   (when (not user-data)
-    (->> (embeddable-component-resource-types workspace)
-         (map (fn [res-type] {:label (or (:label res-type) (:ext res-type))
-                              :icon (:icon res-type)
-                              :command :edit.add-embedded-component
-                              :user-data {:_node-id self :resource-type res-type :workspace workspace}}))
-         (sort-by :label)
-         vec)))
+    (let [general-category (localization/message "resource.category.components")
+          separate-categories [(localization/message "resource.category.lights")]
+
+          all-items
+          (mapv (fn [{:keys [category] :as resource-type}]
+                  (let [assigned-category
+                        (if (= -1 (coll/index-of separate-categories category))
+                          general-category
+                          category)]
+                    {:label (or (:label resource-type) (:ext resource-type))
+                     :icon (:icon resource-type)
+                     :category assigned-category
+                     :style (resource/type-style-classes resource-type)
+                     :command :edit.add-embedded-component
+                     :user-data {:_node-id self
+                                 :resource-type resource-type
+                                 :workspace workspace}}))
+                (embeddable-component-resource-types basis workspace))
+
+          category-has-items? (into #{} (map :category) all-items)
+
+          populated-categories
+          (filterv category-has-items?
+                   (cons general-category
+                         separate-categories))]
+
+      (-> (localization/annotate-as-sorted localization/natural-sort-by-label all-items)
+          (vary-meta assoc
+                     :layout :grid
+                     :columns [populated-categories])))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
-  (label [user-data] (add-embedded-component-label user-data))
-  (active? [selection] (selection->game-object selection))
+  (label [user-data]
+    (if-not user-data
+      (localization/message "command.edit.add-embedded-component.variant.game-object")
+      (let [rt (:resource-type user-data)]
+        (or (:label rt) (:ext rt)))))
+  (active? [selection evaluation-context] (selection->game-object selection evaluation-context))
   (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))
-  (options [selection user-data]
-           (let [self (selection->game-object selection)
-                 workspace (:workspace (g/node-value self :resource))]
-             (add-embedded-component-options self workspace user-data))))
+  (options [selection user-data evaluation-context]
+    (let [basis (:basis evaluation-context)
+          self (selection->game-object selection evaluation-context)
+          workspace (:workspace (g/node-value self :resource evaluation-context))]
+      (add-embedded-component-options basis self workspace user-data))))
 
 (defn load-game-object [project self resource prototype-desc]
   {:pre [(map? prototype-desc)]} ; GameObject$PrototypeDesc in map format.
-  (let [workspace (project/workspace project)
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
+        workspace (project/workspace project)
         ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
     (concat
       (for [component (:components prototype-desc)
             :let [source-path (:component component)
-                  source-resource (workspace/resolve-resource resource source-path)
+                  source-resource (resolve-resource source-path)
                   resource-type (some-> source-resource resource/resource-type)
                   transform-properties (select-transform-properties resource-type component)
                   properties (:properties component)]]
@@ -649,14 +693,18 @@
   (fn ReferencedComponent-getter [_node-id property _evaluation-context]
     (case property
       "type" constantly-ext-referenced-component-type
-      nil)))
+      nil))
+  (fn ReferencedComponent-lister [_node-id _evaluation-context]
+    ["type"]))
 
 (ext-graph/register-property-getter!
   ::EmbeddedComponent
   (fn EmbeddedComponent-getter [node-id property evaluation-context]
     (case property
       "type" #(resource/ext (g/node-value node-id :source-resource evaluation-context))
-      nil)))
+      nil))
+  (fn EmbeddedComponent-lister [_node-id _evaluation-context]
+    ["type"]))
 
 (defmethod ext-graph/extract-node-type [::GameObjectNode :components]
   [rt attachment workspace _node-id _list-kw evaluation-context]
@@ -664,28 +712,29 @@
     (let [type-name (rt/->clj rt coerce/string lua-type)]
       (if (= ext-referenced-component-type type-name)
         [(dissoc attachment "type") ReferencedComponent]
-        (let [resource-types (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable)
+        (let [basis (:basis evaluation-context)
+              resource-types (resource/resource-types-by-type-ext basis workspace :editable)
               resource-type (resource-types type-name)]
-          (if (and resource-type (embeddable-component-resource-type? resource-type workspace evaluation-context))
+          (if (and resource-type (embeddable-component-resource-type? basis resource-type workspace))
             [attachment EmbeddedComponent]
             (throw (LuaError. (str "type is not "
-                                   (->> (embeddable-component-resource-types workspace evaluation-context)
+                                   (->> (embeddable-component-resource-types basis workspace)
                                         (map :ext)
                                         (cons ext-referenced-component-type)
                                         (eutil/join-words ", " " or ")))))))))
     (throw (LuaError. "type is required"))))
 
 (defmethod ext-graph/create-extra-nodes ::EmbeddedComponent [evaluation-context rt project workspace attachment node-id]
-  (let [component-ext (rt/->clj rt coerce/string (attachment "type"))
-        resource-types (resource/resource-types-by-type-ext (:basis evaluation-context) workspace :editable)
+  (let [basis (:basis evaluation-context)
+        component-ext (rt/->clj rt coerce/string (attachment "type"))
+        resource-types (resource/resource-types-by-type-ext basis workspace :editable)
         resource-type (resource-types component-ext)]
     (assert resource-type)
-    (assert (embeddable-component-resource-type? resource-type workspace evaluation-context))
-    (let [graph (g/node-id->graph-id node-id)
-          pb-map (game-object-common/template-pb-map workspace resource-type evaluation-context)
+    (assert (embeddable-component-resource-type? basis resource-type workspace))
+    (let [pb-map (game-object-common/template-pb-map basis workspace resource-type)
           resource (resource/make-memory-resource workspace resource-type pb-map)
           node-type (:node-type resource-type)]
-      (g/make-nodes graph [resource-node [node-type :resource resource]]
+      (g/make-nodes [resource-node [node-type :resource resource]]
         (project/load-embedded-resource-node project resource-node resource pb-map)
         (connect-embedded-resource node-type resource-node node-id)))))
 
@@ -733,16 +782,17 @@
     (attachment/define-alternative workspace EmbeddedComponent embedded-component-attachment-alternative)
     (resource-node/register-ddf-resource-type workspace
       :ext "go"
-      :label "Game Object"
+      :label (localization/message "resource.type.go")
       :node-type GameObjectNode
       :ddf-type GameObject$PrototypeDesc
       :load-fn load-game-object
       :allow-unloaded-use true
       :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace))
       :sanitize-fn (partial sanitize-game-object workspace)
-      :string-encode-fn (partial string-encode-game-object workspace)
+      :pb-encode-fn (partial string-encode-game-object workspace)
       :icon game-object-common/game-object-icon
       :icon-class :design
+      :category (localization/message "resource.category.objects")
       :view-types [:scene :text]
       :view-opts {:scene {:grid true
                           :drop-fn handle-drop}})))

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,51 +13,50 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.scope-test
-  (:require [clojure.test :refer :all]
-            [clojure.set]
+  (:require [clojure.set]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.progress :as progress]
             [integration.test-util :as test-util]
             [internal.graph :as ig]
+            [internal.graph.types :as gt]
             [support.test-support :refer [with-clean-system]]))
 
 (defn node-count [graph]
-  (count (:nodes graph)))
+  (count (gt/nodes graph)))
 
-(deftest project-disposes-nodes
+(deftest project-disposes-owned-nodes
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world)
-          proj-graph-id (g/make-graph! :history true :volatility 1)
-          extensions (extensions/make proj-graph-id)
-          project-id (project/make-project proj-graph-id workspace extensions)]
+    (let [workspace (test-util/setup-workspace!)
+          workspace-node-ids (set (ig/node-ids (g/now)))
+          extensions (extensions/make)
+          project-id (project/make-project workspace extensions)]
       (project/load-project! project-id)
-      (is (not= 0 (node-count (g/graph proj-graph-id))))
+      (is (< (count workspace-node-ids) (node-count (g/now))))
       (g/delete-node! project-id)
-      (let [final-node-ids (set (ig/node-ids (g/graph proj-graph-id)))
-            orphans (map g/node-by-id final-node-ids)]
-        (is (= 0 (count orphans)))))))
+      (is (= workspace-node-ids
+             (set (ig/node-ids (g/now))))))))
 
 (defn check-disposes-nodes
   [resource-type-name inline-resource]
   (test-util/with-loaded-project
-    (let [graph-id (g/node-id->graph-id project)
-          old-count (node-count (g/graph graph-id))
-          old-node-ids (set (ig/node-ids (g/graph graph-id)))
+    (let [old-count (node-count (g/now))
+          old-node-ids (set (ig/node-ids (g/now)))
           old-basis (g/now)
           mem-resource (project/make-embedded-resource project :editable resource-type-name inline-resource)
-          node-id+resource-pairs (project/make-node-id+resource-pairs graph-id [mem-resource])
+          node-id+resource-pairs (project/make-node-id+resource-pairs [mem-resource])
           node-load-infos (project/read-nodes node-id+resource-pairs)
           prelude-tx-data (project/make-resource-nodes-tx-data project node-id+resource-pairs)
           migrated-resource-node-ids (project/load-nodes! project prelude-tx-data node-load-infos progress/null-render-progress! nil nil)]
       (project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
       (let [new-resource-node (project/get-resource-node project mem-resource)
-            new-count (node-count (g/graph graph-id))]
+            new-count (node-count (g/now))]
         (is (> new-count old-count))
         (g/delete-node! new-resource-node)
-        (let [final-count (node-count (g/graph graph-id))
-              final-node-ids (set (ig/node-ids (g/graph graph-id)))
+        (let [final-count (node-count (g/now))
+              final-node-ids (set (ig/node-ids (g/now)))
               new (clojure.set/difference final-node-ids old-node-ids)
               remainders (clojure.set/difference old-node-ids final-node-ids)]
           (is (= old-count final-count))

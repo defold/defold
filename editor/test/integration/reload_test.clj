@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -84,15 +84,15 @@
 ;; │   └── props.script
 ;; └── test.particlefx
 
-(def ^:private lib-uris (library/parse-library-uris "file:/scriptlib, file:/imagelib1, file:/imagelib2"))
+(def ^:private lib-uris (library/parse-uris "file:/scriptlib, file:/imagelib1, file:/imagelib2"))
 
 (def ^:private scriptlib-uri (first lib-uris)) ; /scripts/main.script
 (def ^:private imagelib1-uri (second lib-uris)) ; /images/{pow,paddle}.png
 
 (defn- setup-scratch
-  ([ws-graph] (setup-scratch ws-graph reload-project-path))
-  ([ws-graph project-path]
-   (let [workspace (test-util/setup-scratch-workspace! ws-graph project-path)
+  ([] (setup-scratch reload-project-path))
+  ([project-path]
+   (let [workspace (test-util/setup-scratch-workspace! project-path)
          project (test-util/setup-project! workspace)]
      [workspace project])))
 
@@ -108,12 +108,12 @@
 
 (defn- sync!
   ([workspace]
-    (when (not *no-sync*) (workspace/resource-sync! workspace)))
+   (when (not *no-sync*) (workspace/resource-sync! workspace)))
   ([workspace moved-files]
-    (if (not *no-sync*)
-      (workspace/resource-sync! workspace moved-files)
-      (do
-        (swap! *moved-files* into moved-files)))))
+   (if (not *no-sync*)
+     (workspace/resource-sync! workspace moved-files)
+     (do
+       (swap! *moved-files* into moved-files)))))
 
 (defmacro bulk-change [workspace & forms]
  `(with-bindings {#'*no-sync* true
@@ -175,17 +175,11 @@
     (do-until-new-mtime (fn [^File f] (ImageIO/write img type f)) f)
     (sync! workspace)))
 
-(defn- has-undo? [project]
-  (g/has-undo? (g/node-id->graph-id project)))
-
-(defn- no-undo? [project]
-  (not (has-undo? project)))
-
-(defn- graph-nodes [node-id] (set (g/node-ids (g/graph (g/node-id->graph-id node-id)))))
+(defn- graph-nodes [node-id] (set (g/node-ids (g/now))))
 
 (deftest internal-file
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           node-count (fn [] (count (graph-nodes project)))
           initial-node-count (node-count)]
       (testing "Add internal file"
@@ -194,7 +188,7 @@
           (is (= (inc initial-node-count) (node-count)))
           (is (not (nil? initial-node)))
           (is (= "test" (g/node-value initial-node :name)))
-          (is (no-undo? project))
+          (is (not (g/has-undo? :undo/global)))
           (testing "Change internal file"
             (write-file workspace "/test.collection" "name: \"test_name\"")
             (let [changed-node (project/get-resource-node project "/test.collection")]
@@ -202,7 +196,7 @@
               (is (not (nil? changed-node)))
               (is (not= initial-node changed-node))
               (is (= "test_name" (g/node-value changed-node :name)))
-              (is (no-undo? project))
+              (is (not (g/has-undo? :undo/global)))
               (testing "Delete internal file"
                 (delete-file workspace "/test.collection")
                 (let [node (project/get-resource-node project "/test.collection")
@@ -211,11 +205,11 @@
                   (is (nil? node))
                   (is (= defective-node changed-node))
                   (is (seq (g/node-value defective-node :_output-jammers)))
-                  (is (no-undo? project)))))))))))
+                  (is (not (g/has-undo? :undo/global))))))))))))
 
 (deftest external-file
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           atlas-node-id (project/get-resource-node project "/atlas/empty.atlas")
           img-path "/test_img.png"
           anim-id (FilenameUtils/getBaseName img-path)]
@@ -224,12 +218,12 @@
         (add-img workspace img-path 64 64)
         (let [initial-node (project/get-resource-node project img-path)]
           (is (some? initial-node))
-          (is (no-undo? project))
+          (is (not (g/has-undo? :undo/global)))
           (testing "Reference it, node added and linked"
             (g/transact
               (atlas/add-images atlas-node-id [(workspace/resolve-resource (g/node-value atlas-node-id :resource) img-path)]))
-            (is (has-undo? project))
-            (let [undo-count (count (undo-stack (g/node-id->graph-id project)))
+            (is (g/has-undo? :undo/global))
+            (let [undo-count (count (undo-stack :undo/global))
                   anim-data (g/node-value atlas-node-id :anim-data)
                   anim (get anim-data anim-id)]
               (is (and (= 64.0 (:width anim)) (= 64.0 (:height anim))))
@@ -237,7 +231,7 @@
                 (add-img workspace img-path 128 128)
                 ;; undo count should be unchanged as this is a modification of an external (non-loadable) resource
                 ;; which should only invalidate the outputs of the resource node
-                (is (= undo-count (count (undo-stack (g/node-id->graph-id project)))))
+                (is (= undo-count (count (undo-stack :undo/global))))
                 (let [changed-node (project/get-resource-node project img-path)
                       anim-data (g/node-value atlas-node-id :anim-data)
                       anim (get anim-data anim-id)]
@@ -257,7 +251,7 @@
 
 (deftest save-no-reload
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)]
+    (let [[workspace project] (setup-scratch)]
       (test-util/run-event-loop!
         (fn [exit-event-loop!]
           (testing "Add internal file"
@@ -265,12 +259,12 @@
             (let [node (project/get-resource-node project "/test.collection")]
               (g/transact
                 (g/set-property node :name "new_name"))
-              (is (has-undo? project))
+              (is (g/has-undo? :undo/global))
               (disk/async-save! progress/null-render-progress! progress/null-render-progress! project/dirty-save-data project nil
                                 (fn [successful?]
                                   (when (is successful?)
                                     (sync! workspace)
-                                    (is (has-undo? project)))
+                                    (is (g/has-undo? :undo/global)))
                                   (exit-event-loop!))))))))))
 
 (defn- find-error [type v]
@@ -286,31 +280,30 @@
 
 (deftest external-file-errors
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           atlas-node-id (project/get-resource-node project "/atlas/single.atlas")
           img-path "/test_img.png"]
       (log/without-logging
-       (is (error? :file-not-found (g/node-value atlas-node-id :anim-data))))
+        (is (error? :file-not-found (g/node-value atlas-node-id :anim-data))))
       (add-img workspace img-path 64 64)
       (is (contains? (g/node-value atlas-node-id :anim-data) "test_img"))
       (delete-file workspace img-path)
       (log/without-logging
-       (is (error? :file-not-found (g/node-value atlas-node-id :anim-data))))
+        (is (error? :file-not-found (g/node-value atlas-node-id :anim-data))))
       (add-img workspace img-path 64 64)
       (is (contains? (g/node-value atlas-node-id :anim-data) "test_img"))
       (write-file workspace img-path "this is not png format")
       (is (error? :invalid-content (g/node-value atlas-node-id :anim-data))))))
 
-
 (defn- first-child [parent]
   (get-in (g/node-value parent :node-outline) [:children 0 :node-id]))
 
 (defn- raw-tile-source [node]
-  (project/get-resource-node (project/get-project node) (g/node-value node :tile-source-resource)))
+  (project/get-resource-node (project/get-project) (g/node-value node :tile-source-resource)))
 
 (deftest resource-reference-error
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)]
+    (let [[workspace project] (setup-scratch)]
       (testing "Tile source ok before writing broken content"
         (let [pfx-node (project/get-resource-node project "/test.particlefx")
               ts-node (raw-tile-source (first-child pfx-node))]
@@ -329,12 +322,12 @@
 
 (deftest internal-file-errors
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           node-id (project/get-resource-node project "/main/main.go")
           img-path "/test_img.png"
           atlas-path "/atlas/single.atlas"]
       (log/without-logging
-       (is (error? :file-not-found (g/node-value node-id :scene))))
+        (is (error? :file-not-found (g/node-value node-id :scene))))
       (add-img workspace img-path 64 64)
       (is (no-error? (g/node-value node-id :scene)))
       (copy-file workspace atlas-path "/tmp.atlas")
@@ -353,7 +346,7 @@
 
 (deftest refactoring
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           node-id (project/get-resource-node project "/atlas/single.atlas")
           img-path "/test_img.png"
           img-res (workspace/resolve-workspace-resource workspace img-path)
@@ -368,7 +361,7 @@
 
 (deftest move-external-removed-added
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           pow (project/get-resource-node project "/graphics/pow.png")
           initial-graph-nodes (graph-nodes project)]
 
@@ -384,7 +377,7 @@
 
 (deftest move-internal-removed-added
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           main (project/get-resource-node project "/main/main.script")
           initial-graph-nodes (graph-nodes project)]
 
@@ -408,7 +401,7 @@
   ;; /atlas/powball.atlas has images /graphics/{pow, ball}.png
   ;; /atlas/[pow | ball].atlas has image /graphics/[pow | ball].png
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           atlas>powball (project/get-resource-node project "/atlas/powball.atlas")
           atlas>pow (project/get-resource-node project "/atlas/pow.atlas")
           atlas>ball (project/get-resource-node project "/atlas/ball.atlas")
@@ -452,7 +445,7 @@
   ;; /standalone/props.go has a script component /standalone/props.script
   ;; /standalone/main.go has a script component /standalone/main.script
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           props-go (project/get-resource-node project "/standalone/props.go")
           props-go-scripts (game-object-script-nodes props-go)
           props-go-script-properties (into [] (mapcat script-property-nodes) props-go-scripts)
@@ -527,48 +520,49 @@
   ;; imagelib1 contains /images/{pow,paddle}.png, setup moves reload_project's
   ;; /graphics to /images - a plain removed/added move case.
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
-          atlas>powball (project/get-resource-node project "/atlas/powball.atlas")
-          graphics>pow (project/get-resource-node project "/graphics/pow.png")
-          graphics>ball (project/get-resource-node project "/graphics/ball.png")
-          initial-graph-nodes (graph-nodes project)]
-      (is (= (map resource/proj-path (atlas-image-resources atlas>powball))
-             ["/graphics/pow.png" "/graphics/ball.png"]))
-
-      (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
-        (asset-browser/rename [graphics-dir-resource] "images"))
-
-      (let [images>pow (project/get-resource-node project "/images/pow.png")
-            images>pow-resource (resource images>pow)]
-
+    (test-util/with-project-default-library-directory
+      (let [[workspace project] (setup-scratch)
+            atlas>powball (project/get-resource-node project "/atlas/powball.atlas")
+            graphics>pow (project/get-resource-node project "/graphics/pow.png")
+            graphics>ball (project/get-resource-node project "/graphics/ball.png")
+            initial-graph-nodes (graph-nodes project)]
         (is (= (map resource/proj-path (atlas-image-resources atlas>powball))
-               ["/images/pow.png" "/images/ball.png"]))
-        (is (= initial-graph-nodes (graph-nodes project)))
+               ["/graphics/pow.png" "/graphics/ball.png"]))
 
-        ;; actual test
-        (workspace/set-project-dependencies! workspace [{:uri imagelib1-uri}])
-        (let [images-dir-resource (workspace/find-resource workspace "/images")]
-          (asset-browser/rename [images-dir-resource] "graphics"))
+        (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
+          (asset-browser/rename [graphics-dir-resource] "images" test-util/localization))
 
-        ;; The move of /images back to /graphics enabled the load of imagelib1, creating the following move cases:
-        ;; /images/ball.png -> /graphics/ball.png: removed, added
-        ;; /images/pow.png -> /graphics/pow.png: changed, added
+        (let [images>pow (project/get-resource-node project "/images/pow.png")
+              images>pow-resource (resource images>pow)]
 
-        ;; powball atlas keeps referring to /images/pow.png from lib, but ball.png was moved
-        (is (= (map resource/proj-path (atlas-image-resources atlas>powball)) ["/images/pow.png" "/graphics/ball.png"]))
-        ;; resource node reused, resource updated
-        (is (= images>pow (project/get-resource-node project "/images/pow.png")))
-        (is (not= images>pow-resource (resource images>pow)))
-        (let [graphics>pow2 (project/get-resource-node project "/graphics/pow.png")
-              graphics>ball2 (project/get-resource-node project "/graphics/ball.png")
-              images>paddle (project/get-resource-node project "/images/paddle.png")]
-          ;; resource node reused
-          (is (= graphics>ball graphics>ball2))
-          ;; graphics>pow also reused: was refactored first to /images/pow.png, and now
-          ;; "reloaded"/redirected to new resource
-          (is (= images>pow graphics>pow))
-          ;; new nodes for /graphics/pow.png and /images/paddle.png
-          (is (= (graph-nodes project) (set/union initial-graph-nodes #{graphics>pow2 images>paddle}))))))))
+          (is (= (map resource/proj-path (atlas-image-resources atlas>powball))
+                 ["/images/pow.png" "/images/ball.png"]))
+          (is (= initial-graph-nodes (graph-nodes project)))
+
+          ;; actual test
+          (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
+          (let [images-dir-resource (workspace/find-resource workspace "/images")]
+            (asset-browser/rename [images-dir-resource] "graphics" test-util/localization))
+
+          ;; The move of /images back to /graphics enabled the load of imagelib1, creating the following move cases:
+          ;; /images/ball.png -> /graphics/ball.png: removed, added
+          ;; /images/pow.png -> /graphics/pow.png: changed, added
+
+          ;; powball atlas keeps referring to /images/pow.png from lib, but ball.png was moved
+          (is (= (map resource/proj-path (atlas-image-resources atlas>powball)) ["/images/pow.png" "/graphics/ball.png"]))
+          ;; resource node reused, resource updated
+          (is (= images>pow (project/get-resource-node project "/images/pow.png")))
+          (is (not= images>pow-resource (resource images>pow)))
+          (let [graphics>pow2 (project/get-resource-node project "/graphics/pow.png")
+                graphics>ball2 (project/get-resource-node project "/graphics/ball.png")
+                images>paddle (project/get-resource-node project "/images/paddle.png")]
+            ;; resource node reused
+            (is (= graphics>ball graphics>ball2))
+            ;; graphics>pow also reused: was refactored first to /images/pow.png, and now
+            ;; "reloaded"/redirected to new resource
+            (is (= images>pow graphics>pow))
+            ;; new nodes for /graphics/pow.png and /images/paddle.png
+            (is (= (graph-nodes project) (set/union initial-graph-nodes #{graphics>pow2 images>paddle})))))))))
 
 (deftest move-internal-changed-added
   ;; We're using the scriptlib library (containing /scripts/main.script) that puts its scripts
@@ -576,124 +570,127 @@
   ;; Setup creates /scripts/main.script and a corresponding go /game_object/main.go with a
   ;; script component /scripts/main.script
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)]
-      (copy-file workspace "/main/main.script" "/scripts/main.script")
-      (write-file workspace
-                  "/game_object/main.go"
-                  "components { id: \"script\" component: \"/scripts/main.script\" }")
-      (let [scripts>main (project/get-resource-node project "/scripts/main.script")
-            game_object>main-go (project/get-resource-node project "/game_object/main.go")
-            game_object>main-go-scripts (game-object-script-nodes game_object>main-go)
-            initial-graph-nodes (graph-nodes project)]
-        (is (= (map g/override-original game_object>main-go-scripts)
-               [scripts>main]))
+    (test-util/with-project-default-library-directory
+      (let [[workspace project] (setup-scratch)]
+        (copy-file workspace "/main/main.script" "/scripts/main.script")
+        (write-file workspace
+                    "/game_object/main.go"
+                    "components { id: \"script\" component: \"/scripts/main.script\" }")
+        (let [scripts>main (project/get-resource-node project "/scripts/main.script")
+              game_object>main-go (project/get-resource-node project "/game_object/main.go")
+              game_object>main-go-scripts (game-object-script-nodes game_object>main-go)
+              initial-graph-nodes (graph-nodes project)]
+          (is (= (map g/override-original game_object>main-go-scripts)
+                 [scripts>main]))
 
-        (workspace/set-project-dependencies! workspace [{:uri scriptlib-uri}])
-        (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
-          (asset-browser/rename [scripts-dir-resource] "project_scripts"))
+          (test-util/set-cached-project-dependencies! workspace [scriptlib-uri])
+          (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
+            (asset-browser/rename [scripts-dir-resource] "project_scripts" test-util/localization))
 
-        ;; the move of /scripts enabled the load of scriptlib, creating the move case:
-        ;; /scripts/main.script -> /project_scripts/main.script: changed, added
+          ;; the move of /scripts enabled the load of scriptlib, creating the move case:
+          ;; /scripts/main.script -> /project_scripts/main.script: changed, added
 
-        ;; resource node for old version of /scripts/main.script removed (has been replaced)
-        (is (nil? (g/node-by-id scripts>main)))
-        (let [scripts>main2 (project/get-resource-node project "/scripts/main.script")
-              project_scripts>main (project/get-resource-node project "/project_scripts/main.script")
-              game_object>main-go-scripts2 (game-object-script-nodes game_object>main-go)]
-          ;; override nodes remain, override-original changed
-          (is (= game_object>main-go-scripts game_object>main-go-scripts2))
-          (is (= (map g/override-original game_object>main-go-scripts2)
-                 [scripts>main2]))
-          ;; added project_scripts/main.script and new version of /scripts/main.script, removed old version of /scripts/main.script
-          (is (= (graph-nodes project)
-                 (set/union (set/difference initial-graph-nodes #{scripts>main})
-                            #{scripts>main2 project_scripts>main}))))))))
+          ;; resource node for old version of /scripts/main.script removed (has been replaced)
+          (is (nil? (g/node-by-id scripts>main)))
+          (let [scripts>main2 (project/get-resource-node project "/scripts/main.script")
+                project_scripts>main (project/get-resource-node project "/project_scripts/main.script")
+                game_object>main-go-scripts2 (game-object-script-nodes game_object>main-go)]
+            ;; override nodes remain, override-original changed
+            (is (= game_object>main-go-scripts game_object>main-go-scripts2))
+            (is (= (map g/override-original game_object>main-go-scripts2)
+                   [scripts>main2]))
+            ;; added project_scripts/main.script and new version of /scripts/main.script, removed old version of /scripts/main.script
+            (is (= (graph-nodes project)
+                   (set/union (set/difference initial-graph-nodes #{scripts>main})
+                              #{scripts>main2 project_scripts>main})))))))))
 
 (deftest move-external-changed-changed
   ;; We're using imagelib1 again. Setup copies /graphics -> /images and creates
   ;; /atlas/images_powball.atlas that refers to {pow, ball}.png under /images
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
-          graphics>pow (project/get-resource-node project "/graphics/pow.png")
-          graphics>ball (project/get-resource-node project "/graphics/ball.png")]
-      (copy-directory workspace "/graphics" "/images")
-      (write-file workspace "/atlas/images_powball.atlas" "images { image: \"/images/pow.png\" } images { image: \"/images/ball.png\" }")
-      (let [atlas>images-powball (project/get-resource-node project "/atlas/images_powball.atlas")
-            images>pow (project/get-resource-node project "/images/pow.png")
-            images>pow-resource (resource images>pow)
-            image>ball (project/get-resource-node project "/images/ball.png")
-            initial-graph-nodes (graph-nodes project)]
-        (workspace/set-project-dependencies! workspace [{:uri imagelib1-uri}])
-        (binding [dialogs/make-resolve-file-conflicts-dialog (fn [src-dest-pairs] :overwrite)]
-          (let [images-dir-resource (workspace/find-resource workspace "/images")]
-            (asset-browser/rename [images-dir-resource] "graphics")))
+    (test-util/with-project-default-library-directory
+      (let [[workspace project] (setup-scratch)
+            graphics>pow (project/get-resource-node project "/graphics/pow.png")
+            graphics>ball (project/get-resource-node project "/graphics/ball.png")]
+        (copy-directory workspace "/graphics" "/images")
+        (write-file workspace "/atlas/images_powball.atlas" "images { image: \"/images/pow.png\" } images { image: \"/images/ball.png\" }")
+        (let [atlas>images-powball (project/get-resource-node project "/atlas/images_powball.atlas")
+              images>pow (project/get-resource-node project "/images/pow.png")
+              images>pow-resource (resource images>pow)
+              image>ball (project/get-resource-node project "/images/ball.png")
+              initial-graph-nodes (graph-nodes project)]
+          (test-util/set-cached-project-dependencies! workspace [imagelib1-uri])
+          (binding [dialogs/make-resolve-file-conflicts-dialog (fn [_src-dest-pairs _localization] :overwrite)]
+            (let [images-dir-resource (workspace/find-resource workspace "/images")]
+              (asset-browser/rename [images-dir-resource] "graphics" test-util/localization)))
 
-        ;; The move of /images overwriting /graphics enabled the load of imagelib1, creating the following move cases:
-        ;; /images/ball.png -> /graphics/ball.png: removed, changed
-        ;; /images/pow.png -> /graphics/pow.png: changed, changed
+          ;; The move of /images overwriting /graphics enabled the load of imagelib1, creating the following move cases:
+          ;; /images/ball.png -> /graphics/ball.png: removed, changed
+          ;; /images/pow.png -> /graphics/pow.png: changed, changed
 
-        ;; images_powball.atlas keeps referring to /images/pow.png, but ball.png was moved & changed - reference updated
-        (is (= (map resource/proj-path (atlas-image-resources atlas>images-powball)) ["/images/pow.png" "/graphics/ball.png"]))
-        ;; resource node for /images/pow.png, /graphics/pow.png, /graphics/ball.png reused
-        ;; /images/pow.png resource updated
-        (is (= images>pow (project/get-resource-node project "/images/pow.png")))
-        (is (not= images>pow-resource (resource images>pow)))
-        (is (= graphics>pow (project/get-resource-node project "/graphics/pow.png")))
-        (is (= graphics>ball (project/get-resource-node project "/graphics/ball.png")))
-        (let [images>paddle (project/get-resource-node project "/images/paddle.png")]
-          ;; images/paddle.png added, images/ball.png removed
-          (is (= (graph-nodes project)
-                 (set/union (set/difference initial-graph-nodes #{image>ball})
-                            #{images>paddle}))))))))
+          ;; images_powball.atlas keeps referring to /images/pow.png, but ball.png was moved & changed - reference updated
+          (is (= (map resource/proj-path (atlas-image-resources atlas>images-powball)) ["/images/pow.png" "/graphics/ball.png"]))
+          ;; resource node for /images/pow.png, /graphics/pow.png, /graphics/ball.png reused
+          ;; /images/pow.png resource updated
+          (is (= images>pow (project/get-resource-node project "/images/pow.png")))
+          (is (not= images>pow-resource (resource images>pow)))
+          (is (= graphics>pow (project/get-resource-node project "/graphics/pow.png")))
+          (is (= graphics>ball (project/get-resource-node project "/graphics/ball.png")))
+          (let [images>paddle (project/get-resource-node project "/images/paddle.png")]
+            ;; images/paddle.png added, images/ball.png removed
+            (is (= (graph-nodes project)
+                   (set/union (set/difference initial-graph-nodes #{image>ball})
+                              #{images>paddle})))))))))
 
 (deftest move-internal-changed-changed
   ;; As earlier, we're using scriptlib which puts scripts in /scripts rather than /script
   ;; Setup creates /scripts/main.script + go /game_object/main.go with corresponding component
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
-          main>main-script (project/get-resource-node project "/main/main.script")]
-      (copy-file workspace "/main/main.script" "/scripts/main.script")
-      (write-file workspace
-                  "/game_object/main.go"
-                  "components { id: \"script\" component: \"/scripts/main.script\" }")
-      (let [scripts>main (project/get-resource-node project "/scripts/main.script")
-            game_object>main (project/get-resource-node project "/game_object/main.go")
-            game_object>main-scripts (game-object-script-nodes game_object>main)
-            initial-graph-nodes (graph-nodes project)]
-        (is (= (map g/override-original game_object>main-scripts) [scripts>main]))
+    (test-util/with-project-default-library-directory
+      (let [[workspace project] (setup-scratch)
+            main>main-script (project/get-resource-node project "/main/main.script")]
+        (copy-file workspace "/main/main.script" "/scripts/main.script")
+        (write-file workspace
+                    "/game_object/main.go"
+                    "components { id: \"script\" component: \"/scripts/main.script\" }")
+        (let [scripts>main (project/get-resource-node project "/scripts/main.script")
+              game_object>main (project/get-resource-node project "/game_object/main.go")
+              game_object>main-scripts (game-object-script-nodes game_object>main)
+              initial-graph-nodes (graph-nodes project)]
+          (is (= (map g/override-original game_object>main-scripts) [scripts>main]))
 
-        (workspace/set-project-dependencies! workspace [{:uri scriptlib-uri}]) ; /scripts/main.script
-        (binding [dialogs/make-resolve-file-conflicts-dialog (fn [src-dest-pairs] :overwrite)]
-          (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
-            (asset-browser/rename [scripts-dir-resource] "main")))
+          (test-util/set-cached-project-dependencies! workspace [scriptlib-uri]) ; /scripts/main.script
+          (binding [dialogs/make-resolve-file-conflicts-dialog (fn [_src-dest-pairs _localization] :overwrite)]
+            (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
+              (asset-browser/rename [scripts-dir-resource] "main" test-util/localization)))
 
-        ;; the move of /scripts overwriting /main enabled the load of scriptlib, creating move case:
-        ;; /scripts/main.script -> /main/main.script: changed, changed
+          ;; the move of /scripts overwriting /main enabled the load of scriptlib, creating move case:
+          ;; /scripts/main.script -> /main/main.script: changed, changed
 
-        ;; resource node for old version of /scripts/main.script removed (replaced)
-        (is (nil? (g/node-by-id scripts>main)))
-        ;; resource node for old version of /main/main.script removed (replaced)
-        (is (nil? (g/node-by-id main>main-script)))
-        (let [scripts>main2 (project/get-resource-node project "/scripts/main.script")
-              main>main-script2 (project/get-resource-node project "/main/main.script")
-              game_object>main-scripts2 (game-object-script-nodes game_object>main)]
-          ;; override nodes remain, override-original changed
-          (is (= game_object>main-scripts game_object>main-scripts2))
-          (is (= (map g/override-original game_object>main-scripts2) [scripts>main2]))
-          (is (not= main>main-script main>main-script2))
-          (is (not= scripts>main scripts>main2))
-          ;; added nodes for new versions of /scripts/main.script and /main/main.script
-          ;; removed nodes for old versions
-          (is (= (graph-nodes project)
-                 (set/union (set/difference initial-graph-nodes #{scripts>main main>main-script})
-                            #{scripts>main2 main>main-script2}))))))))
+          ;; resource node for old version of /scripts/main.script removed (replaced)
+          (is (nil? (g/node-by-id scripts>main)))
+          ;; resource node for old version of /main/main.script removed (replaced)
+          (is (nil? (g/node-by-id main>main-script)))
+          (let [scripts>main2 (project/get-resource-node project "/scripts/main.script")
+                main>main-script2 (project/get-resource-node project "/main/main.script")
+                game_object>main-scripts2 (game-object-script-nodes game_object>main)]
+            ;; override nodes remain, override-original changed
+            (is (= game_object>main-scripts game_object>main-scripts2))
+            (is (= (map g/override-original game_object>main-scripts2) [scripts>main2]))
+            (is (not= main>main-script main>main-script2))
+            (is (not= scripts>main scripts>main2))
+            ;; added nodes for new versions of /scripts/main.script and /main/main.script
+            ;; removed nodes for old versions
+            (is (= (graph-nodes project)
+                   (set/union (set/difference initial-graph-nodes #{scripts>main main>main-script})
+                              #{scripts>main2 main>main-script2})))))))))
 
 (deftest rename-file-changing-case
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           graphics>ball (project/get-resource-node project "/graphics/ball.png")
           nodes-by-path (g/node-value project :nodes-by-resource-path)]
-      (asset-browser/rename [(resource graphics>ball)] "Ball")
+      (asset-browser/rename [(resource graphics>ball)] "Ball" test-util/localization)
       (testing "Resource node :resource updated"
         (is (= (resource/proj-path (g/node-value graphics>ball :resource)) "/graphics/Ball.png")))
       (testing "Resource node map updated"
@@ -703,16 +700,16 @@
 
 (deftest rename-directory-with-dotfile
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)]
+    (let [[workspace project] (setup-scratch)]
       (touch-file workspace "/graphics/.dotfile")
       (let [graphics-dir-resource (workspace/find-resource workspace "/graphics")]
         ;; This used to throw: java.lang.AssertionError: Assert failed: move of unknown resource "/graphics/.dotfile"
-        (asset-browser/rename [graphics-dir-resource] "whatever")))))
+        (asset-browser/rename [graphics-dir-resource] "whatever" test-util/localization)))))
 
 (deftest move-external-removed-added-replacing-deleted
   ;; We used to end up with two resource nodes referring to the same resource (/graphics/ball.png)
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           initial-node-resources (test-util/project-node-resources project)]
       (copy-file workspace "/graphics/ball.png" "/ball.png")
       (delete-file workspace "/graphics/ball.png")
@@ -725,7 +722,7 @@
 
 (deftest refactoring-sub-collection
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           node-id (project/get-resource-node project "/collection/sub_defaults.collection")
           coll-path "/collection/props.collection"
           coll-res (workspace/resolve-workspace-resource workspace coll-path)
@@ -738,17 +735,17 @@
 (deftest project-with-missing-parts-can-be-saved
   ;; missing embedded game object, sub collection
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/missing_project"))]
+    (let [[workspace project] (log/without-logging (setup-scratch "test/resources/missing_project"))]
       (is (not (g/error? (project/all-save-data project)))))))
 
 (deftest project-with-nil-parts-can-be-saved
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/nil_project"))]
+    (let [[workspace project] (log/without-logging (setup-scratch "test/resources/nil_project"))]
       (is (not (g/error? (project/all-save-data project)))))))
 
 (deftest broken-project-can-be-saved
   (with-clean-system
-    (let [[workspace project] (log/without-logging (setup-scratch world "test/resources/broken_project"))]
+    (let [[workspace project] (log/without-logging (setup-scratch "test/resources/broken_project"))]
       (is (not (g/error? (project/all-save-data project)))))))
 
 (defn- gui-node [scene id]
@@ -758,7 +755,7 @@
 
 (deftest gui-templates
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           node-id (project/get-resource-node project "/gui/scene.gui")
           sub-node-id (project/get-resource-node project "/gui/sub_scene.gui")
           or-node (gui-node node-id "sub_scene/sub_box")]
@@ -768,7 +765,7 @@
 
 (deftest label
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)]
+    (let [[workspace project] (setup-scratch)]
       (let [node-id (project/get-resource-node project "/label/label.label")]
         (is (= "Original" (g/node-value node-id :text)))
         (is (= [1.0 1.0 1.0 1.0] (g/node-value node-id :color)))
@@ -793,7 +790,7 @@
 
 (deftest game-project
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
+    (let [[workspace project] (setup-scratch)
           node-id (project/get-resource-node project "/game.project")
           p ["display" "display_profiles"]
           disp-profs (get (g/node-value node-id :settings-map) p)
@@ -803,11 +800,11 @@
       (game-project/set-setting! node-id p (workspace/file-resource workspace path))
       (move-file workspace path new-path)
       (is (= new-path
-            (resource/resource->proj-path (get (g/node-value node-id :settings-map) p)))))))
+             (resource/resource->proj-path (get (g/node-value node-id :settings-map) p)))))))
 
 (deftest all-project-files
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)]
+    (let [[workspace project] (setup-scratch)]
       (let [all-files (->>
                         (workspace/resolve-workspace-resource workspace "/")
                         (tree-seq (fn [r] (and (resource/editable? r) (not (resource/read-only? r)) (resource/children r))) resource/children)
@@ -829,7 +826,7 @@
 (deftest new-collection-modified-script
   ;; used to provoke exception because load steps of collection tried to access non-loaded script
   (with-clean-system
-    (let [[workspace project] (setup-scratch world "test/resources/load_order_project")]
+    (let [[workspace project] (setup-scratch "test/resources/load_order_project")]
       (bulk-change workspace
                    (->> (read-file workspace "/referenced.collection")
                         (write-file workspace "/referenced2.collection"))

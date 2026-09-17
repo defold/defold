@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -87,9 +87,21 @@ namespace dmGui
         GetTextMetricsCallback          m_GetTextMetricsCallback;
         uint32_t                        m_PhysicalWidth;
         uint32_t                        m_PhysicalHeight;
+        uint32_t                        m_AdjustWidth;
+        uint32_t                        m_AdjustHeight;
         uint32_t                        m_DefaultProjectWidth;
         uint32_t                        m_DefaultProjectHeight;
         uint32_t                        m_Dpi;
+        float                           m_AdjustOffsetX;
+        float                           m_AdjustOffsetY;
+        bool                            m_UseSafeAreaAdjust;
+        SafeAreaMode                    m_SafeAreaMode;
+        uint32_t                        m_WindowWidth;
+        uint32_t                        m_WindowHeight;
+        int32_t                         m_WindowInsetLeft;
+        int32_t                         m_WindowInsetTop;
+        int32_t                         m_WindowInsetRight;
+        int32_t                         m_WindowInsetBottom;
         dmArray<HScene>                 m_Scenes;
         dmArray<RenderEntry>            m_RenderNodes;
         dmArray<dmVMath::Matrix4>       m_RenderTransforms;
@@ -112,6 +124,7 @@ namespace dmGui
         uint64_t                m_TextureHash;
         uint64_t                m_FlipbookAnimHash;
         uint64_t                m_FontHash;
+        dmhash_t                m_TextStyle;
         uint64_t                m_ParticlefxHash;
         dmhash_t                m_LayerHash;
         dmhash_t                m_MaterialNameHash;
@@ -121,12 +134,14 @@ namespace dmGui
         void*                   m_Material;
         void*                   m_RenderConstants;
         void*                   m_CustomData;
+        CustomPropertyDesc*     m_CustomProperties;
         void*                   m_ParticlefxPrototype;
         dmParticle::HInstance   m_ParticleInstance;
         dmVMath::Vector4*       m_ResetPointProperties;
         uint32_t                m_ResetPointState;
         uint32_t                m_RenderConstantsHash;
         uint32_t                m_CustomType; // Only valid if m_NodeType == NODE_TYPE_CUSTOM
+        uint8_t                 m_CustomPropertyCount;
 
         uint32_t                m_PerimeterVertices : 31;
         uint32_t                m_HasResetPoint : 1;
@@ -158,6 +173,7 @@ namespace dmGui
         };
 
         const char*             m_Text;
+        TextLayout              m_TextLayout;
         void**                  m_NodeDescTable;
         TextureSetAnimDesc      m_TextureSetAnimDesc;
         float                   m_FlipbookAnimPosition;
@@ -221,7 +237,7 @@ namespace dmGui
 
     struct TextureInfo
     {
-        TextureInfo(HTextureSource texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height, dmImage::Type image_type)
+        TextureInfo(HTextureSource texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height, uint32_t image_type)
         : m_TextureSource(texture_source)
         , m_TextureSourceType(texture_source_type)
         , m_ImageType(image_type)
@@ -231,7 +247,7 @@ namespace dmGui
 
         HTextureSource  m_TextureSource;
         NodeTextureType m_TextureSourceType;
-        dmImage::Type   m_ImageType;
+        uint32_t        m_ImageType;
         uint32_t        m_OriginalWidth : 16;
         uint32_t        m_OriginalHeight : 16;
     };
@@ -281,16 +297,25 @@ namespace dmGui
         uint16_t                              m_ResChanged : 1;
         uint32_t                              m_Width;
         uint32_t                              m_Height;
+        uint32_t                              m_AdjustWidth;
+        uint32_t                              m_AdjustHeight;
+        float                                 m_AdjustOffsetX;
+        float                                 m_AdjustOffsetY;
+        SafeAreaMode                          m_SafeAreaMode;
+        bool                                  m_SafeAreaModeOverride;
+        bool                                  m_UseSafeAreaAdjust;
         dmScript::ScriptWorld*                m_ScriptWorld;
         CreateCustomNodeCallback              m_CreateCustomNodeCallback;
         DestroyCustomNodeCallback             m_DestroyCustomNodeCallback;
         CloneCustomNodeCallback               m_CloneCustomNodeCallback;
         UpdateCustomNodeCallback              m_UpdateCustomNodeCallback;
         void*                                 m_CreateCustomNodeCallbackContext;
+        PrepareNodeTextLayoutCallback         m_PrepareNodeTextLayoutCallback;
         GetResourceCallback                   m_GetResourceCallback;
         void*                                 m_GetResourceCallbackContext;
         FetchTextureSetAnimCallback           m_FetchTextureSetAnimCallback;
         OnWindowResizeCallback                m_OnWindowResizeCallback;
+        ApplyLayoutCallback                   m_ApplyLayoutCallback;
         GetMaterialPropertyCallback           m_GetMaterialPropertyCallback;
         void*                                 m_GetMaterialPropertyCallbackContext;
         SetMaterialPropertyCallback           m_SetMaterialPropertyCallback;
@@ -300,6 +325,7 @@ namespace dmGui
         NewTextureResourceCallback            m_NewTextureResourceCallback;
         DeleteTextureResourceCallback         m_DeleteTextureResourceCallback;
         SetTextureResourceCallback            m_SetTextureResourceCallback;
+        GetDisplayProfileDescCallback         m_GetDisplayProfileDescCallback;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);

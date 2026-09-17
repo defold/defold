@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,7 +25,6 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -46,7 +45,7 @@ public class DefaultFileSystem extends AbstractFileSystem<DefaultFileSystem, Def
     @Override
     public IResource get(String path) {
         // Paths are always root relative.
-        if (path.startsWith("/"))
+        while (path.startsWith("/") || path.startsWith("\\"))
             path = path.substring(1);
         IResource resource = getFromMountPoints(path);
         if (resource != null) {

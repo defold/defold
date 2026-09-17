@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,24 @@
 
 namespace dmRender
 {
+    const Matrix4& GetProjectionMatrixForProgram(HRenderContext render_context)
+    {
+        if (render_context->m_UseAdjustedNDC)
+        {
+            return render_context->m_ProjectionAdjustedNDC;
+        }
+        return render_context->m_Projection;
+    }
+
+    const Matrix4& GetViewProjectionMatrixForProgram(HRenderContext render_context)
+    {
+        if (render_context->m_UseAdjustedNDC)
+        {
+            return render_context->m_ViewProjAdjustedNDC;
+        }
+        return render_context->m_ViewProj;
+    }
+
     static inline bool IsUniformTypeSupported(dmGraphics::Type type)
     {
         return type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4 || dmGraphics::IsTypeTextureType(type) || type == dmGraphics::TYPE_SAMPLER;
@@ -103,7 +121,7 @@ namespace dmRender
         return true;
     }
 
-    bool SetProgramSampler(dmArray<Sampler>& samplers, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
+    bool SetProgramSampler(dmArray<Sampler>& samplers, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
     {
         if (unit < samplers.Size() && name_hash != 0)
         {
@@ -115,6 +133,7 @@ namespace dmRender
                 s.m_Location      = *location;
                 s.m_UWrap         = u_wrap;
                 s.m_VWrap         = v_wrap;
+                s.m_WWrap         = w_wrap;
                 s.m_MinFilter     = min_filter;
                 s.m_MagFilter     = mag_filter;
                 s.m_MaxAnisotropy = max_anisotropy;
@@ -146,6 +165,24 @@ namespace dmRender
         return 0x0;
     }
 
+    bool GetSamplerInfo(HSampler sampler, SamplerInfo* info)
+    {
+        if (!sampler || !info)
+            return false;
+
+        info->m_NameHash      = sampler->m_NameHash;
+        info->m_TextureType   = sampler->m_Type;
+        info->m_Location      = sampler->m_Location;
+        info->m_UWrap         = sampler->m_UWrap;
+        info->m_VWrap         = sampler->m_VWrap;
+        info->m_WWrap         = sampler->m_WWrap;
+        info->m_MinFilter     = sampler->m_MinFilter;
+        info->m_MagFilter     = sampler->m_MagFilter;
+        info->m_MaxAnisotropy = sampler->m_MaxAnisotropy;
+
+        return true;
+    }
+
     void ApplyProgramSampler(dmRender::HRenderContext render_context, HSampler sampler, uint8_t unit, dmGraphics::HTexture texture)
     {
         if (!sampler)
@@ -159,7 +196,7 @@ namespace dmRender
         if (s->m_Location != -1)
         {
             dmGraphics::SetSampler(graphics_context, s->m_Location, unit);
-            dmGraphics::SetTextureParams(texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
+            dmGraphics::SetTextureParams(graphics_context, texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_WWrap, s->m_MaxAnisotropy);
         }
     }
 
@@ -308,11 +345,12 @@ namespace dmRender
         delete[] default_values;
     }
 
-    void SetProgramConstant(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& texture_matrix, dmGraphics::ShaderDesc::Language program_language, dmRenderDDF::MaterialDesc::ConstantType type, dmGraphics::HProgram program, dmGraphics::HUniformLocation location, HConstant constant)
+    void SetProgramConstant(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& texture_matrix, dmRenderDDF::MaterialDesc::ConstantType type, dmGraphics::HUniformLocation location, HConstant constant)
     {
         switch (type)
         {
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR:
             {
                 uint32_t num_values;
                 dmVMath::Vector4* values = GetConstantValues(constant, &num_values);
@@ -328,20 +366,8 @@ namespace dmRender
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
             {
-                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL)
-                {
-                    Matrix4 ndc_matrix = Matrix4::identity();
-                    ndc_matrix.setElem(2, 2, 0.5f );
-                    ndc_matrix.setElem(3, 2, 0.5f );
-                    const Matrix4 view_projection = ndc_matrix * render_context->m_ViewProj;
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_projection, 1, location);
-                }
-                else
-                {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_ViewProj, 1, location);
-                }
+                const Matrix4 view_projection = GetViewProjectionMatrixForProgram(render_context);
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_projection, 1, location);
                 break;
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD:
@@ -361,22 +387,8 @@ namespace dmRender
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION:
             {
-                // Vulkan NDC is [0..1] for z, so we must transform
-                // the projection before setting the constant.
-                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL)
-                {
-                    Matrix4 ndc_matrix = Matrix4::identity();
-                    ndc_matrix.setElem(2, 2, 0.5f );
-                    ndc_matrix.setElem(3, 2, 0.5f );
-                    const Matrix4 proj = ndc_matrix * render_context->m_Projection;
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&proj, 1, location);
-                }
-                else
-                {
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&render_context->m_Projection, 1, location);
-                }
+                const Matrix4 projection = GetProjectionMatrixForProgram(render_context);
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&projection, 1, location);
                 break;
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_NORMAL:
@@ -402,21 +414,50 @@ namespace dmRender
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ:
             {
-                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL ||
-                    program_language == dmGraphics::ShaderDesc::LANGUAGE_HLSL)
-                {
-                    Matrix4 ndc_matrix = Matrix4::identity();
-                    ndc_matrix.setElem(2, 2, 0.5f );
-                    ndc_matrix.setElem(3, 2, 0.5f );
-                    const Matrix4 world_view_projection = ndc_matrix * render_context->m_ViewProj * world_matrix;
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, 1, location);
-                }
-                else
-                {
-                    const Matrix4 world_view_projection = render_context->m_ViewProj * world_matrix;
-                    dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, 1, location);
-                }
+                const Matrix4 world_view_projection = GetViewProjectionMatrixForProgram(render_context) * world_matrix;
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection, 1, location);
+                break;
+            }
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLD_INVERSE:
+            {
+                const Matrix4 world_inverse = Inverse(world_matrix);
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_inverse, 1, location);
+                break;
+            }
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEW_INVERSE:
+            {
+                const Matrix4 view_inverse = Inverse(render_context->m_View);
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_inverse, 1, location);
+                break;
+            }
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_PROJECTION_INVERSE:
+            {
+                const Matrix4 projection_inverse = Inverse(GetProjectionMatrixForProgram(render_context));
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&projection_inverse, 1, location);
+                break;
+            }
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ_INVERSE:
+            {
+                const Matrix4 view_projection_inverse = Inverse(GetViewProjectionMatrixForProgram(render_context));
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&view_projection_inverse, 1, location);
+                break;
+            }
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEW_INVERSE:
+            {
+                const Matrix4 world_view_inverse = Inverse(render_context->m_View * world_matrix);
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_inverse, 1, location);
+                break;
+            }
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE:
+            {
+                const Matrix4 world_view_projection_inverse = Inverse(GetViewProjectionMatrixForProgram(render_context) * world_matrix);
+                dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view_projection_inverse, 1, location);
+                break;
+            }
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME:
+            {
+                dmVMath::Vector4 time(render_context->m_Time, render_context->m_Dt, 0.0f, 0.0f);
+                dmGraphics::SetConstantV4(graphics_context, &time, 1, location);
                 break;
             }
         }

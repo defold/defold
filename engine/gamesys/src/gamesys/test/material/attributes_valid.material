@@ -1,6 +1,6 @@
 name: "custom_attributes_valid"
 vertex_program: "/material/attributes.vp"
-fragment_program: "/fragment_program/valid.fp"
+fragment_program: "/material/fragment_program_valid.fp"
 attributes {
   name: "position"
   semantic_type: SEMANTIC_TYPE_POSITION

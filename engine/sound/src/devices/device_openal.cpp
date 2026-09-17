@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -25,6 +25,7 @@
 #if defined(__MACH__)
 #include <OpenAL/al.h>
 #include <OpenAL/alc.h>
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #else
 #include <AL/al.h>
 #include <AL/alc.h>

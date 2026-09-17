@@ -1,6 +1,6 @@
 name: "attributes_dynamic_go_set_get_sparse"
 vertex_program: "/material/attributes_custom_multiple.vp"
-fragment_program: "/fragment_program/valid.fp"
+fragment_program: "/material/fragment_program_valid.fp"
 
 attributes {
   name: "custom_value_1"

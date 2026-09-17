@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -31,7 +31,7 @@ extern "C"
 
 namespace dmScript
 {
-    /*# SDK Script API documentation
+    /*# Script API documentation
      *
      * Built-in scripting functions.
      *
@@ -40,6 +40,20 @@ namespace dmScript
      * @namespace dmScript
      * @language C++
      */
+
+    /*# Script extension context name
+     * Name used when registering the script context with the engine context registry.
+     * @constant
+     * @name SCRIPT_CONTEXT_NAME
+     */
+    #define SCRIPT_CONTEXT_NAME "script"
+
+    /*# Lua extension context name
+     * Name used when registering the Lua state with the engine context registry.
+     * @constant
+     * @name LUA_CONTEXT_NAME
+     */
+    #define LUA_CONTEXT_NAME "lua"
 
     /*#
      * The script context
@@ -266,7 +280,7 @@ namespace dmScript
      * @name IsVector3
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return true [type:bool] if value at #index is a dmVMath::Vector3*
+     * @return is_vector3 [type:bool] true if value at #index is a dmVMath::Vector3*
      */
     bool IsVector3(lua_State* L, int index);
 
@@ -304,7 +318,7 @@ namespace dmScript
      * @name IsVector4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return true [type:bool] if value at #index is a dmVMath::Vector4*
+     * @return is_vector4 [type:bool] true if value at #index is a dmVMath::Vector4*
      */
     bool IsVector4(lua_State* L, int index);
 
@@ -341,7 +355,7 @@ namespace dmScript
      * @name IsQuat
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return true [type:bool] if value at #index is a dmVMath::Quat*
+     * @return is_quat [type:bool] true if value at #index is a dmVMath::Quat*
      */
     bool IsQuat(lua_State* L, int index);
 
@@ -378,7 +392,7 @@ namespace dmScript
      * @name IsMatrix4
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return true [type:bool] if value at #index is a dmVMath::Matrix4*
+     * @return is_matrix4 [type:bool] true if value at #index is a dmVMath::Matrix4*
      */
     bool IsMatrix4(lua_State* L, int index);
 
@@ -512,28 +526,37 @@ namespace dmScript
      */
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
 
+    // DEPRECATED
+    int JsonToLua(lua_State* L, const char* json, size_t json_len);
+
     /*# convert a Json string to a Lua table
      * Convert a Json string to Lua table.
      * @note Throws Lua error if it fails to parser the json
      *
      * @name JsonToLua
      * @param L [type:lua_State*] lua state
+     * @param options_index [type:int] lua stack index to check for an options table
      * @param json [type:const char*] json string
      * @param json_len [type:size_t] length of json string
      * @return int [type:int] 1 if it succeeds. Throws a Lua error if it fails
      */
-    int JsonToLua(lua_State* L, const char* json, size_t json_len);
+    int JsonToLua(lua_State* L, int options_index, const char* json, size_t json_len);
+
+    // DEPRECATED
+    int LuaToJson(lua_State* L, char** json, size_t* json_len);
 
     /*# convert a Lua table to a Json string
-     * Convert a Lua table to a Json string
+     * Convert the Lua value at the supplied stack index to a Json string
      *
      * @name LuaToJson
      * @param L [type:lua_State*] lua state
+     * @param index [type:int] lua stack index of the value to encode
+     * @param options_index [type:int] lua stack index to check for an options table
      * @param json [type:char**] [out] Pointer to char*, which will receive a newly allocated string. Use free().
      * @param json_len [type:size_t*] length of json string
      * @return int [type:int] <0 if it fails. >=0 if it succeeds.
      */
-    int LuaToJson(lua_State* L, char** json, size_t* json_len);
+    int LuaToJson(lua_State* L, int index, int options_index, char** json, size_t* json_len);
 
     /*# callback info struct
      * callback info struct that will hold the relevant info needed to make a callback into Lua
@@ -619,7 +642,7 @@ namespace dmScript
      *
      * @name SetupCallback
      * @param cbk [type:LuaCallbackInfo*] Lua callback struct
-     * @return true [type:bool] if the setup was successful
+     * @return success [type:bool] true if the setup was successful
      */
     bool SetupCallback(LuaCallbackInfo* cbk);
 
@@ -688,6 +711,7 @@ namespace dmScript
      * It also gets the current (caller) url if the a pointer is passed to `out_default_url`
      * @name ResolveURL
      * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
      * @param out_url [type:dmMessage::URL*] where to store the result
      * @param out_default_url [type:dmMessage::URL*] default URL used in the resolve, can be 0x0 (not used)
      * @return result [type:int] 0 if successful. Throws Lua error on failure

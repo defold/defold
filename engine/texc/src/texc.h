@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,8 +22,6 @@
  */
 namespace dmTexc
 {
-    // Matches the enums in graphics_ddf.proto
-
     enum PixelFormat
     {
         PF_L8,
@@ -60,6 +58,9 @@ namespace dmTexc
         PF_RGBA_ASTC_10x10,
         PF_RGBA_ASTC_12x10,
         PF_RGBA_ASTC_12x12,
+
+        PF_RGBA16F,
+        PF_RGBA32F,
     };
 
     enum ColorSpace
@@ -110,8 +111,10 @@ namespace dmTexc
         ColorSpace  m_ColorSpace;
     };
 
-    Image* CreateImage(const char* path, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, uint32_t data_size, uint8_t* data);
-    void DestroyImage(Image* image);
+    Image*   CreateImage(const char* path, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, uint32_t data_size, uint8_t* data);
+    void     DestroyLoadedImage(Image* image);
+    void     CreatePreviewImage(uint32_t width, uint32_t height, uint32_t data_size, const uint8_t* input_data, uint8_t* output_data);
+    void     DestroyImage(Image* image);
 
     uint32_t GetWidth(Image* image);
     uint32_t GetHeight(Image* image);

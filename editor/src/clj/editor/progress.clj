@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,21 +13,24 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.progress
-  (:require [util.coll :refer [pair]]
-            [util.defonce :as defonce]))
+  (:require [editor.localization :as localization]
+            [util.coll :refer [pair]]
+            [util.defonce :as defonce])
+  (:import [com.defold.editor.localization MessagePattern]
+           [com.dynamo.bob IProgress$Message$Building IProgress$Message$BuildingEngine IProgress$Message$Bundling IProgress$Message$Cleaning IProgress$Message$CleaningEngine IProgress$Message$DownloadingArchive IProgress$Message$DownloadingArchives IProgress$Message$DownloadingSymbols IProgress$Message$GeneratingReport IProgress$Message$ReadingClasses IProgress$Message$ReadingTasks IProgress$Message$TranspilingToLua IProgress$Message$Working]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (defonce/record Progress
-  [^String message
+  [^MessagePattern message
    ^long size
    ^long pos
    cancel-state])
 
 (defn ->progress
-  ^Progress [^String message ^long size ^long pos cancel-state]
-  {:pre [(string? message)
+  ^Progress [^MessagePattern message ^long size ^long pos cancel-state]
+  {:pre [(localization/message-pattern? message)
          (nat-int? size) ; size 0 means indeterminate.
          (nat-int? pos)
          (<= pos size)
@@ -35,33 +38,57 @@
   (->Progress message size pos cancel-state))
 
 (defn make
-  (^Progress [^String message]
+  (^Progress [^MessagePattern message]
    (->progress message 1 0 :not-cancellable))
-  (^Progress [^String message ^long size]
+  (^Progress [^MessagePattern message ^long size]
    (->progress message size 0 :not-cancellable))
-  (^Progress [^String message ^long size ^long pos]
+  (^Progress [^MessagePattern message ^long size ^long pos]
    (->progress message size pos :not-cancellable))
-  (^Progress [^String message ^long size ^long pos cancellable]
+  (^Progress [^MessagePattern message ^long size ^long pos cancellable]
    (->progress message size pos (if cancellable :cancellable :not-cancellable))))
 
+(defn bob
+  (^Progress [message ^double fraction]
+   (bob message fraction false))
+  (^Progress [message ^double fraction cancellable]
+   (make
+     (condp instance? message
+       IProgress$Message$Bundling (localization/message "progress.bundling")
+       IProgress$Message$BuildingEngine (localization/message "progress.building-engine")
+       IProgress$Message$CleaningEngine (localization/message "progress.cleaning-engine")
+       IProgress$Message$DownloadingSymbols (localization/message "progress.downloading-symbols")
+       IProgress$Message$TranspilingToLua (localization/message "progress.transpiling-to-lua")
+       IProgress$Message$ReadingTasks (localization/message "progress.reading-tasks")
+       IProgress$Message$Building (localization/message "progress.building")
+       IProgress$Message$Cleaning (localization/message "progress.cleaning")
+       IProgress$Message$GeneratingReport (localization/message "progress.generating-report")
+       IProgress$Message$Working (localization/message "progress.working")
+       IProgress$Message$ReadingClasses (localization/message "progress.reading-classes")
+       IProgress$Message$DownloadingArchives (localization/message "progress.downloading-archives" {"count" (.count ^IProgress$Message$DownloadingArchives message)})
+       IProgress$Message$DownloadingArchive (localization/message "progress.downloading-archive" {"uri" (str (.uri ^IProgress$Message$DownloadingArchive message))})
+       localization/empty-message)
+     1000
+     (long (* 1000.0 fraction))
+     cancellable)))
+
 (defn make-indeterminate
-  ^Progress [^String message]
+  ^Progress [^MessagePattern message]
   (->progress message 0 0 :not-cancellable))
 
 (defn make-cancellable-indeterminate
-  ^Progress [^String message]
+  ^Progress [^MessagePattern message]
   (->progress message 0 0 :cancellable))
 
-(def ^Progress done (->progress "Ready" 1 1 :not-cancellable))
+(def ^Progress done (->progress (localization/message "progress.ready") 1 1 :not-cancellable))
 
 (defn with-message
-  ^Progress [^Progress progress ^String message]
+  ^Progress [^Progress progress ^MessagePattern message]
   (assoc progress :message message))
 
 (defn jump
   (^Progress [^Progress progress ^long pos]
    (assoc progress :pos (min pos (.-size progress))))
-  (^Progress [^Progress progress ^long pos ^String message]
+  (^Progress [^Progress progress ^long pos ^MessagePattern message]
    (with-message (jump progress pos) message)))
 
 (defn advance
@@ -69,7 +96,7 @@
    (advance progress 1))
   (^Progress [^Progress progress ^long delta]
    (jump progress (+ (.-pos progress) delta)))
-  (^Progress [^Progress progress ^long delta ^String message]
+  (^Progress [^Progress progress ^long delta ^MessagePattern message]
    (with-message (advance progress delta) message)))
 
 (defn fraction [^Progress progress]
@@ -82,7 +109,7 @@
     (int (* 100.0 (double fraction)))))
 
 (definline message
-  ^String [^Progress progress]
+  ^MessagePattern [^Progress progress]
   `(.-message ~(with-meta progress {:tag `Progress})))
 
 (defn done? [^Progress progress]
@@ -133,11 +160,6 @@
             (percentage progress))))
 
 (defn null-render-progress! [_])
-
-(defn println-render-progress! [^Progress progress]
-  (if-some [percentage (percentage progress)]
-    (println (message progress) percentage "%")
-    (println (message progress))))
 
 (defn throttle-render-progress [render-progress!]
   (let [last-progress (atom nil)]
@@ -195,15 +217,15 @@
 
 (defn progress-mapv
   ([f coll render-progress!]
-   (progress-mapv f coll render-progress! (constantly "")))
+   (progress-mapv f coll render-progress! (constantly localization/empty-message)))
   ([f coll render-progress! message-fn]
    (persistent!
      (first
        (reduce (fn [[result progress] item]
-                 (let [progress (with-message progress (or (message-fn item) ""))]
+                 (let [progress (with-message progress (or (message-fn item) localization/empty-message))]
                    (render-progress! progress)
                    (pair (conj! result (f item progress))
                          (advance progress))))
                (pair (transient [])
-                     (->progress "" (count coll) 0 :not-cancellable))
+                     (->progress localization/empty-message (count coll) 0 :not-cancellable))
                coll)))))

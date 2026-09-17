@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -33,14 +33,6 @@ public abstract class Publisher {
 
     public Publisher(PublisherSettings settings) {
         this.settings = settings;
-    }
-
-    public String getManifestPublicKey() {
-        return this.settings.getManifestPublicKey();
-    }
-    
-    public String getManifestPrivateKey() {
-        return this.settings.getManifestPrivateKey();
     }
 
     public IResource getPublisherSettingsResorce() { return this.settings.getResource(); }

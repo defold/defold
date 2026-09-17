@@ -1,0 +1,44 @@
+local M = {}
+
+function M.get_commands()
+    return {
+        {
+            label = "Command 7",
+            locations = {"Edit"}
+        },
+        {
+            label = "Command 2",
+            locations = {"Edit"}
+        },
+        {
+            label = "Command 9",
+            locations = {"Edit"}
+        },
+        {
+            label = "Command 1",
+            locations = {"Edit"}
+        },
+        {
+            label = "Command 5",
+            locations = {"Edit"}
+        },
+        {
+            label = "Command 3",
+            locations = {"Edit"}
+        },
+        {
+            label = "Command 8",
+            locations = {"Edit"}
+        },
+        {
+            label = "Command 4",
+            locations = {"Edit"}
+        },
+        {
+            label = "Command 6",
+            locations = {"Edit"}
+        }
+    }
+end
+
+return M

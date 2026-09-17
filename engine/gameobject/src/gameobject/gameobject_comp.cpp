@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,6 +36,7 @@ namespace dmGameObject
         ComponentTypeSetAddToUpdateFn(type, CompScriptAddToUpdate);
         ComponentTypeSetUpdateFn(type, CompScriptUpdate);
         ComponentTypeSetFixedUpdateFn(type, CompScriptFixedUpdate);
+        ComponentTypeSetLateUpdateFn(type, CompScriptLateUpdate);
         ComponentTypeSetOnMessageFn(type, CompScriptOnMessage);
         ComponentTypeSetOnInputFn(type, CompScriptOnInput);
         ComponentTypeSetOnReloadFn(type, CompScriptOnReload);

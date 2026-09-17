@@ -1,4 +1,4 @@
--- Copyright 2020-2025 The Defold Foundation
+-- Copyright 2020-2026 The Defold Foundation
 -- Copyright 2014-2020 King
 -- Copyright 2009-2014 Ragnar Svensson, Christian Murray
 -- Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,8 +13,7 @@
 -- specific language governing permissions and limitations under the License.
 
 function update(self, dt)
-    local shared = sys.get_config("script.shared_state", "0")
-    if shared ~= "1" or global_value == 1 then
+    if global_value == 1 then
         msg.post("main:/main#script", "done")
     end
 end

@@ -1,0 +1,22 @@
+skip_commits:
+  files:
+  - '*.md'
+image:
+- Visual Studio 2017
+platform:
+- x64
+- Win32
+configuration:
+- Debug
+- Release
+before_build:
+- cmake --version
+- cmake -Bbuild -A %PLATFORM% -DSB_CONFIG_UNITY=OFF
+build_script:
+- cmake --build build --config %CONFIGURATION% --parallel
+
+# We `cd` instead of using `--test-dir build` because the `--test-dir`
+# argument is only supported from CMake v3.20+ (VS2017 uses CMake v3.16.2).
+test_script: |-
+  cd build
+  ctest --build-config %CONFIGURATION% --output-on-failure

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -23,8 +23,14 @@
 #include "sound_codec.h"
 #include "sound_decoder.h"
 
-#define STREAM_BLOCK_SIZE   (16 << 10)          // notes: - we assume this to be large enough to ALWAYS contain all data needed for stream initialization (and always be present on stream startup)
-                                                //        - OggVorbis usually has blocks up to 8K-sh at maximum, but might go as high as 64K - this would FAIL currently (but practically we say WAY smaller sizes; hence the current value)
+#define STREAM_BLOCK_SIZE       (16 << 10)
+// Ogg pages are bounded to 65,307 bytes by the framing spec. stb_vorbis_open_pushdata()
+// needs the Vorbis identification and comment headers, then requires the whole setup
+// packet to be present before opening. 128 KiB covers the common worst case of a small
+// identification page plus a near-full comment page and a near-full setup page. Vorbis
+// packets may span pages, so this is a pragmatic cap rather than a complete upper bound.
+// https://xiph.org/ogg/doc/framing.html
+#define STREAM_MAX_BUFFER_SIZE  (128 << 10)
 
 namespace dmSoundCodec
 {
@@ -32,6 +38,7 @@ namespace dmSoundCodec
     {
         struct DecodeStreamInfo {
             Info m_Info;
+            bool m_NormalizedOutput;
             stb_vorbis* m_StbVorbis;
             dmSound::HSoundData m_SoundData;
             uint32_t m_StreamOffset;
@@ -44,7 +51,7 @@ namespace dmSoundCodec
 
     static void CleanupBuffer(dmArray<uint8_t>& buffer, uint32_t consumed)
     {
-        // Move sill un-consumed buffer contents to the fronr so we offer them in one contigous chunk to Vorbis at all times
+        // Move still-unconsumed buffer contents to the front so we offer them in one contiguous chunk to Vorbis at all times
         uint32_t n = buffer.Size();
         uint8_t* data = buffer.Begin();
         for(uint32_t i=consumed; i<n; ++i)
@@ -52,33 +59,77 @@ namespace dmSoundCodec
         buffer.SetSize(n - consumed);
     }
 
+    static bool GrowBuffer(dmArray<uint8_t>& buffer)
+    {
+        uint32_t capacity = buffer.Capacity();
+        if (capacity >= STREAM_MAX_BUFFER_SIZE)
+            return false;
+
+        uint32_t new_capacity = dmMath::Min(capacity * 2, (uint32_t) STREAM_MAX_BUFFER_SIZE);
+        buffer.SetCapacity(new_capacity);
+        return true;
+    }
+
+    static Result ReadMoreData(DecodeStreamInfo* streamInfo, bool* input_dry, bool* end_of_stream)
+    {
+        *input_dry = false;
+
+        if (streamInfo->m_DataBuffer.Full() && !GrowBuffer(streamInfo->m_DataBuffer)) {
+            *input_dry = true;
+            return RESULT_OK;
+        }
+
+        uint32_t read_size = 0;
+        dmSound::Result res = dmSound::SoundDataRead(streamInfo->m_SoundData, streamInfo->m_StreamOffset, streamInfo->m_DataBuffer.Remaining(), streamInfo->m_DataBuffer.End(), &read_size);
+        if (res == dmSound::RESULT_OK || res == dmSound::RESULT_PARTIAL_DATA) {
+            streamInfo->m_StreamOffset += read_size;
+            streamInfo->m_DataBuffer.SetSize(streamInfo->m_DataBuffer.Size() + read_size);
+        } else if (res == dmSound::RESULT_NO_DATA) {
+            *input_dry = true;
+        } else if (res == dmSound::RESULT_END_OF_STREAM) {
+            *input_dry = true;
+            *end_of_stream = true;
+        } else {
+            return RESULT_DECODE_ERROR;
+        }
+
+        return RESULT_OK;
+    }
+
     static Result StbVorbisOpenStream(dmSound::HSoundData sound_data, HDecodeStream* stream)
     {
         DecodeStreamInfo *streamInfo = new DecodeStreamInfo;
+        streamInfo->m_SoundData = sound_data;
+        streamInfo->m_StreamOffset = 0;
+        streamInfo->m_LastOutput = NULL;
         streamInfo->m_DataBuffer.SetCapacity(STREAM_BLOCK_SIZE);
 
-        uint32_t read_size;
-        dmSound::Result res = dmSound::SoundDataRead(sound_data, 0, STREAM_BLOCK_SIZE, streamInfo->m_DataBuffer.Begin(), &read_size);
+        bool bInputDry = false;
+        bool bEOS = false;
+        int error = VORBIS_need_more_data;
 
-        if (res != dmSound::RESULT_NO_DATA) {
-            streamInfo->m_DataBuffer.SetSize(read_size);
-            streamInfo->m_StreamOffset = read_size;
+        while (error == VORBIS_need_more_data) {
+            Result read_result = ReadMoreData(streamInfo, &bInputDry, &bEOS);
+            if (read_result != RESULT_OK)
+                break;
 
-            int error, consumed;
+            int consumed = 0;
             stb_vorbis *vorbis = stb_vorbis_open_pushdata(streamInfo->m_DataBuffer.Begin(), (int)streamInfo->m_DataBuffer.Size(), &consumed, &error, NULL);
             if (vorbis) {
                 CleanupBuffer(streamInfo->m_DataBuffer, consumed);
 
-                streamInfo->m_SoundData = sound_data;
-                streamInfo->m_LastOutput = NULL;
-                
+                dmSound::DecoderOutputSettings settings;
+                dmSound::GetDecoderOutputSettings(&settings);
+
+                streamInfo->m_NormalizedOutput = settings.m_UseNormalizedFloatRange;
+
                 stb_vorbis_info info = stb_vorbis_get_info(vorbis);
 
                 streamInfo->m_Info.m_Rate = info.sample_rate;
                 streamInfo->m_Info.m_Size = 0;
                 streamInfo->m_Info.m_Channels = info.channels;
                 streamInfo->m_Info.m_BitsPerSample = 32;
-                streamInfo->m_Info.m_IsInterleaved = false;
+                streamInfo->m_Info.m_IsInterleaved = settings.m_UseInterleaved;
                 streamInfo->m_StbVorbis = vorbis;
 
                 *stream = streamInfo;
@@ -87,9 +138,12 @@ namespace dmSoundCodec
 
             if (error != VORBIS_need_more_data) {
                 dmLogWarning("Vorbis data seems to be invalid!");
-            } else {
-                // Now would be the time to present even more data to the decoder to startup decoding - but we fail as we assume our initial block always being large enough
+                break;
+            }
+
+            if (bInputDry) {
                 dmLogWarning("Vorbis needs more data to be initialized than expected!");
+                break;
             }
         }
 
@@ -97,7 +151,19 @@ namespace dmSoundCodec
         return RESULT_INVALID_FORMAT;
     }
 
-    static void ConvertDecoderOutput(uint32_t channels, char *out[], uint32_t out_offset, float **data, uint32_t in_offset, uint32_t frames)
+    static void ConvertDecoderOutputNormalizedInterleaved(uint32_t channels, float *out, float **data, uint32_t offset, uint32_t frames)
+    {
+        assert(channels == 1 || channels == 2);
+        uint32_t s = channels - 1;
+
+        for(uint32_t c=0; c<channels; ++c) {
+            for(uint32_t f=0; f<frames; ++f) {
+                out[(f << s) + c] = data[c][f + offset];
+            }
+        }
+    }
+
+    static void ConvertDecoderOutputNonInterleaved(uint32_t channels, char *out[], uint32_t out_offset, float **data, uint32_t in_offset, uint32_t frames)
     {
         // Copy out data from Vorbis internal buffer & scale it up from normalized representation to fit the mixer's expectations
         for(uint32_t c=0; c<channels; ++c)
@@ -116,9 +182,12 @@ namespace dmSoundCodec
         // note: EOS detection is solely based on data consumption and hence not sample precise (the last decoded block may contain silence not part of the original material)
         
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
+
         DM_PROFILE(__FUNCTION__);
 
-        int needed_frames = buffer_size / sizeof(float);    // in non-interleaved case (here) we have per channel sizes
+        uint32_t stride = streamInfo->m_Info.m_IsInterleaved ? (streamInfo->m_Info.m_Channels * sizeof(float)) : sizeof(float);
+
+        int needed_frames = buffer_size / stride;
         int done_frames = 0;
 
         bool bEOS = false;
@@ -131,21 +200,9 @@ namespace dmSoundCodec
                 bool bInputDry = false;
 
                 // No, keep input buffers as full as possible...
-                if (!streamInfo->m_DataBuffer.Full()) {
-                    uint32_t read_bytes;
-                    dmSound::Result res = dmSound::SoundDataRead(streamInfo->m_SoundData, streamInfo->m_StreamOffset, streamInfo->m_DataBuffer.Remaining(), streamInfo->m_DataBuffer.End(), &read_bytes);
-                    if (res == dmSound::RESULT_OK || res == dmSound::RESULT_PARTIAL_DATA) {
-                        streamInfo->m_StreamOffset += read_bytes;
-                        streamInfo->m_DataBuffer.SetSize(streamInfo->m_DataBuffer.Size() + read_bytes);
-                    } else if (res == dmSound::RESULT_NO_DATA) {
-                        bInputDry = true;
-                    } else if (res == dmSound::RESULT_END_OF_STREAM) {
-                        bInputDry = true;
-                        bEOS = true;
-                    } else {
-                        return RESULT_DECODE_ERROR;
-                    }
-                }
+                Result read_result = ReadMoreData(streamInfo, &bInputDry, &bEOS);
+                if (read_result != RESULT_OK)
+                    return read_result;
 
                 // Decode if we can...
                 int channels;
@@ -158,6 +215,8 @@ namespace dmSoundCodec
                 if (consumed == 0) {
                     // Sanity check: we should never have less data than needed if our input buffer is full!
                     if (streamInfo->m_DataBuffer.Full()) {
+                        if (GrowBuffer(streamInfo->m_DataBuffer))
+                            continue;
                         dmLogWarning("Vorbis needs more data to produce new samples than expected!");
                         return RESULT_DECODE_ERROR;
                     }
@@ -180,7 +239,10 @@ namespace dmSoundCodec
                 uint32_t out_frames = dmMath::Min(streamInfo->m_LastOutputFrames, needed_frames - done_frames);
                 // This might be called with a NULL buffer to avoid delivering data, so we need to check...
                 if (buffer) {
-                    ConvertDecoderOutput(streamInfo->m_Info.m_Channels, buffer, done_frames, streamInfo->m_LastOutput, streamInfo->m_LastOutputOffset, out_frames);
+                    if (streamInfo->m_NormalizedOutput && streamInfo->m_Info.m_IsInterleaved)
+                        ConvertDecoderOutputNormalizedInterleaved(streamInfo->m_Info.m_Channels, (float*)*buffer + done_frames * streamInfo->m_Info.m_Channels, streamInfo->m_LastOutput, streamInfo->m_LastOutputOffset, out_frames);
+                    else
+                        ConvertDecoderOutputNonInterleaved(streamInfo->m_Info.m_Channels, buffer, done_frames, streamInfo->m_LastOutput, streamInfo->m_LastOutputOffset, out_frames);
                 }
                 
                 done_frames += out_frames;
@@ -194,7 +256,7 @@ namespace dmSoundCodec
 
         }
 
-        *decoded = done_frames * sizeof(float);
+        *decoded = done_frames * stride;
 
         return (done_frames == 0 && bEOS) ? RESULT_END_OF_STREAM : RESULT_OK;
     }
@@ -222,7 +284,7 @@ namespace dmSoundCodec
         // NOTE POST STREAMING-REFACTOR:
         //
         // - modifications in Vorbis are no longer needed
-        // - NULL buffer really (old & new version) just skips very little to nothing - decode of the actual data still happens (unless decoder is in seek mode)
+        // - NULL buffer really (old & new version) just skips the final float to short conversion - decode of the actual data still happens (unless decoder is in seek mode)
         // - we still need to decode to be able to monitor data consumption & keep decode state to reengage output later on / detect EOS
         //
         return StbVorbisDecode(stream, NULL, num_bytes, skipped);

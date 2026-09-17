@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,26 +17,37 @@
 
 #include <stdint.h>
 
-struct zip_t; // internal, don't use
-
 namespace dmZip
 {
-    typedef zip_t* HZip;
+    struct ZipArchive;
+    typedef ZipArchive* HZip;
 
     enum Result
     {
         RESULT_OK,
         RESULT_NO_SUCH_ENTRY,
         RESULT_BUFFER_NOT_LARGE_ENOUGH,
+        RESULT_IO_ERROR,
     };
 
     /*# Opens a read only zip archive
      *
+     * The path and its backing storage are resolved by the platform ZIP backend.
+     *
      * @param path [type: const char*] path to the zip archive
+     * @param zip [type: HZip*] pointer to zip handle
+     * @return [type:Result] result
+     */
+    Result Open(const char* path, HZip* zip);
+
+    /*# Opens a read only zip archive stream from memory
+     *
+     * @param stream [type: const char*] zip archive stream
+     * @param size [type: uint32_t] stream size
      * @param path [type: HZip*] pointer to zip handle
      * @return [type:Result] path to the zip archive
      */
-    Result Open(const char* path, HZip* zip);
+    Result OpenStream(const char *stream, uint32_t size, HZip* zip);
 
     /*# Closes the zip archive
      *

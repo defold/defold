@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -44,6 +44,13 @@ namespace dmGameSystem
      * @name Sprite
      * @namespace sprite
      * @language Lua
+     */
+
+    /*# Sprite flipbook playback properties
+     * @struct
+     * @name sprite.play_properties
+     * @member offset? [type:number] Normalized initial animation cursor.
+     * @member playback_rate? [type:number] Positive animation playback rate.
      */
 
     /*# [type:vector3] sprite size
@@ -330,52 +337,6 @@ namespace dmGameSystem
         return 0;
     }
 
-    /** DEPRECATED! set a shader constant for a sprite
-     * Sets a shader constant for a sprite component.
-     * The constant must be defined in the material assigned to the sprite.
-     * Setting a constant through this function will override the value set for that constant in the material.
-     * The value will be overridden until `sprite.reset_constant` is called.
-     * Which sprite to set a constant for is identified by the URL.
-     *
-     * @name sprite.set_constant
-     * @param url [type:string|hash|url] the sprite that should have a constant set
-     * @param constant [type:string|hash] name of the constant
-     * @param value [type:vector4] of the constant
-     * @examples
-     *
-     * The following examples assumes that the sprite has id "sprite" and that the default-material in builtins is used, which defines the constant "tint".
-     * If you assign a custom material to the sprite, you can set the constants defined there in the same manner.
-     *
-     * How to tint a sprite red:
-     *
-     * ```lua
-     * function init(self)
-     *   sprite.set_constant("#sprite", "tint", vmath.vector4(1, 0, 0, 1))
-     * end
-     * ```
-     */
-    int SpriteComp_SetConstant(lua_State* L)
-    {
-        int top = lua_gettop(L);
-
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
-        dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
-
-        dmGameSystemDDF::SetConstant msg;
-        msg.m_NameHash = name_hash;
-        msg.m_Value = *value;
-        msg.m_Index = 0;
-
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
-        return 0;
-    }
-
     /** DEPRECATED! reset a shader constant for a sprite
      * Resets a shader constant for a sprite component.
      * The constant must be defined in the material assigned to the sprite.
@@ -448,30 +409,21 @@ namespace dmGameSystem
      * @name sprite.play_flipbook
      * @param url [type:string|hash|url] the sprite that should play the animation
      * @param id [type:string|hash] hashed id of the animation to play
-     * @param [complete_function] [type:function(self, message_id, message, sender)] function to call when the animation has completed.
+     * @param [complete_function] [type:fun(self:script_instance, message_id:hash, message:message.sprite.animation_done, sender:url)] function to call when the animation has completed.
      *
      * `self`
-     * : [type:object] The current object.
+     * : [type:script_instance] The current script instance.
      *
      * `message_id`
      * : [type:hash] The name of the completion message, `"animation_done"`.
      *
      * `message`
-     * : [type:table] Information about the completion:
-     *
-     * - [type:number] `current_tile` - the current tile of the sprite.
-     * - [type:hash] `id` - id of the animation that was completed.
+     * : [type:message.sprite.animation_done] Information about the completion.
      *
      * `sender`
      * : [type:url] The invoker of the callback: the sprite component.
      *
-     * @param [play_properties] [type:table] optional table with properties:
-     *
-     * `offset`
-     * : [type:number] the normalized initial value of the animation cursor when the animation starts playing.
-     *
-     * `playback_rate`
-     * : [type:number] the rate with which the animation will be played. Must be positive.
+     * @param [play_properties] [type:sprite.play_properties] optional playback properties
      *
      * @examples
      *
@@ -552,7 +504,6 @@ namespace dmGameSystem
     {
             {"set_hflip",       SpriteComp_SetHFlip},
             {"set_vflip",       SpriteComp_SetVFlip},
-            {"set_constant",    SpriteComp_SetConstant},
             {"reset_constant",  SpriteComp_ResetConstant},
             {"set_scale",       SpriteComp_SetScale},
             {"play_flipbook",   SpriteComp_PlayFlipBook},

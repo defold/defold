@@ -1,0 +1,226 @@
+# Minimum CMake version and project
+cmake_minimum_required(VERSION 4.0)
+
+# Early toolchain/SDK detection (for standalone configure)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../scripts/cmake")
+include(defold)
+
+project(defold_hid LANGUAGES ${DEFOLD_LANGUAGE_LIST})
+
+# ***********************************************************************
+
+# Define log domain for all targets in this directory
+add_compile_definitions(DLIB_LOG_DOMAIN="HID")
+
+# Sources
+set(HID_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
+set(HID_DEPENDENCIES
+    dlib
+    platform)
+set(HID_NULL_DEPENDENCIES
+    dlib
+    platform_null)
+set(HID_PRIVATE_SRC_DIR "${DEFOLD_PLATFORM_HID_SOURCE_DIR}")
+file(GLOB_RECURSE HID_DMSDK_HEADERS CONFIGURE_DEPENDS
+    "${HID_SRC_DIR}/dmsdk/*.h"
+    "${HID_SRC_DIR}/dmsdk/*.hpp")
+
+# hid (native backend)
+set(hid_SOURCES
+    "${HID_SRC_DIR}/hid.cpp"
+    "${HID_SRC_DIR}/hid_guid.cpp"
+)
+
+if(TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos|arm64-ios|arm64_sim-ios")
+    list(APPEND hid_SOURCES
+        "${HID_SRC_DIR}/native/hid_native.cpp"
+        "${HID_SRC_DIR}/darwin/gamepad_darwin.mm"
+    )
+    set(WITH_VULKAN OFF)
+    set(WITH_OPENGL ON)
+elseif(DEFOLD_IS_PRIVATE_VENDOR)
+    if(NOT HID_PRIVATE_SRC_DIR)
+        message(FATAL_ERROR "Private HID platform requires DEFOLD_PLATFORM_HID_SOURCE_DIR")
+    endif()
+    file(GLOB _hid_vendor_sources
+        "${HID_PRIVATE_SRC_DIR}/${TARGET_PLATFORM_OS}/*.c"
+        "${HID_PRIVATE_SRC_DIR}/${TARGET_PLATFORM_OS}/*.cpp"
+        "${HID_PRIVATE_SRC_DIR}/${TARGET_PLATFORM_OS}/*.mm")
+    list(APPEND hid_SOURCES ${_hid_vendor_sources})
+else()
+    file(GLOB _hid_native_sources
+        "${HID_SRC_DIR}/native/*.c"
+        "${HID_SRC_DIR}/native/*.cpp"
+        "${HID_SRC_DIR}/native/*.mm")
+    list(APPEND hid_SOURCES ${_hid_native_sources})
+endif()
+
+defold_add_library(hid STATIC ${hid_SOURCES})
+target_compile_definitions(hid PRIVATE "DLIB_LOG_DOMAIN=\"HID\"")
+if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|arm64_sim-ios)$")
+    target_link_libraries(hid PUBLIC "-framework GameController")
+endif()
+defold_target_link_libraries(hid "${TARGET_PLATFORM}" SCOPE PUBLIC ${HID_DEPENDENCIES})
+if(DEFOLD_PLATFORM_HID_LIBS)
+    target_link_libraries(hid PUBLIC ${DEFOLD_PLATFORM_HID_LIBS})
+endif()
+
+target_include_directories(hid PUBLIC
+    "${HID_SRC_DIR}"
+    "${HID_SRC_DIR}/native"
+    "${HID_SRC_DIR}/external"
+    "${HID_SRC_DIR}/default/src"
+) # match Waf include layout for hid sources
+
+if(HID_PRIVATE_SRC_DIR)
+    target_include_directories(hid PUBLIC
+        "${HID_PRIVATE_SRC_DIR}"
+        "${HID_PRIVATE_SRC_DIR}/native"
+        "${HID_PRIVATE_SRC_DIR}/external"
+        "${HID_PRIVATE_SRC_DIR}/default/src"
+    )
+endif()
+
+defold_add_library(hid_null STATIC
+    "${HID_SRC_DIR}/hid.cpp"
+    "${HID_SRC_DIR}/hid_guid.cpp"
+    "${HID_SRC_DIR}/hid_null.cpp"
+)
+target_include_directories(hid_null PUBLIC
+    "${HID_SRC_DIR}"
+    "${HID_SRC_DIR}/native"
+    "${HID_SRC_DIR}/null"
+    "${HID_SRC_DIR}/external"
+    "${HID_SRC_DIR}/default/src"
+)
+target_compile_definitions(hid_null PRIVATE "DLIB_LOG_DOMAIN=\"HID\"")
+defold_target_link_libraries(hid_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${HID_NULL_DEPENDENCIES})
+set_target_properties(hid_null PROPERTIES DEFOLD_SDK_HEADERS_TARGET hid_sdk_headers)
+
+if(HID_PRIVATE_SRC_DIR)
+    target_include_directories(hid_null PUBLIC
+        "${HID_PRIVATE_SRC_DIR}"
+        "${HID_PRIVATE_SRC_DIR}/native"
+        "${HID_PRIVATE_SRC_DIR}/null"
+        "${HID_PRIVATE_SRC_DIR}/external"
+        "${HID_PRIVATE_SRC_DIR}/default/src"
+    )
+endif()
+
+
+# ===================== Tests =====================
+
+if(BUILD_TESTS)
+    # test_hid uses jc_test and links against Defold support libs
+    defold_add_executable(test_hid "${HID_SRC_DIR}/test/test_hid.cpp")
+
+    defold_target_link_libraries(test_hid "${TARGET_PLATFORM}"
+        dlib
+        profile_null
+        testmain
+        platform_null
+        hid_null
+    )
+
+    if (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
+        find_package(Threads REQUIRED)
+        target_link_libraries(test_hid PRIVATE Threads::Threads dl)
+    endif()
+
+    defold_target_link_glfw(test_hid "${TARGET_PLATFORM}" PRIVATE)
+    defold_target_link_socket(test_hid "${TARGET_PLATFORM}" PRIVATE)
+
+    if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+        target_link_options(test_hid PRIVATE
+            "SHELL:--js-library=${CMAKE_CURRENT_LIST_DIR}/../../external/glfw/js/library_glfw.js"
+            "SHELL:--js-library=${DEFOLD_LIB_DIR}/js/library_sys.js")
+    endif()
+
+    # Register into global build_tests and run_tests
+    defold_register_test_target(test_hid ON "${CMAKE_CURRENT_LIST_DIR}"
+        STAGE_FILES
+            "build/src/test/build" "build/src/test/build"
+    )
+
+    # =====================================================================================
+
+    defold_get_graphics_symbols(EXPORTED_SYMBOLS ${TARGET_PLATFORM})
+
+    message(STATUS "Symbols: ${EXPORTED_SYMBOLS}")
+
+    defold_create_exported_symbols_file("${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols.cpp" "${EXPORTED_SYMBOLS}")
+
+    defold_add_executable(test_app_hid
+        "${HID_SRC_DIR}/test/test_app_hid.cpp"
+        "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols.cpp"
+    )
+
+    if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android")
+        set(_DM_USE_OPENGLES ON)
+
+    elseif (TARGET_PLATFORM MATCHES "arm64-ios|arm64_sim-ios")
+        target_link_libraries(test_app_hid PRIVATE "-framework IOKit" "-framework GameController")
+
+    elseif (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
+        target_link_libraries(test_app_hid PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo" "-framework GameController")
+
+    elseif (TARGET_PLATFORM STREQUAL "x86_64-win32")
+        target_link_libraries(test_app_hid PRIVATE user32 gdi32 shell32)
+
+    elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
+        find_package(Threads REQUIRED)
+        target_link_libraries(test_app_hid PRIVATE Threads::Threads dl)
+    endif()
+
+    defold_target_link_libraries(test_app_hid "${TARGET_PLATFORM}"
+        dlib
+        profile_null
+        hid
+    )
+
+    defold_target_link_graphics(test_app_hid "${TARGET_PLATFORM}" PRIVATE)
+    if(TARGET_PLATFORM MATCHES "x86_64-xbone")
+        target_link_libraries(test_app_hid PRIVATE platform_null)
+    else()
+        defold_target_link_platform(test_app_hid "${TARGET_PLATFORM}" PRIVATE)
+    endif()
+    defold_target_link_socket(test_app_hid "${TARGET_PLATFORM}" PRIVATE)
+    defold_target_link_app(test_app_hid "${TARGET_PLATFORM}" PRIVATE)
+
+    # Register into global build_tests and run_tests
+    defold_register_test_target(test_app_hid FALSE)
+
+endif()
+
+# ===================== Install =====================
+
+# Install static libraries to lib/<target-platform>
+defold_install_targets(TARGETS hid hid_null
+        ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
+        LIBRARY DESTINATION lib/${TARGET_PLATFORM}
+        RUNTIME DESTINATION bin/${TARGET_PLATFORM}
+)
+
+# Install public headers
+defold_add_sdk_headers_target(hid_public_sdk_headers
+    DESTINATION include/hid
+    SOURCE_ROOT "${HID_SRC_DIR}"
+    FILES "${HID_SRC_DIR}/hid.h"
+    DEPENDS hid)
+defold_add_sdk_headers_target(hid_dmsdk_sdk_headers
+    DESTINATION sdk/include/dmsdk
+    SOURCE_ROOT "${HID_SRC_DIR}/dmsdk"
+    FILES ${HID_DMSDK_HEADERS}
+    DEPENDS hid)
+set(HID_SDK_HEADER_TARGETS hid_public_sdk_headers hid_dmsdk_sdk_headers)
+add_custom_target(hid_sdk_headers
+    DEPENDS ${HID_SDK_HEADER_TARGETS})
+
+install(FILES "${HID_SRC_DIR}/hid.h" DESTINATION include/hid)
+
+# Install dmsdk headers for HID with folder structure preserved
+install(DIRECTORY "${HID_SRC_DIR}/dmsdk/"
+                DESTINATION sdk/include/dmsdk
+                FILES_MATCHING
+                PATTERN "*.h"
+                PATTERN "*.hpp")

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -52,21 +52,21 @@ public class TextureCompressorPreset {
 
     public String getOptionString(String name) {
         Object o = options.getOrDefault(name, null);
-        if (o != null && o instanceof String)
+        if (o instanceof String)
             return (String)o;
         return null;
     }
 
     public Integer getOptionInt(String name) {
         Object o = options.getOrDefault(name, null);
-        if (o != null && o instanceof Integer)
+        if (o instanceof Integer)
             return (Integer)o;
         return null;
     }
 
     public Float getOptionFloat(String name) {
         Object o = options.getOrDefault(name, null);
-        if (o != null && o instanceof Float)
+        if (o instanceof Float)
             return (Float)o;
         return null;
     }
@@ -84,12 +84,12 @@ public class TextureCompressorPreset {
     }
 
     public String toString() {
-        String s = String.format("Preset:\n  name: '%s'\n  displayName: '%s',\n  compressorName: '%s',\n  options: {", getName(), getDisplayName(), getCompressorName());
+        StringBuilder s = new StringBuilder(String.format("Preset:\n  name: '%s'\n  displayName: '%s',\n  compressorName: '%s',\n  options: {", getName(), getDisplayName(), getCompressorName()));
         for (String key : options.keySet()) {
             Object value = options.get(key);
-            s += String.format("    '%s' = '%s',\n", key, value);
+            s.append(String.format("    '%s' = '%s',\n", key, value));
         }
-        s += "  }\n";
-        return s;
+        s.append("  }\n");
+        return s.toString();
     }
 }

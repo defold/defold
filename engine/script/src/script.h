@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -50,6 +50,7 @@ namespace dmScript
         RESULT_LUA_ERROR = -1,
         RESULT_ARGVAL = -2,
         RESULT_MODULE_NOT_LOADED = -3,
+        RESULT_MODULE_NAME_HASH_COLLISION = -4,
     };
 
     extern const char META_TABLE_RESOLVE_PATH[];
@@ -293,9 +294,8 @@ namespace dmScript
      */
     bool IsVector(lua_State *L, int index);
 
-    /*# get the value at index as a dmVMath::FloatVector*
+    /** get the value at index as a dmVMath::FloatVector*
      * Get the value at index as a dmVMath::FloatVector*
-     * @name dmScript::ToVector
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
      * @return v [type:dmVMath::FloatVector*] The pointer to the value, or 0 if not correct type
@@ -518,22 +518,15 @@ namespace dmScript
     uint32_t GenerateUniqueScriptId();
 
     /**
-     * Retrieve the Lua traceback from the current context
+     * Write the current Lua traceback to a bounded character buffer. Elided and
+     * truncated frames are identified explicitly in the resulting string.
      * @param lua context
-     * @param infostring determines what fields are valid in the entry (passed to lua_getinfo())
-     * @param cbk the callback which receives calls for each debug entry in the callstack
-     * @param ctx the user data to be passed to the callback
+     * @param header the text written before the traceback entries
+     * @param buffer the buffer to write the traceback to
+     * @param buffer_size the size of the buffer. A non-empty buffer is always
+     *                    null-terminated.
      */
-    void GetLuaTraceback(lua_State* L, const char* infostring, void (*cbk)(lua_State* L, lua_Debug* entry, void* ctx), void* ctx);
-
-    /**
-     * Write a Lua traceback entry to a character buffer
-     * @param entry the Lua traceback entry to write
-     * @param buffer the buffer to write entry to
-     * @param buffer_size the size of the buffer
-     * @return number of bytes written
-     */
-    uint32_t WriteLuaTracebackEntry(lua_Debug* entry, char* buffer, uint32_t buffer_size);
+    void WriteLuaTraceback(lua_State* L, const char* header, char* buffer, uint32_t buffer_size);
 
     /**
      * Retrieve config file handle from the context

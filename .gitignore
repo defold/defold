@@ -1,5 +1,6 @@
 /.metadata
 /tmp
+/.defold-platforms
 .DS_Store
 .lock-wscript
 .lock-waf*
@@ -17,16 +18,26 @@
 .java
 .oracle*
 .bash*
+.lldb
 *.pyc
+__pycache__
+.python_history
+.wget-hsts
+.m2
 
 /.ccache
 *.iml
-*.apidoc_
+*.apidoc
 engine/.clang_complete
 /.vscode
+/.wrangler/
+/.vs
+/.idea
 .npm
 /**/.project
 /**/.gradle
+*.eclipse.buildship.core.prefs
+*.classpath
 
 # When opening the folder through certain IDE's (e.g. VSCode)
 scripts/android-v4/.classpath
@@ -61,16 +72,27 @@ editor/.calva/output-window/output.calva-repl
 editor/.lsp/sqlite.db
 
 #build_external
-/packages/bullet-2.77/
+/packages/bullet-3.25/
 /packages/lib/
 
 #build bob
 /com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/antlr/**/*.interp
 /com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/antlr/**/*.tokens
-/com.dynamo.cr/com.dynamo.cr.bob/libexec/**/lipo*
+/com.dynamo.cr/com.dynamo.cr.bob/libexec/
 /com.dynamo.cr/com.dynamo.cr.bob/lib/**/OpenAL*
 /com.dynamo.cr/com.dynamo.cr.bob/lib/**/wrap_oal*
+/com.dynamo.cr/com.dynamo.cr.bob/lib/vkquality.jar
+/com.dynamo.cr/com.dynamo.cr.bob/lib/fontrenderer.jar
 /com.dynamo.cr/out/
 /com.dynamo.cr/com.dynamo.cr.bob.test/test/proj/build/
 /com.dynamo.cr/test_resources/
 /build_times.json
+
+# generated solutions
+/solutions
+
+# ChatGPT
+AGENTS.md
+/share/ext/astcenc/build/
+/share/ext/astcenc/source
+/engine/dlib/test_http_server.log

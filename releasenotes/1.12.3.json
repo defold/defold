@@ -1,0 +1,706 @@
+{
+    "issues": [
+        {
+            "author": "JosephFerano",
+            "body": "Fix issue when creating new animations while reusing existing atlas images where the image would get temporarily duplicated into the atlas until a restart.",
+            "closed_issues": [
+                11907
+            ],
+            "duplicate": false,
+            "issue_number": 11907,
+            "labels": [
+                "bug",
+                "editor",
+                "atlas"
+            ],
+            "mergecommit": "22a1fd25f17b8f1a3a8fb9f5f28bda3ba130f2e9",
+            "pr_number": 11918,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix floating point type mismatch for atlas images",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11918"
+        },
+        {
+            "author": "vlaaad",
+            "body": "We now show the function list in the right sidebar:\r\n<img width=\"1317\" height=\"914\" alt=\"Screenshot 2026-02-20 at 08 37 39\" src=\"https://github.com/user-attachments/assets/30a66ff4-2697-416a-9956-b07415909ea3\" />",
+            "closed_issues": [
+                11886,
+                6260
+            ],
+            "duplicate": false,
+            "issue_number": 11886,
+            "labels": [
+                "bug",
+                "editor",
+                "AI/LLM workflow"
+            ],
+            "mergecommit": "84b34ba4e9ab3ceb45dd5e36b400c5d8653a5b18",
+            "pr_number": 11931,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Show function list in the right sidebar",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11931"
+        },
+        {
+            "author": "vlaaad",
+            "body": "",
+            "closed_issues": [
+                8537
+            ],
+            "duplicate": false,
+            "issue_number": 8537,
+            "labels": [
+                "bug",
+                "editor",
+                "editor scripts",
+                "AI/LLM workflow"
+            ],
+            "mergecommit": "8ae48e41919bb22a57f0cdc105c34af656b9d645",
+            "pr_number": 11940,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Prevent the editor from crashing when loading a malformed collection",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11940"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Now you can use `editor.properties()` fn in editor scripts to look up existing properties on a node, which makes them much more discoverable, especially for agentic workflows that interact with the running editor. \r\n\r\n#### Usage example\r\n\r\n```lua\r\npprint(editor.properties(\"/\")) \r\n-- {\r\n--   \"children\",\r\n--   \"path\"\r\n-- }\r\n\r\npprint(editor.properties(\"/game.project\"))\r\n-- {\r\n--   \"android.app_icon_144x144\",\r\n--   \"android.app_icon_192x192\",\r\n--   \"android.app_icon_36x36\",\r\n--   \"android.app_icon_48x48\",\r\n--   ...many more\r\n-- }\r\n```\r\n\r\n#### Agentic workflow example\r\n\r\n##### Minimal `/eval` endpoint implementation (`eval.editor_script`):\r\n```lua\r\nlocal M = {}\r\n\r\nfunction M.get_http_server_routes()\r\n    return {\r\n        http.server.route(\"/eval\", \"POST\", \"string\", function(request)\r\n            local success, result = pcall(function()\r\n                return assert(load(request.body))()\r\n            end)\r\n            return http.server.json_response({\r\n                success = success,\r\n                result = result\r\n            })\r\n        end)\r\n    }\r\nend\r\n\r\nreturn M\r\n```\r\n##### Using eval programmatically\r\n\r\n```sh\r\ncurl \"http://127.0.0.1:$(cat .internal/editor.port)/eval\" -d 'return editor.properties(\"/\")' | jq            \r\n{\r\n  \"success\": true,\r\n  \"result\": [\r\n    \"children\",\r\n    \"path\"\r\n  ]\r\n}\r\n```\r\n\r\n##### Using eval in your favorite coding assistant\r\nOnce your agent knows about `/eval` endpoint and `.internal/editor.port`:\r\n```md\r\n\u203a Use /eval endpoint to show me all properties with values of /main/player.script\r\n\u2022 Working...\r\n\u2022 Properties with values for `/main/player.script`:\r\n\r\n  - `path`: /main/player.script\r\n  - `text`:\r\n    ```\r\n    go.property(\"hp\", 100)\r\n    go.property(\"speed\", 3.5)\r\n    ```\r\n  - `__speed`: 3.5\r\n  - `__hp`: 100\r\n```",
+            "closed_issues": [
+                11902
+            ],
+            "duplicate": false,
+            "issue_number": 11902,
+            "labels": [
+                "task",
+                "editor",
+                "editor scripts",
+                "AI/LLM workflow"
+            ],
+            "mergecommit": "efc71404648811bca78b71ecf5f11f5f673dc62d",
+            "pr_number": 11945,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add `editor.properties(node)` editor script API for runtime introspection",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11945"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "\u26a0\ufe0f The minimum supported Android API version has been increased from 19 (Android 4.4) to 21 (Android 5.0).\r\nIf you are using a custom `AndroidManifest.xml` file, make sure to replace\r\n> android:name=\"android.support.multidex.MultiDexApplication\"\r\n\r\nwith\r\n\r\n> android:name=\"android.app.Application\"",
+            "closed_issues": [
+                385
+            ],
+            "duplicate": false,
+            "issue_number": 385,
+            "labels": [
+                "android"
+            ],
+            "mergecommit": "bf8e3177c29dda3c201a340cbfd3c5effc7e939c",
+            "pr_number": 11950,
+            "referencecommits": [],
+            "repository": "extender",
+            "title": "Up Android min sdk version to 21 (Android 5.0)",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11950"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "Fix sprite strange behavior when sprite atlas was changed in runtime.",
+            "closed_issues": [
+                11930
+            ],
+            "duplicate": false,
+            "issue_number": 11930,
+            "labels": [
+                "bug",
+                "engine",
+                "atlas"
+            ],
+            "mergecommit": "5b88a23a8f7e11e8f0f6fa61c4829adaab3bb935",
+            "pr_number": 11958,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix strange sprite behavior when change atlas in runtime",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11958"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Text nodes in the GUI component requires less dispatch calls now.",
+            "closed_issues": [
+                11328
+            ],
+            "duplicate": false,
+            "issue_number": 11328,
+            "labels": [
+                "bug",
+                "engine",
+                "font",
+                "render"
+            ],
+            "mergecommit": "8c431ef86a261692e7a818ddb744e1aa0dabd91c",
+            "pr_number": 12042,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Reduce number of dispatches needed for GUI text nodes",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12042"
+        },
+        {
+            "author": "vlaaad",
+            "body": "We added an [OpenAPI](https://spec.openapis.org/oas/v3.0.3.html) spec to the editor's built-in HTTP server. This makes it more discoverable for AI agents, now they only need to know that the port is in `.internal/editor.port`, and they can learn the rest themselves.\r\n\r\n#### Example using your favorite coding agent:\r\n```md\r\n> given a local server in .internal/editor.port, what can you do with the server? \r\n\u2022 I found a live Defold Editor HTTP server. Next I\u2019ll inspect its OpenAPI spec to list exactly\r\n  what operations are available...\r\n\u2022 With the server on port in `.internal/editor.port` file, I can control/read parts\r\n  of your Defold editor via HTTP:\r\n\r\n  Read editor console output\r\n  `GET /console`\r\n\r\n  Execute built-in editor commands\r\n  `POST /command/{command}`\r\n  Examples: build, rebuild, build-html5, hot-reload, debugger commands, fetch-libraries, \r\n  pane toggles, open docs/issues/profiler pages.\r\n\r\n  Read/write editor preferences\r\n  `GET /prefs/{path} and POST /prefs/{path}`\r\n  Examples of paths: `code/font`, `code/font/size`.\r\n```",
+            "closed_issues": [
+                11964
+            ],
+            "duplicate": false,
+            "issue_number": 11964,
+            "labels": [
+                "task",
+                "editor",
+                "AI/LLM workflow",
+                "triage"
+            ],
+            "mergecommit": "4487783916eb0a0e2dade9909396d60ff94e01a0",
+            "pr_number": 11966,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add OpenAPI spec to editor HTTP server",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11966"
+        },
+        {
+            "author": "vlaaad",
+            "body": "We added `\"text\"` properties to textual resources besides code resources, e.g.:\r\n```lua\r\nprint(editor.get(\"/builtins/render/default.render\", \"text\"))\r\n-- script: \"/builtins/render/default.render_script\"\r\n```",
+            "closed_issues": [
+                11969
+            ],
+            "duplicate": false,
+            "issue_number": 11969,
+            "labels": [
+                "task",
+                "editor",
+                "editor scripts",
+                "AI/LLM workflow",
+                "triage"
+            ],
+            "mergecommit": "a8a3bda4d74c0cba68084b2075d1a6d10e8ade0a",
+            "pr_number": 11970,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add `\"text\"` property to textual resources in editor scripts",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11970"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Using materials with custom vertex formats for models together with overriding materials in a render script can now render correctly.",
+            "closed_issues": [
+                9722
+            ],
+            "duplicate": false,
+            "issue_number": 9722,
+            "labels": [
+                "bug",
+                "engine",
+                "render"
+            ],
+            "mergecommit": "e1ee0c24516387e3f8c9170e4cd071d9085f027f",
+            "pr_number": 11965,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Incorrect attribute values for instancing",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11965"
+        },
+        {
+            "author": "matgis",
+            "body": "Avoid calling `Path.toRealPath` on stateless resources when reading project data. This method appears to be surprisingly slow on certain file systems. We now only call this method for symlinks to stateless resources, where the existence of the file is important to determine at read-time.\r\n\r\nThis change resulted in a 24% project load time improvement in the large project we were testing in, but it will vary depending on the project.",
+            "closed_issues": [
+                11977
+            ],
+            "duplicate": false,
+            "issue_number": 11977,
+            "labels": [
+                "editor",
+                "performance"
+            ],
+            "mergecommit": "e74c0ab46917e7c521d0d34b138df2afc26b143a",
+            "pr_number": 11977,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Avoid surprisingly expensive file system access during project read",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11977"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed an issue where `gui.set_screen_position()` did not work correctly for root nodes when `Adjust Reference` was set to Disabled in a GUI component.",
+            "closed_issues": [
+                11953
+            ],
+            "duplicate": false,
+            "issue_number": 11953,
+            "labels": [
+                "bug",
+                "engine",
+                "gui"
+            ],
+            "mergecommit": "9baa4f77a631ccde173d7ca309a3365b105fe70f",
+            "pr_number": 11983,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix `gui.set_screen_position()` when Adjust Reference is Disabled",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11983"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "There is now a new constant type added `CONSTANT_TYPE_TIME` that can be used by shaders to automatically recieve time data from the engine:\r\n\r\n```glsl\r\nuniform my_uniforms\r\n{\r\n    vec4 my_time; // Set to constant type \"Time\" in the material editor!\r\n};\r\n```\r\n\r\nThe current data is exposed:\r\nmy_time.x : time since engine start\r\nmy_time.y : delta time from last frame (same as being passed into script updates)\r\n\r\nThis change means that you don't need to keep track of these values manually for certain effects like scrolling textures or other shader based animations!",
+            "closed_issues": [
+                11987
+            ],
+            "duplicate": false,
+            "issue_number": 11987,
+            "labels": [
+                "feature request",
+                "engine",
+                "render",
+                "shader"
+            ],
+            "mergecommit": "778188c8448dc03b681c3b4eb38b16eab28808d3",
+            "pr_number": 11993,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Expose engine time to shaders",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11993"
+        },
+        {
+            "author": "vlaaad",
+            "body": "It's now possible to type to filter the input_binding's key selectbox:\r\n<img width=\"558\" height=\"391\" alt=\"Screenshot 2026-03-05 at 15 49 32\" src=\"https://github.com/user-attachments/assets/42f5e181-2eb4-4576-89d1-9a313ccec3be\" />",
+            "closed_issues": [
+                7737
+            ],
+            "duplicate": false,
+            "issue_number": 7737,
+            "labels": [
+                "feature request",
+                "editor",
+                "input"
+            ],
+            "mergecommit": "5cbdad39ccff477a6ca69958d48c9132d026fd2c",
+            "pr_number": 11996,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Use filterable select box in input_binding's key selector",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11996"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "We now use the 64-bit version of stat in the engine on windows. This means that we can load resources larger than 2gb.",
+            "closed_issues": [
+                11923
+            ],
+            "duplicate": false,
+            "issue_number": 11923,
+            "labels": [
+                "bug",
+                "editor",
+                "engine",
+                "windows"
+            ],
+            "mergecommit": "66a097d1de9eded372ccc0c40e5be8939e9ad8cb",
+            "pr_number": 12021,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Use stat64 on windows",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12021"
+        },
+        {
+            "author": "AGulev",
+            "body": "The `shader.exclude_gles_sm100` checkbox in `game.project` disables generation of OpenGL ES 2.0 compatible shaders, which makes this API unsupported. This setting should also be reflected in `AndroidManifest.xml`, so Google Play knows that such devices are not supported.\r\n\r\n\u26a0\ufe0f If you are using a custom AndroidManifest.xml file, make sure to update it.\r\nReplace\r\n```xml\r\n    <uses-feature android:required=\"true\" android:glEsVersion=\"0x00020000\" />\r\n```\r\nwith\r\n```xml\r\n    {{#shader.exclude_gles_sm100}}\r\n    <uses-feature android:required=\"true\" android:glEsVersion=\"0x00030000\" />\r\n    {{/shader.exclude_gles_sm100}}\r\n    {{^shader.exclude_gles_sm100}}\r\n    <uses-feature android:required=\"true\" android:glEsVersion=\"0x00020000\" />\r\n    {{/shader.exclude_gles_sm100}}\r\n```",
+            "closed_issues": [
+                12009
+            ],
+            "duplicate": false,
+            "issue_number": 12009,
+            "labels": [],
+            "mergecommit": "d9de30f5f109a13b1c99508413276ef3d0500c94",
+            "pr_number": 12009,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Make sure `shader.exclude_gles_sm100` is taken into account in `AndroidManifest.xml`",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12009"
+        },
+        {
+            "author": "vlaaad",
+            "body": "Editor scripts can now access outline parents using `editor.can_get(node, \"parent\")` and `editor.get(node, \"parent\")` in commands that query outline selection.",
+            "closed_issues": [
+                5370
+            ],
+            "duplicate": false,
+            "issue_number": 5370,
+            "labels": [
+                "feature request",
+                "editor",
+                "editor scripts",
+                "quick win?",
+                "AI/LLM workflow"
+            ],
+            "mergecommit": "f8a53af786552dff36ea406da64ea6bf819eefab",
+            "pr_number": 12014,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add `parent` property to editor script outline nodes",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12014"
+        },
+        {
+            "author": "matgis",
+            "body": "Fix unhelpful error during editor builds when the GLSL shader compiler emits warnings.",
+            "closed_issues": [
+                11976
+            ],
+            "duplicate": false,
+            "issue_number": 11976,
+            "labels": [
+                "bug",
+                "editor",
+                "quick win?",
+                "shader",
+                "AI/LLM workflow"
+            ],
+            "mergecommit": "9c6d8cefabbf2095cddeef858bc2a14e01e8ddf0",
+            "pr_number": 12018,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix broken handling of shader compiler warnings in the editor",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12018"
+        },
+        {
+            "author": "matgis",
+            "body": "* Fixed an issue where the code editor would redraw unnecessarily when moving the mouse cursor across the view.\r\n* Fixed an issue where the blinking cursor could cause the code editor height to oscillate by half a pixel when placed on the first row of a file.",
+            "closed_issues": [
+                11985
+            ],
+            "duplicate": false,
+            "issue_number": 11985,
+            "labels": [
+                "bug",
+                "editor",
+                "macos",
+                "javafx",
+                "performance"
+            ],
+            "mergecommit": "127d1a51142f9e76d87a345c4ed3c4112be7a7dd",
+            "pr_number": 12024,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Eliminate unnecessary code editor redraws",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12024"
+        },
+        {
+            "author": "JCash",
+            "body": "This allows the developer to get a native `VkImage` and `VkImageView` from a `dmGraphics::HTexture`.\r\nIt helps when interacting with other 3rd party libraries.",
+            "closed_issues": [
+                12034
+            ],
+            "duplicate": false,
+            "issue_number": 12034,
+            "labels": [],
+            "mergecommit": "55bea371cef76b737d00c15050c0f3d3f28e6807",
+            "pr_number": 12034,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added dmGraphics::VulkanGetImage and dmGraphics::VulkanGetImageView to dmsdk",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12034"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "Updated WinSDK to version `10.0.26100.0` and build tools to version `14.44.35207`\r\nRelated https://github.com/defold/extender/issues/813",
+            "closed_issues": [
+                12029
+            ],
+            "duplicate": false,
+            "issue_number": 12029,
+            "labels": [],
+            "mergecommit": "a534cf2b6c4ea246c3b6c8c8fe766a1a74426648",
+            "pr_number": 12029,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Update winsdk version. Cleanup old stuff a bit",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12029"
+        },
+        {
+            "author": "AGulev",
+            "body": "Fixed an issue where every keyboard key press produced a console log in HTML5 bundles, even in release builds.",
+            "closed_issues": [
+                12017
+            ],
+            "duplicate": false,
+            "issue_number": 12017,
+            "labels": [
+                "bug",
+                "html5",
+                "triage"
+            ],
+            "mergecommit": "ed02e52e3f654e750988d54c0d45a93a154a92d3",
+            "pr_number": 12037,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fixed issue where the HTML5 bundle always displayed the `DOMToGLFWKeyCode...` message in the console",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12037"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Fixes a regression that was introduced from recent changes in how particle systems factor in scale into local positions.",
+            "closed_issues": [
+                12022
+            ],
+            "duplicate": false,
+            "issue_number": 12022,
+            "labels": [
+                "bug",
+                "engine",
+                "particlefx"
+            ],
+            "mergecommit": "b4a0c712c5337bec2d9c18ede1128dd732c0505f",
+            "pr_number": 12039,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix for incorrect particlefx scale",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/12039"
+        },
+        {
+            "author": "britzl",
+            "body": "This change adds `dmVmath::QuatFromAngle()`, `dmVmath::QuatToEuler()` and `dmVmath::EulerToQuat()` to the public dmSDK.",
+            "closed_issues": [
+                11947
+            ],
+            "duplicate": false,
+            "issue_number": 11947,
+            "labels": [
+                "feature request",
+                "engine",
+                "dmsdk"
+            ],
+            "mergecommit": "9f7837c823cd9ad76549816bb693a82afa730669",
+            "pr_number": 12026,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add QuatFromAngle,  QuatToEuler and EulerToQuat to dmSDK",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12026"
+        },
+        {
+            "author": "britzl",
+            "body": "This change adds `frames` as a valid key in the `animations` table received from `resource.get_atlas()` or sent to `resource.set_atlas()` / `resource.create_atlas()`. Each entry in the `frames` table maps between an animation frame and the location of the frame in the `geometries` list.\r\n\r\n\u26a0\ufe0f The fields `frame_start` and `frame_end` have been removed from `resource.get_atlas()` but are still accepted when calling `resource.set_atlas()` / `resource.create_atlas()`.\r\n\r\n\r\n```lua\r\nlocal data = resource.get_atlas(...)\r\npprint(data)\r\n```\r\n\r\n```\r\n{\r\n  animations = {\r\n    width = 16,\r\n    flip_vertical = false,\r\n    id = \"Walk\",\r\n    frames = {\r\n      1 = 10,\r\n      2 = 1,\r\n      3 = 4,\r\n      4 = 8,\r\n      5 = 9,\r\n      6 = 2,\r\n      7 = 3,\r\n      8 = 5,\r\n      9 = 6,\r\n      10 = 7\r\n    },\r\n    flip_horizontal = false,\r\n    height = 16,\r\n    fps = 30,\r\n    playback = 4\r\n  },\r\n  geometries = {\r\n    {\r\n      uvs = {\r\n        ...\r\n      },\r\n      pivot_x = 0.5,\r\n      pivot_y = 0.5,\r\n      height = 16,\r\n      vertices = {\r\n        ...\r\n      },\r\n      indices = {\r\n        ...\r\n      },\r\n      rotated = false,\r\n      width = 16\r\n    }\r\n  },\r\n  {\r\n    ...\r\n  }\r\n}\r\n```",
+            "closed_issues": [
+                11956
+            ],
+            "duplicate": false,
+            "issue_number": 11956,
+            "labels": [
+                "feature request",
+                "engine",
+                "atlas"
+            ],
+            "mergecommit": "4bf8914ef7d4a798fc71b9eb28128612fff9f3af",
+            "pr_number": 12016,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Use list of animation frames instead of start and end frame when working with atlases",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/12016"
+        },
+        {
+            "author": "vlaaad",
+            "body": "The text editor now supports a Duplicate Selection code action (<kbd>\u2318\u21e7D</kbd> on macOS, <kbd>Ctrl Shift D</kbd> on Windows and Linux):\r\n\r\nhttps://github.com/user-attachments/assets/936e49f2-1de1-453b-a79e-ae0a3c8c281b",
+            "closed_issues": [
+                8642
+            ],
+            "duplicate": false,
+            "issue_number": 8642,
+            "labels": [
+                "feature request",
+                "editor",
+                "text-editor",
+                "quick win?"
+            ],
+            "mergecommit": "cf72348ee664cbdbcd6adc67a51687406d2b3744",
+            "pr_number": 11980,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Add \"Duplicate Selection\" code action",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11980"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "We currently set the texture sampler state every time we bind a texture as well as when `dmGraphic::SetTextureParams` is called when textures are bound in the renderer. This has now been changed so that we cache the sampler settings and only apply these when the sampler state has changed. \r\n\r\nIn this sample scene the number OpenGL calls is almost half and the fps diff is ~370 vs 340.\r\n\r\nLeft: Caching of OpenGL texture state (not applying filter if we don't have to)\r\nRight: Current dev\r\n\r\n<img width=\"3839\" height=\"1037\" alt=\"texturesamplestate\" src=\"https://github.com/user-attachments/assets/322eae8a-93ce-40a4-9415-35188f3717d9\" />",
+            "closed_issues": [
+                8163
+            ],
+            "duplicate": false,
+            "issue_number": 8163,
+            "labels": [
+                "bug",
+                "engine",
+                "render",
+                "performance"
+            ],
+            "mergecommit": "3483071978d969be8a20cc1c5a52b1bb48e03af8",
+            "pr_number": 11957,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Cache texture sampler state for OpenGL",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11957"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "We have added a new semantic type **texture transform** for custom vertex formats that can be used to implement scrolling textures for sprites and particlefx components:\r\n\r\n![Recording 2026-02-23 135632](https://github.com/user-attachments/assets/23dba04f-7c4d-4f20-95a1-8eeb70a8cda5)",
+            "closed_issues": [
+                7045
+            ],
+            "duplicate": false,
+            "issue_number": 7045,
+            "labels": [
+                "feature request",
+                "engine",
+                "render",
+                "community vote"
+            ],
+            "mergecommit": "99b51a72ff87f00caefa97f5070eda505ac2069c",
+            "pr_number": 11941,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "New semantic type for texture transforms",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11941"
+        },
+        {
+            "author": "vlaaad",
+            "body": "We now show the function list in the right sidebar:\r\n<img width=\"1317\" height=\"914\" alt=\"Screenshot 2026-02-20 at 08 37 39\" src=\"https://github.com/user-attachments/assets/30a66ff4-2697-416a-9956-b07415909ea3\" />",
+            "closed_issues": [
+                6260
+            ],
+            "duplicate": true,
+            "issue_number": 6260,
+            "labels": [
+                "feature request",
+                "editor",
+                "community vote",
+                "text-editor"
+            ],
+            "mergecommit": "84b34ba4e9ab3ceb45dd5e36b400c5d8653a5b18",
+            "pr_number": 11931,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Show function list in the right sidebar",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11931"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Sprites that use a material with vertex attributes specified as world or normal matrix semantic types previously produced only an identity matrix. This has now been fixed.",
+            "closed_issues": [
+                11927
+            ],
+            "duplicate": false,
+            "issue_number": 11927,
+            "labels": [
+                "task",
+                "editor",
+                "sprite"
+            ],
+            "mergecommit": "3f616f8a9ec4f540390c9d4c55feb79141c9cd9c",
+            "pr_number": 11927,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Support world and normal semantic types for sprites",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11927"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "Currently when writing custom vertex positions in the \"local\" coordinate space for sprites and particles, the size of the sprite/particle is applied to both the position _and_ the world transform. This means that you cannot render the primitive correctly when applying the world transform to the local position in a shader for example:\r\n\r\n```glsl\r\n// 1. the position attribute is in local space (i.e pixel local coordinate space)\r\ngl_Position = view_proj * mtx_world * vec4(position.xyz, 1.0);\r\n// 2. the position attribute is in world space\r\ngl_Position = view_proj * vec4(position.xyz, 1.0);\r\n```\r\n\r\nThese two statements should produce identical results, but doesn't since the size is applied to the world transform for both sprites and particles. This has now been fixed, which means that we can use custom vertex formats to properly do billboarding properly.",
+            "closed_issues": [
+                11926
+            ],
+            "duplicate": false,
+            "issue_number": 11926,
+            "labels": [
+                "bug",
+                "engine",
+                "sprite",
+                "particlefx"
+            ],
+            "mergecommit": "7aa1a3d01db81c993f548b8c41b1d4b3acf212b4",
+            "pr_number": 11926,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Produce better local space vertices for sprites and particles",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11926"
+        },
+        {
+            "author": "Jhonnyg",
+            "body": "The transform was previously applied to the local space positions, which caused the particle system to produce rotated vertices in to the vertex buffer.",
+            "closed_issues": [
+                11919
+            ],
+            "duplicate": false,
+            "issue_number": 11919,
+            "labels": [
+                "bug",
+                "engine",
+                "particlefx"
+            ],
+            "mergecommit": "099f6016f46c7188d29d7549ef4a7bcfae2d1a60",
+            "pr_number": 11919,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Fix for positions in local coordinate space for particles",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11919"
+        },
+        {
+            "author": "JCash",
+            "body": "This change helps projects with lots of resources as it likely will mean they have nested resources in many folders.\r\nIt will convert internal paths from the form `/very/long/path/to/my/resource.type` into `/0123/4567/890a/bcde.type`, so the savings will vary between projects.\r\n\r\nNote: Currently, this option is experimental.\r\n\r\nTo use this feature, pass `--experimental-path-minification` to `bob.jar` when bundling.",
+            "closed_issues": [
+                9918
+            ],
+            "duplicate": false,
+            "issue_number": 9918,
+            "labels": [
+                "feature request",
+                "engine",
+                "pipeline",
+                "performance",
+                "bob"
+            ],
+            "mergecommit": "02820676bbcd35bbe7ac517179cf2beaab9b1e1a",
+            "pr_number": 11906,
+            "referencecommits": [],
+            "repository": "defold",
+            "title": "Added experimental support for minification of internal resource paths to save memory ",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11906"
+        }
+    ],
+    "timestamp": 1773819951.079793,
+    "version": "1.12.3"
+}

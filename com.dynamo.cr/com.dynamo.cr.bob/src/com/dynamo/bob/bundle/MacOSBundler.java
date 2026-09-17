@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,9 +29,9 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
+import org.apache.commons.io.FilenameUtils;
 
 
 @BundlerParams(platforms = {"x86_64-macos", "arm64-macos"})
@@ -130,8 +130,9 @@ public class MacOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Copy bundle resources into .app folder
-        ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
+        // Copy bundle resources into the app's Resources folder. Files directly
+        // in the .app root are reported as unsealed contents by codesign.
+        ExtenderUtil.writeResourcesToDirectory(bundleResources, resourcesDir);
 
         BundleHelper.throwIfCanceled(canceled);
 
@@ -152,25 +153,32 @@ public class MacOSBundler implements IBundler {
         copyIcon(projectProperties, new File(project.getRootDirectory()), resourcesDir);
 
         // Create fat/universal binary
-        File exe = File.createTempFile("dmengine", "");
-        FileUtil.deleteOnExit(exe);
+        File exe = project.createTempFile("dmengine", "");
 
         BundleHelper.throwIfCanceled(canceled);
 
         // Run lipo on supplied architecture binaries.
-        IOSBundler.lipoBinaries(exe, binaries);
+        BundleHelper.lipoBinaries(exe, binaries);
 
         BundleHelper.throwIfCanceled(canceled);
 
-        if( strip_executable ) {
-            IOSBundler.stripExecutable(platform, exe);
+        if (strip_executable) {
+            BundleHelper.stripExecutable(exe);
         }
 
         // Copy Executable
         File destExecutable = new File(macosDir, exeName);
         FileUtils.copyFile(exe, destExecutable);
         destExecutable.setExecutable(true);
-        logger.info("Bundle binary: " + IOSBundler.getFileDescription(destExecutable));
+        logger.info("Bundle binary: " + BundleHelper.getFileDescription(destExecutable));
+
+        if (architectures.size() == 1) {
+            Platform architecture = architectures.get(0);
+            File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(), architecture.getExtenderPair()));
+            BundleHelper.copySharedLibraries(architecture, binaryDir, macosDir);
+        } else {
+            BundleHelper.createFatLibrary(project, architectures, project.getBinaryOutputDirectory(), macosDir, canceled);
+        }
 
         // Copy debug symbols
         // Create list of dSYM binaries
@@ -184,22 +192,30 @@ public class MacOSBundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        if (variant.equals(Bob.VARIANT_DEBUG))
-        {
-            logger.info("Adding debug entitlements");
-            File entitlementsFile = BundleHelper.copyResourceToTempFile("resources/macos/entitlements-debug.plist");
-            Result r = Exec.execResult("codesign", "-f", "-s", "-", "--entitlements", entitlementsFile.getAbsolutePath(), appDir.getAbsolutePath());
+        // Copy PrivacyInfo.xcprivacy
+        // According to https://developer.apple.com/documentation/bundleresources/adding-a-privacy-manifest-to-your-app-or-third-party-sdk
+        // the PrivacyInfo.xcprivacy on macOS should be in the `Resources` folder.
+        BundleHelper.copyPrivacyManifest(project, platform, resourcesDir);
+
+        BundleHelper.throwIfCanceled(canceled);
+
+        if (BundleHelper.isMacOS(Platform.getHostPlatform())) {
+            logger.info("Adding entitlements");
+            File entitlementsFile = BundleHelper.copyResourceToTempFile(project, variant.equals(Bob.VARIANT_DEBUG) ? "resources/macos/entitlements-debug.plist" : "resources/macos/entitlements-release.plist");
+            Result r = Exec.execResult(
+                "codesign",
+                "--deep",
+                "--force",
+                "--options", "runtime",
+                "--entitlements", entitlementsFile.getAbsolutePath(),
+                "--sign", "-",
+                appDir.getAbsolutePath());
             if (r.ret != 0) {
                 throw new IOException(new String(r.stdOutErr));
             }
         }
 
         BundleHelper.throwIfCanceled(canceled);
-
-        // Copy PrivacyManifest.xcprivacy
-        // According to https://developer.apple.com/documentation/bundleresources/privacy_manifest_files/adding_a_privacy_manifest_to_your_app_or_third-party_sdk#4336738
-        // the PrivacyInfo.xcprivacy  on macos should be in `Resources` folder
-        BundleHelper.copyPrivacyManifest(project, platform, resourcesDir);
 
         BundleHelper.moveBundleIfNeed(project, bundleDir);
     }

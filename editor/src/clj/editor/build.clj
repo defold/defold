@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,7 @@
             [editor.build-target :as bt]
             [editor.code.transpilers :as code.transpilers]
             [editor.defold-project :as project]
+            [editor.localization :as localization]
             [editor.pipeline :as pipeline]
             [editor.progress :as progress]
             [editor.resource :as resource]
@@ -28,20 +29,14 @@
             [util.fn :as fn])
   (:import [java.util ArrayDeque HashMap HashSet]))
 
-(defn- batched-pmap [f batches]
-  (->> batches
-       (pmap (fn [batch] (doall (map f batch))))
-       (reduce concat)
-       doall))
-
-(defn- available-processors []
-  (.availableProcessors (Runtime/getRuntime)))
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn- compiling-progress-message [node-id->resource-path node-id]
   (if (nil? node-id)
-    "Compiling..."
+    (localization/message "progress.compiling")
     (when-some [resource-path (node-id->resource-path node-id)]
-      (str "Compiling " resource-path))))
+      (localization/message "progress.compiling-resource" {"resource" resource-path}))))
 
 (defn- flatten-build-targets [build-targets]
   (let [seen (HashSet.)
@@ -69,7 +64,7 @@
 (defn- resolve-deps-impl
   ([build-targets project report-node-id-progress! evaluation-context]
    (let [proj-path->dynamic-build-targets (code.transpilers/build-output
-                                            (project/code-transpilers (:basis evaluation-context) project)
+                                            (project/code-transpilers (:basis evaluation-context))
                                             evaluation-context)]
      (if (g/error-value? proj-path->dynamic-build-targets)
        proj-path->dynamic-build-targets
@@ -77,9 +72,9 @@
          (cond-> ret (not (g/error-value? ret)) flatten-build-targets)))))
   ([^HashMap seen stack build-targets project proj-path->dynamic-build-targets report-node-id-progress! evaluation-context]
    (let [ret
-         (into
-           []
-           (comp
+         (if (g/error-value? build-targets)
+           build-targets
+           (coll/into-> build-targets []
              coll/flatten-xf
              (map (fn [build-target]
                     (if (g/error-value? build-target)
@@ -128,8 +123,7 @@
                                           (assoc :deps resolved-deps)
                                           (dissoc :dynamic-deps)))))]
                             (.put seen content-hash result)
-                            result)))))))
-           build-targets)]
+                            result))))))))]
      (or (g/flatten-errors ret) ret))))
 
 (defn resolve-dependencies
@@ -157,65 +151,86 @@
      (resolve-node-dependencies node project evaluation-context)))
   ([node project evaluation-context]
    (let [build-targets (g/node-value node :build-targets evaluation-context)]
-     (if (g/error-value? build-targets)
-       build-targets
-       (resolve-deps-impl build-targets project nil evaluation-context)))))
+     (resolve-deps-impl build-targets project nil evaluation-context))))
 
 (defn- throw-build-cancelled-exception! []
   (throw (ex-info "Build cancelled." {:ex-type :task-cancelled})))
 
-(defn build-project!
-  [project node-id old-artifact-map opts evaluation-context]
-  (let [extra-build-targets (:extra-build-targets opts)
-        task-cancelled? (or (:task-cancelled? opts)
-                            fn/constantly-false)
-        supplied-render-progress! (or (:render-progress! opts)
-                                      progress/null-render-progress!)
+(defn- throw-if-task-cancelled! [task-cancelled?]
+  (when (task-cancelled?)
+    (throw-build-cancelled-exception!)))
 
-        render-progress!
-        (if (= fn/constantly-false task-cancelled?)
-          supplied-render-progress!
-          (fn render-progress! [progress]
-            (if (task-cancelled?)
-              (throw-build-cancelled-exception!)
-              (supplied-render-progress! progress))))
+(defn- cancellable-render-progress [render-progress! task-cancelled?]
+  {:pre [(ifn? render-progress!)
+         (ifn? task-cancelled?)]}
+  (if (= fn/constantly-false task-cancelled?)
+    render-progress!
+    (fn cancellable-render-progress! [progress]
+      (throw-if-task-cancelled! task-cancelled?)
+      (render-progress! progress))))
 
-        steps (atom [])
+(defn make-node-id->resource-path [project evaluation-context]
+  (set/map-invert (g/node-value project :nodes-by-resource-path evaluation-context)))
+
+(defn node-build-targets [node-id node-id->resource-path render-progress! task-cancelled? evaluation-context]
+  {:pre [(map? node-id->resource-path)
+         (ifn? render-progress!)
+         (ifn? task-cancelled?)]}
+  (let [steps (atom [])
 
         collect-tracer-fn
         (fn collect-tracer-fn [state node output-type label]
-          (cond
-            (task-cancelled?)
-            (throw-build-cancelled-exception!)
-
-            (and (= :build-targets label)
-                 (= :begin state)
-                 (= :output output-type))
+          (throw-if-task-cancelled! task-cancelled?)
+          (when (and (= :build-targets label)
+                     (= :begin state)
+                     (= :output output-type))
             (swap! steps conj node)))
 
         _ (g/node-value node-id :build-targets (assoc evaluation-context :dry-run true :tracer collect-tracer-fn))
-        node-id->resource-path (set/map-invert (g/node-value project :nodes-by-resource-path evaluation-context))
         progress-message-fn (partial compiling-progress-message node-id->resource-path)
         step-count (count @steps)
-        progress-tracer (project/make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make "" 10 0 true) 5))
-        evaluation-context-with-progress-trace (assoc evaluation-context :tracer progress-tracer)
-        _ (doseq [node-id (rseq @steps)]
-            (try
-              (g/node-value node-id :build-targets evaluation-context-with-progress-trace)
-              (catch Throwable error
-                (throw (pipeline/decorate-build-exception error :compile node-id nil evaluation-context)))))
-        #_#_#_#_
-        prewarm-partitions (partition-all (max (quot step-count (+ (available-processors) 2)) 1000) (rseq @steps))
-        _ (batched-pmap (fn [node-id] (g/node-value node-id :build-targets evaluation-context-with-progress-trace)) prewarm-partitions)
-        node-build-targets (g/node-value node-id :build-targets evaluation-context)
-        build-targets (resolve-deps-impl
-                        [node-build-targets extra-build-targets]
-                        project
-                        (fn report-resolve-deps-node-id-progress! [node-id]
-                          (when-let [path (node-id->resource-path node-id)]
-                            (render-progress! (progress/make-indeterminate (str "Resolving " path)))))
-                        evaluation-context)]
-    (if (g/error? build-targets)
-      {:error build-targets}
-      (let [build-dir (workspace/build-path (project/workspace project evaluation-context))]
-        (pipeline/build! build-targets build-dir old-artifact-map evaluation-context (progress/nest-render-progress render-progress! (progress/make "" 10 5 true) 5))))))
+        progress-tracer (project/make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make localization/empty-message 10 0 true) 5))
+        evaluation-context-with-progress-trace (assoc evaluation-context :tracer progress-tracer)]
+    (doseq [node-id (rseq @steps)]
+      (try
+        (g/node-value node-id :build-targets evaluation-context-with-progress-trace)
+        (catch Throwable error
+          (throw (pipeline/decorate-build-exception error :compile node-id nil evaluation-context)))))
+    (g/node-value node-id :build-targets evaluation-context)))
+
+(defn- resolve-dependencies-with-progress [build-targets project node-id->resource-path render-progress! evaluation-context]
+  {:pre [(map? node-id->resource-path)
+         (ifn? render-progress!)]}
+  (resolve-deps-impl
+    build-targets
+    project
+    (fn report-resolve-deps-node-id-progress! [node-id]
+      (when-let [path (node-id->resource-path node-id)]
+        (render-progress! (progress/make-indeterminate (localization/message "progress.resolving-resource" {"resource" path})))))
+    evaluation-context))
+
+(defn build-build-targets! [build-targets workspace old-artifact-map render-progress! evaluation-context]
+  {:pre [(ifn? render-progress!)]}
+  (if (g/error? build-targets)
+    {:error build-targets}
+    (let [build-dir (workspace/build-path workspace)]
+      (pipeline/build!
+        build-targets
+        build-dir
+        old-artifact-map
+        evaluation-context
+        (progress/nest-render-progress
+          render-progress!
+          (progress/make localization/empty-message 10 5 true)
+          5)))))
+
+(defn build-project! [project node-id old-artifact-map opts evaluation-context]
+  (let [workspace (project/workspace project evaluation-context)
+        extra-build-targets (:extra-build-targets opts)
+        task-cancelled? (or (:task-cancelled? opts) fn/constantly-false)
+        render-progress! (or (:render-progress! opts) progress/null-render-progress!)
+        cancellable-render-progress! (cancellable-render-progress render-progress! task-cancelled?)
+        node-id->resource-path (make-node-id->resource-path project evaluation-context)
+        node-build-targets (node-build-targets node-id node-id->resource-path cancellable-render-progress! task-cancelled? evaluation-context)
+        build-targets (resolve-dependencies-with-progress [node-build-targets extra-build-targets] project node-id->resource-path cancellable-render-progress! evaluation-context)]
+    (build-build-targets! build-targets workspace old-artifact-map cancellable-render-progress! evaluation-context)))

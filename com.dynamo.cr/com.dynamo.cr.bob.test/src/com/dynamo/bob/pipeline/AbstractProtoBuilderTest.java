@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,7 +36,7 @@ import org.junit.After;
 
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.NullProgress;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.TaskResult;
@@ -79,7 +79,7 @@ public abstract class AbstractProtoBuilderTest {
                 this.fileSystem.addMountPoint(this.mp);
             }
             else {
-                this.mp = new ZipMountPoint(null, path, false);
+                this.mp = new ZipMountPoint(null, path);
                 this.mp.mount();
             }
         } catch (Exception e) {
@@ -157,10 +157,14 @@ public abstract class AbstractProtoBuilderTest {
         return this.project;
     }
 
+    protected MockFileSystem getFileSystem() {
+        return this.fileSystem;
+    }
+
     protected List<Message> build(String file, String source) throws Exception {
         addFile(file, source);
         project.setInputs(Collections.singletonList(file));
-        List<TaskResult> results = project.build(new NullProgress(), "build");
+        List<TaskResult> results = project.build(Progress.discarding(), "build");
         List<Message> messages = new ArrayList<Message>();
         for (TaskResult result : results) {
             if (!result.isOk()) {
@@ -184,7 +188,7 @@ public abstract class AbstractProtoBuilderTest {
                 fileSystem.addFile(path, null);
             }
         }, result);
-        project.build(new NullProgress(), "clean");
+        project.build(Progress.discarding(), "clean");
     }
 
     protected <T extends Message> T getMessage(List<Message> messages, Class<T> type) {
@@ -218,7 +222,7 @@ public abstract class AbstractProtoBuilderTest {
             this.mp = mp;
             this.basePath = basePath;
             if (basePath.startsWith("/")) {
-                this.basePath = basePath.substring(1, basePath.length());
+                this.basePath = basePath.substring(1);
             }
         }
 

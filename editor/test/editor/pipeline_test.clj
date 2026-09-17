@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -77,7 +77,7 @@
 
 (defmacro with-clean-system [& forms]
   `(ts/with-clean-system
-     (let [~'workspace (test-util/setup-scratch-workspace! ~'world project-path)
+     (let [~'workspace (test-util/setup-scratch-workspace! project-path)
            ~'project (test-util/setup-project! ~'workspace)]
        ~@forms)))
 
@@ -211,6 +211,7 @@
   (source-type [_] :file)
   (exists? [_] true)
   (read-only? [_] true)
+  (symlink? [_] false)
   (path [_] (subs proj-path 1))
   (abs-path [_] proj-path)
   (proj-path [_] proj-path)

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,7 +18,7 @@
 
 #include <dlib/log.h>
 #include <dlib/time.h>
-#include <platform/platform_window.h>
+#include <platform/window.hpp>
 #include <dmsdk/dlib/dstrings.h> // dmStrCaseCmp
 
 #include "graphics.h"
@@ -59,15 +59,15 @@ public:
 
     struct CloseData
     {
-        bool m_ShouldClose;
+        int m_ShouldClose;
     };
 
-    dmJobThread::HContext m_JobThread;
-    dmPlatform::HWindow m_Window;
-    dmGraphics::HContext m_Context;
-    dmGraphics::NullContext* m_NullContext;
-    ResizeData m_ResizeData;
-    CloseData m_CloseData;
+    HJobContext                 m_JobContext;
+    HWindow                     m_Window;
+    dmGraphics::HContext        m_Context;
+    dmGraphics::NullContext*    m_NullContext;
+    ResizeData                  m_ResizeData;
+    CloseData                   m_CloseData;
 
     static void OnWindowResize(void* user_data, uint32_t width, uint32_t height)
     {
@@ -76,17 +76,18 @@ public:
         data->m_Height = height;
     }
 
-    static bool OnWindowClose(void* user_data)
+    static int OnWindowClose(void* user_data)
     {
         CloseData* data = (CloseData*)user_data;
         return data->m_ShouldClose;
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
-        dmGraphics::InstallAdapter();
+        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
-        dmPlatform::WindowParams params;
+        WindowCreateParams params;
+        WindowCreateParamsInitialize(&params);
         params.m_ResizeCallback = OnWindowResize;
         params.m_ResizeCallbackUserData = &m_ResizeData;
         params.m_CloseCallback = OnWindowClose;
@@ -101,18 +102,17 @@ public:
         m_Window = dmPlatform::NewWindow();
         dmPlatform::OpenWindow(m_Window, params);
 
-        dmJobThread::JobThreadCreationParams job_thread_create_param;
-        job_thread_create_param.m_ThreadNames[0] = "test_jobs";
-        job_thread_create_param.m_ThreadCount    = 1;
+        JobSystemCreateParams job_thread_create_param = {0};
+        job_thread_create_param.m_ThreadCount = 1;
 
         if (dmGraphicsTestT::s_Asynchronous)
-            m_JobThread = dmJobThread::Create(job_thread_create_param);
+            m_JobContext = JobSystemCreate(&job_thread_create_param);
         else
-            m_JobThread = 0;
+            m_JobContext = 0;
 
         dmGraphics::ContextParams context_params = dmGraphics::ContextParams();
         context_params.m_Window                  = m_Window;
-        context_params.m_JobThread               = m_JobThread;
+        context_params.m_JobContext              = m_JobContext;
 
         m_Context = dmGraphics::NewContext(context_params);
         m_NullContext = (dmGraphics::NullContext*) m_Context;
@@ -122,12 +122,13 @@ public:
         m_ResizeData.m_Height = 0;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
-        if (m_JobThread)
-            dmJobThread::Destroy(m_JobThread);
+        if (m_JobContext)
+            JobSystemDestroy(m_JobContext);
         dmGraphics::CloseWindow(m_Context);
         dmGraphics::DeleteContext(m_Context);
+        dmPlatform::DeleteWindow(m_Window);
     }
 };
 
@@ -158,15 +159,15 @@ TEST_F(dmGraphicsTest, CloseWindow)
 
 TEST_F(dmGraphicsTest, TestWindowState)
 {
-    ASSERT_TRUE(dmGraphics::GetWindowStateParam(m_Context, dmPlatform::WINDOW_STATE_OPENED) ? true : false);
+    ASSERT_TRUE(dmGraphics::GetWindowStateParam(m_Context, WINDOW_STATE_OPENED) ? true : false);
     dmGraphics::CloseWindow(m_Context);
-    ASSERT_FALSE(dmGraphics::GetWindowStateParam(m_Context, dmPlatform::WINDOW_STATE_OPENED));
+    ASSERT_FALSE(dmGraphics::GetWindowStateParam(m_Context, WINDOW_STATE_OPENED));
 }
 
 TEST_F(dmGraphicsTest, TestWindowSize)
 {
-    ASSERT_EQ(m_NullContext->m_Width, dmGraphics::GetWidth(m_Context));
-    ASSERT_EQ(m_NullContext->m_Height, dmGraphics::GetHeight(m_Context));
+    ASSERT_EQ(m_NullContext->m_BaseContext.m_Width, dmGraphics::GetWidth(m_Context));
+    ASSERT_EQ(m_NullContext->m_BaseContext.m_Height, dmGraphics::GetHeight(m_Context));
     uint32_t width = WIDTH * 2;
     uint32_t height = HEIGHT * 2;
     dmGraphics::SetWindowSize(m_Context, width, height);
@@ -243,11 +244,11 @@ TEST_F(dmGraphicsTest, VertexBuffer)
 
     // Smaller size
     dmGraphics::SetVertexBufferData(vertex_buffer, 1, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(1u, vb->m_Size);
+    ASSERT_EQ(1u, vb->m_Base.m_Size);
 
     // Bigger size
     dmGraphics::SetVertexBufferData(vertex_buffer, 4, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(4u, vb->m_Size);
+    ASSERT_EQ(4u, vb->m_Base.m_Size);
     ASSERT_EQ(0, memcmp(data, vb->m_Buffer, 4));
 
     dmGraphics::DeleteVertexBuffer(vertex_buffer);
@@ -283,11 +284,11 @@ TEST_F(dmGraphicsTest, IndexBuffer)
 
     // Smaller size
     dmGraphics::SetIndexBufferData(index_buffer, 1, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(1u, ib->m_Size);
+    ASSERT_EQ(1u, ib->m_Base.m_Size);
 
     // Bigger size
     dmGraphics::SetIndexBufferData(index_buffer, 4, data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-    ASSERT_EQ(4u, ib->m_Size);
+    ASSERT_EQ(4u, ib->m_Base.m_Size);
     ASSERT_EQ(0, memcmp(data, ib->m_Buffer, 4));
 
     dmGraphics::DeleteIndexBuffer(index_buffer);
@@ -306,7 +307,7 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
         ASSERT_EQ(streams[ix].m_Type, type); \
         ASSERT_EQ(streams[ix].m_Normalize, normalize);
 
-    ASSERT_EQ(stream_declaration->m_StreamCount, 2);
+    ASSERT_EQ(stream_declaration->m_Streams.Size(), 2);
     TEST_STREAM_DECLARATION(stream_declaration->m_Streams, "stream0", 0, 2, dmGraphics::TYPE_BYTE, true);
     TEST_STREAM_DECLARATION(stream_declaration->m_Streams, "stream1", 1, 4, dmGraphics::TYPE_FLOAT, false);
 
@@ -365,6 +366,57 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
 
+TEST_F(dmGraphicsTest, VertexDeclarationMoreThan8Streams)
+{
+    // Create a vertex declaration with more than 8 streams (e.g. 10)
+    const uint32_t num_streams = 10;
+    float v[20]; // 2 vertices, 10 floats each (stream0..stream9 per vertex)
+    for (uint32_t i = 0; i < 20; ++i)
+    {
+        v[i] = (float) i;
+    }
+
+    dmGraphics::HVertexBuffer vertex_buffer = dmGraphics::NewVertexBuffer(m_Context, sizeof(v), (void*)v, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+
+    dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(m_Context);
+    for (uint32_t i = 0; i < num_streams; ++i)
+    {
+        char name[16];
+        dmSnPrintf(name, sizeof(name), "stream%u", i);
+        dmGraphics::AddVertexStream(stream_declaration, name, 1, dmGraphics::TYPE_FLOAT, false);
+    }
+
+    dmGraphics::HVertexDeclaration vertex_declaration = dmGraphics::NewVertexDeclaration(m_Context, stream_declaration);
+    dmGraphics::VertexDeclaration* vx = (dmGraphics::VertexDeclaration*) vertex_declaration;
+    ASSERT_EQ(num_streams, (uint32_t) vx->m_StreamCount);
+    ASSERT_EQ(num_streams * sizeof(float), (uint32_t) dmGraphics::GetVertexDeclarationStride(vertex_declaration));
+
+    dmGraphics::EnableVertexBuffer(m_Context, vertex_buffer, 0);
+    dmGraphics::EnableVertexDeclaration(m_Context, vertex_declaration, 0);
+
+    // Verify that enabling the vertex declaration bound all streams correctly
+    for (uint32_t i = 0; i < num_streams; ++i)
+    {
+        ASSERT_EQ(4u, (uint32_t) m_NullContext->m_VertexStreams[0][i].m_Size);
+        ASSERT_EQ(num_streams * sizeof(float), (uint32_t) m_NullContext->m_VertexStreams[0][i].m_Stride);
+        const float* src = (const float*) m_NullContext->m_VertexStreams[0][i].m_Source;
+        ASSERT_NE((void*)0, (void*)src);
+        ASSERT_EQ((float)i, *src);
+    }
+
+    dmGraphics::DisableVertexDeclaration(m_Context, vertex_declaration);
+
+    // Verify all streams were disabled
+    for (uint32_t i = 0; i < num_streams; ++i)
+    {
+        ASSERT_EQ(0u, (uint32_t) m_NullContext->m_VertexStreams[0][i].m_Size);
+    }
+
+    dmGraphics::DeleteVertexDeclaration(vertex_declaration);
+    dmGraphics::DeleteVertexBuffer(vertex_buffer);
+    dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+}
+
 TEST_F(dmGraphicsTest, Drawing)
 {
     float v[] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f, 10.0f, 11.0f, 12.0f, 13.0f, 14.0f };
@@ -398,6 +450,232 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::DeleteVertexBuffer(vb);
     dmGraphics::DeleteVertexDeclaration(vd);
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+}
+
+TEST_F(dmGraphicsTest, TestUniformBuffers)
+{
+    const char* vertex_data = ""
+        "void main()\n"
+        "{\n"
+        "    gl_Position = vec4(1.0);\n"
+        "}\n";
+
+    const char* fragment_data = ""
+        "uniform buf\n"
+        "{\n"
+        "    float f;\n"
+        "    vec2 v2;\n"
+        "    vec3 v3;\n"
+        "    vec4 v4;\n"
+        "};\n"
+
+        "void main()\n"
+        "{\n"
+        "    gl_FragColor = vec4(1.0);\n"
+        "}\n";
+
+    struct ubo_data_t
+    {
+        float f;
+        float v2[2];
+        float v3[3];
+        float v4[4];
+    } ubo_data;
+
+    dmGraphics::ShaderDescBuilder shader_desc_builder;
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vertex_data, (uint32_t) strlen(vertex_data));
+    shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment_data, (uint32_t) strlen(fragment_data));
+
+    shader_desc_builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+
+    uint32_t offset = 0;
+
+    dmGraphics::ShaderDesc::ResourceMember buf_members[4] = {};
+    buf_members[0].m_Name                     = "f";
+    buf_members[0].m_NameHash                 = dmHashString64(buf_members[0].m_Name);
+    buf_members[0].m_Offset                   = offset;
+    buf_members[0].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
+    offset += sizeof(float);
+
+    buf_members[1].m_Name                     = "v2";
+    buf_members[1].m_NameHash                 = dmHashString64(buf_members[1].m_Name);
+    buf_members[1].m_Offset                   = offset;
+    buf_members[1].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC2;
+    offset += sizeof(float) * 2;
+
+    buf_members[2].m_Name                     = "v3";
+    buf_members[2].m_NameHash                 = dmHashString64(buf_members[2].m_Name);
+    buf_members[2].m_Offset                   = offset;
+    buf_members[2].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC3;
+    offset += sizeof(float) * 3;
+
+    buf_members[3].m_Name                     = "v4";
+    buf_members[3].m_NameHash                 = dmHashString64(buf_members[3].m_Name);
+    buf_members[3].m_Offset                   = offset;
+    buf_members[3].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+    offset += sizeof(float) * 4;
+
+    shader_desc_builder.AddTypeMemberWithMembers("buf", buf_members, DM_ARRAY_SIZE(buf_members));
+    shader_desc_builder.AddUniformBuffer("buf", 0, 0, offset);
+
+    dmGraphics::ShaderDesc* shader = shader_desc_builder.Get();
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, shader, 0, 0);
+
+    dmGraphics::NullProgram* null_program = (dmGraphics::NullProgram*) program;
+    ASSERT_EQ(1, null_program->m_UniformBuffers.Size());
+
+    // Create a ubo with the same layout
+    {
+        dmGraphics::UniformBufferLayout& pgm_ubo_0 = null_program->m_BaseProgram.m_UniformBufferLayouts[0];
+
+        dmGraphics::HUniformBuffer ubo = dmGraphics::NewUniformBuffer(m_Context, pgm_ubo_0, sizeof(ubo_data));
+        dmGraphics::NullUniformBuffer* null_ubo = (dmGraphics::NullUniformBuffer*) ubo;
+
+        dmGraphics::EnableProgram(m_Context, program);
+
+        // Set the initial v4s data
+        Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
+        const dmGraphics::Uniform* uniform_v4 = dmGraphics::GetUniform(program, dmHashString64("v4"));
+        uint32_t uniform_v4_buffer_offset = UNIFORM_LOCATION_GET_OP2(uniform_v4->m_Location);
+        dmGraphics::SetConstantV4(m_Context, &constant, 1, uniform_v4->m_Location);
+
+        dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
+        ASSERT_FALSE(null_ubo->m_UsedInDraw); // UBO not bound yet
+
+        uint8_t* per_draw_uniforms = m_NullContext->m_PerDrawUniformData.Begin();
+        float* written_floats = (float*) (per_draw_uniforms + uniform_v4_buffer_offset);
+
+        ASSERT_NEAR(written_floats[0], 1.0f, EPSILON);
+        ASSERT_NEAR(written_floats[1], 2.0f, EPSILON);
+        ASSERT_NEAR(written_floats[2], 3.0f, EPSILON);
+        ASSERT_NEAR(written_floats[3], 4.0f, EPSILON);
+
+        // Bind a UBO and draw again, it should take values from the UBO instead.
+        ubo_data.v4[0] = 5.0f;
+        ubo_data.v4[1] = 6.0f;
+        ubo_data.v4[2] = 7.0f;
+        ubo_data.v4[3] = 8.0f;
+
+        dmGraphics::SetUniformBuffer(m_Context, ubo, 0, sizeof(ubo_data), &ubo_data);
+        dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
+        dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
+        ASSERT_EQ(null_ubo, m_NullContext->m_UniformBuffers[0][0]);
+
+        dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 1);
+        ASSERT_EQ(null_ubo, m_NullContext->m_UniformBuffers[0][0]);
+        ASSERT_EQ(null_ubo, m_NullContext->m_UniformBuffers[0][1]);
+
+        dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
+        ASSERT_TRUE(null_ubo->m_UsedInDraw);
+
+        ASSERT_NEAR(written_floats[0], 5.0f, EPSILON);
+        ASSERT_NEAR(written_floats[1], 6.0f, EPSILON);
+        ASSERT_NEAR(written_floats[2], 7.0f, EPSILON);
+        ASSERT_NEAR(written_floats[3], 8.0f, EPSILON);
+
+        dmGraphics::DisableUniformBuffer(m_Context, ubo);
+        ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, m_NullContext->m_UniformBuffers[0][0]);
+        ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, m_NullContext->m_UniformBuffers[0][1]);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundSet);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundBinding);
+        dmGraphics::DisableProgram(m_Context);
+        dmGraphics::DeleteUniformBuffer(m_Context, ubo);
+    }
+
+    // Create a ubo that doesn't match
+    {
+        dmGraphics::UniformBufferLayout mismatched_layout = (dmGraphics::UniformBufferLayout) -1;
+
+        dmGraphics::HUniformBuffer ubo = dmGraphics::NewUniformBuffer(m_Context, mismatched_layout, 1337);
+        dmGraphics::NullUniformBuffer* null_ubo = (dmGraphics::NullUniformBuffer*) ubo;
+
+        dmGraphics::EnableUniformBuffer(m_Context, ubo, 0, 0);
+        dmGraphics::EnableProgram(m_Context, program);
+
+        dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 0, 0);
+        ASSERT_FALSE(null_ubo->m_UsedInDraw);
+        ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, m_NullContext->m_UniformBuffers[0][0]);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundSet);
+        ASSERT_EQ(dmGraphics::UNUSED_BINDING_OR_SET, null_ubo->m_BaseUniformBuffer.m_BoundBinding);
+
+        dmGraphics::DisableUniformBuffer(m_Context, ubo);
+        dmGraphics::DisableProgram(m_Context);
+        dmGraphics::DeleteUniformBuffer(m_Context, ubo);
+    }
+
+    dmGraphics::DeleteProgram(m_Context, program);
+}
+
+TEST_F(dmGraphicsTest, TestUniformBufferLayoutCompatibility)
+{
+    const dmhash_t info_hash   = dmHashString64("info");
+    const dmhash_t lights_hash = dmHashString64("lights");
+    const dmhash_t tail_hash   = dmHashString64("tail");
+    const dmhash_t light_hash  = dmHashString64("Light");
+    const dmhash_t buffer_hash = dmHashString64("Buffer");
+    const dmhash_t color_hash  = dmHashString64("color");
+
+    auto MakeLayout = [&](uint32_t light_count, bool trailing_array)
+    {
+        dmGraphics::ShaderResourceMember light_members[1];
+        dmGraphics::ShaderResourceMember buffer_members[3];
+        dmGraphics::ShaderResourceTypeInfo types[2];
+        memset(light_members, 0, sizeof(light_members));
+        memset(buffer_members, 0, sizeof(buffer_members));
+        memset(types, 0, sizeof(types));
+
+        light_members[0].m_Name                = (char*) "color";
+        light_members[0].m_NameHash            = color_hash;
+        light_members[0].m_Type.m_ShaderType   = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        light_members[0].m_Type.m_UseTypeIndex = 0;
+        light_members[0].m_ElementCount        = 1;
+
+        buffer_members[0].m_Name                = trailing_array ? (char*) "info" : (char*) "lights";
+        buffer_members[0].m_NameHash            = trailing_array ? info_hash : lights_hash;
+        buffer_members[0].m_ElementCount        = trailing_array ? 1 : light_count;
+        buffer_members[0].m_Type.m_UseTypeIndex = trailing_array ? 0 : 1;
+        if (trailing_array)
+            buffer_members[0].m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+        else
+            buffer_members[0].m_Type.m_TypeIndex = 1;
+
+        buffer_members[1].m_Name                = trailing_array ? (char*) "lights" : (char*) "tail";
+        buffer_members[1].m_NameHash            = trailing_array ? lights_hash : tail_hash;
+        buffer_members[1].m_ElementCount        = trailing_array ? light_count : 1;
+        buffer_members[1].m_Type.m_UseTypeIndex = trailing_array ? 1 : 0;
+        if (trailing_array)
+            buffer_members[1].m_Type.m_TypeIndex = 1;
+        else
+            buffer_members[1].m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+
+        types[0].m_Name        = (char*) "Buffer";
+        types[0].m_NameHash    = buffer_hash;
+        types[0].m_Members     = buffer_members;
+        types[0].m_MemberCount = 2;
+
+        types[1].m_Name        = (char*) "Light";
+        types[1].m_NameHash    = light_hash;
+        types[1].m_Members     = light_members;
+        types[1].m_MemberCount = 1;
+
+        dmGraphics::UpdateShaderTypesOffsets(types, DM_ARRAY_SIZE(types));
+
+        return dmGraphics::GetUniformBufferLayout(0, types, DM_ARRAY_SIZE(types));
+    };
+
+    dmGraphics::UniformBufferLayout trailing_4  = MakeLayout(4, true);
+    dmGraphics::UniformBufferLayout trailing_32 = MakeLayout(32, true);
+
+    ASSERT_NE(trailing_4, trailing_32);
+    ASSERT_TRUE(dmGraphics::IsUniformBufferLayoutCompatible(trailing_4, 64, trailing_4, 16));
+    ASSERT_FALSE(dmGraphics::IsUniformBufferLayoutCompatible(trailing_4, 16, trailing_4, 64));
+    ASSERT_FALSE(dmGraphics::IsUniformBufferLayoutCompatible(trailing_32, 64, trailing_4, 16));
+
+    dmGraphics::UniformBufferLayout non_trailing_4  = MakeLayout(4, false);
+    dmGraphics::UniformBufferLayout non_trailing_32 = MakeLayout(32, false);
+
+    ASSERT_NE(non_trailing_4, non_trailing_32);
+    ASSERT_FALSE(dmGraphics::IsUniformBufferLayoutCompatible(non_trailing_32, 64, non_trailing_4, 16));
 }
 
 TEST_F(dmGraphicsTest, TestProgram)
@@ -518,7 +796,8 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::ShaderDescBuilder shader_desc_reload;
     shader_desc_reload.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, program_data_vs, 1024);
     shader_desc_reload.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, program_data_fs, 1024);
-    dmGraphics::ReloadProgram(m_Context, program, shader_desc_reload.Get());
+    char error_buffer[4096] = {};
+    dmGraphics::ReloadProgram(m_Context, program, shader_desc_reload.Get(), error_buffer, sizeof(error_buffer));
 
     delete [] program_data_vs;
     delete [] program_data_fs;
@@ -576,12 +855,26 @@ static inline void AddAttribute(dmGraphics::VertexAttributeInfos& infos,
     dmGraphics::VertexAttribute::VectorType value_vector_type,
     dmGraphics::VertexAttribute::VectorType vector_type)
 {
-    infos.m_Infos[infos.m_NumInfos].m_SemanticType    = semantic_type;
-    infos.m_Infos[infos.m_NumInfos].m_DataType        = data_type;
-    infos.m_Infos[infos.m_NumInfos].m_VectorType      = vector_type;
-    infos.m_Infos[infos.m_NumInfos].m_ValuePtr        = (uint8_t*) values;
-    infos.m_Infos[infos.m_NumInfos].m_ValueVectorType = value_vector_type;
+    dmGraphics::VertexAttributeInfo* infos_array = (dmGraphics::VertexAttributeInfo*) infos.m_Infos;
+    infos_array[infos.m_NumInfos].m_SemanticType    = semantic_type;
+    infos_array[infos.m_NumInfos].m_DataType        = data_type;
+    infos_array[infos.m_NumInfos].m_VectorType      = vector_type;
+    infos_array[infos.m_NumInfos].m_ValuePtr        = (uint8_t*) values;
+    infos_array[infos.m_NumInfos].m_ValueVectorType = value_vector_type;
+    infos_array[infos.m_NumInfos].m_ElementCount   = dmGraphics::VectorTypeToElementCount(vector_type);
     infos.m_NumInfos++;
+}
+
+static inline void InitializeVertexAttributeInfos(dmGraphics::VertexAttributeInfos& infos, uint32_t num_streams)
+{
+    dmGraphics::VertexAttributeInfo* infos_array = new dmGraphics::VertexAttributeInfo[num_streams];
+    memset(infos_array, 0, sizeof(dmGraphics::VertexAttributeInfo) * num_streams);
+    infos.m_Infos = infos_array;
+}
+
+static inline void DestroyVertexAttributeInfos(dmGraphics::VertexAttributeInfos& infos)
+{
+    delete[] (dmGraphics::VertexAttributeInfo*) infos.m_Infos;
 }
 
 static void AssertVectorTypeContainerFloat(const VectorTypeContainer<float>& expected, const VectorTypeContainer<float>& actual)
@@ -598,6 +891,8 @@ static void AssertVectorTypeContainerFloat(const VectorTypeContainer<float>& exp
 static void RunAllAttributeTest(float* values, uint32_t num_values, dmGraphics::VertexAttribute::SemanticType semantic_type, dmGraphics::VertexAttribute::DataType data_type, dmGraphics::VertexAttribute::VectorType value_vector_type, const VectorTypeContainer<float>& expected)
 {
     dmGraphics::VertexAttributeInfos attribute_infos;
+    InitializeVertexAttributeInfos(attribute_infos, 7);
+
     AddAttribute(attribute_infos, values, num_values, semantic_type, data_type, value_vector_type, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
     AddAttribute(attribute_infos, values, num_values, semantic_type, data_type, value_vector_type, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
     AddAttribute(attribute_infos, values, num_values, semantic_type, data_type, value_vector_type, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
@@ -614,11 +909,17 @@ static void RunAllAttributeTest(float* values, uint32_t num_values, dmGraphics::
 
     dmGraphics::WriteAttributes((uint8_t*) &actual, 0, 1, params);
     AssertVectorTypeContainerFloat(expected, actual);
+
+    DestroyVertexAttributeInfos(attribute_infos);
 }
 
 TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 {
     dmGraphics::VertexAttributeInfos attribute_infos;
+    InitializeVertexAttributeInfos(attribute_infos, 1);
+
+    dmGraphics::VertexAttributeInfo* mutable_infos = (dmGraphics::VertexAttributeInfo*) attribute_infos.m_Infos;
+
     AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
 
     dmGraphics::WriteAttributeParams params = {};
@@ -626,7 +927,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Unsigned byte
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
         attribute_infos.m_VertexStride = sizeof(uint8_t) * 4;
         float position_values[] = {128.0, 255.0};
         uint8_t expected[4]     = {128,   255, 0, 1};
@@ -640,7 +941,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Signed byte
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_BYTE;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_BYTE;
         attribute_infos.m_VertexStride        = sizeof(int8_t) * 4;
         float position_values[]               = {-32.0, -16.0};
         int8_t expected[4]                    = {-32,   -16, 0, 1};
@@ -655,7 +956,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Unsigned short
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT;
         attribute_infos.m_VertexStride        = sizeof(uint16_t) * 4;
         float position_values[]               = {32768.0, 65535.0};
         uint16_t expected[4]                  = {32768,   65535, 0, 1};
@@ -670,7 +971,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Signed short
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_SHORT;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_SHORT;
         attribute_infos.m_VertexStride        = sizeof(int16_t) * 4;
         float position_values[]               = {-16384.0, -32768.0};
         int16_t expected[4]                   = {-16384,   -32768, 0, 1};
@@ -685,7 +986,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Unsigned int
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
         attribute_infos.m_VertexStride        = sizeof(uint32_t) * 4;
         float position_values[]               = {128000.0, 13371337.0};
         uint32_t expected[4]                  = {128000,   13371337, 0, 1};
@@ -700,7 +1001,7 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
 
     // Signed int
     {
-        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_INT;
+        mutable_infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_INT;
         attribute_infos.m_VertexStride        = sizeof(int32_t) * 4;
         float position_values[]               = {-128000.0, -99999.0};
         int32_t expected[4]                   = {-128000,   -99999, 0, 1};
@@ -712,6 +1013,8 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
         dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
         ASSERT_VEC(expected, actual, 4);
     }
+
+    DestroyVertexAttributeInfos(attribute_infos);
 }
 
 TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeNone)
@@ -977,6 +1280,8 @@ TEST_F(dmGraphicsTest, VertexAttributeEngineProvidedData)
     float attribute_1_data[] = { -1.1, -1.2, -1.3, -1.4 };
 
     dmGraphics::VertexAttributeInfos attribute_infos;
+    InitializeVertexAttributeInfos(attribute_infos, 3);
+
     AddAttribute(attribute_infos, attribute_0_data, 4, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
     AddAttribute(attribute_infos, attribute_1_data, 4, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
     AddAttribute(attribute_infos,                0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
@@ -1044,6 +1349,8 @@ TEST_F(dmGraphicsTest, VertexAttributeEngineProvidedData)
         ASSERT_VECF(expected[1], actual[1], 4);
         ASSERT_VECF(expected[2], actual[2], 4);
     }
+
+    DestroyVertexAttributeInfos(attribute_infos);
 }
 
 // position, color and tangent should have one as W, if there is not enough source data to copy from
@@ -1052,6 +1359,8 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
     // Position semantic
     {
         dmGraphics::VertexAttributeInfos attribute_infos;
+        InitializeVertexAttributeInfos(attribute_infos, 1);
+
         AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
         attribute_infos.m_VertexStride = sizeof(float) * 4;
 
@@ -1092,6 +1401,8 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
             dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
             ASSERT_VECF(expected, actual, 4);
         }
+
+        DestroyVertexAttributeInfos(attribute_infos);
     }
 
     // Color semantic
@@ -1099,6 +1410,8 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
         // No values available whatsoever
         {
             dmGraphics::VertexAttributeInfos attribute_infos;
+            InitializeVertexAttributeInfos(attribute_infos, 4);
+
             AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
             AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
             AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
@@ -1118,9 +1431,13 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
 
             dmGraphics::WriteAttributes((uint8_t*) &actual, 0, 1, params);
             AssertVectorTypeContainerFloat(expected, actual);
+
+            DestroyVertexAttributeInfos(attribute_infos);
         }
 
         dmGraphics::VertexAttributeInfos attribute_infos;
+        InitializeVertexAttributeInfos(attribute_infos, 1);
+
         AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
         attribute_infos.m_VertexStride = sizeof(float) * 4;
 
@@ -1150,11 +1467,15 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
             dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
             ASSERT_VECF(expected, actual, 4);
         }
+
+        DestroyVertexAttributeInfos(attribute_infos);
     }
 
     // Tangent semantic
     {
         dmGraphics::VertexAttributeInfos attribute_infos;
+        InitializeVertexAttributeInfos(attribute_infos, 1);
+
         AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
         attribute_infos.m_VertexStride = sizeof(float) * 4;
 
@@ -1193,6 +1514,46 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
             dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
             ASSERT_VECF(expected, actual, 4);
         }
+
+        DestroyVertexAttributeInfos(attribute_infos);
+    }
+
+    // TextureTransform2D semantic: metadata and engine-provided MAT3 write
+    {
+        dmGraphics::VertexAttributeInfos attribute_infos;
+        InitializeVertexAttributeInfos(attribute_infos, 1);
+
+        AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3);
+        attribute_infos.m_VertexStride = sizeof(float) * 9;
+
+        dmGraphics::VertexAttributeInfoMetadata metadata = dmGraphics::GetVertexAttributeInfosMetaData(attribute_infos);
+        ASSERT_TRUE(metadata.m_HasAttributeTextureTransform2D != 0);
+
+        dmGraphics::WriteAttributeParams params = {};
+        params.m_VertexAttributeInfos = &attribute_infos;
+
+        // No engine-provided data: default is identity 3x3 (from top-left of default 4x4 identity)
+        {
+            float expected[9] = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
+            float actual[9]   = {};
+
+            dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+            ASSERT_VECF(expected, actual, 9);
+        }
+
+        // Engine-provided packed 3x3 (column-major)
+        {
+            float tt_values[] = {1.0f, 0.0f, 0.0f,  0.0f, 2.0f, 0.0f,  0.5f, 0.25f, 1.0f};
+            float expected[9] = {1.0f, 0.0f, 0.0f,  0.0f, 2.0f, 0.0f,  0.5f, 0.25f, 1.0f};
+            float actual[9]   = {};
+
+            const float* tt_channel[] = { tt_values };
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_TextureTransform2D, tt_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3, 1, true);
+            dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+            ASSERT_VECF(expected, actual, 9);
+        }
+
+        DestroyVertexAttributeInfos(attribute_infos);
     }
 }
 
@@ -1291,19 +1652,17 @@ TEST_F(dmGraphicsTest, TestTexture)
     params.m_Height = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
-    dmGraphics::SetTexture(texture, params);
+    dmGraphics::SetTexture(m_Context, texture, params);
 
     delete [] (char*)params.m_Data;
-    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(texture));
-    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
-    ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
-    ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
+    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(m_Context, texture));
+    ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(m_Context, texture));
     dmGraphics::EnableTexture(m_Context, 0, 0, texture);
     dmGraphics::DisableTexture(m_Context, 0, texture);
-    dmGraphics::DeleteTexture(texture);
+    dmGraphics::DeleteTexture(m_Context, texture);
 }
-
-#if defined(DM_HAS_THREADS)
 
 static void TestTextureAsyncCallback(dmGraphics::HTexture texture, void* user_data)
 {
@@ -1311,6 +1670,8 @@ static void TestTextureAsyncCallback(dmGraphics::HTexture texture, void* user_da
     int* value = (int*)user_data;
     *value = 1;
 }
+
+#if defined(DM_HAS_THREADS)
 
 TEST_F(dmGraphicsTest, TestTextureAsync)
 {
@@ -1342,13 +1703,13 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     for (int i = 0; i < TEXTURE_COUNT; ++i)
     {
         textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-        dmGraphics::SetTextureAsync(textures[i], params, TestTextureAsyncCallback, (void*) (values + i));
+        dmGraphics::SetTextureAsync(m_Context, textures[i], params, TestTextureAsyncCallback, (void*) (values + i));
     }
 
     uint64_t stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
     while(!all_complete && dmTime::GetMonotonicTime() < stop_time)
     {
-        dmJobThread::Update(m_JobThread, 0);
+        JobSystemUpdate(m_JobContext, 0);
         all_complete = true;
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
@@ -1365,20 +1726,20 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
 
     for (int i = 0; i < TEXTURE_COUNT; ++i)
     {
-        ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(textures[i]));
-        ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(textures[i]));
-        ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(textures[i]));
-        ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(textures[i]));
+        ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(m_Context, textures[i]));
+        ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(m_Context, textures[i]));
+        ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(m_Context, textures[i]));
+        ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(m_Context, textures[i]));
         dmGraphics::EnableTexture(m_Context, 0, 0, textures[i]);
         dmGraphics::DisableTexture(m_Context, 0, textures[i]);
-        dmGraphics::DeleteTexture(textures[i]);
+        dmGraphics::DeleteTexture(m_Context, textures[i]);
     }
 
     all_complete = false;
     stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
     while(!all_complete && dmTime::GetMonotonicTime() < stop_time)
     {
-        dmJobThread::Update(m_JobThread, 0);
+        JobSystemUpdate(m_JobContext, 0);
         all_complete = true;
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
@@ -1403,17 +1764,17 @@ enum SyncronizedWaitCondition
     WAIT_CONDITION_DELETE,
 };
 
-static bool WaitUntilSyncronizedTextures(dmGraphics::HContext graphics_context, dmJobThread::HContext job_thread, dmGraphics::HTexture* textures, uint32_t texture_count, SyncronizedWaitCondition cond)
+static bool WaitUntilSyncronizedTextures(dmGraphics::HContext graphics_context, HJobContext job_thread, dmGraphics::HTexture* textures, uint32_t texture_count, SyncronizedWaitCondition cond)
 {
     bool all_complete = false;
     uint64_t stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
     while(!all_complete && dmTime::GetMonotonicTime() < stop_time)
     {
-        dmJobThread::Update(job_thread);
+        JobSystemUpdate(job_thread, 0);
         all_complete = true;
         for (int i = 0; i < texture_count; ++i)
         {
-            if (cond == WAIT_CONDITION_UPLOAD && dmGraphics::GetTextureStatusFlags(textures[i]) != dmGraphics::TEXTURE_STATUS_OK)
+            if (cond == WAIT_CONDITION_UPLOAD && dmGraphics::GetTextureStatusFlags(graphics_context, textures[i]) != dmGraphics::TEXTURE_STATUS_OK)
                 all_complete = false;
             else if (cond == WAIT_CONDITION_DELETE && dmGraphics::IsAssetHandleValid(graphics_context, textures[i]))
                 all_complete = false;
@@ -1452,10 +1813,10 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-            dmGraphics::SetTextureAsync(textures[i], params, 0, 0);
+            dmGraphics::SetTextureAsync(m_Context, textures[i], params, 0, 0);
 
             // Immediately delete, so we simulate putting them on a post-delete-queue
-            dmGraphics::DeleteTexture(textures[i]);
+            dmGraphics::DeleteTexture(m_Context, textures[i]);
         }
 
         // Trigger a flush of the post deletion textures by issuing a flip
@@ -1469,10 +1830,10 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         ASSERT_EQ(0, m_NullContext->m_SetTextureAsyncState.m_PostDeleteTextures.Size());
 
         // Flush any lingering work
-        dmJobThread::Update(m_JobThread, 0);
+        JobSystemUpdate(m_JobContext, 0);
 
         // Make sure all are deleted
-        ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobThread, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_DELETE));
+        ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobContext, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_DELETE));
     }
 
     // Test 2: Simulate deleting textures async. This requires valid textures (i.e not pending)
@@ -1483,17 +1844,17 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
             textures.Push(dmGraphics::NewTexture(m_Context, creation_params));
-            dmGraphics::SetTextureAsync(textures[i], params, 0, 0);
+            dmGraphics::SetTextureAsync(m_Context, textures[i], params, 0, 0);
         }
 
-        ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobThread, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_UPLOAD));
+        ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobContext, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_UPLOAD));
 
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
-            dmGraphics::DeleteTexture(textures[i]);
+            dmGraphics::DeleteTexture(m_Context, textures[i]);
         }
 
-        ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobThread, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_DELETE));
+        ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobContext, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_DELETE));
 
         for (int i = 0; i < TEXTURE_COUNT; ++i)
         {
@@ -1506,6 +1867,39 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
     m_NullContext->m_UseAsyncTextureLoad = tmp_async_load;
 }
 #endif // DM_HAS_THREADS
+
+TEST_F(dmGraphicsSynchronousTest, TestTextureAsyncCallbackWithoutAsyncSupport)
+{
+    bool tmp_async_load = m_NullContext->m_UseAsyncTextureLoad;
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+
+    dmGraphics::TextureCreationParams creation_params;
+    dmGraphics::TextureParams params;
+
+    creation_params.m_Width          = WIDTH;
+    creation_params.m_Height         = HEIGHT;
+    creation_params.m_OriginalWidth  = WIDTH;
+    creation_params.m_OriginalHeight = HEIGHT;
+
+    params.m_DataSize = WIDTH * HEIGHT;
+    params.m_Data     = new char[params.m_DataSize];
+    params.m_Width    = WIDTH;
+    params.m_Height   = HEIGHT;
+    params.m_Format   = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+
+    int callback_value = 0;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+    dmGraphics::SetTextureAsync(m_Context, texture, params, TestTextureAsyncCallback, &callback_value);
+
+    ASSERT_EQ(1, callback_value);
+    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(m_Context, texture));
+
+    dmGraphics::DeleteTexture(m_Context, texture);
+    delete [] (char*)params.m_Data;
+
+    m_NullContext->m_UseAsyncTextureLoad = tmp_async_load;
+}
 
 TEST_F(dmGraphicsSynchronousTest, TestSetTextureBounds)
 {
@@ -1531,7 +1925,7 @@ TEST_F(dmGraphicsSynchronousTest, TestSetTextureBounds)
     params.m_Y         = HEIGHT / 2;
 
     dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
-    ASSERT_DEATH(dmGraphics::SetTexture(texture, params),"");
+    ASSERT_DEATH(dmGraphics::SetTexture(m_Context, texture, params),"");
 
     delete [] (char*)params.m_Data;
 
@@ -1542,11 +1936,11 @@ TEST_F(dmGraphicsSynchronousTest, TestSetTextureBounds)
     params.m_DataSize  = params.m_Width * params.m_Height;
     params.m_Data      = new char[params.m_DataSize];
 
-    ASSERT_DEATH(dmGraphics::SetTexture(texture, params),"");
+    ASSERT_DEATH(dmGraphics::SetTexture(m_Context, texture, params),"");
 
     delete [] (char*)params.m_Data;
 
-    dmGraphics::DeleteTexture(texture);
+    dmGraphics::DeleteTexture(m_Context, texture);
 }
 
 TEST_F(dmGraphicsTest, TestMaxTextureSize)
@@ -1568,16 +1962,16 @@ TEST_F(dmGraphicsTest, TestTextureDefautlOriginalDimension)
     params.m_Height = HEIGHT;
     params.m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
-    dmGraphics::SetTexture(texture, params);
+    dmGraphics::SetTexture(m_Context, texture, params);
 
     delete [] (char*)params.m_Data;
-    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(texture));
-    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(texture));
-    ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(texture));
-    ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
+    ASSERT_EQ(WIDTH, dmGraphics::GetTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetTextureHeight(m_Context, texture));
+    ASSERT_EQ(WIDTH, dmGraphics::GetOriginalTextureWidth(m_Context, texture));
+    ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(m_Context, texture));
     dmGraphics::EnableTexture(m_Context, 0, 0, texture);
     dmGraphics::DisableTexture(m_Context, 0, texture);
-    dmGraphics::DeleteTexture(texture);
+    dmGraphics::DeleteTexture(m_Context, texture);
 }
 
 static inline dmGraphics::RenderTargetCreationParams InitializeRenderTargetParams(uint32_t w, uint32_t h)
@@ -1600,6 +1994,18 @@ static inline dmGraphics::RenderTargetCreationParams InitializeRenderTargetParam
     return p;
 }
 
+TEST_F(dmGraphicsTest, TestRenderTargetSampleCountConformance)
+{
+    const uint32_t supported = 1 | 2 | 4 | 8;
+    ASSERT_EQ(1u, dmGraphics::GetClosestSupportedSampleCount(0, supported));
+    ASSERT_EQ(2u, dmGraphics::GetClosestSupportedSampleCount(3, supported));
+    ASSERT_EQ(4u, dmGraphics::GetClosestSupportedSampleCount(7, supported));
+    ASSERT_EQ(8u, dmGraphics::GetClosestSupportedSampleCount(64, supported));
+    ASSERT_EQ(4u, dmGraphics::GetClosestSupportedSampleCount(8, 1 | 4));
+
+    ASSERT_EQ(2u, dmGraphics::ConformRenderTargetSampleCount(3, 1 | 2 | 4, "Test"));
+}
+
 TEST_F(dmGraphicsTest, TestRenderTarget)
 {
     dmGraphics::RenderTargetCreationParams params = InitializeRenderTargetParams(WIDTH, HEIGHT);
@@ -1610,9 +2016,11 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
     params.m_DepthBufferParams.m_Format    = dmGraphics::TEXTURE_FORMAT_DEPTH;
     params.m_StencilBufferParams.m_Format  = dmGraphics::TEXTURE_FORMAT_STENCIL;
+    params.m_SampleCount                   = 4;
 
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
+    ASSERT_EQ(4u, dmGraphics::GetRenderTargetSampleCount(m_Context, target));
     dmGraphics::SetRenderTarget(m_Context, target, 0);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
@@ -1628,25 +2036,26 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     data_size = sizeof(uint32_t) * width * height;
     data = new char[data_size];
     memset(data, 1, data_size);
-    dmGraphics::SetRenderTargetSize(target, width, height);
+    dmGraphics::SetRenderTargetSize(m_Context, target, width, height);
 
     uint32_t target_width, target_height;
-    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
+    GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
-    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_DEPTH_BIT, target_width, target_height);
+    GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
-    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_STENCIL_BIT, target_width, target_height);
+    GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_STENCIL_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
+    ASSERT_EQ(4u, dmGraphics::GetRenderTargetSampleCount(m_Context, target));
 
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
     ASSERT_EQ(0, memcmp(data, m_NullContext->m_CurrentFrameBuffer->m_ColorBuffer[0], data_size));
     delete [] data;
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
-    dmGraphics::DeleteRenderTarget(target);
+    dmGraphics::DeleteRenderTarget(m_Context, target);
 
     // Test multiple color attachments
     params.m_ColorBufferParams[1].m_Format = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
@@ -1665,7 +2074,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     width = WIDTH;
     height = HEIGHT;
 
-    GetRenderTargetSize(target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
+    GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
     ASSERT_EQ(width, target_width);
     ASSERT_EQ(height, target_height);
 
@@ -1688,7 +2097,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     delete [] data_color2;
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
-    dmGraphics::DeleteRenderTarget(target);
+    dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
 TEST_F(dmGraphicsTest, TestGetRTAttachment)
@@ -1704,13 +2113,13 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
     dmGraphics::SetRenderTarget(m_Context, target, 0);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
-    dmGraphics::HTexture texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_DEPTH);
+    dmGraphics::HTexture texture = dmGraphics::GetRenderTargetAttachment(m_Context, target, dmGraphics::ATTACHMENT_DEPTH);
     ASSERT_EQ((dmGraphics::HTexture)0x0, texture);
 
-    texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_STENCIL);
+    texture = dmGraphics::GetRenderTargetAttachment(m_Context, target, dmGraphics::ATTACHMENT_STENCIL);
     ASSERT_EQ((dmGraphics::HTexture)0x0, texture);
 
-    texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_COLOR);
+    texture = dmGraphics::GetRenderTargetAttachment(m_Context, target, dmGraphics::ATTACHMENT_COLOR);
     ASSERT_NE((dmGraphics::HTexture)0x0, texture);
 
     char* texture_data = 0x0;
@@ -1728,7 +2137,7 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
     delete [] data;
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
-    dmGraphics::DeleteRenderTarget(target);
+    dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
 TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
@@ -1748,7 +2157,7 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
 
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, depth_value, stencil_value);
 
-    dmGraphics::HTexture depth_texture = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
+    dmGraphics::HTexture depth_texture = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
     ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, depth_texture));
     {
         float* texture_data = 0x0;
@@ -1762,7 +2171,7 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
         }
     }
 
-    dmGraphics::HTexture stencil_texture = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_STENCIL_BIT);
+    dmGraphics::HTexture stencil_texture = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_STENCIL_BIT);
     ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, stencil_texture));
     {
         uint32_t* texture_data = 0x0;
@@ -1776,7 +2185,7 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
     }
 
     dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
-    dmGraphics::DeleteRenderTarget(target);
+    dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
 TEST_F(dmGraphicsTest, TestMasks)
@@ -1834,11 +2243,11 @@ TEST_F(dmGraphicsTest, TestCloseCallback)
     // Request close
     m_NullContext->m_RequestWindowClose = 1;
     dmGraphics::Flip(m_Context);
-    ASSERT_TRUE(dmGraphics::GetWindowStateParam(m_Context, dmPlatform::WINDOW_STATE_OPENED) ? true : false);
+    ASSERT_TRUE(dmGraphics::GetWindowStateParam(m_Context, WINDOW_STATE_OPENED) ? true : false);
     // Accept close
     m_CloseData.m_ShouldClose = 1;
     dmGraphics::Flip(m_Context);
-    ASSERT_FALSE(dmGraphics::GetWindowStateParam(m_Context, dmPlatform::WINDOW_STATE_OPENED));
+    ASSERT_FALSE(dmGraphics::GetWindowStateParam(m_Context, WINDOW_STATE_OPENED));
 }
 
 TEST_F(dmGraphicsTest, TestTextureSupport)
@@ -1852,13 +2261,167 @@ TEST_F(dmGraphicsTest, TestTextureFormatBPP)
     for(uint32_t i = 0; i < dmGraphics::TEXTURE_FORMAT_COUNT; ++i)
     {
         dmGraphics::TextureFormat format = (dmGraphics::TextureFormat) i;
-        // ASTC doesn't have a "bits per pixel" value.
-        if (dmGraphics::IsTextureFormatASTC(format))
+        // Compressed formats have no meaningful bpp, calling it on them asserts
+        if (dmGraphics::IsTextureFormatCompressed(format))
         {
             continue;
         }
         ASSERT_NE(0, dmGraphics::GetTextureFormatBitsPerPixel(format));
     }
+}
+
+// Compressed texture uploads need block dimensions and byte sizes to translate
+// logical texture dimensions into physical storage/copy extents.
+TEST_F(dmGraphicsTest, TestTextureFormatCompressedBlockSize)
+{
+    dmGraphics::TextureFormatCompressedBlockSize block_size;
+
+    ASSERT_TRUE(dmGraphics::GetTextureFormatCompressedBlockSize(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_6X6, &block_size));
+    ASSERT_EQ(6u, block_size.m_Width);
+    ASSERT_EQ(6u, block_size.m_Height);
+    ASSERT_EQ(16u, block_size.m_ByteSize);
+
+    const uint32_t block_columns = (4096 + block_size.m_Width - 1) / block_size.m_Width;
+    const uint32_t block_rows    = (4096 + block_size.m_Height - 1) / block_size.m_Height;
+    ASSERT_EQ(683u, block_columns);
+    ASSERT_EQ(683u, block_rows);
+    ASSERT_EQ(4098u, block_columns * block_size.m_Width);
+    ASSERT_EQ(4098u, block_rows * block_size.m_Height);
+    ASSERT_EQ(10928u, block_columns * block_size.m_ByteSize);
+
+    ASSERT_TRUE(dmGraphics::GetTextureFormatCompressedBlockSize(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2, &block_size));
+    ASSERT_EQ(4u, block_size.m_Width);
+    ASSERT_EQ(4u, block_size.m_Height);
+    ASSERT_EQ(16u, block_size.m_ByteSize);
+
+    ASSERT_FALSE(dmGraphics::GetTextureFormatCompressedBlockSize(dmGraphics::TEXTURE_FORMAT_RGBA, &block_size));
+}
+
+TEST_F(dmGraphicsTest, TestEstimateTextureResourceDataSize)
+{
+    dmGraphics::Texture tex = {};
+    tex.m_Type              = dmGraphics::TEXTURE_TYPE_2D;
+
+    // Without a supplied mip 0 size every level is computed from its own dimensions. Compressed
+    // mips floor at one whole block, so the small end of the chain doesn't decay towards zero.
+    tex.m_Format       = dmGraphics::TEXTURE_FORMAT_RGB_BC1;
+    tex.m_Width        = 4;
+    tex.m_Height       = 4;
+    tex.m_MipMapCount  = 3;
+    ASSERT_EQ(24u, dmGraphics::EstimateTextureResourceDataSize(&tex, 0, false));
+
+    // 16x16 BC1 is 4x4 blocks, then 2x2, then 1x1, then two more levels of a single block
+    tex.m_Width       = 16;
+    tex.m_Height      = 16;
+    tex.m_MipMapCount = 5;
+    ASSERT_EQ(128u + 32u + 8u + 8u + 8u, dmGraphics::EstimateTextureResourceDataSize(&tex, 0, false));
+
+    // Uncompressed formats keep quartering naturally, since their mips do shrink by 4x
+    tex.m_Format      = dmGraphics::TEXTURE_FORMAT_RGBA;
+    tex.m_Width       = 16;
+    tex.m_Height      = 16;
+    tex.m_MipMapCount = 3;
+    ASSERT_EQ(1024u + 256u + 64u, dmGraphics::EstimateTextureResourceDataSize(&tex, 0, false));
+
+    // A supplied mip 0 size is authoritative for level 0 and scaled for the rest
+    ASSERT_EQ(2048u + 512u + 128u, dmGraphics::EstimateTextureResourceDataSize(&tex, 2048, false));
+
+    // Cube maps count all six faces
+    tex.m_Type        = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+    tex.m_MipMapCount = 1;
+    ASSERT_EQ(1024u * 6, dmGraphics::EstimateTextureResourceDataSize(&tex, 0, false));
+}
+
+TEST_F(dmGraphicsTest, TestTextureFormatDataSize)
+{
+    // 1580x860 BC4 is 395x215 blocks of 8 bytes
+    ASSERT_EQ(679400u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_R_BC4, 1580, 860));
+    ASSERT_EQ(679400u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGB_BC1, 1580, 860));
+
+    // One block's worth of each block compressed format
+    ASSERT_EQ(8u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGB_ETC1, 4, 4));
+    ASSERT_EQ(8u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_R_ETC2, 4, 4));   // EAC R11
+    ASSERT_EQ(16u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RG_ETC2, 4, 4));  // EAC RG11
+    ASSERT_EQ(16u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2, 4, 4));
+    ASSERT_EQ(8u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_R_BC4, 4, 4));
+    ASSERT_EQ(16u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_BC3, 4, 4));
+    ASSERT_EQ(16u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RG_BC5, 4, 4));
+    ASSERT_EQ(16u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_BC7, 4, 4));
+
+    // Partial blocks pad to a whole block: 5x5 BC4 is 2x2 blocks
+    ASSERT_EQ(32u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_R_BC4, 5, 5));
+
+    // 4096x4096 is 683x683 6x6 blocks
+    ASSERT_EQ(7463824u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_6X6, 4096, 4096));
+    ASSERT_EQ(16u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4, 4, 4));
+
+    // PVRTC rounds up to a multiple of 4 and clamps to a hardware minimum (8x8 for 4bpp, 16x8 for 2bpp)
+    ASSERT_EQ(128u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1, 16, 16));
+    ASSERT_EQ(128u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1, 16, 16));
+    ASSERT_EQ(512u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1, 32, 32));
+    ASSERT_EQ(64u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1, 16, 16));
+    // Tiny textures pad up to that minimum
+    ASSERT_EQ(32u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1, 4, 4));
+    ASSERT_EQ(32u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1, 8, 8));
+
+    // Uncompressed formats go through the bits-per-pixel path
+    ASSERT_EQ(256u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_LUMINANCE, 16, 16));
+    ASSERT_EQ(768u,  dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGB, 16, 16));
+    ASSERT_EQ(1024u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA, 16, 16));
+
+    // 8192x8192 at 128 bpp is 2^33 bits, which wraps a uint32 unless accumulated in 64
+    ASSERT_EQ(1073741824u, dmGraphics::GetTextureFormatDataSize(dmGraphics::TEXTURE_FORMAT_RGBA32F, 8192, 8192));
+}
+
+TEST_F(dmGraphicsTest, TestIsTextureFormatCompressed)
+{
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_2BPPV1));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGB_ETC1));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_R_ETC2));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RG_ETC2));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGB_BC1));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_BC3));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_R_BC4));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RG_BC5));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_BC7));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_12X12));
+
+    ASSERT_FALSE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_LUMINANCE));
+    ASSERT_FALSE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGB));
+    ASSERT_FALSE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA));
+    ASSERT_FALSE(dmGraphics::IsTextureFormatCompressed(dmGraphics::TEXTURE_FORMAT_RGBA_16BPP));
+}
+
+// BC (S3TC/RGTC/BPTC) formats can't be uploaded to array/3D targets on all backends (WebGL2 forbids
+// it), so IsTextureFormatSupportedForType gates them behind CONTEXT_FEATURE_BC_ARRAY_TEXTURES while
+// still allowing them on plain 2D. This is what makes a WebGL paged atlas fall back from BC4 to ETC2.
+TEST_F(dmGraphicsTest, TestBCArrayTextureSupportedForType)
+{
+    dmGraphics::GraphicsContext* ctx = &m_NullContext->m_BaseContext;
+
+    // Make BC4/BC7 "supported" on the (otherwise BC-less) null context so we isolate the array guard.
+    dmGraphics::SetContextTextureFormatSupported(ctx, dmGraphics::TEXTURE_FORMAT_R_BC4);
+    dmGraphics::SetContextTextureFormatSupported(ctx, dmGraphics::TEXTURE_FORMAT_RGBA_BC7);
+
+    // The null context does not advertise CONTEXT_FEATURE_BC_ARRAY_TEXTURES, so BC is 2D-only here.
+    ASSERT_TRUE (dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_2D,       dmGraphics::TEXTURE_FORMAT_R_BC4));
+    ASSERT_TRUE (dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_2D,       dmGraphics::TEXTURE_FORMAT_RGBA_BC7));
+    ASSERT_FALSE(dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_2D_ARRAY, dmGraphics::TEXTURE_FORMAT_R_BC4));
+    ASSERT_FALSE(dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_2D_ARRAY, dmGraphics::TEXTURE_FORMAT_RGBA_BC7));
+    ASSERT_FALSE(dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_3D,       dmGraphics::TEXTURE_FORMAT_R_BC4));
+
+    // A non-BC uncompressed format is never gated by the array/3D guard.
+    ASSERT_TRUE (dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_2D_ARRAY, dmGraphics::TEXTURE_FORMAT_RGBA));
+
+    // Once the backend advertises BC array support, BC is allowed on array/3D targets too.
+    dmGraphics::SetContextFeatureSupported(ctx, dmGraphics::CONTEXT_FEATURE_BC_ARRAY_TEXTURES);
+    ASSERT_TRUE(dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_2D_ARRAY, dmGraphics::TEXTURE_FORMAT_R_BC4));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatSupportedForType(m_Context, dmGraphics::TEXTURE_TYPE_3D,       dmGraphics::TEXTURE_FORMAT_R_BC4));
 }
 
 TEST_F(dmGraphicsTest, TestGetTextureParams)
@@ -1885,13 +2448,13 @@ TEST_F(dmGraphicsTest, TestGetTextureParams)
         //     we only allocate data for _this_ SetTexture call and not reallocate the buffer
         //     depending on the actual data size..
         params.m_MipMap = 127;
-        dmGraphics::SetTexture(texture, params);
+        dmGraphics::SetTexture(m_Context, texture, params);
 
-        ASSERT_EQ(1,                                         dmGraphics::GetTextureDepth(texture));
-        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,               dmGraphics::GetTextureType(texture));
-        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(texture));
+        ASSERT_EQ(1,                                         dmGraphics::GetTextureDepth(m_Context, texture));
+        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,               dmGraphics::GetTextureType(m_Context, texture));
+        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(m_Context, texture));
 
-        dmGraphics::DeleteTexture(texture);
+        dmGraphics::DeleteTexture(m_Context, texture);
     }
     // Texture cube
     {
@@ -1909,13 +2472,13 @@ TEST_F(dmGraphicsTest, TestGetTextureParams)
         // JG: We don't really do bounds check for the depth either in graphics_null
         params.m_MipMap = 127;
         params.m_Depth  = 6;
-        dmGraphics::SetTexture(texture, params);
+        dmGraphics::SetTexture(m_Context, texture, params);
 
-        ASSERT_EQ(params.m_Depth,                            dmGraphics::GetTextureDepth(texture));
-        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_CUBE_MAP,         dmGraphics::GetTextureType(texture));
-        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(texture));
+        ASSERT_EQ(params.m_Depth,                            dmGraphics::GetTextureDepth(m_Context, texture));
+        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_CUBE_MAP,         dmGraphics::GetTextureType(m_Context, texture));
+        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(m_Context, texture));
 
-        dmGraphics::DeleteTexture(texture);
+        dmGraphics::DeleteTexture(m_Context, texture);
     }
 
     // Texture 2D array
@@ -1934,13 +2497,13 @@ TEST_F(dmGraphicsTest, TestGetTextureParams)
         // JG: We don't really do bounds check for the depth either in graphics_null
         params.m_MipMap = 127;
         params.m_Depth  = 1337;
-        dmGraphics::SetTexture(texture, params);
+        dmGraphics::SetTexture(m_Context, texture, params);
 
-        ASSERT_EQ(params.m_Depth,                            dmGraphics::GetTextureDepth(texture));
-        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D_ARRAY,         dmGraphics::GetTextureType(texture));
-        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(texture));
+        ASSERT_EQ(params.m_Depth,                            dmGraphics::GetTextureDepth(m_Context, texture));
+        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D_ARRAY,         dmGraphics::GetTextureType(m_Context, texture));
+        ASSERT_EQ(dmGraphics::GetMipmapCount(texture_width), dmGraphics::GetTextureMipmapCount(m_Context, texture));
 
-        dmGraphics::DeleteTexture(texture);
+        dmGraphics::DeleteTexture(m_Context, texture);
     }
 }
 
@@ -1964,12 +2527,14 @@ TEST_F(dmGraphicsTest, TestGraphicsHandles)
 
         dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture));
-        dmGraphics::DeleteTexture(texture);
+        dmGraphics::DeleteTexture(m_Context, texture);
 
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
 
         dmGraphics::HTexture texture_2 = dmGraphics::NewTexture(m_Context, creation_params);
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture_2));
         ASSERT_NE(texture, texture_2);
+        dmGraphics::DeleteTexture(m_Context, texture_2);
     }
 
     // Test render targets
@@ -1989,16 +2554,26 @@ TEST_F(dmGraphicsTest, TestGraphicsHandles)
 
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, target));
 
-        dmGraphics::HTexture color0 = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+        dmGraphics::HTexture color0 = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, color0));
 
-        dmGraphics::HTexture color1 = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_COLOR1_BIT);
+        dmGraphics::TextureCreationParams resolve_params;
+        resolve_params.m_Width  = texture_width;
+        resolve_params.m_Height = texture_height;
+        dmGraphics::HTexture color0_resolve = dmGraphics::NewTexture(m_Context, resolve_params);
+        dmGraphics::NullRenderTarget* rt = dmGraphics::GetAssetFromContainer<dmGraphics::NullRenderTarget>(m_NullContext->m_BaseContext.m_AssetHandleContainer, target);
+        rt->m_Base.m_TextureColorResolve[0] = color0_resolve;
+        ASSERT_EQ(color0_resolve, dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT));
+        rt->m_Base.m_TextureColorResolve[0] = 0;
+
+        dmGraphics::HTexture color1 = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR1_BIT);
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, color1));
 
-        dmGraphics::HTexture color2_not_exist = dmGraphics::GetRenderTargetTexture(target, dmGraphics::BUFFER_TYPE_COLOR2_BIT);
+        dmGraphics::HTexture color2_not_exist = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR2_BIT);
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, color2_not_exist));
 
-        dmGraphics::DeleteRenderTarget(target);
+        dmGraphics::DeleteRenderTarget(m_Context, target);
+        dmGraphics::DeleteTexture(m_Context, color0_resolve);
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, target));
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, color0));
         ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, color1));

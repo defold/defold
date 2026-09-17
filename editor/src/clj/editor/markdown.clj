@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,7 +18,6 @@
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.grid-pane :as fx.grid-pane]
             [cljfx.fx.h-box :as fx.h-box]
-            [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.stack-pane :as fx.stack-pane]
@@ -28,8 +27,6 @@
             [cljfx.fx.titled-pane :as fx.titled-pane]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
-            [cljfx.mutator :as fx.mutator]
-            [cljfx.prop :as fx.prop]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
@@ -37,16 +34,24 @@
             [editor.code.resource :as r]
             [editor.defold-project :as project]
             [editor.fxui :as fxui]
+            [editor.image-util :as image-util]
+            [editor.localization :as localization]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.util :as util]
             [editor.workspace :as workspace]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [com.defold.control ResizableImageView]
-           [java.net URI URISyntaxException URLDecoder]
+  (:import [java.net URI URISyntaxException URLDecoder]
+           [java.util.function BiConsumer]
+           [javafx.beans Observable]
+           [javafx.beans.binding Bindings]
+           [javafx.scene Parent]
            [javafx.scene.control ContextMenu MenuItem ScrollPane]
+           [javafx.scene.image Image]
            [javafx.scene.input Clipboard ClipboardContent MouseButton MouseEvent]
+           [javafx.scene.layout HBox]
+           [javafx.stage PopupWindow]
            [org.commonmark.ext.autolink AutolinkExtension]
            [org.commonmark.ext.front.matter YamlFrontMatterExtension]
            [org.commonmark.ext.gfm.tables TablesExtension]
@@ -109,15 +114,16 @@
         (case (.getScheme resolved-url)
           "defold"
           (when-some [{:keys [command user-data]} (url->command resolved-url)]
-            (ui/execute-command (ui/contexts (ui/main-scene)) command user-data))
+            (ui/execute-command (ui/contexts (ui/main-scene) true) command user-data))
 
           "file"
-          (if-let [resource (g/with-auto-evaluation-context evaluation-context
-                              (let [basis (:basis evaluation-context)
-                                    workspace (project/workspace project evaluation-context)]
-                                (when-let [proj-path (workspace/as-proj-path basis workspace resolved-url)]
-                                  (workspace/find-resource workspace proj-path))))]
-            (ui/execute-command (ui/contexts (ui/main-scene)) :file.open resource)
+          (if-let [resource (when project
+                              (g/with-auto-evaluation-context evaluation-context
+                                (let [basis (:basis evaluation-context)
+                                      workspace (project/workspace project evaluation-context)]
+                                  (when-let [proj-path (workspace/as-proj-path basis workspace resolved-url)]
+                                    (workspace/find-resource basis workspace proj-path)))))]
+            (ui/execute-command (ui/contexts (ui/main-scene) true) :file.open resource)
             (ui/open-url resolved-url))
 
           (if (or scheme (.getAuthority resolved-url))
@@ -126,7 +132,7 @@
               (when base-resource
                 (let [resource (workspace/resolve-resource base-resource path)]
                   (when (resource/exists? resource)
-                    (ui/execute-command (ui/contexts (ui/main-scene)) :file.open resource))))
+                    (ui/execute-command (ui/contexts (ui/main-scene) true) :file.open resource))))
               (when-let [fragment (coll/not-empty (.getFragment resolved-url))]
                 (let [^ScrollPane scroll-pane (ui/closest-node-of-type ScrollPane (.getTarget event))
                       content (.getContent scroll-pane)]
@@ -359,8 +365,10 @@
                          (keep-indexed
                            (fn [col th]
                              (when-let [view (children-section-view th (style ctx "strong"))]
-                               (assoc view :grid-pane/column col
-                                           :grid-pane/row 0))))
+                               (assoc view
+                                 :style-class ["md-table-cell" "md-table-header-cell"]
+                                 :grid-pane/column col
+                                 :grid-pane/row 0))))
                          (.select node "table>thead>tr>th"))
         content-row-offset (if (pos? (count head-views)) 1 0)
         rows-views (into []
@@ -370,44 +378,80 @@
                                                          (keep-indexed
                                                            (fn [col td]
                                                              (some-> (children-section-view td ctx)
-                                                                     (assoc :grid-pane/column col))))
+                                                                     (assoc :style-class ["md-table-cell"]
+                                                                            :grid-pane/column col))))
                                                          (.select tr "tr>td"))]
                                      (when (pos? (count row-views))
                                        row-views))))
                            (map-indexed
                              (fn [^long row views]
-                               (mapv #(assoc % :grid-pane/row (+ content-row-offset row)) views))))
+                               (let [row-class (if (even? row) "md-table-row-even" "md-table-row-odd")]
+                                 (mapv #(-> %
+                                            (update :style-class conj row-class)
+                                            (assoc :grid-pane/row (+ content-row-offset row)))
+                                       views)))))
                          (.select node "table>tbody>tr"))]
     (when (pos? (count rows-views))
       (let [views (into head-views cat rows-views)
             cols (transduce (map count) max (count head-views) rows-views)]
         {:fx/type fx.grid-pane/lifecycle
+         :style-class "md-table"
          :column-constraints (vec (repeat cols
                                           {:fx/type fx.column-constraints/lifecycle
-                                           :min-width 75}))
-         :hgap 4
+                                           :min-width 100
+                                           :max-width 1000}))
          :children views}))))
 
-(def ^:private ext-with-image-view-props
-  (fx/make-ext-with-props fx.image-view/props))
+(def ^:private max-image-decode-width 2048)
+
+(defn- decode-width [resource]
+  (let [size (try
+               (image-util/read-size resource)
+               (catch Exception _
+                 nil))]
+    (when (and size (> (long (:width size)) (long max-image-decode-width)))
+      (double max-image-decode-width))))
+
+(defn- construct-image [^String src base-resource]
+  (when-not (coll/empty? src)
+    (when-let [^URI uri (try (URI. src) (catch URISyntaxException _))]
+      (if (or (.getAuthority uri) (.getScheme uri))
+        (Image. src #_background-loading true)
+        (when-let [base-resource base-resource]
+          (let [resource (workspace/resolve-resource base-resource (.getPath uri))]
+            (when (resource/exists? resource)
+              (let [width (decode-width resource)
+                    input-stream (io/input-stream resource)]
+                (if width
+                  (Image. input-stream (double width) 0.0 #_preserve-ratio true #_smooth true #_background-loading true)
+                  (Image. input-stream #_background-loading true))))))))))
+
+(def ^:private prop-image-width-cap
+  (fx/make-binding-prop
+    (fn [^HBox hbox ^Image image]
+      (.bind (.maxWidthProperty hbox) (.widthProperty image))
+      #(.unbind (.maxWidthProperty hbox)))
+    fx.lifecycle/scalar))
+
+(ui/defc image-view-impl
+  {:compose [{:fx/type ui/ext-memo
+              :fn construct-image
+              :args [(:src props) (:base-resource props)]
+              :key :image}]}
+  [{:keys [image]}]
+  (if image
+    ;; Images load in the background, so natural width is 0 until ready.
+    ;; Bind the cap to the live width so a fill-width parent shrinks a too-wide
+    ;; image but never upscales a smaller one.
+    {:fx/type fx.h-box/lifecycle
+     prop-image-width-cap image
+     :children [{:fx/type fxui/resizable-image :image image :h-box/hgrow :always}]}
+    {:fx/type fx.region/lifecycle}))
 
 (defn- image-view [^Element node ctx]
-  (or
-    (let [src (coll/not-empty (.attr node "src"))]
-      (when-let [^URI uri (when src
-                            (try (URI. src) (catch URISyntaxException _)))]
-        (when-let [image (if (or (.getAuthority uri) (.getScheme uri))
-                           {:url src :background-loading true}
-                           (when-let [base-resource (:base-resource ctx)]
-                             (let [resource (workspace/resolve-resource base-resource (.getPath uri))]
-                               (when (resource/exists? resource)
-                                 {:is (io/input-stream resource)
-                                  :background-loading true}))))]
-          {:fx/type ext-with-image-view-props
-           :desc {:fx/type fx/ext-instance-factory
-                  :create ResizableImageView/new}
-           :props {:image image}})))
-    {:fx/type fx.region/lifecycle}))
+  {:fx/type image-view-impl
+   :src (.attr node "src")
+   :base-resource (:base-resource ctx)})
 
 (defn- kbd-view [^Element node ctx]
   (when-let [view (children-section-view node (-> ctx (style "code")))]
@@ -502,7 +546,7 @@
       "ul" (with-separators acc 3 0 add-view (unordered-list-view node ctx))
       "ol" (with-separators acc 3 0 add-view (ordered-list-view node ctx))
       "hr" (with-separators acc 3 3 add-view {:fx/type fx.region/lifecycle :style-class "md-hr"})
-      "details" (with-separators acc 0 0 add-view (details-view node ctx))
+      "details" (with-separators acc 5 5 add-view (details-view node ctx))
       ("#comment" "head" "summary") acc
       (-> acc
           (add-text (str "<" tag ">") (style ctx "error"))
@@ -530,27 +574,81 @@
                                         :children text-flow-children-or-separator})))
                        content)})))
 
-(def ^:private ext-with-pref-height-defining-max-width
-  (fx/make-ext-with-props
-    {:max-width (fx.prop/make
-                  (fx.mutator/setter
-                    (fn [^ScrollPane pane [_key max-width]]
-                      (.setMaxWidth pane max-width)
-                      (.applyCss pane)
-                      (.setPrefViewportHeight pane (.prefHeight (.getContent pane) max-width))
-                      ;; this is needed in some rare cases T_T
-                      ;; e.g. type "vmath", then type "."
-                      (ui/run-later
-                        (.setPrefViewportHeight pane (.prefHeight (.getContent pane) max-width)))))
-                  fx.lifecycle/scalar)}))
+(def ^:private prop-pref-height-defining-max-width
+  ;; Defines the ScrollPane viewport height as the preferred height of its content
+  ;; constrained to max-width. A plain binding is insufficient because cljfx can
+  ;; install this property before it installs the content, descendant layout can
+  ;; change the preferred height without changing the view description (e.g. when
+  ;; an image finishes loading), and Popup layout can retain stale preferred-size
+  ;; caches when such a change occurs during layout. The subscriptions below cover
+  ;; these lifecycle phases without making the HTML part of the property value.
+  (fx/make-binding-prop
+    (fn bind-pref-height-defining-max-width [^ScrollPane pane max-width]
+      (let [pref-viewport-height-property (.prefViewportHeightProperty pane)
+
+            pref-viewport-height-binding
+            (Bindings/createDoubleBinding
+              (fn pref-viewport-height []
+                (let [content (.getContent pane)]
+                  (if-not content
+                    0.0
+                    (.prefHeight ^Parent content (double max-width)))))
+              (into-array Observable [(.contentProperty pane)]))
+
+            invalidate-pref-viewport-height!
+            (fn invalidate-pref-viewport-height! []
+              (.invalidate pref-viewport-height-binding))
+
+            ;; Invalidate before layout when the content becomes dirty.
+            needs-layout-subscription
+            (-> (.contentProperty pane)
+                (.flatMap Parent/.needsLayoutProperty)
+                (.orElse false)
+                (.subscribe
+                  ^BiConsumer
+                  (fn content-needs-layout-changed [_old-value _new-value]
+                    (invalidate-pref-viewport-height!))))
+
+            ;; Invalidate after layout when changed descendant sizes are reflected
+            ;; in the content bounds.
+            layout-bounds-subscription
+            (-> (.contentProperty pane)
+                (.flatMap Parent/.layoutBoundsProperty)
+                (.subscribe
+                  ^BiConsumer
+                  (fn content-layout-bounds-changed [_old-bounds _new-bounds]
+                    (invalidate-pref-viewport-height!))))
+
+            ;; A Popup scene sizes its root before laying out descendants. If the
+            ;; height changes during that layout, JavaFX can suppress propagation
+            ;; through an ancestor already performing layout. Request layout on the
+            ;; complete ancestor path to clear every cached preferred size.
+            popup-layout-subscription
+            (.subscribe
+              pref-viewport-height-property
+              ^BiConsumer
+              (fn pref-viewport-height-changed [_old-height _new-height]
+                (when (instance? PopupWindow (some-> pane .getScene .getWindow))
+                  (loop [^Parent parent pane]
+                    (.requestLayout parent)
+                    (when-let [parent (.getParent parent)]
+                      (recur parent))))))]
+        (.bind pref-viewport-height-property pref-viewport-height-binding)
+        (fn unbind-pref-height-defining-max-width []
+          (.unsubscribe needs-layout-subscription)
+          (.unsubscribe layout-bounds-subscription)
+          (.unsubscribe popup-layout-subscription)
+          (.unbind pref-viewport-height-property))))
+    fx.lifecycle/scalar))
 
 (defn html-view
   "Cljfx component that defines HTML viewer
 
   Supported props:
     :html             required, HTML string
-    :project          required, project node id (for opening urls with the
-                      defold scheme)
+    :project          optional, project node id (for opening urls with the
+                      defold scheme, and file urls as in-project resources);
+                      when absent, file urls open externally
     :base-url         optional, URI used for resolving relative urls in links
     :base-resource    optional, Resource used for resolving relative urls
     :root-props
@@ -563,19 +661,13 @@
                    (-> (:root-props props {})
                        (into view)
                        (fxui/add-style-classes "md-root")))
-                 {:fx/type fx.region/lifecycle})
-        scroll-pane-view (-> props
-                             (dissoc :html :base-url :base-resource :project :root-props)
-                             (util/provide-defaults :fit-to-width true
-                                                    :hbar-policy :never)
-                             (fxui/add-style-classes "md-scroll-pane")
-                             (assoc :fx/type fx.scroll-pane/lifecycle
-                                    :content view))]
-    (if (and max-width (not pref-viewport-height))
-      {:fx/type ext-with-pref-height-defining-max-width
-       :props {:max-width [html max-width]}
-       :desc scroll-pane-view}
-      scroll-pane-view)))
+                 {:fx/type fx.region/lifecycle})]
+    (-> props
+        (dissoc :html :base-url :base-resource :project :root-props)
+        (util/provide-defaults :fit-to-width true :hbar-policy :never)
+        (fxui/add-style-classes "md-scroll-pane")
+        (assoc :fx/type fx.scroll-pane/lifecycle :content view)
+        (cond-> (and max-width (not pref-viewport-height)) (assoc prop-pref-height-defining-max-width max-width)))))
 
 (def ^:private extensions
   [(AutolinkExtension/create)
@@ -610,8 +702,9 @@
 
   Supported props:
     :content          required, markdown string
-    :project          required, project node id (for opening urls with the
-                      defold scheme)
+    :project          optional, project node id (for opening urls with the
+                      defold scheme, and file urls as in-project resources);
+                      when absent, file urls open externally
     :base-url         optional, URI used for resolving relative urls in links
     :base-resource    optional, Resource used for resolving relative urls
     ...the rest of ScrollPane lifecycle props"
@@ -632,7 +725,7 @@
 (defn register-resource-types [workspace]
   (r/register-code-resource-type workspace
     :ext "md"
-    :label "Markdown"
+    :label (localization/message "resource.type.markdown")
     :node-type MarkdownNode
     :view-types [:html :code]
     :view-opts nil))

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -15,15 +15,10 @@
 (ns editor.graphics-test
   (:require [clojure.test :refer :all]
             [editor.graphics :as graphics]
-            [editor.protobuf :as protobuf]
-            [util.coll :refer [pair]])
-  (:import [com.dynamo.graphics.proto Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType]))
+            [editor.graphics.types :as graphics.types]
+            [util.coll :refer [pair]]))
 
 (set! *warn-on-reflection* true)
-
-(def ^:private semantic-types (protobuf/valid-enum-values Graphics$VertexAttribute$SemanticType))
-
-(def ^:private vector-types (protobuf/valid-enum-values Graphics$VertexAttribute$VectorType))
 
 (defn- semantic-type->label
   ^String [semantic-type]
@@ -36,18 +31,6 @@
     (subs (name vector-type)
           (count "vector-type-"))
     "no-values"))
-
-(deftest vector-type->component-count-test
-  (is (= {:vector-type-scalar 1
-          :vector-type-vec2 2
-          :vector-type-vec3 3
-          :vector-type-vec4 4
-          :vector-type-mat2 4
-          :vector-type-mat3 9
-          :vector-type-mat4 16}
-         (into {}
-               (map (juxt identity graphics/vector-type->component-count))
-               vector-types))))
 
 (def ^:private convert-double-values-rule-declaration
   ;; This map describes the expected behavior of the convert-double-values
@@ -245,9 +228,9 @@
     {:vector-type-vec4 [1.1 1.2 1.3 1.0]}}})
 
 (deftest convert-double-values-rule-declaration-test
-  (is (= (conj vector-types nil)
+  (is (= (conj graphics.types/vector-types nil)
          (set (keys (convert-double-values-rule-declaration :semantic-type-none)))))
-  (is (every? #(is (= vector-types (set (keys %))))
+  (is (every? #(is (= graphics.types/vector-types (set (keys %))))
               (vals (convert-double-values-rule-declaration :semantic-type-none)))))
 
 (def ^:private convert-double-values-rules
@@ -257,7 +240,7 @@
                  (let [declared-semantic-rules (convert-double-values-rule-declaration semantic-type)
                        semantic-rules (merge-with merge default-semantic-rules declared-semantic-rules)]
                    (pair semantic-type semantic-rules))))
-          semantic-types)))
+          graphics.types/semantic-types)))
 
 (deftest convert-double-values-rules-test
   ;; Sanity checks to verify the rules were merged as expected.

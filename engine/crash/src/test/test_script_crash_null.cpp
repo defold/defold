@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,8 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/path.h>
+#include <dlib/testutil.h>
 #include <dlib/configfile.h>
 #include <resource/resource.h>
 #include "crash.h"
@@ -40,7 +42,7 @@ extern "C"
 class ScriptCrashTest : public jc_test_base_class
 {
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         dmCrash::Init("DefoldScriptTest", "0123456789abcdef");
 
@@ -64,7 +66,7 @@ protected:
 
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmConfigFile::Delete(m_ConfigFile);
         dmResource::DeleteFactory(m_ResourceFactory);
@@ -84,8 +86,8 @@ protected:
 
 bool RunFile(lua_State* L, const char* filename)
 {
-    char path[64];
-    dmSnPrintf(path, 64, MOUNTFS PATH_FORMAT, filename);
+    char path[DMPATH_MAX_PATH];
+    dmTestUtil::MakeHostPathf(path, sizeof(path), MOUNTFS PATH_FORMAT, filename);
     if (luaL_dofile(L, path) != 0)
     {
         dmLogError("%s", lua_tolstring(L, -1, 0));

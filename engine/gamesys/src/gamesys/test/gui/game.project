@@ -1,0 +1,5 @@
+[font]
+runtime_generation = 1
+
+[graphics]
+texture_profiles = /gui/default.texture_profiles

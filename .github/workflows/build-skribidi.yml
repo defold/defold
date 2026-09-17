@@ -1,0 +1,25 @@
+name: Build SkriBidi
+
+on:
+  workflow_dispatch:
+    inputs:
+      push_changes:
+        description: 'Commit built package tarballs to ./packages on the branch'
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-external-template.yml
+    with:
+      package_name: 'skribidi'
+      result_folder_name: 'SkriBidi'
+      result_lib_name: 'libskribidi'
+      package_version: 'a4a2f5'
+      artifact_dir: 'packages'
+      setup_msvc: true
+      build_command: |
+        ./scripts/build.py --platform="$BUILD_PLATFORM_NAME" --package=skribidi build_external
+      push_changes: ${{ inputs.push_changes }}
+    secrets:
+      dm_packages_url: ${{ secrets.DM_PACKAGES_URL }}

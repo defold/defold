@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -34,7 +34,7 @@ static int32_t PORT = 6123; // can be configured
 // data = b"\x00\x01\x02\x03\x04\x05\x06\x07"
 // with open('./src/test/files/src/test/files/somedata', 'wb') as f:
 //     f.write(data)
-const uint8_t SOMEDATA[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+const uint8_t SOMEDATA[] = {0, 1, 2, 3, 4, 5, 6, 7};
 
 typedef dmResourceProvider::ArchiveLoader ArchiveLoader;
 
@@ -74,21 +74,8 @@ TEST(HttpProviderBasic, CanMount)
 
 class HttpProviderArchive : public jc_test_base_class
 {
-public:
-    static void SetUpTestCase()
-    {
-        char path[1024];
-        dmTestUtil::MakeHostPath(path, sizeof(path), "build/src/test/somedata");
-        FILE* f = fopen(path, "wb");
-        ASSERT_NE((FILE*)0, f);
-        fwrite(SOMEDATA, sizeof(SOMEDATA), 1, f);
-        fclose(f);
-
-        dmLogInfo("Wrote test data: '%s'", path);
-    }
-
 protected:
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Loader = dmResourceProvider::FindLoaderByName(dmHashString64("http"));
         ASSERT_NE((ArchiveLoader*)0, m_Loader);
@@ -103,7 +90,7 @@ protected:
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmResourceProvider::Result result = dmResourceProvider::Unmount(m_Archive);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@ package com.dynamo.bob.pipeline;
 
 import java.util.List;
 
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;
@@ -24,7 +25,6 @@ import org.junit.Test;
 import com.dynamo.render.proto.Material.MaterialDesc;
 
 import static org.junit.Assert.*;
-import static org.junit.Assert.assertEquals;
 
 public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
@@ -80,8 +80,8 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(material.hasProgram());
 
         String program = material.getProgram();
-        String expectedProgram = "/" + MaterialBuilder.getShaderName("/test_combined.vp", "/test_combined.fp", 0, ".spc");
-        assertEquals(expectedProgram, program);
+        String expectedProgram = MaterialBuilder.getShaderName("/test_combined.vp", "/test_combined.fp", 0, ".spc");
+        assertEquals(ResourceUtil.minifyPath(expectedProgram), program);
     }
 
     @Test
@@ -175,38 +175,35 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(new String[]{"/test_vp.vp", "/test_fp.fp"}, new String[]{srcShaderStr,srcShaderStr}, "/test.shbundle");
         assertEquals(2, shaderDesc.getShadersCount());
 
-        StringBuilder src = new StringBuilder();
-        src.append("name: \"test_material\"\n");
-        src.append("vertex_program: \"/test_vp.vp\"\n");
-        src.append("fragment_program: \"/test_fp.fp\"\n");
+        String src = "name: \"test_material\"\n" +
+                "vertex_program: \"/test_vp.vp\"\n" +
+                "fragment_program: \"/test_fp.fp\"\n" +
 
-        // these should be migrated
-        src.append("textures: \"tex0\"\n");
-        src.append("textures: \"tex1\"\n");
-        src.append("textures: \"tex2\"\n");
+                // these should be migrated
+                "textures: \"tex0\"\n" +
+                "textures: \"tex1\"\n" +
+                "textures: \"tex2\"\n" +
 
-        // these should not be migrated
-        src.append("textures: \"tex0_sampler\"\n");
-        src.append("textures: \"tex_already_exist_in_samplers\"\n");
-
-        src.append("samplers: {\n");
-        src.append("    name: \"tex0_sampler\"\n");
-        src.append("    wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("    wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("    filter_min: FILTER_MODE_MIN_LINEAR\n");
-        src.append("    filter_mag: FILTER_MODE_MAG_LINEAR\n");
-        src.append("}\n");
-
-        src.append("samplers: {\n");
-        src.append("    name: \"tex_already_exist_in_samplers\"\n");
-        src.append("    wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("    wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n");
-        src.append("    filter_min: FILTER_MODE_MIN_LINEAR\n");
-        src.append("    filter_mag: FILTER_MODE_MAG_LINEAR\n");
-        src.append("}\n");
+                // these should not be migrated
+                "textures: \"tex0_sampler\"\n" +
+                "textures: \"tex_already_exist_in_samplers\"\n" +
+                "samplers: {\n" +
+                "    name: \"tex0_sampler\"\n" +
+                "    wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n" +
+                "    wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n" +
+                "    filter_min: FILTER_MODE_MIN_LINEAR\n" +
+                "    filter_mag: FILTER_MODE_MAG_LINEAR\n" +
+                "}\n" +
+                "samplers: {\n" +
+                "    name: \"tex_already_exist_in_samplers\"\n" +
+                "    wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n" +
+                "    wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n" +
+                "    filter_min: FILTER_MODE_MIN_LINEAR\n" +
+                "    filter_mag: FILTER_MODE_MAG_LINEAR\n" +
+                "}\n";
 
         addFile("/test.material", "");
-        MaterialDesc material = getMessage(build("/test.material", src.toString()), MaterialDesc.class);
+        MaterialDesc material = getMessage(build("/test.material", src), MaterialDesc.class);
         assertEquals(0, material.getTexturesCount());
         assertEquals(5, material.getSamplersCount());
 
@@ -262,11 +259,127 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         addFile("/blue.material", "");
 
         MaterialDesc materialRed = getMessage(build("/red.material", materialRedStr), MaterialDesc.class);
-        MaterialDesc materialGreen = getMessage(build("/green.material", materialRedStr), MaterialDesc.class);
-        MaterialDesc materialBlue = getMessage(build("/blue.material", materialRedStr), MaterialDesc.class);
+        MaterialDesc materialGreen = getMessage(build("/green.material", materialGreenStr), MaterialDesc.class);
+        MaterialDesc materialBlue = getMessage(build("/blue.material", materialBlueStr), MaterialDesc.class);
 
         assertTrue(materialRed.hasProgram());
         assertEquals(materialRed.getProgram(), materialGreen.getProgram());
         assertEquals(materialGreen.getProgram(), materialBlue.getProgram());
+    }
+
+    @Test
+    public void testPbrParameters() throws Exception {
+        String vsShaderStr = """
+                #version 140
+                in highp vec4 position;
+                void main()
+                {
+                    gl_Position = position;
+                }
+                """;
+
+        String fsShaderStr = """
+                #version 140
+                struct PbrMetallicRoughness
+                {
+                	vec4 baseColorFactor;
+                	vec4 metallicAndRoughnessFactor;
+                	vec4 metallicRoughnessTextures;
+                };
+                struct PbrSpecularGlossiness
+                {
+                    vec4 diffuseFactor;
+                    vec4 specularAndSpecularGlossinessFactor;
+                    vec4 specularGlossinessTextures;
+                };
+                struct PbrClearCoat
+                {
+                    vec4 clearCoatAndClearCoatRoughnessFactor;
+                    vec4 clearCoatTextures;
+                };
+                struct PbrTransmission
+                {
+                	vec4 transmissionFactor;
+                	vec4 transmissionTextures;
+                };
+                struct PbrIor
+                {
+                	vec4 ior;
+                };
+                struct PbrSpecular
+                {
+                	vec4 specularColorAndSpecularFactor;
+                	vec4 specularTextures;
+                };
+                struct PbrVolume
+                {
+                	vec4 thicknessFactorAndAttenuationColor;
+                	vec4 attenuationDistance;
+                	vec4 volumeTextures;
+                };
+                struct PbrSheen
+                {
+                	vec4 sheenColorAndRoughnessFactor;
+                	vec4 sheenTextures;
+                };
+                struct PbrEmissiveStrength
+                {
+                	vec4 emissiveStrength;
+                };
+                struct PbrIridescence
+                {
+                	vec4 iridescenceFactorAndIorAndThicknessMinMax;
+                	vec4 iridescenceTextures;
+                };
+                uniform PbrMaterial
+                {
+                    vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit;
+                    vec4 pbrCommonTextures;
+                    PbrMetallicRoughness pbrMetallicRoughness;
+                    PbrSpecularGlossiness pbrSpecularGlossiness;
+                    PbrClearCoat pbrClearCoat;
+                    PbrTransmission pbrTransmission;
+                    PbrIor pbrIor;
+                    PbrSpecular pbrSpecular;
+                    PbrVolume pbrVolume;
+                    PbrSheen pbrSheen;
+                    PbrEmissiveStrength pbrEmissiveStrength;
+                    PbrIridescence pbrIridescence;
+                };
+                out vec4 color_out;
+                void main()
+                {
+                    color_out = pbrMetallicRoughness.baseColorFactor + pbrSpecularGlossiness.diffuseFactor;
+                }
+                """;
+
+        Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(
+                new String[]{"/test_pbr_parameters.vp", "/test_pbr_parameters.fp"},
+                new String[]{vsShaderStr, fsShaderStr},
+                "/test_pbr_parameters_bundle.shbundle");
+        assertEquals(2, shaderDesc.getShadersCount());
+
+        String src = """
+                name: "test_pbr_parameters"
+                vertex_program: "/test_pbr_parameters.vp"
+                fragment_program: "/test_pbr_parameters.fp"
+                """;
+
+        MaterialDesc material = getMessage(build("/test_pbr_parameters_material.material", src), MaterialDesc.class);
+        assertNotNull(material);
+        assertTrue(material.hasProgram());
+
+        MaterialDesc.PbrParameters pbrParameters = material.getPbrParameters();
+        assertTrue(pbrParameters.getHasParameters());
+        assertTrue(pbrParameters.getHasMetallicRoughness());
+        assertTrue(pbrParameters.getHasSpecularGlossiness());
+        assertTrue(pbrParameters.getHasClearcoat());
+        assertTrue(pbrParameters.getHasTransmission());
+        assertTrue(pbrParameters.getHasIor());
+        assertTrue(pbrParameters.getHasSpecular());
+        assertTrue(pbrParameters.getHasVolume());
+        assertTrue(pbrParameters.getHasSheen());
+        assertTrue(pbrParameters.getHasEmissiveStrength());
+        assertTrue(pbrParameters.getHasIridescence());
     }
 }

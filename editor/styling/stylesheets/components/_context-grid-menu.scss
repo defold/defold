@@ -1,0 +1,33 @@
+.grid-menu-item-base {
+    -fx-padding: 4 10 4 10;
+    -fx-alignment: center-left;
+    -fx-max-width: infinity;
+    -fx-text-fill: -df-text;
+}
+
+.grid-menu-item-enabled {
+    &:focused {
+        -fx-background-color: -df-component-lighter;
+        -fx-text-fill: -df-text-selected;
+    }
+
+    @include extensions(grid);
+}
+
+.grid-menu-group-label {
+    -fx-font-size: 12;
+    -fx-padding: 0 6 0 0;
+    -fx-text-fill: derive(-df-text-dark, 20%);
+}
+
+.grid-menu-separator {
+    -fx-background-color: derive(-df-background-darker, 20%);
+    -fx-pref-height: 1;
+    -fx-padding: 0 0 0 5;
+    -fx-border-color: null;
+}
+
+.grid-menu-column-separator {
+    -fx-background-color: derive(-df-background-darker, 20%);
+    -fx-background-insets: 10 0 10 0;
+}

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,28 +12,20 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !defined(DM_FONT_TTF_H)
+#ifndef DM_FONT_TTF_H
 #define DM_FONT_TTF_H
 
-
-#include "font.h"
 #include <stdint.h>
 
-namespace dmFont
-{
-    HFont       LoadFontFromMemoryTTF(const char* name, const void* data, uint32_t data_size, bool allocate);
-    void        DestroyFontTTF(HFont font);
+#include <dmsdk/font/font.h>
 
-    uint32_t    GetResourceSizeTTF(HFont font);
+struct FontSDFParams;
 
-    float       GetPixelScaleFromSizeTTF(HFont hfont, uint32_t size);
-    float       GetAscentTTF(HFont hfont, float scale);
-    float       GetDescentTTF(HFont hfont, float scale);
-    float       GetLineGapTTF(HFont hfont, float scale);
+HFont FontLoadFromMemoryTTF(const char* name, const void* data, uint32_t data_size, bool allocate);
 
-    FontResult  GetGlyphTTF(HFont hfont, uint32_t codepoint, const GlyphOptions* options, Glyph* glyph);
-    FontResult  FreeGlyphTTF(HFont hfont, Glyph* glyph);
-
-} // namespace
+// Internal image-generation options; the returned bitmap is released with FontFreeGlyph.
+FontResult FontGetGlyphTTF(HFont font, uint32_t glyph_index, const FontGlyphOptions* options, const FontSDFParams* image_params, FontGlyph* glyph);
+bool FontGetGlyphBoxTTF(HFont font, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1);
+FontResult FontGetGlyphSDFMetricsTTF(HFont font, uint32_t glyph_index, float scale, float padding, FontGlyph* glyph);
 
 #endif // DM_FONT_TTF_H

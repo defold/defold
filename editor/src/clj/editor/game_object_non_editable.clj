@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,7 @@
             [editor.defold-project :as project]
             [editor.game-object-common :as game-object-common]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.outline :as outline]
             [editor.pose :as pose]
             [editor.properties :as properties]
@@ -30,8 +31,7 @@
             [internal.graph.types :as gt]
             [internal.util :as util]
             [util.coll :refer [flipped-pair pair]])
-  (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
-           [javax.vecmath Matrix4d]))
+  (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]))
 
 (set! *warn-on-reflection* true)
 
@@ -49,9 +49,8 @@
   (let [embedded-resource-ext (:type embedded-component-resource-data)
         embedded-resource-pb-map (:data embedded-component-resource-data)
         embedded-resource (project/make-embedded-resource project :non-editable embedded-resource-ext embedded-resource-pb-map)
-        embedded-resource-node-type (project/resource-node-type embedded-resource)
-        graph (g/node-id->graph-id host-node-id)]
-    (g/make-nodes graph [embedded-resource-node-id [embedded-resource-node-type :resource embedded-resource]]
+        embedded-resource-node-type (project/resource-node-type embedded-resource)]
+    (g/make-nodes [embedded-resource-node-id [embedded-resource-node-type :resource embedded-resource]]
       (project/load-embedded-resource-node project embedded-resource-node-id embedded-resource embedded-resource-pb-map)
       (gu/connect-existing-outputs embedded-resource-node-type embedded-resource-node-id host-node-id embedded-component-connections))))
 
@@ -88,7 +87,7 @@
         (comp (map gt/source-id)
               (distinct)
               (mapcat source-id->tx-data))
-        (ig/explicit-inputs basis target-id target-label)))
+        (ig/explicit-arcs-by-target basis target-id target-label)))
 
 (defn delete-connected-nodes-tx-data [basis target-id target-label]
   (mapv-source-ids g/delete-node basis target-id target-label))
@@ -102,7 +101,7 @@
 
 (defn data->index-setter [evaluation-context self new-value old-sources-input-label add-resource-node-fn]
   (let [basis (:basis evaluation-context)
-        project (project/get-project basis self)]
+        project (project/get-project basis)]
     (into (delete-connected-nodes-tx-data basis self old-sources-input-label)
           (mapcat (fn [[data]]
                     (add-resource-node-fn self data project)))
@@ -110,7 +109,7 @@
 
 (defn connect-referenced-resources-tx-data [evaluation-context self new-value old-sources-input-label resource-connections]
   (let [basis (:basis evaluation-context)
-        project (project/get-project basis self)]
+        project (project/get-project basis)]
     (into (disconnect-connected-nodes-tx-data basis self old-sources-input-label resource-connections)
           (mapcat (fn [resource]
                     (:tx-data (project/connect-resource-node evaluation-context project resource self resource-connections))))
@@ -149,11 +148,6 @@
 (defn- any-component-desc->pose [{:keys [position rotation scale]}]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedInstanceDesc in map format.
   (pose/make position rotation scale))
-
-(defn- any-component-desc->transform-matrix
-  ^Matrix4d [any-component-desc]
-  ;; GameObject$ComponentDesc or GameObject$EmbeddedInstanceDesc in map format.
-  (pose/matrix (any-component-desc->pose any-component-desc)))
 
 (defn prototype-desc->referenced-component-proj-paths [prototype-desc]
   (eduction
@@ -264,12 +258,12 @@
   {:pre [(ifn? any-component-desc->source-scene)]}
   (fn any-component-desc->component-scene [any-component-desc node-id]
     (let [node-outline-key (:id any-component-desc)
-          transform-matrix (any-component-desc->transform-matrix any-component-desc)
+          component-pose (any-component-desc->pose any-component-desc)
           source-scene (any-component-desc->source-scene any-component-desc)]
       ;; TODO: Currently we return an empty scene for components that do not
       ;; have a scene output. Can we exclude these or is it necessary for
       ;; selection to work, or something like that?
-      (game-object-common/component-scene node-id node-outline-key transform-matrix source-scene))))
+      (game-object-common/component-scene node-id node-outline-key component-pose source-scene))))
 
 (defn make-prototype-desc->scene [embedded-component-resource-data->scene-index embedded-component-scenes referenced-component-proj-path->scene-index referenced-component-scenes]
   (let [any-component-desc->source-scene
@@ -318,7 +312,7 @@
 (g/defnk produce-node-outline [_node-id]
   {:node-id _node-id
    :node-outline-key "Non-Editable Game Object"
-   :label "Non-Editable Game Object"
+   :label (localization/message "outline.non-editable-game-object")
    :icon game-object-common/game-object-icon})
 
 (g/defnk produce-scene [_node-id prototype-desc embedded-component-resource-data->scene-index embedded-component-scenes referenced-component-proj-path->scene-index referenced-component-scenes]
@@ -335,7 +329,7 @@
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project basis self)
+                         project (project/get-project basis)
                          workspace (project/workspace project evaluation-context)
                          proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)]
                      (letfn [(connect-resource [proj-path-or-resource connections]
@@ -380,12 +374,12 @@
     (resource-node/register-ddf-resource-type workspace
       :editable false
       :ext "go"
-      :label "Non-Editable Game Object"
+      :label (localization/message "resource.type.go.non-editable")
       :node-type NonEditableGameObjectNode
       :ddf-type GameObject$PrototypeDesc
       :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))
       :sanitize-fn (partial sanitize-non-editable-game-object workspace)
-      :string-encode-fn (partial string-encode-non-editable-game-object workspace)
+      :pb-encode-fn (partial string-encode-non-editable-game-object workspace)
       :load-fn load-non-editable-game-object
       :allow-unloaded-use true
       :icon game-object-common/game-object-icon

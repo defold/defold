@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,7 +16,8 @@
 
 set -e
 
-SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+_SOURCE="${BASH_SOURCE[0]:-$0}"
+SCRIPTDIR="$( cd "$( dirname "${_SOURCE}" )" >/dev/null 2>&1 && pwd )"
 
 eval $(python $SCRIPTDIR/../../build_tools/set_sdk_vars.py VERSION_IPHONEOS VERSION_IPHONESIMULATOR VERSION_IPHONEOS_MIN VERSION_MACOSX_MIN VERSION_MACOSX VERSION_XCODE PACKAGES_EMSCRIPTEN_SDK)
 
@@ -48,10 +49,18 @@ if [ "Darwin" == "${HOST_PLATFORM}" ]; then
     if [ "arm64" == "${HOST_ARCH}" ]; then
         HOST_PLATFORM="arm64-macos"
     fi
+elif [ "Linux" == "${HOST_PLATFORM}" ]; then
+    HOST_PLATFORM="x86_64-linux"
+    if [ "${HOST_ARCH}" == "aarch64" ] || [ "${HOST_ARCH}" == "arm64" ]; then
+        HOST_PLATFORM="arm64-linux"
+    fi
+elif [[ "${HOST_PLATFORM}" == MINGW* ]] || [[ "${HOST_PLATFORM}" == MSYS* ]] || [[ "${HOST_PLATFORM}" == CYGWIN* ]]; then
+    if [ "${HOST_ARCH}" == "i686" ] || [ "${HOST_ARCH}" == "i386" ]; then
+        echo "32-bit Windows hosts are not supported"
+        exit 1
+    fi
+    HOST_PLATFORM="x86_64-win32"
 fi
-# if [ "Linux" == "${HOST_PLATFORM}" ]; then
-
-# fi
 
 if [ "${HOST_PLATFORM}" == "${HOST_UNAME}" ]; then
     echo "Error setting HOST_PLATFORM: '${HOST_PLATFORM}'"
@@ -173,8 +182,8 @@ function cmi_cleanup() {
 }
 
 function cmi_cross() {
-    if [[ $2 == "js-web" ]] || [[ $2 == "wasm-web" ]] || [[ $2 == "wasm_pthread-web" ]]; then
-        # Cross compiling protobuf for js-web with --host doesn't work
+    if [[ $2 == "wasm-web" ]] || [[ $2 == "wasm_pthread-web" ]]; then
+        # Cross compiling protobuf for web with --host doesn't work
         # Unknown host in reported by configure script
         cmi_do $1
     else
@@ -207,76 +216,6 @@ function path_to_posix() {
     echo "$1" | sed -e 's/\\/\//g' -e 's/C:/c/' -e 's/ /\\ /g' -e 's/(/\\(/g' -e 's/)/\\)/g'
 }
 
-function cmi_setup_vs2019_env() {
-    # from https://stackoverflow.com/a/3272301
-
-    # These lines will be installation-dependent.
-    export VSINSTALLDIR='C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\'
-    export WindowsSdkDir='C:\Program Files (x86)\Windows Kits\10\'
-    export WindowsLibPath='C:\Program Files (x86)\Windows'
-    export FrameworkDir32='C:\Windows\Microsoft.NET\Framework\'
-    export FrameworkDir64='C:\Windows\Microsoft.NET\Framework64\'
-    export UCRTVersion=10.0.19041.0
-    export FrameworkVersion=v4.0.30319
-    export VCToolsVersion=14.29.30037
-
-    # The following should be largely installation-independent.
-    export VCINSTALLDIR='${VSINSTALLDIR}VC\'
-    export DevEnvDir='${VSINSTALLDIR}Common7\IDE\'
-
-    local platform=$1
-    shift
-
-    arch="x64"
-    export FrameworkDir=${FrameworkDir64}
-    if [ "$platform" == "win32" ]; then
-        arch="x86"
-        export FrameworkDir=${FrameworkDir32}
-    fi
-
-    export INCLUDE="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\include;${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\include;${WindowsSdkDir}\\include\\${UCRTVersion}\\ucrt;${WindowsSdkDir}\\include\\${UCRTVersion}\\shared;${WindowsSdkDir}\\include\\${UCRTVersion}\\um;${WindowsSdkDir}\\include\\${UCRTVersion}\\winrt;${WindowsSdkDir}\\include\\${UCRTVersion}\\cppwinrt"
-    export LIB="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\${arch};${WindowsSdkDir}\\lib\\${UCRTVersion}\\ucrt\\${arch};${WindowsSdkDir}\\lib\\${UCRTVersion}\\um\\${arch}"
-    export LIBPATH="${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\ATLMFC\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\${arch};${VSINSTALLDIR}\\VC\\Tools\\MSVC\\${VCToolsVersion}\\lib\\x86\\store\\references;${WindowsSdkDir}\\UnionMetadata\\${UCRTVersion};${WindowsSdkDir}\\References\\${UCRTVersion};${FrameworkDir64}\\${FrameworkVersion}"
-
-    c_VSINSTALLDIR="$VSINSTALLDIR"
-    c_WindowsSdkDir="$WindowsSdkDir"
-    c_FrameworkDir64="$FrameworkDir"
-    PATHSEP=";"
-
-    local pathtype=$1
-    shift
-
-    if [ "$pathtype" == "bash" ]; then
-        c_VSINSTALLDIR=$(windows_path_to_posix "$VSINSTALLDIR")
-        c_WindowsSdkDir=$(windows_path_to_posix "$WindowsSdkDir")
-        c_FrameworkDir64=$(windows_path_to_posix "$FrameworkDir")
-        PATHSEP=":"
-    fi
-
-    echo BEFORE VSINSTALLDIR == $VSINSTALLDIR
-    echo AFTER c_VSINSTALLDIR == $c_VSINSTALLDIR
-
-    TMPPATH="${c_VSINSTALLDIR}Common7/IDE/Extensions/Microsoft/IntelliCode/CLI"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}VC/Tools/MSVC/${VCToolsVersion}/bin/Host${arch}/${arch}"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/VC/VCPackages"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/TestWindow"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/TeamFoundation/Team Explorer"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}MSBuild/Current/bin/Roslyn"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Team Tools/Performance Tools/${arch}"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Team Tools/Performance Tools"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/Tools/devinit"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}MSBuild/Current/Bin"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/Tools/"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_VSINSTALLDIR}Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_WindowsSdkDir}bin/${UCRTVersion}/${arch}"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_WindowsSdkDir}bin/${arch}"
-    TMPPATH="${TMPPATH}${PATHSEP}${c_FrameworkDir64}${FrameworkVersion}"
-
-    export PATH="$TMPPATH${PATHSEP}${PATH}"
-}
-
 function cmi_setup_cc() {
     case $1 in
         arm64-ios)
@@ -284,11 +223,15 @@ function cmi_setup_cc() {
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
+            # NOTE: Clang picks up MACOSX_DEPLOYMENT_TARGET from the environment (e.g. set by
+            # a preceding macOS host-tool build) and it conflicts with the iOS version flags
+            unset MACOSX_DEPLOYMENT_TARGET
             export CPPFLAGS="-arch arm64 -isysroot ${IOS_SDK_ROOT}"
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++ -arch arm64 -isysroot ${IOS_SDK_ROOT}"
             export CFLAGS="${CPPFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} "
+            export LDFLAGS="-arch arm64 -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -isysroot ${IOS_SDK_ROOT}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
             export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
@@ -298,16 +241,20 @@ function cmi_setup_cc() {
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
             ;;
 
-        x86_64-ios)
+        arm64_sim-ios)
             [ ! -e "${IOS_SIMULATOR_SDK_ROOT}" ] && echo "No SDK found at ${IOS_SIMULATOR_SDK_ROOT}" && exit 1
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"
             export PATH=$DARWIN_TOOLCHAIN_ROOT/usr/bin:$PATH
-            export CPPFLAGS="-arch x86_64 -target x86_64-apple-darwin19 -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
-            # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
-            # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -arch x86_64 -target x86_64-apple-darwin19 -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
-            export CFLAGS="${CPPFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} "
+            # NOTE: Clang picks up MACOSX_DEPLOYMENT_TARGET from the environment (e.g. set by
+            # a preceding macOS host-tool build) and it conflicts with the iOS version flags
+            unset MACOSX_DEPLOYMENT_TARGET
+            export CPPFLAGS="-arch arm64 -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
+            # NOTE: -mios-simulator-version-min makes clang/ld tag the objects with the
+            # IOSSIMULATOR platform, required to link and install on Apple Silicon runtimes
+            export CXXFLAGS="${CXXFLAGS} -mios-simulator-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libc++ -arch arm64 -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
+            export CFLAGS="${CPPFLAGS} -mios-simulator-version-min=${IOS_MIN_SDK_VERSION} "
+            export LDFLAGS="-arch arm64 -mios-simulator-version-min=${IOS_MIN_SDK_VERSION} -isysroot ${IOS_SIMULATOR_SDK_ROOT}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
             export CPP="$DARWIN_TOOLCHAIN_ROOT/usr/bin/clang -E"
@@ -351,6 +298,26 @@ function cmi_setup_cc() {
             export CPP="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang -E"
             export CC="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang"
             export CXX="${llvm}/aarch64-linux-android${ANDROID_64_VERSION}-clang++"
+
+            export AR="${llvm}/llvm-ar"
+            export AS="${llvm}/llvm-as"
+            export LD="${llvm}/lld"
+            export RANLIB="${llvm}/llvm-ranlib"
+            ;;
+
+        x86_64-android)
+            local platform=`uname | awk '{print tolower($0)}'`
+            local llvm="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/bin"
+            local sysroot="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${platform}-x86_64/sysroot"
+
+            # No -march here. The NDK x86_64-linux-android<api>-clang wrapper already targets
+            # the baseline mandated by the Android x86_64 ABI (SSE4.2 + POPCNT).
+            export CFLAGS="${CFLAGS} -isysroot ${sysroot} -fpic -ffunction-sections -funwind-tables -Os -fomit-frame-pointer -fno-strict-aliasing -DANDROID "
+            export CPPFLAGS=${CFLAGS}
+            export CXXFLAGS="${CXXFLAGS} -Wno-c++11-narrowing -stdlib=libc++ ${CFLAGS}"
+            export CPP="${llvm}/x86_64-linux-android${ANDROID_64_VERSION}-clang -E"
+            export CC="${llvm}/x86_64-linux-android${ANDROID_64_VERSION}-clang"
+            export CXX="${llvm}/x86_64-linux-android${ANDROID_64_VERSION}-clang++"
 
             export AR="${llvm}/llvm-ar"
             export AS="${llvm}/llvm-as"
@@ -418,21 +385,10 @@ function cmi_setup_cc() {
             export CPP="${CC} -E"
             ;;
 
-        win32)
-            ;;
-
         x86_64-win32)
             ;;
 
-        i586-mingw32msvc)
-            export CPP=i586-mingw32msvc-cpp
-            export CC=i586-mingw32msvc-gcc
-            export CXX=i586-mingw32msvc-g++
-            export AR=i586-mingw32msvc-ar
-            export RANLIB=i586-mingw32msvc-ranlib
-            ;;
-
-        js-web|wasm-web)
+        wasm-web)
             export CONFIGURE_WRAPPER=${EMSCRIPTEN_BIN_DIR}/emconfigure
             export CC=${EMSCRIPTEN_BIN_DIR}/emcc
             export CXX=${EMSCRIPTEN_BIN_DIR}/em++
@@ -474,16 +430,16 @@ function cmi() {
     cmi_setup_cc $1
 
     case $1 in
-        armv7-android|arm64-android)
+        armv7-android|arm64-android|x86_64-android)
             cmi_cross $1 arm-linux
             ;;
 
-        arm64-ios|x86_64-ios|armv7-android|arm64-android|js-web|wasm-web|wasm_pthread-web)
+        arm64-ios|arm64_sim-ios|armv7-android|arm64-android|wasm-web|wasm_pthread-web)
             cmi_cross $1 arm-ios
             ;;
 
         # desktop
-        x86_64-macos|arm64-macos|x86_64-linux|arm64-linux|win32|x86_64-win32)
+        x86_64-macos|arm64-macos|x86_64-linux|arm64-linux|x86_64-win32)
             cmi_buildplatform $1
             ;;
 

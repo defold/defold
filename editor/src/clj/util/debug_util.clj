@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,9 +14,14 @@
 
 (ns util.debug-util
   (:require [clojure.repl :as repl]
-            [service.log :as log])
+            [internal.java :as java]
+            [service.log :as log]
+            [util.coll :as coll :refer [pair]]
+            [util.fn :as fn])
   (:import [java.io File]
-           [java.util Locale]
+           [java.lang.reflect Field]
+           [java.util List Locale Map Set]
+           [java.util.concurrent.atomic AtomicLong]
            [org.apache.commons.lang3.time DurationFormatUtils]))
 
 (set! *warn-on-reflection* true)
@@ -186,17 +191,29 @@
         (log/info :message (str ~label " completed in " (nanos->string (- end# start#))))
         ret#))))
 
+(defonce ^AtomicLong gc-overhead-ns-atomic (AtomicLong.))
+
+(defn gc-overhead-ns
+  ^long []
+  (.get gc-overhead-ns-atomic))
+
 (defmacro allocated-bytes
   "Performs a garbage collection, then returns the number of bytes currently
-  allocated in the JVM."
+  allocated in the JVM. The number of nanoseconds spent performing garbage
+  collection is added to the global gc-overhead-ns AtomicLong."
   ([]
    `(allocated-bytes (Runtime/getRuntime)))
   ([runtime-expr]
-   `(long (let [^Runtime runtime# ~runtime-expr]
+   `(long (let [start# (System/nanoTime)
+                ^Runtime runtime# ~runtime-expr]
             (System/gc)
             (System/runFinalization)
-            (- (.totalMemory runtime#)
-               (.freeMemory runtime#))))))
+            (let [allocated# (- (.totalMemory runtime#)
+                                (.freeMemory runtime#))
+                  end# (System/nanoTime)
+                  elapsed# (- end# start#)]
+              (.getAndAdd gc-overhead-ns-atomic elapsed#)
+              allocated#)))))
 
 (defmacro log-time-and-memory
   "Evaluates expr. Then logs the supplied label along with the time it took and
@@ -218,9 +235,11 @@
         (if (pos? allocated-bytes#)
           (log/info :message ~label
                     :elapsed (nanos->string elapsed-ns#)
-                    :allocated (bytes->string allocated-bytes#))
+                    :allocated (bytes->string allocated-bytes#)
+                    :heap (bytes->string end-bytes#))
           (log/info :message ~label
-                    :elapsed (nanos->string elapsed-ns#)))
+                    :elapsed (nanos->string elapsed-ns#)
+                    :heap (bytes->string end-bytes#)))
         ret#))))
 
 (defmacro log-statistics!
@@ -287,3 +306,78 @@
             end# (System/nanoTime)]
         (update-metrics ~metrics-collector ~task-key ~subtask-key (- end# start#))
         ret#))))
+
+(defn- inspect-impl
+  [object seen return-raw?]
+  (when (some? object)
+    (let [class (class object)
+          key-namespace (.getSimpleName class)
+          object-id (System/identityHashCode object)]
+      (if (contains? seen object-id)
+        (array-map (keyword key-namespace "id") object-id)
+        (let [seen (conj seen object-id)]
+          (cond
+            (or (coll? object)
+                (case (.getPackageName class)
+                  ("java.lang" "java.io" "java.math" "java.net" "java.nio" "java.util.regex") true
+                  (return-raw? object)))
+            object
+
+            (or (.isArray class)
+                (instance? List object))
+            (coll/into-> object []
+              (map #(inspect-impl % seen return-raw?)))
+
+            (instance? Map object)
+            (coll/into->
+              object
+              (if (every? coll/comparable-value? (map key object))
+                coll/empty-sorted-map
+                coll/empty-map)
+              (map (fn [[key value]]
+                     (pair key (inspect-impl value seen return-raw?)))))
+
+            (instance? Set object)
+            (array-map (keyword key-namespace "items")
+                       (coll/into-> object []
+                         (map (fn [value]
+                                (inspect-impl value seen return-raw?)))))
+
+            :else
+            (let [primary-map
+                  (try
+                    (coll/into-> (bean object) coll/empty-sorted-map
+                      (keep (fn [[field-kw java-value]]
+                              (when (not= :class field-kw)
+                                (let [field-name (name field-kw)
+                                      namespaced-key (keyword key-namespace field-name)
+                                      clj-value (inspect-impl java-value seen return-raw?)]
+                                  (pair namespaced-key clj-value))))))
+                    (catch Throwable _
+                      nil))]
+
+              (coll/into->
+                (.getFields class)
+                (or primary-map coll/empty-sorted-map)
+                (keep (fn [^Field field]
+                        (when-not (java/field-static? field)
+                          (let [field-name (.getName field)
+                                namespaced-key (keyword key-namespace field-name)]
+                            (when-not (contains? primary-map namespaced-key)
+                              (let [java-value (.get field object)
+                                    clj-value (inspect-impl java-value seen return-raw?)]
+                                (pair namespaced-key clj-value)))))))))))))))
+
+
+(defn inspect
+  "Given a Java object, return a Clojure map representation of its structure.
+
+  Optional kw-args:
+    :return-raw?
+      Predicate called for each value encountered inside the object. Return true
+      to emit the value unaltered."
+  ([object]
+   (inspect object nil))
+  ([object & {:keys [return-raw?]
+              :or {return-raw? fn/constantly-false}}]
+   (inspect-impl object #{} return-raw?)))

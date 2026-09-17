@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,8 +20,8 @@ namespace dmGameSystem
 {
     dmResource::Result ResGamepadMapCreate(const dmResource::ResourceCreateParams* params)
     {
-        dmInputDDF::GamepadMaps* gamepad_maps;
-        dmDDF::Result e = dmDDF::LoadMessage<dmInputDDF::GamepadMaps>(params->m_Buffer, params->m_BufferSize, &gamepad_maps);
+        dmInputDDF::GamepadMapsRuntime* gamepad_maps;
+        dmDDF::Result e = dmDDF::LoadMessage<dmInputDDF::GamepadMapsRuntime>(params->m_Buffer, params->m_BufferSize, &gamepad_maps);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;

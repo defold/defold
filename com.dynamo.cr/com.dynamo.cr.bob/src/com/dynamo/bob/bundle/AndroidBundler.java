@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,18 +19,13 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
-import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
-import java.lang.StringBuilder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
@@ -47,153 +42,51 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.Exec;
-import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.TimeProfiler;
 
-@BundlerParams(platforms = {"armv7-android", "arm64-android"})
+import com.dynamo.bob.tools.AndroidTools;
+import com.dynamo.bob.tools.ToolsHelper;
+
+@BundlerParams(platforms = {"armv7-android", "arm64-android", "x86_64-android"})
 public class AndroidBundler implements IBundler {
     private static Logger logger = Logger.getLogger(AndroidBundler.class.getName());
 
-    private static String stripToolName = "strip_android";
-
-    private static Hashtable<Platform, String> platformToStripToolMap = new Hashtable<Platform, String>();
-    static {
-        platformToStripToolMap.put(Platform.Armv7Android, stripToolName);
-        platformToStripToolMap.put(Platform.Arm64Android, "strip_android_aarch64");
-    }
+    private static final String VKQUALITY_DATA_FILE = "vkqualitydata.vkq";
 
     private static Hashtable<Platform, String> platformToLibMap = new Hashtable<Platform, String>();
     static {
         platformToLibMap.put(Platform.Armv7Android, "armeabi-v7a");
         platformToLibMap.put(Platform.Arm64Android, "arm64-v8a");
+        platformToLibMap.put(Platform.X86_64Android, "x86_64");
     }
 
-    private static void logResourceMap(Map<String, IResource> map) {
+    private void logResourceMap(Map<String, IResource> map) {
         for (String key : map.keySet()) {
             IResource value = map.get(key);
             logger.info("key = " + key + " value = " + value);
         }
     }
 
-    private static File createDir(File parent, String child) throws IOException {
+    private File createDir(File parent, String child) throws IOException {
         File dir = new File(parent, child);
         dir.mkdirs();
         return dir;
     }
-    private static File createDir(String parent, String child) throws IOException {
+    private File createDir(String parent, String child) throws IOException {
         return createDir(new File(parent), child);
     }
 
-    private static String readFile(String path) throws IOException {
+    private String readFile(String path) throws IOException {
         byte[] encoded = Files.readAllBytes(Paths.get(path));
         return new String(encoded, StandardCharsets.UTF_8);
     }
 
-    private static void createFile(String path, String content) throws IOException {
+    private void createFile(String path, String content) throws IOException {
         FileUtils.writeStringToFile(new File(path), content);
-    }
-
-    private static String getJavaBinFile(Project project, String file) {
-        String javaHome = project.getSystemProperty("java.home");
-        if (javaHome == null) {
-            javaHome = project.getSystemEnv("JAVA_HOME");
-        }
-        if (javaHome != null) {
-            file = Paths.get(javaHome, "bin", file).toString();
-        }
-        return file;
-    }
-
-    private static void extractFile(File zipFile, String fileName, File outputFile) throws IOException {
-        // Wrap the file system in a try-with-resources statement
-        // to auto-close it when finished and prevent a memory leak
-        try (FileSystem fileSystem = FileSystems.newFileSystem(zipFile.toPath(), new HashMap<>())) {
-            Path fileToExtract = fileSystem.getPath(fileName);
-            Files.copy(fileToExtract, outputFile.toPath());
-        }
-    }
-
-    private static String getAapt2Name()
-    {
-        if (Platform.getHostPlatform() == Platform.X86_64Win32)
-            return "aapt2.exe";
-        return "aapt2";
-    }
-
-    private static void initAndroid() {
-        Bob.init();
-        File rootFolder = Bob.getRootFolder();
-        try {
-            // Android SDK aapt is dynamically linked against libc++.so, we need to extract it so that
-            // aapt will find it later when AndroidBundler is run.
-            String libcFilename = Platform.getHostPlatform().getLibPrefix() + "c++" + Platform.getHostPlatform().getLibSuffix();
-            URL libcUrl = Bob.class.getResource("/lib/" + Platform.getHostPlatform().getPair() + "/" + libcFilename);
-            if (libcUrl != null) {
-                File f = new File(rootFolder, Platform.getHostPlatform().getPair() + "/lib/" + libcFilename);
-                Bob.atomicCopy(libcUrl, f, false);
-            }
-
-            // NOTE: android.jar and classes.dex aren't are only available in "full bob", i.e. from CI
-            URL androidJar = Bob.class.getResource("/lib/android.jar");
-            if (androidJar != null) {
-                File f = new File(rootFolder, "lib/android.jar");
-                Bob.atomicCopy(androidJar, f, false);
-            }
-            URL classesDex = Bob.class.getResource("/lib/classes.dex");
-            if (classesDex != null) {
-                File f = new File(rootFolder, "lib/classes.dex");
-                Bob.atomicCopy(classesDex, f, false);
-            }
-
-            Platform hostPlatform = Platform.getHostPlatform();
-            String aapt2 = Bob.getExe(hostPlatform, "aapt2");
-            if (aapt2 == null) {
-                // Make sure it's extracted once
-                File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
-
-                // Find the file to extract from the bundletool
-                {
-                    String platformName = "macos";
-                    String suffix = "";
-                    if (hostPlatform == Platform.X86_64Win32)
-                    {
-                        platformName = "windows";
-                        suffix = ".exe";
-                    }
-                    else if (hostPlatform == Platform.X86_64Linux)
-                    {
-                        platformName = "linux";
-                    }
-
-                    File aapt2File = new File(bundletool.getParent(), getAapt2Name());
-                    if (!aapt2File.exists())
-                    {
-                        extractFile(bundletool, platformName + "/" + getAapt2Name(), aapt2File);
-                        aapt2File.setExecutable(true);
-                    }
-                }
-            }
-
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-
-    private static Result exec(List<String> args) throws IOException {
-        logger.info("exec: " + String.join(" ", args));
-        Map<String, String> env = new HashMap<String, String>();
-        if (Platform.getHostPlatform() == Platform.X86_64Linux || Platform.getHostPlatform() == Platform.Arm64Linux) {
-            env.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
-        }
-        return Exec.execResultWithEnvironment(env, args);
-    }
-    private static Result exec(String... args) throws IOException {
-        return exec(Arrays.asList(args));
     }
 
     /**
@@ -201,7 +94,7 @@ public class AndroidBundler implements IBundler {
     * when bundling.
     * https://stackoverflow.com/a/4055893/1266551
     */
-    private static String getKeystore(Project project) throws IOException {
+    private String getKeystore(Project project) throws IOException {
         String keystore = project.option("keystore", "");
         if (keystore.length() == 0) {
             File keystoreFile = new File(project.getRootDirectory(), "debug.keystore");
@@ -210,7 +103,7 @@ public class AndroidBundler implements IBundler {
             String keystorePassword = "android";
             String keystorePasswordFile = new File(project.getRootDirectory(), "debug.keystore.pass.txt").getAbsolutePath();
             if (!keystoreFile.exists()) {
-                Result r = exec(getJavaBinFile(project, "keytool"),
+                AndroidTools.exec(ToolsHelper.getJavaBinFile("keytool"),
                     "-genkey",
                     "-v",
                     "-noprompt",
@@ -220,10 +113,6 @@ public class AndroidBundler implements IBundler {
                     "-alias", keystoreAlias,
                     "-keyalg", "RSA",
                     "-validity", "14000");
-
-                if (r.ret != 0) {
-                    throw new IOException(new String(r.stdOutErr));
-                }
                 createFile(keystorePasswordFile, keystorePassword);
             }
 
@@ -239,14 +128,14 @@ public class AndroidBundler implements IBundler {
      * Get keystore password. This loads the keystore password file and returns
      * the password stored in the file.
      */
-    private static String getKeystorePassword(Project project) throws IOException, CompileExceptionError {
+    private String getKeystorePassword(Project project) throws IOException, CompileExceptionError {
         return readFile(getKeystorePasswordFile(project)).trim();
     }
 
     /**
      * Get keystore password file.
      */
-    private static String getKeystorePasswordFile(Project project) throws IOException, CompileExceptionError {
+    private String getKeystorePasswordFile(Project project) throws IOException, CompileExceptionError {
         String keystorePassword = project.option("keystore-pass", "");
         if (keystorePassword.length() == 0) {
             throw new CompileExceptionError("No keystore password");
@@ -258,12 +147,12 @@ public class AndroidBundler implements IBundler {
      * Get keystore alias. The keystore alias can either be a keystore alias
      * provided as a project option or the first alias in the keystore.
      */
-    private static String getKeystoreAlias(Project project) throws IOException, CompileExceptionError {
+    private String getKeystoreAlias(Project project) throws IOException, CompileExceptionError {
         String keystorePath = getKeystore(project);
         String keystorePassword = getKeystorePassword(project);
         String alias = project.option("keystore-alias", "");
         if (alias.length() == 0) {
-            try (FileInputStream is = new FileInputStream(new File(keystorePath))) {
+            try (FileInputStream is = new FileInputStream(keystorePath)) {
                 KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
                 keystore.load(is, keystorePassword.toCharArray());
                 Enumeration<String> enumeration = keystore.aliases();
@@ -280,14 +169,14 @@ public class AndroidBundler implements IBundler {
      * Get key password. This loads the key password file and returns
      * the password stored in the file.
      */
-    private static String getKeyPassword(Project project) throws IOException, CompileExceptionError {
+    private String getKeyPassword(Project project) throws IOException, CompileExceptionError {
         return readFile(getKeyPasswordFile(project)).trim();
     }
 
     /**
      * Get key password file. Uses the keystore password file if none specified
      */
-    private static String getKeyPasswordFile(Project project) throws IOException, CompileExceptionError {
+    private String getKeyPasswordFile(Project project) throws IOException, CompileExceptionError {
         String keyPassword = project.option("key-pass", "");
         if (keyPassword.length() == 0) {
             return getKeystorePasswordFile(project);
@@ -295,30 +184,42 @@ public class AndroidBundler implements IBundler {
         return keyPassword;
     }
 
-    private static String getProjectTitle(Project project) {
+    private String getProjectTitle(Project project) {
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         return title;
     }
 
-    private static String getBinaryNameFromProject(Project project) {
+    private String getBinaryNameFromProject(Project project) {
         String title = getProjectTitle(project);
         String exeName = BundleHelper.projectNameToBinaryName(title);
         return exeName;
     }
 
-    private static List<Platform> getArchitectures(Project project) {
+    private List<Platform> getArchitectures(Project project) {
         return Platform.getArchitecturesFromString(project.option("architectures", ""), Platform.Armv7Android);
     }
 
-    private static Platform getFirstPlatform(Project project) {
+    private Platform getFirstPlatform(Project project) {
         return getArchitectures(project).get(0);
     }
 
+    private void stripBinary(Project project, File binary, ICanceled canceled) throws IOException, CompileExceptionError
+    {
+        final boolean strip_executable = project.hasOption("strip-executable");
+        if (strip_executable) {
+            // llvm-strip reads every Android ABI, so a single tool covers armv7/arm64/x86_64
+            String stripToolName = "strip_android";
+            String stripTool = Bob.getExe(Platform.getHostPlatform(), stripToolName);
+            AndroidTools.exec(stripTool, binary.getAbsolutePath());
+            BundleHelper.throwIfCanceled(canceled);
+        }
+    }
+
     /**
-    * Copy an engine binary to a destination file and optionally strip it of debug symbols
+    * Copy an engine binary to a destination file
     */
-    private static void copyEngineBinary(Project project, Platform architecture, File dest) throws IOException {
+    private void copyEngineBinary(Project project, Platform architecture, File dest, ICanceled canceled) throws IOException, CompileExceptionError {
         // vanilla or extender exe?
         List<File> bundleExe = ExtenderUtil.getNativeExtensionEngineBinaries(project, architecture);
         if (bundleExe == null) {
@@ -329,30 +230,14 @@ public class AndroidBundler implements IBundler {
         // copy the exe
         File exe = bundleExe.get(0);
         FileUtils.copyFile(exe, dest);
-
-        // possibly also strip it
-        final boolean strip_executable = project.hasOption("strip-executable");
-        if (strip_executable) {
-            String stripToolExe = platformToStripToolMap.get(architecture);
-            if (Platform.getHostPlatform() == Platform.X86_64MacOS || Platform.getHostPlatform() == Platform.Arm64MacOS) {
-                stripToolExe = stripToolName;
-            }
-            String stripTool = Bob.getExe(Platform.getHostPlatform(), stripToolExe);
-            List<String> args = new ArrayList<String>();
-            args.add(stripTool);
-            args.add(dest.getAbsolutePath());
-            Result res = exec(args);
-            if (res.ret != 0) {
-                throw new IOException(new String(res.stdOutErr));
-            }
-        }
+        BundleHelper.throwIfCanceled(canceled);
     }
 
     /**
      * Get a list of assets from the build server to include in the aab.
      * The assets originate from resolved gradle dependencies (.aar files)
      */
-    private static ArrayList<File> getExtenderAssets(Project project) throws IOException {
+    private ArrayList<File> getExtenderAssets(Project project) throws IOException {
         final String extenderExeDir = project.getBinaryOutputDirectory();
         ArrayList<File> assets = new ArrayList<File>();
         for (Platform architecture : getArchitectures(project)) {
@@ -369,9 +254,9 @@ public class AndroidBundler implements IBundler {
     /**
     * Get a list of dex files to include in the aab
     */
-    private static ArrayList<File> getClassesDex(Project project) throws IOException {
+    private ArrayList<File> getClassesDex(Project project) throws IOException {
         ArrayList<File> classesDex = new ArrayList<>();
-        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
+        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project, getFirstPlatform(project));
 
         final String extenderExeDir = project.getBinaryOutputDirectory();
         for (Platform architecture : getArchitectures(project)) {
@@ -399,7 +284,7 @@ public class AndroidBundler implements IBundler {
         return classesDex;
     }
 
-    private static File getMetaInfFolder(Project project) throws IOException {
+    private File getMetaInfFolder(Project project) throws IOException {
         List<File> result = new ArrayList<>();
         final String binDir = project.getBinaryOutputDirectory();
         // take here only one platform because for META-INF doesn't matter which platform is used for build native part
@@ -408,18 +293,19 @@ public class AndroidBundler implements IBundler {
         return Path.of(archFolder, "META-INF").toFile();
     }
 
-    private static List<String> trim(List<String> strings) {
+    private List<String> trim(List<String> strings) {
         strings.replaceAll(String::trim);
         return strings;
     }
 
-    private static void copyBundleResources(Project project, File outDir) throws CompileExceptionError {
+    private void copyBundleResources(Project project, File outDir) throws CompileExceptionError {
         List<String> bundleResourcesPaths = trim(Arrays.asList(project.getProjectProperties().getStringValue("project", "bundle_resources", "").split(",")));
         List<String> bundleExcludeList = trim(Arrays.asList(project.getProjectProperties().getStringValue("project", "bundle_exclude_resources", "").split(",")));
 
         Set<String> set = new HashSet<>();
         set.addAll(Arrays.asList(Platform.Armv7Android.getExtenderPaths()));
         set.addAll(Arrays.asList(Platform.Arm64Android.getExtenderPaths()));
+        set.addAll(Arrays.asList(Platform.X86_64Android.getExtenderPaths()));
         List<String> platformFolders = new ArrayList<String>(set);
 
         for (String bundleResourcesPath : bundleResourcesPaths) {
@@ -435,12 +321,56 @@ public class AndroidBundler implements IBundler {
         }
     }
 
+    private File getRequiredBobFile(String path) throws CompileExceptionError {
+        try {
+            return new File(Bob.getPath(path));
+        } catch (RuntimeException e) {
+            throw new CompileExceptionError("Required Android bundle file '" + path + "' is missing from Bob", e);
+        }
+    }
+
+    public static boolean usesVkQuality(Project project) {
+        String shaderAdapters = project.option(ShaderCompilers.SHADER_ADAPTERS_OPTION, null);
+        if (shaderAdapters == null) {
+            return true;
+        }
+        boolean hasVulkanAdapter = false;
+        boolean hasOpenGlesAdapter = false;
+        for (String shaderAdapter : shaderAdapters.split(",")) {
+            String adapter = shaderAdapter.trim();
+            if (ShaderCompilers.SHADER_ADAPTER_VULKAN.equals(adapter)) {
+                hasVulkanAdapter = true;
+            } else if (ShaderCompilers.SHADER_ADAPTER_OPENGLES.equals(adapter)) {
+                hasOpenGlesAdapter = true;
+            }
+        }
+        return hasVulkanAdapter && hasOpenGlesAdapter;
+    }
+
+    private void copyVkQualityDataFile(File assetsDir, ICanceled canceled) throws IOException, CompileExceptionError {
+        File dataFile = getRequiredBobFile("lib/vkquality/" + VKQUALITY_DATA_FILE);
+        File dest = new File(assetsDir, VKQUALITY_DATA_FILE);
+        logger.info("Copying VkQuality data " + dataFile + " to " + dest);
+        FileUtils.copyFile(dataFile, dest);
+        BundleHelper.throwIfCanceled(canceled);
+    }
+
+    private File copyVkQualityLibrary(Project project, Platform architecture, File libDir, ICanceled canceled) throws IOException, CompileExceptionError {
+        String architectureLibName = platformToLibMap.get(architecture);
+        File library = getRequiredBobFile(FilenameUtils.concat("libexec/" + architecture.getExtenderPair(), "libvkquality.so"));
+        File architectureDir = createDir(libDir, architectureLibName);
+        File dest = new File(architectureDir, library.getName());
+        logger.info("Copying VkQuality library " + library + " to " + dest);
+        FileUtils.copyFile(library, dest);
+        BundleHelper.throwIfCanceled(canceled);
+        return dest;
+    }
+
     /**
     * Copy local Android resources such as icons and bundle resources
     */
-    private static File copyLocalResources(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
+    private File copyLocalResources(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
         File androidResDir = createDir(outDir, "res");
-        FileUtil.deleteOnExit(androidResDir);
 
         File resDir = new File(androidResDir, "com.defold.android");
         resDir.mkdirs();
@@ -459,35 +389,23 @@ public class AndroidBundler implements IBundler {
     * Compile android resources into "flat" files
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
     */
-    private static File compileResources(Project project, File androidResDir, ICanceled canceled) throws CompileExceptionError {
+    private File compileResources(Project project, File androidResDir, ICanceled canceled) throws CompileExceptionError {
         logger.info("Compiling resources from " + androidResDir.getAbsolutePath());
         try {
             // compile the resources using aapt2 to flat format files
-            File compiledResourcesDir = Files.createTempDirectory("compiled_resources").toFile();
-            FileUtil.deleteOnExit(compiledResourcesDir);
-
-            String aapt2 = Bob.getExe(Platform.getHostPlatform(), "aapt2");
-            if (aapt2 == null) {
-                aapt2 = Bob.getLibExecPath(getAapt2Name());
-            }
+            File compiledResourcesDir = project.createTempDirectory("compiled_resources");
 
             // compile the resources for each package
             for (File packageDir : androidResDir.listFiles(File::isDirectory)) {
                 File compiledResourceDir = createDir(compiledResourcesDir, packageDir.getName());
 
                 List<String> args = new ArrayList<String>();
-                args.add(aapt2);
                 args.add("compile");
                 args.add("-o"); args.add(compiledResourceDir.getAbsolutePath());
                 args.add("--dir"); args.add(packageDir.getAbsolutePath());
 
                 logger.info("Compiling " + packageDir.getAbsolutePath() + " to " + compiledResourceDir.getAbsolutePath());
-                Result res = exec(args);
-                if (res.ret != 0) {
-                    String stdout = new String(res.stdOutErr, StandardCharsets.UTF_8);
-                    logger.info("Failed compiling " + compiledResourceDir.getAbsolutePath() + ", code: " + res.ret + ", error: " + stdout);
-                    throw new IOException(stdout);
-                }
+                AndroidTools.aapt2(args);
                 BundleHelper.throwIfCanceled(canceled);
             }
 
@@ -502,19 +420,14 @@ public class AndroidBundler implements IBundler {
     * Create apk from compiled resources and manifest file.
     * https://developer.android.com/studio/build/building-cmdline#compile_and_link_your_apps_resources
     */
-    private static File linkResources(Project project, File outDir, File compiledResourcesDir, File manifestFile, ICanceled canceled) throws CompileExceptionError {
+    private File linkResources(Project project, File outDir, File compiledResourcesDir, File manifestFile, ICanceled canceled) throws CompileExceptionError {
         logger.info("Linking resources from " + compiledResourcesDir.getAbsolutePath());
         try {
             File aabDir = new File(outDir, "aab");
             File apkDir = createDir(aabDir, "aapt2/apk");
             File outApk = new File(apkDir, "output.apk");
 
-            String aapt2 = Bob.getExe(Platform.getHostPlatform(), "aapt2");
-            if (aapt2 == null) {
-                aapt2 = Bob.getLibExecPath(getAapt2Name());
-            }
             List<String> args = new ArrayList<String>();
-            args.add(aapt2);
             args.add("link");
             args.add("--proto-format");
             args.add("-o"); args.add(outApk.getAbsolutePath());
@@ -527,7 +440,7 @@ public class AndroidBundler implements IBundler {
             for (File resDir : compiledResourcesDir.listFiles(File::isDirectory)) {
                 for (File file : resDir.listFiles()) {
                     if (file.getAbsolutePath().endsWith(".flat")) {
-                        sb.append(file.getAbsolutePath() + " ");
+                        sb.append(file.getAbsolutePath()).append(" ");
                     }
                 }
             }
@@ -537,11 +450,8 @@ public class AndroidBundler implements IBundler {
             }
             args.add("-R"); args.add("@" + resourceList.getAbsolutePath());
 
-            Result res = exec(args);
-            if (res.ret != 0) {
-                String msg = new String(res.stdOutErr);
-                throw new CompileExceptionError(msg);
-            }
+            AndroidTools.aapt2(args);
+
             BundleHelper.throwIfCanceled(canceled);
             return outApk;
         } catch (Exception e) {
@@ -554,7 +464,7 @@ public class AndroidBundler implements IBundler {
     * Package pre-compiled code and resources
     * https://developer.android.com/studio/build/building-cmdline#package_pre-compiled_code_and_resources
     */
-    private static File createAppBundleBaseZip(Project project, File outDir, File apk, ICanceled canceled) throws CompileExceptionError {
+    private File createAppBundleBaseZip(Project project, File outDir, File apk, ICanceled canceled) throws CompileExceptionError {
         logger.info("Creating AAB base.zip");
         try {
             File aabDir = new File(outDir, "aab");
@@ -642,6 +552,13 @@ public class AndroidBundler implements IBundler {
                 BundleHelper.throwIfCanceled(canceled);
             }
 
+            boolean vkQualityEnabled = usesVkQuality(project);
+            if (vkQualityEnabled) {
+                copyVkQualityDataFile(assetsDir, canceled);
+            } else {
+                logger.info("Skipping VkQuality data because Vulkan does not need runtime backend selection");
+            }
+
             // copy resources
             logger.info("Copying resources to " + resDir);
             FileUtils.copyDirectory(new File(apkUnzipDir, "res"), resDir);
@@ -653,12 +570,22 @@ public class AndroidBundler implements IBundler {
                 File architectureDir = createDir(libDir, platformToLibMap.get(architecture));
                 File dest = new File(architectureDir, "lib" + exeName + ".so");
                 logger.info("Copying engine to " + dest);
-                copyEngineBinary(project, architecture, dest);
-                BundleHelper.throwIfCanceled(canceled);
+                copyEngineBinary(project, architecture, dest, canceled);
+                stripBinary(project, dest, canceled);
+                
+                if (vkQualityEnabled)
+                {
+                    File libdest = copyVkQualityLibrary(project, architecture, libDir, canceled);
+                    stripBinary(project, libdest, canceled);
+                }
+                else
+                {
+                    logger.info("Skipping VkQuality library for " + architecture + " because Vulkan does not need runtime backend selection");
+                }
             }
 
             // copy shared libraries (from dependency.aar/jni/<arch>/<name>.so)
-            if (ExtenderUtil.hasNativeExtensions(project)) {
+            if (ExtenderUtil.hasNativeExtensions(project, getFirstPlatform(project))) {
                 final Platform platform = getFirstPlatform(project);
                 File jniDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/jni");
                 if (jniDir.exists()) {
@@ -681,6 +608,37 @@ public class AndroidBundler implements IBundler {
                 }
             }
 
+            // copy shared libraries (third-party from extensions)
+            for (Platform platformArchitecture : getArchitectures(project)) {
+                String architectureLibName = platformToLibMap.get(platformArchitecture);
+                File binaryDir = new File(FilenameUtils.concat(project.getBinaryOutputDirectory(),
+                        platformArchitecture.getExtenderPair()));
+                File destDir = new File(libDir, architectureLibName);
+
+                BundleHelper.copySharedLibraries(platformArchitecture, binaryDir, destDir, path -> {
+                    String filename = path.getFileName().toString();
+                    String pathStr = path.toString();
+
+                    // Skip libdmengine.so, libdmengine_release.so etc
+                    // In a build without native extensions we will download
+                    // dmengine if it doesn't exist in bob.jar (see the two
+                    // methods getDefaultDmengineFiles() and downloadExes() in
+                    // EngineArtifactsProvider.java)
+                    if (filename.contains("dmengine")) {
+                        return false;
+                    }
+
+                    // Skip JNI files (handled separately above)
+                    if (pathStr.contains("/jni/") || pathStr.contains("\\jni\\")) {
+                        return false;
+                    }
+
+                    logger.info("Copying shared library " + filename);
+                    return true;
+                });
+                BundleHelper.throwIfCanceled(canceled);
+            }
+
             // create base.zip
             File baseZip = new File(aabDir, "base.zip");
             logger.info("Zipping " + baseDir + " to " + baseZip);
@@ -694,7 +652,7 @@ public class AndroidBundler implements IBundler {
             BundleHelper.throwIfCanceled(canceled);
             return baseZip;
         } catch (Exception e) {
-            throw new CompileExceptionError("Failed creating AAB base.zip", e);
+            throw new CompileExceptionError("Failed creating AAB base.zip. Cause: " + String.valueOf(e.getMessage()), e);
         }
     }
 
@@ -703,19 +661,18 @@ public class AndroidBundler implements IBundler {
     * https://developer.android.com/studio/build/building-cmdline#build_your_app_bundle_using_bundletool
     * https://github.com/google/bundletool/blob/master/src/main/proto/config.proto
     */
-    private static File createBundle(Project project, File outDir, File baseZip, ICanceled canceled) throws CompileExceptionError {
+    private File createBundle(Project project, File outDir, File baseZip, ICanceled canceled) throws CompileExceptionError {
         logger.info("Creating Android Application Bundle");
         try {
             BobProjectProperties projectProperties = project.getProjectProperties();
             Boolean extractNativeLibs = projectProperties.getBooleanValue("android", "extract_native_libs");
 
-            File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
             File baseAab = new File(outDir, getBinaryNameFromProject(project) + ".aab");
 
             File aabDir = new File(outDir, "aab");
             File baseConfig = new File(aabDir, "BundleConfig.json");
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(baseConfig))) {
-                String uncompressedGlob = "\"assets/game.arcd\"";
+                String uncompressedGlob = "\"assets/game.arcd\",\"assets/**/*.zip\"";
                 if (!extractNativeLibs) {
                     uncompressedGlob += ",";
                     uncompressedGlob += "\"lib/**/*.so\"";
@@ -724,18 +681,13 @@ public class AndroidBundler implements IBundler {
             }
 
             List<String> args = new ArrayList<String>();
-            args.add(getJavaBinFile(project, "java")); args.add("-jar");
-            args.add(bundletool.getAbsolutePath());
             args.add("build-bundle");
             args.add("--modules"); args.add(baseZip.getAbsolutePath());
             args.add("--output"); args.add(baseAab.getAbsolutePath());
             args.add("--config"); args.add(baseConfig.getAbsolutePath());
 
-            Result res = exec(args);
-            if (res.ret != 0) {
-                String msg = new String(res.stdOutErr);
-                throw new IOException(msg);
-            }
+            AndroidTools.bundletool(args);
+
             BundleHelper.throwIfCanceled(canceled);
             return baseAab;
         } catch (Exception e) {
@@ -746,7 +698,7 @@ public class AndroidBundler implements IBundler {
     /**
     * Sign file using jarsigner and keystore
     */
-    private static void signFile(Project project, File signFile, ICanceled canceled) throws IOException, CompileExceptionError {
+    private void signFile(Project project, File signFile, ICanceled canceled) throws IOException, CompileExceptionError {
         logger.info("Sign " + signFile);
         BundleHelper.throwIfCanceled(canceled);
 
@@ -755,57 +707,59 @@ public class AndroidBundler implements IBundler {
         String keystoreAlias = getKeystoreAlias(project);
         String keyPassword = getKeyPassword(project);
 
-        Result r = exec(getJavaBinFile(project, "jarsigner"),
-            "-verbose",
-            "-keystore", keystore,
-            "-storepass", keystorePassword,
-            "-keypass", keyPassword,
-            signFile.getAbsolutePath(),
-            keystoreAlias);
-        if (r.ret != 0) {
-            throw new IOException(new String(r.stdOutErr));
-        }
+        List<String> args = new ArrayList<String>();
+        args.add("-verbose");
+        args.add("-keystore"); args.add(keystore);
+        args.add("-storepass"); args.add(keystorePassword);
+        args.add("-keypass"); args.add(keyPassword);
+        args.add(signFile.getAbsolutePath());
+        args.add(keystoreAlias);
+
+        AndroidTools.jarsigner(args);
     }
 
     /**
     * Copy debug symbols
     */
-    private static void copySymbols(Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
+    static void copyR8Mapping(File extenderExeDir, Platform architecture, File symbolsDir) throws IOException {
+        File r8Mapping = Path.of(extenderExeDir.getPath(), architecture.getExtenderPair(), "mapping.txt").toFile();
+        if (r8Mapping.exists()) {
+            File symbolMapping = new File(symbolsDir, r8Mapping.getName());
+            FileUtils.copyFile(r8Mapping, symbolMapping);
+        }
+    }
+
+    private void copySymbols(Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         final boolean hasSymbols = project.hasOption("with-symbols");
         if (!hasSymbols) {
             return;
         }
         File symbolsDir = new File(outDir, getBinaryNameFromProject(project) + ".apk.symbols");
         symbolsDir.mkdirs();
+        File symbolsLibDir = new File(symbolsDir, "lib");
         final String exeName = getBinaryNameFromProject(project);
         final String extenderExeDir = project.getBinaryOutputDirectory();
         final List<Platform> architectures = getArchitectures(project);
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         for (Platform architecture : architectures) {
-            List<File> bundleExe = ExtenderUtil.getNativeExtensionEngineBinaries(project, architecture);
-            if (bundleExe == null) {
-                bundleExe = Bob.getDefaultDmengineFiles(architecture, variant);
-            }
-            File exe = bundleExe.get(0);
-            File symbolExe = new File(symbolsDir, FilenameUtils.concat("lib/" + platformToLibMap.get(architecture), "lib" + exeName + ".so"));
+            File symbolExe = new File(symbolsLibDir, FilenameUtils.concat(platformToLibMap.get(architecture), "lib" + exeName + ".so"));
             logger.info("Copy debug symbols " + symbolExe);
-            BundleHelper.throwIfCanceled(canceled);
-            FileUtils.copyFile(exe, symbolExe);
+            copyEngineBinary(project, architecture, symbolExe, canceled);
+
+            boolean vkQualityEnabled = usesVkQuality(project);
+            if (vkQualityEnabled)
+            {
+                copyVkQualityLibrary(project, architecture, symbolsLibDir, canceled);
+            }
         }
 
-        BundleHelper.throwIfCanceled(canceled);
-
-        File proguardMapping = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architectures.get(0).getExtenderPair(), "mapping.txt")));
-        if (proguardMapping.exists()) {
-            File symbolMapping = new File(symbolsDir, proguardMapping.getName());
-            FileUtils.copyFile(proguardMapping, symbolMapping);
-        }
+        copyR8Mapping(new File(extenderExeDir), architectures.get(0), symbolsDir);
     }
 
     /**
     * Cleanup bundle folder from intermediate folders and artifacts.
     */
-    private static void cleanupBundleFolder(Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
+    private void cleanupBundleFolder(Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         logger.info("Cleanup bundle folder");
         BundleHelper.throwIfCanceled(canceled);
 
@@ -813,13 +767,18 @@ public class AndroidBundler implements IBundler {
         FileUtils.deleteDirectory(new File(outDir, "res"));
     }
 
-    private static File createAAB(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
+    private File createAAB(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
         BundleHelper.throwIfCanceled(canceled);
+
+        // Native extension builds provide compiledresources.apk and skip the local aapt2 path that
+        // normally initializes AndroidTools. Initialize explicitly so packed Android resources such
+        // as VkQuality data and native libraries are extracted before Bob.getPath() lookups below.
+        AndroidTools.init();
 
         final Platform platform = getFirstPlatform(project);
 
         File apk;
-        if (ExtenderUtil.hasNativeExtensions(project)) {
+        if (ExtenderUtil.hasNativeExtensions(project, platform)) {
             apk = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/compiledresources.apk");
         }
         else {
@@ -861,14 +820,12 @@ public class AndroidBundler implements IBundler {
      * code and resources such that the APK is compatible with all device
      * configurations the app supports.
      */
-    private static File createUniversalApks(Project project, File aab, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
+    private File createUniversalApks(Project project, File aab, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         logger.info("Creating universal APK set");
         String keystore = getKeystore(project);
         String keystorePasswordFile = getKeystorePasswordFile(project);
         String keystoreAlias = getKeystoreAlias(project);
         String keyPasswordFile = getKeyPasswordFile(project);
-
-        File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
 
         String aabPath = aab.getAbsolutePath();
         String name = FilenameUtils.getBaseName(aabPath);
@@ -877,8 +834,6 @@ public class AndroidBundler implements IBundler {
         Result res = null;
         try {
             List<String> args = new ArrayList<String>();
-            args.add(getJavaBinFile(project, "java")); args.add("-jar");
-            args.add(bundletool.getAbsolutePath());
             args.add("build-apks");
             args.add("--mode"); args.add("UNIVERSAL");
             args.add("--bundle"); args.add(aabPath);
@@ -887,29 +842,25 @@ public class AndroidBundler implements IBundler {
             args.add("--ks-pass"); args.add("file:" + keystorePasswordFile);
             args.add("--ks-key-alias"); args.add(keystoreAlias);
             args.add("--key-pass"); args.add("file:" + keyPasswordFile);
-
-            res = exec(args);
+            AndroidTools.bundletool(args);
         } catch (Exception e) {
-            throw new CompileExceptionError("Failed creating universal APK", e);
+            String msg = e.getMessage();
+            if (msg.contains("java.lang.ArithmeticException: integer overflow")) {
+                throw new CompileExceptionError("Failed creating universal APK. APK is too large. " + msg);
+            }
+            else {
+                throw new CompileExceptionError("Failed creating universal APK. " + msg);
+            }
         }
         BundleHelper.throwIfCanceled(canceled);
-        if (res.ret == 0) {
-            return new File(apksPath);
-        }
-        String msg = new String(res.stdOutErr);
-        if (msg.contains("java.lang.ArithmeticException: integer overflow")) {
-            throw new CompileExceptionError("Failed creating universal APK. APK is too large. " + msg);
-        }
-        else {
-            throw new CompileExceptionError("Failed creating universal APK. " + msg);
-        }
+        return new File(apksPath);
     }
 
 
     /**
      * Extract the universal APK from an APK set
      */
-    private static File extractUniversalApk(File apks, File outDir, ICanceled canceled) throws IOException {
+    private File extractUniversalApk(File apks, File outDir, ICanceled canceled) throws IOException {
         logger.info("Extracting universal APK from APK set");
         File apksDir = createDir(outDir, "apks");
         BundleHelper.unzip(new FileInputStream(apks), apksDir.toPath());
@@ -926,7 +877,7 @@ public class AndroidBundler implements IBundler {
     }
 
 
-    private static File createAPK(File aab, Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
+    private File createAPK(File aab, Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         // STEP 1. Create universal APK set
         File apks = createUniversalApks(project, aab, outDir, canceled);
 
@@ -965,7 +916,6 @@ public class AndroidBundler implements IBundler {
         // We copy and resize the default icon in builtins if no other icons are set.
         // This means that the app will always have icons from now on.
         properties.put("has-icons?", true);
-
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false) == false) {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
             Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
@@ -985,7 +935,7 @@ public class AndroidBundler implements IBundler {
             Map<String, Object> propGroup = propertiesMap.get("android");
             if (propGroup != null && propGroup.containsKey("debuggable")) {
                 boolean debuggable = project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG);
-                propGroup.put("debuggable", debuggable ? "true":"false");
+                propGroup.put("debuggable", Boolean.toString(debuggable));
             }
         }
     }
@@ -1000,10 +950,6 @@ public class AndroidBundler implements IBundler {
         if (!BundleHelper.isValidAndroidPackageName(packageName)) {
             throw new CompileExceptionError("Android package name '" + packageName + "' is not valid.");
         }
-
-        TimeProfiler.start("Init Android");
-        initAndroid(); // extract
-        TimeProfiler.stop();
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant, this);

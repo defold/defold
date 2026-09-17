@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,9 +26,11 @@
                        :custom-build-servers {"alpha" "https://build-stage.defold.com"
                                               "beta" "https://build-stage.defold.com"}}
    :updater {:download-url-template "https://%s/archive/%s/%s/editor2/Defold-%s.zip"
-             :update-url-template "https://%s/editor2/channels/%s/update-v4.json"}})
+             :update-url-template "https://%s/editor2/channels/%s/update-v4.json"
+             :release-notes-manifest-url-template "https://%s/editor2/channels/%s/release-notes/manifest.json"
+             :release-notes-version-url-template "https://%s/editor2/channels/%s/release-notes/%s.json"}})
 
-(def ^:const defold-build-server-url
+(defn defold-build-server-url []
   (or
     (get-in connection-properties [:native-extensions :custom-build-servers (system/defold-channel)])
     (get-in connection-properties [:native-extensions :build-server-url])))

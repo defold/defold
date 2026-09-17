@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,6 +21,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.code.data :as data]
+            [editor.code.script-annotations :as script-annotations]
             [editor.console :as console]
             [editor.defold-project :as project]
             [editor.editor-extensions.actions :as actions]
@@ -29,17 +30,24 @@
             [editor.editor-extensions.error-handling :as error-handling]
             [editor.editor-extensions.graph :as graph]
             [editor.editor-extensions.http-server :as ext.http-server]
+            [editor.editor-extensions.image :as ext.image]
+            [editor.editor-extensions.localization :as ext.localization]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.tile-map :as tile-map]
             [editor.editor-extensions.ui-components :as ui-components]
             [editor.editor-extensions.zip :as zip]
+            [editor.editor-extensions.zlib :as zlib]
+            [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.library :as library]
+            [editor.localization :as localization]
             [editor.lsp :as lsp]
             [editor.lsp.async :as lsp.async]
+            [editor.lsp.project :as lsp.project]
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.process :as process]
@@ -53,13 +61,17 @@
             [util.eduction :as e]
             [util.fn :as fn]
             [util.http-client :as http]
-            [util.http-server :as http-server])
-  (:import [com.dynamo.bob Platform]
+            [util.http-server :as http-server]
+            [util.path :as path])
+  (:import [clojure.lang IDeref Murmur3]
+           [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
-           [java.io PrintStream PushbackReader]
+           [com.dynamo.bob.util Library$Result]
+           [java.io InputStream PrintStream PushbackReader]
            [java.net URI]
            [java.nio.file FileAlreadyExistsException Files NotDirectoryException Path]
            [java.util HashSet]
+           [java.util.concurrent ExecutionException]
            [org.apache.commons.io FilenameUtils]
            [org.luaj.vm2 LuaError LuaFunction LuaString LuaTable LuaValue Prototype]))
 
@@ -74,6 +86,12 @@
                              msg     string message, may be multiline
     :project-prototypes    vector of project-owned editor script Prototypes
     :library-prototypes    vector of library-provided editor script Prototypes
+    :project-reload-signature
+                           hash of project editor script paths and lines when
+                           the runtime was last reloaded
+    :library-reload-signature
+                           hash of library editor script paths and lines when
+                           the runtime was last reloaded
     :rt                    editor script runtime
     :all                   map of module function keyword to a vector of tuples:
                              path      proj-path of an editor script
@@ -98,16 +116,16 @@
     path    a proj-path of the editor script, string
     ret     a Lua data structure returned from function in that file"
   [state fn-keyword opts evaluation-context]
-  (let [{:keys [rt all display-output!]} state
+  (let [{:keys [rt all]} state
         lua-opts (rt/->lua opts)
         label (name fn-keyword)]
     (eduction
       (keep (fn [[path lua-fn]]
               (when-let [lua-ret (error-handling/try-with-extension-exceptions
-                                   :display-output! display-output!
+                                   :rt rt
                                    :label (str label " in " path)
                                    :catch nil
-                                   (rt/invoke-immediate-1 rt lua-fn lua-opts evaluation-context))]
+                                   (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} lua-fn lua-opts))]
                 (when-not (rt/coerces-to? rt coerce/null lua-ret)
                   [path lua-ret]))))
       (get all fn-keyword))))
@@ -115,46 +133,69 @@
 (defn- unwrap-error-values [arr]
   (mapv #(cond-> % (g/error? %) :value) arr))
 
+(g/defnk produce-project-reload-signature [project-reload-signatures]
+  (Murmur3/hashUnordered project-reload-signatures))
+
+(g/defnk produce-library-reload-signature [library-reload-signatures]
+  (Murmur3/hashUnordered library-reload-signatures))
+
 (g/defnode EditorExtensions
   (input project-prototypes g/Any :array :substitute unwrap-error-values)
   (input library-prototypes g/Any :array :substitute unwrap-error-values)
+  (input project-reload-signatures g/Int :array :substitute gu/array-subst-remove-errors)
+  (input library-reload-signatures g/Int :array :substitute gu/array-subst-remove-errors)
   (output project-prototypes g/Any (gu/passthrough project-prototypes))
-  (output library-prototypes g/Any (gu/passthrough library-prototypes)))
+  (output library-prototypes g/Any (gu/passthrough library-prototypes))
+  (output project-reload-signature g/Int :cached produce-project-reload-signature)
+  (output library-reload-signature g/Int :cached produce-library-reload-signature))
 
-(defn make [graph]
-  (first (g/tx-nodes-added (g/transact (g/make-node graph EditorExtensions)))))
+(defn make []
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (g/make-node EditorExtensions)))))
 
 ;; region script API
 
-(defn- make-ext-get-fn [project]
+(defn- make-ext-get-fn [project localization]
   (rt/lua-fn ext-get [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
-    (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
+    (let [unresolved-editor-lookup (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
-          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)
-          getter (graph/ext-value-getter node-id-or-resource property project evaluation-context)]
+          editor-lookup (graph/resolve-unresolved-editor-lookup unresolved-editor-lookup project evaluation-context)
+          getter (graph/ext-value-getter editor-lookup property project evaluation-context)]
       (if getter
-        (getter)
-        (throw (LuaError. (str (if (resource/resource? node-id-or-resource)
-                                 (resource/proj-path node-id-or-resource)
-                                 (name (graph/node-id->type-keyword node-id-or-resource evaluation-context)))
+        (let [result (getter)]
+          (if (g/error-value? result)
+            (throw (LuaError. (str "Can't get \"" property "\" property: " (localization (g/error-message result)))))
+            result))
+        (throw (LuaError. (str (if (resource/resource? editor-lookup)
+                                 (resource/proj-path editor-lookup)
+                                 (name (graph/node-id->type-keyword (graph/editor-lookup->node-id editor-lookup) evaluation-context)))
                                " has no \""
                                property
                                "\" property")))))))
 
 (defn- make-ext-can-get-fn [project]
   (rt/lua-fn ext-can-get [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
-    (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
+    (let [unresolved-editor-lookup (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
-          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
-      (some? (graph/ext-value-getter node-id-or-resource property project evaluation-context)))))
+          editor-lookup (graph/resolve-unresolved-editor-lookup unresolved-editor-lookup project evaluation-context)]
+      (some? (graph/ext-value-getter editor-lookup property project evaluation-context)))))
+
+(defn- make-ext-properties-fn [project]
+  (rt/lua-fn ext-properties [{:keys [rt evaluation-context]} lua-node-id-or-path]
+    (let [unresolved-editor-lookup (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
+          editor-lookup (graph/resolve-unresolved-editor-lookup unresolved-editor-lookup project evaluation-context)]
+      (graph/ext-readable-properties editor-lookup project evaluation-context))))
 
 (defn- make-ext-can-set-fn [project]
   (rt/lua-fn ext-can-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property]
-    (let [node-id-or-path (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
+    (let [unresolved-editor-lookup (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
           property (rt/->clj rt coerce/string lua-property)
-          node-id-or-resource (graph/resolve-node-id-or-path node-id-or-path project evaluation-context)]
-      (and (not (resource/resource? node-id-or-resource))
-           (some? (graph/ext-lua-value-setter node-id-or-resource property rt project evaluation-context))))))
+          editor-lookup (graph/resolve-unresolved-editor-lookup unresolved-editor-lookup project evaluation-context)]
+      (and (not (resource/resource? editor-lookup))
+           (some? (graph/ext-lua-value-setter (graph/editor-lookup->node-id editor-lookup) property rt project evaluation-context))))))
 
 (def ^:private created-resources-coercer
   (coerce/vector-of
@@ -178,15 +219,15 @@
           resource-types (resource/resource-types-by-type-ext basis workspace :editable)
           type-ext->template (fn/memoize
                                (fn type-ext->template [ext]
-                                 (or (workspace/template workspace (get resource-types ext) evaluation-context) "")))]
+                                 (or (workspace/template basis workspace (get resource-types ext)) "")))]
       (-> (future/io
-            (let [root-path (fs/real-path project-dir)
+            (let [root-path (path/real project-dir)
                   path+contents (mapv (fn [{proj-path 1 content 2}]
-                                        (let [file-path (.normalize (fs/path (str root-path proj-path)))]
+                                        (let [file-path (path/normalized (str root-path proj-path))]
                                           (when-not (.startsWith file-path root-path)
                                             (throw (LuaError. (str "Can't create " proj-path ": outside of project directory"))))
-                                          (when (fs/path-exists? file-path)
-                                            (if (fs/path-is-directory? file-path)
+                                          (when (path/exists? file-path)
+                                            (if (path/directory? file-path)
                                               (throw (LuaError. (str "Directory already exists in place of file: " proj-path)))
                                               (throw (LuaError. (str "Resource already exists: " proj-path)))))
                                           (let [content (or content
@@ -195,7 +236,7 @@
                                                                   type-ext (string/lower-case (FilenameUtils/getExtension file-name))]
                                                               (workspace/replace-template-name (type-ext->template type-ext) base-name)))]
                                             (coll/pair file-path content))))
-                                  created-resource-infos)]
+                                      created-resource-infos)]
               (->> path+contents
                    (e/map key)
                    (frequencies)
@@ -203,31 +244,41 @@
                            (when (< 1 frequency)
                              (throw (LuaError. (str "Resource repeated more than once: /" (string/replace (str (.relativize root-path path)) \\ \/))))))))
               (run! (fn [[file-path content]]
-                      (fs/create-path-parent-directories! file-path)
+                      (path/create-parent-directories! file-path)
                       (spit file-path content))
                     path+contents)))
           (future/then (fn [_] (reload-resources!)))
-          (future/then rt/and-refresh-context)))))
+          (future/then
+            (fn [_]
+              (g/let-ec [basis (:basis evaluation-context)
+                         invalid-proj-paths
+                         (coll/into-> created-resource-infos []
+                           (keep (fn [{proj-path 1}]
+                                   (when-let [node-id (project/get-resource-node project proj-path evaluation-context)]
+                                     (when (g/defective? basis node-id)
+                                       proj-path)))))]
+                (rt/and-refresh-context
+                  (when-let [invalid-proj-paths (coll/not-empty invalid-proj-paths)]
+                    (LuaError. (str "Created resources are invalid: " (coll/join-to-string ", " invalid-proj-paths))))))))))))
 
 (defn- make-ext-create-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-create-directory [{:keys [rt evaluation-context]} lua-proj-path]
-    (let [^String proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)]
-      (let [basis (:basis evaluation-context)
-            workspace (project/workspace project evaluation-context)
-            root-path (-> (workspace/project-directory basis workspace)
-                          (fs/real-path))
-            dir-path (-> (str root-path proj-path)
-                         (fs/as-path)
-                         (.normalize))]
-        (if (.startsWith dir-path root-path)
-          (try
-            (fs/create-path-directories! dir-path)
-            (future/then (reload-resources!) rt/and-refresh-context)
-            (catch FileAlreadyExistsException e
-              (throw (LuaError. (str "File already exists: " (.getMessage e)))))
-            (catch Exception e
-              (throw (LuaError. ^String (or (.getMessage e) (.getSimpleName (class e)))))))
-          (throw (LuaError. (str "Can't create " dir-path ": outside of project directory"))))))))
+    (let [^String proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)
+          basis (:basis evaluation-context)
+          workspace (project/workspace project evaluation-context)
+          root-path (-> (workspace/project-directory basis workspace)
+                        (path/real))
+          dir-path (-> (str root-path proj-path)
+                       (path/normalized))]
+      (if (.startsWith dir-path root-path)
+        (try
+          (path/create-directories! dir-path)
+          (future/then (reload-resources!) rt/and-refresh-context)
+          (catch FileAlreadyExistsException e
+            (throw (LuaError. (str "File already exists: " (.getMessage e)))))
+          (catch Exception e
+            (throw (LuaError. ^String (or (.getMessage e) (.getSimpleName (class e)))))))
+        (throw (LuaError. (str "Can't create " dir-path ": outside of project directory")))))))
 
 (defn- make-ext-delete-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-delete-directory [{:keys [rt evaluation-context]} lua-proj-path]
@@ -235,24 +286,20 @@
           proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)
           workspace (project/workspace project evaluation-context)
           root-path (-> (workspace/project-directory basis workspace)
-                        (fs/real-path))
+                        (path/real))
           dir-path (-> (str root-path proj-path)
-                       (fs/as-path)
-                       (.normalize))
+                       (path/normalized))
           protected-paths (mapv #(.resolve root-path ^String %)
                                 [".git"
-                                 ".internal"])
-          protected-path? (fn protected-path? [^Path path]
-                            (some #(.startsWith path ^Path %)
-                                  protected-paths))]
+                                 ".internal"])]
       (cond
         (not (.startsWith dir-path root-path))
         (throw (LuaError. (str "Can't delete " dir-path ": outside of project directory")))
 
         (= (.getNameCount dir-path) (.getNameCount root-path))
-        (throw (LuaError. (str "Can't delete the project directory itself")))
+        (throw (LuaError. "Can't delete the project directory itself"))
 
-        (protected-path? dir-path)
+        (coll/any? #(.startsWith dir-path ^Path %) protected-paths)
         (throw (LuaError. (str "Can't delete " dir-path ": protected by editor")))
 
         :else
@@ -269,9 +316,9 @@
     (let [^String path-str (rt/->clj rt coerce/string lua-path)
           path (.normalize (.resolve project-path path-str))]
       (future/io
-        (if (fs/path-exists? path)
-          (let [attrs (fs/path-attributes path)]
-            {:path (str (.toRealPath path fs/empty-link-option-array))
+        (if (path/exists? path)
+          (let [attrs (path/attributes path)]
+            {:path (str (path/real path))
              :exists true
              :is_file (.isRegularFile attrs)
              :is_directory (.isDirectory attrs)})
@@ -282,10 +329,10 @@
 
 (defn- make-ext-resource-attributes-fn [project]
   (rt/lua-fn ext-resource-attributes [{:keys [rt evaluation-context]} lua-resource-path]
-    (let [proj-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)]
-      (if-let [resource (-> project
-                            (project/workspace evaluation-context)
-                            (workspace/find-resource proj-path evaluation-context))]
+    (let [basis (:basis evaluation-context)
+          proj-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)
+          workspace (project/workspace project evaluation-context)]
+      (if-let [resource (workspace/find-resource basis workspace proj-path)]
         (let [source-type (resource/source-type resource)]
           {:exists true
            :is_file (= :file source-type)
@@ -304,9 +351,9 @@
                            :out (coerce/enum :capture :discard :pipe)
                            :err (coerce/enum :stdout :discard :pipe)})))
 
-(defn- make-ext-execute-fn [^Path project-path display-output! reload-resources!]
+(defn- make-ext-execute-fn [^Path project-path reload-resources!]
   (rt/suspendable-lua-fn ext-execute [{:keys [rt]} & lua-args]
-    (when (empty? lua-args)
+    (when (coll/empty? lua-args)
       (throw (LuaError. "No arguments provided to editor.execute()")))
     (let [last-arg (rt/->clj rt execute-last-arg-coercer (last lua-args))
           butlast-args (mapv #(rt/->clj rt coerce/string %) (butlast lua-args))
@@ -324,28 +371,30 @@
           maybe-output-future (when (= :capture out)
                                 (future/io
                                   (or (process/capture! (process/out p))
-                                      empty-lua-string)))]
-      (when (= :pipe out)
-        (actions/input-stream->console (process/out p) display-output! :out))
-      (when (= :pipe err)
-        (actions/input-stream->console (process/err p) display-output! :err))
+                                      empty-lua-string)))
+          out-future (when (= :pipe out)
+                       (actions/input-stream->console (process/out p) (rt/stdout rt)))
+          err-future (when (= :pipe err)
+                       (actions/input-stream->console (process/err p) (rt/stderr rt)))]
       (-> (.onExit p)
+          (cond-> out-future (future/then (fn [_] out-future))
+            err-future (future/then (fn [_] err-future)))
           (future/then
             (fn [_]
               (let [exit-code (.exitValue p)]
                 (when-not (zero? exit-code)
                   (throw (LuaError. (format "Command \"%s\" exited with code %s"
-                                            (string/join " " cmd+args)
+                                            (coll/join-to-string " " cmd+args)
                                             exit-code)))))))
           (cond-> maybe-output-future
-                  (future/then (fn [_] maybe-output-future))
+            (future/then (fn [_] maybe-output-future))
 
-                  reload
-                  (future/then
-                    (fn [result]
-                      (future/then
-                        (reload-resources!)
-                        (fn [_] (rt/and-refresh-context result))))))))))
+            reload
+            (future/then
+              (fn [result]
+                (future/then
+                  (reload-resources!)
+                  (fn [_] (rt/and-refresh-context result))))))))))
 
 (def bob-options-coercer
   (let [scalar-coercer (coerce/one-of coerce/string coerce/boolean coerce/integer)]
@@ -357,8 +406,8 @@
   (coerce/one-of coerce/string bob-options-coercer))
 
 (defn- make-ext-bob-fn [invoke-bob!]
-  (rt/suspendable-lua-fn bob [{:keys [rt evaluation-context]} & lua-args]
-    (let [[options commands] (if (empty? lua-args)
+  (rt/suspendable-lua-fn bob [{:keys [rt]} & lua-args]
+    (let [[options commands] (if (coll/empty? lua-args)
                                [{} []]
                                (let [options-or-command (rt/->clj rt bob-options-or-command-coercer (first lua-args))
                                      first-arg-is-command (string? options-or-command)
@@ -367,7 +416,7 @@
                                                     (map #(rt/->clj rt coerce/string %))
                                                     (rest lua-args))]
                                  [options commands]))]
-      (invoke-bob! options commands evaluation-context))))
+      (invoke-bob! options commands))))
 
 (defn- ensure-file-path-in-project-directory
   ^Path [^Path project-path ^String file-name]
@@ -380,7 +429,7 @@
   (rt/suspendable-lua-fn ext-remove-file [{:keys [rt]} lua-file-name]
     (let [file-name (rt/->clj rt coerce/string lua-file-name)
           file-path (ensure-file-path-in-project-directory project-path file-name)]
-      (when-not (Files/exists file-path fs/empty-link-option-array)
+      (when-not (path/exists? file-path)
         (throw (LuaError. (str "No such file or directory: " file-name))))
       (Files/delete file-path)
       (future/then (reload-resources!) rt/and-refresh-context))))
@@ -404,8 +453,8 @@
 
 (defn- make-ext-tx-set-fn [project]
   (rt/lua-fn ext-tx-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property lua-value]
-    (let [node-id (graph/node-id-or-path->node-id
-                    (rt/->clj rt graph/node-id-or-path-coercer lua-node-id-or-path)
+    (let [node-id (graph/editable-unresolved-editor-lookup->node-id
+                    (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
                     project
                     evaluation-context)
           property (rt/->clj rt coerce/string lua-property)
@@ -422,12 +471,42 @@
   (rt/suspendable-lua-fn ext-save [_]
     (future/then (save!) rt/and-refresh-context)))
 
+(defn- make-ext-fetch-libraries-fn [fetch-libraries! localization-state]
+  (rt/suspendable-lua-fn ext-fetch-libraries [_]
+    (future/then
+      (fetch-libraries!)
+      (fn [[lib-results reload-succeeded]]
+        (rt/and-refresh-context
+          (if-not reload-succeeded
+            (LuaError. "Reload failed")
+            (let [error-messages (coll/into-> lib-results []
+                                   (filter Library$Result/.problem)
+                                   (map library/result-message))]
+              (when (coll/not-empty error-messages)
+                (LuaError. ^String (localization-state (localization/join "\n" error-messages)))))))))))
+
+(def ^:private open-resource-args-coercer
+  (coerce/regex :resource-path graph/resource-path-coercer
+                :rest :? [:view (coerce/enum :code :text :scene :html :form)
+                          :args :? coerce/untouched]))
+
 (defn- make-open-resource-fn [workspace open-resource!]
-  (rt/suspendable-lua-fn open-resource [{:keys [rt evaluation-context]} lua-resource-path]
-    (let [resource-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)
-          resource (workspace/find-resource workspace resource-path evaluation-context)]
-      (when (and resource (resource/exists? resource) (resource/openable? resource))
-        (open-resource! resource)))))
+  (rt/suspendable-varargs-lua-fn open-resource [{:keys [rt evaluation-context]} varargs]
+    (let [{:keys [resource-path]
+           {:keys [view args]} :rest} (rt/->clj rt open-resource-args-coercer varargs)
+          resource (workspace/find-resource (:basis evaluation-context) workspace resource-path)]
+      (if-not (and resource (resource/exists? resource) (resource/openable? resource))
+        (throw (LuaError. (format "Resource '%s' could not be opened" resource-path)))
+        (if-not view
+          (open-resource! resource {})
+          (let [view-type (or (coll/first-where #(= view (:id %)) (workspace/resource-view-types resource))
+                              (throw (LuaError. (format "Resource '%s' does not support the '%s' view" resource-path (name view)))))
+                view-opts (if-not args
+                            {}
+                            (if-let [args-coercer (:open-resource-args-coercer view-type)]
+                              (rt/->clj rt args-coercer args)
+                              (throw (LuaError. (format "The '%s' view does not accept open-resource args" (name view))))))]
+            (open-resource! resource (assoc view-opts :selected-view-type view-type))))))))
 
 (def ext-browse-fn
   (rt/suspendable-lua-fn browse [{:keys [rt]} lua-string]
@@ -541,7 +620,7 @@
                                                   (pprint (.arg kv-varargs 2) indent seen)
                                                   ;; wrap `true` in boolean so that the loop compiles, otherwise it complains
                                                   ;; about java.lang.Boolean not matching primitive boolean ¯\_(ツ)_/¯
-                                                  (recur k (boolean true))))))))
+                                                  (recur k #_{:clj-kondo/ignore [:redundant-primitive-coercion]} (boolean true))))))))
                                       (.println out)
                                       (write-indent! out indent)
                                       (.print out "}"))))
@@ -562,35 +641,60 @@
 
 (def http-request-options-coercer
   (coerce/one-of
-    (coerce/hash-map
-      :opt {:method coerce/string
-            :headers (coerce/map-of coerce/string coerce/string)
-            :body coerce/string
-            :as (coerce/enum :string :json)}
-      :extra-keys false)
+    (coerce/wrap-with-pred
+      (coerce/hash-map
+        :opt {:method coerce/string
+              :headers (coerce/map-of coerce/string coerce/string)
+              :body coerce/string
+              :as (coerce/enum :string :json)
+              :path coerce/string}
+        :extra-keys false)
+      #(not (and (contains? % :as) (contains? % :path)))
+      "specifies mutually exclusive 'as' and 'path' options")
     coerce/null))
 
-(def ext-http-request
+(defn- make-ext-http-request-fn [^Path project-path reload-resources!]
   (rt/suspendable-lua-fn ext-http-request
     ([ctx lua-url]
      (ext-http-request ctx lua-url nil))
     ([{:keys [rt]} lua-url maybe-lua-options]
      (let [options (some->> maybe-lua-options (rt/->clj rt http-request-options-coercer))
-           json (= :json (:as options))]
-       (try
-         (-> (http/request
-               (rt/->clj rt coerce/string lua-url)
-               (cond-> options json (assoc :as :input-stream)))
-             (future/then
-               (fn http-request-then [response]
-                 (cond-> response json (assoc :body (with-open [reader (io/reader (:body response))]
-                                                      (json/read reader))))))
-             (future/catch
-               (fn http-request-catch [e]
-                 (throw (LuaError. (str (or (ex-message e) (.getSimpleName (class e)))))))))
-         ;; we might get an exception when parsing the URI before we start the async request execution
-         (catch Throwable e
-           (throw (LuaError. (str (or (ex-message e) (.getSimpleName (class e))))))))))))
+           json (= :json (:as options))
+           path (:path options)]
+       (future/io
+         (try
+           (let [response @(http/request
+                             (rt/->clj rt coerce/string lua-url)
+                             (-> options (dissoc :path) (cond-> (or json path) (assoc :as :input-stream))))]
+             (cond
+               json
+               (assoc response :body (with-open [reader (io/reader (:body response))]
+                                       (json/read reader)))
+
+               path
+               (with-open [^InputStream body (:body response)]
+                 (if-not (<= 200 (:status response) 299)
+                   (dissoc response :body)
+                   (let [destination (path/resolve-normalized project-path path)
+                         stored-path (path/atomic-replace!
+                                       destination
+                                       (fn write-response-body [temp-path]
+                                         (with-open [output (io/output-stream temp-path)]
+                                           (io/copy body output))))
+                         response (-> response
+                                      (dissoc :body)
+                                      (assoc :path (str stored-path)))]
+                     (if (path/starts-with? destination project-path)
+                       (do
+                         @(reload-resources!)
+                         (rt/and-refresh-context response))
+                       response))))
+
+               :else
+               response))
+           (catch Throwable e
+             (let [e (if (instance? ExecutionException e) (ex-cause e) e)]
+               (throw (LuaError. (str (or (ex-message e) (.getSimpleName (class e))))))))))))))
 
 ;; endregion
 
@@ -598,42 +702,103 @@
 
 ;; region language servers
 
-(defn- built-in-language-servers []
-  (let [lua-lsp-root (str (system/defold-unpack-path) "/" (.getPair (Platform/getHostPlatform)) "/bin/lsp/lua")]
+(defn- built-in-lua-language-servers [project-root annotations-sync-hash]
+  (let [unpack-path (system/defold-unpack-path)
+        lua-annotations-path (str (path/of unpack-path "shared" "lua-annotations"))
+        launcher {:command [(str unpack-path "/" (.getPair (Platform/getHostPlatform)) "/bin/lsp/lua/bin/lua-language-server" (when (os/is-win32?) ".exe"))
+                            ;; Enable text document diagnostics:
+                            "--preview=true"]}
+        shared-configuration {:Lua {:runtime {:pathStrict true}
+                                    :completion {:workspaceWord false :callSnippet "Replace"}
+                                    :diagnostics {:enable true
+                                                  :workspaceDelay -1
+                                                  :workspaceEvent "None"
+                                                  :groupFileStatus {:duplicate "Any"
+                                                                    :redefined "Any"
+                                                                    :type-check "Any"
+                                                                    :unused "Any"}
+                                                  :disable ["trailing-space" "unused-local"]}
+                                    :workspace {:checkThirdParty "Disable" :library [lua-annotations-path]}
+                                    :window {:progressBar false :statusBar false}}
+                              :files {:exclude
+                                      {"**/.git" true
+                                       "**/.hg" true
+                                       "**/.svn" true
+                                       "**/.DS_Store" true
+                                       "**/CVS" true
+                                       "**/Thumbs.db" true}}}]
     #{{:languages #{"lua"}
+       :extensions #{"lua" "script" "gui_script" "render_script"}
+       :configuration (coll/deep-merge
+                        shared-configuration
+                        {:Lua
+                         {:runtime {:version "Lua 5.1"
+                                    :plugin (str (path/of unpack-path "shared" "lua-language-server" "plugin.lua"))}
+                          :diagnostics
+                          {:globals ["init" "final" "update" "late_update" "fixed_update" "on_message" "on_input" "on_reload"]}
+                          :workspace
+                          {:library [lua-annotations-path (str (path/of project-root ".internal" "lua-annotations"))]}}
+                         :files {:exclude {"**/*.editor_script" true}}})
        :watched-files [{:pattern "**/.luacheckrc"}]
-       :launcher {:command [(str lua-lsp-root "/bin/lua-language-server" (when (os/is-win32?) ".exe"))
-                            (str "--configpath=" lua-lsp-root "/config.json")]}}}))
+       ;; We want to restart the language server every time annotations from
+       ;; dependencies change because lua language server does not watch
+       ;; `workspace.library` folder. Changing the map triggers the server restart
+       ::sync-hash (if (g/error-value? annotations-sync-hash) 0 annotations-sync-hash)
+       :launcher launcher}
+      {:languages #{"lua"}
+       :extensions #{"editor_script"}
+       :configuration (coll/deep-merge
+                        shared-configuration
+                        {:Lua {:runtime {:version "Lua 5.2"}}
+                         :files {:exclude
+                                 {"**/*.lua" true
+                                  "**/*.script" true
+                                  "**/*.gui_script" true
+                                  "**/*.render_script" true}}})
+       :watched-files [{:pattern "**/.luacheckrc"}]
+       :launcher launcher}}))
 
 (def language-servers-coercer
   (coerce/vector-of
     (coerce/hash-map
       :req {:languages (coerce/vector-of coerce/string :distinct true :min-count 1)
             :command (coerce/vector-of coerce/string :min-count 1)}
-      :opt {:watched_files (coerce/vector-of (coerce/hash-map :req {:pattern coerce/string}) :min-count 1)})))
+      :opt {:extensions (coerce/wrap-transform (coerce/vector-of coerce/string :distinct true :min-count 1) set)
+            :watched_files (coerce/vector-of (coerce/hash-map :req {:pattern coerce/string}) :min-count 1)})))
 
-(defn- reload-language-servers! [project state evaluation-context]
-  (let [{:keys [display-output! rt]} state
-        lsp (lsp/get-node-lsp project)]
-    (lsp/set-servers!
-      lsp
-      (into
-        (built-in-language-servers)
-        (comp
-          (mapcat
-            (fn [[path lua-language-servers]]
-              (error-handling/try-with-extension-exceptions
-                :display-output! display-output!
-                :label (str "Reloading language servers in " path)
-                :catch []
-                (rt/->clj rt language-servers-coercer lua-language-servers))))
-          (map (fn [language-server]
-                 (-> language-server
-                     (set/rename-keys {:watched_files :watched-files})
-                     (update :languages set)
-                     (dissoc :command)
-                     (assoc :launcher (select-keys language-server [:command]))))))
-        (execute-all-top-level-functions state :get_language_servers {} evaluation-context)))))
+(defn- ext-language-servers [state evaluation-context]
+  (let [{:keys [rt]} state]
+    (into
+      #{}
+      (comp
+        (mapcat
+          (fn [[path lua-language-servers]]
+            (error-handling/try-with-extension-exceptions
+              :rt rt
+              :label (str "Reloading language servers in " path)
+              :catch []
+              (rt/->clj rt language-servers-coercer lua-language-servers))))
+        (map (fn [language-server]
+               (-> language-server
+                   (set/rename-keys {:watched_files :watched-files})
+                   (update :languages set)
+                   (dissoc :command)
+                   (assoc :launcher (select-keys language-server [:command]))))))
+      (execute-all-top-level-functions state :get_language_servers {} evaluation-context))))
+
+(defn- reload-language-servers! [project lsp script-annotations ext-language-servers]
+  (future
+    ;; perform annotation sync asynchronously since it potentially involves writing a lot
+    ;; of lua annotation files
+    (error-reporting/catch-all!
+      (g/let-ec [sync-hash (script-annotations/sync-hash script-annotations evaluation-context)
+                 workspace (g/node-value project :workspace evaluation-context)
+                 project-root (g/raw-property-value (:basis evaluation-context) workspace :root)]
+        (lsp/set-servers!
+          lsp
+          (-> ext-language-servers
+              (conj (lsp.project/language-server project))
+              (into (built-in-lua-language-servers project-root sync-hash))))))))
 
 ;; endregion
 
@@ -642,86 +807,93 @@
 (def commands-coercer
   (coerce/vector-of commands/command-coercer))
 
-(defn- reload-commands! [project state evaluation-context]
-  (let [{:keys [display-output! rt]} state]
-    (handler/register! ::commands
-      :handlers
-      (into []
-            (mapcat
-              (fn [[path lua-ret]]
-                (error-handling/try-with-extension-exceptions
-                  :display-output! display-output!
-                  :label (str "Reloading commands in " path)
-                  :catch nil
-                  (eduction
-                    (keep (fn [command]
-                            (error-handling/try-with-extension-exceptions
-                              :display-output! display-output!
-                              :label (str (:label command) " in " path)
-                              :catch nil
-                              (commands/command->dynamic-handler command path project state))))
-                    (rt/->clj rt commands-coercer lua-ret)))))
-            (execute-all-top-level-functions state :get_commands {} evaluation-context)))))
+(defn- command-handlers [project state evaluation-context]
+  (let [{:keys [rt]} state]
+    (into []
+          (mapcat
+            (fn [[path lua-ret]]
+              (error-handling/try-with-extension-exceptions
+                :rt rt
+                :label (str "Reloading commands in " path)
+                :catch nil
+                (eduction
+                  (keep (fn [command]
+                          (error-handling/try-with-extension-exceptions
+                            :rt rt
+                            :label (str (:label command) " in " path)
+                            :catch nil
+                            (commands/command->dynamic-handler command path project state))))
+                  (rt/->clj rt commands-coercer lua-ret)))))
+          (execute-all-top-level-functions state :get_commands {} evaluation-context))))
 
-(defn- reload-prefs! [project-path state evaluation-context]
-  (let [{:keys [display-output! rt]} state
+(defn- reload-commands! [command-handlers]
+  (handler/register! ::commands :handlers command-handlers))
+
+(defn- prefs-schema [state evaluation-context]
+  (let [{:keys [rt]} state
         report-omitted-schema! (fn report-omitted-schema! [path reason]
-                                 (display-output! :err (str "Omitting prefs schema definition for path '" (string/join "." (map name path)) "': " reason)))
+                                 (.println (rt/stderr rt) (str "Omitting prefs schema definition for path '" (coll/join-to-string "." (e/map name path)) "': " reason)))
         omit-on-conflict (fn omit-on-conflict [a b path]
                            (if (= a b)
                              a
                              (do (report-omitted-schema! path "conflicts with another editor script schema")
-                                 nil)))
-        schema (->> (execute-all-top-level-functions state :get_prefs_schema nil evaluation-context)
-                    (e/keep
-                      (fn [[proj-path lua-ret]]
-                        (error-handling/try-with-extension-exceptions
-                          :display-output! display-output!
-                          :label (str "Reloading prefs schema in " proj-path)
-                          :catch nil
-                          (prefs/subtract-schemas
-                            (fn [_ _ path]
-                              (report-omitted-schema! path (str "'" proj-path "' defines a schema that conflicts with the editor schema")))
-                            (prefs-functions/lua-schema-definition->schema rt lua-ret)
-                            prefs/default-schema))))
-                    (reduce
-                      (fn [a b]
-                        (if a
-                          (prefs/merge-schemas omit-on-conflict a b)
-                          b))
-                      nil))]
-    (when schema
-      (prefs/register-project-schema! project-path schema))))
+                                 nil)))]
+    (->> (execute-all-top-level-functions state :get_prefs_schema nil evaluation-context)
+         (e/keep
+           (fn [[proj-path lua-ret]]
+             (error-handling/try-with-extension-exceptions
+               :rt rt
+               :label (str "Reloading prefs schema in " proj-path)
+               :catch nil
+               (prefs/subtract-schemas
+                 (fn [_ _ path]
+                   (report-omitted-schema! path (str "'" proj-path "' defines a schema that conflicts with the editor schema")))
+                 (prefs-functions/lua-schema-definition->schema rt lua-ret)
+                 prefs/default-schema))))
+         (reduce
+           (fn [a b]
+             (if a
+               (prefs/merge-schemas omit-on-conflict a b)
+               b))
+           nil))))
 
-(defn- reload-server-routes! [state evaluation-context]
-  (let [{:keys [display-output! rt web-server]} state
-        dynamic-routes
-        (->> (execute-all-top-level-functions state :get_http_server_routes nil evaluation-context)
-             (e/mapcat
-               (fn [[proj-path lua-ret]]
-                 (error-handling/try-with-extension-exceptions
-                   :display-output! display-output!
-                   :label (str "Reloading server routes in " proj-path)
-                   :catch nil
-                   (e/map
-                     #(assoc % :proj-path proj-path)
-                     (rt/->clj rt ext.http-server/routes-coercer lua-ret)))))
-             (group-by (juxt :path :method))
-             (reduce-kv
-               (fn [acc [path method :as path+method] routes]
-                 (if (= 1 (count routes))
-                   (let [{:keys [handler proj-path]} (routes 0)]
-                     (assoc-in acc path+method (with-meta handler {:proj-path proj-path})))
-                   (do
-                     (display-output! :err (str "Omitting conflicting routes for '"
-                                                method " " path "' defined in "
-                                                (->> routes
-                                                     (map :proj-path)
-                                                     (distinct)
-                                                     sort
-                                                     (util/join-words ", " " and "))))
-                     acc)))
-               {}))
+(defn- reload-prefs! [project-path prefs-schema]
+  (when prefs-schema
+    (prefs/register-project-schema! project-path prefs-schema)))
+
+(defn- dynamic-routes [state evaluation-context]
+  (let [{:keys [rt]} state]
+    (->> (execute-all-top-level-functions state :get_http_server_routes nil evaluation-context)
+         (e/mapcat
+           (fn [[proj-path lua-ret]]
+             (error-handling/try-with-extension-exceptions
+               :rt rt
+               :label (str "Reloading server routes in " proj-path)
+               :catch nil
+               (e/map
+                 #(assoc % :proj-path proj-path)
+                 (rt/->clj rt ext.http-server/routes-coercer lua-ret)))))
+         (group-by (juxt :path :method))
+         (reduce-kv
+           (fn [acc [path method :as path+method] routes]
+             (if (= 1 (count routes))
+               (let [{:keys [handler proj-path]} (routes 0)]
+                 (assoc-in acc path+method (vary-meta handler assoc :proj-path proj-path)))
+               (do
+                 (-> rt
+                     rt/stderr
+                     (.println
+                       (str "Omitting conflicting routes for '" method " " path "' defined in "
+                            (->> routes
+                                 (map :proj-path)
+                                 (distinct)
+                                 sort
+                                 (util/join-words ", " " and ")))))
+                 acc)))
+           {}))))
+
+(defn- reload-server-routes! [state dynamic-routes]
+  (let [{:keys [rt web-server]} state
         handler (http-server/handler web-server)]
     (try
       (web-server/set-dynamic-routes! handler dynamic-routes)
@@ -750,8 +922,8 @@
                                                     a-is-dynamic [a-path]
                                                     b-is-dynamic [b-path]
                                                     :else (throw (ex-info "Didn't expect 2 built-in routes to conflict" {:a a-path :b b-path})))]
-                               (display-output!
-                                 :err
+                               (.println
+                                 (rt/stderr rt)
                                  (str "Omitting conflicting routes for "
                                       (util/join-words ", " " and " (map #(str "'" % "'") excluded-paths))
                                       " defined in "
@@ -784,13 +956,19 @@
                          :on_target_launched coerce/function
                          :on_target_terminated coerce/function}))
 
-(def ^:private bundle-editor-script-prototype
+(defn- read-bundle-editor-script []
   (rt/read (io/resource "bundle.editor_script") "bundle.editor_script"))
 
+(def ^:private bundle-editor-script-prototype
+  ;; reloadable in dev
+  (if (system/defold-dev?)
+    (reify IDeref (deref [_] (read-bundle-editor-script)))
+    (reduced (read-bundle-editor-script))))
+
 (defn- re-create-ext-state [initial-state evaluation-context]
-  (let [{:keys [rt display-output!]} initial-state]
+  (let [{:keys [rt]} initial-state]
     (->> (e/concat
-           [bundle-editor-script-prototype]
+           [@bundle-editor-script-prototype]
            (:library-prototypes initial-state)
            (:project-prototypes initial-state))
          (reduce
@@ -798,20 +976,20 @@
              (cond
                (instance? LuaError x)
                (do
-                 (display-output! :err (str "Compilation failed" (some->> (ex-message x) (str ": "))))
+                 (.println (rt/stderr rt) (str "Compilation failed" (some->> (ex-message x) (str ": "))))
                  acc)
 
                (instance? Prototype x)
                (let [proto-path (.tojstring (.-source ^Prototype x))]
                  (if-let [module (error-handling/try-with-extension-exceptions
-                                   :display-output! display-output!
+                                   :rt rt
                                    :label (str "Loading " proto-path)
                                    :catch nil
-                                   (rt/->clj rt module-coercer (rt/invoke-immediate-1 rt (rt/bind rt x) evaluation-context)))]
+                                   (rt/->clj rt module-coercer (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} (rt/bind rt x))))]
                    (-> acc
                        (update :all add-all-entry proto-path module)
                        (cond-> (= hooks-file-path proto-path)
-                               (assoc :hooks module)))
+                         (assoc :hooks module)))
                    acc))
 
                (nil? x)
@@ -838,11 +1016,27 @@
 (defn- resolve-file [^Path project-path _ ^String file-name]
   (str (ensure-file-path-in-project-directory project-path file-name)))
 
-(def ^:private prelude-prototype (rt/read (io/resource "prelude.lua") "prelude.lua"))
+(defn- read-prelude-lua []
+  (rt/read (io/resource "prelude.lua") "prelude.lua"))
+
+(def ^:private prelude-prototype
+  (if (system/defold-dev?)
+    (reify IDeref (deref [_] (read-prelude-lua)))
+    (reduced (read-prelude-lua))))
 
 ;; endregion
 
 ;; region public API
+
+(defn reload-needed?
+  "Return true if reloading editor scripts would change the runtime"
+  [project evaluation-context]
+  (let [extensions (g/node-value project :editor-extensions evaluation-context)
+        state (g/user-data extensions :state)]
+    (or (not= (:project-reload-signature state)
+              (g/node-value extensions :project-reload-signature evaluation-context))
+        (not= (:library-reload-signature state)
+              (g/node-value extensions :library-reload-signature evaluation-context)))))
 
 (defn reload!
   "Reload the extensions
@@ -854,6 +1048,7 @@
   Required kv-args:
     :web-server           http server associated with the project
     :prefs                editor prefs
+    :localization         the editor localization instance
     :reload-resources!    0-arg function that asynchronously reloads the editor
                           resources, returns a CompletableFuture (that might
                           complete exceptionally if reload fails)
@@ -864,100 +1059,119 @@
     :save!                0-arg function that asynchronously saves any unsaved
                           changes, returns CompletableFuture (that might
                           complete exceptionally if reload fails)
-    :open-resource!       1-arg function that asynchronously opens the supplied
-                          resource either in an editor tab or in another app that
-                          has OS-defined file association, returns
+    :open-resource!       2-arg function that asynchronously opens the supplied
+                          resource with an options map, either in an editor tab
+                          or in another app, returns
                           CompletableFuture (that might complete exceptionally
                           if resource could not be opened)
-    :invoke-bob!          3-arg function that asynchronously invokes bob and
+    :fetch-libraries!     0-arg function that asynchronously fetches libraries,
+                          returns a CompletableFuture that completes with tuple
+                          [library-results reload-succeeded]
+    :invoke-bob!          2-arg function that asynchronously invokes bob and
                           returns a CompletableFuture (which may complete
                           exceptionally if bob invocation fails). The args:
                             options               bob options, a map from string
                                                   to bob option value, see
                                                   editor.pipeline.bob/invoke!
                             commands              bob commands, vector of
-                                                  strings
-                            evaluation-context    evaluation context of the
-                                                  invocation"
-  [project kind & {:keys [web-server prefs reload-resources! display-output! save! open-resource! invoke-bob!] :as opts}]
-  {:pre [web-server prefs reload-resources! display-output! save! open-resource! invoke-bob!]}
-  (g/with-auto-evaluation-context evaluation-context
-    (let [basis (:basis evaluation-context)
-          extensions (g/node-value project :editor-extensions evaluation-context)
-          old-state (ext-state project evaluation-context)
-          workspace (project/workspace project evaluation-context)
-          project-path (.toPath (workspace/project-directory basis workspace))
-          rt (rt/make
-               :find-resource (partial find-resource project)
-               :resolve-file (partial resolve-file project-path)
-               :close-written (rt/suspendable-lua-fn [_]
-                                (future/then (reload-resources!) rt/and-refresh-context))
-               :out (line-writer #(display-output! :out %))
-               :err (line-writer #(display-output! :err %))
-               :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
-                               "get" (make-ext-get-fn project)
-                               "can_add" (graph/make-ext-can-add-fn project)
-                               "can_get" (make-ext-can-get-fn project)
-                               "can_reorder" (graph/make-ext-can-reorder-fn project)
-                               "can_reset" (graph/make-ext-can-reset-fn project)
-                               "can_set" (make-ext-can-set-fn project)
-                               "command" commands/ext-command-fn
-                               "create_directory" (make-ext-create-directory-fn project reload-resources!)
-                               "create_resources" (make-ext-create-resources-fn project reload-resources!)
-                               "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
-                               "resource_attributes" (make-ext-resource-attributes-fn project)
-                               "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
-                               "execute" (make-ext-execute-fn project-path display-output! reload-resources!)
-                               "bob" (make-ext-bob-fn invoke-bob!)
-                               "browse" ext-browse-fn
-                               "open_external_file" ext-open-external-file-fn
-                               "platform" (.getPair (Platform/getHostPlatform))
-                               "prefs" (prefs-functions/env prefs)
-                               "save" (make-ext-save-fn save!)
-                               "transact" ext-transact
-                               "tx" {"set" (make-ext-tx-set-fn project)
-                                     "add" (graph/make-ext-add-fn project)
-                                     "clear" (graph/make-ext-clear-fn project)
-                                     "remove" (graph/make-ext-remove-fn project)
-                                     "reorder" (graph/make-ext-reorder-fn project)
-                                     "reset" (graph/make-ext-reset-fn project)}
-                               "ui" (assoc
-                                      (ui-components/env workspace project project-path)
-                                      "open_resource" (make-open-resource-fn workspace open-resource!))
-                               "version" (system/defold-version)
-                               "engine_sha1" (system/defold-engine-sha1)
-                               "editor_sha1" (system/defold-editor-sha1)}
-                     "http" {"request" ext-http-request
-                             "server" (ext.http-server/env workspace project-path web-server)}
-                     "json" {"decode" ext-json-decode
-                             "encode" ext-json-encode}
-                     "io" {"tmpfile" nil}
-                     "os" {"execute" nil
-                           "exit" nil
-                           "remove" (make-ext-remove-file-fn project-path reload-resources!)
-                           "rename" nil
-                           "setlocale" nil
-                           "tmpname" nil}
-                     "pprint" ext-pprint
-                     "tilemap" tile-map/env
-                     "zip" (zip/env project-path reload-resources!)})
-          _ (rt/invoke-immediate rt (rt/bind rt prelude-prototype) evaluation-context)
-          new-state (re-create-ext-state
-                      (assoc opts
-                        :rt rt
-                        :library-prototypes (if (or (= :all kind) (= :library kind))
-                                              (g/node-value extensions :library-prototypes evaluation-context)
-                                              (:library-prototypes old-state []))
-                        :project-prototypes (if (or (= :all kind) (= :project kind))
-                                              (g/node-value extensions :project-prototypes evaluation-context)
-                                              (:project-prototypes old-state [])))
-                      evaluation-context)]
-      (g/user-data-swap! extensions :state (constantly new-state))
-      (reload-prefs! project-path new-state evaluation-context)
-      (reload-language-servers! project new-state evaluation-context)
-      (reload-commands! project new-state evaluation-context)
-      (reload-server-routes! new-state evaluation-context)
-      nil)))
+                                                  strings"
+  [project kind & {:keys [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!] :as opts}]
+  {:pre [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!]}
+  (g/let-ec [basis (:basis evaluation-context)
+             lsp (lsp/get-lsp basis)
+             script-annotations (project/script-annotations project evaluation-context)
+             extensions (g/node-value project :editor-extensions evaluation-context)
+             old-state (ext-state project evaluation-context)
+             reload-project (or (= :all kind) (= :project kind))
+             reload-library (or (= :all kind) (= :library kind))
+             workspace (project/workspace project evaluation-context)
+             project-path (.toPath (workspace/project-directory basis workspace))
+             rt (rt/make
+                  :find-resource (partial find-resource project)
+                  :resolve-file (partial resolve-file project-path)
+                  :close-written (rt/suspendable-lua-fn [_]
+                                   (future/then (reload-resources!) rt/and-refresh-context))
+                  :out (line-writer #(display-output! :out %))
+                  :err (line-writer #(display-output! :err %))
+                  :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
+                                  "get" (make-ext-get-fn project localization)
+                                  "can_add" (graph/make-ext-can-add-fn project)
+                                  "can_get" (make-ext-can-get-fn project)
+                                  "can_reorder" (graph/make-ext-can-reorder-fn project)
+                                  "can_reset" (graph/make-ext-can-reset-fn project)
+                                  "can_set" (make-ext-can-set-fn project)
+                                  "properties" (make-ext-properties-fn project)
+                                  "command" commands/ext-command-fn
+                                  "create_directory" (make-ext-create-directory-fn project reload-resources!)
+                                  "create_resources" (make-ext-create-resources-fn project reload-resources!)
+                                  "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
+                                  "resource_attributes" (make-ext-resource-attributes-fn project)
+                                  "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
+                                  "execute" (make-ext-execute-fn project-path reload-resources!)
+                                  "bob" (make-ext-bob-fn invoke-bob!)
+                                  "browse" ext-browse-fn
+                                  "open_external_file" ext-open-external-file-fn
+                                  "platform" (.getPair (Platform/getHostPlatform))
+                                  "prefs" (prefs-functions/env prefs)
+                                  "save" (make-ext-save-fn save!)
+                                  "fetch_libraries" (make-ext-fetch-libraries-fn fetch-libraries! localization)
+                                  "transact" ext-transact
+                                  "tx" {"set" (make-ext-tx-set-fn project)
+                                        "add" (graph/make-ext-add-fn project)
+                                        "clear" (graph/make-ext-clear-fn project)
+                                        "remove" (graph/make-ext-remove-fn project)
+                                        "reorder" (graph/make-ext-reorder-fn project)
+                                        "reset" (graph/make-ext-reset-fn project)}
+                                  "ui" (assoc
+                                         (ui-components/env workspace project project-path localization)
+                                         "open_resource" (make-open-resource-fn workspace open-resource!))
+                                  "version" (system/defold-version)
+                                  "engine_sha1" (system/defold-engine-sha1)
+                                  "editor_sha1" (system/defold-editor-sha1)}
+                        "http" {"request" (make-ext-http-request-fn project-path reload-resources!)
+                                "server" (ext.http-server/env workspace project-path web-server)}
+                        "image" (ext.image/env project-path)
+                        "json" {"decode" ext-json-decode
+                                "encode" ext-json-encode}
+                        "io" {"tmpfile" nil}
+                        "localization" (ext.localization/env localization)
+                        "os" {"execute" nil
+                              "exit" nil
+                              "remove" (make-ext-remove-file-fn project-path reload-resources!)
+                              "rename" nil
+                              "setlocale" nil
+                              "tmpname" nil}
+                        "pprint" ext-pprint
+                        "tilemap" tile-map/env
+                        "zip" (zip/env project-path reload-resources!)
+                        "zlib" zlib/env})
+             _ (rt/invoke-immediate rt {:evaluation-context evaluation-context} (rt/bind rt @prelude-prototype))
+             new-state (re-create-ext-state
+                         (assoc opts
+                           :rt rt
+                           :project-reload-signature (if reload-project
+                                                       (g/node-value extensions :project-reload-signature evaluation-context)
+                                                       (:project-reload-signature old-state))
+                           :library-reload-signature (if reload-library
+                                                       (g/node-value extensions :library-reload-signature evaluation-context)
+                                                       (:library-reload-signature old-state))
+                           :library-prototypes (if reload-library
+                                                 (g/node-value extensions :library-prototypes evaluation-context)
+                                                 (:library-prototypes old-state []))
+                           :project-prototypes (if reload-project
+                                                 (g/node-value extensions :project-prototypes evaluation-context)
+                                                 (:project-prototypes old-state [])))
+                         evaluation-context)
+             prefs-schema (prefs-schema new-state evaluation-context)
+             ext-language-servers (ext-language-servers new-state evaluation-context)
+             command-handlers (command-handlers project new-state evaluation-context)
+             dynamic-routes (dynamic-routes new-state evaluation-context)]
+    (g/user-data-swap! extensions :state (constantly new-state))
+    (reload-prefs! project-path prefs-schema)
+    (reload-language-servers! project lsp script-annotations ext-language-servers)
+    (reload-commands! command-handlers)
+    (reload-server-routes! new-state dynamic-routes)
+    nil))
 
 (defn- hook-exception->error [^Throwable ex project hook-keyword]
   (let [^Throwable root (stacktrace/root-cause ex)
@@ -969,9 +1183,9 @@
                :message (str (name hook-keyword) " in " hooks-file-path " failed: " message)
                :severity :fatal}
 
-              line
-              (assoc-in [:user-data :cursor-range]
-                        (data/line-number->CursorRange (Integer/parseInt line)))))))
+        line
+        (assoc-in [:user-data :cursor-range]
+                  (data/line-number->CursorRange (Integer/parseInt line)))))))
 
 (defn execute-hook!
   "Execute hook defined in this project
@@ -994,22 +1208,21 @@
                            :ignore      return nil
                          When not provided, the exception will be re-thrown"
   [project hook-keyword opts & {:keys [exception-policy]}]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [{:keys [rt display-output! hooks] :as state} (ext-state project evaluation-context)]
-      (if-let [lua-fn (get hooks hook-keyword)]
-        (-> (rt/invoke-suspending-1 rt lua-fn (rt/->lua opts))
-            (future/then
-              (fn [lua-result]
-                (when-not (rt/coerces-to? rt coerce/null lua-result)
-                  (lsp.async/with-auto-evaluation-context evaluation-context
-                    (actions/perform! lua-result project state evaluation-context)))))
-            (future/catch
-              (fn [ex]
-                (error-handling/display-script-error! display-output! (str "hook " (name hook-keyword)) ex)
-                (case exception-policy
-                  :as-error (hook-exception->error ex project hook-keyword)
-                  :ignore nil
-                  (throw ex)))))
-        (future/completed nil)))))
+  (g/let-ec [{:keys [rt hooks] :as state} (ext-state project evaluation-context)]
+    (if-let [lua-fn (get hooks hook-keyword)]
+      (-> (rt/invoke-suspending-1 rt lua-fn (rt/->lua opts))
+          (future/then
+            (fn [lua-result]
+              (when-not (rt/coerces-to? rt coerce/null lua-result)
+                (lsp.async/with-auto-evaluation-context evaluation-context
+                  (actions/perform! lua-result project state evaluation-context)))))
+          (future/catch
+            (fn [ex]
+              (error-handling/display-script-error! rt (str "hook " (name hook-keyword)) ex)
+              (case exception-policy
+                :as-error (hook-exception->error ex project hook-keyword)
+                :ignore nil
+                (throw ex)))))
+      (future/completed nil))))
 
 ;; endregion

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,18 +18,21 @@
             [editor.gl :as gl]
             [editor.gl.texture :as texture]
             [editor.image-util :as image-util]
+            [editor.localization :as localization]
             [editor.pipeline.tex-gen :as tex-gen]
+            [editor.pose :as pose]
+            [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
+            [editor.texture-util :as texture-util]
             [editor.workspace :as workspace])
   (:import [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
-           [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
-           [java.awt.image BufferedImage]))
+           [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]))
 
 (set! *warn-on-reflection* true)
 
-(def exts ["jpg" "png"])
+(def exts ["jpg" "jpeg" "png"])
 
 (defn image-resource?
   [resource]
@@ -88,12 +91,13 @@
                   :compress? (:compress-textures? build-settings false)
                   :texture-profile texture-profile}})])
 
-(defn- generate-gpu-texture [{:keys [texture-image]} request-id params unit]
-  (texture/texture-image->gpu-texture request-id texture-image params unit))
-
-(defn- generate-content [{:keys [digest-ignored/error-node-id resource]}]
-  (resource-io/with-error-translation resource error-node-id :resource
-    (image-util/read-image resource)))
+(g/defnk produce-scene [_node-id size gpu-texture texture-profile]
+  (g/precluding-errors
+    [size gpu-texture]
+    (let [{:keys [width height]} size]
+      (assoc (render-util/make-outlined-textured-quad-scene #{:image} pose/default width height gpu-texture 0)
+        :node-id _node-id
+        :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))))))
 
 (g/defnode ImageNode
   (inherits resource-node/ResourceNode)
@@ -108,36 +112,30 @@
                                (resource-io/with-error-translation resource _node-id :size
                                  (image-util/read-size resource))))
 
-  (output content BufferedImage (g/fnk [content-generator]
-                                  ((:f content-generator) (:args content-generator))))
+  (output content-generator g/Any :cached
+          (g/fnk [_node-id resource]
+            (texture-util/make-buffered-image-generator resource _node-id :content-generator)))
 
-  (output content-generator g/Any (g/fnk [_node-id resource :as args]
-                                    {:f generate-content
-                                     :args (-> args
-                                               (dissoc :_node-id)
-                                               (assoc :digest-ignored/error-node-id _node-id))
-                                     :sha1 (resource/resource->path-inclusive-sha1-hex resource)}))
+  (output gpu-texture-generator g/Any :cached
+          (g/fnk [_node-id content-generator texture-profile]
+            (texture-util/make-gpu-texture-generator _node-id content-generator texture-profile)))
 
-  (output texture-image g/Any (g/fnk [content texture-profile] (tex-gen/make-preview-texture-image content texture-profile)))
+  (output gpu-texture g/Any :cached
+          (g/fnk [gpu-texture-generator]
+            (-> (texture-util/generate-gpu-texture gpu-texture-generator)
+                (texture/set-params {:min-filter gl/nearest
+                                     :mag-filter gl/nearest}))))
 
   ;; NOTE: The anim-data and gpu-texture outputs allow standalone images to be used in place of texture sets in legacy projects.
   (output anim-data g/Any (g/fnk [size]
                             {nil (assoc size
-                                   :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
+                                   :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]
+                                             :tex-coords-raw [[0.0 0.0] [0.0 1.0] [1.0 1.0] [1.0 0.0]]
+                                             :atlas-rotated false}]
                                    :uv-transforms [(TextureSetGenerator$UVTransform.)])}))
 
   (output texture-page-count g/Int (g/constantly texture/non-paged-page-count))
-
-  (output gpu-texture g/Any :cached (g/fnk [_node-id texture-image]
-                                      (texture/texture-image->gpu-texture _node-id
-                                                                          texture-image
-                                                                          {:min-filter gl/nearest
-                                                                           :mag-filter gl/nearest})))
-
-  (output gpu-texture-generator g/Any (g/fnk [texture-image :as args]
-                                        {:f    generate-gpu-texture
-                                         :args args}))
-
+  (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn- load-image
@@ -150,11 +148,11 @@
   (concat
     (workspace/register-resource-type workspace
                                       :ext exts
-                                      :label "Image"
+                                      :label (localization/message "resource.type.image")
                                       :icon "icons/32/Icons_25-AT-Image.png"
                                       :build-ext "texturec"
                                       :node-type ImageNode
                                       :load-fn load-image
                                       :stateless? true
-                                      :view-types [:default])
+                                      :view-types [:scene :default])
     (workspace/register-resource-type workspace :ext "texture")))

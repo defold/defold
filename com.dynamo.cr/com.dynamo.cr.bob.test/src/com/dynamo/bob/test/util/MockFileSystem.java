@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -85,7 +85,7 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
 
     // Sort a list of paths based on lexicographically
     // Needed to be able to mimic the directory traversal on disc
-    class SortPath implements Comparator<String> {
+    static class SortPath implements Comparator<String> {
         public int compare(String a, String b) {
             return a.compareTo(b);
         }
@@ -95,7 +95,7 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
         List<String> paths = new ArrayList<String>();
         Iterator<Map.Entry<String, MockResource>> it = resources.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, MockResource> entry = (Map.Entry<String, MockResource>)it.next();
+            Map.Entry<String, MockResource> entry = it.next();
             paths.add(entry.getKey());
         }
         Collections.sort(paths, new SortPath());
@@ -109,7 +109,7 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
         ListIterator<String> it = paths.listIterator(0);
 
         while (it.hasNext()) {
-            String entryPath = (String) it.next();
+            String entryPath = it.next();
 
             boolean isInPath = entryPath.startsWith(path);
             if (isInPath) {
@@ -118,7 +118,7 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
                     if (!walker.handleDirectory(entryPath, results)) {
                         // If we should skip this directory, continue loop until entryPath does not match anymore.
                         while (it.hasNext()) {
-                            String subEntryPath = (String) it.next();
+                            String subEntryPath = it.next();
                             if (!subEntryPath.startsWith(entryPath)) {
                                 it.previous();
                                 break;

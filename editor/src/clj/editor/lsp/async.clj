@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -104,6 +104,6 @@
   "Like g/with-auto-evaluation-context, but for the background threads"
   [ec & body]
   `(let [~ec (g/make-evaluation-context)
-         ret# (do ~@body)]
+         ret# (g/do-strict-evaluation-context-scope-body ~@body)]
      (fx/on-fx-thread (g/update-cache-from-evaluation-context! ~ec))
      ret#))

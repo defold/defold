@@ -2,7 +2,6 @@ syntax = "proto2";
 package dmRenderDDF;
 
 import "ddf/ddf_extensions.proto";
-import "ddf/ddf_math.proto";
 
 option java_package = "com.dynamo.render.proto";
 option java_outer_classname = "Font";
@@ -19,6 +18,48 @@ enum FontRenderMode
 {
     MODE_SINGLE_LAYER = 0 [(displayName) = "Single Layer"];
     MODE_MULTI_LAYER  = 1 [(displayName) = "Multi Layer"];
+}
+
+// Authored style definitions use opening-only rich-text markup. The reserved
+// default entry has no markup; its values are generated from FontDesc.
+message StyleDesc
+{
+    required string name = 1;
+    optional string markup = 2;
+}
+
+message StyleEffect
+{
+    enum Type { GRADIENT = 0; WAVE = 1; SHAKE = 2; }
+    required Type type = 1;
+    optional uint32 fit = 2;
+    optional float hz = 3;
+    optional float amplitude = 4;
+    optional float wavelength = 5;
+    optional uint32 gradient_mode = 6;
+    repeated float colors = 7; // BL, BR, TL, TR RGBA
+}
+
+// Typed, platform-independent render data. Flags identify explicitly authored
+// properties; separate alpha values allow inheriting the component's RGB.
+message CompiledStyle
+{
+    required string name = 1;
+    required uint64 name_hash = 2;
+    optional uint32 flags = 3;
+    repeated float face_color = 4;
+    repeated float outline_color = 5;
+    repeated float shadow_color = 6;
+    optional float outline_width = 7;
+    optional float shadow_x = 8;
+    optional float shadow_y = 9;
+    optional float shadow_blur = 10;
+    optional float outline_alpha = 11 [default = 1.0];
+    optional float shadow_alpha = 12 [default = 1.0];
+    optional uint32 decoration_flags = 13;
+    optional uint32 underline_pattern = 14;
+    optional uint32 strike_pattern = 15;
+    repeated StyleEffect effects = 16;
 }
 
 // Source format only
@@ -43,55 +84,7 @@ message FontDesc
     optional uint32 cache_height = 16 [default = 0];
     optional FontRenderMode render_mode = 17 [default = MODE_SINGLE_LAYER];
     optional string characters = 18 [default = ""];
-}
-
-// Used at runtime
-message GlyphBank
-{
-
-// TODO: Bob shouldn't write down X/Y, in order to slim down content!
-    message Glyph
-    {
-        required uint32 character         = 1;                  // utf8 codepoint
-        optional float  width             = 2 [default = 0];    // glyph width
-        optional uint32 image_width       = 3 [default = 0];    // glyph image width
-        optional float  advance           = 4 [default = 0.0];
-        optional float  left_bearing      = 5 [default = 0.0];
-        optional int32  ascent            = 6 [default = 0]; // WHY 32 bits???
-        optional int32  descent           = 7 [default = 0]; // WHY 32 bits???
-        optional int32  x                 = 8 [default = 0]; // only used in editor preview
-        optional int32  y                 = 9 [default = 0]; // only used in editor preview
-        optional uint64 glyph_data_offset = 10; // WHY 64 bits???
-        optional uint64 glyph_data_size   = 11; // 32 bits should suffice?
-    }
-
-    repeated Glyph             glyphs                = 1;
-    optional uint64            glyph_padding         = 2 [default = 0];
-    optional uint32            glyph_channels        = 3 [default = 0];
-    optional bytes             glyph_data            = 4; // glyph data may be compressed
-
-    optional float             max_ascent            = 5 [default = 0.0];
-    optional float             max_descent           = 6 [default = 0.0];
-    optional float             max_advance           = 7 [default = 0.0];
-    optional float             max_width             = 8 [default = 0.0];
-    optional float             max_height            = 9 [default = 0.0];
-    optional FontTextureFormat image_format          = 10 [default = TYPE_BITMAP];
-
-    // TODO: Move to fontDesc
-    optional float             sdf_spread            = 11 [default = 1.0];
-    optional float             sdf_outline           = 12 [default = 0.0];
-    optional float             sdf_shadow            = 13 [default = 0.0];
-
-    // TODO: Move to fontDesc
-    optional uint32            cache_width           = 14 [default = 0];
-    optional uint32            cache_height          = 15 [default = 0];
-
-    optional uint32            cache_cell_width      = 16 [default = 0];
-    optional uint32            cache_cell_height     = 17 [default = 0];
-    optional uint32            cache_cell_max_ascent = 18 [default = 0];
-
-    optional uint32            padding               = 19 [default = 0];
-    optional bool              is_monospaced         = 20 [default = false];
+    repeated StyleDesc styles = 19;
 }
 
 // Used at runtime.
@@ -126,5 +119,5 @@ message FontMap
     optional float sdf_outline    = 21 [default = 0.0];
     optional float sdf_shadow     = 22 [default = 0.0];
     optional uint32 padding       = 23 [default = 0];
+    repeated CompiledStyle styles = 24;
 }
-

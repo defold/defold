@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,15 +17,19 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.cache :as c]
             [internal.graph :as ig]
             [internal.graph.generator :as ggen]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [schema.core :as s]
-            [support.test-support :refer [tx-nodes with-clean-system]]))
+            [support.test-support :as test-support :refer [tx-nodes with-clean-system]]
+            [util.coll :as coll]
+            [util.fn :as fn]
+            [util.macro :as macro]))
 
 (defn occurrences [coll]
-  (vals (frequencies coll)))
+  (vec (coll/vals (frequencies coll))))
 
 (defn random-graph
   []
@@ -36,45 +40,76 @@
     (is (= 1 (apply max (occurrences (ig/node-ids g)))))))
 
 (deftest removing-node
-  (let [v      "Any ig/node value"
-        g      (random-graph)
-        id     (inc (count (:nodes g)))
-        g      (ig/add-node g id v)
-        g      (ig/graph-remove-node g id nil)]
+  (let [g (random-graph)
+        id (inc (count (gt/nodes g)))
+        v (in/->NodeImpl id nil)
+        g (ig/add-node g id v)
+        g (test-support/graph-remove-node g id)]
     (is (nil? (ig/node-id->node g id)))
-    (is (empty? (filter #(= "Any ig/node value" %) (ig/node-values g))))))
-
-(defn targets [g n l] (map gt/target (get-in g [:sarcs n l])))
-(defn sources [g n l] (map gt/source (get-in g [:tarcs n l])))
+    (is (coll/not-any? #(identical? v %) (ig/node-values g)))))
 
 (defn- source-arcs-without-targets
   [g]
-  (for [source                (ig/node-ids g)
-        source-label          (-> (ig/node-id->node g source) g/node-type in/output-labels)
-        [target target-label] (targets g source source-label)
-        :when                 (not (some #(= % [source source-label]) (sources g target target-label)))]
+  (for [source       (vec (ig/node-ids g))
+        source-label (-> (ig/node-id->node g source) g/node-type in/output-labels)
+        arc          (ig/arcs-by-source g source source-label)
+        :let         [target (gt/target-id arc)
+                      target-label (gt/target-label arc)]
+        :when        (not (coll/any? #(and (= source (gt/source-id %))
+                                           (= source-label (gt/source-label %)))
+                                     (ig/arcs-by-target g target target-label)))]
     [source source-label]))
 
 (defn- target-arcs-without-sources
   [g]
-  (for [target                (ig/node-ids g)
-        target-label          (-> (ig/node-id->node g target) g/node-type in/input-labels)
-        [source source-label] (sources g target target-label)
-        :when                 (not (some #(= % [target target-label]) (targets g source source-label)))]
+  (for [target       (vec (ig/node-ids g))
+        target-label (-> (ig/node-id->node g target) g/node-type in/input-labels)
+        arc          (ig/arcs-by-target g target target-label)
+        :let         [source (gt/source-id arc)
+                      source-label (gt/source-label arc)]
+        :when        (not (coll/any? #(and (= target (gt/target-id %))
+                                           (= target-label (gt/target-label %)))
+                                     (ig/arcs-by-source g source source-label)))]
     [target target-label]))
 
 (defn- arcs-are-reflexive?
   [g]
-  (and (empty? (source-arcs-without-targets g))
-       (empty? (target-arcs-without-sources g))))
+  (and (coll/empty? (source-arcs-without-targets g))
+       (coll/empty? (target-arcs-without-sources g))))
 
 (deftest reflexivity
   (let [g (random-graph)]
     (is (arcs-are-reflexive? g))))
 
+(deftest batch-arc-updates-test
+  (let [first-arc (gt/->Arc 1 :out 10 :in)
+        second-arc (gt/->Arc 2 :out 10 :in)
+        third-arc (gt/->Arc 1 :out 11 :in)
+        changes (array-map first-arc [[0 3] [1 4]]
+                           second-arc [[0] [0]]
+                           third-arc [[1] [0]]
+                           (gt/->Arc 3 :out 12 :in) [[0] []]
+                           (gt/->Arc 4 :out 13 :in) [[] [0]]
+                           (gt/->Arc 5 :out 14 :in) [[] []])
+        empty-basis (ig/empty-graph)
+        connected-basis (reduce-kv ig/basis-perform-connect-arc-pkids empty-basis changes)]
+    (doseq [basis [empty-basis
+                   connected-basis
+                   (update connected-basis :sarcs dissoc 1)
+                   (update-in connected-basis [:tarcs 10] dissoc :in)]
+            changes [changes {}]
+            [batch-fn single-fn] [[ig/basis-perform-connect-arcs ig/basis-perform-connect-arc-pkids]
+                                  [ig/basis-revert-connect-arcs ig/basis-perform-disconnect-arc-pkids]]]
+      (let [expected (reduce-kv single-fn basis changes)
+            actual (batch-fn basis changes)]
+        (is (= expected actual))
+        (doseq [arc-tables-fn [gt/sarcs gt/tarcs]]
+          (is (= (coll/map-vals #(coll/map-vals ig/arc-table-next-pkid %) (arc-tables-fn expected))
+                 (coll/map-vals #(coll/map-vals ig/arc-table-next-pkid %) (arc-tables-fn actual)))))))))
+
 (deftest transformable
   (let [g      (random-graph)
-        id     (inc (count (:nodes g)))
+        id     (inc (count (gt/nodes g)))
         g      (ig/add-node g id {:number 0})
         g'     (ig/transform-node g id update-in [:number] inc)]
     (is (not= g g'))
@@ -115,9 +150,9 @@
   (property custom-val g/Str
             (value (g/fnk [val] val)))
   (output custom-val g/Str :cached (g/fnk [custom-val]
-                                          (if (= custom-val "throw")
-                                            (throw (ex-info "TestNode initialized to throw in output custom-val" {}))
-                                            custom-val)))
+                                     (if (= custom-val "throw")
+                                       (throw (ex-info "TestNode initialized to throw in output custom-val" {}))
+                                       custom-val)))
   (output val-val g/Str :cached (g/fnk [val] (str val val))))
 
 (g/defnode PassthroughNode
@@ -129,70 +164,28 @@
 
 (deftest graph-override-cleanup
   (with-clean-system
-    (let [[original override] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]
-                                                      (g/override n)))
+    (let [[original override] (tx-nodes (g/make-nodes [n (TestNode :val "original")]
+                                          (g/override n)))
           basis (g/now)]
       (is (= override (first (ig/get-overrides basis original))))
       (g/transact (g/delete-node original))
       (let [basis (g/now)]
-        (is (empty? (ig/get-overrides basis original)))
-        (is (empty? (get-in basis [:graphs world :overrides])))))))
+        (is (coll/empty? (ig/get-overrides basis original)))
+        (is (coll/empty? (gt/overrides basis)))))))
 
 (deftest graph-values
   (with-clean-system
-    (g/set-graph-value! world :things {})
-    (is (= {} (g/graph-value world :things)))
-    (g/transact (g/update-graph-value world :things assoc :a 1))
-    (is (= {:a 1} (g/graph-value world :things)))))
-
-(deftest with-system
-  (testing "property value change does not affect original"
-    (with-clean-system
-      (let [[n] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]))]
-        (is (= "original" (g/node-value n :val)))
-        (let [clone (g/clone-system)]
-          (g/with-system clone
-            (g/transact (g/set-property n :val "cloned"))
-            (is (= "cloned" (g/node-value n :val)))))
-        (is (= "original" (g/node-value n :val))))))
-
-  (testing "deleting node does not affect original"
-    (with-clean-system
-      (let [[n] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]))]
-        (let [clone (g/clone-system)]
-          (g/with-system clone
-            (g/transact (g/delete-node n))
-            (is (= nil (g/node-by-id n)))))
-        (is (not= nil (g/node-by-id n))))))
-
-  (testing "changing cache does not affect original"
-    (with-clean-system
-      (let [[n] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]))]
-        (is (= "original" (g/node-value n :val)))
-
-        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
-        (is (= "originaloriginal" (g/node-value n :val-val)))
-        (is (= "originaloriginal" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
-
-        (let [clone (g/clone-system)]
-          (g/with-system clone
-            (is (= "originaloriginal" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
-
-            (g/transact (g/set-property n :val "cloned"))
-            (is (= "cloned" (g/node-value n :val)))
-
-            (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
-            (is (= "clonedcloned" (g/node-value n :val-val)))
-            (is (= "clonedcloned" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))))
-
-        (is (= "originaloriginal" (cc/lookup (g/cache) (gt/endpoint n :val-val) :miss)))))))
+    (g/set-graph-value! :things {})
+    (is (= {} (g/graph-value :things)))
+    (g/transact (g/update-graph-value :things assoc :a 1))
+    (is (= {:a 1} (g/graph-value :things)))))
 
 (deftest evaluation-context
-  (testing "node-value sees state of graphs as given in evaluation-context"
+  (testing "node-value sees the graph state from the evaluation-context"
     (with-clean-system
-      (let [[n n2] (tx-nodes (g/make-nodes world [n (TestNode :val "initial")
-                                                  n2 PassthroughNode]
-                                           (g/connect n :val n2 :str-in)))
+      (let [[n n2] (tx-nodes (g/make-nodes [n (TestNode :val "initial")
+                                            n2 PassthroughNode]
+                               (g/connect n :val n2 :str-in)))
             init-ec (g/make-evaluation-context)]
         (g/transact (g/set-property n :val "changed"))
         (is (= "changed" (g/node-value n :val)))
@@ -205,9 +198,9 @@
 
   (testing "passing evaluation context does not automatically update cache"
     (with-clean-system
-      (let [[n n2] (tx-nodes (g/make-nodes world [n (TestNode :val "initial")
-                                                  n2 PassthroughNode]
-                                           (g/connect n :val n2 :str-in)))
+      (let [[_n n2] (tx-nodes (g/make-nodes [n (TestNode :val "initial")
+                                             n2 PassthroughNode]
+                                (g/connect n :val n2 :str-in)))
             init-ec (g/make-evaluation-context)]
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
         (g/node-value n2 :str-out init-ec)
@@ -217,9 +210,9 @@
 
   (testing "Updating cache does not change entries for invalidated outputs"
     (with-clean-system
-      (let [[n n2] (tx-nodes (g/make-nodes world [n (TestNode :val "initial")
-                                                  n2 PassthroughNode]
-                                           (g/connect n :val n2 :str-in)))
+      (let [[n n2] (tx-nodes (g/make-nodes [n (TestNode :val "initial")
+                                            n2 PassthroughNode]
+                               (g/connect n :val n2 :str-in)))
             init-ec (g/make-evaluation-context)]
         (g/node-value n2 :str-out init-ec)
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
@@ -230,11 +223,23 @@
 
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss))))))
 
+  (testing "Updating cache adds entries unaffected by ordinary transactions"
+    (with-clean-system
+      (let [[n other] (tx-nodes (g/make-nodes [_n (TestNode :val "initial")
+                                               _other (TestNode :val "other")]))
+            init-ec (g/make-evaluation-context)]
+        (g/node-value n :val-val init-ec)
+
+        (g/transact (g/set-property other :val "changed"))
+        (g/update-cache-from-evaluation-context! init-ec)
+
+        (is (= "initialinitial" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss))))))
+
   (testing "Update cache does not add entries for deleted nodes"
     (with-clean-system
-      (let [[n n2] (tx-nodes (g/make-nodes world [n (TestNode :val "initial")
-                                                  n2 PassthroughNode]
-                                           (g/connect n :val n2 :str-in)))
+      (let [[_n n2] (tx-nodes (g/make-nodes [n (TestNode :val "initial")
+                                             n2 PassthroughNode]
+                                (g/connect n :val n2 :str-in)))
             init-ec (g/make-evaluation-context)]
         (g/node-value n2 :str-out init-ec)
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
@@ -243,44 +248,104 @@
 
         (g/update-cache-from-evaluation-context! init-ec)
 
-        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))))))
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss))))))
+
+  (testing "Update cache does not add entries for nodes deleted with full invalidation"
+    (with-clean-system
+      (let [n (g/make-node! TestNode :val "initial")
+            endpoint (gt/endpoint n :val-val)
+            init-ec (g/make-evaluation-context)]
+        (g/node-value n :val-val init-ec)
+        (is (= ::miss (cc/lookup (g/cache) endpoint ::miss)))
+
+        (g/transact {:full-invalidation true}
+          (g/delete-node n))
+
+        (g/update-cache-from-evaluation-context! init-ec)
+
+        (is (= ::miss (cc/lookup (g/cache) endpoint ::miss))))))
+
+  (testing "Update cache ignores evaluation contexts invalidated in full"
+    (with-clean-system
+      (let [n (g/make-node! TestNode :val "initial")
+            init-ec (g/make-evaluation-context)
+            published-systems (atom [])
+            watch-key (Object.)]
+        (is (= "initialinitial" (g/node-value n :val-val init-ec)))
+
+        (add-watch g/*the-system* watch-key
+                   (fn [_ _ _ system]
+                     (swap! published-systems conj system)))
+        (try
+          (g/transact {:full-invalidation true}
+            (g/set-property n :val "changed"))
+          (finally
+            (remove-watch g/*the-system* watch-key)))
+
+        (is (= 1 (count @published-systems)))
+        (is (identical? fn/constantly-true
+                        (g/endpoint-invalidated-pred
+                          (g/evaluation-context-invalidate-counters init-ec))))
+
+        (g/update-cache-from-evaluation-context! init-ec)
+
+        (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
+        (is (= "changedchanged" (g/node-value n :val-val))))))
+
+  (testing "No-op full invalidation does not invalidate evaluation contexts"
+    (with-clean-system
+      (let [n (g/make-node! TestNode :val "initial")
+            init-ec (g/make-evaluation-context)
+            system-before @g/*the-system*]
+        (g/node-value n :val-val init-ec)
+
+        (is (= :empty (:status (g/transact {:full-invalidation true} []))))
+        (is (identical? system-before @g/*the-system*))
+
+        (g/update-cache-from-evaluation-context! init-ec)
+
+        (is (= "initialinitial" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))))))
 
 (deftest tracer
   (with-clean-system
-    (let [[tn n1] (tx-nodes (g/make-nodes world [tn (TestNode :val "initial")
-                                                 n1 PassthroughNode]
-                                          (g/connect tn :custom-val n1 :str-in)))]
-      (let [result (atom nil)]
-        (g/node-value n1 :str-out (g/make-evaluation-context {:tracer (g/make-tree-tracer result)}))
-        (is (= @result
-               {:node-id n1,
+    (let [[tn n1] (tx-nodes (g/make-nodes [tn (TestNode :val "initial")
+                                           n1 PassthroughNode]
+                              (g/connect tn :custom-val n1 :str-in)))
+          result (atom nil)]
+      (g/node-value n1 :str-out (g/make-evaluation-context {:tracer (g/make-tree-tracer result)}))
+      (is (= @result
+             {:node-id n1,
+              :output-type :output,
+              :label :str-out,
+              :dependencies
+              [{:node-id tn,
                 :output-type :output,
-                :label :str-out,
+                :label :custom-val,
                 :dependencies
                 [{:node-id tn,
-                  :output-type :output,
+                  :output-type :property,
                   :label :custom-val,
                   :dependencies
                   [{:node-id tn,
-                    :output-type :property,
-                    :label :custom-val,
-                    :dependencies
-                    [{:node-id tn,
-                      :output-type :raw-property,
-                      :label :val,
-                      :dependencies [],
-                      :state :end}],
+                    :output-type :raw-property,
+                    :label :val,
+                    :dependencies [],
                     :state :end}],
                   :state :end}],
-                :state :end}))
+                :state :end}],
+              :state :end}))
 
-        ;; here we disable :local-temp because we're only testing for :local caching
-        (let [ec (g/make-evaluation-context {:tracer (g/make-tree-tracer result) :no-local-temp true})]
-          (g/node-value n1 :_properties ec)
-          (is (= @result
-                 {:node-id n1,
+      ;; here we disable :local-temp because we're only testing for :local caching
+      (let [ec (g/make-evaluation-context {:tracer (g/make-tree-tracer result) :no-local-temp true})]
+        (g/node-value n1 :_properties ec)
+        (is (= @result
+               {:node-id n1,
+                :output-type :output,
+                :label :_properties,
+                :dependencies
+                [{:node-id n1,
                   :output-type :output,
-                  :label :_properties,
+                  :label :_declared-properties,
                   :dependencies
                   [{:node-id n1,
                     :output-type :dynamic,
@@ -306,43 +371,38 @@
                           :state :end}],
                         :state :end}],
                       :state :end}],
-                    :state :end}],
-                  :state :end}))
-
-          ;; Now, ec :local contains n :custom-val, so trace is slightly shorter.
-          ;; Note that the tree tracer in the ec can be reused.
-
-          (g/node-value n1 :_properties ec)
-          (is (= @result
-                 {:node-id n1,
-                  :output-type :output,
-                  :label :_properties,
-                  :dependencies
-                  [{:node-id n1,
-                    :output-type :dynamic,
-                    :label [:str-prop :str-prop-dynamic],
-                    :dependencies [],
-                    :state :end}
-                   {:node-id n1,
-                    :output-type :property,
-                    :label :str-prop,
-                    :dependencies
-                    [{:node-id tn,
-                      :output-type :cache,
-                      :label :custom-val
-                      :dependencies []
-                      :state :end}]
                     :state :end}]
-                  :state :end})))
+                  :state :end}],
+                :state :end}))
 
-        (g/transact (g/set-property tn :val "throw"))
+        ;; Now, ec :local contains n1 :_declared-properties, so trace is shorter.
+        ;; Note that the tree tracer in the ec can be reused.
 
-        (let [ec (g/make-evaluation-context {:tracer (g/make-tree-tracer result)})]
-          (is (thrown? Exception (g/node-value n1 :_properties ec)))
-          (is (= @result
-                 {:node-id n1,
+        (g/node-value n1 :_properties ec)
+        (is (= @result
+               {:node-id n1,
+                :output-type :output,
+                :label :_properties,
+                :dependencies
+                [{:node-id n1,
+                  :output-type :cache,
+                  :label :_declared-properties,
+                  :dependencies [],
+                  :state :end}]
+                :state :end})))
+
+      (g/transact (g/set-property tn :val "throw"))
+
+      (let [ec (g/make-evaluation-context {:tracer (g/make-tree-tracer result)})]
+        (is (thrown? Exception (g/node-value n1 :_properties ec)))
+        (is (= @result
+               {:node-id n1,
+                :output-type :output,
+                :label :_properties,
+                :dependencies
+                [{:node-id n1,
                   :output-type :output,
-                  :label :_properties,
+                  :label :_declared-properties,
                   :dependencies
                   [{:node-id n1,
                     :output-type :dynamic,
@@ -368,22 +428,27 @@
                           :state :end}],
                         :state :end}],
                       :state :fail}],
-                    :state :fail}],
-                  :state :fail})))
+                    :state :fail}]
+                  :state :fail}],
+                :state :fail})))
 
-        (g/transact (g/set-property tn :val "no throw"))
-        (reset! result nil)
+      (g/transact (g/set-property tn :val "no throw"))
+      (reset! result nil)
 
-        (let [ec (g/make-evaluation-context {:tracer (juxt (g/make-tree-tracer result)
-                                                           (fn [state node-id output-type label]
-                                                             (when (= [state node-id label] [:end tn :custom-val])
-                                                               (throw (ex-info "tracer somehow failed" {})))))})]
+      (let [ec (g/make-evaluation-context {:tracer (juxt (g/make-tree-tracer result)
+                                                         (fn [state node-id _output-type label]
+                                                           (when (= [state node-id label] [:end tn :custom-val])
+                                                             (throw (ex-info "tracer somehow failed" {})))))})]
 
-          (is (thrown? Exception (g/node-value n1 :_properties ec)))
-          (is (= @result
-                 {:node-id 1,
+        (is (thrown? Exception (g/node-value n1 :_properties ec)))
+        (is (= @result
+               {:node-id 1,
+                :output-type :output,
+                :label :_properties,
+                :dependencies
+                [{:node-id 1,
                   :output-type :output,
-                  :label :_properties,
+                  :label :_declared-properties,
                   :dependencies
                   [{:node-id 1,
                     :output-type :dynamic,
@@ -409,16 +474,238 @@
                           :state :end}],
                         :state :end}],
                       :state :fail}],
-                    :state :fail}],
-                  :state :fail})))))))
+                    :state :fail}]
+                  :state :fail}],
+                :state :fail}))))))
+
+(g/defnode TracerTestNode
+  (property property g/Any)
+  (input input g/Any)
+  (output output g/Any (g/fnk [] nil))
+
+  (property property<=property g/Any (value (g/fnk [property] property)))
+  (property property<=input g/Any (value (g/fnk [input] input)))
+  (property property<=output g/Any (value (g/fnk [output] output)))
+
+  (output output<=property g/Any (g/fnk [property] property))
+  (output output<=input g/Any (g/fnk [input] input))
+  (output output<=output g/Any (g/fnk [output] output)))
+
+(defn- trace [node-id label]
+  (let [result-atom (atom nil)
+        tracer (g/make-tree-tracer result-atom)
+        basis (g/now)
+        evaluation-context (g/make-evaluation-context
+                             {:basis basis
+                              :cache c/null-cache
+                              :no-local-temp true
+                              :tracer tracer})]
+    (g/node-value node-id label evaluation-context)
+    @result-atom))
+
+(defn- cache-trace [node-id label]
+  {:node-id node-id
+   :label label
+   :output-type :cache
+   :state :end
+   :dependencies []})
+
+(defn- with-first-dependency [trace-result dependency]
+  (assoc-in trace-result [:dependencies 0] dependency))
+
+(defn- check-general-tracer-results! [source target]
+  (testing "Isolated."
+    (is (= {:node-id target
+            :label :property
+            :output-type :raw-property
+            :state :end
+            :dependencies []}
+           (trace target :property)))
+    (is (= {:node-id source
+            :label :output
+            :output-type :output
+            :state :end
+            :dependencies []}
+           (trace target :input)))
+    (is (= {:node-id target
+            :label :output
+            :output-type :output
+            :state :end
+            :dependencies []}
+           (trace target :output))))
+
+  (testing "Property dependencies."
+    (is (= {:node-id target
+            :label :property<=property
+            :output-type :property
+            :state :end
+            :dependencies [(trace target :property)]}
+           (trace target :property<=property)))
+    (is (= {:node-id target
+            :label :property<=input
+            :output-type :property
+            :state :end
+            :dependencies [(trace target :input)]}
+           (trace target :property<=input)))
+    (is (= {:node-id target
+            :label :property<=output
+            :output-type :property
+            :state :end
+            :dependencies [(trace target :output)]}
+           (trace target :property<=output))))
+
+  (testing "Output dependencies."
+    (is (= {:node-id target
+            :label :output<=property
+            :output-type :output
+            :state :end
+            :dependencies [(trace target :property)]}
+           (trace target :output<=property)))
+    (is (= {:node-id target
+            :label :output<=input
+            :output-type :output
+            :state :end
+            :dependencies [(trace target :input)]}
+           (trace target :output<=input)))
+    (is (= {:node-id target
+            :label :output<=output
+            :output-type :output
+            :state :end
+            :dependencies [(trace target :output)]}
+           (trace target :output<=output))))
+
+  (testing "Basic intrinsics."
+    (is (= {:node-id target
+            :label :_node-id
+            :output-type :raw-property
+            :state :end
+            :dependencies []}
+           (trace target :_node-id)))
+    (is (= {:node-id target
+            :label :_output-jammers
+            :output-type :raw-property
+            :state :end
+            :dependencies []}
+           (trace target :_output-jammers)))
+    (is (= {:node-id target
+            :label :_overridden-properties
+            :output-type :output
+            :state :end
+            :dependencies []}
+           (trace target :_overridden-properties)))))
+
+(deftest tracer-results-for-regular-node
+  (with-clean-system
+    (let [[source
+           target]
+          (tx-nodes
+            (g/make-nodes [source TracerTestNode
+                           target TracerTestNode]
+              (g/connect source :output target :input)))]
+
+      (check-general-tracer-results! source target)
+
+      (testing "Property-related intrinsics."
+        (is (= {:node-id target
+                :label :_declared-properties
+                :output-type :output
+                :state :end
+                :dependencies [(trace target :property)
+                               (trace target :property<=property)
+                               (trace target :property<=input)
+                               (trace target :property<=output)]}
+               (trace target :_declared-properties)))
+        (is (= {:node-id target
+                :label :_properties
+                :output-type :output
+                :state :end
+                :dependencies [(trace target :_declared-properties)]}
+               (trace target :_properties)))))))
+
+(deftest tracer-results-for-first-order-override-node
+  (with-clean-system
+    (let [[source
+           target
+           first-order-override-target]
+          (tx-nodes
+            (g/make-nodes [source TracerTestNode
+                           target TracerTestNode]
+              (g/connect source :output target :input)
+              (g/override target)))]
+
+      (check-general-tracer-results! source first-order-override-target)
+
+      (testing "Property-related intrinsics."
+        (is (= {:node-id first-order-override-target
+                :label :_declared-properties
+                :output-type :output
+                :state :end
+                :dependencies [(trace target :_declared-properties)
+                               (trace first-order-override-target :property)
+                               (trace first-order-override-target :property<=property)
+                               (trace first-order-override-target :property<=input)
+                               (trace first-order-override-target :property<=output)]}
+               (trace first-order-override-target :_declared-properties)))
+        (is (= {:node-id first-order-override-target
+                :label :_properties
+                :output-type :output
+                :state :end
+                :dependencies [(trace target :_properties)
+                               (with-first-dependency
+                                 (trace first-order-override-target :_declared-properties)
+                                 (cache-trace target :_declared-properties))]}
+               (trace first-order-override-target :_properties)))))))
+
+(deftest tracer-results-for-second-order-override-node
+  (with-clean-system
+    (let [[source
+           target
+           first-order-override-target
+           second-order-override-target]
+          (tx-nodes
+            (g/make-nodes [source TracerTestNode
+                           target TracerTestNode]
+              (g/connect source :output target :input)
+              (g/override target {}
+                (fn [_evaluation-context id-mapping]
+                  (let [first-order-override-target (get id-mapping target)]
+                    (g/override first-order-override-target))))))]
+
+      (check-general-tracer-results! source second-order-override-target)
+
+      (testing "Property-related intrinsics."
+        (is (= {:node-id second-order-override-target
+                :label :_declared-properties
+                :output-type :output
+                :state :end
+                :dependencies [(trace first-order-override-target :_declared-properties)
+                               (trace second-order-override-target :property)
+                               (trace second-order-override-target :property<=property)
+                               (trace second-order-override-target :property<=input)
+                               (trace second-order-override-target :property<=output)]}
+               (trace second-order-override-target :_declared-properties)))
+        (is (= {:node-id second-order-override-target
+                :label :_properties
+                :output-type :output
+                :state :end
+                :dependencies [(trace first-order-override-target :_properties)
+                               (with-first-dependency
+                                 (trace second-order-override-target :_declared-properties)
+                                 {:node-id first-order-override-target
+                                  :label :_declared-properties
+                                  :output-type :output
+                                  :state :end
+                                  :dependencies [(cache-trace target :_declared-properties)
+                                                 (cache-trace first-order-override-target :_declared-properties)]})]}
+               (trace second-order-override-target :_properties)))))))
 
 (deftest valid-node-value
   (with-clean-system
     (let [[error-node consumer-node]
           (tx-nodes
             (g/make-nodes
-              world [error-node (TestNode :val "initial")
-                     consumer-node PassthroughNode]
+              [error-node (TestNode :val "initial")
+               consumer-node PassthroughNode]
               (g/connect error-node :val consumer-node :str-in)))]
       (is (= (g/node-value consumer-node :str-out)
              (g/valid-node-value consumer-node :str-out)))
@@ -483,8 +770,8 @@
           [producer-node consumer-node]
           (tx-nodes
             (g/make-nodes
-              world [producer-node (TestNode :val "initial")
-                     consumer-node PassthroughNode]
+              [producer-node (TestNode :val "initial")
+               consumer-node PassthroughNode]
               (g/connect producer-node :val consumer-node :str-in)))
 
           [or-consumer-node or-producer-node]
@@ -512,7 +799,229 @@
 
 (deftest defective?-test
   (with-clean-system
-    (let [error-node (g/make-node! world TestNode :val "initial")]
+    (let [error-node (g/make-node! TestNode :val "initial")]
       (is (false? (g/defective? error-node)))
       (g/mark-defective! error-node (g/error-fatal "bad"))
       (is (true? (g/defective? error-node))))))
+
+(g/defnode LetECTestNode
+  (property value g/Any)
+  (output cached-value g/Any :cached (g/fnk [value] value)))
+
+(defmacro check-let-ec [let-ec-sym]
+  `(do
+     (testing "Creates and merges evaluation-context."
+       (with-clean-system
+         (let [~'value (Object.)
+               ~'node-id (g/make-node! LetECTestNode :value ~'value)]
+           (~let-ec-sym
+             [~'cached-value (g/node-value ~'node-id :cached-value ~'evaluation-context)
+              ~'local-cache-atom (:local ~'evaluation-context)
+              ~'local-cache-before-merge (deref ~'local-cache-atom)
+              ~'system-cache-before-merge (g/cache)]
+             (let [~'system-cache-after-merge (g/cache)
+                   ~'cached-endpoint (g/endpoint ~'node-id :cached-value)]
+               (is (identical? ~'value ~'cached-value))
+               (is (= {~'cached-endpoint ~'cached-value} ~'local-cache-before-merge))
+               (is (nil? (cc/lookup ~'system-cache-before-merge ~'cached-endpoint)))
+               (is (identical? ~'value (cc/lookup ~'system-cache-after-merge ~'cached-endpoint))))))))
+
+     (testing "Nested let-ec scopes merge independently."
+       (with-clean-system
+         (let [~'outer-node-id (g/make-node! LetECTestNode :value "outer")
+               ~'inner-node-id (g/make-node! LetECTestNode :value "inner")]
+           (~let-ec-sym
+             [~'outer-value (g/node-value ~'outer-node-id :cached-value ~'evaluation-context)]
+             (is (= "outer" ~'outer-value))
+             (~let-ec-sym
+               [~'inner-value (g/node-value ~'inner-node-id :cached-value ~'evaluation-context)]
+               (is (= "inner" ~'inner-value)))
+             (is (cc/has? (g/cache) (g/endpoint ~'inner-node-id :cached-value))))
+           (is (cc/has? (g/cache) (g/endpoint ~'outer-node-id :cached-value))))))
+
+     (testing "Bindings can use results of prior bindings."
+       (with-clean-system
+         (let [~'referencing-node-id (g/make-node! LetECTestNode :value {:referenced-node-id (g/make-node! LetECTestNode :value "referenced node value")})]
+           (~let-ec-sym
+             [~'referencing-node-value (g/node-value ~'referencing-node-id :cached-value ~'evaluation-context)
+              ~'referenced-node-id (:referenced-node-id ~'referencing-node-value)
+              ~'referenced-node-value (g/node-value ~'referenced-node-id :cached-value ~'evaluation-context)]
+             (let [~'system-cache-after-merge (g/cache)]
+               (is (cc/has? ~'system-cache-after-merge (g/endpoint ~'referencing-node-id :cached-value)))
+               (is (cc/has? ~'system-cache-after-merge (g/endpoint ~'referenced-node-id :cached-value)))
+               (is (= "referenced node value" ~'referenced-node-value)))))))
+
+     (testing "Vector destructuring."
+       (with-clean-system
+         (let [~'node-id (g/make-node! LetECTestNode)]
+           (testing "Anonymous vector."
+             (g/set-property! ~'node-id :value ["one" "two"])
+             (~let-ec-sym
+               [[~'one ~'two]
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= "one" ~'one))
+               (is (= "two" ~'two))))
+           (testing "Vector of strings."
+             (g/set-property! ~'node-id :value ["one" "two" "three"])
+             (~let-ec-sym
+               [[~'one ~'two ~'three ~'four :as ~'value]
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= ["one" "two" "three"] ~'value))
+               (is (= "one" ~'one))
+               (is (= "two" ~'two))
+               (is (= "three" ~'three))
+               (is (nil? ~'four))))
+           (testing "Vector of vectors."
+             (g/set-property! ~'node-id :value [["one-one" "one-two"]
+                                                ["two-one" "two-two"]])
+             (~let-ec-sym
+               [[[~'one-one ~'one-two :as ~'one]
+                 [~'two-one ~'two-two :as ~'two]
+                 :as ~'value]
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= [["one-one" "one-two"] ["two-one" "two-two"]] ~'value))
+               (is (= ["one-one" "one-two"] ~'one))
+               (is (= ["two-one" "two-two"] ~'two))
+               (is (= "one-one" ~'one-one))
+               (is (= "one-two" ~'one-two))
+               (is (= "two-one" ~'two-one))
+               (is (= "two-two" ~'two-two))))
+           (testing "Vector of maps."
+             (g/set-property! ~'node-id :value [{:one-one "one-one" :one-two "one-two"}
+                                                {:two-one "two-one" :two-two "two-two"}])
+             (~let-ec-sym
+               [[{:keys [~'one-one ~'one-two] :as ~'one}
+                 {:keys [~'two-one ~'two-two] :as ~'two}
+                 :as ~'value]
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= [{:one-one "one-one" :one-two "one-two"} {:two-one "two-one" :two-two "two-two"}] ~'value))
+               (is (= {:one-one "one-one" :one-two "one-two"} ~'one))
+               (is (= {:two-one "two-one" :two-two "two-two"} ~'two))
+               (is (= "one-one" ~'one-one))
+               (is (= "one-two" ~'one-two))
+               (is (= "two-one" ~'two-one))
+               (is (= "two-two" ~'two-two)))))))
+
+     (testing "Map destructuring."
+       (with-clean-system
+         (let [~'node-id (g/make-node! LetECTestNode)]
+           (testing "Anonymous map."
+             (g/set-property! ~'node-id :value {:one "one" :two "two"})
+             (~let-ec-sym
+               [{:keys [~'one ~'two]}
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= "one" ~'one))
+               (is (= "two" ~'two))))
+           (testing "Map with string values."
+             (g/set-property! ~'node-id :value {:one "one" :two "two" :three "three"})
+             (~let-ec-sym
+               [{:keys [~'one ~'two ~'three ~'four] :as ~'value}
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= {:one "one" :two "two" :three "three"} ~'value))
+               (is (= "one" ~'one))
+               (is (= "two" ~'two))
+               (is (= "three" ~'three))
+               (is (nil? ~'four))))
+           (testing "Map with map values."
+             (g/set-property! ~'node-id :value {:one {:one-one "one-one" :one-two "one-two"}
+                                                :two {:two-one "two-one" :two-two "two-two"}})
+             (~let-ec-sym
+               [{{:keys [~'one-one ~'one-two] :as ~'one} :one
+                 {:keys [~'two-one ~'two-two] :as ~'two} :two
+                 :as ~'value}
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= {:one {:one-one "one-one" :one-two "one-two"} :two {:two-one "two-one" :two-two "two-two"}} ~'value))
+               (is (= {:one-one "one-one" :one-two "one-two"} ~'one))
+               (is (= {:two-one "two-one" :two-two "two-two"} ~'two))
+               (is (= "one-one" ~'one-one))
+               (is (= "one-two" ~'one-two))
+               (is (= "two-one" ~'two-one))
+               (is (= "two-two" ~'two-two))))
+           (testing "Map with vector values."
+             (g/set-property! ~'node-id :value {:one ["one-one" "one-two"]
+                                                :two ["two-one" "two-two"]})
+             (~let-ec-sym
+               [{[~'one-one ~'one-two :as ~'one] :one
+                 [~'two-one ~'two-two :as ~'two] :two
+                 :as ~'value}
+                (g/node-value ~'node-id :cached-value ~'evaluation-context)]
+               (is (= {:one ["one-one" "one-two"] :two ["two-one" "two-two"]} ~'value))
+               (is (= ["one-one" "one-two"] ~'one))
+               (is (= ["two-one" "two-two"] ~'two))
+               (is (= "one-one" ~'one-one))
+               (is (= "one-two" ~'one-two))
+               (is (= "two-one" ~'two-one))
+               (is (= "two-two" ~'two-two))))
+           (testing ":or expressions are evaluated once per key."
+             (let [~'or-eval-atom (atom {})
+                   ~'or-eval-fn! (fn ~'or-eval-fn! [~'key]
+                                   (swap! ~'or-eval-atom update ~'key (fnil inc 0)))]
+               (~let-ec-sym [{:keys [~'foo ~'bar]
+                              :or {~'foo (~'or-eval-fn! :foo)
+                                   ~'bar (~'or-eval-fn! :bar)}} {}])
+               (is (= {:foo 1 :bar 1} (deref ~'or-eval-atom)))))
+           (testing "Bindings evaluate in order with :or and :as."
+             (let [~'eval-atom (atom 0)]
+               (~let-ec-sym
+                 [{:keys [~'foo] :or {~'foo (swap! ~'eval-atom inc)} :as ~'map-value} {}
+                  [~'one ~'two :as ~'vec-value] [~'foo (swap! ~'eval-atom inc)]]
+                 (is (= {} ~'map-value))
+                 (is (= [1 2] ~'vec-value))
+                 (is (= 1 ~'one))
+                 (is (= 2 ~'two))
+                 (is (= 2 (deref ~'eval-atom)))))))))))
+
+(defmacro let-ec-strict [bindings & body]
+  (apply #'g/let-ec-strict-form bindings body))
+
+(deftest let-ec-strict-test
+  (check-let-ec let-ec-strict)
+
+  (testing "Evaluation context is inaccessible outside let bindings."
+    (is (= (macro/conform-gensyms
+             `(let [[~'basis vec# ~'node-id ~'resource ~'node-id+resource ~'save-value ~'dirty]
+                    (g/with-auto-evaluation-context ~'evaluation-context
+                      (let* [~'basis (:basis ~'evaluation-context)
+                             vec# (g/node-value ~'resource-node :node-id+resource ~'evaluation-context)
+                             ~'node-id (nth vec# 0 nil)
+                             ~'resource (nth vec# 1 nil)
+                             ~'node-id+resource vec#
+                             ~'save-value (g/node-value ~'node-id :save-value ~'evaluation-context)
+                             ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
+                        [~'basis vec# ~'node-id ~'resource ~'node-id+resource ~'save-value ~'dirty]))]
+                (make-save-data ~'node-id ~'resource ~'save-value ~'dirty)))
+           (macro/conform-gensyms
+             (#'g/let-ec-strict-form
+               `[~'basis (:basis ~'evaluation-context)
+                 [~'node-id ~'resource :as ~'node-id+resource] (g/node-value ~'resource-node :node-id+resource ~'evaluation-context)
+                 ~'save-value (g/node-value ~'node-id :save-value ~'evaluation-context)
+                 ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
+               `(make-save-data ~'node-id ~'resource ~'save-value ~'dirty)))))))
+
+(defmacro let-ec-relaxed [bindings & body]
+  (apply #'g/let-ec-relaxed-form 'hidden-evaluation-context bindings body))
+
+(deftest let-ec-relaxed-test
+  (check-let-ec let-ec-relaxed)
+
+  (testing "Evaluation context is inaccessible outside let bindings."
+    (let [evaluation-context-sym (gensym "evaluation-context__")]
+      (is (= (macro/conform-gensyms
+               `(let [~evaluation-context-sym (g/make-evaluation-context)
+                      ~'basis (let [~'evaluation-context ~evaluation-context-sym]
+                                (:basis ~'evaluation-context))
+                      [~'node-id ~'resource :as ~'node-id+resource] (let [~'evaluation-context ~evaluation-context-sym]
+                                                                      (g/node-value ~'resource-node :node-id+resource ~'evaluation-context))
+                      ~'save-value (let [~'evaluation-context ~evaluation-context-sym]
+                                     (g/node-value ~'node-id :save-value ~'evaluation-context))
+                      ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
+                  (g/update-cache-from-evaluation-context! ~evaluation-context-sym)
+                  (make-save-data ~'node-id ~'resource ~'save-value ~'dirty)))
+             (macro/conform-gensyms
+               (#'g/let-ec-relaxed-form
+                 evaluation-context-sym
+                 `[~'basis (:basis ~'evaluation-context)
+                   [~'node-id ~'resource :as ~'node-id+resource] (g/node-value ~'resource-node :node-id+resource ~'evaluation-context)
+                   ~'save-value (g/node-value ~'node-id :save-value ~'evaluation-context)
+                   ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
+                 `(make-save-data ~'node-id ~'resource ~'save-value ~'dirty))))))))

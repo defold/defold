@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -34,6 +34,8 @@
    :max   (- (:max after) (:max before))
    :free  (- (:free after) (:free before))
    :used  (- (:used after) (:used before))})
+
+(def ^:const ^:long max-engine-instance-count 4)
 
 (defn os-name
   ^String []
@@ -91,6 +93,10 @@
 (defn defold-dev? []
   (or (some? (System/getProperty "defold.dev"))
       (not (defold-version))))
+
+(defn defold-log-dir
+  ^String []
+  (System/getProperty "defold.log.dir"))
 
 (defn defold-unpack-path
   ^String []

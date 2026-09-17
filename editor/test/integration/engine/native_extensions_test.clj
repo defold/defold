@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,14 +20,16 @@
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
             [editor.engine.native-extensions :as native-extensions]
-            [editor.fs :as fs]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
+            [editor.yaml :as yaml]
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]]
             [util.repo :as repo])
-  (:import [com.dynamo.bob Platform]
-           [com.dynamo.bob.archive EngineVersion]))
+  (:import [com.defold.extender.client ExtenderResource]
+           [com.dynamo.bob Platform]
+           [com.dynamo.bob.archive EngineVersion]
+           [java.nio.charset StandardCharsets]))
 
 (defn fix-engine-sha1 [f]
   (let [engine-sha1 (or (repo/detect-engine-sha1) EngineVersion/sha1)]
@@ -38,7 +40,7 @@
 
 (deftest ^:native-extensions extension-roots-test
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+    (let [workspace (test-util/setup-workspace! "test/resources/extension_project")
           project (test-util/setup-project! workspace)]
       (g/with-auto-evaluation-context evaluation-context
         (is (= #{"/extension1" "/subdir/extension2"}
@@ -46,21 +48,21 @@
 
 (deftest ^:native-extensions unpack-bin-zip-test
   (testing "${ext}/plugins/${platform}.zip is extracted to /build/plugins/${ext}/plugins/ folder"
-   (with-clean-system
-     (let [workspace (test-util/setup-scratch-workspace! world "test/resources/extension_project")
-           _ (test-util/setup-project! workspace)
-           root (workspace/project-directory workspace)]
-       ;; The plugins/${platform}.zip archive has a following structure:
-       ;; /bin
-       ;;   /${platform}
-       ;;     /lsp.editor_script
-       (is (.exists (io/file (str root (format "/ext_with_bin_zip/plugins/%s.zip" (.getPair (Platform/getHostPlatform)))))))
-       ;; We verify that there is no file resource at
-       ;; plugins/bin/${platform}/lsp.editor_script path that could be extracted
-       ;; to the expected place (so it must come from the zip)
-       (is (not (.exists (io/file (str root (format "/ext_with_bin_zip/plugins/bin/%s/lsp.editor_script" (.getPair (Platform/getHostPlatform))))))))
-       ;; The file is extracted to its place from zip:
-       (is (.exists (io/file (str root (format "/build/plugins/ext_with_bin_zip/plugins/bin/%s/lsp.editor_script" (.getPair (Platform/getHostPlatform)))))))))))
+    (with-clean-system
+      (let [workspace (test-util/setup-scratch-workspace! "test/resources/extension_project")
+            _ (test-util/setup-project! workspace)
+            root (workspace/project-directory workspace)]
+        ;; The plugins/${platform}.zip archive has a following structure:
+        ;; /bin
+        ;;   /${platform}
+        ;;     /lsp.editor_script
+        (is (.exists (io/file (str root (format "/ext_with_bin_zip/plugins/%s.zip" (.getPair (Platform/getHostPlatform)))))))
+        ;; We verify that there is no file resource at
+        ;; plugins/bin/${platform}/lsp.editor_script path that could be extracted
+        ;; to the expected place (so it must come from the zip)
+        (is (not (.exists (io/file (str root (format "/ext_with_bin_zip/plugins/bin/%s/lsp.editor_script" (.getPair (Platform/getHostPlatform))))))))
+        ;; The file is extracted to its place from zip:
+        (is (.exists (io/file (str root (format "/build/plugins/ext_with_bin_zip/plugins/bin/%s/lsp.editor_script" (.getPair (Platform/getHostPlatform)))))))))))
 
 (deftest ^:native-extensions extension-resource-nodes-test
   (letfn [(platform-resources [project platform]
@@ -72,7 +74,7 @@
                    set)))]
     (testing "x86_64-macos"
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+        (let [workspace (test-util/setup-workspace! "test/resources/extension_project")
               project (test-util/setup-project! workspace)]
           (is (= #{"/extension1/ext.manifest"
                    "/extension1/include/file"
@@ -87,7 +89,7 @@
                  (platform-resources project "x86_64-macos"))))))
     (testing "arm64-ios"
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
+        (let [workspace (test-util/setup-workspace! "test/resources/extension_project")
               project (test-util/setup-project! workspace)]
           (is (= #{"/extension1/ext.manifest"
                    "/extension1/include/file"
@@ -101,22 +103,73 @@
                    "/subdir/extension2/src/.gitkeep"}
                  (platform-resources project "arm64-ios"))))))))
 
-(defn- dummy-file [] (fs/create-temp-file! "dummy" ""))
+(defn- extender-resource [resources path]
+  (some #(when (= path (.getPath ^ExtenderResource %)) %) resources))
+
+(defn- extender-resources [resources path]
+  (filter #(= path (.getPath ^ExtenderResource %)) resources))
+
+(defn- extender-resource-content [^ExtenderResource resource]
+  (String. (.getContent resource) StandardCharsets/UTF_8))
+
+(defn- extender-resource-yaml [resources path]
+  (yaml/load (extender-resource-content (extender-resource resources path))))
+
+(defn- make-extender-resources [project platform]
+  (g/with-auto-evaluation-context evaluation-context
+    (#'native-extensions/make-extender-resources project platform evaluation-context)))
+
+(def ^:private expected-editor-build-context
+  {"baseVariant" "debug"
+   "withSymbols" true})
+
+(deftest ^:native-extensions app-manifest-context-test
+  (testing "app manifest is synthesized with editor build options"
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! "test/resources/empty_project")
+            project (test-util/setup-project! workspace)
+            resources (make-extender-resources project "x86_64-macos")]
+        (is (= {"context" expected-editor-build-context}
+               (extender-resource-yaml resources "_app/app.manifest"))))))
+  (testing "configured app manifest is merged with editor build options"
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! "test/resources/extension_project")
+            project (test-util/setup-project! workspace)
+            resources (make-extender-resources project "x86_64-macos")
+            app-manifest-file (io/file (workspace/project-directory workspace) "game.appmanifest")
+            app-manifest (yaml/load (slurp app-manifest-file))]
+        (is (= 1 (count (extender-resources resources "_app/app.manifest"))))
+        (is (= (assoc app-manifest "context" expected-editor-build-context)
+               (extender-resource-yaml resources "_app/app.manifest"))))))
+  (testing "configured app manifest in flow style is merged as yaml data"
+    (with-clean-system
+      (let [workspace (test-util/setup-workspace! "test/resources/extension_project")
+            project (test-util/setup-project! workspace)
+            app-manifest (project/get-resource-node project "/game.appmanifest")]
+        (test-util/set-code-editor-source! app-manifest "{\"platforms\": {\"wasm-web\": {\"context\": {}}}}\n")
+        (let [resources (make-extender-resources project "wasm-web")]
+          (is (= {"context" expected-editor-build-context
+                  "platforms" {"wasm-web" {"context" {}}}}
+                 (extender-resource-yaml resources "_app/app.manifest")))))))
+  (doseq [content ["true\n"
+                   "null\n"
+                   "context: true\n"]]
+    (testing (str "configured invalid app manifest is uploaded unchanged: " (string/trim content))
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! "test/resources/extension_project")
+              project (test-util/setup-project! workspace)
+              app-manifest (project/get-resource-node project "/game.appmanifest")]
+          (test-util/set-code-editor-source! app-manifest content)
+          (let [resources (make-extender-resources project "x86_64-macos")]
+            (is (= content
+                   (extender-resource-content (extender-resource resources "_app/app.manifest"))))))))))
 
 (defn- blocking-async-build! [project prefs]
-  (let [result (promise)]
-    (test-util/run-event-loop!
-      (fn [exit-event-loop!]
-        (app-view/async-build! project
-                               :prefs prefs
-                               :result-fn (fn [build-results]
-                                            (deliver result build-results)
-                                            (exit-event-loop!)))))
-    (deref result)))
+  @(app-view/async-build! project :prefs prefs))
 
 (deftest ^:native-extensions async-build-on-build-server
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/trivial_extension")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/trivial_extension")
           project (test-util/setup-project! workspace)
           test-prefs (test-util/make-build-stage-test-prefs)]
       (assert (= (native-extensions/get-build-server-url test-prefs project) "https://build-stage.defold.com"))

@@ -6,6 +6,7 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/com.dynamo.cr.bob.iml" filepath="$PROJECT_DIR$/.idea/modules/com.dynamo.cr.bob.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/com.dynamo.cr.bob.main.iml" filepath="$PROJECT_DIR$/.idea/modules/com.dynamo.cr.bob.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/com.dynamo.cr.bob.test.iml" filepath="$PROJECT_DIR$/.idea/modules/com.dynamo.cr.bob.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/com.dynamo.cr.com.dynamo.cr.bob.main.iml" filepath="$PROJECT_DIR$/.idea/modules/com.dynamo.cr.com.dynamo.cr.bob.main.iml" />
     </modules>
   </component>
 </project>

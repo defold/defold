@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,13 +19,14 @@
   additional properties of the schema. The schema is largely inspired by JSON
   schema, which is used in vscode extensions that contribute configuration
   used by the language servers. Supported types:
-    :any           anything goes, no validation is performed
     :boolean       a boolean value
     :string        a string
     :password      a string, stored encrypted
     :keyword       a keyword
     :integer       an integer
     :number        floating point number
+    :one-of        multiple-choice schema, requires :schemas that defines a
+                   vector of possible fitting schemas
     :array         homogeneous typed array, requires :item key which defines
                    array item schema
     :set           typed set, requires :item key which defines set item schema
@@ -41,11 +42,10 @@
     :default    explicit default value to use instead of a type default
     :scope      either :global or :project
     :ui         the ui configuration, a map with the following keys:
-                  :label          short description of the schema, a string
-                  :description    longer description of the schema, a string
                   :multiline      for string inputs: whether to show a multiline
                                   text-area, a boolean
-                  :prompt         for string inputs: prompt text
+                  :prompt         for string inputs: unlocalizable prompt text
+                                  (e.g., a URL)
                   :type           different schema type, the input should
                                   support the value
 
@@ -54,60 +54,64 @@
     https://docs.google.com/document/d/17ke9huzMaagHAYmdzGGGRHnDD5ViLZrChT3OYaEXZuU/edit
     https://json-schema.org/understanding-json-schema/reference"
   (:refer-clojure :exclude [get set?])
-  (:require [camel-snake-kebab :as camel]
-            [clojure.edn :as edn]
+  (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
-            [clojure.string :as string]
-            [cognitect.transit :as transit]
             [editor.connection-properties :as connection-properties]
             [editor.fs :as fs]
             [editor.os :as os]
+            [editor.util :as util]
             [service.log :as log]
+            [util.array :as array]
             [util.coll :as coll]
             [util.crypto :as crypto]
             [util.eduction :as e]
-            [util.fn :as fn])
-  (:import [java.io ByteArrayInputStream PushbackReader]
+            [util.fn :as fn]
+            [util.path :as path])
+  (:import [java.io PushbackReader]
            [java.nio.charset StandardCharsets]
-           [java.nio.file Path]
-           [java.util.concurrent Executors ScheduledExecutorService ThreadFactory TimeUnit]
-           [java.util.prefs Preferences]))
+           [java.util.concurrent Executors ScheduledExecutorService ThreadFactory TimeUnit]))
 
 (set! *warn-on-reflection* true)
 
 ;; All types, for reference:
 
-#_[:any :boolean :string :password :keyword :integer :number :array :set :object :object-of :enum :tuple]
+#_[:boolean :string :password :locale :keyword :integer :number :one-of :array :set :object :object-of :enum :tuple]
+
+(defn- vec3-schema [x y z]
+  {:type :object
+   :properties {:x {:type :number :default x}
+                :y {:type :number :default y}
+                :z {:type :number :default z}}})
 
 (def default-schema
   {:type :object
    :properties
-   {:asset-browser {:type :object
+   {:versioning {:type :object
+                 :properties
+                 {:opened-versions {:type :set :item {:type :string}}
+                  :skipped-update-sha1s {:type :object-of
+                                         :key {:type :string}
+                                         :val {:type :string}}}}
+    :asset-browser {:type :object
                     :properties
-                    {:track-active-tab {:type :boolean
-                                        :ui {:label "Track Active Tab in Asset Browser"}}}}
+                    {:track-active-tab {:type :boolean}}}
     :input {:type :object
             :properties
-            {:keymap-path {:type :string
-                           :ui {:label "Path to Custom Keymap"}}}}
+            {:keymap-path {:type :string}}}
     :code {:type :object
            :properties
            {:custom-editor {:type :string}
             :open-file {:type :string :default "{file}"}
             :open-file-at-line {:type :string
-                                :default "{file}:{line}"
-                                :ui {:label "Open File at Line"}}
-            :zoom-on-scroll {:type :boolean :ui {:label "Zoom on Scroll"}}
+                                :default "{file}:{line}"}
+            :zoom-on-scroll {:type :boolean}
             :hover {:type :boolean
-                    :default true
-                    :ui {:label "Hover popup"
-                         :description "Show code documentation popup on hover"}}
+                    :default true}
             :font {:type :object
                    :properties
                    {:name {:type :string
-                           :default "Dejavu Sans Mono"
-                           :ui {:label "Code Editor Font (Requires Restart)"}}
+                           :default "Dejavu Sans Mono"}
                     :size {:type :number :default 12.0}}}
             :find {:type :object
                    :scope :project
@@ -117,9 +121,17 @@
                     :whole-word {:type :boolean}
                     :case-sensitive {:type :boolean}
                     :wrap {:type :boolean :default true}}}
+            :breakpoints {:type :array
+                          :item {:type :object
+                                 :properties {:proj-path {:type :string}
+                                              :row {:type :integer}
+                                              :enabled {:type :boolean :default true}
+                                              :condition {:type :string :default ""}}}
+                          :scope :project}
             :auto-closing-parens {:type :boolean
-                                  :default true
-                                  :ui {:label "Auto-insert closing parens"}}
+                                  :default true}
+            :format-on-save {:type :boolean
+                             :default false}
             :visibility {:type :object
                          :properties
                          {:indentation-guides {:type :boolean :default true}
@@ -127,16 +139,12 @@
                           :whitespace {:type :boolean :default true}}}}}
     :tools {:type :object
             :properties
-            {:adb-path {:type :string
-                        :ui {:label "ADB path"
-                             :description "Path to ADB command that might be used to install and launch the Android app when it's bundled"}}
-             :ios-deploy-path {:type :string
-                               :ui {:label "ios-deploy path"
-                                    :description "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}}}}
+            {:adb-path {:type :string}
+             :ios-deploy-path {:type :string}}}
     :extensions {:type :object
                  :properties
                  {:build-server {:type :string
-                                 :ui {:prompt connection-properties/defold-build-server-url}}
+                                 :ui {:prompt (connection-properties/defold-build-server-url)}}
                   :build-server-username {:type :string}
                   :build-server-password {:type :password}
                   :build-server-headers {:type :string
@@ -155,41 +163,75 @@
             :scope :project
             :properties
             {:lint-code {:type :boolean
-                         :default true
-                         :ui {:label "Lint Code on Build"}}
-             :texture-compression {:type :boolean
-                                   :ui {:label "Enable Texture Compression"}}
+                         :default true}
+             :texture-compression {:type :boolean}
              :open-html5-build {:type :boolean
-                                :default true
-                                :ui {:label "Open Browser After `Build HTML5`"}}}}
+                                :default true}}}
     :bundle {:type :object
              :scope :project
              :properties
-             {:last-bundle-command {:type :any}
+             {:last-bundle-command {:type :one-of :schemas [{:type :enum :values [nil]}
+                                                            {:type :keyword}]}
               :output-directory {:type :string}
               :open-output-directory {:type :boolean
-                                      :default true
-                                      :ui {:label "Open Bundle Target Folder"}}}}
+                                      :default true}}}
     :window {:type :object
              :properties
-             {:dimensions {:type :any}
-              :split-positions {:type :any}
+             {:dimensions {:type :one-of
+                           :schemas [{:type :enum :values [nil]}
+                                     {:type :object
+                                      :properties
+                                      {:x {:type :number}
+                                       :y {:type :number}
+                                       :width {:type :number}
+                                       :height {:type :number}
+                                       :maximized {:type :boolean}
+                                       :full-screen {:type :boolean}}}]}
+              :split-positions {:type :object-of
+                                :key {:type :keyword}
+                                :val {:type :array :item {:type :number}}}
               :hidden-panes {:type :set :item {:type :keyword}}
+              :locale {:type :locale}
               :keymap {:type :object-of
                        :key {:type :keyword} ;; command
                        :val {:type :object
                              :properties {;; custom shortcuts to add to keymap
                                           :add {:type :set :item {:type :string}}
                                           ;; built-in shortcuts to remove from keymap
-                                          :remove {:type :set :item {:type :string}}}}}}}
+                                          :remove {:type :set :item {:type :string}}}}}
+              :mouse-bindings {:type :object-of
+                               :key {:type :keyword} ;; context
+                               :val {:type :object-of
+                                     :key {:type :keyword} ;; command
+                                     :val {:type :object
+                                           :properties {:bindings {:type :array
+                                                                   :item {:type :object
+                                                                          :properties
+                                                                          {:button {:type :enum
+                                                                                    :values [:primary :middle :secondary]}
+                                                                           :modifiers {:type :set
+                                                                                       :item {:type :enum
+                                                                                              :values [:shift :alt :control]}}}}}
+                                                        :modifier {:type :enum
+                                                                   :values [:shift :alt :control]}}}}}}}
     :workflow {:type :object
                :properties
                {:load-external-changes-on-app-focus {:type :boolean
-                                                     :default true
-                                                     :ui {:label "Load External Changes on App Focus"}}
+                                                     :default true}
+                :save-on-app-focus-lost {:type :boolean
+                                         :default false}
                 :recent-files {:type :array
                                :item {:type :tuple :items [{:type :string} {:type :keyword}]}
                                :scope :project}
+                :last-selected-tabs {:type :object
+                                     :properties {:selected-pane {:type :integer}
+                                                  :tab-selection-by-pane {:type :array
+                                                                          :item {:type :integer}}}}
+                :open-tabs {:type :array
+                            :item {:type :array
+                                   :item {:type :tuple
+                                          :items [{:type :string} {:type :keyword}]}}
+                            :scope :project}
                 :saved-colors {:type :array
                                :item {:type :string}
                                :scope :project}}}
@@ -201,43 +243,88 @@
     :run {:type :object
           :properties
           {:instance-count {:type :integer :default 1 :scope :project}
-           :selected-target-id {:type :any}
+           :selected-target-id {:type :one-of
+                                :schemas [{:type :enum :values [nil :all-launched-targets]}
+                                          {:type :string}]}
            :manual-target-ip+port {:type :string}
-           :quit-on-escape {:type :boolean
-                            :ui {:label "Escape Quits Game"}}
+           :quit-on-escape {:type :boolean}
            :simulate-rotated-device {:type :boolean :scope :project}
-           :simulated-resolution {:type :any :scope :project}
+           :simulated-resolution {:type :one-of
+                                  :schemas [{:type :enum :values [nil]}
+                                            {:type :object
+                                             :properties {:width {:type :integer}
+                                                          :height {:type :integer}
+                                                          :custom {:type :boolean}}}]
+                                  :scope :project}
            :engine-arguments {:type :string
                               :scope :project
-                              :ui {:multiline true
-                                   :prompt "One argument per line"
-                                   :description "Arguments that will be passed to the dmengine executables when the editor builds and runs.\n Use one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan"}}}}
+                              :ui {:multiline true}}}}
     :scene {:type :object
             :properties
             {:move-whole-pixels {:type :boolean :default true}
-             :grid {:type :object
-                    :scope :project
-                    :properties {:size {:type :object
-                                        :scope :project
-                                        :properties
-                                        {:x {:type :number :default 1.0}
-                                         :y {:type :number :default 1.0}
-                                         :z {:type :number :default 1.0}}}
-                                 :active-plane {:type :keyword :default :z}
-                                 :opacity {:type :number :default 0.25}
-                                 :color {:type :tuple
-                                         :items [{:type :number} {:type :number} {:type :number} {:type :number}]
-                                         :default [0.5 0.5 0.5 1.0]}}}}}
+             :resource-settings {:type :object-of
+                                 :scope :project
+                                 :key {:type :string}
+                                 :val {:type :object
+                                       :properties {:scene-visibility {:type :object
+                                                                       :properties {:filters-enabled {:type :boolean :default true}
+                                                                                    :filtered-renderable-tags {:type :set :item {:type :keyword}}}}
+                                                    :camera {:type :object
+                                                             :properties {:projection {:type :enum
+                                                                                       :values [:orthographic :perspective]
+                                                                                       :default :orthographic}
+                                                                          :position {:type :tuple
+                                                                                     :items [{:type :number :default 0.0}
+                                                                                             {:type :number :default 0.0}
+                                                                                             {:type :number :default 0.0}]}
+                                                                          :rotation {:type :tuple
+                                                                                     :items [{:type :number :default 0.0}
+                                                                                             {:type :number :default 0.0}
+                                                                                             {:type :number :default 0.0}
+                                                                                             {:type :number :default 1.0}]}
+                                                                          :fov-x {:type :number :default 1000.0}
+                                                                          :fov-y {:type :number :default 1000.0}
+                                                                          :focus-point {:type :tuple
+                                                                                        :items [{:type :number :default 0.0}
+                                                                                                {:type :number :default 0.0}
+                                                                                                {:type :number :default 0.0}]}}}}}}
+             ;; NOTE: We also track whether the grid button is active or not, however, not here. Because the grid visibility
+             ;; is controlled by the SceneVisibilityNode, we ended up piggy-backing a per-resource grid button active setting
+             ;; through [:scene :resource-settings <resource-proj-path> :scene-visibility]
+             :grid-2d {:type :object
+                       :scope :project
+                       :properties {:size (vec3-schema 1.0 1.0 1.0)
+                                    :active-plane {:type :enum :values [:x :y :z] :default :z}
+                                    :opacity {:type :number :default 0.25}
+                                    :color {:type :tuple
+                                            :items [{:type :number} {:type :number} {:type :number} {:type :number}]
+                                            :default [0.5 0.5 0.5 1.0]}}}
+             :grid-3d {:type :object
+                       :scope :project
+                       :properties {:size (vec3-schema 1.0 1.0 1.0)
+                                    :active-plane {:type :enum :values [:x :y :z] :default :y}
+                                    :opacity {:type :number :default 0.25}
+                                    :color {:type :tuple
+                                            :items [{:type :number} {:type :number} {:type :number} {:type :number}]
+                                            :default [0.5 0.5 0.5 1.0]}}}
+             :perspective-camera {:type :object
+                                  :scope :project
+                                  :properties {:speed {:type :number :default 1.0}
+                                               :look-sensitivity {:type :number :default 0.145}
+                                               :invert-y {:type :boolean :default false}
+                                               :fov {:type :number :default 37.8}
+                                               :walking-mode {:type :boolean :default false}}}}}
     :dev {:type :object
           :properties
-          {:custom-engine {:type :any
+          {:custom-engine {:type :one-of
+                           :schemas [{:type :enum :values [nil]}
+                                     {:type :string}]
                            :ui {:type :string}}}}
-    :git {:type :object
-          :properties
-          {:credentials {:type :any :scope :project}}}
     :welcome {:type :object
               :properties
-              {:last-opened-project-directory {:type :any}
+              {:last-opened-project-directory {:type :one-of
+                                               :schemas [{:type :enum :values [nil]}
+                                                         {:type :string}]}
                :recent-projects {:type :object-of
                                  :key {:type :string}
                                  :val {:type :string}}}}}})
@@ -246,48 +333,50 @@
 
 (defn valid? [schema value]
   (case (:type schema)
-    :any true
     :boolean (boolean? value)
     :string (string? value)
     :password (string? value)
+    :locale (string? value)
     :keyword (keyword? value)
     :integer (int? value)
     :number (number? value)
+    :one-of (coll/any? #(valid? % value) (:schemas schema))
     :array (and (vector? value)
                 (let [item-schema (:item schema)]
-                  (every? #(valid? item-schema %) value)))
+                  (coll/every? #(valid? item-schema %) value)))
     :set (and (clojure.core/set? value)
               (let [item-schema (:item schema)]
-                (every? #(valid? item-schema %) value)))
+                (coll/every? #(valid? item-schema %) value)))
     :object (and (map? value)
-                 (every? (fn [[k s]]
+                 (coll/every? (fn [[k s]]
                            (let [v (value k ::not-found)]
                              (or (identical? v ::not-found)
                                  (valid? s v))))
                          (:properties schema)))
     :object-of (and (map? value)
                     (let [{:keys [key val]} schema]
-                      (every? (fn [[k v]]
+                      (coll/every? (fn [[k v]]
                                 (and (valid? key k) (valid? val v)))
                               value)))
-    :enum (boolean (some #(= value %) (:values schema)))
+    :enum (coll/any? #(= value %) (:values schema))
     :tuple (and (vector? value)
                 (let [items (:items schema)
                       n (count items)]
                   (and (= (count value) n)
-                       (every? #(valid? (items %) (value %)) (range n)))))))
+                       (coll/every? #(valid? (items %) (value %)) (range n)))))))
 
 (defn default-value [schema]
   (let [explicit-default (:default schema ::not-found)]
     (if (identical? explicit-default ::not-found)
       (case (:type schema)
-        :any nil
         :boolean false
         :string ""
         :password ""
+        :locale "en"
         :keyword nil
         :integer 0
         :number 0.0
+        :one-of (default-value (first (:schemas schema)))
         :array []
         :set #{}
         :object {}
@@ -295,7 +384,6 @@
         :enum ((:values schema) 0)
         :tuple (mapv default-value (:items schema)))
       explicit-default)))
-
 
 ;; endregion
 
@@ -335,15 +423,13 @@
 (defn- default-valid? [schema]
   (let [v (:default schema ::not-found)]
     (or (identical? v ::not-found) (valid? schema v))))
-(s/def ::label string?)
-(s/def ::description string?)
 (s/def ::multiline boolean?) ;; for string schemas
 (s/def ::prompt string?) ;; for textual inputs
 (s/def ::ui
-  (s/keys :opt-un [::label ::description ::multiline ::prompt ::type]))
+  (s/keys :opt-un [::multiline ::prompt ::type]))
 (s/def ::default any?)
 (s/def ::scope #{:global :project})
-(s/def ::type #{:any :boolean :string :password :keyword :integer :number :array :set :object :object-of :enum :tuple})
+(s/def ::type #{:boolean :string :password :locale :keyword :integer :number :one-of :array :set :object :object-of :enum :tuple})
 (defmulti type-spec :type)
 (s/def ::schema
   (s/and
@@ -351,6 +437,8 @@
     (s/keys :req-un [::type] :opt-un [::default ::scope ::ui])
     default-valid?))
 (defmethod type-spec :default [_] any?)
+(s/def :editor.prefs.one-of/schemas (s/coll-of ::schema :kind vector? :min-count 2))
+(defmethod type-spec :one-of [_] (s/keys :req-un [:editor.prefs.one-of/schemas]))
 (s/def ::item ::schema)
 (defmethod type-spec :array [_] (s/keys :req-un [::item]))
 (defmethod type-spec :set [_] (s/keys :req-un [::item]))
@@ -364,7 +452,7 @@
 (s/def ::values (s/coll-of any? :min-count 1 :kind vector?))
 (defmethod type-spec :enum [_] (s/keys :req-un [::values]))
 
-(s/def ::scopes (s/map-of ::scope fs/path? :min-count 1))
+(s/def ::scopes (s/map-of ::scope path/path? :min-count 1))
 (s/def ::schemas (s/coll-of any? :kind vector? :distinct true :min-count 1))
 (s/def ::preferences (s/keys :req-un [::scopes ::schemas]))
 
@@ -373,7 +461,7 @@
 ;; region internal global state
 
 (defn- read-config! [path]
-  (if (fs/path-exists? path)
+  (if (path/exists? path)
     (with-open [rdr (PushbackReader. (io/reader path))]
       (try
         (edn/read {:default fn/constantly-nil} rdr)
@@ -384,11 +472,8 @@
           ::not-found)))
     ::not-found))
 
-(defn- array? [x]
-  (and (some? x) (.isArray (class x))))
-
 (defn- write-config! [path config]
-  (fs/create-path-parent-directories! path)
+  (path/create-parent-directories! path)
   (with-open [w (io/writer path)]
     (letfn [(write-contents-indented! [prefix suffix xs indent]
               (let [child-indent (+ indent 2)
@@ -410,7 +495,7 @@
                                    (write! (val x) indent))
                 (clojure.core/set? x) (write-contents-indented! "#{" "}" (sort x) indent)
                 (map? x) (write-contents-indented! "{" "}" (sort-by key x) indent)
-                (or (vector? x) (array? x)) (write-contents-indented! "[" "]" x indent)
+                (or (vector? x) (array/array? x)) (write-contents-indented! "[" "]" x indent)
                 :else (.write w (pr-str x))))]
       (write! config 0))))
 
@@ -450,9 +535,21 @@
                    (when events
                      (reduce-kv
                        (fn [acc file-path path->val]
-                         (let [config (reduce-kv safe-assoc-in (read-config! file-path) path->val)]
-                           (write-config! file-path config)
-                           (assoc acc file-path config)))
+                         (let [existing (read-config! file-path)
+                               base (if (identical? ::not-found existing) {} existing)
+                               config (reduce-kv
+                                        (fn [cfg path val]
+                                          (cond
+                                            (and (identical? ::not-found val) (coll/empty? path)) ::not-found
+                                            (identical? ::not-found val) (if (map? cfg) (util/dissoc-in cfg path) cfg)
+                                            :else (safe-assoc-in cfg path val)))
+                                        base
+                                        path->val)]
+                           (if (identical? ::not-found config)
+                             (do (fs/delete-file! (io/file file-path) {:fail :silently})
+                                 (dissoc acc file-path))
+                             (do (write-config! file-path config)
+                                 (assoc acc file-path config)))))
                        storage
                        events))))]
       (swap! global-state incorporate-updated-storage updated-storage)))
@@ -535,10 +632,9 @@
 
 (defn- value-at-path-set? [scopes storage schema path]
   (if (= :object (:type schema))
-    (boolean
-      (coll/some
-        #(value-at-path-set? scopes storage (val %) (conj path (key %)))
-        (:properties schema)))
+    (coll/any?
+      #(value-at-path-set? scopes storage (val %) (conj path (key %)))
+      (:properties schema))
     (let [storage-value (-> schema :scope scopes storage (get-in path ::not-found))]
       (and (not (identical? storage-value ::not-found))
            (storage-value-valid? schema storage-value)))))
@@ -686,7 +782,7 @@
     :parent     a parent preferences map, defines initial scopes and schemas"
   [& {:keys [scopes schemas parent]}]
   {:post [(s/assert ::preferences %)]}
-  (let [scopes (coll/pair-map-by key #(-> % val fs/path .toAbsolutePath (doto ensure-loaded!)) scopes)
+  (let [scopes (coll/pair-map-by key #(-> % val path/absolute (doto ensure-loaded!)) scopes)
         scopes (cond->> (or scopes {}) parent (conj (:scopes parent)))
         schemas (into [] (comp cat (distinct)) [(:schemas parent) schemas])]
     {:scopes scopes
@@ -745,22 +841,63 @@
                             (set-value-at-path m scopes schema path (apply f value args)))))
     nil))
 
+(defn- reset-value-events
+  "Walk schema, emitting [file-path config-path ::not-found] for every leaf."
+  [scopes schema path]
+  (if (= :object (:type schema))
+    (e/mapcat
+      #(reset-value-events scopes (val %) (conj path (key %)))
+      (:properties schema))
+    [[(-> schema :scope scopes) path ::not-found]]))
+
+(defn reset-path!
+  "Remove stored values at the specified path, reverting to the default.
+
+  Walks the schema to collect every leaf path (across all scopes for nested
+  object schemas) and emits ::not-found events. Later sets! on the same path
+  will clobber these events via map-key semantics, preserving ordering.
+
+  Using [] as a path allows resetting the whole preference state."
+  [prefs path]
+  {:pre [(vector? path)]}
+  (let [{:keys [scopes]} prefs]
+    (swap! global-state
+           (fn [{:keys [registry storage] :as m}]
+             (let [schema (combined-schema-at-path registry prefs path)
+                   events (->> (reset-value-events scopes schema path)
+                               (e/filter (fn [[file-path config-path _]]
+                                           (let [file-storage (clojure.core/get storage file-path ::not-found)]
+                                             (if (coll/empty? config-path)
+                                               (not (identical? ::not-found file-storage))
+                                               (and (map? file-storage)
+                                                    (not (identical? ::not-found
+                                                                     (get-in file-storage config-path ::not-found)))))))))]
+               (reduce
+                 (fn [acc [file-path config-path _]]
+                   (-> acc
+                       (update :storage (fn [s]
+                                          (if (coll/empty? config-path)
+                                            (assoc s file-path ::not-found)
+                                            (update s file-path util/dissoc-in config-path))))
+                       (assoc-in [:events file-path config-path] ::not-found)))
+                 m
+                 events))))
+    nil))
+
+(defn get-pref-entry-in [prefs pref-path entry-key entry-path default]
+  (get-in (get prefs pref-path)
+          (into [entry-key] entry-path)
+          default))
+
+(defn set-pref-entry-in! [prefs pref-path entry-key entry-path value]
+  (update! prefs pref-path assoc-in (into [entry-key] entry-path) value))
+
 (defn schema
   "Get a preference schema at a specified get-in path"
   ([prefs path]
    (schema @global-state prefs path))
   ([current-state prefs path]
    (combined-schema-at-path (:registry current-state) prefs path)))
-
-(defn label
-  ([prefs path]
-   (label @global-state prefs path))
-  ([current-state prefs path]
-   {:pre [(vector? path)]}
-   (or (:label (:ui (schema current-state prefs path)))
-       (if-let [path-keyword (peek path)]
-         (string/trim (camel/->TitleCase (name path-keyword)))
-         "Value"))))
 
 (defn register-schema!
   "Register a new schema, e.g. a project-specific one"
@@ -782,11 +919,11 @@
 
   Any attempt to get project-scoped values will return defaults"
   ([]
-   (global (fs/path
+   (global (path/of
              (case (os/os)
                :macos (fs/evaluate-path "~/Library/Preferences")
-               :linux (some fs/evaluate-path ["$XDG_CONFIG_HOME" "~/.config"])
-               :win32 (some fs/evaluate-path ["$APPDATA" "~/AppData/Roaming"]))
+               :linux (coll/some fs/evaluate-path ["$XDG_CONFIG_HOME" "~/.config"])
+               :win32 (coll/some fs/evaluate-path ["$APPDATA" "~/AppData/Roaming"]))
              "Defold"
              "prefs.editor_settings")))
   ([prefs-path]
@@ -801,9 +938,9 @@
   ([project-path]
    (project project-path (global)))
   ([project-path parent-prefs]
-   (let [real-path (fs/real-path project-path)]
+   (let [real-path (path/real project-path)]
      (make :parent parent-prefs
-           :scopes {:project (fs/path real-path ".editor_settings")}
+           :scopes {:project (path/of real-path ".editor_settings")}
            :schemas [real-path]))))
 
 (defn register-project-schema!
@@ -811,7 +948,7 @@
 
   Uses real path of the project root of the project root as a schema id"
   [project-path schema]
-  (register-schema! (fs/real-path project-path) schema))
+  (register-schema! (path/real project-path) schema))
 
 (defn sync!
   "Immediately write all unsaved preference changes into files"
@@ -820,125 +957,6 @@
 
 ;; endregion
 
-;; TODO: remove migration from legacy prefs after sufficient time has passed (e.g. after 2025-10-15)
-
-;; region migration
-
-(defn- migrate! [prefs legacy-key->path]
-  (let [legacy-prefs (.node (Preferences/userRoot) "defold")
-        not-found "editor.prefs/not-found"
-        {:keys [scopes schemas]} prefs
-        {:keys [registry storage]} @global-state]
-    (->> legacy-key->path
-         (e/keep (fn [[legacy-key path]]
-                   (let [transit-str (.get legacy-prefs legacy-key not-found)]
-                     (when (and (not (identical? not-found transit-str))
-                                ;; is fresh file?
-                                (->> schemas
-                                     (e/keep #(some-> (registry %) (lookup-schema-at-path path)))
-                                     (e/map #(-> % :scope scopes storage))
-                                     (coll/some #(identical? ::not-found %))
-                                     boolean))
-                       (when-some [v (-> transit-str
-                                         (.getBytes StandardCharsets/UTF_8)
-                                         ByteArrayInputStream.
-                                         (transit/reader :json)
-                                         transit/read)]
-                         (coll/pair path v))))))
-         (reduce #(assoc-in %1 (key %2) (val %2)) {})
-         ;; since `set!` is a special form, we need to use a fully-qualified reference
-         (editor.prefs/set! prefs []))))
-
-(defn migrate-global-prefs!
-  "Migrate global prefs from the old prefs storage
-
-  Only performs migration if global prefs file didn't exist before. This means
-  you should perform migration before modifying the prefs"
-  [global-prefs]
-  (migrate!
-    global-prefs
-    {"adb-path" [:tools :adb-path]
-     "ios-deploy-path" [:tools :ios-deploy-path]
-     "external-changes-load-on-app-focus" [:workflow :load-external-changes-on-app-focus]
-     "open-bundle-target-folder" [:bundle :open-output-directory]
-     "asset-browser-track-active-tab?" [:asset-browser :track-active-tab]
-     "general-quit-on-esc" [:run :quit-on-escape]
-     "custom-keymap-path" [:input :keymap-path]
-     "code-custom-editor" [:code :custom-editor]
-     "code-open-file" [:code :open-file]
-     "code-open-file-at-line" [:code :open-file-at-line]
-     "code-editor-font-name" [:code :font :name]
-     "code-editor-font-size" [:code :font :size]
-     "code-editor-visible-indentation-guides" [:code :visibility :indentation-guides]
-     "code-editor-visible-minimap" [:code :visibility :minimap]
-     "code-editor-visible-whitespace" [:code :visibility :whitespace]
-     "extensions-server" [:extensions :build-server]
-     "extensions-server-headers" [:extensions :build-server-headers]
-     "window-dimensions" [:window :dimensions]
-     "split-positions" [:window :split-positions]
-     "hidden-panes" [:window :hidden-panes]
-     "console-filters" [:console :filters]
-     "selected-target-id" [:run :selected-target-id]
-     "manual-target-ip+port" [:run :manual-target-ip+port]
-     "scene-move-whole-pixels?" [:scene :move-whole-pixels]
-     "dev-custom-engine" [:dev :custom-engine]
-     "open-project-directory" [:welcome :last-opened-project-directory]
-     "recent-project-entries" [:welcome :recent-projects]}))
-
-(defn migrate-project-prefs!
-  "Migrate project prefs from the old prefs storage
-
-  Only performs migration if project prefs file didn't exist before. This means
-  you should perform migration before modifying the prefs"
-  [project-prefs]
-  (let [suffix (str "-" (hash (str (.getParent ^Path (:project (:scopes project-prefs))))))]
-    (migrate! project-prefs (e/concat
-                              ;; move from global to project scope
-                              {"search-in-files-term" [:search-in-files :term]
-                               "search-in-files-exts" [:search-in-files :exts]
-                               "search-in-files-include-libraries" [:search-in-files :include-libraries]
-                               "open-assets-term" [:open-assets :term]
-                               "code-editor-find-term" [:code :find :term]
-                               "code-editor-find-replacement" [:code :find :replacement]
-                               "code-editor-find-whole-word" [:code :find :whole-word]
-                               "code-editor-find-case-sensitive" [:code :find :case-sensitive]
-                               "code-editor-find-wrap" [:code :find :wrap]
-                               "general-enable-texture-compression" [:build :texture-compression]
-                               "general-lint-on-build" [:build :lint-code]
-                               "bundle-variant" [:bundle :variant]
-                               "bundle-texture-compression" [:bundle :texture-compression]
-                               "bundle-generate-debug-symbols?" [:bundle :debug-symbols]
-                               "bundle-generate-build-report?" [:bundle :build-report]
-                               "bundle-publish-live-update-content?" [:bundle :liveupdate]
-                               "bundle-contentless?" [:bundle :contentless]
-                               "bundle-android-keystore" [:bundle :android :keystore]
-                               "bundle-android-keystore-pass" [:bundle :android :keystore-pass]
-                               "bundle-android-key-pass" [:bundle :android :key-pass]
-                               "bundle-android-architecture-32bit?" [:bundle :android :architecture :armv7-android]
-                               "bundle-android-architecture-64bit?" [:bundle :android :architecture :arm64-android]
-                               "bundle-android-bundle-format" [:bundle :android :format]
-                               "bundle-android-install-app?" [:bundle :android :install]
-                               "bundle-android-launch-app?" [:bundle :android :launch]
-                               "bundle-macos-architecture-x86_64?" [:bundle :macos :architecture :x86_64-macos]
-                               "bundle-macos-architecture-arm64?" [:bundle :macos :architecture :arm64-macos]
-                               "bundle-ios-sign-app?" [:bundle :ios :sign]
-                               "bundle-ios-code-signing-identity" [:bundle :ios :code-signing-identity]
-                               "bundle-ios-provisioning-profile" [:bundle :ios :provisioning-profile]
-                               "bundle-ios-architecture-64bit?" [:bundle :ios :architecture :arm64-ios]
-                               "bundle-ios-architecture-simulator?" [:bundle :ios :architecture :x86_64-ios]
-                               "bundle-ios-install-app?" [:bundle :ios :install]
-                               "bundle-ios-launch-app?" [:bundle :ios :launch]
-                               "bundle-html5-architecture-js-web?" [:bundle :html5 :architecture :js-web]
-                               "bundle-html5-architecture-wasm-web?" [:bundle :html5 :architecture :wasm-web]
-                               "bundle-html5-architecture-wasm_pthread-web?" [:bundle :html5 :architecture :wasm_pthread-web]
-                               "bundle-windows-platform" [:bundle :windows :platform]
-                               "project-git-credentials" [:git :credentials]}
-                              ;; these prefs already used project scope
-                              (e/map #(coll/pair (str (key %) suffix) (val %))
-                                     {"bundle-output-directory" [:bundle :output-directory]
-                                      "recent-files-by-workspace-root" [:workflow :recent-files]
-                                      "instance-count" [:run :instance-count]
-                                      "simulate-rotated-device" [:run :simulate-rotated-device]
-                                      "simulated-resolution" [:run :simulated-resolution]})))))
-
-;; end region
+(comment
+  (swap! global-state assoc-in [:registry :default] (resolve-schema default-schema))
+  :-)

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -159,7 +159,7 @@ public final class MurmurHash {
         case 3: t ^= (long)(data[(length&~7)+2]&0xff) << 16;
         case 2: t ^= (long)(data[(length&~7)+1]&0xff) << 8;
         case 1: t ^= (long)(data[length&~7]&0xff);
-        };
+        }
 
         t *= m;
         t ^= t >>> r;

@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -36,7 +36,11 @@
   (coerce/wrap-with-pred coerce/userdata editor-script-defined-schema? "is not a schema"))
 
 (definline allowed-keyword-character? [ch]
-  `(or (Character/isLetterOrDigit (char ~ch)) (= \- ~ch) (= \. ~ch) (= \_ ~ch)))
+  `(or (Character/isLetterOrDigit (char ~ch))
+       (= \- ~ch)
+       (= \. ~ch)
+       (= \_ ~ch)
+       (= \+ ~ch)))
 
 (defn- edn-serializable-keyword-name? [^String s]
   (let [n (.length s)]
@@ -55,10 +59,8 @@
 (def schema-components
   (let [scope-prop (ui-docs/make-prop :scope
                                       :coerce (coerce/enum :global :project)
-                                      :types ["string"]
-                                      :doc (ui-docs/doc-with-ul-options "preference scope"
-                                                                        ["<code>editor.prefs.SCOPE.GLOBAL</code>: same preference value is used in every project on this computer"
-                                                                         "<code>editor.prefs.SCOPE.PROJECT</code>: a separate preference value per project"]))]
+                                      :types ["editor.prefs.SCOPE"]
+                                      :doc "preference scope; global values are shared by every project on this computer, while project values are stored separately per project")]
     [(ui-docs/component
        "boolean"
        :description "boolean schema"
@@ -95,9 +97,9 @@
        :props [(ui-docs/make-prop :item
                                   :required true
                                   :coerce schema-coercer
-                                  :types ["schema"]
+                                  :types ["editor.schema"]
                                   :doc "array item schema")
-               (make-default-prop "item[]")
+               (make-default-prop "any[]")
                scope-prop])
      (ui-docs/component
        "set"
@@ -105,9 +107,9 @@
        :props [(ui-docs/make-prop :item
                                   :required true
                                   :coerce schema-coercer
-                                  :types ["schema"]
+                                  :types ["editor.schema"]
                                   :doc "set item schema")
-               (make-default-prop "table&lt;item, true&gt;")
+               (make-default-prop "table<any, true>")
                scope-prop])
      (ui-docs/component
        "object"
@@ -115,9 +117,9 @@
        :props [(ui-docs/make-prop :properties
                                   :required true
                                   :coerce (coerce/map-of serializable-keyword-coercer schema-coercer)
-                                  :types ["table&lt;string, schema&gt;"]
+                                  :types ["table<string, editor.schema>"]
                                   :doc "a table from property key (string) to value schema")
-               (make-default-prop "table")
+               (make-default-prop "table<string, any>")
                scope-prop])
      (ui-docs/component
        "object_of"
@@ -125,14 +127,14 @@
        :props [(ui-docs/make-prop :key
                                   :required true
                                   :coerce schema-coercer
-                                  :types ["schema"]
+                                  :types ["editor.schema"]
                                   :doc "table key schema")
                (ui-docs/make-prop :val
                                   :required true
                                   :coerce schema-coercer
-                                  :types ["schema"]
+                                  :types ["editor.schema"]
                                   :doc "table value schema")
-               (make-default-prop "table")
+               (make-default-prop "table<any, any>")
                scope-prop])
      (ui-docs/component
        "enum"
@@ -147,8 +149,18 @@
                                               coerce/string)
                                             :min-count 1
                                             :distinct true)
-                                  :types ["any[]"]
+                                  :types ["(nil|boolean|number|string)[]"]
                                   :doc "allowed values, must be scalar (nil, boolean, number or string)")
+               (make-default-prop "any")
+               scope-prop])
+     (ui-docs/component
+       "one_of"
+       :description "one of schema"
+       :props [(ui-docs/make-prop :schemas
+                                  :required true
+                                  :coerce (coerce/vector-of schema-coercer :min-count 2)
+                                  :types ["editor.schema[]"]
+                                  :doc "alternative schemas")
                (make-default-prop "any")
                scope-prop])
      (ui-docs/component
@@ -157,28 +169,28 @@
        :props [(ui-docs/make-prop :items
                                   :required true
                                   :coerce (coerce/vector-of schema-coercer :min-count 2)
-                                  :types ["schema[]"]
+                                  :types ["editor.schema[]"]
                                   :doc "schemas for the items")
                (make-default-prop "any[]")
                scope-prop])]))
 
-(defn- schema-component->script-doc [{:keys [name props description]}]
-  (let [[req opt] (coll/separate-by :required props)
-        optional (coll/empty? req)]
-    {:name (str "editor.prefs.schema." name)
-     :type :function
-     :description description
-     :parameters [{:name (if optional "[opts]" "opts")
-                   :types ["table"]
-                   :doc (str (when-not optional
-                               (str "Required opts:\n"
-                                    (ui-docs/props-doc-html req)
-                                    "\n\n"))
-                             "Optional opts:\n"
-                             (ui-docs/props-doc-html opt))}]
-     :returnvalues [{:name "value"
-                     :types ["schema"]
-                     :doc "Prefs schema"}]}))
+(defn- schema-component->script-docs [{:keys [name props description]}]
+  (let [function-name (str "editor.prefs.schema." name)
+        options-type (str function-name ".options")
+        optional (coll/not-any? :required props)]
+    [{:name options-type
+      :type :struct
+      :description (str "Options for " function-name)
+      :members (ui-docs/props->struct-members props)}
+     {:name function-name
+      :type :function
+      :description description
+      :parameters [{:name (if optional "[opts]" "opts")
+                    :types [options-type]
+                    :doc "schema options"}]
+      :returnvalues [{:name "value"
+                      :types ["editor.schema"]
+                      :doc "Prefs schema"}]}]))
 
 (def enums
   {:scope [:global :project]})
@@ -219,19 +231,18 @@
        {:name "editor.prefs.schema"
         :type :module
         :description "Schema for defining preferences"}]
-      (e/map schema-component->script-doc schema-components)
-      (e/mapcat (fn [[id-kw vs]]
-                  (let [id (str "editor.prefs." (ui-docs/->screaming-snake-case id-kw))]
-                    (e/concat
-                      [{:name id
-                        :type :module
-                        :description (str "Constants for "
-                                          (string/replace (name id-kw) \- \space)
-                                          " enums")}]
-                      (e/map
-                        (fn [v-kw]
-                          {:name (str id "." (ui-docs/->screaming-snake-case v-kw))
-                           :type :constant
-                           :description (format "`\"%s\"`" (name v-kw))})
-                        vs))))
-                enums))))
+      (e/mapcat schema-component->script-docs schema-components)
+      (e/map (fn [[id-kw vs]]
+               (let [id (str "editor.prefs." (ui-docs/->screaming-snake-case id-kw))]
+                 {:name id
+                  :type :enum
+                  :types ["string"]
+                  :members (into []
+                                 (map (fn [v-kw]
+                                        {:name (str id "." (ui-docs/->screaming-snake-case v-kw))
+                                         :doc (format "`\"%s\"`" (name v-kw))}))
+                                 vs)
+                  :description (str "Constants for "
+                                    (string/replace (name id-kw) \- \space)
+                                    " enums")}))
+             enums))))

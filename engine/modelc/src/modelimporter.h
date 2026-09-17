@@ -1,5 +1,4 @@
-
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -34,6 +33,19 @@ namespace dmModelImporter
         ALPHA_MODE_MASK,
         ALPHA_MODE_BLEND,
         ALPHA_MODE_MAX_ENUM
+    };
+
+    enum PrimitiveType // same values as in cgltf.h
+    {
+        PRIMITIVE_TYPE_INVALID,
+        PRIMITIVE_TYPE_POINTS,
+        PRIMITIVE_TYPE_LINES,
+        PRIMITIVE_TYPE_LINE_LOOP,
+        PRIMITIVE_TYPE_LINE_STRIP,
+        PRIMITIVE_TYPE_TRIANGLES,
+        PRIMITIVE_TYPE_TRIANGLE_STRIP,
+        PRIMITIVE_TYPE_TRIANGLE_FAN,
+        PRIMITIVE_TYPE_MAX_ENUM
     };
 
     struct Vector3
@@ -218,6 +230,13 @@ namespace dmModelImporter
         bool                    m_Unlit;
     };
 
+    struct MorphTarget
+    {
+        dmArray<float> m_Positions;   // 3 floats per vertex (delta)
+        dmArray<float> m_Normals;     // 3 floats per vertex (delta)
+        dmArray<float> m_Tangents;    // 4 floats per vertex (delta, w from GLTF)
+    };
+
     struct Mesh
     {
         const char*         m_Name;
@@ -238,6 +257,10 @@ namespace dmModelImporter
 
         dmArray<uint32_t>   m_Indices;
         uint32_t            m_VertexCount;
+        PrimitiveType       m_PrimitiveType;
+
+        dmArray<MorphTarget> m_MorphTargets;
+        dmArray<float>       m_MorphBaseWeights; // GLTF mesh/node weights (one per morph target)
     };
 
     // forward declaration for jni generation
@@ -248,8 +271,9 @@ namespace dmModelImporter
     {
         const char*     m_Name;
         dmArray<Mesh>   m_Meshes;
-        uint32_t        m_Index;        // The index into the scene.models array
-        Bone*           m_ParentBone;   // If the model is not skinned, but a child of a bone
+        uint32_t        m_Index;             // The index into the scene.models array
+        bool            m_NameIsGenerated;   // The source mesh did not have an explicit name
+        Bone*           m_ParentBone;        // If the model is not skinned, but a child of a bone
     };
 
     struct Bone
@@ -302,6 +326,10 @@ namespace dmModelImporter
         dmArray<KeyFrame>   m_TranslationKeys;
         dmArray<KeyFrame>   m_RotationKeys;
         dmArray<KeyFrame>   m_ScaleKeys;
+        // Sparse keys for GLTF weights morph animation; m_MorphWeightDimensions floats per key
+        dmArray<float>      m_MorphWeightKeyTimes;
+        dmArray<float>      m_MorphWeightKeyValues;
+        uint32_t            m_MorphWeightDimensions;
         float               m_StartTime;
         float               m_EndTime;
     };
@@ -341,6 +369,9 @@ namespace dmModelImporter
 
         // When we need to dynamically create materials
         dmArray<Material*>  m_DynamicMaterials;
+
+        // Last load error for this scene (heap-allocated; freed in DestroyScene). ClearScene does not free it. Non-null means load failed fatally.
+        char*               m_LoadError;
     };
 
     struct Options
@@ -379,6 +410,10 @@ namespace dmModelImporter
 
     // Switches between warning and debug level
     extern "C" DM_DLLEXPORT void EnableDebugLogging(bool enable);
+
+    // Frees all scene resources except m_LoadError (caller may read it first, then call DestroyScene).
+    void ClearScene(Scene* scene);
+    void SetLoadError(Scene* scene, const char* message);
 
     void DebugScene(Scene* scene);
     void DebugStructScene(Scene* scene);

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -32,16 +32,19 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.font.FontStyles;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.gamesys.proto.Camera.CameraDesc;
 import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
-import com.dynamo.gamesys.proto.GameSystem.CollectionProxyDesc;
+import com.dynamo.gamesys.proto.CollectionProxy.CollectionProxyDesc;
 import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
-import com.dynamo.gamesys.proto.GameSystem.LightDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
 import com.dynamo.gamesys.proto.Physics.ConvexShape;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
@@ -49,7 +52,6 @@ import com.dynamo.gamesys.proto.Sprite.SpriteTexture;
 import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
 import com.dynamo.gamesys.proto.Tile.TileGrid;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
-import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Modifier;
@@ -57,16 +59,17 @@ import com.dynamo.particle.proto.Particle.ParticleFX;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.render.proto.Render.DisplayProfiles;
+import com.dynamo.gamesys.proto.DataProto.Data;
 import com.dynamo.render.proto.RenderTarget.RenderTargetDesc;
 
 public class ProtoBuilders {
 
-    private static String[][] textureSrcExts = {{".png", ".texturec"}, {".jpg", ".texturec"}, {".tga", ".texturec"}, {".cubemap", ".texturec"}, {".render_target", ".render_targetc"}};
+    private static String[][] textureSrcExts = {{".png", ".texturec"}, {".jpg", ".texturec"}, {".jpeg", ".texturec"}, {".tga", ".texturec"}, {".cubemap", ".texturec"}, {".render_target", ".render_targetc"}};
     private static String[][] renderResourceExts = {{".render_target", ".render_targetc"}, {".material", ".materialc"}, {".compute", ".computec"}};
 
     public static String getTextureSetExt(String str) throws Exception {
         Map<String, String> types = TextureUtil.getAtlasFileTypes();
-        String suffix = "." + FilenameUtils.getExtension(str);
+        String suffix = "." + StringUtil.toLowerCase(FilenameUtils.getExtension(str));
         String replacement = types.getOrDefault(suffix, null);
         if (replacement != null) {
             return replacement;
@@ -74,22 +77,22 @@ public class ProtoBuilders {
         throw new Exception(String.format("Cannot find a texture suffix replacement for texture: %s\n", str));
     }
 
-    private static String replaceAllExts(String str, String[][] extList) {
+    private static String minifyAndReplaceAllExts(String str, String[][] extList) {
         String out = str;
         for (String[] ext : extList) {
-            out = BuilderUtil.replaceExt(out, ext[0], ext[1]);
+            out = ResourceUtil.minifyPathAndReplaceExt(out, ext[0], ext[1]);
         }
         return out;
     }
 
     public static String replaceTextureName(String str) {
-        return replaceAllExts(str, textureSrcExts);
+        return minifyAndReplaceAllExts(str, textureSrcExts);
     }
 
     public static String replaceTextureSetName(String str) throws Exception {
         String replacement = getTextureSetExt(str);
         String suffix = "." + FilenameUtils.getExtension(str);
-        return BuilderUtil.replaceExt(str, suffix, replacement);
+        return ResourceUtil.minifyPathAndReplaceExt(str, suffix, replacement);
     }
 
     private static MaterialDesc.Builder getMaterialBuilderFromResource(IResource res) throws IOException {
@@ -154,7 +157,7 @@ public class ProtoBuilders {
         @Override
         protected CollectionProxyDesc.Builder transform(Task task, IResource resource, CollectionProxyDesc.Builder messageBuilder) throws CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "collection", messageBuilder.getCollection());
-            return messageBuilder.setCollection(BuilderUtil.replaceExt(messageBuilder.getCollection(), ".collection", ".collectionc"));
+            return messageBuilder.setCollection(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getCollection(), ".collection", ".collectionc"));
         }
     }
 
@@ -170,19 +173,6 @@ public class ProtoBuilders {
     @BuilderParams(name="InputBinding", inExts=".input_binding", outExt=".input_bindingc")
     public static class InputBindingBuilder extends ProtoBuilder<InputBinding.Builder> {}
 
-    @ProtoParams(srcClass = GamepadMaps.class, messageClass = GamepadMaps.class)
-    @BuilderParams(name="GamepadMaps", inExts=".gamepads", outExt=".gamepadsc")
-    public static class GamepadMapsBuilder extends ProtoBuilder<GamepadMaps.Builder> {
-        @Override
-        public Task create(IResource input) throws IOException, CompileExceptionError {
-            Task.TaskBuilder taskBuilder = Task.newBuilder(this)
-                    .setName(params.name())
-                    .addInput(input)
-                    .addOutput(input.changeExt(params.outExt()));
-            return taskBuilder.build();
-        }
-    }
-
     @ProtoParams(srcClass = RenderTargetDesc.class, messageClass = RenderTargetDesc.class)
     @BuilderParams(name="RenderTarget", inExts=".render_target", outExt=".render_targetc")
     public static class RenderTargetDescBuilder extends ProtoBuilder<RenderTargetDesc.Builder> {}
@@ -194,7 +184,7 @@ public class ProtoBuilders {
         protected FactoryDesc.Builder transform(Task task, IResource resource, FactoryDesc.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "prototype", messageBuilder.getPrototype());
-            return messageBuilder.setPrototype(BuilderUtil.replaceExt(messageBuilder.getPrototype(), ".go", ".goc"));
+            return messageBuilder.setPrototype(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getPrototype(), ".go", ".goc"));
         }
     }
 
@@ -205,13 +195,9 @@ public class ProtoBuilders {
         protected CollectionFactoryDesc.Builder transform(Task task, IResource resource, CollectionFactoryDesc.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "prototype", messageBuilder.getPrototype());
-            return messageBuilder.setPrototype(BuilderUtil.replaceExt(messageBuilder.getPrototype(), ".collection", ".collectionc"));
+            return messageBuilder.setPrototype(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getPrototype(), ".collection", ".collectionc"));
         }
     }
-
-    @ProtoParams(srcClass = LightDesc.class, messageClass = LightDesc.class)
-    @BuilderParams(name="Light", inExts=".light", outExt=".lightc")
-    public static class LightBuilder extends ProtoBuilder<LightDesc.Builder> {}
 
     @ProtoParams(srcClass = RenderPrototypeDesc.class, messageClass = RenderPrototypeDesc.class)
     @BuilderParams(name="Render", inExts=".render", outExt=".renderc")
@@ -242,7 +228,7 @@ public class ProtoBuilders {
             }
 
             BuilderUtil.checkResource(this.project, resource, "script", messageBuilder.getScript());
-            messageBuilder.setScript(BuilderUtil.replaceExt(messageBuilder.getScript(), ".render_script", ".render_scriptc"));
+            messageBuilder.setScript(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getScript(), ".render_script", ".render_scriptc"));
 
             // Content migration, the material entry is deprecated in the render proto
             // we should use render resources entry now!
@@ -252,7 +238,7 @@ public class ProtoBuilders {
 
                 RenderPrototypeDesc.RenderResourceDesc.Builder resBuilder = RenderPrototypeDesc.RenderResourceDesc.newBuilder();
                 resBuilder.setName(m.getName());
-                resBuilder.setPath(BuilderUtil.replaceExt(m.getMaterial(), ".material", ".materialc"));
+                resBuilder.setPath(ResourceUtil.minifyPathAndReplaceExt(m.getMaterial(), ".material", ".materialc"));
                 newRenderResourceList.add(resBuilder.build());
             }
 
@@ -260,7 +246,7 @@ public class ProtoBuilders {
                 BuilderUtil.checkResource(this.project, resource, "render resource", resourceDesc.getPath());
                 newRenderResourceList.add(RenderPrototypeDesc.RenderResourceDesc.newBuilder()
                                      .mergeFrom(resourceDesc)
-                                     .setPath(replaceAllExts(resourceDesc.getPath(), renderResourceExts))
+                                     .setPath(minifyAndReplaceAllExts(resourceDesc.getPath(), renderResourceExts))
                                      .build());
             }
 
@@ -317,7 +303,7 @@ public class ProtoBuilders {
             messageBuilder.clearTextures();
             messageBuilder.addAllTextures(textures);
 
-            messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
+            messageBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getMaterial(), "material", "materialc"));
 
             if (materialBuilder != null) {
                 List<VertexAttribute> materialAttributes       = materialBuilder.getAttributesList();
@@ -348,8 +334,11 @@ public class ProtoBuilders {
                 throws IOException, CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "material", messageBuilder.getMaterial());
             BuilderUtil.checkResource(this.project, resource, "font", messageBuilder.getFont());
-            messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
-            messageBuilder.setFont(BuilderUtil.replaceExt(messageBuilder.getFont(), "font", "fontc"));
+            if (!FontStyles.readStyleNames(this.project.getResource(messageBuilder.getFont())).contains(messageBuilder.getStyle()))
+                throw new CompileExceptionError(resource, 0, "Font style '" + messageBuilder.getStyle() + "' does not exist");
+            messageBuilder.setStyleHash(messageBuilder.getStyle().isEmpty() ? 0 : MurmurHash.hash64(messageBuilder.getStyle()));
+            messageBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getMaterial(), "material", "materialc"));
+            messageBuilder.setFont(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getFont(), "font", "fontc"));
             return messageBuilder;
         }
     }
@@ -361,10 +350,10 @@ public class ProtoBuilders {
         protected TileGrid.Builder transform(Task task, IResource resource, TileGrid.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
-            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "t.texturesetc"));
-            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "t.texturesetc"));
-            messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "a.texturesetc"));
-            messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), "material", "materialc"));
+            messageBuilder.setTileSet(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getTileSet(), "tileset", "t.texturesetc"));
+            messageBuilder.setTileSet(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getTileSet(), "tilesource", "t.texturesetc"));
+            messageBuilder.setTileSet(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getTileSet(), "atlas", "a.texturesetc"));
+            messageBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getMaterial(), "material", "materialc"));
             return messageBuilder;
         }
     }
@@ -387,10 +376,10 @@ public class ProtoBuilders {
 
                 validateMaterialAtlasCompatability(this.project, resource, emitterBuilder.getMaterial(), materialBuilder, emitterBuilder.getTileSource());
 
-                emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tileset", "t.texturesetc"));
-                emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "tilesource", "t.texturesetc"));
-                emitterBuilder.setTileSource(BuilderUtil.replaceExt(emitterBuilder.getTileSource(), "atlas", "a.texturesetc"));
-                emitterBuilder.setMaterial(BuilderUtil.replaceExt(emitterBuilder.getMaterial(), "material", "materialc"));
+                emitterBuilder.setTileSource(ResourceUtil.minifyPathAndReplaceExt(emitterBuilder.getTileSource(), "tileset", "t.texturesetc"));
+                emitterBuilder.setTileSource(ResourceUtil.minifyPathAndReplaceExt(emitterBuilder.getTileSource(), "tilesource", "t.texturesetc"));
+                emitterBuilder.setTileSource(ResourceUtil.minifyPathAndReplaceExt(emitterBuilder.getTileSource(), "atlas", "a.texturesetc"));
+                emitterBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(emitterBuilder.getMaterial(), "material", "materialc"));
 
                 Point3d ep = MathUtil.ddfToVecmath(emitterBuilder.getPosition());
                 Quat4d er = MathUtil.ddfToVecmath(emitterBuilder.getRotation(), "%s emitter: %s".formatted(resource, emitterBuilder.getId()));
@@ -434,9 +423,9 @@ public class ProtoBuilders {
         protected SoundDesc.Builder transform(Task task, IResource resource, SoundDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "sound", messageBuilder.getSound());
-            messageBuilder.setSound(BuilderUtil.replaceExt(messageBuilder.getSound(), "wav", "wavc"));
-            messageBuilder.setSound(BuilderUtil.replaceExt(messageBuilder.getSound(), "ogg", "oggc"));
-            messageBuilder.setSound(BuilderUtil.replaceExt(messageBuilder.getSound(), "opus", "opusc"));
+            messageBuilder.setSound(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getSound(), "wav", "wavc"));
+            messageBuilder.setSound(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getSound(), "ogg", "oggc"));
+            messageBuilder.setSound(ResourceUtil.minifyPathAndReplaceExt(messageBuilder.getSound(), "opus", "opusc"));
             return messageBuilder;
         }
     }
@@ -445,5 +434,8 @@ public class ProtoBuilders {
     @BuilderParams(name="DisplayProfiles", inExts=".display_profiles", outExt=".display_profilesc")
     public static class DisplayProfilesBuilder extends ProtoBuilder<DisplayProfiles.Builder> {}
 
+    @ProtoParams(srcClass = Data.class, messageClass = Data.class)
+    @BuilderParams(name="Data", inExts=".data", outExt=".datac")
+    public static class DataBuilder extends ProtoBuilder<Data.Builder> {}
 
 }

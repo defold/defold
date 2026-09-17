@@ -43,7 +43,9 @@ def extract_array_sizes(s):
     return s[s.index('['):].replace('[', ' ').replace(']', ' ').split()
 
 def is_string_ptr(s):
-    return s == "const char *"
+    # Normalize spacing (header may use "char*" or "char *"). Treat mutable char* like const char* for JNI String.
+    t = s.replace(" ", "")
+    return t in ("char*", "constchar*")
 
 def is_const_void_ptr(s):
     return s == "const void *"

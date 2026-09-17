@@ -1,0 +1,385 @@
+{
+    "issues": [
+        {
+            "author": "deurell",
+            "body": "Resolve sound deadlock on Windows when disconnecting sound device.",
+            "closed_issues": [
+                11298
+            ],
+            "duplicate": false,
+            "issue_number": 11298,
+            "labels": [
+                "bug",
+                "engine",
+                "sound",
+                "windows"
+            ],
+            "mergecommit": "aa642cace9308cafb2afae415dba2a312fcd3b53",
+            "pr_number": 11332,
+            "referencecommits": [],
+            "title": "Issue 11298 resolve sound deadlock on Windows",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11332"
+        },
+        {
+            "author": "JCash",
+            "body": "We've renamed the function to better match `go.cancel_animations()`\r\nThe function can now cancel a single animation of a node, or all animations at the same time:\r\n```lua\r\ngui.cancel_animations(node, \"position.x\") -- cancel a single animation\r\ngui.cancel_animations(node) -- cancel all animations\r\n```\r\n\r\n\u26a0\ufe0f The old function `gui.cancel_animation()` is now deprecated. Please use the new one instead!",
+            "closed_issues": [
+                6553
+            ],
+            "duplicate": false,
+            "issue_number": 6553,
+            "labels": [
+                "feature request",
+                "engine",
+                "gui"
+            ],
+            "mergecommit": "3e430829db0fa7af894b020f7adab1de7e857e07",
+            "pr_number": 11278,
+            "referencecommits": [],
+            "title": "Add gui.cancel_animations() to cancel one or all animation(s) at the same time",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11278"
+        },
+        {
+            "author": "wfzyx",
+            "body": "",
+            "closed_issues": [
+                11281
+            ],
+            "duplicate": false,
+            "issue_number": 11281,
+            "labels": [
+                "task",
+                "engine",
+                "input",
+                "linux"
+            ],
+            "mergecommit": "e24e654249e46dd25667c170541fcf504b7154a8",
+            "pr_number": 11281,
+            "referencecommits": [],
+            "title": "Add Dualsense driver mapping for Linux",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11281"
+        },
+        {
+            "author": "matgis",
+            "body": "",
+            "closed_issues": [
+                11290
+            ],
+            "duplicate": false,
+            "issue_number": 11290,
+            "labels": [
+                "bug",
+                "editor",
+                "ux"
+            ],
+            "mergecommit": "143b50568f49b0d8eb4dc25ab1d7a82ac6e41c0b",
+            "pr_number": 11301,
+            "referencecommits": [],
+            "title": "Fix Tile Source Collision Group colors in Outline",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11301"
+        },
+        {
+            "author": "AGulev",
+            "body": "Introduced a new option that automatically saves all open files in the editor whenever it loses focus.",
+            "closed_issues": [
+                7930
+            ],
+            "duplicate": false,
+            "issue_number": 7930,
+            "labels": [
+                "feature request",
+                "editor"
+            ],
+            "mergecommit": "711942dcaaf4f3070127b2770eafc4131740205b",
+            "pr_number": 11311,
+            "referencecommits": [],
+            "title": "Automatically save any changes in the editor whenever it loses focus",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11311"
+        },
+        {
+            "author": "matgis",
+            "body": "The editor now supplies positions and normals to all vertex attributes with a matching semantic type when rendering objects in the Scene View. This reverts a change introduced in #10635, which caused a regression for shaders that make use of both world-space and local-space attributes of the same semantic type.",
+            "closed_issues": [
+                11314
+            ],
+            "duplicate": false,
+            "issue_number": 11314,
+            "labels": [
+                "bug",
+                "editor",
+                "scene editor"
+            ],
+            "mergecommit": "44867e722720a32c9758d2bd8307454df83f7cb7",
+            "pr_number": 11337,
+            "referencecommits": [],
+            "title": "Feed positions and normals to all vertex attributes with a matching semantic-type",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11337"
+        },
+        {
+            "author": "AGulev",
+            "body": "To keep Bob.jar lightweight, it doesn\u2019t include all platform architectures and symbols. When needed, the \u201cvanilla\u201d engine is downloaded from the CDN.\r\nThis update introduces caching for those downloaded files in the `.internal` folder, avoiding repeated downloads on each bundle.",
+            "closed_issues": [
+                11330
+            ],
+            "duplicate": false,
+            "issue_number": 11330,
+            "labels": [
+                "bug",
+                "bob",
+                "android"
+            ],
+            "mergecommit": "ce2229cabd4a62c17159c2a1918aa4ed9c52f3e6",
+            "pr_number": 11355,
+            "referencecommits": [],
+            "title": "Add caching for the \u201cvanilla\u201d engine when downloaded through Bob.jar to avoid repeated downloads",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11355"
+        },
+        {
+            "author": "AGulev",
+            "body": "HTML5 symbols are now provided for all build types and platforms: a folder `<project_name>_symbols` containing all symbols is created alongside the bundle.",
+            "closed_issues": [
+                11356
+            ],
+            "duplicate": false,
+            "issue_number": 11356,
+            "labels": [
+                "bob",
+                "html5"
+            ],
+            "mergecommit": "0e5b06c0fc92255cf178a005d7cbe7a3317c47ad",
+            "pr_number": 11356,
+            "referencecommits": [],
+            "title": "Provide debug symbols for all HTML5 target architectures and build configurations",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11356"
+        },
+        {
+            "author": "AGulev",
+            "body": "- Orthographic camera gizmo size in the scene view reflects `game.project` display width/height and Orthographic Zoom.\r\n- Orthographic camera FOV is now disabled when Orthographic Projection is enabled.\r\n- Perspective-only fields are disabled in orthographic mode.\r\n- Orthographic Zoom must be greater than zero; invalid values show an error.",
+            "closed_issues": [
+                8495,
+                11007
+            ],
+            "duplicate": false,
+            "issue_number": 8495,
+            "labels": [
+                "feature request",
+                "editor",
+                "camera",
+                "scene editor",
+                "ux"
+            ],
+            "mergecommit": "7424f3edd04e80926ac66507c902ffc2a411318d",
+            "pr_number": 11359,
+            "referencecommits": [],
+            "title": "Enhanced the orthographic camera behavior in the editor for better usability and accuracy",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11359"
+        },
+        {
+            "author": "AGulev",
+            "body": "- Orthographic camera gizmo size in the scene view reflects `game.project` display width/height and Orthographic Zoom.\r\n- Orthographic camera FOV is now disabled when Orthographic Projection is enabled.\r\n- Perspective-only fields are disabled in orthographic mode.\r\n- Orthographic Zoom must be greater than zero; invalid values show an error.",
+            "closed_issues": [
+                11007
+            ],
+            "duplicate": true,
+            "issue_number": 11007,
+            "labels": [
+                "feature request",
+                "editor",
+                "camera"
+            ],
+            "mergecommit": "7424f3edd04e80926ac66507c902ffc2a411318d",
+            "pr_number": 11359,
+            "referencecommits": [],
+            "title": "Enhanced the orthographic camera behavior in the editor for better usability and accuracy",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11359"
+        },
+        {
+            "author": "AGulev",
+            "body": "Ensure the camera component\u2019s icon in the editor stays a constant size regardless of scene scale.\r\n\r\n<img src=\"https://github.com/user-attachments/assets/7eed01ba-e81b-452a-9ea7-d116b02317ed\" width=\"50%\" />",
+            "closed_issues": [
+                7713
+            ],
+            "duplicate": false,
+            "issue_number": 7713,
+            "labels": [
+                "bug",
+                "editor",
+                "camera",
+                "scene editor",
+                "ux"
+            ],
+            "mergecommit": "a42ad96eeabbdafa788980ad77b75d53d972ce7f",
+            "pr_number": 11375,
+            "referencecommits": [],
+            "title": "Ensure the camera component icon (gizmo) maintains a pixel-stable size on screen",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11375"
+        },
+        {
+            "author": "smagnuso",
+            "body": "On HTML5, our in game profiler now returns the memory usage as reported by Emscripten.\r\nThis affects both our in game profiler `Memory` variable, as well as the `profiler.get_memory_usage()` Lua function.",
+            "closed_issues": [
+                11366
+            ],
+            "duplicate": false,
+            "issue_number": 11366,
+            "labels": [],
+            "mergecommit": "29f3e998a5f709b6e98b49e86b3d1db1b94279cf",
+            "pr_number": 11366,
+            "referencecommits": [],
+            "title": "HTML5 profiler now reports the correct memory usage",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11366"
+        },
+        {
+            "author": "vil02",
+            "body": "This resolves [`misc-redundant-expression`](https://clang.llvm.org/extra/clang-tidy/checks/misc/redundant-expression.html).\r\n\r\nI did not observe more warnings of that type in defold code.",
+            "closed_issues": [
+                11360
+            ],
+            "duplicate": false,
+            "issue_number": 11360,
+            "labels": [
+                "task"
+            ],
+            "mergecommit": "5d2ffc93489a08bb54a8b12f27346afda98634f1",
+            "pr_number": 11363,
+            "referencecommits": [],
+            "title": "Simplify `dmGraphics::IsTextureType3D(TextureType)`",
+            "type": "NEW",
+            "url": "https://github.com/defold/defold/pull/11363"
+        },
+        {
+            "author": "AGulev",
+            "body": "Moved the Templates, Samples, and Tutorials sections from a submenu to the root level to improve discoverability and make them easier to access.\r\n\r\n<img width=\"2408\" height=\"1808\" alt=\"CleanShot 2025-10-16 at 16 20 42@2x\" src=\"https://github.com/user-attachments/assets/acfb6d1d-7965-4f52-97dc-bf3213ee45c4\" />",
+            "closed_issues": [
+                11365
+            ],
+            "duplicate": false,
+            "issue_number": 11365,
+            "labels": [
+                "editor"
+            ],
+            "mergecommit": "4f93791689b9f1bacd2d167a78d4dd84ba7736a7",
+            "pr_number": 11365,
+            "referencecommits": [],
+            "title": "Update welcome screen for better discoverability.  ",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11365"
+        },
+        {
+            "author": "britzl",
+            "body": "Added the ability to run`aapt2` (Android Asset Packaging Tool), `bundletool` and `jarsigner` from the commandline.\r\n\r\n```sh\r\njava -cp bob.jar com.dynamo.bob.tools.AndroidTools aapt2 link --proto-format ....\r\njava -cp bob.jar com.dynamo.bob.tools.AndroidTools jarsigner -verbose -keystore debug.keystore ...\r\njava -cp bob.jar com.dynamo.bob.tools.AndroidTools bundletool build-apks --bundle= ...\r\n```",
+            "closed_issues": [
+                11315
+            ],
+            "duplicate": false,
+            "issue_number": 11315,
+            "labels": [],
+            "mergecommit": "d239e0a0b0160d0c0cfc597cce8a9cc4907e3634",
+            "pr_number": 11315,
+            "referencecommits": [
+                "00b3efc470b852944998be13bb2fa327b596f3de"
+            ],
+            "title": "Add support for running the Android tools in bob from the commandline",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11315"
+        },
+        {
+            "author": "JCash",
+            "body": "This allows the developer to pass in an expected extension, in order to make sure that the resources path passed in is the correct type. This is especially helpful if the code is data driven and the developer doesn't know the resource path beforehand.\r\n\r\n[Documentation](https://defold.com/ref/beta/engine-resource-src-dmsdk-resource-resource-hpp/#GetWithExt:factory-path_hash-ext_hash-resource)",
+            "closed_issues": [
+                11380
+            ],
+            "duplicate": false,
+            "issue_number": 11380,
+            "labels": [
+                "engine",
+                "font",
+                "dmsdk"
+            ],
+            "mergecommit": "ed11c47664d7bbefb8925d215f3023c805415583",
+            "pr_number": 11380,
+            "referencecommits": [],
+            "title": "Added dmResource::GetWithExt() to dmsdk for more robust resource loading",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11380"
+        },
+        {
+            "author": "ekharkunov",
+            "body": "Fixed culling for sprites with pivot points. Also implemented some optimization on how geometry data calculated and stored between batches. So no it should be a bit faster in terms of calculation but consume some memory to store cached information.\r\n\r\n\n\r\n###",
+            "closed_issues": [
+                9917
+            ],
+            "duplicate": false,
+            "issue_number": 9917,
+            "labels": [
+                "bug",
+                "engine",
+                "sprite"
+            ],
+            "mergecommit": "95b8485af48c0bb5c93caa83058ca081a624dca7",
+            "pr_number": 11369,
+            "referencecommits": [
+                "4a765cd6400b9d8d7a573ba4df7e3853e4960ecc"
+            ],
+            "title": "Fix frustrum culling for sprites with pivot point",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11369"
+        },
+        {
+            "author": "JCash",
+            "body": "",
+            "closed_issues": [
+                11397
+            ],
+            "duplicate": false,
+            "issue_number": 11397,
+            "labels": [
+                "engine",
+                "font"
+            ],
+            "mergecommit": "36920d7cf79f630b7f1b9209c7692306fe145dc8",
+            "pr_number": 11398,
+            "referencecommits": [
+                "95de306898454924a0885a2e04de151fa23be5d5"
+            ],
+            "title": "Fix for when bitmap font uses 4 channels which caused a crash",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11398"
+        },
+        {
+            "author": "matgis",
+            "body": "Fix issue where paged Materials were erroneously detected as unpaged when inspecting Sprite properties.",
+            "closed_issues": [
+                11438
+            ],
+            "duplicate": false,
+            "issue_number": 11438,
+            "labels": [
+                "bug",
+                "editor"
+            ],
+            "mergecommit": "439f2f04cec7a26dc9b14a1bc575fd251d3ee480",
+            "pr_number": 11438,
+            "referencecommits": [
+                "1bdbe4f422756204ee4a56ecfdbc862cd3502c3d"
+            ],
+            "title": "Editor: Fix page count mismatch detection and error message for sprites",
+            "type": "FIX",
+            "url": "https://github.com/defold/defold/pull/11438"
+        }
+    ],
+    "timestamp": 1761744389.4488251,
+    "version": "1.11.2"
+}

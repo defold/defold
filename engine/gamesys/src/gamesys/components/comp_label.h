@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@
 #define DM_GAMESYS_COMP_LABEL_H
 
 #include <gameobject/component.h>
+#include <dmsdk/font/text_layout.h>
 
 namespace dmRender
 {
@@ -38,11 +39,15 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompLabelUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
 
+    dmGameObject::UpdateResult CompLabelLateUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
+
     dmGameObject::UpdateResult CompLabelRender(const dmGameObject::ComponentsRenderParams& params);
 
-    dmGameObject::UpdateResult CompLabelOnMessage(const dmGameObject::ComponentOnMessageParams& params);
+    dmGameObject::UpdateResult   CompLabelOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
-    void CompLabelOnReload(const dmGameObject::ComponentOnReloadParams& params);
+    dmGameObject::InputResult    CompLabelOnInput(const dmGameObject::ComponentOnInputParams& params);
+
+    void                         CompLabelOnReload(const dmGameObject::ComponentOnReloadParams& params);
 
     dmGameObject::PropertyResult CompLabelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
 
@@ -51,13 +56,15 @@ namespace dmGameSystem
     // For scripting
     struct LabelComponent;
 
-    void CompLabelGetTextMetrics(const LabelComponent* component, struct dmRender::TextMetrics& metrics);
-
-    const char* CompLabelGetText(const LabelComponent* component);
+    const char*      CompLabelGetText(const LabelComponent* component);
+    HTextLayout      CompLabelGetTextLayout(LabelComponent* component);
 
     dmVMath::Matrix4 CompLabelLocalTransform(const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale, const dmVMath::Vector3& size, uint32_t pivot);
 
-    void CompLabelIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
-}
+    void             CompLabelIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
+
+    // For testing
+    void CompLabelGetTextMetrics(const LabelComponent* component, dmRender::TextMetrics& metrics);
+} // namespace dmGameSystem
 
 #endif // DM_GAMESYS_COMP_LABEL_H

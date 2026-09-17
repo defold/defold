@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -165,6 +165,42 @@ TEST(dmStrings, dmStrlCat3)
 
     dmStrlCat(dst, src, sizeof(dst));
     ASSERT_STREQ("xyzfo", dst);
+}
+
+TEST(dmStrings, dmStrTrim)
+{
+    struct TestCase
+    {
+        const char* m_Input;
+        const char* m_Expected;
+    };
+
+    const TestCase cases[] = {
+        { "",                 "" },
+        { "foo",              "foo" },
+        { "  foo  ",          "foo" },
+        { "     ",            "" },
+        { "\t\r\nfoo \v\f",   "foo" },
+        { "foo  bar",         "foo  bar" },
+        { "foo\tbar",         "foo\tbar" },
+    };
+
+    for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+    {
+        char string[64];
+        dmStrlCpy(string, cases[i].m_Input, sizeof(string));
+        size_t length = dmStrTrim(string, sizeof(string), string);
+        ASSERT_EQ(strlen(cases[i].m_Expected), length);
+        ASSERT_STREQ(cases[i].m_Expected, string);
+    }
+
+    char truncated[4];
+    ASSERT_EQ(6U, dmStrTrim(truncated, sizeof(truncated), "  foobar  "));
+    ASSERT_STREQ("foo", truncated);
+
+    char untouched = 'x';
+    ASSERT_EQ(3U, dmStrTrim(&untouched, 0, " foo "));
+    ASSERT_EQ('x', untouched);
 }
 
 TEST(dmStrings, dmStrCaseCmp)

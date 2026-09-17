@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -26,6 +26,7 @@
             [editor.shared-editor-settings :as shared-editor-settings]
             [editor.system :as system]
             [editor.workspace :as workspace]
+            [editor.yaml :as yaml]
             [util.coll :as coll])
   (:import [com.defold.extender.client ExtenderClient ExtenderClientCache ExtenderResource]
            [com.dynamo.bob Platform]
@@ -52,14 +53,18 @@
                                      :library-paths #{"osx" "x86_64-osx"}}
    (.getPair Platform/Arm64Ios)     {:platform      "arm64-ios"
                                      :library-paths #{"ios" "arm64-ios"}}
+   (.getPair Platform/Arm64IosSim)  {:platform      "arm64_sim-ios"
+                                     :library-paths #{"ios" "arm64_sim-ios"}}
    (.getPair Platform/Armv7Android) {:platform      "armv7-android"
                                      :library-paths #{"android" "armv7-android"}}
    (.getPair Platform/Arm64Android) {:platform      "arm64-android"
                                      :library-paths #{"android" "arm64-android"}}
-   (.getPair Platform/JsWeb)        {:platform      "js-web"
-                                     :library-paths #{"web" "js-web"}}
-   (.getPair Platform/X86Win32)     {:platform      "x86-win32"
-                                     :library-paths #{"win32" "x86-win32"}}
+   (.getPair Platform/X86_64Android) {:platform     "x86_64-android"
+                                     :library-paths #{"android" "x86_64-android"}}
+   (.getPair Platform/WasmWeb)      {:platform      "wasm-web"
+                                     :library-paths #{"web" "wasm-web"}}
+   (.getPair Platform/WasmPthreadWeb) {:platform      "wasm_pthread-web"
+                                       :library-paths #{"web" "wasm_pthread-web"}}
    (.getPair Platform/X86_64Win32)  {:platform      "x86_64-win32"
                                      :library-paths #{"win32" "x86_64-win32"}}
    (.getPair Platform/X86_64Linux)  {:platform      "x86_64-linux"
@@ -150,15 +155,62 @@
   (^String [prefs project evaluation-context]
    (or (not-empty (string/trim (prefs/get prefs [:extensions :build-server]))) ;; always trim because `prefs/get` does not return nil
        (not-empty (some-> (shared-editor-settings/get-setting project ["extensions" "build_server"] evaluation-context) string/trim)) ;; use `some->` because `get-setting` may return nil
-       connection-properties/defold-build-server-url)))
+       (connection-properties/defold-build-server-url))))
 
 (defn get-build-server-headers
   "Returns a (possibly empty) vector of header strings"
   [prefs]
   (into [] (remove string/blank?) (string/split-lines (prefs/get prefs [:extensions :build-server-headers]))))
 
-;; Note: When we do bundling for Android via the editor, we need add
-;;       [["android" "proguard"] "_app/app.pro"] to the returned table.
+(def ^:private app-manifest-upload-path "_app/app.manifest")
+
+(def ^:private editor-build-app-manifest-context
+  {"baseVariant" "debug"
+   "withSymbols" true})
+
+(defn- resource-node-content ^bytes [resource-node evaluation-context]
+  (if-let [content (some-> (g/node-value resource-node :save-data evaluation-context)
+                           (resource-node/save-data-content))]
+    (.getBytes content StandardCharsets/UTF_8)
+    (with-open [is (io/input-stream (g/node-value resource-node :resource evaluation-context))]
+      (.readAllBytes is))))
+
+(defn- resource-node-last-modified [resource-node evaluation-context]
+  (.lastModified (io/file (g/node-value resource-node :resource evaluation-context))))
+
+(defn- app-manifest-with-editor-build-context [manifest]
+  (when (and (map? manifest)
+             (or (not (contains? manifest "context"))
+                 (map? (get manifest "context"))))
+    (update manifest "context" merge editor-build-app-manifest-context)))
+
+(defn- dump-app-manifest-content ^bytes [manifest]
+  (let [^String content (yaml/dump manifest
+                                   :order-pattern ["context" "platforms"]
+                                   :indent 4)]
+    (.getBytes content StandardCharsets/UTF_8)))
+
+(defn- app-manifest-content ^bytes [app-manifest-resource-node evaluation-context]
+  (let [^bytes original-content (when app-manifest-resource-node
+                                  (resource-node-content app-manifest-resource-node evaluation-context))
+        manifest (if original-content
+                   (yaml/load (String. original-content StandardCharsets/UTF_8))
+                   {})
+        manifest-with-context (app-manifest-with-editor-build-context manifest)]
+    (if manifest-with-context
+      (dump-app-manifest-content manifest-with-context)
+      original-content)))
+
+(defn- make-app-manifest-resource [app-manifest-resource-node evaluation-context]
+  (reify ExtenderResource
+    (getPath [_] app-manifest-upload-path)
+    (getContent [_]
+      (app-manifest-content app-manifest-resource-node evaluation-context))
+    (getLastModified [_]
+      (if app-manifest-resource-node
+        (resource-node-last-modified app-manifest-resource-node evaluation-context)
+        0))))
+
 (defn- global-resource-nodes-by-upload-path [project evaluation-context]
   (let [project-settings (g/node-value project :settings evaluation-context)]
     (into {}
@@ -171,7 +223,7 @@
                                  "Missing Native Extension Resource"
                                  proj-path
                                  (project/get-resource-node project "/game.project" evaluation-context))))))))
-          [[["native_extension" "app_manifest"] "_app/app.manifest"]])))
+          [[["native_extension" "app_manifest"] app-manifest-upload-path]])))
 
 (defn- get-ne-platform [platform]
   (case platform
@@ -183,11 +235,11 @@
    (case platform
      "armv7-android"    ["android" "manifest"]
      "arm64-android"    ["android" "manifest"]
+     "x86_64-android"   ["android" "manifest"]
      "arm64-ios"        ["ios" "infoplist"]
-     "armv7-ios"        ["ios" "infoplist"]
+     "arm64_sim-ios"    ["ios" "infoplist"]
      "arm64-osx"        ["osx" "infoplist"]
      "x86_64-osx"       ["osx" "infoplist"]
-     "js-web"           ["html5" "htmlfile"]
      "wasm-web"         ["html5" "htmlfile"]
      "wasm_pthread-web" ["html5" "htmlfile"]))
 
@@ -195,11 +247,11 @@
   (case ne-platform
     "armv7-android"    "AndroidManifest.xml"
     "arm64-android"    "AndroidManifest.xml"
+    "x86_64-android"   "AndroidManifest.xml"
     "arm64-ios"        "Info.plist"
-    "armv7-ios"        "Info.plist"
+    "arm64_sim-ios"    "Info.plist"
     "arm64-osx"        "Info.plist"
     "x86_64-osx"       "Info.plist"
-    "js-web"           "engine_template.html"
     "wasm-web"         "engine_template.html"
     "wasm_pthread-web" "engine_template.html"
     nil))
@@ -230,23 +282,21 @@
         (pos? (count (global-resource-nodes-by-upload-path project evaluation-context))))))
 
 (defn- make-extender-resources [project platform evaluation-context]
-  (reduce-kv
-    (fn [^ArrayList acc upload-path resource-node]
-      (doto acc
-        (.add (reify ExtenderResource
-                (getPath [_] upload-path)
-                (getContent [_]
-                  (if-let [content (some-> (g/node-value resource-node :save-data evaluation-context)
-                                           (resource-node/save-data-content))]
-                    (.getBytes content StandardCharsets/UTF_8)
-                    (with-open [is (io/input-stream (g/node-value resource-node :resource evaluation-context))]
-                      (.readAllBytes is))))
-                (getLastModified [_]
-                  (.lastModified (io/file (g/node-value resource-node :resource evaluation-context))))))))
-    (ArrayList.)
-    (merge (global-resource-nodes-by-upload-path project evaluation-context)
-           (extension-resource-nodes-by-upload-path project evaluation-context platform)
-           (get-main-manifest-file-upload-resource project evaluation-context platform))))
+  (let [global-resource-nodes (global-resource-nodes-by-upload-path project evaluation-context)]
+    (reduce-kv
+      (fn [^ArrayList acc upload-path resource-node]
+        (doto acc
+          (.add (reify ExtenderResource
+                  (getPath [_] upload-path)
+                  (getContent [_]
+                    (resource-node-content resource-node evaluation-context))
+                  (getLastModified [_]
+                    (resource-node-last-modified resource-node evaluation-context))))))
+      (doto (ArrayList.)
+        (.add (make-app-manifest-resource (get global-resource-nodes app-manifest-upload-path) evaluation-context)))
+      (merge (dissoc global-resource-nodes app-manifest-upload-path)
+             (extension-resource-nodes-by-upload-path project evaluation-context platform)
+             (get-main-manifest-file-upload-resource project evaluation-context platform)))))
 
 (defn get-engine-archive [project platform prefs evaluation-context]
   (if-not (supported-platform? platform)

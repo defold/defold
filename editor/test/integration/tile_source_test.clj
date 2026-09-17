@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,10 +19,53 @@
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
             [editor.fs :as fs]
+            [editor.texture-util :as texture-util]
             [editor.tile-source :as tile-source]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support]))
+
+(defn- vertex-buffer->vertices
+  [vertex-buffer]
+  (mapv #(get vertex-buffer %) (range (count vertex-buffer))))
+
+(defn- quad-triangles?
+  [vertices]
+  (and (= 6 (count vertices))
+       (= (nth vertices 2) (nth vertices 3))
+       (= (nth vertices 0) (nth vertices 5))))
+
+(defn- quad-lines?
+  [vertices]
+  (and (= 8 (count vertices))
+       (= (nth vertices 0) (nth vertices 7))
+       (= (nth vertices 1) (nth vertices 2))
+       (= (nth vertices 3) (nth vertices 4))
+       (= (nth vertices 5) (nth vertices 6))))
+
+(deftest tile-source-quad-producers-use-core-topologies
+  (let [tile-source-attributes {:width 2
+                                :height 3
+                                :tiles-per-column 1
+                                :tiles-per-row 1}]
+    (testing "tiles"
+      (let [vertices (-> (tile-source/gen-tiles-vbuf tile-source-attributes [nil] [1.0 1.0])
+                         (vertex-buffer->vertices))]
+        (is (quad-triangles? vertices))
+        (is (= [[3.0 3.0 0.0 0.0 1.0]
+                [3.0 6.0 0.0 0.0 0.0]
+                [5.0 6.0 0.0 1.0 0.0]
+                [5.0 6.0 0.0 1.0 0.0]
+                [5.0 3.0 0.0 1.0 1.0]
+                [3.0 3.0 0.0 0.0 1.0]]
+               vertices))))
+
+    (testing "collision overlays"
+      (let [vertices (-> (tile-source/gen-tile-outlines-vbuf tile-source-attributes [nil] [1.0 1.0] nil)
+                         (vertex-buffer->vertices))]
+        (is (quad-lines? vertices))
+        (is (= (repeat 8 (vec (repeat 4 (float 0.15))))
+               (map #(subvec % 3) vertices)))))))
 
 (deftest tile-source-validation
   (test-util/with-loaded-project
@@ -94,20 +137,19 @@
 
 (deftest sprite-trim-mode-image-io-error
   (test-support/with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/image_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/image_project")
           project (test-util/setup-project! workspace)
           tile-source (project/get-resource-node project "/main/main.tilesource")
           image-file (io/as-file (g/node-value tile-source :image))
           image-bytes (fs/read-bytes image-file)
           texture-set-data-generator (g/node-value tile-source :texture-set-data-generator)
-          packed-image-generator (g/node-value tile-source :packed-image-generator)
-          call-generator #'tile-source/call-generator]
+          packed-image-generator (g/node-value tile-source :packed-image-generator)]
 
       (testing "Initial project state"
         (is (not= :sprite-trim-mode-off (g/node-value tile-source :sprite-trim-mode)))
         (testing "Generators"
-          (is (not (g/error? (call-generator texture-set-data-generator))))
-          (is (not (g/error? (call-generator packed-image-generator)))))
+          (is (not (g/error? (texture-util/call-generator texture-set-data-generator))))
+          (is (not (g/error? (texture-util/call-generator packed-image-generator)))))
         (testing "Graph"
           (is (not (g/error? (g/node-value tile-source :scene))))
           (is (not (g/error? (g/node-value tile-source :build-targets))))
@@ -117,8 +159,8 @@
         (test-support/spit-until-new-mtime image-file "This is no longer an image file.")
         (g/clear-system-cache!)
         (testing "Stale generators"
-          (is (g/error? (call-generator texture-set-data-generator)))
-          (is (g/error? (call-generator packed-image-generator))))
+          (is (g/error? (texture-util/call-generator texture-set-data-generator)))
+          (is (g/error? (texture-util/call-generator packed-image-generator))))
         (testing "Graph before resource-sync"
           (is (g/error? (g/node-value tile-source :scene)))
           (is (g/error? (g/node-value tile-source :build-targets)))
@@ -133,8 +175,8 @@
         (test-support/write-until-new-mtime image-file image-bytes)
         (g/clear-system-cache!)
         (testing "Stale generators"
-          (is (not (g/error? (call-generator texture-set-data-generator))))
-          (is (not (g/error? (call-generator packed-image-generator)))))
+          (is (not (g/error? (texture-util/call-generator texture-set-data-generator))))
+          (is (not (g/error? (texture-util/call-generator packed-image-generator)))))
         (testing "Graph before resource-sync"
           (is (not (g/error? (g/node-value tile-source :scene))))
           (is (not (g/error? (g/node-value tile-source :build-targets))))
@@ -149,8 +191,8 @@
         (fs/delete! image-file)
         (g/clear-system-cache!)
         (testing "Stale generators"
-          (is (g/error? (call-generator texture-set-data-generator)))
-          (is (g/error? (call-generator packed-image-generator))))
+          (is (g/error? (texture-util/call-generator texture-set-data-generator)))
+          (is (g/error? (texture-util/call-generator packed-image-generator))))
         (testing "Graph before resource-sync"
           (is (g/error? (g/node-value tile-source :scene)))
           (is (g/error? (g/node-value tile-source :build-targets)))

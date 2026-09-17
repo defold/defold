@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,6 +28,13 @@
  * @namespace dmWebServer
  * @language C++
  */
+
+/*# Web server extension context name
+ * Name used when registering the web server with the engine context registry.
+ * @constant
+ * @name WEBSERVER_CONTEXT_NAME
+ */
+#define WEBSERVER_CONTEXT_NAME "webserver"
 
 namespace dmWebServer
 {
@@ -166,4 +173,3 @@ namespace dmWebServer
 }
 
 #endif // DMSDK_WEBSERVER_H
-

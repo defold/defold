@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -44,7 +44,7 @@
 
 (deftest redirect-test
   (when-not (os/is-win32?)
-    (is (nil? (process/exec! "bash" "-c" "ls >&2")))
+    (is (nil? (process/exec! {:err :discard} "bash" "-c" "ls >&2")))
     (is (not-empty (process/exec! {:err :stdout} "bash" "-c" "ls >&2")))))
 
 (deftest pipe-test

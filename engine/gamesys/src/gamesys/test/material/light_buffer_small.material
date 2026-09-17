@@ -1,0 +1,3 @@
+name: "light_buffer_small"
+vertex_program: "/material/vertex_program_valid.vp"
+fragment_program: "/material/light_buffer_small.fp"

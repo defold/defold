@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,14 +24,12 @@ function usage() {
     echo " * x86_64-linux"
     echo " * arm64-linux"
     echo " * arm64-ios"
-    echo " * x86_64-ios"
+    echo " * arm64_sim-ios"
     echo " * armv7-android"
     echo " * arm64-android"
-    echo " * i586-mingw32msvc"
-    echo " * js-web"
+    echo " * x86_64-android"
     echo " * wasm-web"
     echo " * wasm_pthread-web"
-    echo " * win32 (luajit)"
     echo " * x86_64-win32 (luajit)"
     echo " * arm64-nx64"
     exit $1

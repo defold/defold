@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,7 +19,7 @@
 #include <dmsdk/gameobject/component.h>
 #include <dmsdk/gui/gui.h>
 
-/*# SDK Gui Component Property API documentation
+/*# Gui Component Property API documentation
  *
  * Per-property registration functions for GUI component extensions.
  *
@@ -34,7 +34,8 @@ namespace dmGameSystem
 {
     /*#
      * GUI component property setter function
-     * @typedef CompGuiPropertySetterFn
+     * @typedef
+     * @name CompGuiPropertySetterFn
      * @param scene [type:dmGui::HScene] The GUI scene
      * @param params [type:dmGameObject::ComponentSetPropertyParams] Property parameters
      * @return [type:dmGameObject::PropertyResult] PROPERTY_RESULT_OK on success
@@ -43,7 +44,8 @@ namespace dmGameSystem
 
     /*#
      * GUI component property getter function
-     * @typedef CompGuiPropertyGetterFn
+     * @typedef
+     * @name CompGuiPropertyGetterFn
      * @param scene [type:dmGui::HScene] The GUI scene
      * @param params [type:dmGameObject::ComponentGetPropertyParams] Property parameters
      * @param out_value [type:dmGameObject::PropertyDesc&] Output value

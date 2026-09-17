@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,7 +29,7 @@ public class GraphicsUtil {
 
     public static boolean isEngineProvidedAttributeSemanticType(VertexAttribute.SemanticType semanticType) {
         switch (semanticType) {
-            case SEMANTIC_TYPE_POSITION, SEMANTIC_TYPE_WORLD_MATRIX, SEMANTIC_TYPE_NORMAL_MATRIX -> {
+            case SEMANTIC_TYPE_POSITION, SEMANTIC_TYPE_WORLD_MATRIX, SEMANTIC_TYPE_NORMAL_MATRIX, SEMANTIC_TYPE_TEXTURE_TRANSFORM_2D, SEMANTIC_TYPE_MORPH_TARGET_WEIGHTS -> {
                 // The engine will always provide a value for these.
                 return true;
             }

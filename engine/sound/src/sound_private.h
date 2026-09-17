@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,6 +17,11 @@
 
 #include <dmsdk/dlib/configfile_gen.hpp>
 #include "sound.h"
+
+#if defined(__EMSCRIPTEN__) && !defined(DM_NO_THREAD_SUPPORT)
+#include <emscripten.h>
+#define DM_SOUND_WASM_SUPPORT_THREADS 1
+#endif
 
 namespace dmSound
 {
@@ -46,10 +51,9 @@ namespace dmSound
     #define SOUND_OUTBUFFER_COUNT (3)
     #define SOUND_OUTBUFFER_COUNT_NO_THREADS (4)
     #define SOUND_OUTBUFFER_MAX_COUNT (6)
-    #define SOUND_MAX_SPEED (5)
+    #define SOUND_MAX_SPEED (50)
     #define SOUND_MAX_HISTORY (4)
     #define SOUND_MAX_FUTURE (4)
-    #define SOUND_INSTANCE_STATEFRAMECOUNT (SOUND_MAX_HISTORY + SOUND_MAX_SPEED + SOUND_MAX_FUTURE)         // "max speed" is used as "extra sample count" as we can at most leave these many samples in the buffers due to fractional positions etc.
 
     const uint32_t RESAMPLE_FRACTION_BITS = 11; // matches number of polyphase filter bank entries (2048)
 

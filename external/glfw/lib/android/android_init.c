@@ -32,11 +32,14 @@
 
 #include "android_joystick.h"
 #include "android_log.h"
+#include "android_jni.h"
 #include "android_util.h"
+#include "android_window_backend.h"
 
 #include <android/sensor.h>
 
-#include <math.h> // ceil
+#include <stdlib.h>
+#include <string.h>
 
 //************************************************************************
 //****                  GLFW internal functions                       ****
@@ -47,14 +50,15 @@
 //========================================================================
 
 struct android_app* g_AndroidApp;
+int g_AndroidArgc = 0;
+char** g_AndroidArgv = 0;
+char g_AndroidCommandLineProgramName[] = "defold-app";
 
 extern int main(int argc, char** argv);
 
 extern int g_KeyboardActive;
 extern int g_autoCloseKeyboard;
 extern int g_SpecialKeyActive;
-
-static int g_appLaunchInterrupted = 0;
 
 static ASensorEventQueue* g_sensorEventQueue = 0;
 static ASensorRef g_accelerometer = 0;
@@ -69,6 +73,244 @@ int g_MaxAppInputEvents = 0;
 int g_NumAppInputEvents = 0;
 pthread_t g_MainThread = 0;
 bool g_AppResumed = false;
+
+#define COMMAND_LINE_ARGUMENTS_EXTRA "com.dynamo.android.EXTRA_COMMAND_LINE_ARGUMENTS"
+
+int _glfwAndroidIsAppResumed(void)
+{
+    spinlock_lock(&g_EventLock);
+    int resumed = g_AppResumed;
+    spinlock_unlock(&g_EventLock);
+    return resumed;
+}
+
+void JNIAndroidFreeCommandLine(int argc, char** argv)
+{
+    int i;
+    if (argv == NULL)
+        return;
+
+    for (i = 0; i < argc; ++i)
+    {
+        free(argv[i]);
+    }
+    free(argv);
+}
+
+static JNIEnv* getJNIEnv(ANativeActivity* activity)
+{
+    JNIEnv* env = activity->env;
+    if (env != NULL) {
+        return env;
+    }
+
+    if (activity->vm != NULL && (*activity->vm)->AttachCurrentThread(activity->vm, &env, NULL) == JNI_OK) {
+        return env;
+    }
+
+    return NULL;
+}
+
+static int isAndroidPackageDebuggable(JNIEnv* env, ANativeActivity* activity)
+{
+    jobject application_info = NULL;
+    jclass activity_class = NULL;
+    jclass application_info_class = NULL;
+    jmethodID get_application_info_method = NULL;
+    jfieldID flags_field = NULL;
+    jfieldID flag_debuggable_field = NULL;
+    jint flags = 0;
+    jint flag_debuggable = 0;
+    int result = 0;
+
+    activity_class = (*env)->GetObjectClass(env, activity->clazz);
+    if (activity_class == NULL) {
+        goto done;
+    }
+
+    get_application_info_method = (*env)->GetMethodID(env, activity_class, "getApplicationInfo", "()Landroid/content/pm/ApplicationInfo;");
+    if (get_application_info_method == NULL) {
+        goto done;
+    }
+
+    application_info = (*env)->CallObjectMethod(env, activity->clazz, get_application_info_method);
+    if (application_info == NULL) {
+        goto done;
+    }
+
+    application_info_class = (*env)->GetObjectClass(env, application_info);
+    if (application_info_class == NULL) {
+        goto done;
+    }
+
+    flags_field = (*env)->GetFieldID(env, application_info_class, "flags", "I");
+    flag_debuggable_field = (*env)->GetStaticFieldID(env, application_info_class, "FLAG_DEBUGGABLE", "I");
+    if (flags_field == NULL || flag_debuggable_field == NULL) {
+        goto done;
+    }
+
+    flags = (*env)->GetIntField(env, application_info, flags_field);
+    flag_debuggable = (*env)->GetStaticIntField(env, application_info_class, flag_debuggable_field);
+    result = (flags & flag_debuggable) != 0;
+
+done:
+    if (application_info != NULL) {
+        (*env)->DeleteLocalRef(env, application_info);
+    }
+    if (application_info_class != NULL) {
+        (*env)->DeleteLocalRef(env, application_info_class);
+    }
+    if (activity_class != NULL) {
+        (*env)->DeleteLocalRef(env, activity_class);
+    }
+    return result;
+}
+
+int JNIAndroidSetCommandLine(ANativeActivity* activity)
+{
+    char** command_line = NULL;
+    jobject intent = NULL;
+    jobjectArray extra_args = NULL;
+    jstring extra_key = NULL;
+    JNIEnv* env = NULL;
+    jclass activity_class = NULL;
+    jclass intent_class = NULL;
+    jmethodID get_intent_method = NULL;
+    jmethodID get_string_array_extra_method = NULL;
+    int argc = 1;
+    int extra_count = 0;
+    int use_extra_args = 0;
+    int result = 0;
+    int i;
+    size_t program_name_length = 0;
+
+    env = getJNIEnv(activity);
+    if (env == NULL) {
+        goto done;
+    }
+
+    if (!isAndroidPackageDebuggable(env, activity)) {
+        result = 1;
+        goto done;
+    }
+
+    activity_class = (*env)->GetObjectClass(env, activity->clazz);
+    if (activity_class == NULL) {
+        goto done;
+    }
+
+    get_intent_method = (*env)->GetMethodID(env, activity_class, "getIntent", "()Landroid/content/Intent;");
+    if (get_intent_method == NULL) {
+        goto done;
+    }
+
+    intent = (*env)->CallObjectMethod(env, activity->clazz, get_intent_method);
+    if (intent != NULL) {
+        intent_class = (*env)->GetObjectClass(env, intent);
+        if (intent_class == NULL) {
+            goto done;
+        }
+
+        get_string_array_extra_method = (*env)->GetMethodID(
+            env, intent_class, "getStringArrayExtra", "(Ljava/lang/String;)[Ljava/lang/String;");
+        if (get_string_array_extra_method == NULL) {
+            goto done;
+        }
+
+        extra_key = (*env)->NewStringUTF(env, COMMAND_LINE_ARGUMENTS_EXTRA);
+        if (extra_key == NULL) {
+            goto done;
+        }
+
+        extra_args = (jobjectArray)(*env)->CallObjectMethod(env, intent, get_string_array_extra_method, extra_key);
+        if (extra_args != NULL) {
+            extra_count = (*env)->GetArrayLength(env, extra_args);
+            if (extra_count > 0) {
+                argc += extra_count;
+                use_extra_args = 1;
+            }
+        }
+    }
+
+    command_line = (char**)calloc((size_t)argc + 1, sizeof(char*));
+    if (command_line == NULL) {
+        goto done;
+    }
+
+    program_name_length = strlen(g_AndroidCommandLineProgramName) + 1;
+    command_line[0] = (char*)malloc(program_name_length);
+    if (command_line[0] == NULL) {
+        goto done;
+    }
+    memcpy(command_line[0], g_AndroidCommandLineProgramName, program_name_length);
+
+    if (use_extra_args) {
+        for (i = 0; i < extra_count; ++i) {
+            jstring arg = (jstring)(*env)->GetObjectArrayElement(env, extra_args, i);
+            const char* utf = NULL;
+            jsize len = 0;
+
+            if (arg != NULL) {
+                utf = (*env)->GetStringUTFChars(env, arg, 0);
+                if (utf == NULL) {
+                    (*env)->DeleteLocalRef(env, arg);
+                    goto done;
+                }
+                len = (*env)->GetStringUTFLength(env, arg);
+            }
+
+            command_line[i + 1] = (char*)malloc((size_t)len + 1);
+            if (command_line[i + 1] == NULL) {
+                if (utf != NULL) {
+                    (*env)->ReleaseStringUTFChars(env, arg, utf);
+                }
+                if (arg != NULL) {
+                    (*env)->DeleteLocalRef(env, arg);
+                }
+                goto done;
+            }
+
+            if (len > 0) {
+                memcpy(command_line[i + 1], utf, (size_t)len);
+            }
+            command_line[i + 1][len] = '\0';
+
+            if (utf != NULL) {
+                (*env)->ReleaseStringUTFChars(env, arg, utf);
+            }
+            if (arg != NULL) {
+                (*env)->DeleteLocalRef(env, arg);
+            }
+        }
+    }
+
+    JNIAndroidFreeCommandLine(g_AndroidArgc, g_AndroidArgv);
+    g_AndroidArgc = argc;
+    g_AndroidArgv = command_line;
+    command_line = NULL;
+    result = 1;
+
+done:
+    if (command_line != NULL) {
+        JNIAndroidFreeCommandLine(argc, command_line);
+    }
+    if (env != NULL && extra_key != NULL) {
+        (*env)->DeleteLocalRef(env, extra_key);
+    }
+    if (env != NULL && extra_args != NULL) {
+        (*env)->DeleteLocalRef(env, extra_args);
+    }
+    if (env != NULL && intent != NULL) {
+        (*env)->DeleteLocalRef(env, intent);
+    }
+    if (env != NULL && intent_class != NULL) {
+        (*env)->DeleteLocalRef(env, intent_class);
+    }
+    if (env != NULL && activity_class != NULL) {
+        (*env)->DeleteLocalRef(env, activity_class);
+    }
+    return result;
+}
 
 static void initThreads( void )
 {
@@ -192,17 +434,27 @@ void computeIconifiedState()
     // Between RESUME and INIT_WINDOW, the application could attempt to perform
     // operations without a current GL context.
     //
-    // Therefore, base iconified status on both INIT_WINDOW and PAUSE/RESUME states
-    // Iconified unless opened, resumed (not paused)
+    // Therefore, base iconified status on both INIT_WINDOW and PAUSE/RESUME states.
+    // For OpenGL, we can key this off the EGL surface. For NO_API backends (e.g. Vulkan),
+    // there is no EGL surface, so use the native app window instead.
+    int has_renderable_window = 0;
+    if (_glfwWin.clientAPI == GLFW_NO_API)
+    {
+        has_renderable_window = _glfwWinAndroid.app != NULL && _glfwWinAndroid.app->window != NULL;
+    }
+    else
+    {
+        has_renderable_window = _glfwWinAndroid.surface != EGL_NO_SURFACE;
+    }
 
     // A good detailed overview over the recommended app flow is found here:
     // https://developer.download.nvidia.com/assets/mobile/docs/android_lifecycle_app_note.pdf
-    _glfwWin.iconified = !(g_AppResumed && _glfwWinAndroid.surface != EGL_NO_SURFACE);
+    _glfwWin.iconified = !(g_AppResumed && has_renderable_window);
 
-    LOGV("iconified: %s    (resume: %s, surface: %s)",
+    LOGV("iconified: %s    (resume: %s, window: %s)",
         _glfwWin.iconified?"YES":"no",
         g_AppResumed?"YES":"no",
-        (_glfwWinAndroid.surface != EGL_NO_SURFACE )?"YES":"no");
+        has_renderable_window?"YES":"no");
 }
 
 GLFWAPI int32_t glfwAndroidWindowOpened()
@@ -212,21 +464,7 @@ GLFWAPI int32_t glfwAndroidWindowOpened()
 
 GLFWAPI int32_t glfwAndroidVerifySurface()
 {
-    // Although it's the wrong place to do a eglSwapbuffers, we're already handling a bad state from the last opengl error
-    // Verifying the state of the surface is worth it.
-    if (!eglSwapBuffers(_glfwWinAndroid.display, _glfwWinAndroid.surface))
-    {
-        EGLint error = eglGetError();
-        int32_t result = _glfwAndroidVerifySurfaceError(error);
-        if (!result)
-        {
-            destroy_gl_surface(&_glfwWinAndroid);
-            _glfwWinAndroid.should_recreate_surface = 1;
-            _glfwWin.iconified = 1;
-            return result;
-        }
-    }
-    return 1; // surface is ok
+    return _glfwAndroidPlatformVerifySurface();
 }
 
 void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
@@ -240,26 +478,7 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
         _glfwWin.opened = 1;
         break;
     case APP_CMD_TERM_WINDOW:
-        if (!_glfwInitialized) {
-            // If TERM arrives before the GL context etc. have been created, (e.g.
-            // if the user opens search in a narrow time window during app launch),
-            // then we can be placed in an unrecoverable situation:
-            // TERM can arrive before _glPlatformInit is called, and so creation of the
-            // GL context will fail. Deferred creation is not effective either, as the
-            // application will attempt to open the GL window before it has regained focus.
-            g_appLaunchInterrupted = 1;
-        }
-
-        if (_glfwWin.clientAPI != GLFW_NO_API)
-        {
-            spinlock_lock(&_glfwWinAndroid.m_RenderLock);
-
-            destroy_gl_surface(&_glfwWinAndroid);
-            _glfwWinAndroid.surface = EGL_NO_SURFACE;
-
-            spinlock_unlock(&_glfwWinAndroid.m_RenderLock);
-        }
-        computeIconifiedState();
+        // Defer surface teardown to the engine thread to avoid blocking the looper.
         break;
     case APP_CMD_GAINED_FOCUS:
         break;
@@ -282,7 +501,9 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
         break;
     case APP_CMD_WINDOW_RESIZED:
     case APP_CMD_CONFIG_CHANGED:
-        // See _glfwPlatformSwapBuffers for handling of orientation changes
+    case APP_CMD_WINDOW_REDRAW_NEEDED:
+    case APP_CMD_CONTENT_RECT_CHANGED:
+        // See glfwAndroidFlushEvents for handling of orientation changes
         break;
     case APP_CMD_PAUSE:
         g_AppResumed = false;
@@ -862,29 +1083,119 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
     return 0;
 }
 
+static uint32_t getNewInputEventCapacity(uint32_t current_capacity, uint32_t required_capacity)
+{
+    uint32_t new_capacity = current_capacity > 0 ? current_capacity : APP_INPUT_EVENTS_SIZE_INCREASE_STEP;
+
+    while (new_capacity < required_capacity)
+    {
+        uint32_t next_capacity = new_capacity * 2;
+        if (next_capacity < new_capacity)
+        {
+            return required_capacity;
+        }
+        new_capacity = next_capacity;
+    }
+
+    return new_capacity;
+}
+
+static int ensureInputEventCapacity(uint32_t required_capacity)
+{
+    uint32_t current_capacity = 0;
+
+    spinlock_lock(&g_EventLock);
+    current_capacity = (uint32_t) g_MaxAppInputEvents;
+    spinlock_unlock(&g_EventLock);
+
+    if (current_capacity >= required_capacity)
+    {
+        return 1;
+    }
+
+    uint32_t new_capacity = getNewInputEventCapacity(current_capacity, required_capacity);
+    // Allocate outside g_EventLock so heap work does not block event producers or flushes.
+    // The capacity is rechecked under the lock before swapping this buffer in.
+    struct InputEvent* new_input_events = (struct InputEvent*) malloc(sizeof(struct InputEvent) * new_capacity);
+    if (new_input_events == 0)
+    {
+        LOGE("glfwAndroidHandleInput: failed to allocate %u input events", new_capacity);
+        return 0;
+    }
+
+    struct InputEvent* old_input_events = 0;
+
+    spinlock_lock(&g_EventLock);
+
+    required_capacity = (uint32_t) g_NumAppInputEvents > required_capacity ? (uint32_t) g_NumAppInputEvents : required_capacity;
+
+    if ((uint32_t) g_MaxAppInputEvents < required_capacity)
+    {
+        if (new_capacity >= required_capacity)
+        {
+            if (g_AppInputEvents != 0 && g_NumAppInputEvents > 0)
+            {
+                memcpy(new_input_events, g_AppInputEvents, sizeof(struct InputEvent) * g_NumAppInputEvents);
+            }
+
+            old_input_events = g_AppInputEvents;
+            g_AppInputEvents = new_input_events;
+            g_MaxAppInputEvents = (int) new_capacity;
+            new_input_events = 0;
+        }
+    }
+
+    spinlock_unlock(&g_EventLock);
+
+    free(old_input_events);
+    free(new_input_events);
+
+    return 1;
+}
+
 int32_t glfwAndroidHandleInput(struct android_app* app, AInputEvent* event)
 {
     int ret = 0;
-    spinlock_lock(&g_EventLock);
 
     // We need to make sure we process all events in the queue, otherwise some gestures might end up
     // in a wrong state and get stuck forever.
     uint32_t all_event_count = countInputEvents(app, event);
-    if ((g_NumAppInputEvents + all_event_count) >= g_MaxAppInputEvents)
+    if (all_event_count == 0)
     {
-        uint32_t size_increase = APP_INPUT_EVENTS_SIZE_INCREASE_STEP * (uint32_t) ceil((float) all_event_count / (float) APP_INPUT_EVENTS_SIZE_INCREASE_STEP);
-        g_MaxAppInputEvents += size_increase;
-        g_AppInputEvents = realloc(g_AppInputEvents, sizeof(struct InputEvent) * g_MaxAppInputEvents);
-        memset(g_AppInputEvents + g_NumAppInputEvents, 0, sizeof(struct InputEvent) * size_increase);
+        spinlock_lock(&g_EventLock);
+        int has_input_buffer = g_MaxAppInputEvents > 0;
+        spinlock_unlock(&g_EventLock);
+
+        if (!has_input_buffer)
+        {
+            return 0;
+        }
+
+        struct InputEvent ignored_event;
+        int ignored_event_count = 0;
+        return addInputEvents(app, event, &ignored_event, &ignored_event_count, 1);
     }
 
-    if (g_MaxAppInputEvents > 0)
+    int input_added = 0;
+    while (!input_added)
     {
-        // This will let the engine thread know (engine_main)
-        ret = addInputEvents(app, event, &g_AppInputEvents[g_NumAppInputEvents], &g_NumAppInputEvents, g_MaxAppInputEvents);
-    }
+        spinlock_lock(&g_EventLock);
 
-    spinlock_unlock(&g_EventLock);
+        uint32_t required_capacity = (uint32_t) g_NumAppInputEvents + all_event_count;
+        if (required_capacity <= (uint32_t) g_MaxAppInputEvents)
+        {
+            // This will let the engine thread know (engine_main)
+            ret = addInputEvents(app, event, &g_AppInputEvents[g_NumAppInputEvents], &g_NumAppInputEvents, g_MaxAppInputEvents);
+            input_added = 1;
+        }
+
+        spinlock_unlock(&g_EventLock);
+
+        if (!input_added && !ensureInputEventCapacity(required_capacity))
+        {
+            return 0;
+        }
+    }
 
     return ret;
 }
@@ -897,10 +1208,20 @@ void _glfwPreMain(struct android_app* state)
 
     _glfwWin.opened = 0;
 
-    char* argv[] = {0};
-    argv[0] = strdup("defold-app");
-    int ret = main(1, argv);
-    free(argv[0]);
+    int ret;
+
+    if (g_AndroidArgc <= 0 || g_AndroidArgv == NULL)
+    {
+        LOGV("_glfwPreMain arg fallback");
+        char* fallback_argv[] = {g_AndroidCommandLineProgramName, NULL};
+        ret = main(1, fallback_argv);
+        _exit(ret);
+    }
+
+    ret = main(g_AndroidArgc, g_AndroidArgv);
+    JNIAndroidFreeCommandLine(g_AndroidArgc, g_AndroidArgv);
+    g_AndroidArgc = 0;
+    g_AndroidArgv = NULL;
     // NOTE: _exit due to a dead-lock in glue code.
     _exit(ret);
 }
@@ -956,10 +1277,6 @@ int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 int _glfwPlatformInit( void )
 {
     LOGV("_glfwPlatformInit");
-
-    if (g_appLaunchInterrupted) {
-        return GL_FALSE;
-    }
 
     g_MainThread = pthread_self();
 
@@ -1050,21 +1367,23 @@ int _glfwPlatformTerminate( void )
      // Wait for gl context destruction
     while (_glfwWinAndroid.display != EGL_NO_DISPLAY)
     {
-        int ident;
-        int events;
-        struct android_poll_source* source;
+        void* data = NULL;
+        int ident = ALooper_pollOnce(300, NULL, NULL, &data);
 
-        while ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
+        if (ident >= 0 && data != NULL)
         {
-            // Process this event.
-            if (source != NULL) {
-                source->process(g_AndroidApp, source);
-            }
-            if (g_AndroidApp->destroyRequested) {
-                // App requested exit. It doesn't wait when thread work finished because app is in background already.
-                // App will never end up here from within the app itself, only using OS functions.
-                return GL_TRUE;
-            }
+            struct android_poll_source* source = (struct android_poll_source*)data;
+            source->process(g_AndroidApp, source);
+        }
+        if (g_AndroidApp->destroyRequested) {
+            // App requested exit. It doesn't wait when thread work finished because app is in background already.
+            // App will never end up here from within the app itself, only using OS functions.
+            return GL_TRUE;
+        }
+        if (ident == ALOOPER_POLL_ERROR)
+        {
+            LOGF("ALooper_pollOnce returned an error");
+            return GL_TRUE;
         }
     }
 

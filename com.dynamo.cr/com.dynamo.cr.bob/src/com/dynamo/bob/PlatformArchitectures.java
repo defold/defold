@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -17,16 +17,19 @@ package com.dynamo.bob;
 public enum PlatformArchitectures {
     //
     MacOS(new String[] {"x86_64-macos", "arm64-macos"}, new String[] {"x86_64-macos", "arm64-macos"}),
-    Windows32(new String[] {"x86-win32"}, new String[] {"x86-win32"}),
     Windows64(new String[] {"x86_64-win32"}, new String[] {"x86_64-win32"}),
     Linux(new String[] {"x86_64-linux"}, new String[] {"x86_64-linux"}),
     LinuxArm64(new String[] {"arm64-linux"}, new String[] {"arm64-linux"}),
-    iOS(new String[] {"arm64-ios", "x86_64-ios"}, new String[] {"arm64-ios"}),
-    Android(new String[] {"arm64-android", "armv7-android"}, new String[] {"armv7-android","arm64-android"}),
-    Web(new String[] {"js-web", "wasm-web", "wasm_pthread-web"}, new String[] {"js-web", "wasm-web", "wasm_pthread-web"}),
+    iOS(new String[] {"arm64-ios"}, new String[] {"arm64-ios"}),
+    iOSSimulator(new String[] {"arm64_sim-ios"}, new String[] {"arm64_sim-ios"}),
+    // x86_64-android is available but opt-in. It is mainly useful for Android emulators,
+    // ChromeOS and Windows Subsystem for Android, so it isn't bundled by default.
+    Android(new String[] {"arm64-android", "armv7-android", "x86_64-android"}, new String[] {"armv7-android","arm64-android"}),
+    Web(new String[] {"wasm-web", "wasm_pthread-web"}, new String[] {"wasm-web", "wasm_pthread-web"}),
     NX64(new String[] {"arm64-nx64"}, new String[] {"arm64-nx64"}),
     PS4(new String[] {"x86_64-ps4"}, new String[] {"x86_64-ps4"}),
-    PS5(new String[] {"x86_64-ps5"}, new String[] {"x86_64-ps5"});
+    PS5(new String[] {"x86_64-ps5"}, new String[] {"x86_64-ps5"}),
+    XBoxOne(new String[] {"x86_64-xbone"}, new String[] {"x86_64-xbone"});
 
     String[] architectures;
     String[] defaultArchitectures;

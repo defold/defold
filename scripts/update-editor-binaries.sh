@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -60,13 +60,13 @@ function copy_file() {
 # Resources
 # ----------------------------------------------------------------------------
 SOURCES=(
-    "x86_64-linux"  "x86_64-macos" "win32"  "arm64-ios"
-    "armv7-android" "arm64-android" "js-web" "x86_64-win32"
+    "x86_64-linux" "x86_64-macos" "arm64-ios" "armv7-android" "arm64-android"
+    "x86_64-android" "wasm-web" "wasm_pthread-web" "x86_64-win32"
 )
 
 TARGETS=(
-    "x86_64-linux"  "x86_64-macos" "x86-win32" "arm64-ios"
-    "armv7-android" "arm64-android" "js-web"    "x86_64-win32"
+    "x86_64-linux" "x86_64-macos" "arm64-ios" "armv7-android" "arm64-android"
+    "x86_64-android" "wasm-web" "wasm_pthread-web" "x86_64-win32"
 )
 
 # ----------------------------------------------------------------------------

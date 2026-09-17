@@ -16,7 +16,7 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
         out = node.change_ext(compiled_ext)
         task.set_outputs(out)
 
-    cmd = 'protoc --encode=%s -I ../src/gameobject/test -I ../src/gameobject/test/input -I ../proto -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
+    cmd = '${PROTOC} --encode=%s -I ../src/gameobject/test -I ../src/gameobject/test/input -I ../proto -I ${DYNAMO_HOME}/share/proto -I ${DYNAMO_HOME}/ext/include %s < ${SRC} > ${TGT}' % (type, proto_file)
     waflib.Task.task_factory(name, cmd, before=before, shell=shell, color=color)
     extension(ext)(create)
 
@@ -53,6 +53,11 @@ def transform_properties(properties, out_properties):
         elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_URL:
             entry = out_properties.url_entries.add()
             entry.index = len(out_properties.string_values)
+            out_properties.string_values.append(property.value)
+        elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_TEXT:
+            entry = out_properties.text_entries.add()
+            entry.index = len(out_properties.string_values)
+            entry.value_length = len(property.value.encode('utf-8'))
             out_properties.string_values.append(property.value)
         elif property.type == gameobject_ddf_pb2.PROPERTY_TYPE_VECTOR3:
             entry = out_properties.vector3_entries.add()
@@ -252,6 +257,7 @@ def parse_properties(props):
         rp_vec4 = re.compile(r"vmath\.vector4\(((.*?),(.*?),(.*?),(.*?)|)\)")
         rp_quat = re.compile(r"vmath\.quat\(((.*?),(.*?),(.*?),(.*?)|)\)")
         rp_bool = re.compile(r"(true|false)")
+        rp_text = re.compile(r"(\"(.*?)\"|'(.*?)')")
         rp_resource = re.compile(r"resource\.(.*?)\((\"(.*?)\")?\)")
         for k,v in props.items():
             m_num = rp_num.match(v)
@@ -261,6 +267,7 @@ def parse_properties(props):
             m_vec4 = rp_vec4.match(v)
             m_quat = rp_quat.match(v)
             m_bool = rp_bool.match(v)
+            m_text = rp_text.match(v)
             m_resource = rp_resource.match(v)
             entry = None
             if m_num:
@@ -314,6 +321,12 @@ def parse_properties(props):
                 if m_bool.group(0) == 'true': num = 1
                 else: num = 0
                 declarations.float_values.append(num)
+            elif m_text:
+                entry = declarations.text_entries.add()
+                entry.index = len(declarations.string_values)
+                text = m_text.group(2) if m_text.group(2) is not None else m_text.group(3)
+                entry.value_length = len(text.encode('utf-8'))
+                declarations.string_values.append(text)
             elif m_resource:
                 entry = declarations.hash_entries.add()
                 entry.index = len(declarations.hash_values)

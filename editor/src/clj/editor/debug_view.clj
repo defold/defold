@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,18 +13,27 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.debug-view
-  (:require [clojure.java.io :as io]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.label :as fx.label]
+            [cljfx.fx.list-cell :as fx.list-cell]
+            [cljfx.fx.list-view :as fx.list-view]
+            [cljfx.fx.tree-cell :as fx.tree-cell]
+            [cljfx.fx.tree-view :as fx.tree-view]
+            [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.code.data :refer [line-number->CursorRange]]
+            [editor.code.data :as code.data]
             [editor.console :as console]
             [editor.core :as core]
             [editor.debugging.mobdebug :as mobdebug]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
+            [editor.fxui :as fxui]
             [editor.handler :as handler]
+            [editor.localization :as localization]
             [editor.lua :as lua]
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
@@ -39,45 +48,29 @@
            [java.nio.file Files]
            [java.util Collection]
            [javafx.scene Parent]
-           [javafx.scene.control Button Label ListView TextField TreeItem TreeView]
+           [javafx.scene.control Button ListView TextField TreeItem TreeView]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.scene.layout HBox Pane Priority]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
-(def ^:private break-label "Break")
-(def ^:private continue-label "Continue")
-(def ^:private detach-debugger-label "Detach Debugger")
-(def ^:private start-debugger-label "Start/Attach")
-(def ^:private step-into-label "Step Into")
-(def ^:private step-out-label "Step Out")
-(def ^:private step-over-label "Step Over")
-(def ^:private stop-debugger-label "Stop Debugger")
-(def ^:private open-engine-profiler-label "Open Web Profiler")
-(def ^:private open-engine-resource-profiler-label "Open Resource Profiler")
+(def ^:private break-label (localization/message "command.debugger.break"))
+(def ^:private continue-label (localization/message "command.debugger.continue"))
+(def ^:private step-into-label (localization/message "command.debugger.step-into"))
+(def ^:private step-out-label (localization/message "command.debugger.step-out"))
+(def ^:private step-over-label (localization/message "command.debugger.step-over"))
+(def ^:private stop-debugger-label (localization/message "command.debugger.stop"))
+(def ^:private call-stack-pane-label (localization/message "pane.debugger.call-stack"))
+(def ^:private variables-pane-label (localization/message "pane.debugger.variables"))
 
 (defn- single [coll]
   (when (nil? (next coll)) (first coll)))
 
-(defn- set-debugger-data-visible!
-  [^Parent right-pane visible?]
-  (ui/with-controls right-pane [^Parent right-split ^Parent debugger-data-split]
-    (let [was-visible? (.isVisible debugger-data-split)]
-      (when (not= was-visible? visible?)
-        (ui/visible! right-split (not visible?))
-        (ui/visible! debugger-data-split visible?)))))
-
-(defn- debuggable-resource? [resource]
-  (boolean (some-> resource resource/resource-type :tags (contains? :debuggable))))
-
 (g/defnk update-available-controls!
-  [active-resource ^Parent console-grid-pane debug-session right-pane suspension-state]
+  [^Parent console-grid-pane debug-session suspension-state]
   (let [frames (:stack suspension-state)
         suspended? (some? frames)
-        resource-debuggable? (debuggable-resource? active-resource)
         debug-session? (some? debug-session)]
-    (set-debugger-data-visible! right-pane (and debug-session? resource-debuggable? suspended?))
     (ui/with-controls console-grid-pane [debugger-prompt debugger-tool-bar]
       (ui/visible! debugger-prompt (and debug-session? suspended?))
       (ui/visible! debugger-tool-bar debug-session?))
@@ -94,21 +87,81 @@
     (.layout console-grid-pane)))
 
 (g/defnk update-call-stack!
-  [debug-session suspension-state right-pane]
+  [debug-session suspension-state ^ListView call-stack-view ^TreeView variables-view]
   ;; NOTE: This should only depend upon stuff that changes due to a state change
   ;; in the debugger, since selecting the top-frame below will open the suspended
   ;; file and line in the editor.
   (when (some? debug-session)
-    (ui/with-controls right-pane [^ListView debugger-call-stack]
-      (let [frames (:stack suspension-state)
-            suspended? (some? frames)
-            items (.getItems debugger-call-stack)]
-        (if suspended?
-          (do
-            (.setAll items ^Collection frames)
-            (when-some [top-frame (first frames)]
-              (ui/select! debugger-call-stack top-frame)))
-          (.clear items))))))
+    (let [frames (:stack suspension-state)
+          suspended? (some? frames)
+          items (.getItems call-stack-view)]
+      (if suspended?
+        (do
+          (.setAll items ^Collection frames)
+          (when-some [top-frame (first frames)]
+            (ui/select! call-stack-view top-frame)))
+        (do
+          (.clear items)
+          (.setRoot variables-view nil))))))
+
+(def ^:private ext-with-list-view-props
+  (fx/make-ext-with-props fx.list-view/props))
+
+(defn- describe-call-stack-cell [{:keys [function file line]}]
+  {:graphic {:fx/type fx.h-box/lifecycle
+             :children [{:fx/type fx.label/lifecycle
+                         :h-box/hgrow :always
+                         :max-width ##Inf
+                         :style-class ["label" "call-stack-function"]
+                         :text (str function)}
+                        {:fx/type fx.label/lifecycle
+                         :style-class ["label" "call-stack-path"]
+                         :text (FilenameUtils/getFullPath file)}
+                        {:fx/type fx.label/lifecycle
+                         :style-class ["label" "call-stack-file"]
+                         :text (FilenameUtils/getName file)}
+                        {:fx/type fx.h-box/lifecycle
+                         :style-class "call-stack-line-container"
+                         :children [{:fx/type fx.label/lifecycle
+                                     :style-class ["label" "call-stack-line"]
+                                     :text (str line)}]}]}})
+
+(ui/defc call-stack-pane
+  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
+  [{:keys [call-stack-view localization-state]}]
+  {:fx/type fxui/titled-pane
+   :title (localization-state call-stack-pane-label)
+   :content {:fx/type ext-with-list-view-props
+             :desc {:fx/type ui/ext-value
+                    :value call-stack-view}
+             :props {:cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                    :describe describe-call-stack-cell}}}})
+
+(defn describe-variables-cell [{:keys [display-name display-value]}]
+  {:graphic {:fx/type fx.h-box/lifecycle
+             :children [{:fx/type fx.label/lifecycle :text display-name}
+                        {:fx/type fx.label/lifecycle :text " = " :style-class ["label" "equals"]}
+                        {:fx/type fx.label/lifecycle :text display-value}]}})
+
+(def ^:private ext-with-tree-view-props
+  (fx/make-ext-with-props fx.tree-view/props))
+
+(ui/defc variables-pane
+  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
+  [{:keys [variables-view localization-state]}]
+  {:fx/type fxui/titled-pane
+   :title (localization-state variables-pane-label)
+   :content {:fx/type ext-with-tree-view-props
+             :desc {:fx/type ui/ext-value
+                    :value variables-view}
+             :props {:cell-factory {:fx/cell-type fx.tree-cell/lifecycle
+                                    :describe describe-variables-cell}}}})
+
+(g/defnk produce-debugger-sidebar-panes
+  [debug-session suspension-state call-stack-view variables-view localization]
+  (when (and debug-session (:stack suspension-state))
+    [{:fx/type call-stack-pane :call-stack-view call-stack-view :localization localization}
+     {:fx/type variables-pane :variables-view variables-view :localization localization}]))
 
 (g/defnk produce-execution-locations
   [suspension-state]
@@ -132,23 +185,22 @@
   (property suspension-state g/Any)
 
   (property console-grid-pane Parent)
-  (property right-pane Parent)
+  (property call-stack-view ListView)
+  (property variables-view TreeView)
+  (property localization g/Any)
 
   (property evaluation-history History (default []))
   (property evaluation-history-index g/Int)
   (property evaluation-stashed-entry-text g/Str)
 
-  (input active-resource resource/Resource)
-
   (output update-available-controls g/Any :cached update-available-controls!)
   (output update-call-stack g/Any :cached update-call-stack!)
-  (output execution-locations g/Any :cached produce-execution-locations))
+  (output execution-locations g/Any :cached produce-execution-locations)
+  (output debugger-sidebar-panes g/Any :cached produce-debugger-sidebar-panes))
 
 (defn- current-stack-frame
   [debug-view]
-  (let [right-pane (g/node-value debug-view :right-pane)]
-    (ui/with-controls right-pane [^ListView debugger-call-stack]
-      (first (.. debugger-call-stack getSelectionModel getSelectedIndices)))))
+  (-> ^ListView (g/node-value debug-view :call-stack-view) .getSelectionModel .getSelectedIndices first))
 
 (defn- sanitize-eval-error [error-string]
   (let [error-line-pattern ":1: "
@@ -188,57 +240,23 @@
             (console/append-console-entry! :eval-error (str ret))))))))
 
 (defn- setup-tool-bar!
-  [^Parent console-tool-bar]
+  [^Parent console-tool-bar localization]
   (ui/with-controls console-tool-bar [^Parent debugger-tool-bar ^Button pause-debugger-button ^Button play-debugger-button step-in-debugger-button step-out-debugger-button step-over-debugger-button stop-debugger-button]
     (.bind (.managedProperty debugger-tool-bar) (.visibleProperty debugger-tool-bar))
     (.bind (.managedProperty pause-debugger-button) (.visibleProperty pause-debugger-button))
     (.bind (.managedProperty play-debugger-button) (.visibleProperty play-debugger-button))
-    (ui/tooltip! pause-debugger-button break-label)
-    (ui/tooltip! play-debugger-button continue-label)
-    (ui/tooltip! step-in-debugger-button step-into-label)
-    (ui/tooltip! step-out-debugger-button step-out-label)
-    (ui/tooltip! step-over-debugger-button step-over-label)
-    (ui/tooltip! stop-debugger-button stop-debugger-label)
+    (ui/tooltip! pause-debugger-button break-label localization)
+    (ui/tooltip! play-debugger-button continue-label localization)
+    (ui/tooltip! step-in-debugger-button step-into-label localization)
+    (ui/tooltip! step-out-debugger-button step-out-label localization)
+    (ui/tooltip! step-over-debugger-button step-over-label localization)
+    (ui/tooltip! stop-debugger-button stop-debugger-label localization)
     (ui/bind-action! pause-debugger-button :debugger.break)
     (ui/bind-action! play-debugger-button :debugger.continue)
     (ui/bind-action! step-in-debugger-button :debugger.step-into)
     (ui/bind-action! step-out-debugger-button :debugger.step-out)
     (ui/bind-action! step-over-debugger-button :debugger.step-over)
     (ui/bind-action! stop-debugger-button :debugger.stop)))
-
-(defn- setup-call-stack-view!
-  [^ListView debugger-call-stack]
-  (doto debugger-call-stack
-    (ui/cell-factory! (fn [{:keys [function file line]}]
-                        (let [path (FilenameUtils/getFullPath file)
-                              name (FilenameUtils/getName file)]
-                          {:graphic (doto (HBox.)
-                                      (ui/children! [(doto (Label. (str function))
-                                                       (ui/add-style! "call-stack-function"))
-                                                     (doto (Pane.)
-                                                       (HBox/setHgrow Priority/ALWAYS)
-                                                       (ui/fill-control))
-                                                     (doto (Label. path)
-                                                       (ui/add-style! "call-stack-path"))
-                                                     (doto (Label. name)
-                                                       (ui/add-style! "call-stack-file"))
-                                                     (doto (HBox.)
-                                                       (ui/add-style! "call-stack-line-container")
-                                                       (ui/children! [(doto (Label. (str line))
-                                                                        (ui/add-style! "call-stack-line"))]))]))})))))
-
-(defn- setup-variables-view!
-  [^TreeView debugger-variables]
-  (doto debugger-variables
-    (ui/customize-tree-view! {:double-click-expand? true})
-    (.setShowRoot false)
-    (ui/cell-factory! (fn [{:keys [display-name display-value]}]
-                        {:graphic (doto (HBox.)
-                                    (ui/fill-control)
-                                    (ui/children! [(Label. display-name)
-                                                   (doto (Label. " = ")
-                                                     (ui/add-style! "equals"))
-                                                   (Label. display-value)]))}))))
 
 (defn- make-variable-tree-item
   [[name value]]
@@ -279,6 +297,7 @@
     (.consume e)
     (switch-text! text-field "")
     (g/transact
+      {:undoable false}
       [(g/set-property debug-view :evaluation-history-index nil)
        (g/set-property debug-view :evaluation-stashed-entry-text nil)
        (g/update-property debug-view :evaluation-history conj-history-entry text)])
@@ -298,6 +317,7 @@
           (.consume e)
           (switch-text! text-field (history index))
           (g/transact
+            {:undoable false}
             [(g/set-property debug-view :evaluation-stashed-entry-text text)
              (g/set-property debug-view :evaluation-history-index index)]))
 
@@ -309,6 +329,7 @@
           (.consume e)
           (switch-text! text-field (history index))
           (g/transact
+            {:undoable false}
             (g/set-property debug-view :evaluation-history-index index)))))))
 
 (defn- next-history-entry! [^TextField text-field debug-view ^KeyEvent e]
@@ -325,6 +346,7 @@
           (.consume e)
           (switch-text! text-field stashed-entry-text)
           (g/transact
+            {:undoable false}
             [(g/set-property debug-view :evaluation-history-index nil)
              (g/set-property debug-view :evaluation-stashed-entry-text nil)]))
 
@@ -333,6 +355,7 @@
           (.consume e)
           (switch-text! text-field (history index))
           (g/transact
+            {:undoable false}
             (g/set-property debug-view :evaluation-history-index index)))))))
 
 (defn setup-prompt-field! [debug-view ^TextField text-field]
@@ -345,49 +368,42 @@
                        nil))))
 
 (defn- setup-controls!
-  [debug-view ^Parent console-grid-pane ^Parent right-pane]
+  [debug-view ^Parent console-grid-pane ^ListView call-stack-view ^TreeView variables-view localization]
   (ui/with-controls console-grid-pane [console-tool-bar
                                        ^Parent debugger-prompt
                                        debugger-prompt-field]
     ;; tool bar
-    (setup-tool-bar! console-tool-bar)
+    (setup-tool-bar! console-tool-bar localization)
 
     ;; debugger prompt
     (.bind (.managedProperty debugger-prompt) (.visibleProperty debugger-prompt))
     (setup-prompt-field! debug-view debugger-prompt-field))
 
-  (ui/with-controls right-pane [debugger-call-stack
-                                ^Parent debugger-data-split
-                                ^TreeView debugger-variables
-                                ^Parent right-split]
-    ;; debugger data views
-    (.bind (.managedProperty debugger-data-split) (.visibleProperty debugger-data-split))
-    (.bind (.managedProperty right-split) (.visibleProperty right-split))
-
-    ;; call stack
-    (setup-call-stack-view! debugger-call-stack)
-
-    (ui/observe-selection debugger-call-stack
-                          (fn [node selected-frames]
-                            (let [selected-frame (single selected-frames)]
-                              (let [{:keys [file line]} selected-frame]
-                                (when (and file line)
-                                  (let [open-resource-fn (g/node-value debug-view :open-resource-fn)]
-                                    (open-resource-fn file line))))
-                              (.setRoot debugger-variables (make-variables-tree-item
-                                                             (:locals selected-frame)
-                                                             (:upvalues selected-frame))))))
-
-    ;; variables
-    (setup-variables-view! debugger-variables))
+  (ui/observe-selection call-stack-view
+                        (fn [node selected-frames]
+                          (let [selected-frame (single selected-frames)]
+                            (let [{:keys [file line]} selected-frame]
+                              (when (and file line)
+                                (let [open-resource-fn (g/node-value debug-view :open-resource-fn)]
+                                  (open-resource-fn file line))))
+                            (.setRoot variables-view (make-variables-tree-item
+                                                       (:locals selected-frame)
+                                                       (:upvalues selected-frame))))))
 
   ;; expose to view node
-  (g/set-properties! debug-view :console-grid-pane console-grid-pane :right-pane right-pane)
+  (g/transact
+    {:undoable false}
+    (g/set-properties debug-view
+      :console-grid-pane console-grid-pane
+      :call-stack-view call-stack-view
+      :variables-view variables-view))
   nil)
 
 (defn- file-or-module->resource
   [workspace file]
-  (some (partial workspace/find-resource workspace) [file (lua/lua-module->path file)]))
+  (let [basis (g/now)]
+    (or (workspace/find-resource basis workspace file)
+        (workspace/find-resource basis workspace (lua/lua-module->path file)))))
 
 (defn- make-open-resource-fn
   [project open-resource-fn]
@@ -395,8 +411,13 @@
     (fn [file-or-module line]
       (let [resource (file-or-module->resource workspace file-or-module)]
         (when resource
-          (open-resource-fn resource {:cursor-range (line-number->CursorRange line)})))
+          (open-resource-fn resource {:cursor-range (code.data/line-number->CursorRange line)})))
       nil)))
+
+(defn- collect-enabled-breakpoints [project]
+  (into #{}
+        (filter :enabled)
+        (g/node-value project :breakpoints)))
 
 (defn- set-breakpoint!
   [debug-session {:keys [resource row condition] :as _breakpoint}]
@@ -428,27 +449,38 @@
                     ;; if we don't have a debug session going on, there is no point in pulling
                     ;; project/breakpoints or updating the "last breakpoints" state.
                     (when-some [debug-session (g/node-value debug-view :debug-session)]
-                      (let [breakpoints (set (g/node-value project :breakpoints))]
+                      (let [breakpoints (collect-enabled-breakpoints project)]
                         (update-breakpoints! debug-session (:breakpoints @state) breakpoints)
                         (vreset! state {:breakpoints breakpoints})))))]
     (ui/->timer 4 "debugger-update-timer" tick-fn)))
 
 (defn- setup-view! [debug-view app-view]
   (g/transact
-    [(g/connect app-view :active-resource debug-view :active-resource)
-     (g/connect debug-view :execution-locations app-view :debugger-execution-locations)])
+    {:undoable false}
+    [(g/connect debug-view :execution-locations app-view :debugger-execution-locations)
+     (g/connect debug-view :debugger-sidebar-panes app-view :debugger-sidebar-panes)])
   debug-view)
 
 (defn make-view!
-  [app-view view-graph project ^Parent root open-resource-fn state-changed-fn]
+  [app-view project ^Parent root open-resource-fn state-changed-fn localization]
   (let [console-grid-pane (.lookup root "#console-grid-pane")
-        right-pane (.lookup root "#right-pane")
-        view-id (setup-view! (g/make-node! view-graph DebugView
-                                           :open-resource-fn (make-open-resource-fn project open-resource-fn)
-                                           :state-changed-fn state-changed-fn)
-                             app-view)
+        call-stack-view (doto (ListView.)
+                          (.setId "debugger-call-stack"))
+        variables-view (doto (TreeView.)
+                         (.setId "debugger-variables")
+                         (ui/customize-tree-view! {:double-click-expand true})
+                         (.setShowRoot false))
+        view-id (first
+                  (g/tx-nodes-added
+                    (g/transact
+                      {:undoable false}
+                      (g/make-node DebugView
+                        :localization localization
+                        :open-resource-fn (make-open-resource-fn project open-resource-fn)
+                        :state-changed-fn state-changed-fn))))
+        view-id (setup-view! view-id app-view)
         timer (make-update-timer project view-id)]
-    (setup-controls! view-id console-grid-pane right-pane)
+    (setup-controls! view-id console-grid-pane call-stack-view variables-view localization)
     (ui/timer-start! timer)
     view-id))
 
@@ -459,8 +491,9 @@
 (defn- update-suspension-state!
   [debug-view debug-session]
   (let [stack (mobdebug/stack debug-session)]
-    (g/set-property! debug-view
-                     :suspension-state {:stack (:stack stack)})))
+    (g/transact
+      {:undoable false}
+      (g/set-property debug-view :suspension-state {:stack (:stack stack)}))))
 
 (defn- make-debugger-callbacks
   [debug-view]
@@ -470,21 +503,23 @@
                      (state-changed! debug-view true)))
    :on-resumed   (fn [_debug-session]
                    (ui/run-later
-                     (g/set-property! debug-view :suspension-state nil)
+                     (g/transact
+                       {:undoable false}
+                       (g/set-property debug-view :suspension-state nil))
                      (state-changed! debug-view false)))})
 
 (def ^:private mobdebug-port 8172)
 
-(defn- show-connect-failed-info! [target-address port ^Exception exception workspace]
+(defn show-connect-failed-info! [^Exception exception workspace]
   (ui/run-later
-    (let [msg (str (.getMessage exception) "\n\n"
-                   "Check that the game is running and is reachable over the network.")]
-      (log/error :msg msg :exception exception)
+    (let [error-text (or (.getMessage exception) (.getSimpleName (class exception)))
+          log-text (str error-text "\n\nCheck that the game is running and is reachable over the network.")]
+      (log/error :msg log-text :exception exception)
       (notifications/show!
         (workspace/notifications workspace)
         {:type :error
          :id ::debugger-connection-error
-         :text msg}))))
+         :message (localization/message "notification.debug-view.connect-failed.error" {"error" error-text})}))))
 
 (defn start-debugger!
   [debug-view project target-address instance-index]
@@ -492,22 +527,26 @@
     (mobdebug/connect! target-address debugger-port
                        (fn [debug-session]
                          (ui/run-now
-                           (g/update-property! debug-view :debug-session
-                                               (fn [old new]
-                                                 (when old (mobdebug/close! old))
-                                                 new)
-                                               debug-session)
-                           (update-breakpoints! debug-session (g/node-value project :breakpoints))
+                           (g/transact
+                             {:undoable false}
+                             (g/update-property debug-view :debug-session
+                                                (fn [old new]
+                                                  (when old (mobdebug/close! old))
+                                                  new)
+                                                debug-session))
+                           (update-breakpoints! debug-session (collect-enabled-breakpoints project))
                            (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
                            (state-changed! debug-view true)))
                        (fn [_debug-session]
                          (ui/run-now
-                           (g/set-properties! debug-view
-                             :debug-session nil
-                             :suspension-state nil)
+                           (g/transact
+                             {:undoable false}
+                             (g/set-properties debug-view
+                               :debug-session nil
+                               :suspension-state nil))
                            (state-changed! debug-view false)))
                        (fn [exception]
-                         (show-connect-failed-info! target-address debugger-port exception (project/workspace project))))))
+                         (show-connect-failed-info! exception (project/workspace project))))))
 
 (defn current-session
   ([debug-view]
@@ -562,7 +601,7 @@
                                (engine/run-script! target lua-module)
                                true
                                (catch Exception exception
-                                 (show-connect-failed-info! target-address target-port exception (project/workspace project))
+                                 (show-connect-failed-info! exception (project/workspace project))
                                  false))]
       (when attach-successful?
         (start-debugger! debug-view project target-address (:instance-index target 0))))))
@@ -637,13 +676,13 @@
 (handler/defhandler :run.set-resolution :global
   (options [user-data]
     (when-not user-data
-      [{:label "Custom Resolution..."
+      [{:label (localization/message "command.run.set-resolution.option.custom-resolution")
         :command :run.set-resolution
         :user-data :custom
         :check true}
-       {:label "Apple"
-        :children [{:label "iPhone"
-                    :children [{:label "Viewport Resolutions"
+       {:label (localization/message "command.run.set-resolution.option.apple")
+        :children [{:label (localization/message "command.run.set-resolution.option.iphone")
+                    :children [{:label (localization/message "command.run.set-resolution.option.viewport-resolutions")
                                 :command :private/disabled-menu-label}
                                {:label "iPhone 4 (320x480)"
                                 :command :run.set-resolution
@@ -686,7 +725,7 @@
                                 :user-data {:width 430
                                             :height 932}}
                                {:label :separator}
-                               {:label "Native Resolutions"
+                               {:label (localization/message "command.run.set-resolution.option.native-resolutions")
                                 :command :private/disabled-menu-label}
                                {:label "iPhone 4 (640x960)"
                                 :command :run.set-resolution
@@ -733,8 +772,8 @@
                                 :check true
                                 :user-data {:width 1290
                                             :height 2796}}]}
-                   {:label "iPad"
-                    :children [{:label "Viewport Resolutions"
+                   {:label (localization/message "command.run.set-resolution.option.ipad")
+                    :children [{:label (localization/message "command.run.set-resolution.option.viewport-resolutions")
                                 :command :private/disabled-menu-label}
                                {:label "iPad Pro (1024x1366)"
                                 :command :run.set-resolution
@@ -747,7 +786,7 @@
                                 :user-data {:width 768
                                             :height 1024}}
                                {:label :separator}
-                               {:label "Native Resolutions"
+                               {:label (localization/message "command.run.set-resolution.option.native-resolutions")
                                 :command :private/disabled-menu-label}
                                {:label "iPad Pro (2048x2732)"
                                 :command :run.set-resolution
@@ -764,8 +803,8 @@
                                 :check true
                                 :user-data {:width 768
                                             :height 1024}}]}]}
-       {:label "Android Devices"
-        :children [{:label "Viewport Resolutions"
+       {:label (localization/message "command.run.set-resolution.option.android-devices")
+        :children [{:label (localization/message "command.run.set-resolution.option.viewport-resolutions")
                     :command :private/disabled-menu-label}
                    {:label "Samsung Galaxy S7 (360x640)"
                     :command :run.set-resolution
@@ -793,7 +832,7 @@
                     :user-data {:width 412
                                 :height 847}}
                    {:label :separator}
-                   {:label "Native Resolutions"
+                   {:label (localization/message "command.run.set-resolution.option.native-resolutions")
                     :command :private/disabled-menu-label}
                    {:label "Samsung Galaxy S7 (1440x2560)"
                     :command :run.set-resolution
@@ -825,8 +864,8 @@
                     :check true
                     :user-data {:width 1440
                                 :height 2960}}]}
-       {:label "Handheld"
-        :children [{:label "Native Resolutions"
+       {:label (localization/message "command.run.set-resolution.option.handheld")
+        :children [{:label (localization/message "command.run.set-resolution.option.native-resolutions")
                     :command :private/disabled-menu-label}
                    {:label "1080p (1920x1080)"
                     :command :run.set-resolution
@@ -843,11 +882,11 @@
                     :check true
                     :user-data {:width 1280
                                 :height 800}}]}]))
-  (run [project prefs user-data]
+  (run [project prefs user-data localization]
     (if (= :custom user-data)
       (let [data (or (prefs/get prefs [:run :simulated-resolution])
                      (project-settings-screen-data project))]
-        (when-let [{:keys [width height]} (dialogs/make-resolution-dialog data)]
+        (when-let [{:keys [width height]} (dialogs/make-resolution-dialog data localization)]
           (prefs/set! prefs [:run :simulated-resolution] {:width width :height height :custom true})
           (change-resolution! prefs width height)))
       (do (prefs/set! prefs [:run :simulated-resolution] user-data)
@@ -877,9 +916,9 @@
   (enabled? [] false))
 
 (handler/register-menu! ::menubar :editor.defold-project/project
-  [{:label "Debug"
+  [{:label (localization/message "menu.debug")
     :id ::debug
-    :children [{:label start-debugger-label
+    :children [{:label (localization/message "command.debugger.start")
                 :command :debugger.start}
                {:label continue-label
                 :command :debugger.continue}
@@ -892,23 +931,37 @@
                {:label step-out-label
                 :command :debugger.step-out}
                {:label :separator}
-               {:label detach-debugger-label
+               {:label (localization/message "command.debugger.detach")
                 :command :debugger.detach}
                {:label stop-debugger-label
                 :command :debugger.stop}
                {:label :separator}
-               {:label open-engine-profiler-label
+               {:label (localization/message "command.run.open-profiler")
                 :command :run.open-profiler}
-               {:label open-engine-resource-profiler-label
+               {:label (localization/message "command.run.open-resource-profiler")
                 :command :run.open-resource-profiler}
                {:label :separator}
-               {:label "Reset Simulated Resolution"
+               {:label (localization/message "command.run.reset-resolution")
                 :command :run.reset-resolution}
-               {:label "Set Resolution"
+               {:label (localization/message "command.run.set-resolution")
                 :command :run.set-resolution
                 :expand true}
-               {:label "Rotated Device"
+               {:label (localization/message "command.run.toggle-device-rotated")
                 :command :run.toggle-device-rotated
                 :check true}
                {:label :separator
                 :id ::debug-end}]}])
+
+(comment
+  (defn get-all-script-nodes [project]
+    (into []
+          (keep (fn [node-id]
+                  (when (g/node-instance? editor.code.script/ScriptNode node-id)
+                    (g/node-by-id node-id))))
+          (g/node-ids (g/now))))
+
+  (->> (g/node-value (dev/project) :breakpoints)
+       (group-by #(get-in % [:resource :project-path])))
+
+  (g/outputs (g/now) (dev/project) :breakpoints)
+  (g/inputs (g/now) (dev/project) :breakpoints))

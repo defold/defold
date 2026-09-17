@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,22 +16,28 @@ package com.dynamo.bob.test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
+import java.net.URI;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipFile;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import com.dynamo.bob.LibraryException;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.codec.binary.Base64;
@@ -51,17 +57,29 @@ import org.junit.Test;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.ClassLoaderResourceScanner;
+import com.dynamo.bob.IProgress;
 import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.NullProgress;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.fs.IFileSystem;
-import com.dynamo.bob.util.LibraryUtil;
+import com.dynamo.bob.util.BuildInputDataCollector;
+import com.dynamo.bob.util.DependencyMetadata;
+import com.dynamo.bob.util.Library;
 import com.dynamo.bob.test.util.MockFileSystem;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class ProjectTest {
+    private static final class RecordingReporter implements Progress.Reporter {
+        private final List<IProgress.Message> messages = new CopyOnWriteArrayList<>();
 
-    private class MockProject extends Project {
+        @Override
+        public void report(IProgress.Message message, double fraction) {
+            messages.add(message);
+        }
+    }
+
+    private static class MockProject extends Project {
         public HashMap<String,String> env;
 
         public MockProject(IFileSystem fileSystem, String sourceRootDirectory, String buildDirectory) {
@@ -79,13 +97,11 @@ public class ProjectTest {
     private final static String EMAIL = "unittest@defold.com";
     private final static String AUTH = "secret-auth";
     private final static String BASIC_AUTH = "user:secret";
-    private final static String BASIC_AUTH_ENV_TOKEN = "user:__TOKEN__";
-    private final static String BASIC_AUTH_ENV_TOKEN_RESOLVED = "user:resolved";
 
-    private MockFileSystem fileSystem;
     private MockProject project;
     private Server httpServer;
-    private ArrayList<URL> libraryUrls = new ArrayList<URL>();
+    private ArrayList<URI> libraryUrls = new ArrayList<URI>();
+    private String basicAuthEnvTokenResolved;
 
     private AtomicInteger _304Count = new AtomicInteger();
 
@@ -93,7 +109,7 @@ public class ProjectTest {
     public TestLibrariesRule testLibs = new TestLibrariesRule();
 
     private void initHttpServer(String serverLocation) throws IOException {
-        System.out.printf("initHttpServer start");
+        System.out.print("initHttpServer start");
         httpServer = new Server();
 
         SocketConnector connector = new SocketConnector();
@@ -110,30 +126,44 @@ public class ProjectTest {
         } catch (Exception e) {
             throw new IOException("Unable to start http server", e);
         }
-        System.out.printf("initHttpServer end");
+        System.out.print("initHttpServer end");
+    }
+
+    private String[] selectLibraryAuthEnv() {
+        String user = System.getenv("USER");
+        if (user != null) {
+            return new String[] { "USER", user };
+        }
+        String username = System.getenv("USERNAME");
+        if (username != null) {
+            return new String[] { "USERNAME", username };
+        }
+        throw new IllegalStateException("Expected USER or USERNAME to be set");
     }
 
     @Before
     public void setUp() throws Exception {
-        System.out.printf("setUp start");
+        System.out.print("setUp start");
         // See TestLibrariesRule.java for the creation of these zip files
-        libraryUrls = new ArrayList<URL>();
-        libraryUrls.add(new URL("http://localhost:8081/test_lib1.zip"));
-        libraryUrls.add(new URL("http://localhost:8081/test_lib2.zip"));
-        libraryUrls.add(new URL("http://" + BASIC_AUTH + "@localhost:8081/test_lib5.zip"));
-        libraryUrls.add(new URL("http://" + BASIC_AUTH_ENV_TOKEN + "@localhost:8081/test_lib6.zip"));
-        libraryUrls.add(new URL("http://localhost:8081/test.zip"));
+        String[] authEnv = selectLibraryAuthEnv();
+        String basicAuthEnvToken = "user:__" + authEnv[0] + "__";
+        basicAuthEnvTokenResolved = "user:" + authEnv[1];
+        libraryUrls = new ArrayList<URI>();
+        libraryUrls.add(URI.create("http://localhost:8081/test_lib1.zip"));
+        libraryUrls.add(URI.create("http://localhost:8081/test_lib2.zip"));
+        libraryUrls.add(URI.create("http://" + BASIC_AUTH + "@localhost:8081/test_lib5.zip"));
+        libraryUrls.add(URI.create("http://" + basicAuthEnvToken + "@localhost:8081/test_lib6.zip"));
+        libraryUrls.add(URI.create("http://localhost:8081/test.zip"));
 
-        fileSystem = new MockFileSystem();
+        MockFileSystem fileSystem = new MockFileSystem();
         project = new MockProject(fileSystem, Files.createTempDirectory("defold_").toString(), "build/default");
-        project.env.put("TOKEN", "resolved");
         project.setOption("email", EMAIL);
         project.setOption("auth", AUTH);
         project.scan(new ClassLoaderScanner(), "com.dynamo.bob.test");
         project.setLibUrls(libraryUrls);
 
         initHttpServer(testLibs.getServerLocation());
-        System.out.printf("setUp end");
+        System.out.print("setUp end");
     }
 
     @After
@@ -143,7 +173,7 @@ public class ProjectTest {
     }
 
     List<TaskResult> build(String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
-        return project.build(new NullProgress(), commands);
+        return project.build(Progress.discarding(), commands);
     }
 
     private boolean libExists(String lib) {
@@ -152,7 +182,7 @@ public class ProjectTest {
 
     @Test
     public void testResolve() throws Exception {
-        System.out.printf("testResolve begin");
+        System.out.print("testResolve begin");
 
         assertEquals(0, _304Count.get());
         File libDir = new File(project.getLibPath());
@@ -160,49 +190,192 @@ public class ProjectTest {
             FileUtils.cleanDirectory(libDir);
         }
 
-        this.project.resolveLibUrls(new NullProgress());
+        List<Library.Result> results = this.project.resolveLibUrls(Progress.discarding());
 
         File currentFiles[] = libDir.listFiles(File::isFile);
 
-        for (URL url : libraryUrls) {
-            String hashedUrl = LibraryUtil.getHashedUrl(url);
-            boolean found = false;
-            for (File f : currentFiles) {
-                if (LibraryUtil.matchUri(hashedUrl, f.getName())) {
-                    found = true;
-                    break;
-                }
-            }
-            assertTrue(found);
+        assertEquals(libraryUrls.size(), results.size());
+        for (Library.Result result : results) {
+            assertNull(result.problem());
+            assertNotNull(result.archive());
+            assertTrue(result.archive().path().toFile().exists());
         }
 
         assertEquals(0, _304Count.get());
 
-        this.project.resolveLibUrls(new NullProgress());
+        results = this.project.resolveLibUrls(Progress.discarding());
 
         currentFiles = libDir.listFiles(File::isFile);
         List<File> filenames = new ArrayList<>();
-        for (URL url : libraryUrls) {
-            String hashedUrl = LibraryUtil.getHashedUrl(url);
-            boolean found = false;
-            for (File f : currentFiles) {
-                if (LibraryUtil.matchUri(hashedUrl, f.getName())) {
-                    found = true;
-                    filenames.add(f);
-                    break;
-                }
-            }
-            assertTrue(found);
+        for (Library.Result result : results) {
+            filenames.add(result.archive().path().toFile());
+            assertNull(result.problem());
+            assertNotNull(result.archive());
         }
         assertEquals(filenames.size(), _304Count.get());
 
-        System.out.printf("testResolve end");
+        System.out.print("testResolve end");
+    }
+
+    @Test
+    public void testResolveHandlesMixedSuccessAndFailure() throws Exception {
+        var mixedLibraryUrls = new ArrayList<>(libraryUrls);
+        var missingUri = URI.create("http://localhost:8081/missing.zip");
+        mixedLibraryUrls.add(missingUri);
+        project.setLibUrls(mixedLibraryUrls);
+
+        try {
+            project.resolveLibUrls(Progress.discarding());
+        } catch (LibraryException e) {
+            assertEquals("Failed to fetch library " + missingUri + ": HTTP 404", e.getMessage());
+        }
+
+        var cachedResults = Library.cached(mixedLibraryUrls, Paths.get(project.getLibPath()));
+        assertEquals(mixedLibraryUrls.size(), cachedResults.size());
+
+        var missingSeen = false;
+        for (var result : cachedResults) {
+            if (missingUri.equals(result.uri())) {
+                missingSeen = true;
+                assertNull(result.archive());
+                assertTrue(result.problem() instanceof Library.Problem.Missing);
+            } else {
+                assertNull(result.problem());
+                assertNotNull(result.archive());
+                assertTrue(result.archive().path().toFile().exists());
+            }
+        }
+        assertTrue(missingSeen);
+
+        File metadataFile = new File(project.getLibPath(), DependencyMetadata.DATA_FILE_NAME);
+        assertTrue(metadataFile.exists());
+        ObjectMapper mapper = new ObjectMapper();
+        List<Map<String, String>> metadataDependencies = mapper.readValue(metadataFile, List.class);
+        Map<String, String> missingDependency = findDependency(metadataDependencies, "http://localhost:8081/missing.zip");
+        assertEquals("failed_http_request", missingDependency.get("problem"));
+        assertEquals("", missingDependency.get("commit-sha1"));
+        assertFalse(missingDependency.containsKey("payload-sha1"));
+    }
+
+    @Test
+    public void testResolveProgressSanitizesCredentialUrls() throws Exception {
+        RecordingReporter reporter = new RecordingReporter();
+        URI originalUri = null;
+        for (URI uri : libraryUrls) {
+            if ("user:secret".equals(uri.getUserInfo()) && "/test_lib5.zip".equals(uri.getPath())) {
+                originalUri = uri;
+                break;
+            }
+        }
+
+        this.project.resolveLibUrls(new Progress(reporter));
+
+        URI progressUri = null;
+        for (IProgress.Message message : reporter.messages) {
+            if (message instanceof IProgress.Message.DownloadingArchive(URI uri)) {
+                if ("localhost".equals(uri.getHost()) && "/test_lib5.zip".equals(uri.getPath())) {
+                    progressUri = uri;
+                    break;
+                }
+            }
+        }
+
+        assertEquals(new URI("http://user:secret@localhost:8081/test_lib5.zip"), originalUri);
+        assertEquals(new URI("http://localhost:8081/test_lib5.zip"), progressUri);
+    }
+
+    @Test
+    public void testResolveWritesDependencyMetadata() throws Exception {
+        project.resolveLibUrls(Progress.discarding());
+
+        File metadataFile = new File(project.getLibPath(), DependencyMetadata.DATA_FILE_NAME);
+        assertTrue(metadataFile.exists());
+
+        ObjectMapper mapper = new ObjectMapper();
+        List<Map<String, String>> metadataDependencies = mapper.readValue(metadataFile, List.class);
+        Map<String, String> testLib1 = findDependency(metadataDependencies, "http://localhost:8081/test_lib1.zip");
+        assertFalse(testLib1.containsKey("version"));
+        assertNull(testLib1.get("zip_comment"));
+        assertNull(testLib1.get("sha1"));
+        assertEquals("0123456789abcdef0123456789abcdef01234567", testLib1.get("commit-sha1"));
+        assertFalse(testLib1.containsKey("payload_md5"));
+        assertFalse(testLib1.containsKey("md5"));
+        assertFalse(testLib1.containsKey("payload-md5"));
+        assertNotNull(testLib1.get("payload-sha1"));
+        assertTrue(testLib1.get("payload-sha1").matches("[0-9a-f]{40}"));
+
+        Map<String, String> testLib5 = findDependency(metadataDependencies, "http://localhost:8081/test_lib5.zip");
+        assertFalse(testLib5.containsKey("version"));
+        assertNull(testLib5.get("zip_comment"));
+        assertNull(testLib5.get("sha1"));
+        assertEquals("", testLib5.get("commit-sha1"));
+        assertFalse(testLib5.get("url").contains("secret"));
+
+        File buildInputOutputDir = Files.createTempDirectory("build_input_data").toFile();
+        try {
+            BuildInputDataCollector.saveDataAsJson(project.getRootDirectory(), buildInputOutputDir, "test-sdk", metadataFile);
+            Map<String, Object> buildInputData = mapper.readValue(new File(buildInputOutputDir, "build_input_data.json"), Map.class);
+            assertEquals(metadataDependencies, buildInputData.get("dependencies"));
+            List<Map<String, String>> buildInputDependencies = (List<Map<String, String>>) buildInputData.get("dependencies");
+            Map<String, String> buildInputTestLib1 = findDependency(buildInputDependencies, "http://localhost:8081/test_lib1.zip");
+            assertNull(buildInputTestLib1.get("link"));
+            assertEquals("0123456789abcdef0123456789abcdef01234567", buildInputTestLib1.get("commit-sha1"));
+
+            Map<String, String> buildInputTestLib5 = findDependency(buildInputDependencies, "http://localhost:8081/test_lib5.zip");
+            assertNull(buildInputTestLib5.get("link"));
+            assertFalse(buildInputTestLib5.get("url").contains("secret"));
+            assertEquals("", buildInputTestLib5.get("commit-sha1"));
+        } finally {
+            FileUtils.deleteDirectory(buildInputOutputDir);
+        }
+    }
+
+    @Test
+    public void testResolveRemovesDependencyMetadataWithoutDependencies() throws Exception {
+        project.setLibUrls(new ArrayList<URI>());
+        File metadataFile = new File(project.getLibPath(), DependencyMetadata.DATA_FILE_NAME);
+        Files.createDirectories(metadataFile.getParentFile().toPath());
+        Files.write(metadataFile.toPath(), "stale".getBytes());
+
+        project.resolveLibUrls(Progress.discarding());
+
+        assertFalse(metadataFile.exists());
+    }
+
+    @Test
+    public void testMountDoesNotRemoveDependencyMetadataWithoutDependencies() throws Exception {
+        project.setLibUrls(new ArrayList<URI>());
+        File metadataFile = new File(project.getLibPath(), DependencyMetadata.DATA_FILE_NAME);
+        Files.createDirectories(metadataFile.getParentFile().toPath());
+        Files.write(metadataFile.toPath(), "stale".getBytes());
+
+        project.mount(new ClassLoaderResourceScanner(), Library.cached(new ArrayList<URI>(), Paths.get(project.getLibPath())));
+
+        assertTrue(metadataFile.exists());
+    }
+
+    @Test
+    public void testResolveWritesDependencyMetadataWhenDisabled() throws Exception {
+        project.getProjectProperties().putBooleanValue("project", "dependencies_metadata", false);
+        project.resolveLibUrls(Progress.discarding());
+
+        File metadataFile = new File(project.getLibPath(), DependencyMetadata.DATA_FILE_NAME);
+        assertTrue(metadataFile.exists());
+    }
+
+    private Map<String, String> findDependency(List<Map<String, String>> dependencies, String url) {
+        for (Map<String, String> dependency : dependencies) {
+            if (url.equals(dependency.get("url"))) {
+                return dependency;
+            }
+        }
+        throw new AssertionError("Missing dependency metadata for " + url);
     }
 
     @Test
     public void testMountPoints() throws Exception {
-        System.out.printf("testMountPoints start");
-        project.resolveLibUrls(new NullProgress());
+        System.out.print("testMountPoints start");
+        project.resolveLibUrls(Progress.discarding());
         project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test_lib1/file1.in", "test_lib2/file2.in", "test_lib5/file5.in", "builtins/cp_test.in"));
         List<TaskResult> results = build("resolve", "build");
@@ -210,13 +383,13 @@ public class ProjectTest {
         for (TaskResult result : results) {
             assertTrue(result.isOk());
         }
-        System.out.printf("end");
+        System.out.print("end");
     }
 
     @Test
     public void testMountPointFindSources() throws Exception {
-        System.out.printf("testMountPointFindSources start");
-        project.resolveLibUrls(new NullProgress());
+        System.out.print("testMountPointFindSources start");
+        project.resolveLibUrls(Progress.discarding());
         project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test_lib2/file2.in", "test_lib1/file1.in", "test_lib6/file6.in", "test_lib5/file5.in"));
         List<TaskResult> results = build("build");
@@ -225,7 +398,7 @@ public class ProjectTest {
             assertTrue(result.isOk());
         }
 
-        System.out.printf("end");
+        System.out.print("end");
     }
 
     // due to bob.jar including builtins/ we get way too many resources
@@ -244,9 +417,9 @@ public class ProjectTest {
 
     @Test
     public void testFindResourcePaths() throws Exception {
-        System.out.printf("testFindResourcePaths start");
-        libraryUrls.add(new URL("http://localhost:8081/test_lib3.zip"));
-        project.resolveLibUrls(new NullProgress());
+        System.out.print("testFindResourcePaths start");
+        libraryUrls.add(URI.create("http://localhost:8081/test_lib3.zip"));
+        project.resolveLibUrls(Progress.discarding());
         project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test_lib1/file1.in", "test_lib2/file2.in", "test_lib1/subdir/file5.in", "builtins/cp_test.in"));
 
@@ -256,14 +429,14 @@ public class ProjectTest {
 
         assertFalse(results.isEmpty());
         assertEquals(7, results.size());
-        System.out.printf("end");
+        System.out.print("end");
     }
 
     @Test
     public void testFindResourceDirs() throws Exception {
-        System.out.printf("testFindResourceDirs start");
-        libraryUrls.add(new URL("http://localhost:8081/test_lib3.zip"));
-        project.resolveLibUrls(new NullProgress());
+        System.out.print("testFindResourceDirs start");
+        libraryUrls.add(URI.create("http://localhost:8081/test_lib3.zip"));
+        project.resolveLibUrls(Progress.discarding());
         project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test_lib1/file1.in", "test_lib2/file2.in", "test_lib1/subdir/file5.in", "builtins/cp_test.in"));
 
@@ -282,12 +455,12 @@ public class ProjectTest {
         assertEquals(2, results.size());
         assertTrue(results.contains("testdir1"));
         assertTrue(results.contains("testdir2"));
-        System.out.printf("end");
+        System.out.print("end");
     }
 
     @Test
     public void testAllResourcePathsCacheLibrary() throws Exception {
-        project.resolveLibUrls(new NullProgress());
+        project.resolveLibUrls(Progress.discarding());
         project.mount(new ClassLoaderResourceScanner());
         project.setInputs(Arrays.asList("test/file.in", "builtins/cp_test.in"));
         List<TaskResult> results = build("resolve", "build");
@@ -317,7 +490,7 @@ public class ProjectTest {
             if (request.getHeader("Authorization") != null) {
                 // Basic auth should also not send X-Email or X-Auth
                 String decomposedAuthString1 = "Basic " + new String(new Base64().encode(BASIC_AUTH.getBytes()));
-                String decomposedAuthString2 = "Basic " + new String(new Base64().encode(BASIC_AUTH_ENV_TOKEN_RESOLVED.getBytes()));
+                String decomposedAuthString2 = "Basic " + new String(new Base64().encode(basicAuthEnvTokenResolved.getBytes()));
                 boolean equals1 = decomposedAuthString1.equals(request.getHeader("Authorization"));
                 boolean equals2 = decomposedAuthString2.equals(request.getHeader("Authorization"));
                 authenticated = ((equals1 || equals2) && request.getHeader("X-Email") == null && request.getHeader("X-Auth") == null);
@@ -363,4 +536,3 @@ public class ProjectTest {
         }
     }
 }
-

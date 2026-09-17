@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -109,6 +109,11 @@ namespace dmRig
         return true;
     }
 
+    bool HasPoseMatrixCacheAnimatedPose(HRigInstance instance)
+    {
+        return false;
+    }
+
     bool IsValid(HRigInstance instance)
     {
         return false;
@@ -148,5 +153,13 @@ namespace dmRig
     }
 
     void CopyBindPose(dmRigDDF::Skeleton& skeleton, dmArray<RigBone>& bind_pose)
+    { }
+
+    const float* GetMorphWeights(HRigInstance instance, uint64_t model_id, uint32_t* out_count)
+    {
+        return 0x0;
+    }
+
+    void SetMorphWeights(HRigInstance instance, uint64_t model_id, const float* weights, uint32_t count)
     { }
 }

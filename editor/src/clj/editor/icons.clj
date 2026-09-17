@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -48,10 +48,10 @@
 
 (defn- find-resource
   ([workspace proj-path]
-   (g/with-auto-evaluation-context evaluation-context
-     (find-resource workspace proj-path evaluation-context)))
-  ([workspace proj-path evaluation-context]
-   (get (g/node-value workspace :resource-map evaluation-context) proj-path)))
+   (find-resource (g/now) workspace proj-path))
+  ([basis workspace proj-path]
+   (let [resources-by-proj-path (g/raw-property-value basis workspace :resource-map)]
+     (get resources-by-proj-path proj-path))))
 
 (defn- load-icon-image
   ^Image [^String name ^Double size]

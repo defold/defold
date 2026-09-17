@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -20,6 +20,7 @@
             [editor.connection-properties :refer [connection-properties]]
             [editor.fs :as fs]
             [editor.system :as sys]
+            [integration.test-util :as test-util]
             [service.log :as log]
             [util.fn :as fn])
   (:import [java.io FileNotFoundException]
@@ -73,7 +74,7 @@
                                             sys/defold-version (constantly "0.1.234")]
                                 (log/without-logging
                                   (with-config! {:cid mock-cid}
-                                    (analytics/start! validation-server-url send-interval)
+                                    (analytics/start! validation-server-url test-util/localization send-interval)
                                     (analytics/track-event! "test-category" "test-action")
                                     (analytics/track-event! "test-category" "test-action" "test-label")
                                     (analytics/track-exception! (NullPointerException.))
@@ -90,7 +91,7 @@
         (with-redefs [analytics/get-response-code! (constantly 404)
                       analytics/post! post-call-logger]
           (log/without-logging
-            (analytics/start! "https://not-used" 10)
+            (analytics/start! "https://not-used" test-util/localization 10)
             (analytics/track-event! "test-category" "test-action")
             (Thread/sleep 1000))
 
@@ -103,7 +104,7 @@
         (with-redefs [analytics/get-response-code! (constantly 200)
                       analytics/post! post-call-logger]
           (log/without-logging
-            (analytics/start! "https://not-used" 10)
+            (analytics/start! "https://not-used" test-util/localization 10)
             (analytics/track-event! "test-category" "test-action")
             (Thread/sleep 1000))
 

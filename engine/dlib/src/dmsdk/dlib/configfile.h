@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,15 +22,14 @@
 extern "C" {
 #endif
 
-/*# SDK ConfigFile API documentation
+/*# ConfigFile API documentation
  *
  * Configuration file access functions.
  * The configuration file is compiled version of the [file:game.project] file.
  *
  * @document
  * @name ConfigFile
- * @namespace dmConfigFile
- * @language C++
+ * @language C
  */
 
 /*# HConfigFile type definition
@@ -42,6 +41,13 @@ extern "C" {
  * @name HConfigFile
  */
 typedef struct ConfigFile* HConfigFile;
+
+/*# Config file extension context name
+ * Name used when registering the config file with the engine context registry.
+ * @constant
+ * @name CONFIGFILE_CONTEXT_NAME
+ */
+#define CONFIGFILE_CONTEXT_NAME "config"
 
 /*#
  *

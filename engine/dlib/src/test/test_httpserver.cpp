@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,9 +22,9 @@
 #include "../dlib/math.h"
 #include "../dlib/thread.h"
 #include "../dlib/dstrings.h"
-#include "../dlib/http_server.h"
-#include "../dlib/http_server_private.h"
-#include "../dlib/http_client.h"
+#include "../dlib/http/http_server.h"
+#include "../dlib/http/http_server_private.h"
+#include "../dlib/http/http_client.h"
 #include "../dlib/hash.h"
 #include "../dlib/network_constants.h"
 
@@ -159,7 +159,7 @@ public:
         T_ASSERT_LE(iter, 10000);
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Quit = 0;
         m_ServerStarted = 0;
@@ -173,7 +173,7 @@ public:
         ASSERT_EQ(dmHttpServer::RESULT_OK, result_server);
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         if (m_Server)
             dmHttpServer::Delete(m_Server);
@@ -222,12 +222,12 @@ public:
         return r;
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         m_Major = m_Minor = m_ContentOffset = -1;
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
     }
 };
@@ -318,10 +318,13 @@ TEST_F(dmHttpServerTest, TestServerClient)
         dmTime::Sleep(10 * 1000);
     }
 
+    dmURI::Parts uri;
+    dmURI::Parse("http://127.0.0.1:8500", &uri);
+
     dmHttpClient::NewParams client_params;
     client_params.m_HttpContent = &ClientHttpContent;
     client_params.m_Userdata = this;
-    dmHttpClient::HClient client = dmHttpClient::New(&client_params, DM_LOOPBACK_ADDRESS_IPV4, 8500);
+    dmHttpClient::HClient client = dmHttpClient::New(&client_params, &uri);
 
     dmHttpClient::Result r;
     m_ClientData = "";

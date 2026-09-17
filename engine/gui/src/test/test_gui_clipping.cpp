@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -146,7 +146,7 @@ public:
         m_Renderer.Clear();
     }
 
-    virtual void SetUp()
+    void SetUp() override
     {
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
@@ -163,7 +163,7 @@ public:
         Clear();
     }
 
-    virtual void TearDown()
+    void TearDown() override
     {
         dmGui::DeleteScene(m_Scene);
         dmGui::DeleteContext(m_Context, m_ScriptContext);

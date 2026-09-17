@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -21,7 +21,8 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt])
   (:import [java.io StringReader]))
 
 (set! *warn-on-reflection* true)
@@ -48,7 +49,7 @@
       (testing "component embedded instance"
                (let [r-type (workspace/get-resource-type workspace "factory")]
                  (game-object/add-embedded-component! go-id r-type nil)
-                 (let [factory (:node-id (test-util/outline go-id [0]))]
+                 (let [factory (:node-id (test-util/outline go-id [1]))]
                    (test-util/with-prop [factory :id "script"]
                      (is (g/error? (test-util/prop-error factory :id)))
                      (is (g/error? (test-util/prop-error comp-id :id)))
@@ -61,8 +62,8 @@
           go-resource (g/node-value go-id :resource)
           go-read-fn (:read-fn (resource/resource-type go-resource))]
       (doseq [resource-type resource-types]
-        (testing (:label resource-type)
-          (with-open [_ (test-util/make-graph-reverter (project/graph project))]
+        (testing (:ext resource-type)
+          (with-open [_ (test-util/make-system-reverter)]
             (test-util/add-embedded-component! go-id resource-type)
             (let [save-data (g/node-value go-id :save-data)
                   save-value (:save-value save-data)
@@ -75,23 +76,22 @@
               (is (nil? only-in-loaded))
               (when (or (some? only-in-saved)
                         (some? only-in-loaded))
-                (println "When comparing" (:label resource-type))
+                (println "When comparing" (:ext resource-type))
                 (prn 'disk only-in-loaded)
                 (prn 'save only-in-saved)))))))))
 
 (deftest manip-scale-preserves-types
   (test-util/with-loaded-project
-    (let [project-graph (g/node-id->graph-id project)
-          game-object-path "/game_object/embedded_components.go"
+    (let [game-object-path "/game_object/embedded_components.go"
           game-object (project/get-resource-node project game-object-path)
-          embedded-component (ffirst (g/sources-of game-object :child-scenes))]
+          embedded-component (some-> (first (g/inputs (g/now) game-object :child-scenes)) gt/source-id)]
       (doseq [original-scale
               (mapv #(with-meta % {:version "original"})
                     [[(float 1.0) (float 1.0) (float 1.0)]
                      [(double 1.0) (double 1.0) (double 1.0)]
                      (vector-of :float 1.0 1.0 1.0)
                      (vector-of :double 1.0 1.0 1.0)])]
-        (with-open [_ (test-util/make-graph-reverter project-graph)]
+        (with-open [_ (test-util/make-system-reverter)]
           (g/set-property! embedded-component :scale original-scale)
           (test-util/manip-scale! embedded-component [2.0 2.0 2.0])
           (let [modified-scale (g/node-value embedded-component :scale)]

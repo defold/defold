@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,16 +12,13 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !defined(DM_FONT_UTIL_H)
+#ifndef DM_FONT_UTIL_H
 #define DM_FONT_UTIL_H
 
 #include <stdint.h>
 
-namespace dmFont
-{
-    void DebugPrintBitmap(uint8_t* bitmap, int w, int h);
+void FontDebugPrintBitmap(uint8_t* bitmap, int w, int h);
 
-    void* ReadFile(const char* path, uint32_t* file_size);
-}
+void* FontReadFile(const char* path, uint32_t* file_size);
 
 #endif // DM_FONT_UTIL_H

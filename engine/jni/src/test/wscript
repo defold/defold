@@ -23,6 +23,7 @@ def configure(conf):
     dynamo_home = conf.env.DYNAMO_HOME
     includes = [os.getcwd(),
                 os.path.join(dynamo_home, 'sdk', 'include')]
+    includes += conf.env['INCLUDES']
 
     def make_path(path):
         cwd = os.getcwd()
@@ -36,7 +37,7 @@ def configure(conf):
                      java_outdir    = make_path('./java'),
                      jni_outdir     = make_path('./jni'))
 
-    if conf.env.PLATFORM in ('x86_64-win32','win32'):
+    if conf.env.PLATFORM == 'x86_64-win32':
         conf.env['LINKFLAGS_DEBUG'] = ['dbghelp.lib']
 
 def build(bld):

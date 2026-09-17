@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,16 +14,15 @@
 
 (ns internal.graph.generator
   "test.check generator to create a randomly populated graph"
-  (:require [clojure.test.check :as tc]
-            [clojure.test.check.clojure-test :refer [defspec]]
+  (:require [clojure.test :refer :all]
             [clojure.test.check.generators :as gen]
-            [clojure.test.check.properties :as prop]
-            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
-            [internal.node :as in])
-  (:import [java.util.concurrent.atomic AtomicLong]))
+            [internal.node :as in]
+            [support.test-support :as test-support]))
+
+(set! *warn-on-reflection* true)
 
 (def min-node-count 80)
 (def max-node-count 100)
@@ -94,21 +93,30 @@
 (defn remove-nodes
   [dead-nodes]
   (for [n dead-nodes]
-    `(ig/graph-remove-node ~n)))
+    `(test-support/graph-remove-node ~n)))
 
 (defn- populate-arcs
   [new-arcs]
   (mapcat (fn [a]
-            `[(ig/connect-target ~@(flatten a))
-              (ig/connect-source ~@(flatten a))])
+            `[(connect-arc (gt/->Arc ~@(flatten a)))])
           new-arcs))
+
+(defn connect-arc
+  [graph arc]
+  (let [{:keys [arc->source+target-pkids]} (ig/basis-plan-connect-arc graph arc)]
+    (ig/basis-perform-connect-arcs graph arc->source+target-pkids)))
 
 (defn- remove-arcs
   [dead-arcs]
   (mapcat (fn [a]
-            `[(ig/disconnect-target ~@(flatten a))
-              (ig/disconnect-source ~@(flatten a))])
+            `[(remove-arc (gt/->Arc ~@(flatten a)))])
           dead-arcs))
+
+(defn remove-arc
+  [graph arc]
+  (if-let [{:keys [arc->source+target-pkids]} (ig/basis-plan-disconnect-arc graph arc)]
+    (ig/basis-perform-disconnect-arcs graph arc->source+target-pkids)
+    graph))
 
 (defn subselect
   [coll fraction]
@@ -141,7 +149,6 @@
   []
   (eval (random-graph-sexps)))
 
-
 (comment
 
   (def builder (make-random-graph-builder))
@@ -151,6 +158,5 @@
   (= (builder) (builder))
   ;; => true
 
-  (= ((make-random-graph-builder)) ((make-random-graph-builder)))
+  (= ((make-random-graph-builder)) ((make-random-graph-builder))))
   ;; => false
-)

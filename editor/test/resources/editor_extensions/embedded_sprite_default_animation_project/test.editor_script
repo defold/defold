@@ -1,0 +1,48 @@
+local M = {}
+
+function M.get_commands()
+    return {
+        editor.command({
+            id = "defold.test",
+            label = "Test",
+            locations = {"Edit"},
+            run = function()
+                local collection = "/main/main.collection"
+                local go_resource = "/test.go"
+
+                editor.transact({
+                    editor.tx.add(go_resource, "components", {
+                        type = "sprite",
+                        id = "direct-sprite",
+                        __sampler__texture_sampler__0 = "/logo.atlas",
+                        default_animation = "logo"
+                    })
+                })
+
+                local direct_sprite = editor.get(go_resource, "components")[2]
+                print(("direct default_animation: %s"):format(editor.get(direct_sprite, "default_animation")))
+
+                editor.transact({
+                    editor.tx.add(collection, "children", {
+                        type = "go",
+                        id = "sprite-go",
+                        components = {
+                            {
+                                type = "sprite",
+                                id = "sprite",
+                                __sampler__texture_sampler__0 = "/logo.atlas",
+                                default_animation = "logo"
+                            }
+                        }
+                    })
+                })
+
+                local go = editor.get(collection, "children")[1]
+                local sprite = editor.get(go, "components")[1]
+                print(("nested default_animation: %s"):format(editor.get(sprite, "default_animation")))
+            end
+        })
+    }
+end
+
+return M

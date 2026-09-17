@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -40,13 +40,13 @@ def fix_resource_files(msg):
     for field in descriptor.fields:
         value = getattr(msg, field.name)
         if field.type == FieldDescriptor.TYPE_MESSAGE:
-            if field.label == FieldDescriptor.LABEL_REPEATED:
+            if field.is_repeated:
                 for x in value:
                     fix_resource_files(x)
             else:
                 fix_resource_files(value)
         elif is_resource(field):
-            if field.label == FieldDescriptor.LABEL_REPEATED:
+            if field.is_repeated:
                 for i, x in enumerate(value):
                     if not x.startswith('/'):
                         value[i] = '/' + x
@@ -92,7 +92,7 @@ def process_file(file_name):
 
 ProtofileType('.collection', 'gameobject_ddf_pb2', 'CollectionDesc')
 ProtofileType('.go', 'gameobject_ddf_pb2', 'PrototypeDesc')
-ProtofileType('.collectionproxy', 'gamesys_ddf_pb2', 'CollectionProxyDesc')
+ProtofileType('.collectionproxy', 'collectionproxy_ddf_pb2', 'CollectionProxyDesc')
 ProtofileType('.emitter', 'particle.particle_ddf_pb2', 'particle_ddf_pb2.Emitter')
 ProtofileType('.model', 'model_ddf_pb2', 'ModelDesc')
 ProtofileType('.convexshape',  'physics_ddf_pb2', 'ConvexShape')
@@ -102,7 +102,6 @@ ProtofileType('.camera', 'camera_ddf_pb2', 'CameraDesc')
 ProtofileType('.input_binding', 'input_ddf_pb2', 'InputBinding')
 ProtofileType('.gamepads', 'input_ddf_pb2', 'GamepadMaps')
 ProtofileType('.factory', 'gamesys_ddf_pb2', 'FactoryDesc')
-ProtofileType('.light', 'gamesys_ddf_pb2', 'LightDesc')
 ProtofileType('.render', 'render.render_ddf_pb2', 'render_ddf_pb2.RenderPrototypeDesc')
 ProtofileType('.sprite', 'sprite_ddf_pb2', 'SpriteDesc')
 ProtofileType('.material', 'render.material_ddf_pb2', 'material_ddf_pb2.MaterialDesc')

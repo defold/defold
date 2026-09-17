@@ -1,0 +1,29 @@
+name: "attribute_mismatch_mat4"
+tags: "particle"
+vertex_program: "/particlefx/attribute_mismatch_mat4_repro.vp"
+fragment_program: "/particlefx/attribute_mismatch_repro.fp"
+vertex_space: VERTEX_SPACE_WORLD
+attributes {
+  name: "crash_attr"
+  semantic_type: SEMANTIC_TYPE_NONE
+  data_type: TYPE_FLOAT
+  vector_type: VECTOR_TYPE_MAT4
+  double_values {
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 1.0
+  }
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2020-2025 The Defold Foundation
+# Copyright 2020-2026 The Defold Foundation
 # Copyright 2014-2020 King
 # Copyright 2009-2014 Ragnar Svensson, Christian Murray
 # Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -29,6 +29,8 @@ echo $ANDROID_BUILD_TOOLS_VERSION
 
 import sys
 import sdk
+from private_hooks import find_hook_attr
+
 
 def main():
     if len(sys.argv) < 2:
@@ -36,11 +38,15 @@ def main():
         sys.exit(1)
 
     for var_name in sys.argv[1:]:
-        if hasattr(sdk, var_name):
-            print(f"{var_name}={getattr(sdk, var_name)}")
-        else:
+        attr = getattr(sdk, var_name, None)
+        if attr is None:
+            attr = find_hook_attr('sdk', var_name)
+
+        if attr is None:
             print(f"Error: {var_name} is not defined in sdk.py", file=sys.stderr)
             sys.exit(1)
+
+        print(f"{var_name}={attr}")
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -165,6 +165,9 @@ namespace dmPhysics
             DeleteContext2D(context);
             return 0x0;
         }
+
+        b2Version version = b2GetVersion();
+        dmLogInfo("Created physics context: Box2D v%d.%d.%d", version.major, version.minor, version.revision);
         return context;
     }
 
@@ -205,6 +208,20 @@ namespace dmPhysics
         return world;
     }
 
+    static void ClearPendingRayCasts2D(HWorld2D world)
+    {
+        uint32_t size = world->m_RayCastRequests.Size();
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            const RayCastRequest& request = world->m_RayCastRequests[i];
+            if (request.m_UserData)
+            {
+                free(request.m_UserData);
+            }
+        }
+        world->m_RayCastRequests.SetSize(0);
+    }
+
     void DeleteWorld2D(HContext2D context, HWorld2D world)
     {
         for (uint32_t i = 0; i < context->m_Worlds.Size(); ++i)
@@ -214,6 +231,8 @@ namespace dmPhysics
                 context->m_Worlds.EraseSwap(i);
             }
         }
+
+        ClearPendingRayCasts2D(world);
 
         if (b2World_IsValid(world->m_WorldId))
         {
@@ -253,19 +272,19 @@ namespace dmPhysics
 
     static dmArray<b2ShapeId>& GetSensorOverlapBuffer(HWorld2D world, b2ShapeId shapeId)
     {
-        int num_overlaps = b2Shape_GetSensorCapacity(shapeId);
+        int capacity = b2Shape_GetSensorCapacity(shapeId);
 
-        if (world->m_GetSensorOverlapsScratchBuffer.Capacity() < num_overlaps)
+        if (world->m_GetSensorOverlapsScratchBuffer.Capacity() < capacity)
         {
-            world->m_GetSensorOverlapsScratchBuffer.SetCapacity(num_overlaps);
+            world->m_GetSensorOverlapsScratchBuffer.SetCapacity(capacity);
         }
 
+        int num_overlaps = 0;
+        if (capacity > 0)
+        {
+            num_overlaps = b2Shape_GetSensorOverlaps(shapeId, world->m_GetSensorOverlapsScratchBuffer.Begin(), capacity);
+        }
         world->m_GetSensorOverlapsScratchBuffer.SetSize(num_overlaps);
-
-        if (num_overlaps > 0)
-        {
-            num_overlaps = b2Shape_GetSensorOverlaps(shapeId, world->m_GetSensorOverlapsScratchBuffer.Begin(), num_overlaps);
-        }
         return world->m_GetSensorOverlapsScratchBuffer;
     }
 
@@ -359,6 +378,8 @@ namespace dmPhysics
         return dmMath::Min(v[0], v[1]);
     }
 
+    static const float SCALE_EPSILON = 0.000001f;
+
     static void UpdateScale(HWorld2D world, Body* body, bool force_update)
     {
         dmTransform::Transform world_transform;
@@ -372,7 +393,7 @@ namespace dmPhysics
             ShapeData* shape_data = body->m_Shapes[i];
             b2ShapeId shape_id = shape_data->m_ShapeId;
 
-            if (shape_data->m_LastScale == object_scale && !force_update)
+            if (fabsf(shape_data->m_LastScale - object_scale) <= SCALE_EPSILON && !force_update)
             {
                 continue;
             }
@@ -404,7 +425,7 @@ namespace dmPhysics
                     polygon_shape_data->m_Polygon.vertices[i].x = p.x * s;
                     polygon_shape_data->m_Polygon.vertices[i].y = p.y * s;
                 }
-
+                polygon_shape_data->m_Polygon.centroid = polygon_shape_data->m_CentroidOriginal * s;
                 b2Shape_SetPolygon(shape_id, &polygon_shape_data->m_Polygon);
             }
             else if (shape_data->m_Type == SHAPE_TYPE_GRID)
@@ -530,11 +551,7 @@ namespace dmPhysics
 
                         b2Rot b2_rot = b2MakeRot(angle);
                         b2Body_SetTransform(body_id, b2_position, b2_rot);
-                        b2Body_EnableSleep(body_id, false);
-                    }
-                    else
-                    {
-                        b2Body_EnableSleep(body_id, true);
+                        b2Body_SetAwake(body_id, true);
                     }
                 }
 
@@ -688,8 +705,6 @@ namespace dmPhysics
             world->m_RayCastRequests.SetSize(0);
         }
 
-        b2SensorEvents sensor_events = b2World_GetSensorEvents(world->m_WorldId);
-
         if (step_context.m_CollisionCallback)
         {
             DM_PROFILE("CollisionCallbacks");
@@ -737,6 +752,8 @@ namespace dmPhysics
         {
             DM_PROFILE("TriggerCallbacks");
 
+            b2SensorEvents sensor_events = b2World_GetSensorEvents(world->m_WorldId);
+
             OverlapCacheAddData add_data;
             add_data.m_TriggerEnteredCallback = step_context.m_TriggerEnteredCallback;
             add_data.m_TriggerEnteredUserData = step_context.m_TriggerEnteredUserData;
@@ -769,8 +786,11 @@ namespace dmPhysics
                 {
                     continue;
                 }
-                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, ToOpaqueHandle(b2Shape_GetBody(shapeIdA)));
-                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, ToOpaqueHandle(b2Shape_GetBody(shapeIdB)));
+
+                uint64_t body_a = ToOpaqueHandle(b2Shape_GetBody(shapeIdA));
+                uint64_t body_b = ToOpaqueHandle(b2Shape_GetBody(shapeIdB));
+                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, body_a, body_b);
+                OverlapCacheDecreaseCount(&world->m_TriggerOverlaps, body_b, body_a);
             }
 
             OverlapCachePruneData prune_data;
@@ -813,42 +833,39 @@ namespace dmPhysics
         return shape_data;
     }
 
-    static b2Vec2 ComputeCentroid(const b2Vec2* vs, int count)
+    // From Box2dv3 (geometry.c)
+    static b2Vec2 b2ComputePolygonCentroid( const b2Vec2* vertices, int count )
     {
-        assert(count >= 3);
-
-        b2Vec2 c = {};
+        b2Vec2 center = { 0.0f, 0.0f };
         float area = 0.0f;
 
-        // pRef is the reference point for forming triangles.
-        // It's location doesn't change the result (except for rounding error).
-        b2Vec2 pRef = {};
+        // Get a reference point for forming triangles.
+        // Use the first vertex to reduce round-off errors.
+        b2Vec2 origin = vertices[0];
 
         const float inv3 = 1.0f / 3.0f;
 
-        for (int i = 0; i < count; ++i)
+        for ( int i = 1; i < count - 1; ++i )
         {
-            // Triangle vertices.
-            b2Vec2 p1 = pRef;
-            b2Vec2 p2 = vs[i];
-            b2Vec2 p3 = i + 1 < count ? vs[i+1] : vs[0];
-
-            b2Vec2 e1 = p2 - p1;
-            b2Vec2 e2 = p3 - p1;
-
-            float D = b2Cross(e1, e2);
-
-            float triangleArea = 0.5f * D;
-            area += triangleArea;
+            // Triangle edges
+            b2Vec2 e1 = b2Sub( vertices[i], origin );
+            b2Vec2 e2 = b2Sub( vertices[i + 1], origin );
+            float a = 0.5f * b2Cross( e1, e2 );
 
             // Area weighted centroid
-            c += triangleArea * inv3 * (p1 + p2 + p3);
+            center = b2MulAdd( center, a * inv3, b2Add( e1, e2 ) );
+            area += a;
         }
 
-        // Centroid
-        assert(area > FLT_EPSILON);
-        c *= 1.0f / area;
-        return c;
+        B2_ASSERT( area > FLT_EPSILON );
+        float invArea = 1.0f / area;
+        center.x *= invArea;
+        center.y *= invArea;
+
+        // Restore offset
+        center = b2Add( origin, center );
+
+        return center;
     }
 
     static void MakePolygonFromVertices(PolygonShapeData* polygon, const b2Vec2* vertices, uint32_t count)
@@ -862,7 +879,7 @@ namespace dmPhysics
             polygon->m_Polygon.vertices[i] = vertices[i];
         }
 
-        // Compute normals. Ensure the edges have non-zero length.
+        // Compute normals. Ensure the edges have non-zero length (b2MakePolygon from geometry.c in Box2d)
         for (int i = 0; i < count; ++i)
         {
             int i1 = i;
@@ -875,7 +892,8 @@ namespace dmPhysics
         }
 
         // Compute the polygon centroid.
-        polygon->m_Polygon.centroid = ComputeCentroid(polygon->m_Polygon.vertices, count);
+        polygon->m_Polygon.centroid = b2ComputePolygonCentroid(polygon->m_Polygon.vertices, count);
+        polygon->m_CentroidOriginal = polygon->m_Polygon.centroid;
     }
 
     HCollisionShape2D NewPolygonShape2D(HContext2D context, const float* vertices, uint32_t vertex_count)
@@ -914,7 +932,7 @@ namespace dmPhysics
         delete (HullSet*) hull_set;
     }
 
-    static inline void InitializeGridSHapeData(GridShapeData* shape_data)
+    static inline void InitializeGridShapeData(GridShapeData* shape_data)
     {
         uint32_t cell_count = shape_data->m_RowCount * shape_data->m_ColumnCount;
         uint32_t size       = sizeof(GridShapeData::Cell) * cell_count;
@@ -964,7 +982,7 @@ namespace dmPhysics
         shape_data->m_ColumnCount = column_count;
         shape_data->m_Radius      = b2_polygonRadius;
 
-        InitializeGridSHapeData(shape_data);
+        InitializeGridShapeData(shape_data);
 
         return shape_data;
     }
@@ -1240,24 +1258,51 @@ namespace dmPhysics
         }
     }
 
-    void DeleteCollisionShape2D(HCollisionShape2D _shape)
+    static void FreeShape(ShapeData* shape)
     {
-        ShapeData* shape = (ShapeData*) _shape;
-
-        switch (shape->m_Type)
+        switch(shape->m_Type)
         {
             case SHAPE_TYPE_CIRCLE:
-                delete (CircleShapeData*) shape;
-                break;
+            {
+                if (b2Shape_IsValid(shape->m_ShapeId))
+                    b2DestroyShape(shape->m_ShapeId, false);
+                CircleShapeData* circle_shape = (CircleShapeData*) shape;
+                delete circle_shape;
+            }
+            break;
             case SHAPE_TYPE_POLYGON:
-                delete (PolygonShapeData*) shape;
-                break;
+            {
+                if (b2Shape_IsValid(shape->m_ShapeId))
+                    b2DestroyShape(shape->m_ShapeId, false);
+                PolygonShapeData* poly_shape = (PolygonShapeData*) shape;
+                delete poly_shape;
+            }
+            break;
             case SHAPE_TYPE_GRID:
-                delete (GridShapeData*) shape;
-                break;
-            default:
-                assert(false);
+            {
+                GridShapeData* grid_shape = (GridShapeData*) shape;
+
+                uint32_t cell_count = grid_shape->m_RowCount * grid_shape->m_ColumnCount;
+
+                for (int i = 0; i < cell_count; ++i)
+                {
+                    if (grid_shape->m_Cells[i].m_Index != B2GRIDSHAPE_EMPTY_CELL)
+                    {
+                        if (b2Shape_IsValid(grid_shape->m_CellPolygonShapes[i]))
+                            b2DestroyShape(grid_shape->m_CellPolygonShapes[i], false);
+                    }
+                }
+
+                FreeGridShapeData(grid_shape);
+                delete grid_shape;
+            } break;
+            default: break;
         }
+    }
+
+    void DeleteCollisionShape2D(HCollisionShape2D _shape)
+    {
+        FreeShape((ShapeData*)_shape);
     }
 
     HCollisionObject2D NewCollisionObject2D(HWorld2D world, const CollisionObjectData& data, HCollisionShape2D* shapes, uint32_t shape_count)
@@ -1355,7 +1400,7 @@ namespace dmPhysics
                 GridShapeData* grid_shape_prim = new GridShapeData;
                 memcpy(grid_shape_prim, grid_shape, sizeof(GridShapeData));
 
-                InitializeGridSHapeData(grid_shape_prim);
+                InitializeGridShapeData(grid_shape_prim);
 
                 ret = (ShapeData*) grid_shape_prim;
             } break;
@@ -1370,46 +1415,31 @@ namespace dmPhysics
         return ret;
     }
 
-    static void FreeShape(ShapeData* shape)
+    static bool IsPolygonAreaValid(const ShapeData* shape, const b2Transform& transform, float scale)
     {
-        switch(shape->m_Type)
+        if (shape->m_Type != SHAPE_TYPE_POLYGON)
+            return true;
+
+        const PolygonShapeData* poly_shape = (const PolygonShapeData*) shape;
+        int32_t count = poly_shape->m_Polygon.count;
+        if (count < 3)
+            return false;
+
+        b2Vec2 vertices[B2_MAX_POLYGON_VERTICES];
+        for (int32_t i = 0; i < count; ++i)
         {
-            case SHAPE_TYPE_CIRCLE:
-            {
-                if (b2Shape_IsValid(shape->m_ShapeId))
-                    b2DestroyShape(shape->m_ShapeId, false);
-                CircleShapeData* circle_shape = (CircleShapeData*) shape;
-                delete circle_shape;
-            }
-            break;
-            case SHAPE_TYPE_POLYGON:
-            {
-                if (b2Shape_IsValid(shape->m_ShapeId))
-                    b2DestroyShape(shape->m_ShapeId, false);
-                PolygonShapeData* poly_shape = (PolygonShapeData*) shape;
-                delete poly_shape;
-            }
-            break;
-            case SHAPE_TYPE_GRID:
-            {
-                GridShapeData* grid_shape = (GridShapeData*) shape;
-
-                uint32_t cell_count = grid_shape->m_RowCount * grid_shape->m_ColumnCount;
-
-                for (int i = 0; i < cell_count; ++i)
-                {
-                    if (grid_shape->m_Cells[i].m_Index != B2GRIDSHAPE_EMPTY_CELL)
-                    {
-                        if (b2Shape_IsValid(grid_shape->m_CellPolygonShapes[i]))
-                            b2DestroyShape(grid_shape->m_CellPolygonShapes[i], false);
-                    }
-                }
-
-                FreeGridShapeData(grid_shape);
-                delete grid_shape;
-            } break;
-            default: break;
+            vertices[i] = TransformScaleB2(transform, scale, poly_shape->m_Polygon.vertices[i]);
         }
+
+        b2Vec2 origin = vertices[0];
+        float area = 0.0f;
+        for (int i = 1; i < count - 1; ++i)
+        {
+            b2Vec2 e1 = b2Sub(vertices[i], origin);
+            b2Vec2 e2 = b2Sub(vertices[i + 1], origin);
+            area += 0.5f * b2Cross(e1, e2);
+        }
+        return area > FLT_EPSILON;
     }
 
     /*
@@ -1473,6 +1503,37 @@ namespace dmPhysics
             else
             {
                 dmLogWarning("Collision object created at origin, this will result in a performance hit if multiple objects are created there in the same frame.");
+            }
+        }
+
+        // NOTE: Box2D's ComputeCentroid contains an assert that fires when a polygon's area is too close to zero, which
+        // would crash the editor with an ugly callstack. To prevent this, we replicate the same area computation here
+        // so we can detect the issue early and fail gracefully instead of hitting the assert.
+        for (uint32_t i = 0; i < shape_count; ++i)
+        {
+            ShapeData* s = (ShapeData*) shapes[i];
+            if (s->m_Type != SHAPE_TYPE_POLYGON)
+                continue;
+
+            b2Vec2 t;
+            b2Rot r;
+            if (translations && rotations)
+            {
+                ToB2(translations[i], t, context->m_Scale * scale);
+                r = b2MakeRot(atan2(2.0f * (rotations[i].getZ() * rotations[i].getW()),
+                                    1.0f - 2.0f * rotations[i].getZ() * rotations[i].getZ()));
+            }
+            else
+            {
+                t = b2Vec2_zero;
+                r = b2Rot_identity;
+            }
+
+            b2Transform transform = {t, r};
+            if (!IsPolygonAreaValid(s, transform, scale))
+            {
+                dmLogError("Collision object has a polygon shape with invalid (near-zero) area.");
+                return 0x0;
             }
         }
 
@@ -1566,6 +1627,7 @@ namespace dmPhysics
         world->m_Bodies.Push(body);
 
         UpdateMass2D(world, body, data.m_Mass);
+
         return body;
     }
 
@@ -1579,6 +1641,7 @@ namespace dmPhysics
         {
             FreeShape(body->m_Shapes[i]);
         }
+        free(body->m_Shapes);
 
         b2DestroyBody(body->m_BodyId);
         uint32_t num_bodies = world->m_Bodies.Size();
@@ -1591,6 +1654,7 @@ namespace dmPhysics
                 break;
             }
         }
+        delete body;
     }
 
     void SynchronizeObject2D(HWorld2D world, HCollisionObject2D collision_object)
@@ -1671,10 +1735,10 @@ namespace dmPhysics
 
             PolygonShapeData* polygon_shape = (PolygonShapeData*) shape;
             b2Vec2* vertices = polygon_shape->m_Polygon.vertices;
-            float min_x = INT32_MAX,
-                  min_y = INT32_MAX,
-                  max_x = -INT32_MAX,
-                  max_y = -INT32_MAX;
+            float min_x = (float)INT32_MAX,
+                  min_y = (float)INT32_MAX,
+                  max_x = (float)-INT32_MAX,
+                  max_y = (float)-INT32_MAX;
             float inv_scale = world->m_Context->m_InvScale;
             for (int i = 0; i < polygon_shape->m_Polygon.count; i += 1)
             {
@@ -2014,7 +2078,7 @@ namespace dmPhysics
         return true;
     }
 
-    void RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
+    bool RequestRayCast2D(HWorld2D world, const RayCastRequest& request)
     {
         if (!world->m_RayCastRequests.Full())
         {
@@ -2025,16 +2089,19 @@ namespace dmPhysics
             if (lengthSqr(to2d - from2d) <= 0.0f)
             {
                 dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
+                return false;
             }
             else
             {
                 world->m_RayCastRequests.Push(request);
+                return true;
             }
         }
         else
         {
             dmLogWarning("Ray cast query buffer is full (%d), ignoring request. See 'physics.ray_cast_limit_2d' in game.project", world->m_RayCastRequests.Capacity());
         }
+        return false;
     }
 
     static int Sort_RayCastResponse(const dmPhysics::RayCastResponse* a, const dmPhysics::RayCastResponse* b)
@@ -2095,11 +2162,6 @@ namespace dmPhysics
 
         const Point3 from2d = Point3(request.m_From.getX(), request.m_From.getY(), 0.0);
         const Point3 to2d = Point3(request.m_To.getX(), request.m_To.getY(), 0.0);
-        if (lengthSqr(to2d - from2d) <= 0.0f)
-        {
-            dmLogWarning("Ray had 0 length when ray casting, ignoring request.");
-            return;
-        }
 
         float scale = world->m_Context->m_Scale;
 
@@ -2107,6 +2169,12 @@ namespace dmPhysics
         ToB2(from2d, from, scale);
         b2Vec2 to;
         ToB2(to2d, to, scale);
+        
+        if (b2LengthSquared((to - from)) <= 0.0f)
+        {
+            dmLogWarning("Ray had 0 length when ray casting after applying physics scale, ignoring request.");
+            return;
+        }
 
         // Box2d V3 requires a translation vector, not a point
         b2Vec2 translate = b2Sub(to, from);
@@ -2208,7 +2276,7 @@ namespace dmPhysics
                                     // Free and replace grid so we can recreate cells correctly
                                     FreeGridShapeData(grid_shape);
                                     memcpy(grid_shape, new_grid_shape, sizeof(GridShapeData));
-                                    InitializeGridSHapeData(grid_shape);
+                                    InitializeGridShapeData(grid_shape);
                                 } break;
                             }
                         }

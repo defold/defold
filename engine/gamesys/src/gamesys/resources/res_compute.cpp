@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -24,6 +24,7 @@ namespace dmGameSystem
     {
         dmGraphics::HProgram m_ComputeProgram;
         TextureResource*     m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t             m_TextureResourcePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmhash_t             m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
 
@@ -46,6 +47,8 @@ namespace dmGameSystem
             dmResource::Release(factory, (void*) resources->m_ComputeProgram);
         }
         resources->m_ComputeProgram = 0;
+
+        memset(resources->m_TextureResourcePaths, 0, sizeof(resources->m_TextureResourcePaths));
 
         ReleaseTextures(factory, resources->m_Textures);
     }
@@ -73,6 +76,7 @@ namespace dmGameSystem
             if (*texture_path != 0)
             {
                 factory_e = dmResource::Get(factory, texture_path, (void**)&resources->m_Textures[i]);
+                resources->m_TextureResourcePaths[i] = dmHashString64(texture_path);
                 if ( factory_e != dmResource::RESULT_OK)
                 {
                     ReleaseResources(factory, resources);
@@ -124,19 +128,20 @@ namespace dmGameSystem
             dmhash_t base_name_hash             = dmHashString64(sampler[i].m_Name);
             dmGraphics::TextureWrap uwrap       = dmRender::WrapFromDDF(sampler[i].m_WrapU);
             dmGraphics::TextureWrap vwrap       = dmRender::WrapFromDDF(sampler[i].m_WrapV);
+            dmGraphics::TextureWrap wwrap       = dmRender::WrapFromDDF(sampler[i].m_WrapW);
             dmGraphics::TextureFilter minfilter = dmRender::FilterMinFromDDF(sampler[i].m_FilterMin);
             dmGraphics::TextureFilter magfilter = dmRender::FilterMagFromDDF(sampler[i].m_FilterMag);
             float anisotropy                    = sampler[i].m_MaxAnisotropy;
 
             uint32_t sampler_unit_before = sampler_unit;
-            if (dmRender::SetComputeProgramSampler(resource->m_Program, base_name_hash, sampler_unit, uwrap, vwrap, minfilter, magfilter, anisotropy))
+            if (dmRender::SetComputeProgramSampler(resource->m_Program, base_name_hash, sampler_unit, uwrap, vwrap, wwrap, minfilter, magfilter, anisotropy))
             {
                 sampler_unit++;
             }
 
             for (int j = 0; j < sampler[i].m_NameIndirections.m_Count; ++j)
             {
-                if (dmRender::SetComputeProgramSampler(resource->m_Program, sampler[i].m_NameIndirections[j], sampler_unit, uwrap, vwrap, minfilter, magfilter, anisotropy))
+                if (dmRender::SetComputeProgramSampler(resource->m_Program, sampler[i].m_NameIndirections[j], sampler_unit, uwrap, vwrap, wwrap, minfilter, magfilter, anisotropy))
                 {
                     sampler_unit++;
                 }
@@ -160,8 +165,9 @@ namespace dmGameSystem
                 {
                     continue;
                 }
-                resource->m_Textures[unit]     = resources->m_Textures[i];
-                resource->m_SamplerNames[unit] = resources->m_SamplerNames[i];
+                resource->m_Textures[unit]              = resources->m_Textures[i];
+                resource->m_TextureResourcePaths[unit]  = resources->m_TextureResourcePaths[i];
+                resource->m_SamplerNames[unit]          = resources->m_SamplerNames[i];
                 resource->m_NumTextures++;
             }
         }
@@ -180,9 +186,7 @@ namespace dmGameSystem
 
             HResourceDescriptor desc;
             dmResource::Result res = dmResource::GetDescriptor(params->m_Factory, ddf->m_ComputeProgram, &desc);
-
             assert(res == dmResource::RESULT_OK);
-            dmRender::SetProgramUserData(compute_program, ResourceDescriptorGetNameHash(desc));
 
             ComputeResource* resource = new ComputeResource();
             resource->m_Program       = compute_program;
@@ -249,6 +253,16 @@ namespace dmGameSystem
         }
 
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_ComputeProgram);
+
+        dmRenderDDF::MaterialDesc::Sampler* sampler = ddf->m_Samplers.m_Data;
+        for (uint32_t i = 0; i < ddf->m_Samplers.m_Count; i++)
+        {
+            if (sampler[i].m_Texture && sampler[i].m_Texture[0] != 0)
+            {
+                dmResource::PreloadHint(params->m_HintInfo, sampler[i].m_Texture);
+            }
+        }
+
         *params->m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }

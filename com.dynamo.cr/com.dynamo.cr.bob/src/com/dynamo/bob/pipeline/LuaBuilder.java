@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -14,39 +14,14 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.RandomAccessFile;
-import java.io.FileOutputStream;
-import java.io.ByteArrayInputStream;
-import java.nio.file.Files;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Collection;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
-import javax.vecmath.Quat4d;
-import javax.vecmath.Vector3d;
-import javax.vecmath.Vector4d;
-
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.FileUtils;
-
 import com.defold.extension.pipeline.ILuaObfuscator;
 import com.defold.extension.pipeline.ILuaPreprocessor;
-
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
@@ -62,6 +37,29 @@ import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.script.proto.Lua.LuaSource;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Message;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+
+import javax.vecmath.Quat4d;
+import javax.vecmath.Vector3d;
+import javax.vecmath.Vector4d;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Lua builder. This class is abstract. Inherit from this class
@@ -73,14 +71,18 @@ public abstract class LuaBuilder extends Builder {
 
     private static Logger logger = Logger.getLogger(LuaBuilder.class.getName());
 
-    private static ArrayList<Platform> LUA51_PLATFORMS = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb, Platform.WasmPthreadWeb));
+    private static ArrayList<Platform> LUA51_PLATFORMS = new ArrayList<Platform>(Arrays.asList(Platform.WasmWeb, Platform.WasmPthreadWeb));
     private static boolean useLua51;
     private static String luaJITExePath;
 
     private static List<ILuaPreprocessor> luaPreprocessors = null;
     private static List<ILuaObfuscator> luaObfuscators = null;
 
-    private LuaScanner luaScanner;
+    private LuaScanner.Result luaScannerResult;
+
+    protected boolean allowGoProperties() {
+        return false;
+    }
 
     /**
      * Get a LuaScanner instance for a resource
@@ -89,10 +91,10 @@ public abstract class LuaBuilder extends Builder {
      * @param resource The resource to get a LuaScanner for
      * @return A LuaScanner instance
      */
-    private LuaScanner getLuaScanner(IResource resource) throws IOException, CompileExceptionError {
+    private LuaScanner.Result getLuaScannerResult(IResource resource) throws IOException, CompileExceptionError {
         final String path = resource.getAbsPath();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
-        if (luaScanner == null) {
+        if (luaScannerResult == null) {
             final byte[] scriptBytes = resource.getContent();
             String script = new String(scriptBytes, "UTF-8");
 
@@ -114,17 +116,15 @@ public abstract class LuaBuilder extends Builder {
                 }
             }
 
-            luaScanner = new LuaScanner();
-            if (variant == Bob.VARIANT_DEBUG)
-            {
-                luaScanner.setDebug();
+            luaScannerResult = LuaScanner.parse(script, Bob.VARIANT_DEBUG.equals(variant));
+            if (!allowGoProperties() && !luaScannerResult.properties().isEmpty()) {
+                throw new CompileExceptionError(resource, luaScannerResult.properties().getFirst().startLine() + 1, "go.property cannot be used in this file type");
             }
-            luaScanner.parse(script);
-            for(LuaScanner.LuaScannerException e: luaScanner.exceptions) {
-                throw new CompileExceptionError(resource, e.getLineNumber(), e.getErrorMessage());
+            for (LuaScanner.ParseError error : luaScannerResult.errors()) {
+                throw new CompileExceptionError(resource, error.startLine() + 1, error.message());
             }
         }
-        return luaScanner;
+        return luaScannerResult;
     }
 
     @Override
@@ -132,30 +132,27 @@ public abstract class LuaBuilder extends Builder {
         Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
+                .addOutput(input.disableMinifyPath().changeExt(params.outExt()));
 
-        LuaScanner scanner = getLuaScanner(input);
-        long finalLuaHash = MurmurHash.hash64(scanner.getParsedLua());
+        LuaScanner.Result result = getLuaScannerResult(input);
+        long finalLuaHash = MurmurHash.hash64(result.code());
         taskBuilder.addExtraCacheKey(Long.toString(finalLuaHash));
 
-        for (LuaScanner.Property property : scanner.getProperties()) {
+        for (LuaScanner.Property property : result.properties()) {
+            if (property.isResource()) {
+                String value = (String) property.value();
 
-            if (property.isResource) {
-                String value = (String) property.value;
-
-                if (value.isEmpty())
-                {
+                if (value.isEmpty()) {
                     continue;
-                }
-                else if (!PropertiesUtil.isResourceProperty(project, property.type, value)) {
-                    throw new IOException(String.format("Resource '%s' referenced from script resource property '%s' does not exist", value, property.name));
+                } else if (!PropertiesUtil.isResourceProperty(project, property.type(), value)) {
+                    throw new IOException(String.format("Resource '%s' referenced from script resource property '%s' does not exist", value, property.name()));
                 }
 
-                createSubTask(value, property.name, taskBuilder);
+                createSubTask(value, property.name(), taskBuilder);
             }
         }
 
-        for (String module : scanner.getModules()) {
+        for (String module : result.modules()) {
             String module_file = String.format("/%s.lua", module.replaceAll("\\.", "/"));
             createSubTask(module_file, "Lua module", taskBuilder);
         }
@@ -171,7 +168,6 @@ public abstract class LuaBuilder extends Builder {
 
         // check if the platform is using Lua 5.1 or LuaJIT
         // get path of LuaJIT executable if the platform uses LuaJIT
-        Bob.initLua();
         useLua51 = LUA51_PLATFORMS.contains(this.project.getPlatform());
         luaJITExePath = Bob.getHostExeOnce("luajit-64", luaJITExePath);
 
@@ -297,8 +293,8 @@ public abstract class LuaBuilder extends Builder {
 
     /* We currently prefer source code over plain lua byte code due to the smaller size
     public byte[] constructLuaBytecode(Task task, String luacExe, String source) throws IOException, CompileExceptionError {
-        File outputFile = File.createTempFile("script", ".raw");
-        File inputFile = File.createTempFile("script", ".lua");
+        File outputFile = project.createTempFile("script", ".raw");
+        File inputFile = project.createTempFile("script", ".lua");
 
         List<String> options = new ArrayList<String>();
         options.add(Bob.getExe(Platform.getHostPlatform(), luacExe));
@@ -353,8 +349,8 @@ public abstract class LuaBuilder extends Builder {
 
     public byte[] constructLuaJITBytecode(Task task, String source, boolean gen32bit) throws IOException, CompileExceptionError {
 
-        File outputFile = File.createTempFile("script", ".raw");
-        File inputFile = File.createTempFile("script", ".lua");
+        File outputFile = project.createTempFile("script", ".raw");
+        File inputFile = project.createTempFile("script", ".lua");
 
         // -b = generate bytecode
         // 
@@ -467,10 +463,10 @@ public abstract class LuaBuilder extends Builder {
         LuaModule.Builder builder = LuaModule.newBuilder();
 
         // get and remove require and properties from LuaScanner
-        LuaScanner scanner = getLuaScanner(task.firstInput());
-        String script = scanner.getParsedLua();
-        List<String> modules = scanner.getModules();
-        List<LuaScanner.Property> properties = scanner.getProperties();
+        LuaScanner.Result result = getLuaScannerResult(task.firstInput());
+        String script = result.code();
+        List<String> modules = result.modules();
+        List<LuaScanner.Property> properties = result.properties();
 
         // add detected modules to builder
         for (String module : modules) {
@@ -594,19 +590,19 @@ public abstract class LuaBuilder extends Builder {
         PropertyDeclarations.Builder builder = PropertyDeclarations.newBuilder();
         if (!properties.isEmpty()) {
             for (LuaScanner.Property property : properties) {
-                if (property.status == Status.OK) {
+                if (property.status() == Status.OK) {
                     PropertyDeclarationEntry.Builder entryBuilder = PropertyDeclarationEntry.newBuilder();
-                    entryBuilder.setKey(property.name);
-                    entryBuilder.setId(MurmurHash.hash64(property.name));
-                    switch (property.type) {
+                    entryBuilder.setKey(property.name());
+                    entryBuilder.setId(MurmurHash.hash64(property.name()));
+                    switch (property.type()) {
                     case PROPERTY_TYPE_NUMBER:
                         entryBuilder.setIndex(builder.getFloatValuesCount());
-                        builder.addFloatValues(((Double)property.value).floatValue());
+                        builder.addFloatValues(((Double)property.value()).floatValue());
                         builder.addNumberEntries(entryBuilder);
                         break;
                     case PROPERTY_TYPE_HASH:
-                        String value = (String)property.value;
-                        if (PropertiesUtil.isResourceProperty(project, property.type, value)) {
+                        String value = (String)property.value();
+                        if (PropertiesUtil.isResourceProperty(project, property.type(), value)) {
                             value = PropertiesUtil.transformResourcePropertyValue(resource, value);
                             propertyResources.add(value);
                         }
@@ -616,15 +612,22 @@ public abstract class LuaBuilder extends Builder {
                         break;
                     case PROPERTY_TYPE_URL:
                         entryBuilder.setIndex(builder.getStringValuesCount());
-                        builder.addStringValues((String)property.value);
+                        builder.addStringValues((String)property.value());
                         builder.addUrlEntries(entryBuilder);
+                        break;
+                    case PROPERTY_TYPE_TEXT:
+                        String text = (String)property.value();
+                        entryBuilder.setIndex(builder.getStringValuesCount());
+                        entryBuilder.setValueLength(text.getBytes(StandardCharsets.UTF_8).length);
+                        builder.addStringValues(text);
+                        builder.addTextEntries(entryBuilder);
                         break;
                     case PROPERTY_TYPE_VECTOR3:
                         entryBuilder.setIndex(builder.getFloatValuesCount());
-                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".x"));
-                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".y"));
-                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".z"));
-                        Vector3d v3 = (Vector3d)property.value;
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name() + ".x"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name() + ".y"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name() + ".z"));
+                        Vector3d v3 = (Vector3d)property.value();
                         builder.addFloatValues((float)v3.getX());
                         builder.addFloatValues((float)v3.getY());
                         builder.addFloatValues((float)v3.getZ());
@@ -632,11 +635,11 @@ public abstract class LuaBuilder extends Builder {
                         break;
                     case PROPERTY_TYPE_VECTOR4:
                         entryBuilder.setIndex(builder.getFloatValuesCount());
-                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".x"));
-                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".y"));
-                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".z"));
-                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".w"));
-                        Vector4d v4 = (Vector4d)property.value;
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name() + ".x"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name() + ".y"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name() + ".z"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name() + ".w"));
+                        Vector4d v4 = (Vector4d) property.value();
                         builder.addFloatValues((float)v4.getX());
                         builder.addFloatValues((float)v4.getY());
                         builder.addFloatValues((float)v4.getZ());
@@ -645,11 +648,11 @@ public abstract class LuaBuilder extends Builder {
                         break;
                     case PROPERTY_TYPE_QUAT:
                         entryBuilder.setIndex(builder.getFloatValuesCount());
-                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".x"));
-                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".y"));
-                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".z"));
-                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".w"));
-                        Quat4d q = (Quat4d)property.value;
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name() + ".x"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name() + ".y"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name() + ".z"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name() + ".w"));
+                        Quat4d q = (Quat4d) property.value();
                         builder.addFloatValues((float)q.getX());
                         builder.addFloatValues((float)q.getY());
                         builder.addFloatValues((float)q.getZ());
@@ -658,14 +661,16 @@ public abstract class LuaBuilder extends Builder {
                         break;
                     case PROPERTY_TYPE_BOOLEAN:
                         entryBuilder.setIndex(builder.getFloatValuesCount());
-                        builder.addFloatValues(((Boolean)property.value) ? 1.0f : 0.0f);
+                        builder.addFloatValues(((Boolean) property.value()) ? 1.0f : 0.0f);
                         builder.addBoolEntries(entryBuilder);
                         break;
                     }
-                } else if (property.status == Status.INVALID_ARGS) {
-                    throw new CompileExceptionError(resource, property.line + 1, "go.property takes a string and a value as arguments. The value must have the type number, boolean, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat, or resource.*.");
-                } else if (property.status == Status.INVALID_VALUE) {
-                    throw new CompileExceptionError(resource, property.line + 1, "Only these types are available: number, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat, resource.*");
+                } else if (property.status() == Status.INVALID_ARGS) {
+                    throw new CompileExceptionError(resource, property.startLine() + 1, "go.property takes a string and a value as arguments. The value must have the type number, boolean, hash, string, msg.url, vmath.vector3, vmath.vector4, vmath.quat, or resource.*.");
+                } else if (property.status() == Status.INVALID_VALUE) {
+                    throw new CompileExceptionError(resource, property.startLine() + 1, "Only these types are available: number, hash, string, msg.url, vmath.vector3, vmath.vector4, vmath.quat, resource.*");
+                } else if (property.status() == Status.INVALID_LOCATION) {
+                    throw new CompileExceptionError(resource, property.startLine() + 1, "go.property should be a top-level statement");
                 }
             }
         }
@@ -675,6 +680,6 @@ public abstract class LuaBuilder extends Builder {
     @Override
     public void clearState() {
         super.clearState();
-        luaScanner = null;
+        luaScannerResult = null;
     }
 }

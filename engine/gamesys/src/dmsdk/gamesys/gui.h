@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -28,7 +28,7 @@ namespace dmBuffer
     struct StreamDeclaration;
 }
 
-/*# SDK Gui Component API documentation
+/*# Gui Component API documentation
  *
  * Built-in scripting functions.
  *
@@ -42,13 +42,15 @@ namespace dmGameSystem
 {
     /*#
      * Gui component node type create/destroy context
-     * @struct CompGuiNodeTypeCtx
+     * @struct
+     * @name CompGuiNodeTypeCtx
     */
     struct CompGuiNodeTypeCtx;
 
     /*#
      * Gui component node type
-     * @struct GuiNodeType
+     * @struct
+     * @name GuiNodeType
     */
     struct CompGuiNodeType;
 

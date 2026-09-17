@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -58,7 +58,7 @@ public class TextureSetLayoutTest {
     @Test
     public void testEmpty() throws CompileExceptionError {
         List<TextureSetLayout.Rect> rectangles
-            = Arrays.asList();
+            = List.of();
 
         Layout layout = packedLayout(0, rectangles).get(0);
         assertThat(layout.getWidth(), is(1));
@@ -190,15 +190,15 @@ public class TextureSetLayoutTest {
                             rect("1", 1, 16, 16));
 
         List<Layout> layouts = packedLayoutPaged(0, rectangles, 32, 32);
-        assertTrue(layouts.size() == 2);
+        assertEquals(2, layouts.size());
 
         Layout layout0 = layouts.get(0);
         Layout layout1 = layouts.get(1);
 
         assertThat(layout0.getWidth(), is(32));
         assertThat(layout0.getHeight(), is(32));
-        assertTrue(layout0.getWidth() == layout1.getWidth());
-        assertTrue(layout0.getHeight() == layout1.getHeight());
+        assertEquals(layout0.getWidth(), layout1.getWidth());
+        assertEquals(layout0.getHeight(), layout1.getHeight());
     }
 
     private Rect rect(String id, int index, int w, int h) {
@@ -287,20 +287,20 @@ public class TextureSetLayoutTest {
 
         Layout layout = gridLayout(0, rectangles, new Grid(2,2) );
 
-        assertEquals( layout.getWidth(), 32 );
-        assertEquals( layout.getHeight(), 8 );
+        assertEquals(32, layout.getWidth());
+        assertEquals(8, layout.getHeight());
     }
 
     @Test
     public void testGridLayout2() throws CompileExceptionError {
 
         List<Rect> rectangles
-            = Arrays.asList(rect("0", 0, 32, 16));
+            = List.of(rect("0", 0, 32, 16));
 
         Layout layout = gridLayout(0, rectangles, new Grid(2,2) );
 
-        assertEquals( layout.getWidth(), 64 );
-        assertEquals( layout.getHeight(), 32 );
+        assertEquals(64, layout.getWidth());
+        assertEquals(32, layout.getHeight());
     }
 
     @Test
@@ -330,7 +330,67 @@ public class TextureSetLayoutTest {
                             rect("3", 3, 800, 100));
         Layout layout = packedLayout(0, rectangles).get(0);
 
-        assertEquals(layout.getWidth(), 2048);
-        assertEquals(layout.getHeight(), 1024);
+        assertEquals(2048, layout.getWidth());
+        assertEquals(1024, layout.getHeight());
+    }
+
+    @Test
+    public void testMixedOrientationFit() throws CompileExceptionError {
+        List<Rect> rectangles
+            = Arrays.asList(rect("0", 0, 1089, 417),
+                            rect("1", 1, 369, 1080));
+        List<Layout> layouts = packedLayout(0, rectangles);
+        assertEquals(1, layouts.size());
+
+        Layout layout = layouts.get(0);
+        assertTrue("Expected occupancy to be above 40%", layouts.get(0).getOccupancy() >= 0.4);
+        assertEquals(2048, layout.getWidth());
+        assertEquals(1024, layout.getHeight());
+    }
+
+    // The 26 source images of issue #12593's 2.atlas (chars_01..26), unextruded.
+    private static final int[][] PORTRAIT_ATLAS_RECTS = {
+        {227, 475}, {203, 434}, {265, 532}, {242, 521}, {236, 588}, {253, 567},
+        {305, 552}, {308, 551}, {289, 620}, {259, 615}, {363, 584}, {316, 626},
+        {264, 630}, {283, 507}, {193, 508}, {201, 500}, {322, 536}, {280, 514},
+        {224, 546}, {218, 520}, {260, 485}, {252, 486}, {246, 520}, {265, 495},
+        {319, 558}, {285, 497}
+    };
+
+    private List<Rect> portraitAtlasRects(int extrudeBorders) {
+        int grow = 2 * extrudeBorders;
+        List<Rect> rects = new ArrayList<Rect>(PORTRAIT_ATLAS_RECTS.length);
+        for (int i = 0; i < PORTRAIT_ATLAS_RECTS.length; i++) {
+            rects.add(rect(Integer.toString(i), i,
+                           PORTRAIT_ATLAS_RECTS[i][0] + grow,
+                           PORTRAIT_ATLAS_RECTS[i][1] + grow));
+        }
+        return rects;
+    }
+
+    // Issue #12593: increasing extrudeBorders for the reported portrait atlas
+    // should not produce a smaller packed page. This is distinct from the #11541
+    // canFitInPage regression covered by testMixedOrientationFit. Here we're making
+    // sure that the packing remains monotonic over N extrusions.
+    @Test
+    public void testIssue12593PortraitAtlasExtrudeBorders() throws CompileExceptionError {
+        long previousArea = 0;
+        int occupancyCount = 0;
+
+        for (int extrudeBorders = 0; extrudeBorders <= 5; extrudeBorders++) {
+            List<Layout> layouts = packedLayout(0, portraitAtlasRects(extrudeBorders));
+            assertEquals(1, layouts.size());
+            Layout layout = layouts.get(0);
+            long area = (long)layout.getWidth() * layout.getHeight();
+            assertTrue(String.format("extrudeBorders=%d packed to a smaller page area", extrudeBorders), area >= previousArea);
+            if (layout.getOccupancy() >= 0.88f) {
+                occupancyCount++;
+            } else {
+                break;
+            }
+            previousArea = area;
+        }
+
+        assertTrue("Expected occupancy to be above 88% for the first 3 extrusion borders", occupancyCount >= 3);
     }
 }

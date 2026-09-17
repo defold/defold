@@ -5,6 +5,6 @@ background_color {
   z: 0.0
   w: 0.0
 }
-material: "/gui/gui.material"
+material: "/input/gui_gui.material"
 adjust_reference: ADJUST_REFERENCE_PARENT
 max_nodes: 512

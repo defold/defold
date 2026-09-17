@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,7 +18,8 @@
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.fs :as fs]
-            [editor.graph-util :as gu]
+            [editor.localization :as localization]
+            [editor.node-util :as node-util]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -65,7 +66,7 @@
                              :deps-by-source field-value->fused-path}))
             (coll/assoc-in-ex pb-map field-path fused-path))))
       pb-map
-      (protobuf/get-field-value-paths pb-map pb-class))))
+      (protobuf/resource-field-value-paths pb-class pb-map))))
 
 (defn- build-protobuf
   [resource dep-resources user-data]
@@ -95,6 +96,26 @@
 
              (coll/not-empty dynamic-deps)
              (assoc :dynamic-deps dynamic-deps)))))
+
+;;--------------------------------------------------------------------
+
+(defn- build-source-bytes [build-resource _dep-resources _user-data]
+  (let [source-resource (:resource build-resource)
+        source-bytes (resource/resource->bytes source-resource)]
+    {:resource build-resource
+     :content source-bytes}))
+
+(defn make-source-bytes-build-target [node-id source-resource]
+  ;; Warning: May throw IOException.
+  ;; We hash the source resource contents to ensure the build target is
+  ;; invalidated from the on-disk build cache when the contents change.
+  (let [build-resource (workspace/make-build-resource source-resource)
+        source-hash (resource/resource->path-inclusive-sha1-hex source-resource)]
+    (bt/with-content-hash
+      {:node-id node-id
+       :resource build-resource
+       :build-fn build-source-bytes
+       :user-data {:source-hash source-hash}})))
 
 ;;--------------------------------------------------------------------
 
@@ -170,10 +191,7 @@
   (contains? #{"fontc"} (resource/ext (:resource build-target))))
 
 (defn- batched-pmap [f batches]
-  (->> batches
-       (pmap (fn [batch] (doall (map f batch))))
-       (reduce concat)
-       doall))
+  (into [] cat (coll/pmapv #(mapv f %) batches)))
 
 (def ^:private cheap-batch-size 500)
 (def ^:private expensive-batch-size 5)
@@ -181,7 +199,7 @@
 (defn decorate-build-exception [exception stage node-id resource-path {:keys [basis] :as evaluation-context}]
   (try
     (let [{:keys [owner-resource-node-id node-debug-label-path] :as node-debug-info}
-          (gu/node-debug-info node-id evaluation-context)]
+          (node-util/node-debug-info node-id evaluation-context)]
       (ex-info (format "Failed to %s %s %s."
                        (name stage)
                        (if (= owner-resource-node-id node-id)
@@ -218,7 +236,7 @@
   [flat-build-targets build-dir old-artifact-map evaluation-context render-progress!]
   (let [build-targets-by-content-hash (make-build-targets-by-content-hash flat-build-targets)
         pruned-old-artifact-map (prune-artifact-map old-artifact-map build-targets-by-content-hash)
-        progress (atom (progress/make "" (count build-targets-by-content-hash)))]
+        progress (atom (progress/make localization/empty-message (count build-targets-by-content-hash)))]
     (prune-build-dir! build-dir build-targets-by-content-hash)
     (let [{cheap-build-targets false expensive-build-targets true} (group-by expensive? (vals build-targets-by-content-hash))
           build-target-batches (into (partition-all cheap-batch-size cheap-build-targets)
@@ -230,7 +248,7 @@
                             cached-artifact (when-some [artifact (get pruned-old-artifact-map resource-path)]
                                               (when (valid? resource artifact)
                                                 (assoc artifact :resource resource)))
-                            message (str "Building " resource-path)]
+                            message (localization/message "progress.building-resource" {"resource" resource-path})]
                         (render-progress! (swap! progress progress/with-message message))
                         (let [result (or cached-artifact
                                          (let [dep-resources (make-dep-resources deps build-targets-by-content-hash)

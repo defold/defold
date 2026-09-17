@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -22,14 +22,12 @@
             [clojure.tools.namespace.parse :as ns-parse])
   (:import [java.io File]))
 
-(defn- add-deps
-  [graph [sym deps]]
+(defn- add-deps [graph [sym deps]]
   (reduce (fn [g [sym dep]] (ns-deps/depend g sym dep))
           graph
           (for [dep deps] [sym dep])))
 
-(defn- make-namespace-deps-graph
-  []
+(defn- make-namespace-deps-graph []
   (let [namespaces (ns-find/find-ns-decls
                      (mapv io/file (.split (System/getProperty "java.class.path") File/pathSeparator)))
         own-nses (into #{} (map second) namespaces)]
@@ -38,9 +36,10 @@
             (for [ns namespaces]
               [(second ns) (set/intersection own-nses (ns-parse/deps-from-ns-decl ns))]))))
 
-(defn- make-load-batches-for-ns
-  [graph ns-sym available]
-  (let [deps (conj (ns-deps/transitive-dependencies graph ns-sym) ns-sym)
+(defn- make-load-batches-for-ns [graph ns-sym available]
+  (let [deps (set/difference
+               (conj (ns-deps/transitive-dependencies graph ns-sym) ns-sym)
+               available)
         nodes-with-deps (for [n deps]
                           [n (ns-deps/transitive-dependencies graph n)])]
     (loop [available available

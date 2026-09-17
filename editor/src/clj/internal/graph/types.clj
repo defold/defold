@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,14 +13,16 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.graph.types
-  (:import [clojure.lang IHashEq Keyword Murmur3 Util]
+  (:require [util.defonce :as defonce])
+  (:import [clojure.lang Associative IHashEq IKeywordLookup ILookup ILookupThunk IPersistentCollection Keyword MapEntry Murmur3 Seqable Util]
            [com.defold.util WeakInterner]
-           [java.io Writer]))
+           [java.io Writer]
+           [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defrecord Arc [source-id source-label target-id target-label])
+(defonce/record Arc [source-id source-label target-id target-label])
 
 (defn arc-print-data [^Arc arc]
   (into [(.-source-id arc) (.-source-label arc)
@@ -37,17 +39,17 @@
     `(Arc. ~source-id ~source-label ~target-id ~target-label nil ~kvs)
     `(Arc. ~source-id ~source-label ~target-id ~target-label)))
 
-(defn source-id [^Arc arc] (.source-id arc))
-(defn source-label [^Arc arc] (.source-label arc))
-(defn source [^Arc arc] [(.source-id arc) (.source-label arc)])
-(defn target-id [^Arc arc] (.target-id arc))
-(defn target-label [^Arc arc] (.target-label arc))
-(defn target [^Arc arc] [(.target-id arc) (.target-label arc)])
+(definline source-id [^Arc arc] `(.-source-id ~(with-meta arc {:tag `Arc})))
+(definline source-label [^Arc arc] `(.-source-label ~(with-meta arc {:tag `Arc})))
+(defn source [^Arc arc] [(.-source-id arc) (.-source-label arc)])
+(definline target-id [^Arc arc] `(.-target-id ~(with-meta arc {:tag `Arc})))
+(definline target-label [^Arc arc] `(.-target-label ~(with-meta arc {:tag `Arc})))
+(defn target [^Arc arc] [(.-target-id arc) (.-target-label arc)])
 
 (definline node-id-hash [node-id]
   `(Murmur3/hashLong ~node-id))
 
-(deftype Endpoint [^long node-id ^Keyword label]
+(defonce/type Endpoint [^long node-id ^Keyword label]
   Comparable
   (compareTo [_ that]
     (let [^Endpoint that that
@@ -97,12 +99,20 @@
 (defn endpoint? [x]
   (instance? Endpoint x))
 
+(defn source-endpoint
+  ^Endpoint [^Arc arc]
+  (endpoint (source-id arc) (source-label arc)))
+
+(defn target-endpoint
+  ^Endpoint [^Arc arc]
+  (endpoint (target-id arc) (target-label arc)))
+
 (defn node-id? [v] (integer? v))
 
-(defprotocol Evaluation
+(defonce/protocol Evaluation
   (produce-value       [this label evaluation-context] "Pull a value using an evaluation context"))
 
-(defprotocol Node
+(defonce/protocol Node
   (node-id               [this]                          "Return an ID that can be used to get this node (or a future value of it).")
   (node-type             [this]                          "Return the node type that created this node.")
   (get-property          [this basis property]           "Return the value of the named property")
@@ -111,70 +121,233 @@
   (overridden-properties [this]                          "Return a map of property name to override value")
   (property-overridden?  [this property]))
 
-(defprotocol OverrideNode
+(defonce/protocol OverrideNode
   (clear-property      [this basis property]           "Clear the named property (this is only valid for override nodes)")
   (override-id         [this]                          "Return the ID of the override this node belongs to, if any")
   (original            [this]                          "Return the ID of the original of this node, if any")
   (set-original        [this original-id]              "Set the ID of the original of this node, if any"))
 
-(defprotocol IBasis
-  (node-by-id-at    [this node-id])
-  (node-by-property [this label value])
-  (arcs-by-source   [this node-id] [this node-id label])
-  (arcs-by-target   [this node-id] [this node-id label])
-  (sources          [this node-id] [this node-id label])
-  (targets          [this node-id] [this node-id label])
-  (add-node         [this value])
-  (delete-node      [this node-id])
-  (replace-node     [this node-id value])
-  (override-node    [this original-id override-id])
-  (override-node-clear [this original-id])
-  (add-override     [this override-id override])
-  (delete-override  [this override-id])
-  (replace-override [this override-id value])
-  (connect          [this source-id source-label target-id target-label])
-  (disconnect       [this source-id source-label target-id target-label])
-  (connected?       [this source-id source-label target-id target-label])
-  (dependencies     [this endpoints]
-    "Follow arcs through the graphs, from outputs to the inputs
-     connected to them, and from those inputs to the downstream
-     outputs that use them, and so on. Continue following links until
-     all reachable outputs are found.
+(defonce/type Graph [nodes sarcs successors tarcs tx-id graph-values overrides node->overrides]
+  ILookup
+  (valAt [this key]
+    (.valAt this key nil))
+  (valAt [_this key not-found]
+    (case key
+      :nodes nodes
+      :sarcs sarcs
+      :successors successors
+      :tarcs tarcs
+      :tx-id tx-id
+      :graph-values graph-values
+      :overrides overrides
+      :node->overrides node->overrides
+      not-found))
 
-     Takes a coll of endpoints and returns a set of endpoints")
-  (original-node    [this node-id]))
+  IKeywordLookup
+  (getLookupThunk [this key]
+    (let [graph-class (class this)]
+      (case key
+        :nodes
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-nodes ^Graph target)
+              thunk)))
 
-(defn basis? [value]
-  (satisfies? IBasis value))
+        :sarcs
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-sarcs ^Graph target)
+              thunk)))
+
+        :successors
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-successors ^Graph target)
+              thunk)))
+
+        :tarcs
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-tarcs ^Graph target)
+              thunk)))
+
+        :tx-id
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-tx-id ^Graph target)
+              thunk)))
+
+        :graph-values
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-graph-values ^Graph target)
+              thunk)))
+
+        :overrides
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-overrides ^Graph target)
+              thunk)))
+
+        :node->overrides
+        (reify ILookupThunk
+          (get [thunk target]
+            (if (identical? graph-class (class target))
+              (.-node->overrides ^Graph target)
+              thunk)))
+
+        nil)))
+
+  Associative
+  (containsKey [_this key]
+    (case key
+      (:nodes :sarcs :successors :tarcs :tx-id :graph-values :overrides :node->overrides) true
+      false))
+  (entryAt [this key]
+    (when (.containsKey this key)
+      (MapEntry/create key (.valAt this key))))
+  (assoc [this key value]
+    (case key
+      :nodes
+      (if (identical? nodes value)
+        this
+        (Graph. value sarcs successors tarcs tx-id graph-values overrides node->overrides))
+
+      :sarcs
+      (if (identical? sarcs value)
+        this
+        (Graph. nodes value successors tarcs tx-id graph-values overrides node->overrides))
+
+      :successors
+      (if (identical? successors value)
+        this
+        (Graph. nodes sarcs value tarcs tx-id graph-values overrides node->overrides))
+
+      :tarcs
+      (if (identical? tarcs value)
+        this
+        (Graph. nodes sarcs successors value tx-id graph-values overrides node->overrides))
+
+      :tx-id
+      (if (identical? tx-id value)
+        this
+        (Graph. nodes sarcs successors tarcs value graph-values overrides node->overrides))
+
+      :graph-values
+      (if (identical? graph-values value)
+        this
+        (Graph. nodes sarcs successors tarcs tx-id value overrides node->overrides))
+
+      :overrides
+      (if (identical? overrides value)
+        this
+        (Graph. nodes sarcs successors tarcs tx-id graph-values value node->overrides))
+
+      :node->overrides
+      (if (identical? node->overrides value)
+        this
+        (Graph. nodes sarcs successors tarcs tx-id graph-values overrides value))
+
+      (throw (IllegalArgumentException. (str "Unsupported Graph key: " key)))))
+
+  IHashEq
+  (hasheq [this]
+    (.hashCode this))
+
+  IPersistentCollection
+  (count [_this]
+    (throw (UnsupportedOperationException.)))
+  (cons [_this _value]
+    (throw (UnsupportedOperationException.)))
+  (empty [_this]
+    (throw (UnsupportedOperationException.)))
+  (equiv [this other]
+    (.equals this other))
+
+  Seqable
+  (seq [_this]
+    (throw (UnsupportedOperationException.)))
+
+  Object
+  (equals [this other]
+    (or (identical? this other)
+        (and (instance? Graph other)
+             (let [^Graph other other]
+               (and (= nodes (.-nodes other))
+                    (= sarcs (.-sarcs other))
+                    (= successors (.-successors other))
+                    (= tarcs (.-tarcs other))
+                    (= tx-id (.-tx-id other))
+                    (= graph-values (.-graph-values other))
+                    (= overrides (.-overrides other))
+                    (= node->overrides (.-node->overrides other)))))))
+  (hashCode [_this]
+    (-> (Util/hasheq nodes)
+        (Util/hashCombine (Util/hasheq sarcs))
+        (Util/hashCombine (Util/hasheq successors))
+        (Util/hashCombine (Util/hasheq tarcs))
+        (Util/hashCombine (Util/hasheq tx-id))
+        (Util/hashCombine (Util/hasheq graph-values))
+        (Util/hashCombine (Util/hasheq overrides))
+        (Util/hashCombine (Util/hasheq node->overrides)))))
+
+(defn graph-arc-count [^Graph graph]
+  (reduce-kv
+    (fn [arc-count _source-id label->arc-table]
+      (reduce-kv
+        (fn [arc-count _source-label arc-table]
+          (unchecked-add
+            (long arc-count)
+            (long
+              (if (instance? Arc arc-table)
+                1
+                (count arc-table)))))
+        arc-count
+        label->arc-table))
+    0
+    (.-sarcs graph)))
+
+(defmethod print-method Graph [^Graph graph ^Writer writer]
+  (.write writer "#g/graph {:tx-id ")
+  (print-method (.-tx-id graph) writer)
+  (.write writer " :nodes ")
+  (print-method (count (.-nodes graph)) writer)
+  (.write writer " :arcs ")
+  (print-method (graph-arc-count graph) writer)
+  (.write writer "}"))
+
+(defn graph? [value]
+  (instance? Graph value))
+
+(definline nodes [graph] `(.-nodes ~(with-meta graph {:tag `Graph})))
+(definline sarcs [graph] `(.-sarcs ~(with-meta graph {:tag `Graph})))
+(definline successors [graph] `(.-successors ~(with-meta graph {:tag `Graph})))
+(definline tarcs [graph] `(.-tarcs ~(with-meta graph {:tag `Graph})))
+(definline tx-id [graph] `(.-tx-id ~(with-meta graph {:tag `Graph})))
+(definline graph-values [graph] `(.-graph-values ~(with-meta graph {:tag `Graph})))
+(definline overrides [graph] `(.-overrides ~(with-meta graph {:tag `Graph})))
+(definline node->overrides [graph] `(.-node->overrides ~(with-meta graph {:tag `Graph})))
 
 ;; ---------------------------------------------------------------------------
 ;; ID helpers
 ;; ---------------------------------------------------------------------------
 
-(def ^:const NID-BITS                                56)
-(def ^:const NID-MASK                  0xffffffffffffff)
-(def ^:const NID-SIGN-EXTEND         -72057594037927936) ;; as a signed long
-(def ^:const GID-BITS                                 7)
-(def ^:const GID-MASK                              0x7f)
-(def ^:const MAX-GROUP-ID                           254)
+(defn next-node-id
+  ^long [^AtomicLong node-id-generator]
+  (.getAndIncrement node-id-generator))
 
-(defn make-node-id ^long [^long gid ^long nid]
-  (bit-or
-   (bit-shift-left gid NID-BITS)
-   (bit-and nid 0xffffffffffffff)))
+;; Deprecated compatibility function. Remove after 2027-09-08.
+(defn ^:deprecated node-id->graph-id
+  ^long [^long _node-id]
+  0)
 
-(defn node-id->graph-id ^long [^long node-id]
-  (bit-and (bit-shift-right node-id NID-BITS) GID-MASK))
-
-(defn node-id->nid ^long [^long node-id]
-  (bit-and node-id NID-MASK))
-
-(defn node->graph-id ^long [node] (node-id->graph-id (node-id node)))
-
-(defn make-override-id ^long [^long gid ^long oid]
-  (bit-or
-   (bit-shift-left gid NID-BITS)
-   (bit-and oid 0xffffffffffffff)))
-
-(defn override-id->graph-id ^long [^long override-id]
-  (bit-and (bit-shift-right override-id NID-BITS) GID-MASK))
+(defn next-override-id
+  ^long [^AtomicLong override-id-generator]
+  (.getAndIncrement override-id-generator))

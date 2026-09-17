@@ -1,0 +1,7 @@
+name: "sprite"
+vertex_program: "/collection_factory/sprite_sprite.vp"
+fragment_program: "/collection_factory/sprite_sprite.fp"
+vertex_constants {
+  name: "view_proj"
+  type: CONSTANT_TYPE_VIEWPROJ
+}

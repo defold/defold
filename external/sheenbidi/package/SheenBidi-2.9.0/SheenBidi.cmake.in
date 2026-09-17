@@ -1,0 +1,11 @@
+@PACKAGE_INIT@
+
+check_required_components(SheenBidi)
+
+include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
+
+set(ENABLE_DLL_IMPORT @BUILDING_DLL@)
+
+if(ENABLE_DLL_IMPORT)
+  add_compile_definitions(SB_CONFIG_DLL_IMPORT)
+endif()

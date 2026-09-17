@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,6 +18,7 @@
             [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
+            [editor.localization :as localization]
             [editor.model-scene :as model-scene]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms-util :as protobuf-forms-util]
@@ -93,8 +94,9 @@
     (catch LoaderException e
       (log/error :message (str "Error loading: " (resource/resource->proj-path resource)) :exception e)
       (g/->error _node-id :animations :fatal resource
-                 (str "Failed to build " (resource/resource->proj-path resource)
-                      ": " (.getMessage e))))))
+                 (localization/message "error.animation-set-build-failed"
+                                       {"resource" (resource/resource->proj-path resource)
+                                        "error" (.getMessage e)})))))
 
 (g/defnk produce-animation-set [animation-set-info]
   (:animation-set animation-set-info))
@@ -113,18 +115,18 @@
 (g/defnk produce-animation-set-build-target [_node-id resource animation-set]
   (when (not (empty? animation-set))
     (bt/with-content-hash
-       {:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-animation-set
-        :user-data {:animation-set animation-set}})))
+      {:node-id _node-id
+       :resource (workspace/make-build-resource resource)
+       :build-fn build-animation-set
+       :user-data {:animation-set animation-set}})))
 
 (def ^:private form-sections
   {:navigation false
    :sections
-   [{:title "Animation Set"
+   [{:localization-key "animationset"
      :fields [{:path [:animations]
                :type :list
-               :label "Animations"
+               :localization-key "animationset.animations"
                :element {:type :resource
                          :filter model-scene/animation-file-types
                          :default nil}}]}]})
@@ -149,7 +151,7 @@
   (property animations resource/ResourceVec ; Nil is valid default.
             (value (gu/passthrough animation-resources))
             (set (fn [evaluation-context self old-value new-value]
-                   (let [project (project/get-project (:basis evaluation-context) self)
+                   (let [project (project/get-project (:basis evaluation-context))
                          connections [[:resource :animation-resources]
                                       [:animation-set :animation-sets]
                                       [:animation-info :animation-infos]]]
@@ -173,7 +175,8 @@
 
 (defn- load-animation-set [_project self resource animation-set-desc]
   {:pre [(map? animation-set-desc)]} ; Rig$AnimationSetDesc in map format
-  (let [resolve-resource #(workspace/resolve-resource resource %)
+  (let [basis (g/now)
+        resolve-resource #(workspace/resolve-resource basis resource %)
         animation-instance-descs->animation-resources #(mapv (comp resolve-resource :animation) %)]
     (gu/set-properties-from-pb-map self Rig$AnimationSetDesc animation-set-desc
       animations (animation-instance-descs->animation-resources :animations))))
@@ -186,9 +189,10 @@
     :ext "animationset"
     :icon animation-set-icon
     :icon-class :property
-    :label "Animation Set"
+    :category (localization/message "resource.category.resources")
+    :label (localization/message "resource.type.animationset")
     :load-fn load-animation-set
     :sanitize-fn sanitize-animation-set
     :node-type AnimationSetNode
     :ddf-type Rig$AnimationSetDesc
-    :view-types [:cljfx-form-view :text]))
+    :view-types [:form :text]))

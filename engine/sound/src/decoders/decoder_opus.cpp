@@ -34,6 +34,7 @@ namespace dmSoundCodec
         struct DecodestreamInfo
         {
             Info                m_Info;
+            bool                m_NormalizedOutput;
             uint32_t            m_stream_serial;
             uint32_t            m_SamplePos;
             uint32_t            m_DecodeSamplePos;
@@ -329,9 +330,14 @@ namespace dmSoundCodec
                         // Yes. Version ok?
                         if (opusHead[8] == 0x01)
                         {
+                            dmSound::DecoderOutputSettings settings;
+                            dmSound::GetDecoderOutputSettings(&settings);
+
+                            stream_info->m_NormalizedOutput = settings.m_UseNormalizedFloatRange;
+
                             stream_info->m_Info.m_Channels = opusHead[9];
                             stream_info->m_Info.m_BitsPerSample = 32;
-                            stream_info->m_Info.m_IsInterleaved = false;
+                            stream_info->m_Info.m_IsInterleaved = settings.m_UseInterleaved;
 
                             static const uint16_t rates[] = { 8000, 12000, 16000, 24000, 48000, 0 };
 
@@ -407,7 +413,9 @@ namespace dmSoundCodec
 
         DM_PROFILE(__FUNCTION__);
 
-        uint32_t needed_frames = buffer_size / sizeof(float);
+        uint32_t stride_inout = stream_info->m_Info.m_IsInterleaved ? (stream_info->m_Info.m_Channels * sizeof(float)) : sizeof(float);
+
+        uint32_t needed_frames = buffer_size / stride_inout;
         uint32_t done_frames = 0;
 
         uint32_t stride = stream_info->m_Info.m_Channels * sizeof(float);
@@ -457,19 +465,37 @@ namespace dmSoundCodec
                 // This might be called with a NULL buffer to avoid delivering data, so we need to check...
                 if (buffer)
                 {
-                    // SIMD? Any noticable cost? Simpler code for single channel...
-                    //  note: Opus float format is normalized, hence we need to scale things up (not only due to the scale in the data)
-                    float    scale = stream_info->m_SampleScale * 32767.0f;
-                    uint32_t nc = stream_info->m_Info.m_Channels;
-
-                    for (uint32_t c = 0; c < nc; ++c)
+                    if (stream_info->m_NormalizedOutput && stream_info->m_Info.m_IsInterleaved)
                     {
-                        float*       dest = (float*)buffer[c] + done_frames;
-                        const float* out = (float*)(stream_info->m_LastOutput.Begin() + stride * stream_info->m_LastOutputOffset) + c;
-                        for (uint32_t i = 0; i < out_frames; ++i)
+                        float    scale = stream_info->m_SampleScale;
+                        uint32_t nc = stream_info->m_Info.m_Channels;
+
+                        float* dest = (float*)buffer[0] + done_frames * nc;
+                        const float* out = (float*)(stream_info->m_LastOutput.Begin() + stride * stream_info->m_LastOutputOffset);
+                        uint32_t ns = nc * out_frames;
+                        for (uint32_t s = 0; s < ns; ++s)
                         {
-                            *(dest++) = *out * scale;
-                            out += nc;
+                            *(dest++) = *(out++) * scale;
+                        }
+                    }
+                    else
+                    {
+                        assert(!stream_info->m_Info.m_IsInterleaved);
+
+                        // SIMD? Any noticable cost? Simpler code for single channel...
+                        //  note: Opus float format is normalized, hence we need to scale things up (not only due to the scale in the data)
+                        float    scale = stream_info->m_SampleScale * 32767.0f;
+                        uint32_t nc = stream_info->m_Info.m_Channels;
+
+                        for (uint32_t c = 0; c < nc; ++c)
+                        {
+                            float*       dest = (float*)buffer[c] + done_frames;
+                            const float* out = (float*)(stream_info->m_LastOutput.Begin() + stride * stream_info->m_LastOutputOffset) + c;
+                            for (uint32_t i = 0; i < out_frames; ++i)
+                            {
+                                *(dest++) = *out * scale;
+                                out += nc;
+                            }
                         }
                     }
                 }
@@ -485,7 +511,7 @@ namespace dmSoundCodec
             }
         }
 
-        *decoded = done_frames * sizeof(float);
+        *decoded = done_frames * stride_inout;
         return (stream_info->m_bEOS && done_frames == 0) ? RESULT_END_OF_STREAM : RESULT_OK;
     }
 

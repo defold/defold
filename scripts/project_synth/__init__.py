@@ -1,0 +1,1 @@
+"""Project synth package."""

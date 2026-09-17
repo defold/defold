@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -18,7 +18,7 @@
 #include <stdint.h>
 
 #include <render/font_ddf.h>
-#include <render/font.h>
+#include <render/font/fontmap.h>
 
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/hashtable.h>
@@ -26,48 +26,49 @@
 #include <dmsdk/render/render.h>
 #include <dmsdk/gamesys/resources/res_ttf.h>
 
+#include <dlib/jobsystem.h>
+#include <gamesys/fontgen/fontgen.h>
+
 namespace dmGameSystem
 {
     struct MaterialResource;
     struct GlyphBankResource;
+    struct FontResource;
 
-    struct DynamicGlyph
+    struct FontJobResourceInfo
     {
-        dmRender::FontGlyph     m_Glyph; // for faster access of the text renderer
-        uint8_t*                m_Data;
-        uint16_t                m_DataSize;
-        uint16_t                m_DataImageWidth;
-        uint16_t                m_DataImageHeight;
-        uint8_t                 m_DataImageChannels;
-        uint8_t                 m_Compression; //FontGlyphCompression
-    };
+        dmArray<void*>          m_Resources; // the resources that are incref'ed for this job
+        FontGenJobData*         m_FontGenJobData; // the job scratch data, owned by the sentinel job
+        FontResource*           m_Resource;
+        HJob                    m_Job;
 
-    struct GlyphRange
-    {
-        TTFResource*           m_TTFResource;
-        uint32_t               m_RangeStart;    // The code point range start (inclusive)
-        uint32_t               m_RangeEnd;      // The code point range end (inclusive)
+        FPrewarmTextCallback    m_Callback;
+        void*                   m_CallbackContext;
     };
 
     struct FontResource
     {
         dmRenderDDF::FontMap*   m_DDF;
-        dmRender::HFont         m_FontMap;
-        HResourceDescriptor     m_Resource;             // For updating the resource size dynamically
+        dmRender::HFontMap      m_FontMap;
         MaterialResource*       m_MaterialResource;
         GlyphBankResource*      m_GlyphBankResource;
-        TTFResource*            m_TTFResource;          // the first ttf resource
-        dmJobThread::HContext   m_Jobs;
+        TTFResource*            m_TTFResource;          // the default ttf resource (if it's a dynamic font)
+        HJobContext             m_Jobs;
+        dmResource::HFactory    m_Factory;
         uint32_t                m_CacheCellPadding;
         uint32_t                m_ResourceSize;         // For correct resource usage reporting
+        uint32_t                m_Version;              // Monotonic layout version for label cache invalidation
+        bool                    m_IsDynamic;            // Are the glyphs populated at runtime?
         uint8_t                 m_Padding;              // Extra space for outline + shadow
         uint8_t                 m_Prewarming:1;         // If true, it is currently waiting for glyphs to be prewamed (dynamic fonts only)
         uint8_t                 m_PrewarmDone:1;
-        uint8_t                 m_IsDynamic:1;          // Are the glyphs populated at runtime?
+        uint8_t                 m_Destroying:1;
 
-        dmHashTable32<dmRenderDDF::GlyphBank::Glyph*>   m_Glyphs;
-        dmHashTable32<DynamicGlyph*>                    m_DynamicGlyphs;
-        dmArray<GlyphRange>                             m_Ranges;
+        dmHashTable64<TTFResource*> m_TTFResources;  // Maps path hash to a resource
+        dmHashTable32<uint64_t>     m_FontHashes;    // Maps HFont path hash to a resource
+        dmhash_t                    m_PathHash;
+
+        dmArray<FontJobResourceInfo*>  m_PendingJobs;
 
         FontResource();
 

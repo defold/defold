@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,7 +16,10 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <testmain/testmain.h>
+
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
@@ -26,8 +29,14 @@
 #include "test_app_graphics.h"
 
 #include <dmsdk/graphics/graphics_vulkan.h>
+#include <platform/window.hpp>
 
 #include "test_app_graphics_assets.h"
+
+#if __has_include("test_app_graphics_assets_vendor.h")
+    #define DM_TEST_APP_GRAPHICS_HAS_VENDOR_ASSETS 1
+    #include "test_app_graphics_assets_vendor.h"
+#endif
 
 // From engine_private.h
 
@@ -42,6 +51,28 @@ typedef void* (*EngineCreateFn)(int argc, char** argv);
 typedef void (*EngineDestroyFn)(void* engine);
 typedef UpdateResult (*EngineUpdateFn)(void* engine);
 typedef void (*EngineGetResultFn)(void* engine, int* run_action, int* exit_code, int* argc, char*** argv);
+
+static const int TEST_APP_GRAPHICS_MAX_FRAME_COUNT = 200;
+static int      g_AppArgc = 0;
+static char**   g_AppArgv = 0;
+
+static bool ShouldAutoExit()
+{
+    const char* value = getenv("DEFOLD_TEST_AUTO_EXIT");
+    return value && value[0] != 0 && strcmp(value, "0") != 0 && !TestMainIsDebuggerAttached();
+}
+
+static bool HasArgument(const char* argument)
+{
+    for (int i = 0; i < g_AppArgc; ++i)
+    {
+        if (strcmp(g_AppArgv[i], argument) == 0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
 
 struct RunLoopParams
 {
@@ -78,6 +109,15 @@ static dmGraphics::HUniformLocation GetUniformLocation(dmGraphics::HProgram prog
 
 static int RunLoop(const RunLoopParams* params)
 {
+#if defined(DM_PLATFORM_IOS)
+    dmGraphics::AppBootstrap(params->m_Argc, params->m_Argv, params->m_AppCtx, (dmGraphics::EngineInit)params->m_AppCreate,
+                                                                              (dmGraphics::EngineExit)params->m_AppDestroy,
+                                                                              (dmGraphics::EngineCreate)params->m_EngineCreate,
+                                                                              (dmGraphics::EngineDestroy)params->m_EngineDestroy,
+                                                                              (dmGraphics::EngineUpdate)params->m_EngineUpdate,
+                                                                              (dmGraphics::EngineGetResult)params->m_EngineGetResult);
+    return 0;
+#else
     if (params->m_AppCreate)
         params->m_AppCreate(params->m_AppCtx);
 
@@ -120,6 +160,7 @@ static int RunLoop(const RunLoopParams* params)
         params->m_AppDestroy(params->m_AppCtx);
 
     return exit_code;
+#endif
 }
 
 
@@ -131,9 +172,6 @@ struct AppCtx
 
 static void AppCreate(void* _ctx)
 {
-    dmLog::LogParams params;
-    dmLog::LogInitialize(&params);
-
     AppCtx* ctx = (AppCtx*)_ctx;
     ctx->m_Created++;
 }
@@ -150,6 +188,9 @@ struct ITest
 {
     virtual void Initialize(EngineCtx*) {};
     virtual void Execute(EngineCtx*) {};
+    virtual void OnGraphicsClosing(EngineCtx*) {};
+    virtual void OnGraphicsClosed(EngineCtx*) {};
+    virtual void OnGraphicsDeleted(EngineCtx*) {};
 };
 
 struct EngineCtx
@@ -162,12 +203,13 @@ struct EngineCtx
 
     uint64_t m_TimeStart;
 
-    dmPlatform::HWindow   m_Window;
+    HWindow               m_Window;
     dmGraphics::HContext  m_GraphicsContext;
-    dmJobThread::HContext m_JobThread;
+    HJobContext           m_JobContext;
 
     ITest* m_Test;
     bool m_WindowClosed;
+    bool m_Failed;
 
 } g_EngineCtx;
 
@@ -184,12 +226,399 @@ struct ClearBackbufferTest : ITest
         static uint8_t color_b = 140;
         static uint8_t color_a = 255;
 
+        color_r += 1;
+        color_g += 2;
+        color_b += 3;
+
         dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
                                     (float)color_r,
                                     (float)color_g,
                                     (float)color_b,
                                     (float)color_a,
                                     1.0f, 0);
+    }
+};
+
+// Run with "opengles depth-texture" to exercise a real depth attachment, not
+// the null adapter used by test_graphics. Graphics-call verification is enabled.
+struct DepthTextureTest : ClearBackbufferTest
+{
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        for (uint32_t color = 0; color < 2; ++color)
+        {
+            dmGraphics::RenderTargetCreationParams params = {};
+            params.m_DepthTexture                         = 1;
+            params.m_DepthBufferParams.m_Format           = dmGraphics::TEXTURE_FORMAT_DEPTH;
+            params.m_DepthBufferParams.m_Width            = 64;
+            params.m_DepthBufferParams.m_Height           = 64;
+            params.m_DepthBufferCreationParams.m_Width    = 64;
+            params.m_DepthBufferCreationParams.m_Height   = 64;
+            params.m_ColorBufferParams[0].m_Format        = dmGraphics::TEXTURE_FORMAT_RGBA;
+            params.m_ColorBufferParams[0].m_Width         = 64;
+            params.m_ColorBufferParams[0].m_Height        = 64;
+            params.m_ColorBufferCreationParams[0].m_Width  = 64;
+            params.m_ColorBufferCreationParams[0].m_Height = 64;
+
+            uint32_t flags = dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+            if (color)
+            {
+                flags |= dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+            }
+
+            dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(context, flags, params);
+            for (uint32_t size = 64; size <= 128; size *= 2)
+            {
+                if (size != 64)
+                {
+                    dmGraphics::SetRenderTargetSize(context, target, size, size);
+                }
+
+                dmGraphics::SetRenderTarget(context, target, 0);
+                dmGraphics::Clear(context, flags, 0, 0, 0, 255, 0.5f, 0);
+                dmGraphics::HTexture depth = dmGraphics::GetRenderTargetTexture(context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
+                if (!dmGraphics::IsAssetHandleValid(context, depth) ||
+                    dmGraphics::GetTextureWidth(context, depth) != size ||
+                    dmGraphics::GetTextureHeight(context, depth) != size)
+                {
+                    dmLogError("Depth texture allocation/resize failed (color=%u, size=%u)", color, size);
+                    engine->m_Failed = true;
+                }
+                dmGraphics::SetRenderTarget(context, 0, 0);
+            }
+            dmGraphics::DeleteRenderTarget(context, target);
+        }
+    }
+};
+
+// Run with "opengl cubemap-face-order". Each face has a distinct color so GPU
+// readback detects face swaps in both full uploads and subupdates (issue #11566).
+struct CubemapFaceOrderTest : ITest
+{
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HRenderTarget      m_RenderTarget;
+    dmGraphics::HUniformLocation   m_SampleParams;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_OPENGL ||
+            !dmGraphics::IsTextureFormatSupported(context, dmGraphics::TEXTURE_FORMAT_RGB_BC1))
+        {
+            dmLogError("Cubemap face order test requires OpenGL with BC1 texture support");
+            engine->m_Failed = true;
+            return;
+        }
+
+        const char* vertex_source =
+            "#version 330\n"
+            "in vec2 position;\n"
+            "void main() { gl_Position = vec4(position, 0.0, 1.0); }\n";
+        const char* fragment_source =
+            "#version 330\n"
+            "uniform samplerCube cubemap;\n"
+            "uniform vec4 sample_params;\n"
+            "out vec4 color;\n"
+            "void main() { color = textureLod(cubemap, sample_params.xyz, sample_params.w); }\n";
+        dmGraphics::ShaderDesc shader_desc = {};
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+            (uint8_t*) vertex_source, strlen(vertex_source));
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+            (uint8_t*) fragment_source, strlen(fragment_source));
+        AddShaderResource(&shader_desc, "position", dmGraphics::ShaderDesc::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        AddShaderResource(&shader_desc, "cubemap", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER_CUBE, 0, 0, BINDING_TYPE_TEXTURE, dmGraphics::SHADER_STAGE_FLAG_FRAGMENT);
+        char error_buffer[1024] = {};
+        m_Program = dmGraphics::NewProgram(context, &shader_desc, error_buffer, sizeof(error_buffer));
+        DeleteShaderDesc(&shader_desc);
+        if (!m_Program)
+        {
+            dmLogError("Failed to create cubemap test program: %s", error_buffer);
+            engine->m_Failed = true;
+            return;
+        }
+        m_SampleParams = GetUniformLocation(m_Program, "sample_params");
+
+        const float vertices[] = { -1.0f, -1.0f, 3.0f, -1.0f, -1.0f, 3.0f };
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(context, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(context);
+        dmGraphics::AddVertexStream(streams, "position", 2, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(context, streams);
+        dmGraphics::DeleteVertexStreamDeclaration(streams);
+
+        dmGraphics::RenderTargetCreationParams target_params = {};
+        target_params.m_ColorBufferCreationParams[0].m_Width = 1;
+        target_params.m_ColorBufferCreationParams[0].m_Height = 1;
+        target_params.m_ColorBufferParams[0].m_Width = 1;
+        target_params.m_ColorBufferParams[0].m_Height = 1;
+        target_params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+        m_RenderTarget = dmGraphics::NewRenderTarget(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_params);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        // +X, -X, +Y, -Y, +Z, -Z. BC1 endpoint colors are exact in RGB565.
+        const uint8_t colors[6][4] = {
+            {255, 0, 0, 255}, {0, 255, 0, 255}, {0, 0, 255, 255},
+            {255, 255, 0, 255}, {255, 0, 255, 255}, {0, 255, 255, 255}
+        };
+        const float directions[6][3] = {
+            {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}
+        };
+
+        dmGraphics::SetRenderTarget(context, m_RenderTarget, 0);
+        dmGraphics::SetViewport(context, 0, 0, 1, 1);
+        dmGraphics::EnableProgram(context, m_Program);
+        dmGraphics::SetSampler(context, GetUniformLocation(m_Program, "cubemap"), 0);
+        dmGraphics::EnableVertexBuffer(context, m_VertexBuffer, 0);
+        dmGraphics::EnableVertexDeclaration(context, m_VertexDeclaration, 0, 0, m_Program);
+
+        for (uint32_t compressed = 0; compressed < 2; ++compressed)
+        {
+            dmGraphics::TextureCreationParams creation_params;
+            creation_params.m_Type = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+            creation_params.m_Width = 4;
+            creation_params.m_Height = 4;
+            creation_params.m_MipMapCount = 3;
+            dmGraphics::HTexture texture = dmGraphics::NewTexture(context, creation_params);
+
+            for (uint32_t subupdate = 0; subupdate < 2; ++subupdate)
+            {
+                for (uint32_t mip = 0; mip < 3; ++mip)
+                {
+                    dmGraphics::TextureParams params;
+                    params.m_Width = 4 >> mip;
+                    params.m_Height = 4 >> mip;
+                    params.m_MipMap = mip;
+                    params.m_LayerCount = 6;
+                    params.m_Format = compressed ? dmGraphics::TEXTURE_FORMAT_RGB_BC1 : dmGraphics::TEXTURE_FORMAT_RGBA;
+                    params.m_DataSize = compressed ? 8 : params.m_Width * params.m_Height * 4;
+                    params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
+                    params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+                    params.m_SubUpdate = subupdate;
+                    uint8_t data[6 * 4 * 4 * 4] = {};
+                    for (uint32_t face = 0; face < 6; ++face)
+                    {
+                        const uint8_t* color = colors[(face + mip + subupdate) % 6];
+                        uint8_t* face_data = data + face * params.m_DataSize;
+                        if (compressed)
+                        {
+                            // One BC1 block: RGB565 endpoint 0, all pixel indices 0.
+                            uint16_t rgb565 = ((color[0] >> 3) << 11) | ((color[1] >> 2) << 5) | (color[2] >> 3);
+                            face_data[0] = rgb565 & 0xff;
+                            face_data[1] = rgb565 >> 8;
+                        }
+                        else
+                        {
+                            for (uint32_t pixel = 0; pixel < params.m_Width * params.m_Height; ++pixel)
+                            {
+                                memcpy(face_data + pixel * 4, color, 4);
+                            }
+                        }
+                    }
+                    params.m_Data = data;
+                    dmGraphics::SetTexture(context, texture, params);
+                }
+
+                dmGraphics::EnableTexture(context, 0, 0, texture);
+                for (uint32_t mip = 0; mip < 3; ++mip)
+                {
+                    for (uint32_t face = 0; face < 6; ++face)
+                    {
+                        dmVMath::Vector4 sample_params(directions[face][0], directions[face][1], directions[face][2], (float) mip);
+                        dmGraphics::SetConstantV4(context, &sample_params, 1, m_SampleParams);
+                        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+                        uint8_t pixel[4] = {};
+                        dmGraphics::ReadPixels(context, 0, 0, 1, 1, pixel, sizeof(pixel));
+                        const uint8_t* expected = colors[(face + mip + subupdate) % 6];
+                        // OpenGL ReadPixels returns BGRA.
+                        if (pixel[0] != expected[2] || pixel[1] != expected[1] || pixel[2] != expected[0] || pixel[3] != expected[3])
+                        {
+                            dmLogError("Cubemap face %u, mip %u, compressed %u, subupdate %u: expected RGBA %u,%u,%u,%u, got %u,%u,%u,%u",
+                                face, mip, compressed, subupdate, expected[0], expected[1], expected[2], expected[3], pixel[2], pixel[1], pixel[0], pixel[3]);
+                            engine->m_Failed = true;
+                        }
+                    }
+                }
+                dmGraphics::DisableTexture(context, 0, texture);
+            }
+            dmGraphics::DeleteTexture(context, texture);
+        }
+        dmGraphics::DisableVertexDeclaration(context, m_VertexDeclaration);
+        dmGraphics::DisableVertexBuffer(context, m_VertexBuffer);
+        dmGraphics::DisableProgram(context);
+        dmGraphics::SetRenderTarget(context, 0, 0);
+        engine->m_Running = 0;
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        if (m_RenderTarget)
+        {
+            dmGraphics::DeleteRenderTarget(context, m_RenderTarget);
+        }
+        if (m_VertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(m_VertexDeclaration);
+        }
+        if (m_VertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(m_VertexBuffer);
+        }
+        if (m_Program)
+        {
+            dmGraphics::DeleteProgram(context, m_Program);
+        }
+    }
+};
+
+struct MslArgumentBuffersTest : ITest
+{
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HUniformLocation   m_UniformLoc;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::ShaderDesc shader_desc = {};
+
+        assert(dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_METAL);
+
+        char* vs_buffer = (char*) malloc(sizeof(graphics_assets::msl_vertex_program));
+        char* fs_buffer = (char*) malloc(sizeof(graphics_assets::msl_fragment_program));
+
+        memcpy(vs_buffer, graphics_assets::msl_vertex_program, sizeof(graphics_assets::msl_vertex_program));
+        memcpy(fs_buffer, graphics_assets::msl_fragment_program, sizeof(graphics_assets::msl_fragment_program));
+
+        vs_buffer[sizeof(graphics_assets::msl_vertex_program) - 1] = '\0';
+        fs_buffer[sizeof(graphics_assets::msl_fragment_program) - 1] = '\0';
+
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_MSL_22, (uint8_t*) vs_buffer, sizeof(graphics_assets::msl_vertex_program));
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_MSL_22, (uint8_t*) fs_buffer, sizeof(graphics_assets::msl_fragment_program));
+
+        dmGraphics::ShaderDesc::ResourceTypeInfo* type_info = AddShaderType(&shader_desc, "sprite_140_vs");
+        AddShaderTypeMember(&shader_desc, type_info, "view_proj", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_MAT4, 0, 1);
+        AddShaderResourceUniformBuffer(&shader_desc, "sprite_140_vs", 0, 0, 0, sizeof(dmVMath::Matrix4));
+        AddShaderResource(&shader_desc, "position", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+
+        char error_buffer[1024] = {};
+
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, error_buffer, sizeof(error_buffer));
+
+        DeleteShaderDesc(&shader_desc);
+
+        m_UniformLoc = GetUniformLocation(m_Program, "view_proj");
+
+        const float vertex_data_no_index[] = {
+            -0.5f, -0.5f, 0.0f, 1.0f,
+             0.5f, -0.5f, 0.0f, 1.0f,
+            -0.5f,  0.5f, 0.0f, 1.0f,
+             0.5f, -0.5f, 0.0f, 1.0f,
+             0.5f,  0.5f, 0.0f, 1.0f,
+            -0.5f,  0.5f, 0.0f, 1.0f,
+        };
+
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext);
+        dmGraphics::AddVertexStream(stream_declaration, "position", 4, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
+        dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
+        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, 0, m_Program);
+
+        dmVMath::Matrix4 identity = dmVMath::Matrix4::identity();
+        dmGraphics::SetConstantM4(engine->m_GraphicsContext, (dmVMath::Vector4*) &identity, 1, m_UniformLoc);
+
+        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
+    }
+};
+
+struct DrawTriangleTest : ITest
+{
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        const float vertex_data_no_index[] = {
+            // Position            // UV Coordinates
+            -0.5f, -0.5f,          0.0f, 0.0f,    // Bottom-left
+            0.5f, -0.5f,          1.0f, 0.0f,    // Bottom-right
+            -0.5f,  0.5f,          0.0f, 1.0f,    // Top-left
+
+             0.5f, -0.5f,          1.0f, 0.0f,    // Bottom-right
+             0.5f,  0.5f,          1.0f, 1.0f,    // Top-right
+            -0.5f,  0.5f,          0.0f, 1.0f,    // Top-left
+        };
+
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext);
+        dmGraphics::AddVertexStream(stream_declaration, "pos", 2, dmGraphics::TYPE_FLOAT, false);
+        dmGraphics::AddVertexStream(stream_declaration, "texcoord", 2, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
+
+        dmGraphics::ShaderDesc shader_desc = {};
+
+    #if defined(DM_TEST_APP_GRAPHICS_HAS_VENDOR_ASSETS)
+        AddShader(&shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_50, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::vendor_vertex_program, sizeof(graphics_assets::vendor_vertex_program));
+        AddShader(&shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_50, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::vendor_fragment_program, sizeof(graphics_assets::vendor_fragment_program));
+    #else
+        assert(0); // TODO
+    #endif
+
+        AddShaderResource(&shader_desc, "pos", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        AddShaderResource(&shader_desc, "texcoord", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 1, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        // TODO: Test resources
+        // AddShaderResource(&shader_desc, "Test", dmGraphics::ShaderDesc::SHADER_TYPE_UNIFORM_BUFFER, 0, 1, BINDING_TYPE_UNIFORM_BUFFER, 0);
+
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, 0, 0);
+        if (!m_Program)
+        {
+            dmLogError("Failed to create draw triangle test program");
+            engine->m_Failed = true;
+        }
+
+        DeleteShaderDesc(&shader_desc);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        static uint8_t color_r = 0;
+        static uint8_t color_g = 80;
+        static uint8_t color_b = 140;
+        static uint8_t color_a = 255;
+
+        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
+                                    (float) color_r,
+                                    (float) color_g,
+                                    (float) color_b,
+                                    (float) color_a,
+                                    1.0f, 0);
+
+        uint32_t w = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
+        uint32_t h = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
+
+        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, w, h);
+
+        dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
+        dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
+        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, 0, m_Program);
+
+        // TODO: Bind resources here
+
+        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
     }
 };
 
@@ -264,17 +693,17 @@ struct AsyncTextureUploadTest : ITest
 
     void CheckTexture(dmGraphics::HContext context, dmGraphics::HTexture texture)
     {
-        dmGraphics::SetTextureParams(texture, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, 0.0f);
-        dmGraphics::GetTextureResourceSize(texture);
-        dmGraphics::GetTextureWidth(texture);
-        dmGraphics::GetTextureHeight(texture);
-        dmGraphics::GetTextureDepth(texture);
-        dmGraphics::GetOriginalTextureWidth(texture);
-        dmGraphics::GetOriginalTextureHeight(texture);
-        dmGraphics::GetTextureMipmapCount(texture);
-        dmGraphics::GetTextureType(texture);
-        dmGraphics::GetNumTextureHandles(texture);
-        dmGraphics::GetTextureUsageHintFlags(texture);
+        dmGraphics::SetTextureParams(context, texture, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT, 0.0f);
+        dmGraphics::GetTextureResourceSize(context, texture);
+        dmGraphics::GetTextureWidth(context, texture);
+        dmGraphics::GetTextureHeight(context, texture);
+        dmGraphics::GetTextureDepth(context, texture);
+        dmGraphics::GetOriginalTextureWidth(context, texture);
+        dmGraphics::GetOriginalTextureHeight(context, texture);
+        dmGraphics::GetTextureMipmapCount(context, texture);
+        dmGraphics::GetTextureType(context, texture);
+        dmGraphics::GetNumTextureHandles(context, texture);
+        dmGraphics::GetTextureUsageHintFlags(context, texture);
 
         dmGraphics::EnableTexture(context, 0, 0, texture);
         dmGraphics::DisableTexture(context, 0, texture);
@@ -294,12 +723,12 @@ struct AsyncTextureUploadTest : ITest
 
                 Texture& back = m_Textures.Back();
 
-                dmGraphics::SetTextureAsync(back.m_Texture, t.m_Params, 0, 0);
+                dmGraphics::SetTextureAsync(engine->m_GraphicsContext, back.m_Texture, t.m_Params, 0, 0);
 
                 CheckTexture(engine->m_GraphicsContext, back.m_Texture);
 
                 // Immediately delete, so we simulate putting them on a post-delete-queue
-                dmGraphics::DeleteTexture(back.m_Texture);
+                dmGraphics::DeleteTexture(engine->m_GraphicsContext, back.m_Texture);
             }
         }
     }
@@ -329,6 +758,360 @@ struct AsyncTextureUploadTest : ITest
     }
 };
 
+// Regression test for https://github.com/defold/defold/issues/12878.
+//
+// Verifies that the backend waits for in-flight async texture uploads before
+// destroying its device resources. The worker is deliberately delayed until
+// graphics shutdown begins; without the shutdown barrier, the queued upload
+// resumes after device destruction. The original Vulkan report reaches
+// vkWaitForFences, while this deterministic test may fail at an earlier backend
+// call due to the same context/device lifetime race.
+struct AsyncTextureUploadShutdownTest : ITest
+{
+    int32_atomic_t             m_BlockWorker;
+    int32_atomic_t             m_WorkerStarted;
+    int32_atomic_t             m_WorkerReleased;
+    int32_atomic_t             m_WorkerDrained;
+    int32_atomic_t             m_UploadCallbackCalled;
+    dmGraphics::HTexture       m_Texture;
+    dmGraphics::TextureParams  m_TextureParams;
+    bool                       m_TestMetalCompletionLifetime;
+
+    AsyncTextureUploadShutdownTest()
+    : m_Texture(0)
+    {
+        dmAtomicStore32(&m_BlockWorker, 1);
+        dmAtomicStore32(&m_WorkerStarted, 0);
+        dmAtomicStore32(&m_WorkerReleased, 0);
+        dmAtomicStore32(&m_WorkerDrained, 0);
+        dmAtomicStore32(&m_UploadCallbackCalled, 0);
+        m_TestMetalCompletionLifetime = false;
+    }
+
+    static int BlockWorker(HJobContext, HJob, void*, void* data)
+    {
+        AsyncTextureUploadShutdownTest* test = (AsyncTextureUploadShutdownTest*) data;
+        dmAtomicStore32(&test->m_WorkerStarted, 1);
+        while (dmAtomicGet32(&test->m_BlockWorker))
+        {
+            dmTime::Sleep(100);
+        }
+        dmAtomicStore32(&test->m_WorkerReleased, 1);
+
+        // Give the main thread enough time to destroy the Vulkan device. A
+        // correct CloseWindow implementation will wait for this job and the
+        // queued upload instead.
+        dmTime::Sleep(1000 * 1000);
+        return 0;
+    }
+
+    static int MarkWorkerDrained(HJobContext, HJob, void*, void* data)
+    {
+        AsyncTextureUploadShutdownTest* test = (AsyncTextureUploadShutdownTest*) data;
+        dmAtomicStore32(&test->m_WorkerDrained, 1);
+        return 0;
+    }
+
+    static void PushJob(HJobContext job_context, FJobProcess process, void* data)
+    {
+        Job job = {};
+        job.m_Process = process;
+        job.m_Data = data;
+        HJob hjob = JobSystemCreateJob(job_context, &job);
+        JobSystemPushJob(job_context, hjob);
+    }
+
+    static void UploadComplete(dmGraphics::HTexture, void* user_data)
+    {
+        AsyncTextureUploadShutdownTest* test = (AsyncTextureUploadShutdownTest*) user_data;
+        dmAtomicIncrement32(&test->m_UploadCallbackCalled);
+    }
+
+    static bool WaitForAtomic(int32_atomic_t* value, int32_t expected, uint64_t timeout_us)
+    {
+        uint64_t timeout = dmTime::GetMonotonicTime() + timeout_us;
+        while (dmAtomicGet32(value) != expected && dmTime::GetMonotonicTime() < timeout)
+        {
+            dmTime::Sleep(100);
+        }
+        return dmAtomicGet32(value) == expected;
+    }
+
+    void Initialize(EngineCtx* engine) override
+    {
+        m_TestMetalCompletionLifetime = dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_METAL;
+        PushJob(engine->m_JobContext, BlockWorker, this);
+        if (!WaitForAtomic(&m_WorkerStarted, 1, 5 * 1000 * 1000))
+        {
+            dmLogError("Issue #12878 reproducer: worker did not start");
+            engine->m_Failed = true;
+            engine->m_Running = 0;
+            return;
+        }
+
+        const uint32_t width = 128;
+        const uint32_t height = 128;
+
+        dmGraphics::TextureCreationParams creation_params;
+        creation_params.m_Width = width;
+        creation_params.m_Height = height;
+        creation_params.m_OriginalWidth = width;
+        creation_params.m_OriginalHeight = height;
+
+        m_TextureParams.m_DataSize = width * height * 4;
+        m_TextureParams.m_Data = new uint8_t[m_TextureParams.m_DataSize];
+        m_TextureParams.m_Width = width;
+        m_TextureParams.m_Height = height;
+        m_TextureParams.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+
+        m_Texture = dmGraphics::NewTexture(engine->m_GraphicsContext, creation_params);
+        dmGraphics::SetTextureAsync(engine->m_GraphicsContext, m_Texture, m_TextureParams,
+            m_TestMetalCompletionLifetime ? UploadComplete : 0,
+            m_TestMetalCompletionLifetime ? this : 0);
+
+        if (!m_TestMetalCompletionLifetime)
+        {
+            // This sentinel can only run after the async texture job has returned.
+            PushJob(engine->m_JobContext, MarkWorkerDrained, this);
+        }
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        dmLogInfo("Issue #12878 reproducer: releasing worker before graphics teardown");
+        dmAtomicStore32(&m_BlockWorker, 0);
+
+        if (!WaitForAtomic(&m_WorkerReleased, 1, 5 * 1000 * 1000))
+        {
+            dmLogError("Issue #12878 reproducer: worker was not released");
+            engine->m_Failed = true;
+        }
+    }
+
+    void OnGraphicsClosed(EngineCtx* engine) override
+    {
+        dmLogInfo("Issue #12878 reproducer: graphics device destroyed; verifying async texture work drained");
+        bool drained = m_TestMetalCompletionLifetime
+            ? dmAtomicGet32(&m_UploadCallbackCalled) == 1
+            : dmAtomicGet32(&m_WorkerDrained) != 0;
+        if (drained)
+        {
+            delete[] (const uint8_t*) m_TextureParams.m_Data;
+            m_TextureParams.m_Data = 0;
+        }
+        else
+        {
+            dmLogError("Issue #12878 reproducer: worker did not drain");
+            engine->m_Failed = true;
+        }
+    }
+
+    void OnGraphicsDeleted(EngineCtx* engine) override
+    {
+        if (m_TestMetalCompletionLifetime)
+        {
+            // No Metal completion callback may remain queued with a pointer to
+            // the deleted graphics context.
+            JobSystemUpdate(engine->m_JobContext, 0);
+            if (dmAtomicGet32(&m_UploadCallbackCalled) != 1)
+            {
+                dmLogError("Issue #12878 reproducer: upload callback ran after graphics deletion");
+                engine->m_Failed = true;
+            }
+        }
+    }
+};
+
+// Regression/stress test for:
+// https://github.com/defold/defold/issues/12898
+// https://github.com/defold/defold/issues/12902
+//
+// Keeps the Vulkan upload worker busy while the main thread continuously
+// submits and presents frames. Both paths currently use the same VkQueue, so
+// this test exercises the missing external queue synchronization reported as
+// either a driver crash in AsyncProcessCallback or a GPU fence that never
+// signals. Run with the Vulkan validation layers enabled to also catch Vulkan
+// thread-safety violations on platforms where the driver tolerates the race.
+struct AsyncTextureUploadQueueTest : ITest
+{
+    struct UploadSlot
+    {
+        AsyncTextureUploadQueueTest* m_Test;
+        dmGraphics::HTexture         m_Texture;
+        bool                         m_Pending;
+    };
+
+    static const uint32_t TEXTURE_WIDTH            = 128;
+    static const uint32_t TEXTURE_HEIGHT           = 128;
+    static const uint32_t MAX_UPLOADS_IN_FLIGHT    = 128;
+    static const uint32_t TARGET_UPLOAD_COUNT      = 512*5;
+    static const uint32_t TEST_TIMEOUT_S           = 60*2;
+    static const uint64_t TEST_TIMEOUT_US          = (uint64_t) TEST_TIMEOUT_S * 1000ULL * 1000ULL;
+    static const uint64_t PROGRESS_LOG_INTERVAL_US = 1000ULL * 1000ULL;
+
+    EngineCtx*                 m_Engine;
+    dmArray<UploadSlot>        m_Uploads;
+    dmGraphics::TextureParams  m_TextureParams;
+    uint8_t*                   m_TextureData;
+    uint32_t                   m_SubmittedCount;
+    uint32_t                   m_CompletedCount;
+    uint64_t                   m_StartTime;
+    uint64_t                   m_LastProgressTime;
+    bool                       m_CallbackFailed;
+
+    AsyncTextureUploadQueueTest()
+    : m_Engine(0)
+    , m_TextureData(0)
+    , m_SubmittedCount(0)
+    , m_CompletedCount(0)
+    , m_StartTime(0)
+    , m_LastProgressTime(0)
+    , m_CallbackFailed(false)
+    {
+    }
+
+    static void UploadComplete(dmGraphics::HTexture texture, void* user_data)
+    {
+        UploadSlot* slot = (UploadSlot*) user_data;
+        AsyncTextureUploadQueueTest* test = slot->m_Test;
+
+        if (!slot->m_Pending || slot->m_Texture != texture)
+        {
+            dmLogError("Async texture queue test: unexpected upload callback");
+            test->m_CallbackFailed = true;
+            return;
+        }
+
+        slot->m_Pending = false;
+        test->m_CompletedCount++;
+
+        uint32_t status = dmGraphics::GetTextureStatusFlags(test->m_Engine->m_GraphicsContext, texture);
+        if (status & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
+        {
+            dmLogError("Async texture queue test: texture is still pending in its completion callback");
+            test->m_CallbackFailed = true;
+        }
+    }
+
+    void SubmitUploads()
+    {
+        for (uint32_t i = 0; i < m_Uploads.Size() && m_SubmittedCount < TARGET_UPLOAD_COUNT; ++i)
+        {
+            UploadSlot& slot = m_Uploads[i];
+            if (slot.m_Pending)
+            {
+                continue;
+            }
+
+            slot.m_Pending = true;
+            dmGraphics::SetTextureAsync(m_Engine->m_GraphicsContext, slot.m_Texture, m_TextureParams, UploadComplete, &slot);
+            m_SubmittedCount++;
+        }
+    }
+
+    void Initialize(EngineCtx* engine) override
+    {
+        m_Engine = engine;
+        m_StartTime = dmTime::GetMonotonicTime();
+        m_LastProgressTime = m_StartTime;
+
+        dmLogInfo("Async texture queue test: %ux%u RGBA, %u in flight, %u total uploads, %u s timeout",
+            TEXTURE_WIDTH, TEXTURE_HEIGHT, MAX_UPLOADS_IN_FLIGHT, TARGET_UPLOAD_COUNT, TEST_TIMEOUT_S);
+
+        const uint32_t texture_data_size = TEXTURE_WIDTH * TEXTURE_HEIGHT * 4;
+        m_TextureData = new uint8_t[texture_data_size];
+        for (uint32_t i = 0; i < texture_data_size; ++i)
+        {
+            m_TextureData[i] = (uint8_t) i;
+        }
+
+        m_TextureParams.m_DataSize = texture_data_size;
+        m_TextureParams.m_Data     = m_TextureData;
+        m_TextureParams.m_Width    = (uint16_t) TEXTURE_WIDTH;
+        m_TextureParams.m_Height   = (uint16_t) TEXTURE_HEIGHT;
+        m_TextureParams.m_Format   = dmGraphics::TEXTURE_FORMAT_RGBA;
+
+        m_Uploads.SetCapacity(MAX_UPLOADS_IN_FLIGHT);
+        m_Uploads.SetSize(MAX_UPLOADS_IN_FLIGHT);
+
+        dmGraphics::TextureCreationParams creation_params;
+        creation_params.m_Width          = (uint16_t) TEXTURE_WIDTH;
+        creation_params.m_Height         = (uint16_t) TEXTURE_HEIGHT;
+        creation_params.m_OriginalWidth  = (uint16_t) TEXTURE_WIDTH;
+        creation_params.m_OriginalHeight = (uint16_t) TEXTURE_HEIGHT;
+        creation_params.m_MipMapCount    = 1;
+
+        for (uint32_t i = 0; i < m_Uploads.Size(); ++i)
+        {
+            UploadSlot& slot = m_Uploads[i];
+            slot.m_Test    = this;
+            slot.m_Texture = dmGraphics::NewTexture(engine->m_GraphicsContext, creation_params);
+            slot.m_Pending = false;
+        }
+
+        SubmitUploads();
+        dmLogInfo("Async texture queue test: submitted %u initial uploads", m_SubmittedCount);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
+            26, 51, 77, 255, 1.0f, 0);
+
+        if (m_CallbackFailed)
+        {
+            engine->m_Failed = true;
+            engine->m_Running = 0;
+            return;
+        }
+
+        SubmitUploads();
+
+        uint64_t now = dmTime::GetMonotonicTime();
+        if (now - m_LastProgressTime >= PROGRESS_LOG_INTERVAL_US)
+        {
+            uint32_t in_flight = m_SubmittedCount - m_CompletedCount;
+            dmLogInfo("Async texture queue test: progress %u/%u completed, %u submitted, %u in flight, %u s elapsed",
+                m_CompletedCount, TARGET_UPLOAD_COUNT, m_SubmittedCount, in_flight,
+                (uint32_t) ((now - m_StartTime) / (1000ULL * 1000ULL)));
+            m_LastProgressTime = now;
+        }
+
+        if (m_SubmittedCount == TARGET_UPLOAD_COUNT && m_CompletedCount == TARGET_UPLOAD_COUNT)
+        {
+            dmLogInfo("Async texture queue test: completed all %u uploads", m_CompletedCount);
+            engine->m_Running = 0;
+            return;
+        }
+
+        if (now - m_StartTime > TEST_TIMEOUT_US)
+        {
+            dmLogError("Async texture queue test timed out: submitted=%u completed=%u",
+                m_SubmittedCount, m_CompletedCount);
+            engine->m_Failed = true;
+            engine->m_Running = 0;
+        }
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        if (m_SubmittedCount == m_CompletedCount)
+        {
+            for (uint32_t i = 0; i < m_Uploads.Size(); ++i)
+            {
+                dmGraphics::DeleteTexture(engine->m_GraphicsContext, m_Uploads[i].m_Texture);
+                m_Uploads[i].m_Texture = 0;
+            }
+        }
+    }
+
+    void OnGraphicsClosed(EngineCtx*) override
+    {
+        delete[] m_TextureData;
+        m_TextureData = 0;
+    }
+};
+
 struct ComputeTest : ITest
 {
     dmGraphics::HProgram         m_Program;
@@ -345,16 +1128,16 @@ struct ComputeTest : ITest
 
         if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
         {
-            AddShader(&compute_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, (uint8_t*) graphics_assets::glsl_compute_program, sizeof(graphics_assets::glsl_compute_program));
+            AddShaderWithType(&compute_desc, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, (uint8_t*) graphics_assets::glsl_compute_program, sizeof(graphics_assets::glsl_compute_program));
         }
         else
         {
-            AddShader(&compute_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_compute_program, sizeof(graphics_assets::spirv_compute_program));
+            AddShaderWithType(&compute_desc, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_compute_program, sizeof(graphics_assets::spirv_compute_program));
         }
 
         dmGraphics::ShaderDesc::ResourceTypeInfo* type_info = AddShaderType(&compute_desc, "buf");
-        AddShaderTypeMember(&compute_desc, type_info, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC4);
-        AddShaderResource(&compute_desc, "buf", 0, 0, 0, BINDING_TYPE_UNIFORM_BUFFER);
+        AddShaderTypeMember(&compute_desc, type_info, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC4, 0, 1);
+        AddShaderResource(&compute_desc, "buf", 0, 0, 0, BINDING_TYPE_UNIFORM_BUFFER, dmGraphics::SHADER_STAGE_FLAG_COMPUTE);
 
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &compute_desc, 0, 0);
 
@@ -372,6 +1155,253 @@ struct ComputeTest : ITest
 
         dmGraphics::DispatchCompute(engine->m_GraphicsContext, 1, 1, 1);
         dmGraphics::DisableProgram(engine->m_GraphicsContext);
+    }
+};
+
+struct UniformBufferTest : ITest
+{
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
+    dmGraphics::HUniformBuffer     m_UBO;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        /*
+        // GLSL code:
+        struct LightColor
+        {
+            vec3  color;
+            float intensity;
+        };
+        struct Light
+        {
+            vec3       position;
+            LightColor light_color;
+        };
+        uniform LightData
+        {
+            Light lights[4];
+            float light_count;
+        };
+        */
+        dmGraphics::ShaderResourceMember light_color_members[2];
+
+        // m_Color
+        light_color_members[0].m_Name        = (char*)"color";
+        light_color_members[0].m_NameHash    = dmHashString64("color");
+        light_color_members[0].m_Type.m_ShaderType   = dmGraphics::ShaderDesc::SHADER_TYPE_VEC3;
+        light_color_members[0].m_Type.m_UseTypeIndex = 0;
+        light_color_members[0].m_ElementCount = 1;
+        light_color_members[0].m_Offset       = 0;
+
+        // m_Intensity
+        light_color_members[1].m_Name        = (char*)"intensity";
+        light_color_members[1].m_NameHash    = dmHashString64("intensity");
+        light_color_members[1].m_Type.m_ShaderType   = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
+        light_color_members[1].m_Type.m_UseTypeIndex = 0;
+        light_color_members[1].m_ElementCount = 1;
+        light_color_members[1].m_Offset       = 0;
+
+        dmGraphics::ShaderResourceMember light_members[2];
+
+        // m_Position
+        light_members[0].m_Name        = (char*)"position";
+        light_members[0].m_NameHash    = dmHashString64("position");
+        light_members[0].m_Type.m_ShaderType   = dmGraphics::ShaderDesc::SHADER_TYPE_VEC3;
+        light_members[0].m_Type.m_UseTypeIndex = 0;
+        light_members[0].m_ElementCount = 1;
+        light_members[0].m_Offset       = 0;
+
+        // m_Color (type index)
+        light_members[1].m_Name        = (char*)"light_color";
+        light_members[1].m_NameHash    = dmHashString64("light_color");
+        light_members[1].m_Type.m_TypeIndex    = 2;
+        light_members[1].m_Type.m_UseTypeIndex = 1;
+        light_members[1].m_ElementCount = 1;
+        light_members[1].m_Offset       = 0;
+
+        dmGraphics::ShaderResourceMember light_data_members[2];
+
+        // m_Lights
+        light_data_members[0].m_Name        = (char*)"lights";
+        light_data_members[0].m_NameHash    = dmHashString64("lights");
+        light_data_members[0].m_Type.m_TypeIndex    = 1;
+        light_data_members[0].m_Type.m_UseTypeIndex = 1;
+        light_data_members[0].m_ElementCount = 4;
+        light_data_members[0].m_Offset       = 0;
+
+        // m_LightCount
+        light_data_members[1].m_Name        = (char*)"light_count";
+        light_data_members[1].m_NameHash    = dmHashString64("light_count");
+        light_data_members[1].m_Type.m_ShaderType   = dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT;
+        light_data_members[1].m_Type.m_UseTypeIndex = 0;
+        light_data_members[1].m_ElementCount = 1;
+        light_data_members[1].m_Offset       = 0;
+
+        dmGraphics::ShaderResourceTypeInfo light_data  = { (char*) "LightData", dmHashString64("LightData"), light_data_members, DM_ARRAY_SIZE(light_data_members) };
+        dmGraphics::ShaderResourceTypeInfo light       = { (char*) "Light", dmHashString64("Light"), light_members, DM_ARRAY_SIZE(light_members) };
+        dmGraphics::ShaderResourceTypeInfo light_color = { (char*) "LightColor", dmHashString64("LightColor"), light_color_members, DM_ARRAY_SIZE(light_color_members) };
+        dmGraphics::ShaderResourceTypeInfo types[]     = { light_data, light, light_color };
+
+        dmGraphics::UpdateShaderTypesOffsets(types, DM_ARRAY_SIZE(types));
+
+        dmGraphics::UniformBufferLayout ubo_layout = dmGraphics::GetUniformBufferLayout(0, types, DM_ARRAY_SIZE(types));
+        uint32_t ubo_size = dmGraphics::GetUniformBufferTypeSize(0, types, DM_ARRAY_SIZE(types));
+
+        uint8_t* ubo_data = new uint8_t[ubo_size];
+        memset(ubo_data, 0, ubo_size);
+
+        // Write test data
+        uint32_t lights_offset = light_data_members[0].m_Offset;
+        uint32_t light_stride  = 32;
+
+        // Light 0
+        {
+            uint32_t light0_offset   = lights_offset + 0 * light_stride;
+            uint32_t light0_position = light0_offset + light_members[0].m_Offset;
+            float pos[] = { 1.0f, 2.0f, 3.0f };
+            WriteFloats(ubo_data, light0_position, pos, 3);
+
+            uint32_t light0_color = light0_offset + light_members[1].m_Offset + light_color_members[0].m_Offset;
+            float color[] = { 0.0f, 1.0f, 0.0f };
+            WriteFloats(ubo_data, light0_color, color, 3);
+
+            uint32_t light0_intensity = light0_offset + light_members[1].m_Offset + light_color_members[1].m_Offset;
+            float intensity = 0.5f;
+            WriteFloats(ubo_data, light0_intensity, &intensity, 1);
+        }
+
+        // Light 1
+        {
+            uint32_t light1_offset   = lights_offset + 1 * light_stride;
+            uint32_t light1_position = light1_offset + light_members[0].m_Offset;
+
+            float tmp_v3[] = { 4.0f, 5.0f, 6.0f };
+            WriteFloats(ubo_data, light1_position, tmp_v3, 3);
+
+            uint32_t light1_color = light1_offset + light_members[1].m_Offset + light_color_members[0].m_Offset;
+            float color[] = { 0.0f, 0.0f, 1.0f };
+            WriteFloats(ubo_data, light1_color, color, 3);
+
+            uint32_t light1_intensity = light1_offset + light_members[1].m_Offset + light_color_members[1].m_Offset;
+            float intensity = 0.25f;
+            WriteFloats(ubo_data, light1_intensity, &intensity, 1);
+        }
+
+        // Light 2
+        {
+            uint32_t light2_offset   = lights_offset + 2 * light_stride;
+            uint32_t light2_position = light2_offset + light_members[0].m_Offset;
+
+            float tmp_v3[] = { 7.0f, 8.0f, 9.0f };
+            WriteFloats(ubo_data, light2_position, tmp_v3, 3);
+
+            uint32_t light2_color = light2_offset + light_members[1].m_Offset + light_color_members[0].m_Offset;
+            float color[] = { 1.0f, 0.0f, 0.0f };
+            WriteFloats(ubo_data, light2_color, color, 3);
+
+            uint32_t light2_intensity = light2_offset + light_members[1].m_Offset + light_color_members[1].m_Offset;
+            float intensity = 0.15f;
+            WriteFloats(ubo_data, light2_intensity, &intensity, 1);
+        }
+
+        // Light 3
+        {
+            uint32_t light3_offset   = lights_offset + 3 * light_stride;
+            uint32_t light3_position = light3_offset + light_members[0].m_Offset;
+
+            float tmp_v3[] = { 10.0f, 11.0f, 12.0f };
+            WriteFloats(ubo_data, light3_position, tmp_v3, 3);
+
+            uint32_t light3_color = light3_offset + light_members[1].m_Offset + light_color_members[0].m_Offset;
+            float color[] = { 1.0f, 1.0f, 1.0f };
+            WriteFloats(ubo_data, light3_color, color, 3);
+
+            uint32_t light3_intensity = light3_offset + light_members[1].m_Offset + light_color_members[1].m_Offset;
+            float intensity = 0.05f;
+            WriteFloats(ubo_data, light3_intensity, &intensity, 1);
+        }
+
+        m_UBO = dmGraphics::NewUniformBuffer(engine->m_GraphicsContext, ubo_layout, ubo_size);
+        dmGraphics::SetUniformBuffer(engine->m_GraphicsContext, m_UBO, 0, ubo_size, (const void*) ubo_data);
+
+        // Bound once, should be bound to all shaders that use set=1, binding=0
+        dmGraphics::EnableUniformBuffer(engine->m_GraphicsContext, m_UBO, 1, 0);
+
+        // Create render resources
+        const float vertex_data_no_index[] = {
+            -0.5f, -0.5f,
+             0.5f, -0.5f,
+            -0.5f,  0.5f,
+             0.5f, -0.5f,
+             0.5f,  0.5f,
+            -0.5f,  0.5f,
+        };
+
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+
+        dmGraphics::ShaderDesc shader_desc = {};
+
+        if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
+        {
+            AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, (uint8_t*) graphics_assets::glsl_vertex_program, sizeof(graphics_assets::glsl_vertex_program));
+            AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, (uint8_t*) graphics_assets::glsl_fragment_program_ubo, sizeof(graphics_assets::glsl_fragment_program_ubo));
+        }
+        else
+        {
+            AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_vertex_program, sizeof(graphics_assets::spirv_vertex_program));
+            AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_fragment_program_ubo, sizeof(graphics_assets::spirv_fragment_program_ubo));
+        }
+
+        dmGraphics::ShaderDesc::ResourceTypeInfo* type_light_data = AddShaderType(&shader_desc, "LightData");
+        AddShaderTypeMember(&shader_desc, type_light_data, "lights", 1, light_data_members[0].m_Offset, 4);
+        AddShaderTypeMember(&shader_desc, type_light_data, "light_count", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_FLOAT, light_data_members[1].m_Offset, 1);
+
+        dmGraphics::ShaderDesc::ResourceTypeInfo* type_light = AddShaderType(&shader_desc, "Light");
+        AddShaderTypeMember(&shader_desc, type_light, "position", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC3, light_members[0].m_Offset, 1);
+        AddShaderTypeMember(&shader_desc, type_light, "light_color", 2, light_members[1].m_Offset, 1);
+
+        dmGraphics::ShaderDesc::ResourceTypeInfo* type_light_color = AddShaderType(&shader_desc, "LightColor");
+        AddShaderTypeMember(&shader_desc, type_light_color, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC3, light_color_members[0].m_Offset, 1);
+        AddShaderTypeMember(&shader_desc, type_light_color, "intensity", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_FLOAT, light_color_members[1].m_Offset, 1);
+
+        AddShaderResource(&shader_desc, "pos", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        AddShaderResource(&shader_desc, "LightData", 0, 0, 1, BINDING_TYPE_UNIFORM_BUFFER, dmGraphics::SHADER_STAGE_FLAG_FRAGMENT);
+
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, 0, 0);
+        if (!m_Program)
+        {
+            dmLogError("Failed to create uniform buffer test program");
+            engine->m_Failed = true;
+        }
+
+        DeleteShaderDesc(&shader_desc);
+
+        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext);
+        dmGraphics::AddVertexStream(stream_declaration, "pos", 2, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        if (!m_Program)
+        {
+            engine->m_Failed = true;
+            engine->m_Running = 0;
+            return;
+        }
+        dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
+        dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
+        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, 0, m_Program);
+
+        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
+    }
+
+    void WriteFloats(uint8_t* buffer, uint32_t offset, float* data, uint32_t num_floats)
+    {
+        float* ptr = (float*) (buffer + offset);
+        memcpy(ptr, data, sizeof(float) * num_floats);
     }
 };
 
@@ -461,11 +1491,11 @@ struct StorageBufferTest : ITest
 };
 #endif
 
-static bool OnWindowClose(void* user_data)
+static int OnWindowClose(void* user_data)
 {
     EngineCtx* engine = (EngineCtx*) user_data;
     engine->m_WindowClosed = 1;
-    return true;
+    return 1;
 }
 
 static void* EngineCreate(int argc, char** argv)
@@ -473,52 +1503,130 @@ static void* EngineCreate(int argc, char** argv)
     EngineCtx* engine = &g_EngineCtx;
     engine->m_Window = dmPlatform::NewWindow();
 
-    dmPlatform::WindowParams window_params = {};
+    WindowCreateParams window_params;
+    WindowCreateParamsInitialize(&window_params);
     window_params.m_Width                  = 512;
     window_params.m_Height                 = 512;
     window_params.m_Title                  = "Graphics Test App";
-    window_params.m_GraphicsApi            = dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
+    window_params.m_GraphicsApi            = WINDOW_GRAPHICS_API_VULKAN;
     window_params.m_CloseCallback          = OnWindowClose;
     window_params.m_CloseCallbackUserData  = (void*) engine;
 
     if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
     {
-        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
     }
     else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGLES)
     {
-        window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGLES;
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
+    }
+    else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_METAL)
+    {
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_METAL;
     }
 
-    dmPlatform::OpenWindow(engine->m_Window, window_params);
+    WindowResult wr = dmPlatform::OpenWindow(engine->m_Window, window_params);
+    if (WINDOW_RESULT_OK != wr)
+    {
+        dmLogError("Failed to open window: %d", wr);
+        return 0;
+    }
+
     dmPlatform::ShowWindow(engine->m_Window);
 
-    dmJobThread::JobThreadCreationParams job_thread_create_param;
-    job_thread_create_param.m_ThreadNames[0] = "test_jobs";
-    job_thread_create_param.m_ThreadCount    = 1;
-    engine->m_JobThread = dmJobThread::Create(job_thread_create_param);
+    JobSystemCreateParams job_thread_create_param = {0};
+    job_thread_create_param.m_ThreadCount = HasArgument("issue-12878") &&
+        dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_METAL ? 2 : 1;
+    engine->m_JobContext = JobSystemCreate(&job_thread_create_param);
 
     dmGraphics::ContextParams graphics_context_params = {};
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_DefaultTextureMagFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
     graphics_context_params.m_VerifyGraphicsCalls     = 1;
+#if defined(DM_VULKAN_VALIDATION)
     graphics_context_params.m_UseValidationLayers     = 1;
+#endif
     graphics_context_params.m_Window                  = engine->m_Window;
     graphics_context_params.m_Width                   = 512;
     graphics_context_params.m_Height                  = 512;
-    graphics_context_params.m_JobThread               = engine->m_JobThread;
+    graphics_context_params.m_JobContext              = engine->m_JobContext;
 
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+    if (!engine->m_GraphicsContext)
+    {
+        dmLogError("Failed to create graphics context");
+        engine->m_Failed = true;
+        return 0;
+    }
 
-    //engine->m_Test = new ComputeTest();
-    //engine->m_Test = new StorageBufferTest();
-    //engine->m_Test = new ReadPixelsTest();
-    engine->m_Test = new AsyncTextureUploadTest();
-    // engine->m_Test = new ClearBackbufferTest();
+    if (dmGraphics::GetWidth(engine->m_GraphicsContext) != graphics_context_params.m_Width ||
+        dmGraphics::GetHeight(engine->m_GraphicsContext) != graphics_context_params.m_Height)
+    {
+        dmLogError("Graphics context changed the configured logical size from %ux%u to %ux%u",
+            graphics_context_params.m_Width,
+            graphics_context_params.m_Height,
+            dmGraphics::GetWidth(engine->m_GraphicsContext),
+            dmGraphics::GetHeight(engine->m_GraphicsContext));
+        engine->m_Failed = true;
+    }
+
+    if (HasArgument("depth-texture"))
+    {
+        dmLogInfo("test_app_graphics: running DepthTextureTest");
+        engine->m_Test = new DepthTextureTest();
+    }
+    else if (HasArgument("cubemap-face-order"))
+    {
+        dmLogInfo("test_app_graphics: running CubemapFaceOrderTest");
+        engine->m_Test = new CubemapFaceOrderTest();
+    }
+    else if (HasArgument("issue-12878"))
+    {
+        dmGraphics::AdapterFamily family = dmGraphics::GetInstalledAdapterFamily();
+        if (family != dmGraphics::ADAPTER_FAMILY_VULKAN && family != dmGraphics::ADAPTER_FAMILY_METAL)
+        {
+            dmLogError("Issue #12878 reproducer requires the Vulkan or Metal adapter");
+            engine->m_Failed = true;
+            engine->m_Test = new ClearBackbufferTest();
+        }
+        else
+        {
+            dmLogInfo("test_app_graphics: running AsyncTextureUploadShutdownTest");
+            engine->m_Test = new AsyncTextureUploadShutdownTest();
+        }
+    }
+    else if (HasArgument("issue-12898-12902"))
+    {
+        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_VULKAN)
+        {
+            dmLogError("Issues #12898/#12902 reproducer requires the Vulkan adapter");
+            engine->m_Failed = true;
+            engine->m_Test = new ClearBackbufferTest();
+        }
+        else
+        {
+            dmLogInfo("test_app_graphics: running AsyncTextureUploadQueueTest");
+            engine->m_Test = new AsyncTextureUploadQueueTest();
+        }
+    }
+    else
+    {
+        //engine->m_Test = new ComputeTest();
+        //engine->m_Test = new StorageBufferTest();
+        //engine->m_Test = new ReadPixelsTest();
+        //engine->m_Test = new AsyncTextureUploadTest();
+        //engine->m_Test = new ClearBackbufferTest();
+        dmLogInfo("test_app_graphics: running ClearBackbufferTest");
+        engine->m_Test = new ClearBackbufferTest();
+    }
     engine->m_Test->Initialize(engine);
 
     engine->m_WasCreated++;
-    engine->m_Running = 1;
+    engine->m_Running = engine->m_Failed ? 0 : 1;
+    if (HasArgument("issue-12878"))
+    {
+        engine->m_Running = 0;
+    }
     engine->m_TimeStart = dmTime::GetMonotonicTime();
 
     return &g_EngineCtx;
@@ -527,12 +1635,15 @@ static void* EngineCreate(int argc, char** argv)
 static void EngineDestroy(void* _engine)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
+    engine->m_Test->OnGraphicsClosing(engine);
     dmGraphics::CloseWindow(engine->m_GraphicsContext);
+    engine->m_Test->OnGraphicsClosed(engine);
     dmGraphics::DeleteContext(engine->m_GraphicsContext);
+    engine->m_Test->OnGraphicsDeleted(engine);
     dmGraphics::Finalize();
 
-    if (engine->m_JobThread)
-        dmJobThread::Destroy(engine->m_JobThread);
+    if (engine->m_JobContext)
+        JobSystemDestroy(engine->m_JobContext);
 
     engine->m_WasDestroyed++;
 }
@@ -541,8 +1652,8 @@ static UpdateResult EngineUpdate(void* _engine)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
     engine->m_WasRun++;
-    uint64_t t = dmTime::GetMonotonicTime();
     /*
+    uint64_t t = dmTime::GetMonotonicTime();
     float elapsed = (t - engine->m_TimeStart) / 1000000.0f;
     if (elapsed > 3.0f)
         return RESULT_EXIT;
@@ -560,13 +1671,30 @@ static UpdateResult EngineUpdate(void* _engine)
         return RESULT_EXIT;
     }
 
-    dmJobThread::Update(engine->m_JobThread, 0);
+    JobSystemUpdate(engine->m_JobContext, 0);
 
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
 
     engine->m_Test->Execute(engine);
 
+    // Exercise runtime presentation-mode changes while a frame is active. The
+    // Vulkan backend must defer its swapchain recreation until the next
+    // BeginFrame, while other backends may apply the change immediately.
+    if (engine->m_WasRun == 1)
+    {
+        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, 0);
+    }
+    else if (engine->m_WasRun == 2)
+    {
+        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, 1);
+    }
+
     dmGraphics::Flip(engine->m_GraphicsContext);
+
+    if (ShouldAutoExit() && !HasArgument("issue-12898-12902") && engine->m_WasRun >= TEST_APP_GRAPHICS_MAX_FRAME_COUNT)
+    {
+        return RESULT_EXIT;
+    }
 
     return RESULT_OK;
 }
@@ -575,11 +1703,45 @@ static void EngineGetResult(void* _engine, int* run_action, int* exit_code, int*
 {
     EngineCtx* ctx = (EngineCtx*)_engine;
     ctx->m_WasResultCalled++;
+    if (run_action)
+    {
+        *run_action = RESULT_EXIT;
+    }
+    if (exit_code)
+    {
+        *exit_code = ctx->m_Failed ? 1 : 0;
+    }
+}
+
+static dmGraphics::AdapterFamily GetDefaultAdapterFamily()
+{
+#if defined(DM_TEST_APP_GRAPHICS_DEFAULT_VULKAN)
+    return dmGraphics::ADAPTER_FAMILY_VULKAN;
+#elif defined(DM_TEST_APP_GRAPHICS_DEFAULT_METAL)
+    return dmGraphics::ADAPTER_FAMILY_METAL;
+#elif defined(DM_TEST_APP_GRAPHICS_DEFAULT_OPENGLES)
+    return dmGraphics::ADAPTER_FAMILY_OPENGLES;
+#else
+    return dmGraphics::ADAPTER_FAMILY_OPENGL;
+#endif
+}
+
+static const char* GetAdapterName(dmGraphics::AdapterFamily family)
+{
+    switch (family)
+    {
+        case dmGraphics::ADAPTER_FAMILY_OPENGL:   return "opengl";
+        case dmGraphics::ADAPTER_FAMILY_OPENGLES: return "opengles";
+        case dmGraphics::ADAPTER_FAMILY_VULKAN:   return "vulkan";
+        case dmGraphics::ADAPTER_FAMILY_METAL:    return "metal";
+        default: break;
+    }
+    return "unknown";
 }
 
 static void InstallAdapter(int argc, char **argv)
 {
-    dmGraphics::AdapterFamily family = dmGraphics::ADAPTER_FAMILY_VULKAN;
+    dmGraphics::AdapterFamily family = GetDefaultAdapterFamily();
 
     for (int i = 0; i < argc; ++i)
     {
@@ -587,9 +1749,24 @@ static void InstallAdapter(int argc, char **argv)
         {
             family = dmGraphics::ADAPTER_FAMILY_OPENGL;
         }
+        else if (strcmp(argv[i], "opengles") == 0)
+        {
+            family = dmGraphics::ADAPTER_FAMILY_OPENGLES;
+        }
+        else if (strcmp(argv[i], "vulkan") == 0)
+        {
+            family = dmGraphics::ADAPTER_FAMILY_VULKAN;
+        }
+        else if (strcmp(argv[i], "metal") == 0)
+        {
+            family = dmGraphics::ADAPTER_FAMILY_METAL;
+        }
     }
 
-    dmGraphics::InstallAdapter(family);
+    if (!dmGraphics::InstallAdapter(family))
+    {
+        dmLogFatal("Unable to install %s graphics adapter.", GetAdapterName(family));
+    }
 }
 
 TEST(App, Run)
@@ -599,6 +1776,9 @@ TEST(App, Run)
     memset(&g_EngineCtx, 0, sizeof(g_EngineCtx));
 
     RunLoopParams params;
+    memset(&params, 0, sizeof(params));
+    params.m_Argc = g_AppArgc;
+    params.m_Argv = g_AppArgv;
     params.m_AppCtx = &ctx;
     params.m_AppCreate = AppCreate;
     params.m_AppDestroy = AppDestroy;
@@ -627,7 +1807,15 @@ extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
 {
+    TestMainPlatformInit();
+    g_AppArgc = argc;
+    g_AppArgv = argv;
+    dmHashEnableReverseHash(true);
+
     dmExportedSymbols();
+    dmLog::LogParams params;
+    dmLog::LogInitialize(&params);
+
     InstallAdapter(argc, argv);
     jc_test_init(&argc, argv);
     return jc_test_run_all();

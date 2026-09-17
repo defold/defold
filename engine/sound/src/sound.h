@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,7 @@
 #include <dlib/hash.h>
 
 #include <dmsdk/dlib/vmath.h>
+#include <dmsdk/sound/sound.h>
 
 namespace dmSound
 {
@@ -30,6 +31,7 @@ namespace dmSound
         SOUND_DATA_TYPE_WAV        = 0,
         SOUND_DATA_TYPE_OGG_VORBIS = 1,
         SOUND_DATA_TYPE_OPUS = 2,
+        SOUND_DATA_TYPE_MAX = 3
     };
 
     enum Parameter
@@ -38,31 +40,6 @@ namespace dmSound
         PARAMETER_PAN   = 1,
         PARAMETER_SPEED = 2,
         PARAMETER_MAX   = 3
-    };
-
-    enum Result
-    {
-        RESULT_OK                 =  0,    //!< RESULT_OK
-        RESULT_PARTIAL_DATA       =  1,    //!< RESULT_PARTIAL_DATA
-        RESULT_OUT_OF_SOURCES     = -1,    //!< RESULT_OUT_OF_SOURCES
-        RESULT_EFFECT_NOT_FOUND   = -2,    //!< RESULT_EFFECT_NOT_FOUND
-        RESULT_OUT_OF_INSTANCES   = -3,    //!< RESULT_OUT_OF_INSTANCES
-        RESULT_RESOURCE_LEAK      = -4,    //!< RESULT_RESOURCE_LEAK
-        RESULT_OUT_OF_BUFFERS     = -5,    //!< RESULT_OUT_OF_BUFFERS
-        RESULT_INVALID_PROPERTY   = -6,    //!< RESULT_INVALID_PROPERTY
-        RESULT_UNKNOWN_SOUND_TYPE = -7,    //!< RESULT_UNKNOWN_SOUND_TYPE
-        RESULT_INVALID_STREAM_DATA= -8,    //!< RESULT_INVALID_STREAM_DATA
-        RESULT_OUT_OF_MEMORY      = -9,    //!< RESULT_OUT_OF_MEMORY
-        RESULT_UNSUPPORTED        = -10,   //!< RESULT_UNSUPPORTED
-        RESULT_DEVICE_NOT_FOUND   = -11,   //!< RESULT_DEVICE_NOT_FOUND
-        RESULT_OUT_OF_GROUPS      = -12,   //!< RESULT_OUT_OF_GROUPS
-        RESULT_NO_SUCH_GROUP      = -13,   //!< RESULT_NO_SUCH_GROUP
-        RESULT_NOTHING_TO_PLAY    = -14,   //!< RESULT_NOTHING_TO_PLAY
-        RESULT_INIT_ERROR         = -15,   //!< RESULT_INIT_ERROR
-        RESULT_FINI_ERROR         = -16,   //!< RESULT_FINI_ERROR
-        RESULT_NO_DATA            = -17,   //!< RESULT_NO_DATA
-        RESULT_END_OF_STREAM      = -18,   //!< RESULT_END_OF_STREAM
-        RESULT_UNKNOWN_ERROR      = -1000, //!< RESULT_UNKNOWN_ERROR
     };
 
     // Used to identify if a sound.play or play_sound msg
@@ -160,11 +137,27 @@ namespace dmSound
     Result SetParameter(HSoundInstance sound_instance, Parameter parameter, const dmVMath::Vector4& value);
     Result GetParameter(HSoundInstance sound_instance, Parameter parameter, dmVMath::Vector4& value);
 
+    // Set initial playback offset before playing; only applied to the initial playback
+    Result SetStartFrame(HSoundInstance sound_instance, uint32_t start_frame);
+    Result SetStartTime(HSoundInstance sound_instance, float start_time_seconds);
+
     // Platform dependent
     bool IsMusicPlaying();
     bool IsAudioInterrupted();
 
+    struct DecoderOutputSettings {
+        bool m_UseNormalizedFloatRange;     //!< if true, decoders must deliver any float data in [-1..1] range, otherwise: [-32768, 32767]
+        bool m_UseInterleaved;              //!< if true, decoders must deliver data with interleaved channels, otherwise: they can choose
+    };
+    void GetDecoderOutputSettings(DecoderOutputSettings* settings);
+
     void OnWindowFocus(bool focus);
+
+    /**
+     * Notify the sound system that the active device has been invalidated and must be reopened.
+     * Currently used by the WASAPI backend when Windows reports AUDCLNT_E_DEVICE_INVALIDATED.
+     */
+    void NotifyDeviceInvalidated();
 }
 
 namespace dmSound

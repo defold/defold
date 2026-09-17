@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -54,16 +54,14 @@
                       (throw t))))]
      (reset! load-info [loader boot-loaded-promise]))))
 
-(defn wait-until-editor-boot-loaded
-  []
+(defn wait-until-editor-boot-loaded []
   (let [result @(second @load-info)]
     (when (instance? Throwable result)
       (throw result))))
 
-(defn load-synchronous
-  [print-to-stdout]
+(defn load-synchronous [print-to-stdout]
   (load-boot print-to-stdout)
-  (wait-until-editor-boot-loaded))
+  (deref (first @load-info)))
 
 (defn main
   [args]

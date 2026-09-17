@@ -1,4 +1,4 @@
-;; Copyright 2020-2025 The Defold Foundation
+;; Copyright 2020-2026 The Defold Foundation
 ;; Copyright 2014-2020 King
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -19,6 +19,7 @@
             [editor.types :as t]
             [editor.ui :as ui]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [support.test-support :refer [with-clean-system]]
             [util.fn :as fn])
   (:import [javafx.scene Parent]
@@ -37,14 +38,14 @@
 (defn- set-form-op [{:keys [node-id]} path value]
   {:pre [(= 1 (count path))]}
   (let [prop-kw (first path)]
-    (g/set-property! node-id prop-kw value)))
+    (g/set-property node-id prop-kw value)))
 
 (defn- clear-form-op [{:keys [node-id]} path]
   {:pre [(= 1 (count path))]}
   (let [prop-kw (first path)]
-    (g/clear-property! node-id prop-kw)))
+    (g/clear-property node-id prop-kw)))
 
-(g/defnk produce-form-data [_node-id integer number vec4]
+(g/defnk produce-form-data [_node-id integer number vec4 color color-vec3]
   (let [fields
         [{:label "Integer"
           :type :integer
@@ -54,13 +55,21 @@
           :path [:number]}
          {:label "Vec4"
           :type :vec4
-          :path [:vec4]}]]
+          :path [:vec4]}
+         {:label "Color"
+          :type :color
+          :path [:color]}
+         {:label "Color Vec3"
+          :type :color
+          :path [:color-vec3]}]]
     {:navigation false
      :sections [{:title "Section"
                  :fields fields}]
      :values {[:integer] integer
               [:number] number
-              [:vec4] vec4}
+              [:vec4] vec4
+              [:color] color
+              [:color-vec3] color-vec3}
      :form-ops {:user-data {:node-id _node-id}
                 :set set-form-op
                 :clear clear-form-op}}))
@@ -69,27 +78,37 @@
   (property integer g/Int)
   (property number g/Num)
   (property vec4 t/Vec4)
+  (property color t/Vec4)
+  (property color-vec3 t/Vec3)
   (output form-data g/Any :cached produce-form-data))
 
 (def ^:private generic-32-bit-property-values
   {:integer (int 1)
    :number (float 0.1)
-   :vec4 (float-vec 0.1 0.2 0.3 0.4)})
+   :vec4 (float-vec 0.1 0.2 0.3 0.4)
+   :color (float-vec 0.1 0.2 0.3 0.4)
+   :color-vec3 (float-vec 0.1 0.2 0.3)})
 
 (def ^:private generic-64-bit-property-values
   {:integer (long 1)
    :number (double 0.1)
-   :vec4 (double-vec 0.1 0.2 0.3 0.4)})
+   :vec4 (double-vec 0.1 0.2 0.3 0.4)
+   :color (double-vec 0.1 0.2 0.3 0.4)
+   :color-vec3 (double-vec 0.1 0.2 0.3)})
 
 (def ^:private specialized-32-bit-property-values
   {:integer (int 1)
    :number (float 0.1)
-   :vec4 (vector-of :float 0.1 0.2 0.3 0.4)})
+   :vec4 (vector-of :float 0.1 0.2 0.3 0.4)
+   :color (vector-of :float 0.1 0.2 0.3 0.4)
+   :color-vec3 (vector-of :float 0.1 0.2 0.3)})
 
 (def ^:private specialized-64-bit-property-values
   {:integer (long 1)
    :number (double 0.1)
-   :vec4 (vector-of :double 0.1 0.2 0.3 0.4)})
+   :vec4 (vector-of :double 0.1 0.2 0.3 0.4)
+   :color (vector-of :double 0.1 0.2 0.3 0.4)
+   :color-vec3 (vector-of :double 0.1 0.2 0.3)})
 
 (defn- find-controls [^Parent parent]
   (->> parent
@@ -120,13 +139,12 @@
       (test-util/editable-controls)))
 
 (defn- check-text-fields! [resource-node prop-kw new-num-values text-fields-fn]
-  (let [project-graph (g/node-id->graph-id resource-node)
-        view-node (ffirst (g/targets-of resource-node :form-data))
+  (let [view-node (some-> (first (g/outputs (g/now) resource-node :form-data)) gt/target-id)
         original-value (g/node-value resource-node prop-kw)
 
         check-field!
         (fn check-field! [field-index new-num-value]
-          (with-open [_ (test-util/make-graph-reverter project-graph)]
+          (with-open [_ (test-util/make-system-reverter)]
             (let [text-field-count
                   (do
                     (render-form! view-node)
@@ -160,6 +178,10 @@
 (defmethod test-form-widget! :vec4 [resource-node field form-view-parent]
   (test-simple-form-widget! resource-node field form-view-parent [2.22 3.33 4.44 5.55]))
 
+;; The color field renders a web-string text field followed by a color picker.
+(defmethod test-form-widget! :color [resource-node field form-view-parent]
+  (test-simple-form-widget! resource-node field form-view-parent ["#4d4d4dff" 0.5]))
+
 (defn- ensure-float-form-fields-preserve-type! [original-property-values]
   (with-clean-system
     (let [original-meta {:version "original"}
@@ -174,10 +196,8 @@
                 original-property-values)
 
           form-view-parent (AnchorPane.)
-          project-graph (g/make-graph! :history true :volatility 1)
-          view-graph (g/make-graph! :history false :volatility 2)
-          resource-node (apply g/make-node! project-graph NumericPropertiesNode (mapcat identity property-values))
-          view-node (cljfx-form-view/make-form-view-node! view-graph form-view-parent resource-node nil nil)
+          resource-node (apply g/make-node! NumericPropertiesNode (mapcat identity property-values))
+          view-node (cljfx-form-view/make-form-view-node! form-view-parent resource-node nil nil nil test-util/localization)
           form-data (g/node-value view-node :form-data)
           fields (->> form-data
                       (:sections)
@@ -185,7 +205,7 @@
                       (:fields)
                       (map-indexed (fn [row field]
                                      (assoc field :row row))))]
-      (is (= 3 (count fields)))
+      (is (= 5 (count fields)))
       (doseq [field fields]
         (testing (str "Types preserved after editing " (:path field))
           (test-form-widget! resource-node field form-view-parent))))))

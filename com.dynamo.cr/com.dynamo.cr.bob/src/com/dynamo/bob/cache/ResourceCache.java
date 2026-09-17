@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -16,6 +16,7 @@ package com.dynamo.bob.cache;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
@@ -55,7 +56,13 @@ public class ResourceCache {
 	}
 
 	private URL urlFromFile(File file) throws MalformedURLException {
-		return new URL(remoteCacheUrl + "/" + file.getName());
+		try {
+			return URI.create(remoteCacheUrl + "/" + file.getName()).toURL();
+		} catch (IllegalArgumentException e) {
+			MalformedURLException exception = new MalformedURLException(e.getMessage());
+			exception.initCause(e);
+			throw exception;
+		}
 	}
 
 	private void saveToLocalCache(File file, byte[] data) throws IOException {

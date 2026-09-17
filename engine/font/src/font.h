@@ -1,4 +1,4 @@
-// Copyright 2020-2025 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -12,16 +12,49 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#if !defined(DM_FONT_H)
+#ifndef DM_FONT_H
 #define DM_FONT_H
 
 #include <dmsdk/font/font.h>
-#include <stdint.h>
+#include "text_layout.h"
 
-namespace dmFont
+// Normalized SDF value change over one spread of signed distance (positive inside):
+// value = edge + FONT_SDF_DISTANCE_SCALE * distance / spread.
+// The 0.25 range leaves room above the default 0.75 edge for interior distances.
+// Generation, outline/shadow thresholds and shader smoothing must use the same scale.
+static const float FONT_SDF_DISTANCE_SCALE = 0.25f;
+
+typedef HFont       (*FontLoadFromMemoryFn)(const char* name, const void* data, uint32_t data_size, bool allocate);
+typedef void        (*FontDestroyFn)(HFont font);
+typedef uint32_t    (*FontGetResourceSizeFn)(HFont font);
+typedef float       (*FontGetScaleFromSizeFn)(HFont hfont, uint32_t size);
+typedef float       (*FontGetAscentFn)(HFont hfont, float scale);
+typedef float       (*FontGetDescentFn)(HFont hfont, float scale);
+typedef float       (*FontGetLineGapFn)(HFont hfont, float scale);
+typedef uint32_t    (*FontGetGlyphIndexFn)(HFont font, uint32_t codepoint);
+typedef FontResult  (*FontGetGlyphFn)(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, FontGlyph* glyph);
+typedef FontResult  (*FontFreeGlyphFn)(HFont hfont, FontGlyph* glyph);
+
+struct Font
 {
-    void DebugFont(HFont font, float scale, float padding, const char* text);
+    FontType        m_Type;
+    const char*     m_Path;
+    uint32_t        m_PathHash;
 
-} // namespace
+    FontLoadFromMemoryFn        m_LoadFontFromMemory;
+    FontDestroyFn               m_DestroyFont;
+    FontGetResourceSizeFn       m_GetResourceSize;
+    FontGetScaleFromSizeFn      m_GetScaleFromSize;
+    FontGetAscentFn             m_GetAscent;
+    FontGetDescentFn            m_GetDescent;
+    FontGetLineGapFn            m_GetLineGap;
+    FontGetGlyphIndexFn         m_GetGlyphIndex;
+    FontGetGlyphFn              m_GetGlyph;
+    FontFreeGlyphFn             m_FreeGlyph;
+};
+
+HFont FontCreate(Font* font);
+
+TextLayoutType FontGetLayoutType(HFont hfont);
 
 #endif // DM_FONT_H
