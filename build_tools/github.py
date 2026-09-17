@@ -80,6 +80,17 @@ def get(url, token, headers = None):
         print(err)
         return None
 
+def compare_commits(repository, base, head, token):
+    import requests
+    headers = _create_headers({}, token)
+    if not token:
+        del headers["Authorization"]
+    url = _fix_url("/repos/%s/compare/%s...%s" % (repository, base, head))
+    response = requests.get(url, headers = headers, timeout = (10, 60))
+    # An unavailable comparison must stop publication, not be treated as a new release.
+    response.raise_for_status()
+    return response.json()
+
 def post(url, token, data = None, json = None, files = None, headers = None):
     import requests
     try:

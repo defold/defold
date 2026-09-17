@@ -60,6 +60,27 @@ def get_defold_version_from_file():
         return None
     return out.strip()
 
+def is_stale_release(config, release_sha):
+    # Read S3 directly so a CDN cannot hide a publication completed by another job.
+    # info.json advances before GitHub uploads, so this also prevents rolling back a
+    # newer, partially published release. Retrying that same commit remains allowed.
+    info = s3.get_release_info(config.get_archive_path(), config.channel)
+    if info is None or info['sha1'] == release_sha:
+        return False
+
+    published_sha = info['sha1']
+    repository = os.environ.get('GITHUB_REPOSITORY') or get_current_repo()
+    comparison = github.compare_commits(repository, published_sha, release_sha, config.github_token)
+    status = comparison.get('status') if isinstance(comparison, dict) else None
+    if status == 'behind':
+        log("Skipping release %s to %s: the channel already publishes newer commit %s" %
+            (release_sha, config.channel, published_sha))
+        return True
+    if status in ('ahead', 'identical'):
+        return False
+    raise RuntimeError("Cannot safely order release %s against published commit %s (%s); refusing to publish" %
+                       (release_sha, published_sha, status))
+
 def release(config, tag_name, release_sha, s3_release, release_name=None, body=None, prerelease=True, editor_only=False):
     log("Releasing Defold %s to GitHub" % tag_name)
     if config.github_token is None:

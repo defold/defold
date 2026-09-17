@@ -479,8 +479,13 @@ jobs:
     runs-on: ubuntu-22.04
     if: &if_bob_enabled (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true))
     timeout-minutes: 15
+    outputs:
+      sha: ${{ steps.build_commit.outputs.sha }}
     steps:
       - *step_checkout
+      - name: "Record build commit"
+        id: build_commit
+        run: 'echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"'
       - *step_python
       - *step_java
       - name: "Download engine builds"
@@ -738,8 +743,18 @@ jobs:
       - *step_notify
 
   release:
-    needs: [build-editor, test-editor-linux, test-bob]
+    needs: [build-bob, build-editor, test-editor-linux, test-bob]
     runs-on: ubuntu-22.04
+    # Each release branch publishes to its own channel: master -> stable, beta -> beta,
+    # dev -> alpha. Serialize the entire publication per channel, including tags and S3
+    # pointers, without interrupting a release already in progress.
+    # Keep pending jobs: their arrival order can differ from commit order. The release
+    # script checks the published channel SHA under this lock and skips older commits.
+    # https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency
+    concurrency:
+      group: release-${{ github.event.client_payload.branch || github.head_ref || github.ref_name }}
+      cancel-in-progress: false
+      queue: max
     # ci.py already refuses to release a branch other than master/beta/dev, but a contrib
     # branch must not even reach the release job.
     if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))"
@@ -749,7 +764,7 @@ jobs:
       - name: "Checkout CI scripts"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: "${{env.BUILD_BRANCH}}"
+          ref: "${{ needs.build-bob.outputs.sha }}"
           path: ci-check
           sparse-checkout: "ci"
       - name: "Check release branch"
@@ -761,7 +776,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: &should_release steps.release.outputs.should_release == 'true'
         with:
-          ref: "${{env.BUILD_BRANCH}}"
+          # Waiting for the release lock must not switch a dispatch to a newer branch tip.
+          ref: "${{ needs.build-bob.outputs.sha }}"
           fetch-tags: true
       - name: "Cache Defold downloads"
         # *should_release, plus the cache rule above.
@@ -789,11 +805,12 @@ jobs:
           name: "release-notes"
           path: "releasenotes"
       - name: "Release"
+        id: publish
         if: *should_release
         run: "ci/ci.sh release"
       - name: "Publish updated API ref"
         uses: defold/repository-dispatch@2d664dcc9f8090e4328d0c7f98aa483f832c80b3 # 1.2.1
-        if: steps.release.outputs.should_release == 'true' && ((github.ref == 'refs/heads/master') || (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'))
+        if: steps.publish.outputs.published == 'true' && ((github.ref == 'refs/heads/master') || (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'))
         with:
           repo: "defold/defold.github.io"
           token: "${{ secrets.SERVICES_GITHUB_TOKEN }}"

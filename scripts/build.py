@@ -3492,6 +3492,12 @@ class Configuration(object):
         body += "date = %s" % datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return body
 
+    def _set_release_output(self, published):
+        output_path = os.environ.get('GITHUB_OUTPUT')
+        if output_path:
+            with open(output_path, 'a') as output:
+                output.write('published=%s\n' % ('true' if published else 'false'))
+
     def release(self):
         """ This step creates a tag using the channel name
         * It will update the webpage on d.defold.com (or DM_ARCHIVE_PATH)
@@ -3507,6 +3513,12 @@ class Configuration(object):
             # as we're already up-to-date
             self._log('Running git fetch to get latest tags and refs...')
             run.shell_command('git fetch')
+
+        # The CI release job holds the channel lock for this check and all publication
+        # below. Public channel metadata must be checked before even moving the tag.
+        if not build_private.is_repo_private() and release_to_github.is_stale_release(self, self._git_sha1()):
+            self._set_release_output(False)
+            return
 
         # Create or update the tag for engine releases
         prerelease = self.channel in ('alpha', 'beta')
@@ -3544,6 +3556,8 @@ class Configuration(object):
             body = self._get_github_release_body()
             release_name = 'v%s - %s' % (self.version, self.channel or self.channel)
             release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease)
+
+        self._set_release_output(True)
 
         # Release to steam for stable only
         # if tag_name and (self.channel == 'stable'):
