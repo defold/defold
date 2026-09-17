@@ -427,12 +427,14 @@ def test_bob(channel):
     call('"%s" scripts/build.py test_bob --channel=%s' % (sys.executable, channel))
 
 
-def release(channel, platform=None):
+def release(channel, platform=None, manual_alpha_release=False):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies release' % sys.executable).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
     if platform:
         cmd_opts.append("--platform=%s" % platform)
+    if manual_alpha_release:
+        cmd_opts.append('--manual-alpha-release')
 
     token = get_github_token()
     if token:
@@ -528,7 +530,20 @@ def get_branch():
 
     return branch
 
+def get_manual_release_channel(branch):
+    if os.environ.get('GITHUB_EVENT_NAME') != 'workflow_dispatch':
+        return None
+    channel = os.environ.get('CI_RELEASE_CHANNEL', '')
+    if channel not in ('', 'auto', 'alpha'):
+        raise ValueError("Unsupported manual release channel: %s" % channel)
+    if channel == 'alpha' and not branch.startswith(('contrib/', 'refs/heads/contrib/')):
+        return channel
+    return None
+
 def release_settings_for_branch(branch):
+    manual_channel = get_manual_release_channel(branch)
+    if manual_channel:
+        return manual_channel, True
     if branch == "master":
         return "stable", True
     if branch == "beta":
@@ -623,6 +638,9 @@ def main(argv):
 
     channel, make_release = release_settings_for_branch(branch)
     if args.channel:
+        manual_channel = get_manual_release_channel(branch)
+        if manual_channel and args.channel != manual_channel:
+            parser.error("--channel cannot override a manual %s release" % manual_channel)
         channel = args.channel
 
     print(f"Using branch={branch} channel={channel} engine_artifacts={args.engine_artifacts}")
@@ -661,7 +679,8 @@ def main(argv):
             distclean()
         elif command == "release":
             if make_release:
-                release(channel, platform)
+                manual_alpha_release = get_manual_release_channel(branch) == 'alpha' and branch != 'dev'
+                release(channel, platform, manual_alpha_release=manual_alpha_release)
             else:
                 print("Branch '%s' is not configured for automatic release from CI" % branch)
         else:

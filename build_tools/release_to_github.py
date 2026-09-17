@@ -64,15 +64,27 @@ def get_defold_version_from_file():
         return None
     return out.strip()
 
-def is_stale_release(config, release_sha):
-    # Read S3 directly so a CDN cannot hide a publication completed by another job.
+def _automatic_release_sha(info):
+    # Older metadata predates manual alpha runs, so its published SHA is the baseline.
+    return info.get('automatic_sha1', info['sha1']) if info is not None else None
+
+def make_release_info(config, release_sha, previous_info):
+    info = {'version': config.version, 'sha1': release_sha}
+    if config.channel == 'alpha':
+        info['automatic_sha1'] = (_automatic_release_sha(previous_info)
+                                  if config.manual_alpha_release else release_sha)
+    return info
+
+def is_stale_release(config, release_sha, info):
     # info.json advances before GitHub uploads, so this also prevents rolling back a
     # newer, partially published release. Retrying that same commit remains allowed.
-    info = s3.get_release_info(config.get_archive_path(), config.channel)
-    if info is None or info['sha1'] == release_sha:
+    published_sha = info['sha1'] if info is not None else None
+    if config.channel == 'alpha' and not config.manual_alpha_release:
+        # A temporary branch publication must not require dev to merge its history.
+        published_sha = _automatic_release_sha(info)
+    if published_sha is None or published_sha == release_sha:
         return False
 
-    published_sha = info['sha1']
     repository = os.environ.get('GITHUB_REPOSITORY') or get_current_repo()
     comparison = github.compare_commits(repository, published_sha, release_sha, config.github_token)
     status = comparison.get('status') if isinstance(comparison, dict) else None

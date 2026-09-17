@@ -15,7 +15,15 @@ on:
 
   # pr-ok-to-test.yml dispatches this workflow on a contrib/** branch. Dispatching by ref
   # gives the untrusted build its own cache scope, and reads this file from that branch.
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      release_channel:
+        description: "Public release channel (alpha publishes this branch to live alpha)"
+        type: choice
+        default: auto
+        options:
+          - auto
+          - alpha
 
 permissions:
   contents: read
@@ -50,6 +58,8 @@ env:
   MACOS_CERTIFICATE_PASS: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.MACOS_CERTIFICATE_PASS || '' }}
   # ref_name only for a dispatch: for a pull request it is '<n>/merge', not a branch.
   BUILD_BRANCH: ${{ github.event.client_payload.branch || (github.event_name == 'workflow_dispatch' && github.ref_name) || github.head_ref }}
+  # Use the same channel for public builds, archives, release notes, and publication.
+  CI_RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_channel || '' }}
   SERVICES_GITHUB_TOKEN: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.SERVICES_GITHUB_TOKEN || '' }}
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
   SLACK_WEBHOOK: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.SLACK_WEBHOOK || '' }}
@@ -747,17 +757,19 @@ jobs:
     needs: [build-bob, build-editor, test-editor-linux, test-bob]
     runs-on: ubuntu-22.04
     # Each release branch publishes to its own channel: master -> stable, beta -> beta,
-    # dev -> alpha. Serialize the entire publication per channel, including tags and S3
-    # pointers, without interrupting a release already in progress.
+    # dev -> alpha. Manual alpha releases share dev's lock regardless of source branch.
+    # Serialize the entire publication, including tags and S3 pointers, without
+    # interrupting a release already in progress.
     # Keep pending jobs: their arrival order can differ from commit order. The release
-    # script checks the published channel SHA under this lock and skips older commits.
+    # script checks release order under this lock. Manual branch alphas preserve the
+    # normal dev baseline so later dev publications can replace them without a merge.
     # https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency
     concurrency:
-      group: release-${{ github.event.client_payload.branch || github.head_ref || github.ref_name }}
+      group: release-${{ github.event_name == 'workflow_dispatch' && inputs.release_channel == 'alpha' && 'dev' || github.event.client_payload.branch || github.head_ref || github.ref_name }}
       cancel-in-progress: false
       queue: max
-    # ci.py already refuses to release a branch other than master/beta/dev, but a contrib
-    # branch must not even reach the release job.
+    # ci.py allows the release branches and explicit manual alpha releases, but a
+    # contrib branch must not even reach the release job.
     if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))"
     permissions:
       contents: write
@@ -825,7 +837,7 @@ jobs:
         run: "ci/ci.sh release"
       - name: "Publish updated API ref"
         uses: defold/repository-dispatch@2d664dcc9f8090e4328d0c7f98aa483f832c80b3 # 1.2.1
-        if: steps.publish.outputs.published == 'true' && ((github.ref == 'refs/heads/master') || (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'))
+        if: steps.publish.outputs.published == 'true' && ((github.ref == 'refs/heads/master') || (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev') || (github.event_name == 'workflow_dispatch' && inputs.release_channel == 'alpha'))
         with:
           repo: "defold/defold.github.io"
           token: "${{ secrets.SERVICES_GITHUB_TOKEN }}"

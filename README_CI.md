@@ -37,6 +37,29 @@ optional arguments:
   --skip-editor    Skip building the editor
 ```
 
+### Publish a branch to alpha
+
+Push the branch with the workflow changes, then run the public build and release pipeline
+with the GitHub CLI:
+
+```sh
+gh workflow run main-ci.yml --repo defold/defold --ref <branch> -f release_channel=alpha
+```
+
+The `alpha` input uses the alpha channel for public engine, Bob, SDK, editor, and
+release-note jobs, then publishes the live alpha release, tag, and editor update pointer.
+Omitting the input (or choosing `auto`) keeps the normal branch rules: `dev` publishes
+alpha, `beta` publishes beta, `master` publishes stable, and feature branches only build.
+The override is only accepted for manual workflow runs and cannot enable publication
+from a `contrib/**` branch.
+
+Manual alpha releases share the normal `dev` release lock. A manual branch release must
+contain the currently published alpha commit, but preserves the normal `dev` release
+baseline. Later `dev` publications compare against that baseline and can replace the
+manual alpha without merging the test branch. Older `dev` jobs remain blocked, including
+after a newer `dev` publication fails partway through its uploads. Manual runs from `dev`
+itself advance the normal baseline, even when `release_channel=alpha` is selected.
+
 ## External contributions
 
 A pull request from a fork gets no CI: the engine jobs in `main-ci.yml` do not run for
