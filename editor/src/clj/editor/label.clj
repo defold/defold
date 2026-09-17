@@ -34,6 +34,7 @@
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -55,50 +56,11 @@
   (vec3 position)
   (vec4 color))
 
-(shader/defshader vertex-shader
-  (uniform mat4 view_proj)
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* view_proj position))
-    (setq var_color color)))
+(def shader shaders/basic-color-straight-alpha-world-space)
 
-(shader/defshader fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
+(def line-shader shader)
 
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader {"view_proj" :view-proj}))
-
-(shader/defshader line-vertex-shader
-  (uniform mat4 view_proj)
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* view_proj position))
-    (setq var_color color)))
-
-(shader/defshader line-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader {"view_proj" :view-proj}))
-
-(shader/defshader label-id-vertex-shader
-  (uniform mat4 view_proj)
-  (attribute vec4 position)
-  (defn void main []
-    (setq gl_Position (* view_proj (vec4 position.xyz 1.0)))))
-
-(shader/defshader label-id-fragment-shader
-  (uniform vec4 id)
-  (defn void main []
-    (setq gl_FragColor id)))
-
-(def id-shader (shader/make-shader ::label-id-shader label-id-vertex-shader label-id-fragment-shader {"view_proj" :view-proj "id" :id}))
+(def id-shader shaders/uniform-color-world-space)
 
 ; Vertex generation
 
@@ -159,7 +121,8 @@
 
         pass/selection
         (let [vertex-binding (vtx/use-with ::tris-selection vb id-shader)]
-          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable)) [id-shader vertex-binding gpu-texture]
+          (gl/with-gl-bindings gl render-args [id-shader vertex-binding gpu-texture]
+            (shader/set-uniform id-shader gl "color" (scene-picking/renderable-picking-id-uniform renderable))
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))))
 
 ; Node defs
