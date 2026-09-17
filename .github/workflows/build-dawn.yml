@@ -1,6 +1,9 @@
 name: Build Dawn
 
 on:
+  push:
+    branches:
+      - webgpu-dawn-support
   workflow_dispatch:
 
 permissions:

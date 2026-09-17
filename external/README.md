@@ -29,9 +29,12 @@ on Ubuntu). Windows builds use the static MSVC runtime.
 `build_external` installs the packaged host `protoc` tool if it is missing, so
 the commands below also work before the first `install_ext`.
 
-The manually triggered **Build Dawn** GitHub Actions workflow builds all four
+The **Build Dawn** GitHub Actions workflow builds all four
 platforms and uploads the package archives as artifacts, retained for seven days.
 It uses `build_external --package=dawn`; `build_ext` does not build Dawn.
+Pushes to `webgpu-dawn-support` trigger the workflow so it can run before merging.
+Manual dispatch is also supported once the workflow exists on the repository's
+default branch.
 
 ```sh
 ./scripts/build.py shell
