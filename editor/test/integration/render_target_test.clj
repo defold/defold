@@ -15,11 +15,13 @@
 (ns integration.render-target-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [integration.test-util :as test-util]))
+            [editor.form :as form]
+            [integration.test-util :as test-util]
+            [util.coll :as coll]))
 
 (defn- form-field [form-data path]
-  (some #(when (= path (:path %)) %)
-        (mapcat :fields (:sections form-data))))
+  (coll/first-where #(= path (:path %))
+                    (eduction (mapcat :fields) (:sections form-data))))
 
 (deftest cubemap-sample-count-validation
   (test-util/with-temp-project-content
@@ -39,3 +41,30 @@
 
       (g/set-property! node-id :type :type-2d)
       (is (false? (:disable (form-field (g/node-value node-id :form-data) [:sample-count])))))))
+
+(deftest selecting-cubemap-resets-sample-count
+  (test-util/with-temp-project-content
+    {"/multisampled.render_target"
+     {:type :type-2d
+      :sample-count 4
+      :color-attachments [{:width 16
+                           :height 16
+                           :format :texture-format-rgba}]}}
+    (let [node-id (test-util/resource-node project "/multisampled.render_target")
+          form-ops (:form-ops (g/node-value node-id :form-data))]
+      (g/transact (form/set-value form-ops [:type] :type-cubemap))
+
+      (is (= :type-cubemap (g/node-value node-id :type)))
+      (is (= 1 (g/node-value node-id :sample-count)))
+      (is (not (g/error? (g/node-value node-id :build-errors)))))))
+
+(deftest unsupported-texture-type-validation
+  (test-util/with-temp-project-content
+    {"/unsupported.render_target"
+     {:type :type-3d
+      :color-attachments [{:width 16
+                           :height 16
+                           :format :texture-format-rgba}]}}
+    (let [node-id (test-util/resource-node project "/unsupported.render_target")]
+      (is (g/error-fatal? (g/node-value node-id :build-errors)))
+      (is (g/error-fatal? (g/node-value node-id :build-targets))))))

@@ -507,7 +507,8 @@
 (ui/defc form-choicebox-combo-box-view
   {:compose [{:fx/type fxui/ext-map-event-handler}]}
   [{:keys [value on-value-changed options to-string show-on-focus map-event-handler disable]
-    :or {to-string str}}]
+    :or {disable false
+         to-string str}}]
   (let [value->label (into {} options)]
     {:fx/type fxui.combo-box/view
      :pref-width normal-field-width
@@ -524,7 +525,8 @@
                                              from-string
                                              to-string
                                              disable]
-                                      :or {to-string str}}]
+                                      :or {disable false
+                                           to-string str}}]
   (let [value->label (into {} options)
         label->value (set/map-invert value->label)]
     {:fx/type fx.combo-box/lifecycle

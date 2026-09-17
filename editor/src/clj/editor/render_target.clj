@@ -25,6 +25,7 @@
             [editor.texture-util :as texture-util]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
+            [util.coll :as coll]
             [util.fn :as fn])
   (:import [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
            [com.dynamo.render.proto RenderTarget$RenderTargetDesc RenderTarget$RenderTargetDesc$ColorAttachment RenderTarget$RenderTargetDesc$DepthStencilAttachment]))
@@ -81,6 +82,13 @@
                :localization-key "render-target.depth-stencil-attachment-texture-storage"
                :type :boolean}]}]})
 
+(defn- set-form-op [{:keys [node-id]} [property] value]
+  (if (and (= :type property) (= :type-cubemap value))
+    (g/set-properties node-id
+                      :type value
+                      :sample-count 1)
+    (g/set-property node-id property value)))
+
 (g/defnk produce-form-data [_node-id type sample-count color-attachments depth-stencil-attachment-width depth-stencil-attachment-height depth-stencil-attachment-texture-storage :as args]
   (let [form-data (form/update-form-setting form-data [:sample-count] #(assoc % :disable (= :type-cubemap type)))
         values (select-keys args (mapcat :path (get-in form-data [:sections 0 :fields])))
@@ -88,7 +96,7 @@
     (-> form-data
         (assoc :values form-values)
         (assoc :form-ops {:user-data {:node-id _node-id}
-                          :set protobuf-forms-util/set-form-op
+                          :set set-form-op
                           :clear protobuf-forms-util/clear-form-op}))))
 
 (g/defnk produce-save-value
@@ -145,6 +153,10 @@
   (when-not (contains? sample-counts (or v 1))
     (localization/message "error.render-target.sample-count-must-be-supported")))
 
+(defn- validate-texture-type [v _name]
+  (when-not (#{:type-2d :type-cubemap} v)
+    (localization/message "error.render-target.texture-type-must-be-supported")))
+
 (defn- cubemap-sample-count-error [type sample-count]
   (when (and (= :type-cubemap type) (> sample-count 1))
     (localization/message "error.render-target.cubemap-sample-count-must-be-one")))
@@ -153,7 +165,7 @@
   (when (= :type-cubemap type)
     (let [dimensions (cond-> (mapv (juxt :width :height) color-attachments)
                        (and (pos? depth-width) (pos? depth-height)) (conj [depth-width depth-height]))]
-      (when (or (some (fn [[width height]] (not= width height)) dimensions)
+      (when (or (coll/any? (fn [[width height]] (not= width height)) dimensions)
                 (> (count (distinct dimensions)) 1))
         (localization/message "error.render-target.cubemap-attachments-must-be-square-and-equal")))))
 
@@ -190,6 +202,7 @@
                                                             (fn [i color-attachment]
                                                               (color-attachment->error-values i color-attachment _node-id :color-attachments))
                                                             color-attachments))
+                                                 (validation/prop-error :fatal _node-id :type validate-texture-type type (localization/message "form.label.render-target.type"))
                                                  (validation/prop-error :fatal _node-id :sample-count validate-sample-count sample-count (localization/message "form.label.render-target.sample-count"))
                                                  (when-let [message (cubemap-sample-count-error type sample-count)]
                                                    (g/->error _node-id :sample-count :fatal sample-count message))
