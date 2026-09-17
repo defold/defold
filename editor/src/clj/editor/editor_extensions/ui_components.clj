@@ -337,12 +337,11 @@
                    :fit-height fit-size}]}
       alignment)))
 
-(defn- construct-image [s workspace]
+(defn- construct-image [^String s workspace]
   (if (string/starts-with? s "/")
     (when-let [resource (workspace/find-resource (:basis (lifecycle-evaluation-context)) workspace s)]
       (when (resource/exists? resource)
-        (with-open [is (io/input-stream resource)]
-          (Image. is))))
+        (Image. (io/input-stream resource) #_background-loading true)))
     (when-let [^URI uri (try (URI. s) (catch URISyntaxException _))]
       (when (.getScheme uri)
         (Image. s #_background-loading true)))))

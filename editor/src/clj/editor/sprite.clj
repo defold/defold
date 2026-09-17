@@ -71,11 +71,12 @@
   (vec4 color))
 
 (shader/defshader outline-vertex-shader
+  (uniform mat4 view_proj)
   (attribute vec4 position)
   (attribute vec4 color)
   (varying vec4 var_color)
   (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
+    (setq gl_Position (* view_proj position))
     (setq var_color color)))
 
 (shader/defshader outline-fragment-shader
@@ -84,7 +85,7 @@
     (setq gl_FragColor var_color)))
 
 ; TODO - macro of this
-(def outline-shader (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader))
+(def outline-shader (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader {"view_proj" :view-proj}))
 
 (defn- renderable-data [renderable]
   (let [{:keys [world-transform updatable user-data]} renderable

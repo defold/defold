@@ -16,6 +16,7 @@
 #include <stdlib.h> // free
 
 #include "font_private.h"
+#include "font_ttf.h"
 #include "font_outline.h"
 #include "font_sdf.h"
 
@@ -140,7 +141,7 @@ static FontResult GetGlyphOutlineTTF(HFont hfont, uint32_t glyph_index, FontOutl
     return result;
 }
 
-static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, FontGlyph* glyph)
+FontResult FontGetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, const FontSDFParams* image_params, FontGlyph* glyph)
 {
     TTFFont* font = ToFont(hfont);
 
@@ -190,10 +191,12 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
             }
         }
 
-        FontSDFParams sdf_params;
+        FontSDFParams sdf_params = {};
         sdf_params.m_Scale = scale;
-        sdf_params.m_Spread = (uint32_t)padding;
+        sdf_params.m_Spread = padding;
         sdf_params.m_OnEdgeValue = on_edge_value;
+        if (image_params)
+            sdf_params = *image_params;
         FontResult result = FontSDFGenerate(&outline, &sdf_params, &glyph->m_Bitmap, &offsetx, &offsety);
         if (result != FONT_RESULT_OK)
         {
@@ -239,6 +242,11 @@ static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyph
     }
 
     return FONT_RESULT_OK;
+}
+
+static FontResult GetGlyphTTF(HFont hfont, uint32_t glyph_index, const FontGlyphOptions* options, FontGlyph* glyph)
+{
+    return FontGetGlyphTTF(hfont, glyph_index, options, 0, glyph);
 }
 
 static HFont LoadTTFInternal(const char* path, const void* buffer, uint32_t buffer_size, bool allocate);
