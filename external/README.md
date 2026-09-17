@@ -26,7 +26,8 @@ platforms and backends are:
 
 Unfiltered `build_external` runs skip Dawn on other platforms. Linux builds
 require the X11 and Wayland development headers (`libx11-dev`, `libwayland-dev`
-on Ubuntu). Windows builds use the static MSVC runtime.
+on Ubuntu). Windows builds use the static MSVC runtime and HWND surfaces;
+optional UWP/WinUI surface support is disabled.
 
 `build_external` installs the packaged host `protoc` tool if it is missing, so
 the commands below also work before the first `install_ext`.
