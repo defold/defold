@@ -151,6 +151,7 @@ sourceSets {
 }
 
 def bobGitRevision = "git -C ${bobDir} log --pretty=%H -n1".execute().text.trim()
+def bobChannel = (project.findProperty('channel') ?: 'dev').toString()
 def privateBobPluginModules = []
 def targetPlatform = (project.findProperty('target-platform') ?: '').toString()
 def privatePlatformRoot = ''
@@ -208,6 +209,7 @@ def readGitRevision = { String repositoryRoot ->
 
 def bobBuildContext = [
         "bobRevision=${bobGitRevision}",
+        "channel=${bobChannel}",
         "targetPlatform=${targetPlatform}",
         "dynamoHome=${file(dynamoHome).canonicalPath}",
         "privateRoot=${privatePlatformRoot}",
@@ -242,6 +244,7 @@ tasks.register('copyDependencies') {
     inputs.file("${bobDir}/engine_version_generator.py")
     inputs.file("../../VERSION")
     inputs.property("gitRevision", bobGitRevision)
+    inputs.property("channel", bobChannel)
     inputs.files(bobLightDependencyJars.collect { "${dynamoHome}/share/java/${it}" })
     outputs.file("${bobDir}/src/com/dynamo/bob/archive/EngineVersion.java")
     outputs.files(bobLightDependencyJars.collect { "${bobDir}/lib/${it}" })
@@ -249,7 +252,7 @@ tasks.register('copyDependencies') {
     doLast {
         services.get(ExecOperations).exec {
             workingDir bobDir
-            commandLine python, "${bobDir}/engine_version_generator.py"
+            commandLine python, "${bobDir}/engine_version_generator.py", "--channel=${bobChannel}"
         }
         copy {
             from fileTree("${dynamoHome}/share/java") {

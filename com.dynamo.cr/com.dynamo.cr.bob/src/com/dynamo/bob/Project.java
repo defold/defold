@@ -771,6 +771,14 @@ public class Project implements AutoCloseable {
         buildServerHeaders.add(header);
     }
 
+    private String getBuildServerUrl() {
+        String defaultServerUrl = "https://build-stage.defold.com";
+        if ("stable".equals(EngineVersion.channel)) {
+            defaultServerUrl = "https://build.defold.com";
+        }
+        return option("build-server", defaultServerUrl);
+    }
+
     public void addPropertyFile(String propertyFile) {
         propertyFiles.add(propertyFile);
     }
@@ -1172,7 +1180,7 @@ public class Project implements AutoCloseable {
 
         // Located in the same place as the log file in the unpacked successful build
         File logFile = new File(buildDir, "log.txt");
-        String serverURL = this.option("build-server", "https://build.defold.com");
+        String serverURL = getBuildServerUrl();
 
         try {
             ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
@@ -1202,7 +1210,7 @@ public class Project implements AutoCloseable {
 
         // Located in the same place as the log file in the unpacked successful build
         File logFile = new File(buildDir, "log.txt");
-        String serverURL = this.option("build-server", "https://build.defold.com");
+        String serverURL = getBuildServerUrl();
 
         //platforms /armv7-ios /context /flags
         Map<String, Object> compilerOptions = new HashMap<>();
