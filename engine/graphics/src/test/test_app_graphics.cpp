@@ -1804,6 +1804,9 @@ TEST(App, Run)
 }
 
 extern "C" void dmExportedSymbols();
+#if defined(DM_TEST_GRAPHICS_CAPTURE)
+int RunGraphicsCapture(int argc, char** argv);
+#endif
 
 int main(int argc, char **argv)
 {
@@ -1816,6 +1819,11 @@ int main(int argc, char **argv)
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
 
+#if defined(DM_TEST_GRAPHICS_CAPTURE)
+    int capture_result = RunGraphicsCapture(argc, argv);
+    if (capture_result >= 0)
+        return capture_result;
+#endif
     InstallAdapter(argc, argv);
     jc_test_init(&argc, argv);
     return jc_test_run_all();

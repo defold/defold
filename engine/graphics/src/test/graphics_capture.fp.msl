@@ -1,0 +1,4 @@
+#include <metal_stdlib>
+using namespace metal;
+struct Input { float3 color [[user(locn0)]]; };
+fragment float4 main0(Input in [[stage_in]]) { return float4(in.color, 1.0); }

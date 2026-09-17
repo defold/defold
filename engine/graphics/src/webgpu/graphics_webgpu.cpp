@@ -21,6 +21,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/thread.h>
+#include <dlib/time.h>
 #include <dlib/hash.h>
 
 #include <platform/window.hpp>
@@ -2073,6 +2074,8 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, uint32_t clear_flags, 
 
         context->m_CurrentRenderPass.m_Target = context->m_CurrentRenderTarget;
         context->m_CurrentRenderPass.m_Encoder = RenderPassBegin(context, clear_flags, clear_color, clear_depth, clear_stencil);
+        // Viewport state belongs to the encoder, including after readback splits a pass.
+        context->m_ViewportChanged = 1;
         if (context->m_CurrentRenderPass.m_Target == context->m_MainRenderTarget)
             context->m_InitializeOpaqueSurface = 0;
         context->m_ApplyRenderTargetLoadOps = 0;
@@ -3702,10 +3705,113 @@ static void WebGPUDisableTexture(HContext _context, uint32_t unit, HTexture text
     }
 }
 
-static void WebGPUReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
+struct WebGPUReadback
 {
-    TRACE_CALL;
-    assert(false);
+    bool m_Done;
+    bool m_Success;
+};
+
+#if defined(DM_GRAPHICS_WEBGPU2)
+static void WebGPUReadbackMapped(WGPUMapAsyncStatus status, WGPUStringView message, void* userdata, void*)
+#else
+static void WebGPUReadbackMapped(WGPUBufferMapAsyncStatus status, void* userdata)
+#endif
+{
+    WebGPUReadback* readback = (WebGPUReadback*) userdata;
+#if defined(DM_GRAPHICS_WEBGPU2)
+    readback->m_Success = status == WGPUMapAsyncStatus_Success;
+#else
+    readback->m_Success = status == WGPUBufferMapAsyncStatus_Success;
+#endif
+    readback->m_Done = true;
+}
+
+static void WebGPUReadPixels(HContext _context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
+{
+    WebGPUContext* context = (WebGPUContext*) _context;
+    WebGPURenderTarget* rt = context->m_CurrentRenderTarget;
+    HTexture color = rt ? (rt->m_Base.m_TextureColorResolve[0] ? rt->m_Base.m_TextureColorResolve[0] : rt->m_Base.m_TextureColor[0]) : 0;
+    WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, color);
+    if (!texture || !buffer || !width || !height || x < 0 || y < 0 || uint64_t(width) * height * 4 > buffer_size ||
+        uint64_t(x) + width > rt->m_Width || uint64_t(y) + height > rt->m_Height ||
+        !(wgpuTextureGetUsage(texture->m_Texture) & WGPUTextureUsage_CopySrc) ||
+        (texture->m_Format != WGPUTextureFormat_RGBA8Unorm && texture->m_Format != WGPUTextureFormat_RGBA8UnormSrgb &&
+         texture->m_Format != WGPUTextureFormat_BGRA8Unorm && texture->m_Format != WGPUTextureFormat_BGRA8UnormSrgb))
+    {
+        dmLogError("WebGPUReadPixels: expected a readable RGBA8/BGRA8 attachment and an in-bounds region");
+        return;
+    }
+
+    // WebGPU copies pad each row to 256 bytes, even for narrow subregions.
+    const uint32_t row_pitch = (width * 4 + 255) & ~255u;
+    const uint64_t size = uint64_t(row_pitch) * height;
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPUBufferDescriptor desc = WGPU_BUFFER_DESCRIPTOR_INIT;
+    WGPUTexelCopyTextureInfo source = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    WGPUTexelCopyBufferInfo destination = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
+#else
+    WGPUBufferDescriptor desc = {};
+    WGPUImageCopyTexture source = {};
+    WGPUImageCopyBuffer destination = {};
+#endif
+    desc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead;
+    desc.size = size;
+    WGPUBuffer staging = wgpuDeviceCreateBuffer(context->m_Device, &desc);
+    source.texture = texture->m_Texture;
+    source.origin.x = x;
+    source.origin.y = y;
+    source.aspect = WGPUTextureAspect_All;
+    destination.buffer = staging;
+    destination.layout.bytesPerRow = row_pitch;
+    destination.layout.rowsPerImage = height;
+    WGPUExtent3D extent = { width, height, 1 };
+    WebGPUEndComputePass(context);
+    WebGPUEndRenderPass(context);
+    WebGPUCreateCommandEncoder(context);
+    wgpuCommandEncoderCopyTextureToBuffer(context->m_CommandEncoder, &source, &destination, &extent);
+    WebGPUSubmitCommandEncoder(context);
+
+    WebGPUReadback readback = {};
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPUBufferMapCallbackInfo callback = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
+    callback.mode = WGPUCallbackMode_AllowProcessEvents;
+    callback.callback = WebGPUReadbackMapped;
+    callback.userdata1 = &readback;
+    wgpuBufferMapAsync(staging, WGPUMapMode_Read, 0, size, callback);
+#else
+    wgpuBufferMapAsync(staging, WGPUMapMode_Read, 0, size, WebGPUReadbackMapped, &readback);
+#endif
+    while (!readback.m_Done)
+    {
+#if defined(__EMSCRIPTEN__)
+        emscripten_sleep(1);
+#else
+        wgpuInstanceProcessEvents(context->m_Instance);
+        dmTime::Sleep(1000);
+#endif
+    }
+    if (readback.m_Success)
+    {
+        const uint8_t* mapped = (const uint8_t*) wgpuBufferGetConstMappedRange(staging, 0, size);
+        uint8_t* pixels = (uint8_t*) buffer;
+        for (uint32_t row = 0; row < height; ++row)
+            memcpy(pixels + row * width * 4, mapped + row * row_pitch, width * 4);
+        if (texture->m_Format == WGPUTextureFormat_RGBA8Unorm || texture->m_Format == WGPUTextureFormat_RGBA8UnormSrgb)
+        {
+            for (uint32_t i = 0; i < width * height * 4; i += 4)
+            {
+                uint8_t red = pixels[i];
+                pixels[i] = pixels[i + 2];
+                pixels[i + 2] = red;
+            }
+        }
+        wgpuBufferUnmap(staging);
+    }
+    else
+        dmLogError("WebGPUReadPixels: buffer mapping failed");
+    wgpuBufferRelease(staging);
+    // Submission ended the pass and invalidated its cached bindings. The next
+    // draw creates an encoder and reloads this target without clearing it.
 }
 
 static bool WebGPUIsRenderTargetTextureType(TextureType type)
@@ -3876,6 +3982,10 @@ static WebGPUTexture* WebGPUCreateRenderTargetTexture(const TextureCreationParam
     texture->m_Base.m_MipMapCount = 1;
     texture->m_Base.m_PageCount   = 1;
 
+    if (sample_count == 1 && !(creation_params.m_UsageHintBits & TEXTURE_USAGE_FLAG_MEMORYLESS) &&
+        (format == WGPUTextureFormat_RGBA8Unorm || format == WGPUTextureFormat_BGRA8Unorm ||
+         format == WGPUTextureFormat_RGBA8UnormSrgb || format == WGPUTextureFormat_BGRA8UnormSrgb))
+        usage = (WGPUTextureUsage) (usage | WGPUTextureUsage_CopySrc);
     const WGPUTextureAspect view_aspect = depth_only_sample_view ? WGPUTextureAspect_DepthOnly : WGPUTextureAspect_All;
     if (!WebGPURealizeTexture(texture, format, 1, sample_count, usage, view_aspect))
     {
