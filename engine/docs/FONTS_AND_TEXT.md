@@ -7,7 +7,7 @@ In the engine we have several concepts that together make up our text rendering 
 * text shaping
 * text rendering.
 
-The engine supports bitmap, distance-field and opt-in Slug vector fonts. See [the vector migration notes](FONT_SLUG_MIGRATION.md) for the shared face/bitmap effect path.
+The engine supports bitmap, distance-field and opt-in Slug vector fonts. See [the Slug vector font algorithm](FONT_SLUG_ALGORITHM.md) for curve rendering, bitmap effects, and texture layouts.
 
 For text layout, we support both a very basic layout and also full text shaping, as an opt-in.
 
