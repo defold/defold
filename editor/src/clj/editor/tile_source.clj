@@ -82,8 +82,8 @@
 (def texture-params
   {:min-filter gl/nearest
    :mag-filter gl/nearest
-   :wrap-s     gl/clamp
-   :wrap-t     gl/clamp})
+   :wrap-s     gl/clamp-to-edge
+   :wrap-t     gl/clamp-to-edge})
 
 (vtx/defvertex pos-uv-vtx
   (vec3 position)
