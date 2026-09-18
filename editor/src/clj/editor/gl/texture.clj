@@ -258,10 +258,13 @@
    :wrap-s     gl/clamp-to-edge
    :wrap-t     gl/clamp-to-edge})
 
-;; Preserve legacy luminance sampling as (L, L, L, 1) without relying on the
-;; removed luminance pixel format. CPU expansion also works on pre-GL3 contexts
-;; during the transition to the new desktop baseline.
 (defn- expand-gray-buffer-to-rgba
+  "Preserves legacy luminance sampling as (L, L, L, 1) without relying on the
+  removed luminance pixel format. CPU expansion also works on pre-GL3 contexts
+  during the transition to the new desktop baseline.
+
+  TODO: Once OpenGL 3.3 is the minimum requirement, replace this expansion with
+  GL_R8/GL_RED textures using an (R, R, R, ONE) texture swizzle."
   ^ByteBuffer [^Buffer data]
   (when data
     (assert (instance? ByteBuffer data))
