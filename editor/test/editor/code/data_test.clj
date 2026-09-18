@@ -643,6 +643,13 @@
     (is (= [(c 0 0)] (data/move-cursors [(c 0 1)] #'data/cursor-left ["ab"])))
     (is (= [(c 0 2)] (data/move-cursors [(c 0 1)] #'data/cursor-right ["ab"]))))
 
+  (testing "Steps over a surrogate pair as one code point"
+    (is (= [(c 0 1)] (data/move-cursors [(c 0 3)] #'data/cursor-left ["a💜"])))
+    (is (= [(c 0 3)] (data/move-cursors [(c 0 1)] #'data/cursor-right ["a💜"]))))
+
+  (testing "Peels one Thai combining mark at a time"
+    (is (= [(c 0 1)] (data/move-cursors [(c 0 2)] #'data/cursor-left ["รี"]))))
+
   (testing "Out-of-bounds movement"
     (is (= [(c 0 0)] (data/move-cursors [(c 0 0)] #'data/cursor-up ["a" "b" "c"])))
     (is (= [(c 2 1)] (data/move-cursors [(c 2 1)] #'data/cursor-down ["a" "b" "c"])))
@@ -1096,7 +1103,12 @@
               :lines ["onetwo"]}
              (delete ["one"
                       "two"]
-                     [(c 0 3)]))))
+                     [(c 0 3)])))
+      (is (= {:cursor-ranges [(c 0 1)]
+              :invalidated-row 0
+              :lines ["a"]}
+             (backspace ["a💜"]
+                        [(c 0 3)]))))
 
     (testing "Multiple cursors"
       (is (= {:cursor-ranges [(c 0 1) (c 0 2)]

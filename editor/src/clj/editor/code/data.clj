@@ -1667,25 +1667,39 @@
   (let [adjusted (adjust-cursor lines cursor)
         row (.row adjusted)
         col (.col adjusted)
+        ^String line (lines row)
         new-col (dec col)]
     (if (neg? new-col)
       (let [new-row (max 0 (dec row))
             new-col (if (zero? row) 0 (count (lines new-row)))]
         (->Cursor new-row new-col))
-      (->Cursor row new-col))))
+      ;; Step over a surrogate pair as one code point.
+      (let [new-col (if (and (>= new-col 1)
+                              (Character/isLowSurrogate (.charAt line new-col))
+                              (Character/isHighSurrogate (.charAt line (dec new-col))))
+                      (dec new-col)
+                      new-col)]
+        (->Cursor row new-col)))))
 
 (defn- cursor-right
   ^Cursor [lines ^Cursor cursor]
   (let [adjusted (adjust-cursor lines cursor)
         row (.row adjusted)
         col (.col adjusted)
+        ^String line (lines row)
         new-col (inc col)]
-    (if (> new-col (count (lines row)))
+    (if (> new-col (count line))
       (let [last-row (dec (count lines))
             new-row (min (inc row) last-row)
             new-col (if (= last-row row) (count (lines last-row)) 0)]
         (->Cursor new-row new-col))
-      (->Cursor row new-col))))
+      ;; Step over a surrogate pair as one code point.
+      (let [new-col (if (and (< new-col (count line))
+                              (Character/isHighSurrogate (.charAt line col))
+                              (Character/isLowSurrogate (.charAt line new-col)))
+                      (inc new-col)
+                      new-col)]
+        (->Cursor row new-col)))))
 
 (defn- previous-grapheme-boundary
   ^long [^String line ^long col]
