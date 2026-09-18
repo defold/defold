@@ -602,15 +602,25 @@
                 (let [[range-start range-end] (get complex-ranges range-index)]
                   (if (= i range-start)
                     ;; Skip the range in one step, by its shaped width, so the
-                    ;; marks after it stay aligned with the painted text. Any
-                    ;; spaces inside it go unmarked: the range is reordered by
-                    ;; the shaper, so their visual positions are not the ones
-                    ;; the advance walk would compute.
+                    ;; marks after it stay aligned with the painted text. Space
+                    ;; dots inside the range are drawn separately below, using
+                    ;; the shaper's per-offset geometry, since the shaper may
+                    ;; reorder the range and the advance walk can't locate them.
                     (when (< (+ x line-x) visible-end-x)
-                      (recur false
-                             (inc range-index)
-                             (long range-end)
-                             (+ x (data/complex-text-width (.glyph layout) (.substring line i range-end)))))
+                      (let [^String sub (.substring line i range-end)]
+                        (when visible-whitespace?
+                          (dotimes [j (.length sub)]
+                            (when (= \space (.charAt sub j))
+                              (doseq [[x0 x1] (data/complex-text-selection-spans (.glyph layout) sub j (inc j))]
+                                (let [sx (+ line-x x (Math/floor (* (+ x0 x1) 0.5)))
+                                      sy (- line-y baseline-offset)]
+                                  (when (and (< visible-start-x sx) (< sx visible-end-x))
+                                    (.setFill gc space-color)
+                                    (.fillRect gc sx sy 1.0 1.0)))))))
+                        (recur false
+                               (inc range-index)
+                               (long range-end)
+                               (+ x (double (data/complex-text-width (.glyph layout) sub))))))
                     (let [character (.charAt line i)
                           next-i (inc i)
                           next-x (double (data/advance-text layout line i next-i x))
