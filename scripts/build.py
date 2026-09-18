@@ -79,6 +79,14 @@ _CMAKE_FEATURE_LIST_OPTIONS = {
 JAVA_RUNTIME_FLAGS = '--sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED'
 MINIMUM_PYTHON_VERSION = (3, 12)
 
+EDITOR_RELEASE_BUNDLES = (
+    'Defold-arm64-macos.dmg',
+    'Defold-x86_64-macos.dmg',
+    'Defold-x86_64-win32.zip',
+    'Defold-x86_64-linux.tar.gz',
+    'Defold-x86_64-linux.zip',
+)
+
 def get_legacy_private_target_platforms():
     try:
         import build_vendor
@@ -1002,9 +1010,9 @@ class Configuration(object):
         self._log('Copying %s -> %s' % (src, dst))
         shutil.copytree(src, dst)
 
-    def _download(self, url):
+    def _download(self, url, cache_root=None):
         self._log('Downloading %s' % (url))
-        path = http_cache.download(url, lambda count, total: self._log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
+        path = http_cache.download(url, lambda count, total: self._log('Downloading %s %.2f%%' % (url, 100 * count / float(total))), cache_root=cache_root)
         if not path:
             self._log('Downloading %s failed' % (url))
         return path
@@ -3303,7 +3311,7 @@ class Configuration(object):
         # Used by www.defold.com/download
         # For example;
         #   redirect: /editor2/channels/stable/Defold-x86_64-macos.dmg -> /archive/<sha1>/stable/Defold-x86_64-macos.dmg
-        for name in ['Defold-arm64-macos.dmg', 'Defold-x86_64-macos.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.tar.gz', 'Defold-x86_64-linux.zip']:
+        for name in EDITOR_RELEASE_BUNDLES:
             key_name = 'editor2/channels/%s/%s' % (self.channel, name)
             redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, self.channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
@@ -3338,6 +3346,23 @@ class Configuration(object):
         body += "date = %s" % datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return body
 
+    def _set_release_output(self, published):
+        output_path = os.environ.get('GITHUB_OUTPUT')
+        if output_path:
+            with open(output_path, 'a') as output:
+                output.write('published=%s\n' % ('true' if published else 'false'))
+
+    def _validate_editor_release(self, release):
+        # Require the exact objects that the update pointer and download links will
+        # reference, not bundles archived under another commit or channel.
+        editor_prefix = '%s/%s/%s/editor2/' % (urlparse(self.get_archive_path()).path.rstrip('/'),
+                                             release['sha1'], self.channel)
+        paths = {file['path'] for file in release['files']}
+        missing = [name for name in EDITOR_RELEASE_BUNDLES if editor_prefix + name not in paths]
+        if missing:
+            raise RuntimeError('Cannot publish %s to %s: missing editor bundles in %s: %s' %
+                               (release['sha1'], self.channel, editor_prefix, ', '.join(missing)))
+
     def release(self):
         """ This step creates a tag using the channel name
         * It will update the webpage on d.defold.com (or DM_ARCHIVE_PATH)
@@ -3354,24 +3379,28 @@ class Configuration(object):
             self._log('Running git fetch to get latest tags and refs...')
             run.shell_command('git fetch')
 
-        # Create or update the tag for engine releases
+        # The CI release job holds the channel lock for this check and all publication
+        # below. Public channel metadata must be checked before even moving the tag.
+        release_sha1 = self._git_sha1()
+        if not build_private.is_repo_private() and release_to_github.is_stale_release(self, release_sha1):
+            self._set_release_output(False)
+            return
+
         prerelease = self.channel in ('alpha', 'beta')
         tag_name = None
         if self.channel in ('stable', 'beta', 'alpha'):
-            tag_name = self.create_tag()
-            self.push_tag(tag_name)
+            tag_name = self.compose_tag_name(self.version, self.channel)
 
-        if tag_name is not None:
-            pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
-            releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
-        else:
-            releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
+        # Validate the checked-out build before moving any tags or channel pointers.
+        # Selecting artifacts by SHA does not require fetching historical tags.
+        releases = [s3.get_single_release(self.get_archive_path(), tag_name or self.version, release_sha1)]
 
-        if not releases:
+        if not releases[0]['files']:
             self._log('Unable to find any releases')
             sys.exit(1)
 
-        release_sha1 = releases[0]['sha1']
+        if not build_private.is_repo_private():
+            self._validate_editor_release(releases[0])
 
         if sys.stdin.isatty():
             sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.channel))
@@ -3379,6 +3408,9 @@ class Configuration(object):
             response = sys.stdin.readline()
             if response[0] != 'y':
                 return
+
+        if tag_name:
+            self.push_tag(self.create_tag())
 
         # Only release the web pages for the public repo
         if not build_private.is_repo_private():
@@ -3390,6 +3422,8 @@ class Configuration(object):
             body = self._get_github_release_body()
             release_name = 'v%s - %s' % (self.version, self.channel or self.channel)
             release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease)
+
+        self._set_release_output(True)
 
         # Release to steam for stable only
         # if tag_name and (self.channel == 'stable'):
