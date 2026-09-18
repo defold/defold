@@ -44,6 +44,7 @@ message StyleEffect
 // properties; separate alpha values allow inheriting the component's RGB.
 message CompiledStyle
 {
+    enum FontSizeUnit { PIXELS = 0; EM = 1; OFFSET = 2; }
     required string name = 1;
     required uint64 name_hash = 2;
     optional uint32 flags = 3;
@@ -60,6 +61,8 @@ message CompiledStyle
     optional uint32 underline_pattern = 14;
     optional uint32 strike_pattern = 15;
     repeated StyleEffect effects = 16;
+    optional float font_size = 17;
+    optional FontSizeUnit font_size_unit = 18 [default = EM];
 }
 
 // Source format only
