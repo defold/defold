@@ -2021,7 +2021,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
     ASSERT_EQ(4u, dmGraphics::GetRenderTargetSampleCount(m_Context, target));
-    dmGraphics::SetRenderTarget(m_Context, target, 0);
+    dmGraphics::SetRenderTarget(m_Context, target, dmGraphics::RenderTargetBindingParams());
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
     uint32_t width = WIDTH;
@@ -2054,7 +2054,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     ASSERT_EQ(0, memcmp(data, m_NullContext->m_CurrentFrameBuffer->m_ColorBuffer[0], data_size));
     delete [] data;
 
-    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::DeleteRenderTarget(m_Context, target);
 
     // Test multiple color attachments
@@ -2066,7 +2066,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
             dmGraphics::BUFFER_TYPE_COLOR2_BIT;
 
     target = dmGraphics::NewRenderTarget(m_Context, flags, params);
-    dmGraphics::SetRenderTarget(m_Context, target, 0);
+    dmGraphics::SetRenderTarget(m_Context, target, dmGraphics::RenderTargetBindingParams());
     dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 1, 1, 1, 1, 1.0f, 1);
     dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR1_BIT, 2, 2, 2, 2, 1.0f, 1);
     dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR2_BIT, 3, 3, 3, 3, 1.0f, 1);
@@ -2096,7 +2096,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     delete [] data_color1;
     delete [] data_color2;
 
-    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
@@ -2144,7 +2144,7 @@ TEST_F(dmGraphicsTest, TestCubeMapRenderTarget)
     ASSERT_EQ(non_power_of_two_size, target_width);
     ASSERT_EQ(non_power_of_two_size, target_height);
 
-    dmGraphics::SetRenderTarget(m_Context, 0, 0);
+    dmGraphics::SetRenderTarget(m_Context, 0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::DeleteRenderTarget(m_Context, target);
 
     params.m_ColorBufferParams[0].m_Height = WIDTH + 1;
@@ -2162,7 +2162,7 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
 
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
-    dmGraphics::SetRenderTarget(m_Context, target, 0);
+    dmGraphics::SetRenderTarget(m_Context, target, dmGraphics::RenderTargetBindingParams());
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
     dmGraphics::HTexture texture = dmGraphics::GetRenderTargetAttachment(m_Context, target, dmGraphics::ATTACHMENT_DEPTH);
@@ -2188,7 +2188,7 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
     ASSERT_EQ(0, memcmp(data, texture_data, data_size));
     delete [] data;
 
-    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
@@ -2202,7 +2202,7 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
 
     uint32_t flags = dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
-    dmGraphics::SetRenderTarget(m_Context, target, 0);
+    dmGraphics::SetRenderTarget(m_Context, target, dmGraphics::RenderTargetBindingParams());
 
     float depth_value = 0.5f;
     uint32_t stencil_value = 127;
@@ -2236,7 +2236,7 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
         }
     }
 
-    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 

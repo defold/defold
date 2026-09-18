@@ -2462,12 +2462,6 @@ namespace dmGraphics
     {
         g_functions.m_DeleteRenderTarget(context, render_target);
     }
-    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
-    {
-        RenderTargetBindingParams params = {};
-        params.m_TransientBufferTypes = transient_buffer_types;
-        SetRenderTarget(context, render_target, params);
-    }
     void SetRenderTarget(HContext context, HRenderTarget render_target, const RenderTargetBindingParams& params)
     {
         if (params.m_CubeMapFace < CUBEMAP_FACE_POSITIVE_X || params.m_CubeMapFace >= CUBEMAP_FACE_COUNT)

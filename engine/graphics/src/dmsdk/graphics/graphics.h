@@ -1611,15 +1611,6 @@ namespace dmGraphics
     void DeleteRenderTarget(HContext context, HRenderTarget render_target);
 
     /*#
-     * Convenience overload for binding a render target with transient attachment flags.
-     * @name SetRenderTarget
-     * @param context [type:dmGraphics::HContext] Graphics context
-     * @param render_target [type:dmGraphics::HRenderTarget]
-     * @param transient_buffer_types [type:uint32_t]
-     */
-    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
-
-    /*#
      * Bind a render target with generic binding parameters.
      * @name SetRenderTarget
      * @param context [type:dmGraphics::HContext] Graphics context
