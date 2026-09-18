@@ -178,8 +178,6 @@
     (.setContent layout text (FontHelper/getNativeFont font))
     layout))
 
-(def ^:private max-complex-width-cache-size 4096)
-
 (defn- make-complex-width-cache [^Font font]
   ;; Shaping is the most expensive thing on the paint path - milliseconds for a
   ;; long line - and a run's width never changes, so each distinct run is
@@ -187,7 +185,8 @@
   ;; rather than evicted from, which keeps the lookup free of bookkeeping. A
   ;; document with more distinct runs than fit re-shapes a viewport's worth
   ;; after each drop instead of never caching at all.
-  (let [cache (ConcurrentHashMap.)]
+  (let [cache (ConcurrentHashMap.)
+        max-complex-width-cache-size 4096]
     (fn get-complex-width [^String text]
       (if-some [cached-width (.get cache text)]
         cached-width

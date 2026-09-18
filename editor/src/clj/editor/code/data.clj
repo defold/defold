@@ -49,13 +49,6 @@
   (complex-text-x->col [this text x] "The logical offset nearest a visual x position in a complex string.")
   (complex-text-x->character-col [this text x] "The logical offset of the character at a visual x position in a complex string."))
 
-(defn- simple-character?
-  "True for characters the per-character advance model measures correctly. Every
-  other character is handed to the shaper, so unfamiliar scripts render slowly
-  rather than incorrectly."
-  [character]
-  (< (int character) 0x80))
-
 (defn- combining-character?
   [character]
   (let [character-type (Character/getType (unchecked-char character))]
@@ -102,7 +95,7 @@
           (cond
             ;; Complex: opens a range, or extends one across any neutrals
             ;; buffered since the last complex character.
-            (not (simple-character? character))
+            (<= 0x80 (int character))
             (recur next-index
                    (if (neg? start)
                      ;; A combining mark on a simple base must be shaped
@@ -650,18 +643,6 @@
   [^LayoutInfo layout ^String text start-index end-index start-x]
   (advance-text-impl (.glyph layout) (.tab-stops layout) text start-index end-index start-x))
 
-(defn- line-width-with-complex-strings
-  ^double [glyph-metrics tab-stops ^String line ranges]
-  (loop [range-index 0
-         index 0
-         x 0.0]
-    (if-let [[start end] (get ranges range-index)]
-      (recur (inc range-index)
-             end
-             (+ (advance-text-impl glyph-metrics tab-stops line index start x)
-                (complex-text-width glyph-metrics (.substring line start end))))
-      (advance-text-impl glyph-metrics tab-stops line index (count line) x))))
-
 (defn- line-col->x
   ^double [glyph-metrics tab-stops ^String line ^long col]
   (let [ranges (complex-text-ranges line)]
@@ -761,9 +742,17 @@
   "Returns an accurate line width measurement, taking tab stops into account."
   ^double [glyph-metrics tab-stops line]
   (let [ranges (complex-text-ranges line)]
-    (if (pos? (count ranges))
-      (line-width-with-complex-strings glyph-metrics tab-stops line ranges)
-      (advance-text-impl glyph-metrics tab-stops line 0 (count line) 0.0))))
+    (if (zero? (count ranges))
+      (advance-text-impl glyph-metrics tab-stops line 0 (count line) 0.0)
+      (loop [range-index 0
+             index 0
+             x 0.0]
+        (if-let [[start end] (get ranges range-index)]
+          (recur (inc range-index)
+                 end
+                 (+ (advance-text-impl glyph-metrics tab-stops line index start x)
+                    (complex-text-width glyph-metrics (.substring line start end))))
+          (advance-text-impl glyph-metrics tab-stops line index (count line) x))))))
 
 (defn text-width
   "Simple text width measurement. Does not take tab stops into account, so don't feed it strings with tabs.
