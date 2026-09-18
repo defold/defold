@@ -177,29 +177,6 @@
         (map-indexed flipped-pair)
         (prototype-desc->embedded-component-resource-datas prototype-desc)))
 
-(defn prototype-desc->component-property-descs [prototype-desc]
-  (into []
-        (keep (fn [component-desc]
-                (let [component-id (:id component-desc)
-                      property-descs (:properties component-desc)]
-                  (when (seq property-descs)
-                    {:id component-id
-                     :properties property-descs}))))
-        (:components prototype-desc)))
-
-(defn component-property-descs->resources [component-property-descs proj-path->resource]
-  (eduction
-    (mapcat :properties)
-    (map #(dissoc % :id))
-    (distinct)
-    (keep #(properties/property-desc->resource % proj-path->resource))
-    component-property-descs))
-
-(defn- prototype-desc->referenced-property-resources [prototype-desc proj-path->resource]
-  (-> prototype-desc
-      prototype-desc->component-property-descs
-      (component-property-descs->resources proj-path->resource)))
-
 (defn- component-desc->component-instance-data [component-desc proj-path->build-target]
   {:pre [(map? component-desc)]} ; GameObject$ComponentDesc in map format.
   (let [build-resource (-> component-desc :component proj-path->build-target :resource)
@@ -307,7 +284,7 @@
         [(game-object-common/game-object-build-target resource _node-id component-instance-datas component-build-targets)])))
 
 (g/defnk produce-ddf-component-properties [prototype-desc]
-  (prototype-desc->component-property-descs prototype-desc))
+  (game-object-common/prototype-desc->component-property-descs prototype-desc))
 
 (g/defnk produce-node-outline [_node-id]
   {:node-id _node-id
@@ -339,7 +316,7 @@
                            (into (connect-referenced-components-tx-data evaluation-context self (prototype-desc->referenced-component-resources new-value proj-path->resource)))
                            (into (disconnect-connected-nodes-tx-data basis self :own-resource-property-build-targets resource-property-connections))
                            (into (mapcat #(connect-resource % resource-property-connections))
-                                 (prototype-desc->referenced-property-resources new-value proj-path->resource))))))))
+                                 (game-object-common/prototype-desc->referenced-property-resources new-value proj-path->resource))))))))
 
   ;; Internal outputs.
   (output proj-path->build-target g/Any :cached produce-proj-path->build-target)
@@ -377,7 +354,7 @@
       :label (localization/message "resource.type.go.non-editable")
       :node-type NonEditableGameObjectNode
       :ddf-type GameObject$PrototypeDesc
-      :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))
+      :dependencies-fn game-object-common/game-object-dependencies-fn
       :sanitize-fn (partial sanitize-non-editable-game-object workspace)
       :pb-encode-fn (partial string-encode-non-editable-game-object workspace)
       :load-fn load-non-editable-game-object

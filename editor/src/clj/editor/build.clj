@@ -225,7 +225,13 @@
           5)))))
 
 (defn build-project! [project node-id old-artifact-map opts evaluation-context]
-  (let [workspace (project/workspace project evaluation-context)
+  (let [[project-errors project-warnings]
+        (->> (g/node-value project :build-errors evaluation-context)
+             (g/flatten-errors)
+             (:causes)
+             (coll/separate-by g/error-fatal?))
+
+        workspace (project/workspace project evaluation-context)
         extra-build-targets (:extra-build-targets opts)
         task-cancelled? (or (:task-cancelled? opts) fn/constantly-false)
         render-progress! (or (:render-progress! opts) progress/null-render-progress!)
@@ -233,4 +239,7 @@
         node-id->resource-path (make-node-id->resource-path project evaluation-context)
         node-build-targets (node-build-targets node-id node-id->resource-path cancellable-render-progress! task-cancelled? evaluation-context)
         build-targets (resolve-dependencies-with-progress [node-build-targets extra-build-targets] project node-id->resource-path cancellable-render-progress! evaluation-context)]
-    (build-build-targets! build-targets workspace old-artifact-map cancellable-render-progress! evaluation-context)))
+
+    (cond-> (build-build-targets! build-targets workspace old-artifact-map cancellable-render-progress! evaluation-context)
+      (coll/not-empty project-errors) (update :error g/flatten-errors project-errors)
+      (coll/not-empty project-warnings) (update :warning g/flatten-errors project-warnings))))

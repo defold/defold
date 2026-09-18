@@ -556,8 +556,8 @@
             (not-empty
               (concat
                 (some-> (path-error _node-id source-resource) vector)
-                (sequence (comp (mapcat :properties) ; Extract ComponentPropertyDescs from InstancePropertyDescs
-                                (mapcat :properties) ; Extract PropertyDescs from ComponentPropertyDescs
+                (sequence (comp (mapcat :properties) ; Extract GameObject$ComponentPropertyDescs from GameObject$InstancePropertyDescs.
+                                (mapcat :properties) ; Extract GameObject$PropertyDescs from GameObject$ComponentPropertyDescs.
                                 (keep :error))
                           ddf-properties)))]
     (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
@@ -870,9 +870,11 @@
                                (for [embedded (:embedded-instances collection)]
                                  (do
                                    ;; Note: We only need to check that the
-                                   ;; EmbeddedInstanceDesc has been string-decoded
-                                   ;; here. Any EmbeddedComponentDescs inside will
-                                   ;; be validated by the game-object :load-fn.
+                                   ;; GameObject$EmbeddedInstanceDesc has been
+                                   ;; string-decoded here. Any
+                                   ;; GameObject$EmbeddedComponentDescs inside
+                                   ;; will be validated by the game-object
+                                   ;; :load-fn.
                                    (collection-string-data/verify-string-decoded-embedded-instance-desc! embedded resource)
                                    (make-embedded-go self project (:data embedded) (:id embedded) embedded nil nil)))))
             id->nid (-> tx-go-creation
@@ -1016,7 +1018,7 @@
       :ddf-type GameObject$CollectionDesc
       :load-fn load-collection
       :allow-unloaded-use true
-      :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :editable "go"))
+      :dependencies-fn collection-common/collection-dependencies-fn
       :sanitize-fn (partial sanitize-collection workspace)
       :pb-encode-fn (partial string-encode-collection workspace)
       :icon collection-common/collection-icon
