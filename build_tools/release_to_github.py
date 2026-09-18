@@ -219,7 +219,10 @@ def release(config, tag_name, release_sha, s3_release, release_name=None, body=N
 
             url = upload_url % (name)
             log("Uploading to GitHub " + url)
-            github.post(url, config.github_token, data = f, headers = headers)
+            response = github.post(url, config.github_token, data = f, headers = headers)
+            if not response:
+                log("Unable to upload GitHub release asset %s for %s" % (name, tag_name))
+                exit(1)
 
     log("Released Defold %s to GitHub" % tag_name)
 

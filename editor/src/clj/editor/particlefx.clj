@@ -47,6 +47,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
             [editor.scene-tools :as scene-tools]
+            [editor.shaders :as shaders]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -127,34 +128,8 @@
   (vec3 position)
   (vec4 color))
 
-(shader/defshader line-vertex-shader
-  (uniform mat4 view_proj)
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* view_proj position))
-    (setq var_color color)))
-
-(shader/defshader line-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader {"view_proj" :view-proj}))
-
-(shader/defshader line-id-vertex-shader
-  (uniform mat4 view_proj)
-  (attribute vec4 position)
-  (defn void main []
-    (setq gl_Position (* view_proj position))))
-
-(shader/defshader line-id-fragment-shader
-  (uniform vec4 id)
-  (defn void main []
-    (setq gl_FragColor id)))
-
-(def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"view_proj" :view-proj "id" :id}))
+(def line-shader shaders/basic-color-straight-alpha-world-space)
+(def line-id-shader shaders/selection-color-world-space)
 
 (defn- curve->pb-spline-points [curve]
   (->> curve
@@ -277,7 +252,7 @@
             vs (into (vec (geom/transf-p world-transform-no-scale (geom/scale scale-f vs-screen)))
                      (geom/transf-p world-transform vs-world))
             render-args (if (= pass/selection (:pass render-args))
-                          (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))
+                          (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform renderable))
                           render-args)
             vertex-binding (vtx/use-with ::lines (->vbuf vs vcount color) shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding]
@@ -457,7 +432,7 @@
   (doseq [renderable renderables]
     (let [{:keys [color emitter-index emitter-sim-data material-attribute-infos max-particle-count vertex-attribute-bytes]} (:user-data renderable)]
       (when-let [shader (:shader emitter-sim-data)]
-        (let [shader-attribute-reflection-infos (shader/attribute-reflection-infos shader gl)
+        (let [shader-attribute-reflection-infos (shader/attribute-reflection-infos shader)
               combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos :coordinate-space-world)
               vertex-description (graphics.types/make-vertex-description combined-attribute-infos)
               pfx-sim-request-id (some-> renderable :updatable :node-id)]

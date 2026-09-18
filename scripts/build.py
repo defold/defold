@@ -2549,6 +2549,8 @@ class Configuration(object):
 
             gradle = self.get_gradle_wrapper()
             gradle_args = ['-Ptarget-platform=%s' % self.target_platform]
+            if self.channel:
+                gradle_args.append('-Pchannel=%s' % self.channel)
             if self.verbose:
                 gradle_args += ['--info']
 
@@ -2795,6 +2797,8 @@ class Configuration(object):
 
         gradle = self.get_gradle_wrapper()
         gradle_args = ['-Ptarget-platform=%s' % self.target_platform]
+        if self.channel:
+            gradle_args.append('-Pchannel=%s' % self.channel)
         if self.verbose:
             gradle_args += ['--info']
 
@@ -4018,7 +4022,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
 
     parser.add_option('--channel', dest='channel',
                       default = None,
-                      help = 'Editor release channel (stable, beta, ...)')
+                      help = 'Release channel (stable, beta, alpha, ...)')
 
     parser.add_option('--engine-artifacts', dest='engine_artifacts',
                       default = 'auto',
