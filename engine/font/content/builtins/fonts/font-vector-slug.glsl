@@ -200,14 +200,14 @@ float CalcCoverage(float xcov, float ycov, float xwgt, float ywgt, int flags)
 	return (coverage);
 }
 
-float SlugRender(vec2 renderCoord, vec4 bandTransform, ivec4 glyphData)
+float SlugRender(vec2 renderCoord, vec2 emsPerPixel, vec4 bandTransform, ivec4 glyphData)
 {
 	int curveIndex;
 
 	// The effective pixel dimensions of the em square are computed
-	// independently for x and y directions with texcoord derivatives.
+	// independently for x and y directions with texcoord derivatives supplied
+	// by the caller before branching on the glyph layer.
 
-	vec2 emsPerPixel = fwidth(renderCoord);
 	vec2 pixelsPerEm = 1.0 / emsPerPixel;
 
 	ivec2 bandMax = glyphData.zw;

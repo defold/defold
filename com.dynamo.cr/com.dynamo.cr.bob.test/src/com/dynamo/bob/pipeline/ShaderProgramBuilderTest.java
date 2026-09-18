@@ -18,6 +18,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -535,6 +538,53 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             checkOnlyExpectedLanguages(
                 buildShaderForPlatform(platform.getPair(), platform.getPair(), "default_" + platform.getPair().replace("-", "_")),
                 expectedLanguages);
+        }
+    }
+
+    @Test
+    public void testVectorFontWGSL() throws Exception {
+        Path fontDirectory = Path.of("../../engine/font/content/builtins/fonts");
+        addFile("/builtins/fonts/font-vector-slug.glsl", Files.readAllBytes(fontDirectory.resolve("font-vector-slug.glsl")));
+
+        IShaderCompiler.CompileOptions options = new IShaderCompiler.CompileOptions();
+        options.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
+        options.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+        options.excludeGlesSm100 = true;
+        ShaderProgramBuilderBundle.ModuleBundle modules = createShaderModules(
+            new String[] {"/builtins/fonts/font-vector.vp", "/builtins/fonts/font-vector.fp"}, options);
+        ShaderDesc shader = addAndBuildShaderDescs(modules,
+            new String[] {Files.readString(fontDirectory.resolve("font-vector.vp")),
+                          Files.readString(fontDirectory.resolve("font-vector.fp"))},
+            "/vector-font.shbundle");
+
+        checkExpectedLanguages(shader, new ShaderDesc.Language[] {
+            ShaderDesc.Language.LANGUAGE_WGSL, ShaderDesc.Language.LANGUAGE_GLES_SM300});
+        for (ShaderDesc.Shader stage : shader.getShadersList()) {
+            if (stage.getLanguage() == ShaderDesc.Language.LANGUAGE_WGSL) {
+                assertFalse(stage.getSource().toStringUtf8().contains("diagnostic(off, derivative_uniformity)"));
+            }
+        }
+    }
+
+    @Test
+    public void testWGSLRejectsNonUniformDerivatives() throws Exception {
+        String source = """
+                #version 330
+                in vec2 uv;
+                out vec4 color;
+                void main() {
+                    color = vec4(0.0);
+                    if (uv.x > 0.5) {
+                        color = vec4(dFdx(uv.x));
+                    }
+                }
+                """;
+        try {
+            compileShaderWithCompiler(getProject().getShaderCompiler(Platform.WasmWeb),
+                "webgpu", "non_uniform_derivatives", source);
+            fail("Expected WGSL derivative-uniformity validation to reject the shader");
+        } catch (CompileExceptionError e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("uniform control flow"));
         }
     }
 

@@ -43,17 +43,25 @@ uniform vec4 id;
 #endif
 void main()
 {
-    float coverage;
+    vec2 emsPerPixel = fwidth(var_texcoord);
+    vec3 effects = vec3(0.0);
     if (var_mode > 0.5)
     {
 #ifdef SLUG_LEGACY_GL
-        vec3 effects = texture2D(effect_bitmap, var_texcoord).rgb;
+        effects = texture2D(effect_bitmap, var_texcoord).rgb;
 #else
-        vec3 effects = texture(effect_bitmap, var_texcoord).rgb;
+        // The effect atlas has no mipmaps. Explicit LOD avoids implicit
+        // derivatives inside this non-uniform branch on WebGPU.
+        effects = textureLod(effect_bitmap, var_texcoord, 0.0).rgb;
 #endif
+    }
+    // WGSL requires derivative operations outside non-uniform control flow.
+    float smoothing = max(0.5 * fwidth(effects.g), 0.0001);
+    float coverage;
+    if (var_mode > 0.5)
+    {
         if (var_mode < 1.5)
         {
-            float smoothing = max(0.5 * fwidth(effects.g), 0.0001);
             coverage = smoothstep(var_banding.x - smoothing, var_banding.x + smoothing, effects.g);
         }
         else
@@ -61,9 +69,9 @@ void main()
     }
     else
 #ifdef SLUG_LEGACY_GL
-        coverage = SlugRender(var_texcoord, var_banding, ivec4(floor(var_glyph + 0.5)));
+        coverage = SlugRender(var_texcoord, emsPerPixel, var_banding, ivec4(floor(var_glyph + 0.5)));
 #else
-        coverage = SlugRender(var_texcoord, var_banding, var_glyph);
+        coverage = SlugRender(var_texcoord, emsPerPixel, var_banding, var_glyph);
 #endif
     out_fragColor = coverage * vec4(var_color.rgb * var_color.a, var_color.a);
     if ((var_mode < 0.5 && var_curve_count <= 0.0) || out_fragColor.a <= 0.0) discard;
