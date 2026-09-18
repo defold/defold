@@ -195,14 +195,38 @@ jobs:
     steps:
       - &step_validate_build_commit
         name: "Validate build commit"
-        shell: bash
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           BUILD_SHA: *build_sha
-        run: |
-          if [[ ! "$BUILD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::A full build commit SHA is required. repository_dispatch must include client_payload.sha."
-            exit 1
-          fi
+        with:
+          script: |
+            const sha = process.env.BUILD_SHA;
+            if (!sha || sha.length !== 40 || !/^[0-9a-f]+$/.test(sha)) {
+              core.setFailed('A full build commit SHA is required. repository_dispatch must include client_payload.sha.');
+              return;
+            }
+            if (context.eventName !== 'repository_dispatch') return;
+
+            const branch = context.payload.client_payload?.branch;
+            if (typeof branch !== 'string' || !branch) {
+              core.setFailed('repository_dispatch must include client_payload.branch.');
+              return;
+            }
+            if (!['master', 'beta', 'dev'].includes(branch)) return;
+
+            // Validate release ancestry before checking out or running the selected code.
+            // Resolve heads explicitly so a tag with the same name cannot authorize a release.
+            const {data: ref} = await github.rest.git.getRef({
+              ...context.repo, ref: `heads/${branch}`
+            });
+            const {data: comparison} = await github.request('GET /repos/{owner}/{repo}/compare/{basehead}', {
+              ...context.repo, basehead: `${sha}...${ref.object.sha}`, per_page: 1
+            });
+            // The branch tip may have advanced since dispatch; the pinned SHA must
+            // still be an ancestor of that tip, or the tip itself.
+            if (!['ahead', 'identical'].includes(comparison.status)) {
+              core.setFailed(`Dispatched commit ${sha} is not in the history of release branch ${branch}.`);
+            }
       - &step_checkout
         name: "Checkout"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -13,11 +13,15 @@ The workflow files listed above sets up the jobs and distributes them to multipl
 `Main` uses the event's commit for every public build, test, release-note, and
 publication job; private builds receive it as `public_sha`. Push and manual workflow
 runs use `github.sha`, and pull request runs use the PR head SHA. Repository dispatches
-must supply a full commit SHA in `client_payload.sha`; `ci/trigger-build.py` resolves
-the requested ref through GitHub before dispatching. Missing or invalid SHAs fail
-before checkout. Branch names still select release channels. Publication checks that
-all editor download bundles exist for that commit and channel before changing tags
-or channel pointers.
+must supply the requested ref in `client_payload.branch` and a full commit SHA in
+`client_payload.sha`; `ci/trigger-build.py` resolves the ref through GitHub before
+dispatching. Missing branches or invalid SHAs fail before checkout. For `master`,
+`beta`, and `dev`, every job also verifies that the SHA belongs to the requested
+branch's history. A pinned ancestor remains valid after the branch advances;
+unmerged feature commits and failed ancestry checks stop the job before checkout.
+Branch names still select release channels. Publication checks that all editor
+download bundles exist for that commit and channel before changing tags or channel
+pointers.
 
 ## How to trigger builds manually
 
