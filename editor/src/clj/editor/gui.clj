@@ -54,6 +54,7 @@
             [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
             [editor.scene-tools :as scene-tools]
+            [editor.shaders :as shaders]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.util :as eutil]
@@ -113,64 +114,9 @@
   (vec4 color)
   (vec1 page_index))
 
-(shader/defshader vertex-shader
-  (uniform mat4 view_proj)
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (attribute vec4 color)
-  (varying vec2 var_texcoord0)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* view_proj position))
-    (setq var_texcoord0 texcoord0)
-    (setq var_color color)))
-
-(shader/defshader fragment-shader
-  (varying vec2 var_texcoord0)
-  (varying vec4 var_color)
-  (uniform sampler2D texture_sampler)
-  (defn void main []
-    (setq gl_FragColor (* var_color (texture2D texture_sampler var_texcoord0.xy)))))
-
-; TODO - macro of this
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader {"view_proj" :view-proj}))
-
-(shader/defshader gui-id-vertex-shader
-  (uniform mat4 view_proj)
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq gl_Position (* view_proj position))
-    (setq var_texcoord0 texcoord0)))
-
-(shader/defshader gui-id-fragment-shader
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
-  (uniform vec4 id)
-  (defn void main []
-    (setq vec4 color (texture2D texture_sampler var_texcoord0.xy))
-    (if (> color.a 0.05)
-      (setq gl_FragColor id)
-      (discard))))
-
-(def id-shader (shader/make-shader ::id-shader gui-id-vertex-shader gui-id-fragment-shader {"view_proj" :view-proj "id" :id}))
-
-(shader/defshader line-vertex-shader
-  (uniform mat4 view_proj)
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* view_proj position))
-    (setq var_color color)))
-
-(shader/defshader line-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader {"view_proj" :view-proj}))
+(def shader shaders/basic-texture-color-straight-alpha-world-space)
+(def id-shader shaders/selection-uniform-world-space)
+(def line-shader shaders/basic-color-straight-alpha-world-space)
 
 (defn- ->color-vtx-vb [vs colors vcount]
   (let [vb (->color-vtx vcount)
@@ -277,7 +223,7 @@
               vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
                                (vtx2/use-with ::tris vb id-shader)
                                (vtx/use-with ::tris vb id-shader))]
-          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) (into [id-shader vertex-binding gpu-texture] (:vector-textures font-data))
+          (gl/with-gl-bindings gl (assoc render-args (if (:vector? font-data) :id :id-color) (scene-picking/renderable-picking-id-uniform (first renderables))) (into [id-shader vertex-binding gpu-texture] (:vector-textures font-data))
             (if (:vector? font-data)
               (font/set-vector-uniforms! gl id-shader font-data)
               (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture)))

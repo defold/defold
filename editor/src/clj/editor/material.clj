@@ -217,12 +217,7 @@
       ;; GL 2 preview. Its uint operations must not reach the GLSL 1.20 transpiler.
       (if (and (= "/builtins/fonts/font-vector.vp" (resource/proj-path vertex-program))
                (= "/builtins/fonts/font-vector.fp" (resource/proj-path fragment-program)))
-        {:shader-type+source-pairs (font-shader/preview-sources (:shader-source fragment-shader-source-info) false)
-         :attribute-reflection-infos []
-         :location+attribute-name-pairs []
-         :array-sampler-name->slice-sampler-names {}
-         :preview-light-capacity 0
-         :max-page-count max-page-count}
+        (font-shader/preview-shader-info (:shader-source fragment-shader-source-info) false)
         (let [augmented-shader-infos
               (mapv (fn [{:keys [node-id resource shader-source]}]
                       (transpile-shader-source node-id resource shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int))

@@ -23,7 +23,8 @@
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support]
-            [util.coll :as coll]))
+            [util.coll :as coll]
+            [util.murmur :as murmur]))
 
 (deftest valid-fps
   (test-util/with-loaded-project
@@ -61,6 +62,33 @@
                "test_anim"}
              animation-ids-in-ddf)))))
 
+(deftest image-name-hashes-follow-frames-across-atlases
+  (test-support/with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/image_project")
+          project (test-util/setup-project! workspace)
+          atlas (project/get-resource-node project "/main/rename.atlas")
+          reordered-resource (test-util/make-resource!
+                               workspace "/main/reordered.atlas"
+                               (update (g/node-value atlas :save-value) :images #(vec (rseq %))))
+          _ (workspace/resource-sync! workspace)
+          original (g/node-value atlas :texture-set)
+          reordered (g/node-value (project/get-resource-node project reordered-resource) :texture-set)]
+      (doseq [[source target] [[original reordered] [reordered original]]
+              [animation-id image-id] [["diamond_dogs" "diamond_dogs"]
+                                       ["ball" "ball"]
+                                       ["test_anim" "ball"]]]
+        (testing (str "Animation: " animation-id)
+          (let [source-animation (coll/first-where #(= animation-id (:id %)) (:animations source))
+                source-frame (get (:frame-indices source) (:start source-animation))
+                source-name-hash (get (:image-name-hashes source) source-frame)
+                ;; Match the runtime's lookup, but get the expected frame from
+                ;; the target's named animation, independently of its hashes.
+                target-frame-by-hash (zipmap (:image-name-hashes target) (:frame-indices target))
+                target-animation (coll/first-where #(= animation-id (:id %)) (:animations target))
+                expected-frame (get (:frame-indices target) (:start target-animation))]
+            (is (= (murmur/hash64 image-id) source-name-hash))
+            (is (= expected-frame (target-frame-by-hash source-name-hash)))))))))
+
 (deftest image-variants-share-a-rect-but-keep-their-own-geometry
   (test-support/with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! "test/resources/image_project")
@@ -90,6 +118,10 @@
         (is (= #{:sprite-trim-mode-off :sprite-trim-mode-6} (into #{} (map :sprite-trim-mode) (coll/keys image->rect))))
         (is (= #{-0.5 0.0} (into #{} (map (comp double :pivot-x :geometry)) rects)))
         (is (= #{:sprite-trim-mode-off :sprite-trim-mode-6} (into #{} (map (comp :trim-mode :geometry)) rects))))
+
+      (testing "Image hashes include each geometry variant before the animation frames"
+        (is (= (mapv murmur/hash64 ["diamond" "diamond" "diamond/diamond" "variant/diamond"])
+               (:image-name-hashes (g/node-value atlas :texture-set)))))
 
       (testing "And the scene of each image node renders its own geometry"
         (let [image-nodes (into []
