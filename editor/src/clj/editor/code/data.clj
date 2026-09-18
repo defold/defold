@@ -49,8 +49,7 @@
   (complex-text-x->col [this text x] "The logical offset nearest a visual x position in a complex string.")
   (complex-text-x->character-col [this text x] "The logical offset of the character at a visual x position in a complex string."))
 
-(defn- combining-character?
-  [character]
+(defn- combining-character? [character]
   (let [character-type (Character/getType (unchecked-char character))]
     (or (= Character/NON_SPACING_MARK character-type)
         (= Character/COMBINING_SPACING_MARK character-type)
@@ -703,6 +702,7 @@
               (if (<= x next-x)
                 (max 0 (+ col (long (+ 0.5 (/ (- x col-x) (- next-x col-x))))))
                 (recur next-col next-x)))))))))
+
 (defn- line-x->character-col
   "Returns the col of the character at x, or nil if x is past the end of the line."
   [glyph-metrics tab-stops ^String line ^double x]

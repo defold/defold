@@ -185,13 +185,12 @@
   ;; rather than evicted from, which keeps the lookup free of bookkeeping. A
   ;; document with more distinct runs than fit re-shapes a viewport's worth
   ;; after each drop instead of never caching at all.
-  (let [cache (ConcurrentHashMap.)
-        max-complex-width-cache-size 4096]
+  (let [cache (ConcurrentHashMap.)]
     (fn get-complex-width [^String text]
-      (if-some [cached-width (.get cache text)]
+      (if-let [cached-width (.get cache text)]
         cached-width
         (let [width (double (.getWidth (.getBounds (text-layout font text))))]
-          (when (<= ^long max-complex-width-cache-size (.size cache))
+          (when (<= 4096 (.size cache))
             (.clear cache))
           (.put cache text width)
           width)))))
@@ -461,11 +460,11 @@
                                 range-index)
                               range-index))
               [range-start range-end] (get complex-ranges range-index)
-              tab? (= \tab (.charAt text i))
-              shaped? (and (= i range-start) (<= range-end end-index))
-              seg-end (if tab?
+              tab-character (= \tab (.charAt text i))
+              complete-complex-range (and (= i range-start) (<= range-end end-index))
+              seg-end (if tab-character
                         (inc i)
-                        (if shaped?
+                        (if complete-complex-range
                           range-end
                           (loop [j (inc i)]
                             (if (or (= ^long end-index j)
@@ -473,16 +472,16 @@
                                     (= range-start j))
                               j
                               (recur (inc j))))))
-              next-x (if shaped?
+              next-x (if complete-complex-range
                        (+ x ^double (data/complex-text-width (.glyph layout) (.substring text i seg-end)))
                        (double (data/advance-text layout text i seg-end x)))]
           (cond
-            tab?
+            tab-character
             nil
 
             ;; A shaped range must be drawn as a whole string, since shaping
             ;; cannot be applied to individual glyphs.
-            shaped?
+            complete-complex-range
             (when (< visible-start-x (+ next-x offset-x))
               (.fillText gc (.substring text i seg-end) (+ x offset-x) y))
 
