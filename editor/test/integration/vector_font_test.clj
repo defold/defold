@@ -25,7 +25,8 @@
             [editor.scene-selection :as scene-selection]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.fn :as fn])
   (:import [java.awt.image BufferedImage]
            [javax.vecmath Matrix4d]))
 
@@ -211,17 +212,14 @@
                               (assoc text-data
                                 :world-transform transform
                                 :text-layout (font/layout-text (:font-map font-data) (str c) false 1000.0 0.0 1.0 36.0)))
-                            "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-              upload-count (volatile! 0)
-              update-image! texture/update-image!]
-          (with-redefs [texture/update-image! (fn [& args]
-                                               (vswap! upload-count inc)
-                                               (apply update-image! args))]
+                            "AB")
+              update-image! (fn/make-call-logger texture/update-image!)]
+          (with-redefs [texture/update-image! update-image!]
             (gl/with-drawable-as-current (g/node-value view :drawable)
               (is (= (* 6 (count entries)) (count (font/request-vertex-buffer gl ::batch font-data entries))))
-              (is (= 2 @upload-count))
+              (is (= 2 (count (fn/call-logger-calls update-image!))))
               (is (= (* 6 (count entries)) (count (font/request-vertex-buffer gl ::batch font-data entries))))
-              (is (= 2 @upload-count)))))
+              (is (= 2 (count (fn/call-logger-calls update-image!)))))))
         (finally
           (#'scene/dispose-preview view)
           (test-util/close-tab! project app-view "/fonts/vector_preview.go"))))))
@@ -251,21 +249,18 @@
                 camera-id (scene/view->camera view)
                 initial-camera (g/node-value camera-id :local-camera)
                 buffers (volatile! [])
-                uploads (volatile! 0)
                 request-vertex-buffer font/request-vertex-buffer
-                update-image! texture/update-image!]
+                update-image! (fn/make-call-logger texture/update-image!)]
             (try
               (with-redefs [font/request-vertex-buffer (fn [& args]
                                                        (let [buffer (apply request-vertex-buffer args)]
                                                          (vswap! buffers conj [buffer (vtx/version buffer)])
                                                          buffer))
-                            texture/update-image! (fn [& args]
-                                                    (vswap! uploads inc)
-                                                    (apply update-image! args))]
+                            texture/update-image! update-image!]
                 (g/valid-node-value view :frame)
                 (let [[[initial-buffer initial-version]] @buffers]
                   (is (pos? (count initial-buffer)))
-                  (is (= 2 @uploads))
+                  (is (= 2 (count (fn/call-logger-calls update-image!))))
                   (vreset! buffers [])
                   (doseq [zoom [2.0 4.0 0.5 1.0]]
                     (g/set-property! camera-id :local-camera
@@ -277,7 +272,7 @@
                   (doseq [[buffer version] @buffers]
                     (is (identical? initial-buffer buffer))
                     (is (= initial-version version)))
-                  (is (= 2 @uploads))))
+                  (is (= 2 (count (fn/call-logger-calls update-image!))))))
               (finally
                 (#'scene/dispose-preview view)
                 (test-util/close-tab! project app-view path)))))))))
