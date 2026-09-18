@@ -57,6 +57,13 @@ if(_DEFOLD_MSVC_LIKE)
     # Prefer CMake's MSVC debug info format setting over explicit /Z7
     # Equivalent to /Z7 (debug info in .obj)
     set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "Embedded")
+
+    if(DEFINED ENV{GITHUB_WORKFLOW})
+        # CI starts from clean objects, so there is no incremental link state
+        # to reuse. Avoid .ilk generation and CMake's incremental manifest
+        # resource/relink passes while retaining /DEBUG and PDB output.
+        target_link_options(defold_sdk INTERFACE /INCREMENTAL:NO)
+    endif()
 else()
     message(WARNING "platform_windows: Non-MSVC-like compiler detected (${_DEFOLD_COMPILER_LABEL}). Skipping MSVC flags; link libs will still be added.")
 endif()

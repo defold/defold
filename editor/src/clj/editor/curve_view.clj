@@ -22,7 +22,6 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
-            [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.grid :as grid]
             [editor.handler :as handler]
@@ -31,6 +30,7 @@
             [editor.rulers :as rulers]
             [editor.scene :as scene]
             [editor.scene-selection :as selection]
+            [editor.shaders :as shaders]
             [editor.types :as types]
             [editor.ui :as ui]
             [util.defonce :as defonce]
@@ -72,20 +72,7 @@
   (vec3 position)
   (vec4 color))
 
-(shader/defshader line-vertex-shader
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
-
-(shader/defshader line-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
+(def line-shader shaders/basic-color-straight-alpha-world-space)
 
 (defn render-curves [^GL2 gl render-args renderables _rcount]
   (doseq [renderable renderables

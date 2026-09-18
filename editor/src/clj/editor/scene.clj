@@ -55,7 +55,6 @@
             [editor.scene-picking :as scene-picking]
             [editor.scene-selection :as selection]
             [editor.scene-shapes :as scene-shapes]
-            [editor.scene-text :as scene-text]
             [editor.scene-tools :as scene-tools]
             [editor.scene-visibility :as scene-visibility]
             [editor.system :as system]
@@ -72,7 +71,6 @@
             [util.http-server :as http-server]
             [util.profiler :as profiler])
   (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
-           [com.jogamp.opengl.glu GLU]
            [com.jogamp.opengl.util GLPixelStorageModes]
            [editor.pose Pose]
            [editor.types AABB Camera Rect Region]
@@ -182,17 +180,6 @@
     (cond-> error-message-lines
       (< max-error-count (count distinct-errors))
       (conj (localization-state error-render-and-more-message)))))
-
-(defn- render-error
-  [gl render-args _renderables _nrenderables]
-  (when (= pass/overlay (:pass render-args))
-    (scene-text/overlay gl "RENDER ERROR" 24.0 -22.0)))
-
-(defn substitute-render-data
-  [error]
-  [{pass/overlay [{:render-fn render-error
-                   :user-data {:error error}
-                   :batch-key ::error}]}])
 
 (defn substitute-scene [error]
   {:aabb geom/null-aabb
@@ -353,14 +340,9 @@
 (defn gl-viewport [^GL2 gl ^Region viewport]
   (.glViewport gl (.left viewport) (.top viewport) (- (.right viewport) (.left viewport)) (- (.bottom viewport) (.top viewport))))
 
-(defn setup-pass
-  [^GL2 gl pass render-args]
-  (let [glu (GLU.)]
-    (.glMatrixMode gl GL2/GL_PROJECTION)
-    (gl/gl-load-matrix-4d gl (:projection render-args))
-    (.glMatrixMode gl GL2/GL_MODELVIEW)
-    (gl/gl-load-matrix-4d gl (:world-view render-args))
-    (pass/prepare-gl pass gl glu)))
+(defn- setup-pass
+  [^GL2 gl pass]
+  (pass/prepare-gl pass gl))
 
 (defn- render-nodes
   [^GL2 gl render-args [first-renderable :as renderables] count]
@@ -510,7 +492,6 @@
   (let [^GL2 gl (.getGL context)
         batch-key (render-mode-batch-key render-mode)]
     (gl/gl-clear gl clear-r clear-g clear-b clear-a)
-    (.glColor4f gl 1.0 1.0 1.0 1.0)
     (gl-viewport gl viewport)
     (doseq [pass (render-mode-passes render-mode)
             :let [pass-render-args (cond-> (pass->render-args pass)
@@ -519,7 +500,7 @@
                                      (picking-render-args viewport @last-picking-rect))
                   pass-renderables (-> (get renderables pass)
                                        (assoc-updatable-states updatable-states))]]
-      (setup-pass gl pass pass-render-args)
+      (setup-pass gl pass)
       (if (= render-mode :aabbs)
         (batch-render gl pass-render-args (make-aabb-renderables pass-renderables) batch-key)
         (batch-render gl pass-render-args pass-renderables batch-key)))))
@@ -1221,7 +1202,7 @@
           (doseq [pass [pass/opaque-selection pass/selection]]
             (let [pass-render-args (picking-render-args (pass->render-args pass) viewport picking-rect)
                   pass-renderables (vec (render-sort (get renderables pass)))]
-              (setup-pass gl pass pass-render-args)
+              (setup-pass gl pass)
               (batch-render gl pass-render-args pass-renderables :select-batch-key)))
           (.glFlush gl)
           (.glFinish gl)
@@ -1263,7 +1244,7 @@
             picking-id->renderable (into {} (map (juxt :picking-id identity)) pickable-tool-renderables)
             buf (int-array (* picking-drawable-size picking-drawable-size))]
         (reset! last-picking-rect tool-picking-rect)
-        (setup-pass gl pass/manipulator-selection render-args)
+        (setup-pass gl pass/manipulator-selection)
         (batch-render gl render-args pickable-tool-renderables :select-batch-key)
         (.glFlush gl)
         (.glFinish gl)
@@ -1321,7 +1302,7 @@
   (input update-tick-handlers Runnable :array)
   (input picking-rect Rect)
   (input tool-info-text g/Str)
-  (input tool-renderables pass/RenderData :array :substitute substitute-render-data)
+  (input tool-renderables pass/RenderData :array :substitute gu/array-subst-remove-errors)
   (input mouse-binding-context g/Keyword)
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)

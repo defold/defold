@@ -29,13 +29,16 @@ if(TARGET_PLATFORM MATCHES "macos")
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   set(TOOLS_LAUNCHER_MACOS_TEST_COMMAND
     "${Python3_EXECUTABLE}" "${TOOLS_LAUNCHER_TEST_ROOT}/test_launcher_macos.py" "$<TARGET_FILE:launcher>")
+  defold_test_run_settings(_launcher_test_runner _launcher_test_run_options shared)
   add_custom_target(run_test_launcher_macos
-    COMMAND ${TOOLS_LAUNCHER_MACOS_TEST_COMMAND}
+    COMMAND ${_launcher_test_runner} ${TOOLS_LAUNCHER_MACOS_TEST_COMMAND}
     DEPENDS launcher
-    USES_TERMINAL
+    ${_launcher_test_run_options}
     VERBATIM)
   if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
-    add_dependencies(run_tests run_test_launcher_macos)
+    defold_add_to_run_tests(run_test_launcher_macos
+      COMMAND ${TOOLS_LAUNCHER_MACOS_TEST_COMMAND}
+      DEPENDS launcher)
   endif()
   defold_register_sequential_test_command(test_launcher_macos
     COMMAND ${TOOLS_LAUNCHER_MACOS_TEST_COMMAND}

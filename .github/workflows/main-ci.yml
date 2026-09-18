@@ -53,7 +53,9 @@ env:
   SERVICES_GITHUB_TOKEN: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.SERVICES_GITHUB_TOKEN || '' }}
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
   SLACK_WEBHOOK: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.SLACK_WEBHOOK || '' }}
-  DOTNET_CHANNEL: 9.0.1xx
+  # Use the same SDK on every platform. Bumping this version also creates a new
+  # cache for the installed SDK, including its runtime packs.
+  DOTNET_SDK_VERSION: 9.0.121
   # Shared by the Android SDK setup and the emulator the x86_64-android tests run on
   ANDROID_API_LEVEL: "36"
   DM_BOB_JAR: ${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
@@ -231,7 +233,7 @@ jobs:
         name: "Install Java"
         uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
-          java-version: "25"
+          java-version: "25.0.4+101.0.LTS"
           distribution: "temurin"
           # 'gradle' has to be the middle operand: in `a && b || c` an empty b is falsy.
           cache: "${{ (!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch') && 'gradle' || '' }}"
@@ -270,15 +272,23 @@ jobs:
           # This action keeps the SDK and NDK tree in the Actions cache. A contrib build
           # must not write there - see the cache steps above.
           cache: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch' }}
+      - name: "Cache dotnet SDK"
+        if: "matrix.dotnet && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          # Cache an isolated installation, without the runner image's other SDKs.
+          path: "${{ runner.temp }}/defold-dotnet"
+          # v2 drops the unrelated LTS runtime installed by setup-dotnet.
+          key: "${{ runner.os }}-${{ runner.arch }}-dotnet-sdk-${{ env.DOTNET_SDK_VERSION }}-v2"
       - name: "Setup dotnet"
         if: matrix.dotnet
-        id: setup_dotnet
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: "${{ env.DOTNET_CHANNEL }}"
+        env:
+          DOTNET_INSTALL_DIR: "${{ runner.temp }}/defold-dotnet"
+        # Run on cache hits too to set PATH and DOTNET_ROOT for subsequent steps.
+        run: python ci/setup_dotnet.py
       - name: "Pin dotnet SDK"
         if: matrix.dotnet
-        run: 'echo "{\"sdk\":{\"version\":\"${{ steps.setup_dotnet.outputs.dotnet-version }}\"}}" > global.json'
+        run: 'echo "{\"sdk\":{\"version\":\"${{ env.DOTNET_SDK_VERSION }}\"}}" > global.json'
       # macOS installs the signing certificate into the keychain instead of passing a platform.
       - name: "Install dependencies"
         if: runner.os == 'macOS'

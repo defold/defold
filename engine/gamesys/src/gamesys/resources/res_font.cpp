@@ -25,6 +25,7 @@
 #include <dlib/time.h>
 #include <dlib/utf8.h>
 
+#include <font/font.h>
 #include <font/fontcollection.h>
 #include <font/text_layout.h>
 #include <render/font/fontmap.h>
@@ -445,13 +446,7 @@ namespace dmGameSystem
 
     static float CalcSdfValue(float padding, float width)
     {
-        float on_edge_value = dmGameSystem::FontGenGetEdgeValue(); // [0 .. 255] e.g. 191
-        const float base_edge = SDF_EDGE_VALUE * 255.0f;
-
-        // Described in the stb_truetype.h as "what value the SDF should increase by when moving one SDF "pixel" away from the edge"
-        float pixel_dist_scale = (float)on_edge_value/padding;
-
-        return (base_edge - (pixel_dist_scale * width)) / 255.0f;;
+        return SDF_EDGE_VALUE - FONT_SDF_DISTANCE_SCALE * width / padding;
     }
 
     static void SetupParamsBase(dmRenderDDF::FontMap* ddf, dmhash_t name_hash, dmRender::FontMapParams* params)

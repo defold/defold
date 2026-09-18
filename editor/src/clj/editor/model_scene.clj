@@ -593,10 +593,10 @@
   (let [{:keys [aabb material-data material-name renderable-buffers]} renderable-mesh
         index-buffer (:index-buffer renderable-buffers)
         semantic-type->attribute-buffers (:attribute-buffers renderable-buffers)
-        attribute-reflection-infos (shader/attribute-reflection-infos shaders/mesh-preview-local-space nil)
+        attribute-reflection-infos (shader/attribute-reflection-infos shaders/mesh-preview-local-space)
         coordinate-space-info (graphics/coordinate-space-info attribute-reflection-infos)
         attribute-bindings (model-util/make-attribute-bindings scene-node-id attribute-reflection-infos semantic-type->attribute-buffers {})
-        selection-attribute-reflection-infos (shader/attribute-reflection-infos shaders/selection-instance-local-space nil)
+        selection-attribute-reflection-infos (shader/attribute-reflection-infos shaders/selection-instance-local-space)
         selection-attribute-bindings (model-util/make-attribute-bindings scene-node-id selection-attribute-reflection-infos semantic-type->attribute-buffers {})
 
         user-data
@@ -668,7 +668,7 @@
     (if (nil? material-scene-info)
       claimed-scene
       (let [{:keys [gpu-textures material-attribute-infos shader vertex-attribute-bytes vertex-space]} material-scene-info
-            shader-attribute-reflection-infos (shader/attribute-reflection-infos shader nil)
+            shader-attribute-reflection-infos (shader/attribute-reflection-infos shader)
             default-coordinate-space (case vertex-space
                                        :vertex-space-local :coordinate-space-local
                                        :vertex-space-world :coordinate-space-world)]
