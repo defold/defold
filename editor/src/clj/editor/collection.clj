@@ -743,9 +743,9 @@
      [:ddf-component-properties :ddf-component-properties]
      [:resource-property-build-targets :resource-property-build-targets]]))
 
-(defn- make-embedded-go [self {:keys [project] :as load-opts} owner-resource prototype-desc id transform-properties parent select-fn]
+(defn- make-embedded-go [self {:keys [workspace] :as load-opts} owner-resource prototype-desc id transform-properties parent select-fn]
   {:pre [(map? prototype-desc)]} ; GameObject$PrototypeDesc in map format.
-  (let [resource (project/make-embedded-resource project :editable "go" prototype-desc)
+  (let [resource (workspace/make-memory-resource workspace :editable "go" prototype-desc)
         node-type (project/resource-node-type resource)]
     (g/make-nodes [go-node [EmbeddedGOInstanceNode :id id]
                    resource-node [node-type :resource resource]]
@@ -856,10 +856,9 @@
                  (format "Unresolved child id '%s' referenced by parent '%s'." child parent)))))
     child->parent))
 
-(defn load-collection [load-opts {:keys [owner-resource] self :node-id collection :source-value}]
+(defn load-collection [{:keys [resolve-resource-fn] :as load-opts} {:keys [owner-resource] self :node-id collection :source-value}]
   {:pre [(map? collection)]} ; GameObject$CollectionDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis owner-resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (concat
       (gu/set-properties-from-pb-map self GameObject$CollectionDesc collection
         name :name

@@ -166,9 +166,8 @@
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
-(defn- load-render [_load-opts {:keys [owner-resource] self :node-id render-ddf :source-value}]
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis owner-resource %)
+(defn- load-render [{:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id render-ddf :source-value}]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)
         {script-path :script render-resources :render-resources} render-ddf]
     (concat
       (g/set-property self :script (resolve-resource script-path))

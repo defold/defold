@@ -805,10 +805,9 @@
   (g/connect self :group project :collision-groups))
 
 (defn- load-collision-object
-  [{:keys [project]} {:keys [owner-resource] self :node-id collision-object-desc :source-value}]
+  [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id collision-object-desc :source-value}]
   {:pre [(map? collision-object-desc)]} ; Physics$CollisionObjectDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis owner-resource %)
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)
         resolve-shape-resources (fn [shape]
                                   (cond-> shape
                                           (:mesh-scene shape)

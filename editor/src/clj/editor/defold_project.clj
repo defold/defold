@@ -84,47 +84,80 @@
 (def resource-node-type (comp resource-type->node-type resource/resource-type))
 
 (defn make-load-opts [project]
-  {:project project})
+  (g/with-auto-evaluation-context evaluation-context
+    (let [basis (:basis evaluation-context)
+          workspace (g/raw-property-value basis project :workspace)
+          code-preprocessor (workspace/code-preprocessors workspace evaluation-context)
+          script-intelligence (g/node-value project :script-intelligence evaluation-context)
+          project-directory (workspace/project-directory basis workspace)
+          proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)
 
-(defn- load-resource-node [{:keys [project] :as load-opts} {:keys [node-id resource] :as node-load-info} transpiler-tx-data-fn]
+          resolve-resource-fn
+          (fn resolve-resource-fn [owner-resource path]
+            (when-not (coll/empty? path)
+              (let [owner-proj-path (some-> owner-resource resource/proj-path)
+                    proj-path (workspace/resolve-proj-path project-directory owner-proj-path path)]
+                (proj-path->resource proj-path))))
+
+          editable->type-ext->resource-type
+          {true (resource/resource-types-by-type-ext basis workspace true)
+           false (resource/resource-types-by-type-ext basis workspace false)}]
+
+      {:code-preprocessor code-preprocessor
+       :editable->type-ext->resource-type editable->type-ext->resource-type
+       :project project
+       :resolve-resource-fn resolve-resource-fn
+       :script-intelligence script-intelligence
+       :workspace workspace})))
+
+(defn- load-resource-node [{:keys [project] :as load-opts} {:keys [node-id resource resource-type] :as node-load-info} transpiler-tx-data-fn]
   (try
-    (let [{:keys [load-fn] :as resource-type} (resource/resource-type resource)
+    (let [load-fn (:load-fn resource-type)
           transpiler-tx-data (transpiler-tx-data-fn node-id resource)]
       (cond-> []
 
-              load-fn
-              (into coll/flatten-xf
-                    (load-fn load-opts node-load-info))
+        load-fn
+        (into coll/flatten-xf
+              (load-fn load-opts node-load-info))
 
-              (and (:auto-connect-save-data? resource-type)
-                   (resource/save-tracked? resource))
-              (into (g/connect node-id :save-data project :save-data))
+        (and (:auto-connect-save-data? resource-type)
+             (resource/save-tracked? resource))
+        (into (g/connect node-id :save-data project :save-data))
 
-              transpiler-tx-data
-              (into transpiler-tx-data)
+        transpiler-tx-data
+        (into transpiler-tx-data)
 
-              :always
-              not-empty))
+        :always
+        not-empty))
     (catch Exception exception
       (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception exception)
-      (let [node-type (resource-node-type resource)
+      (let [node-type (:node-type resource-type)
             invalid-content-error (resource-io/invalid-content-error node-id nil :fatal resource exception)]
         (g/mark-defective node-id node-type invalid-content-error)))
     (catch Throwable throwable
-      (let [node-type (resource-node-type resource)
+      (let [node-type (:node-type resource-type)
             proj-path (resource/proj-path resource)]
         (throw (ex-info (format "Error when loading resource '%s'" proj-path)
                         {:node-type node-type
                          :proj-path proj-path}
                         throwable))))))
 
+(defn- embedded-node-load-info
+  [owner-resource embedded-resource embedded-resource-node-id source-value]
+  {:pre [(resource/resource? owner-resource)
+         (resource/memory-resource? embedded-resource)
+         (g/node-id? embedded-resource-node-id)]}
+  {:node-id embedded-resource-node-id
+   :owner-resource owner-resource
+   :resource embedded-resource
+   :resource-type (resource/resource-type embedded-resource)
+   :source-value source-value})
+
 (defn load-embedded-resource-node [load-opts owner-resource embedded-resource-node-id embedded-resource source-value]
   (let [embedded-resource-type (resource/resource-type embedded-resource)
-        load-fn (:load-fn embedded-resource-type)]
-    (load-fn load-opts {:node-id embedded-resource-node-id
-                        :owner-resource owner-resource
-                        :resource embedded-resource
-                        :source-value source-value})))
+        load-fn (:load-fn embedded-resource-type)
+        node-load-info (embedded-node-load-info owner-resource embedded-resource embedded-resource-node-id source-value)]
+    (load-fn load-opts node-load-info)))
 
 (defn- make-file-not-found-error [node-id resource]
   (resource-io/file-not-found-error node-id nil :fatal resource))
@@ -135,7 +168,46 @@
    :resource resource
    :read-error (make-file-not-found-error node-id resource)})
 
-(defn read-node-load-info [read-opts node-id resource]
+(defn read-node-load-info
+  "Reads from disk and returns a node-load-info map. The map contains the
+  following entries:
+
+  :node-id
+    The supplied node-id.
+
+  :resource
+    The supplied resource.
+
+  :owner-resource
+    The Resource that owns the node-id. For node-load-infos returned by this
+    function, this will always be the supplied resource, but we also synthesize
+    node-load-infos when loading embedded resources. In that case, the
+    :owner-resource will be the Resource that ultimately owns the embedded
+    MemoryResource, and :resource will be the MemoryResource we're reading from.
+    Use the :owner-resource to resolve paths and decide editability, and the
+    :resource to read data and decide the resource-type.
+
+  :resource-type
+    The resource-type of the supplied resource.
+
+  :read-error (optional)
+    If the resource does not exist, or an error occurs when reading, this will
+    be an ErrorValue with details about what went wrong. None of the fields
+    below will be present if we have a :read-error.
+
+  :source-value (optional)
+    When the resource-type specifies a :read-fn, this will be its return value
+    after we successfully call it.
+
+  :disk-sha256 (optional)
+    When the resource-type specifies a :read-fn, this will be a hex string hash
+    of the bytes consumed during the read operation.
+
+  :dependency-proj-paths (optional)
+    Whe the resource-type specifies both a :read-fn and a :dependencies-fn, this
+    will be a vector of proj-paths reported as dependencies by the
+    :dependencies-fn when we give it the source-value returned by the :read-fn."
+  [read-opts node-id resource]
   {:pre [(g/node-id? node-id)]}
   (let [resource-metrics (:resource-metrics read-opts)
         editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
@@ -197,7 +269,8 @@
 
     (cond-> {:node-id node-id
              :owner-resource resource
-             :resource resource}
+             :resource resource
+             :resource-type resource-type}
             read-error (assoc :read-error read-error)
             source-value (assoc :source-value source-value)
             disk-sha256 (assoc :disk-sha256 disk-sha256)
@@ -1008,10 +1081,6 @@
                 :resource-metrics @resource-metrics
                 :transaction-metrics @transaction-metrics}))
      project)))
-
-(defn make-embedded-resource [project editability ext data]
-  (let [workspace (g/node-value project :workspace)]
-    (workspace/make-memory-resource workspace editability ext data)))
 
 (defn all-save-data
   ([project]

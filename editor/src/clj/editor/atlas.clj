@@ -890,9 +890,8 @@
   (let [image-msgs (map #(assoc default-image-msg :image %) image-resources)]
     (make-image-nodes-in-atlas atlas-node image-msgs)))
 
-(defn- resolve-image-msgs [owner-resource image-msgs remove-duplicates]
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis owner-resource %)]
+(defn- resolve-image-msgs [resolve-resource-fn owner-resource image-msgs remove-duplicates]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (into []
           (comp (remove (comp empty? :image))
                 (if remove-duplicates
@@ -902,9 +901,9 @@
                        (update atlas-image-msg :image resolve-resource))))
           image-msgs)))
 
-(defn- make-atlas-animation [atlas-node owner-resource atlas-animation]
+(defn- make-atlas-animation [atlas-node resolve-resource-fn owner-resource atlas-animation]
   {:pre [(map? atlas-animation)]} ; AtlasProto$AtlasAnimation in map format.
-  (let [image-msgs (resolve-image-msgs owner-resource (:images atlas-animation) false)]
+  (let [image-msgs (resolve-image-msgs resolve-resource-fn owner-resource (:images atlas-animation) false)]
     (g/make-nodes [animation-node AtlasAnimation]
       (gu/set-properties-from-pb-map animation-node AtlasProto$AtlasAnimation atlas-animation
         id :id
@@ -915,9 +914,9 @@
       (attach-animation-to-atlas atlas-node animation-node)
       (make-image-nodes-in-animation animation-node image-msgs))))
 
-(defn load-atlas [{:keys [project]} {:keys [owner-resource] self :node-id atlas :source-value}]
+(defn load-atlas [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id atlas :source-value}]
   {:pre [(map? atlas)]} ; AtlasProto$Atlas in map format.
-  (let [image-msgs (resolve-image-msgs owner-resource (:images atlas) true)]
+  (let [image-msgs (resolve-image-msgs resolve-resource-fn owner-resource (:images atlas) true)]
     (concat
       (g/connect project :build-settings self :build-settings)
       (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
@@ -932,7 +931,7 @@
           (g/set-property self :max-page-size [(or max-page-width (default-max-page-size 0))
                                                (or max-page-height (default-max-page-size 1))])))
       (make-image-nodes-in-atlas self image-msgs)
-      (map (partial make-atlas-animation self owner-resource)
+      (map (partial make-atlas-animation self resolve-resource-fn owner-resource)
            (:animations atlas)))))
 
 (defn- selection->atlas [selection evaluation-context] (handler/adapt-single selection AtlasNode evaluation-context))
@@ -954,13 +953,14 @@
 (defn- add-animation-group-handler [app-view atlas-node]
   (let [basis (g/now)
         owner-resource (resource-node/owner-resource basis atlas-node)
+        resolve-resource-fn #(workspace/resolve-resource basis %)
         op-seq (gensym)
         [animation-node] (g/tx-nodes-added
                            (g/transact
                              (concat
                                (g/operation-sequence op-seq)
                                (g/operation-label (localization/message "operation.atlas.add-animation"))
-                               (make-atlas-animation atlas-node owner-resource default-animation))))]
+                               (make-atlas-animation atlas-node resolve-resource-fn owner-resource default-animation))))]
     (select! app-view [animation-node] op-seq)))
 
 (handler/defhandler :edit.add-embedded-component :workbench

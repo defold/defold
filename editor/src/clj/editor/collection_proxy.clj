@@ -78,10 +78,9 @@
                         :dep-resources dep-resources}
             :deps dep-build-targets})])))
 
-(defn load-collection-proxy [_load-opts {:keys [owner-resource] self :node-id collection-proxy-desc :source-value}]
+(defn load-collection-proxy [{:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id collection-proxy-desc :source-value}]
   {:pre [(map? collection-proxy-desc)]} ; CollectionProxy$CollectionProxyDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis owner-resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (gu/set-properties-from-pb-map self CollectionProxy$CollectionProxyDesc collection-proxy-desc
       collection (resolve-resource :collection)
       exclude :exclude)))

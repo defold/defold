@@ -783,10 +783,10 @@
                                             [:sha256 :external-buffer-sha256s]))
           new-value)))
 
-(defn load-model-scene-node [{:keys [project]} {:keys [owner-resource] self :node-id external-buffer-uris :source-value}]
-  (let [basis (g/now)
-        external-buffer-resources (mapv #(workspace/resolve-resource basis owner-resource %)
-                                        external-buffer-uris)]
+(defn- load-model-scene [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id external-buffer-uris :source-value}]
+  (let [external-buffer-resources
+        (mapv #(resolve-resource-fn owner-resource %)
+              external-buffer-uris)]
     (into (g/connect project :settings self :project-settings)
           (g/set-property self :external-buffer-resources external-buffer-resources))))
 
@@ -815,14 +815,16 @@
   (output renderable-mesh-set g/Any :cached produce-renderable-mesh-set)
   (output scene g/Any :cached produce-scene))
 
+(defn- read-model-scene [_read-opts _owner-resource readable]
+  (model-loader/read-external-buffer-uris readable))
+
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
     :ext model-file-types
     :label (localization/message "resource.type.model-scene")
     :node-type ModelSceneNode
-    :load-fn load-model-scene-node
-    :read-fn (fn [_read-opts _owner-resource readable]
-               (model-loader/read-external-buffer-uris readable))
+    :load-fn load-model-scene
+    :read-fn read-model-scene
     :icon mesh-icon
     :icon-class :design
     :view-types [:scene :text]))

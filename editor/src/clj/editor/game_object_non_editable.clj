@@ -45,10 +45,10 @@
    [:resource-property-build-targets :other-resource-property-build-targets]
    [:scene :referenced-component-scenes]])
 
-(defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data {:keys [project] :as load-opts} owner-resource]
+(defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data {:keys [workspace] :as load-opts} owner-resource]
   (let [embedded-resource-ext (:type embedded-component-resource-data)
         embedded-resource-pb-map (:data embedded-component-resource-data)
-        embedded-resource (project/make-embedded-resource project :non-editable embedded-resource-ext embedded-resource-pb-map)
+        embedded-resource (workspace/make-memory-resource workspace :non-editable embedded-resource-ext embedded-resource-pb-map)
         embedded-resource-node-type (project/resource-node-type embedded-resource)]
     (g/make-nodes [embedded-resource-node-id [embedded-resource-node-type :resource embedded-resource]]
       (project/load-embedded-resource-node load-opts owner-resource embedded-resource-node-id embedded-resource embedded-resource-pb-map)

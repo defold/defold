@@ -349,10 +349,9 @@
   (output gpu-texture g/Any :cached (g/fnk [_node-id gpu-texture tex-params]
                                       (texture/set-params gpu-texture tex-params))))
 
-(defn load-label [_load-opts {:keys [owner-resource] self :node-id label :source-value}]
+(defn load-label [{:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id label :source-value}]
   {:pre [(map? label)]} ; Label$LabelDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis owner-resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (gu/set-properties-from-pb-map self Label$LabelDesc label
       text :text
       style :style

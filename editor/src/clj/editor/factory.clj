@@ -24,8 +24,7 @@
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.validation :as validation]
-            [editor.workspace :as workspace])
+            [editor.validation :as validation])
   (:import [com.dynamo.gamesys.proto GameSystem$CollectionFactoryDesc GameSystem$FactoryDesc]))
 
 (set! *warn-on-reflection* true)
@@ -87,12 +86,11 @@
          [(resource/proj-path prototype)])]))
 
 (defn load-factory
-  [factory-type _load-opts {:keys [owner-resource] self :node-id any-factory-desc :source-value}]
+  [factory-type {:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id any-factory-desc :source-value}]
   {:pre [(contains? factory-types factory-type)
          (map? any-factory-desc)]} ; GameSystem$FactoryDesc or GameSystem$CollectionFactoryDesc in map format.
   (let [pb-class (:pb-type (get factory-types factory-type))
-        basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis owner-resource %)]
+        resolve-resource #(resolve-resource-fn owner-resource %)]
     (into [(g/set-property self :factory-type factory-type)]
           (gu/set-properties-from-pb-map self pb-class any-factory-desc
             prototype (resolve-resource :prototype)

@@ -132,6 +132,41 @@
           (is (coll/every? #(ifn? (:resolve-proj-path-fn %)) @seen-read-opts))
           (is (coll/every? #(= project (:project %)) @seen-load-opts))
           (is (coll/every? #(identical? (first @seen-load-opts) %) @seen-load-opts))
+          (let [expected-workspace workspace
+
+                {:keys [code-preprocessor
+                        editable->type-ext->resource-type
+                        resolve-resource-fn
+                        script-intelligence
+                        workspace]}
+                (first @seen-load-opts)
+
+                owner-resource (workspace/find-resource workspace "/a1.type_a")
+                target-resource (workspace/find-resource workspace "/a2.type_a")]
+
+            (is (= expected-workspace workspace))
+            (is (= (project/code-preprocessors project) code-preprocessor))
+            (is (= (project/script-intelligence project) script-intelligence))
+            (doseq [editable [true false]]
+              (is (= (workspace/get-resource-type-map workspace editable)
+                     (editable->type-ext->resource-type editable))))
+            (with-redefs [g/now (fn [] (throw (AssertionError. "Unexpected graph query")))
+                          g/unsafe-basis (fn [] (throw (AssertionError. "Unexpected graph query")))
+                          g/node-value (fn [& _] (throw (AssertionError. "Unexpected graph evaluation")))
+                          g/raw-property-value (fn [& _] (throw (AssertionError. "Unexpected graph property read")))]
+              (is (identical? target-resource (resolve-resource-fn owner-resource "a2.type_a")))
+              (is (identical? target-resource (resolve-resource-fn owner-resource "/a2.type_a")))
+              (is (identical? target-resource (resolve-resource-fn nil "/a2.type_a")))
+              (is (thrown-with-msg?
+                    Exception
+                    #"Unable to resolve relative path \"a2.type_a\" without a base-proj-path."
+                    (resolve-resource-fn nil "a2.type_a")))
+              (is (nil? (resolve-resource-fn owner-resource nil)))
+              (is (nil? (resolve-resource-fn owner-resource "")))
+              (let [missing-resource (resolve-resource-fn owner-resource "missing.type_a")]
+                (is (resource/file-resource? missing-resource))
+                (is (= "/missing.type_a" (resource/proj-path missing-resource)))
+                (is (identical? missing-resource (resolve-resource-fn owner-resource "missing.type_a"))))))
           (is (= "t" (g/node-value a1 :value-piece))))))))
 
 (deftest embedded-load-owner-resource

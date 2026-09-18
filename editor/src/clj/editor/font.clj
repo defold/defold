@@ -1565,7 +1565,7 @@
   (doto (BMFont.)
     (.parse input-stream)))
 
-(defn load-bitmap-font-source [_load-opts {:keys [owner-resource resource] self :node-id}]
+(defn load-bitmap-font-source [{:keys [resolve-resource-fn workspace]} {:keys [owner-resource resource] self :node-id}]
   (let [[^BMFont bm-font disk-sha256] (resource/read-source-value+sha256-hex resource read-bm-font)]
     (let [;; this weird dance stolen from Fontc.java
           texture-file-name (-> bm-font
@@ -1575,12 +1575,11 @@
                                 (Paths/get (into-array String []))
                                 (.getFileName)
                                 (.toString))
-          texture-resource (workspace/resolve-resource owner-resource texture-file-name)]
+          texture-resource (resolve-resource-fn owner-resource texture-file-name)]
       (concat
         (g/set-property self :texture texture-resource)
         (when disk-sha256
-          (let [workspace (resource/workspace resource)]
-            (workspace/set-disk-sha256 workspace self disk-sha256)))))))
+          (workspace/set-disk-sha256 workspace self disk-sha256))))))
 
 (g/defnode TrueTypeFontSourceNode
   (inherits resource-node/ResourceNode)
@@ -2000,10 +1999,9 @@
                                              :native-renderer-spec (:native-renderer-spec font-map)}))
   (output preview-text g/Str :cached produce-preview-text))
 
-(defn load-font [{:keys [project]} {:keys [owner-resource] self :node-id font-desc :source-value}]
+(defn load-font [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id font-desc :source-value}]
   {:pre [(map? font-desc)]} ; Font$FontDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis owner-resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (into
       [(g/connect project :use-font-layout self :use-font-layout)
        (g/connect project :use-rich-text self :use-rich-text)

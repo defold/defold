@@ -640,10 +640,9 @@
           (assoc :textures [{:sampler "texture_sampler"
                              :texture tile-set}])))
 
-(defn- load-sprite [{:keys [project]} {:keys [owner-resource] self :node-id sprite-desc :source-value}]
+(defn- load-sprite [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id sprite-desc :source-value}]
   {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis owner-resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)

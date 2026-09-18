@@ -554,9 +554,9 @@
      [:scene :scene]
      [:build-targets :source-build-targets]]))
 
-(defn- add-embedded-component [self {:keys [project] :as load-opts} owner-resource type pb-map id transform-properties select-fn]
+(defn- add-embedded-component [self {:keys [workspace] :as load-opts} owner-resource type pb-map id transform-properties select-fn]
   {:pre [(map? pb-map)]}
-  (let [resource (project/make-embedded-resource project :editable type pb-map)
+  (let [resource (workspace/make-memory-resource workspace :editable type pb-map)
         node-type (project/resource-node-type resource)]
     (g/make-nodes [comp-node [EmbeddedComponent :id id]
                    resource-node [node-type :resource resource]]
@@ -650,11 +650,9 @@
           workspace (:workspace (g/node-value self :resource evaluation-context))]
       (add-embedded-component-options basis self workspace user-data))))
 
-(defn load-game-object [{:keys [project] :as load-opts} {:keys [owner-resource] self :node-id prototype-desc :source-value}]
+(defn load-game-object [{:keys [resolve-resource-fn workspace] :as load-opts} {:keys [owner-resource] self :node-id prototype-desc :source-value}]
   {:pre [(map? prototype-desc)]} ; GameObject$PrototypeDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis owner-resource %)
-        workspace (project/workspace project)
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)
         ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
     (concat
       (for [component (:components prototype-desc)

@@ -387,9 +387,8 @@
         (g/connect self :use-rich-text project :use-rich-text)
         (g/connect self :settings-map project :settings)))))
 
-(defn- load-game-project [{:keys [project]} {:keys [owner-resource source-value] self :node-id}]
-  (let [workspace (resource/workspace owner-resource)
-        resource-setting-connections (reduce-kv (fn [m k v] (assoc m k [self v])) {} resource-setting-connections-template)]
+(defn- load-game-project [{:keys [workspace] :as load-opts} {:keys [owner-resource source-value] self :node-id}]
+  (let [resource-setting-connections (reduce-kv (fn [m k v] (assoc m k [self v])) {} resource-setting-connections-template)]
     (concat
       (g/connect workspace :resource-map self :resource-map)
       (g/connect workspace :resource-snapshot self :resource-snapshot)
@@ -403,7 +402,7 @@
         (g/connect settings-node :meta-info self :meta-info)
         (g/connect settings-node :resource-settings self :resource-settings)
         (g/connect settings-node :setting-errors self :build-errors)
-        (settings/load-settings-node project self settings-node owner-resource source-value gpcore/basic-meta-info resource-setting-connections)))))
+        (settings/load-settings-node load-opts self settings-node owner-resource source-value gpcore/basic-meta-info resource-setting-connections)))))
 
 ;; Test support
 

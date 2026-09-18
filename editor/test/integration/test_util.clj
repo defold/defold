@@ -728,6 +728,23 @@
              (lsp/await (lsp/get-lsp))
              ret#))))))
 
+(defn unexpected-graph-query [& _args]
+  (throw (AssertionError. "Graph queries are not allowed from this context.")))
+
+(defmacro with-graph-queries-blocked
+  [mode & body]
+  (case mode
+    :allow-unsafe-basis
+    `(with-redefs [g/make-evaluation-context unexpected-graph-query
+                   g/now unexpected-graph-query]
+       ~@body)
+
+    :disallow-unsafe-basis
+    `(with-redefs [g/make-evaluation-context unexpected-graph-query
+                   g/now unexpected-graph-query
+                   g/unsafe-basis unexpected-graph-query]
+       ~@body)))
+
 (defmacro with-ui-run-later-rebound
   [& forms]
   `(let [laters# (atom [])]

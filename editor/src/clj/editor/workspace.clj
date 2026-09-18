@@ -273,13 +273,10 @@ ordinary paths."
     :load-fn            a function from load-opts and node-load-info to
                         transaction steps, invoked on loading the resource. The
                         load-opts map is shared across a load batch and contains
-                        :project. The node-load-info is returned by
-                        editor.defold-project/read-node-load-info and includes
-                        :node-id, :owner-resource, :resource and, when read,
-                        :source-value. Resolve paths against :owner-resource;
-                        read contents from :resource. For embedded resources,
-                        :owner-resource is the containing file resource and
-                        :resource is the MemoryResource being loaded.
+                        various helpers useful during loading. See the
+                        project/make-load-opts function for details. For details
+                        on node-load-info, see the project/read-node-load-info
+                        function.
     :read-fn            a fn from read-opts, owner-resource and a readable to a
                         source-value. The readable can be a resource, stream or
                         reader. Embedded values retain their containing resource
@@ -513,8 +510,17 @@ ordinary paths."
   ^String [^File project-directory ^String base-proj-path ^String proj-path-or-relative-path]
   (if (absolute-proj-path? proj-path-or-relative-path)
     proj-path-or-relative-path
-    (if-not (resource/proj-path? base-proj-path)
+    (cond
+      (nil? base-proj-path)
+      (throw (ex-info
+               (format "Unable to resolve relative path %s without a base-proj-path."
+                       (pr-str proj-path-or-relative-path))
+               {:relative-path proj-path-or-relative-path}))
+
+      (not (resource/proj-path? base-proj-path))
       (throw (IllegalArgumentException. (str "base-proj-path is not a proj-path: " (pr-str base-proj-path))))
+
+      :else
       (let [project-directory-path (path/of project-directory)
             base-file-path (path/of project-directory-path (subs base-proj-path 1))
             resolved-file-path (path/normalized (path/resolve-sibling base-file-path proj-path-or-relative-path))]

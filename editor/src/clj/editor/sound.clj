@@ -152,10 +152,9 @@
       (validation/prop-error :fatal _node-id :sound validation/prop-nil? (seq dep-build-targets) sound-message)
       [(make-sound-desc-build-target _node-id resource save-value dep-build-targets)]))
 
-(defn load-sound [_load-opts {:keys [owner-resource] self :node-id sound-desc :source-value}]
+(defn load-sound [{:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id sound-desc :source-value}]
   {:pre [(map? sound-desc)]} ; Sound$SoundDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis owner-resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (gu/set-properties-from-pb-map self Sound$SoundDesc sound-desc
       sound (resolve-resource :sound)
       looping (protobuf/int->boolean :looping)

@@ -560,10 +560,9 @@
           (assoc :material default-material-proj-path)))
 
 (defn- load-tile-map
-  [{:keys [project]} {:keys [owner-resource] self :node-id tile-grid :source-value}]
+  [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id tile-grid :source-value}]
   {:pre [(map? tile-grid)]} ; Tile$TileGrid in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis owner-resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (gu/set-properties-from-pb-map self Tile$TileGrid tile-grid

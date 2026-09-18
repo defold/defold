@@ -1780,3 +1780,37 @@
 
       (when-not (is (= 0 (count connection-rule-violations)))
         (coll/run!-> connection-rule-violations pprint/pprint)))))
+
+(deftest load-rule-violations-test
+  (test-support/with-clean-system
+    (test-util/with-ui-run-later-rebound
+      (let [workspace (test-util/setup-workspace! project-path)
+            _ (test-util/fetch-libraries! workspace)
+            node-load-info-tx-data project/node-load-info-tx-data
+            resolved-paths (atom #{})]
+
+        (testing "No graph queries during load."
+          (with-redefs [project/node-load-info-tx-data
+                        (fn [node-load-info load-opts transpiler-tx-data-fn]
+                          (let [resolve-resource-fn (:resolve-resource-fn load-opts)
+                                load-opts (assoc load-opts
+                                            :resolve-resource-fn
+                                            (fn mock-resolve-resource-fn [owner-resource path]
+                                              (swap! resolved-paths conj path)
+                                              (resolve-resource-fn owner-resource path)))]
+                            (test-util/with-graph-queries-blocked :allow-unsafe-basis
+                              (coll/into-> (node-load-info-tx-data node-load-info load-opts transpiler-tx-data-fn) []
+                                coll/flatten-xf))))]
+            (test-util/setup-project! workspace)))
+
+        ;; Sanity check to verify files were resolved.
+        (is (contains? @resolved-paths "/referenced/referenced.collection"))
+        (is (contains? @resolved-paths "/referenced/referenced.go"))
+        (is (contains? @resolved-paths "/referenced/referenced.gui"))
+
+        ;; Sanity check to verify nodes were loaded.
+        (let [project (project/get-project)
+              checked-sprite (test-util/resource-node project "/checked.sprite")]
+          (is (= "diamond" (g/node-value checked-sprite :default-animation)))
+          (is (= :blend-mode-add (g/node-value checked-sprite :blend-mode)))
+          (is (= [16.0 16.0 16.0 16.0] (g/node-value checked-sprite :slice9))))))))
