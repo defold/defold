@@ -38,9 +38,6 @@ def get_release_info(archive_path, channel):
         info = json.load(body)
     if not isinstance(info, dict) or not isinstance(info.get('sha1'), str) or not re.fullmatch('[0-9a-f]{40}', info['sha1']):
         raise ValueError('Invalid release SHA in %s; refusing to replace the published channel' % key)
-    automatic_sha1 = info.get('automatic_sha1')
-    if automatic_sha1 is not None and (not isinstance(automatic_sha1, str) or not re.fullmatch('[0-9a-f]{40}', automatic_sha1)):
-        raise ValueError('Invalid automatic release SHA in %s; refusing to replace the published channel' % key)
     return info
 
 def init_boto_data_path():

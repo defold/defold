@@ -630,8 +630,7 @@ class Configuration(object):
                  gcloud_keyname = None,
                  gcloud_certfile = None,
                  gcloud_keyfile = None,
-                 verbose = False,
-                 manual_alpha_release = False):
+                 verbose = False):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -692,7 +691,6 @@ class Configuration(object):
         self.gcloud_certfile = gcloud_certfile
         self.gcloud_keyfile = gcloud_keyfile
         self.verbose = verbose
-        self.manual_alpha_release = manual_alpha_release
         self.build_tracker = BuildTimeTracker(logger=self._log)
         self._cmake_configure_inputs_mtime_cache = {}
 
@@ -3426,7 +3424,7 @@ class Configuration(object):
         cmd = 'git push -f origin %s' % tag
         run.shell_command(cmd)
 
-    def _release_web_pages(self, releases, release_info):
+    def _release_web_pages(self, releases):
         u = urlparse(self.get_archive_path())
         hostname = u.hostname
         bucket = s3.get_bucket(hostname)
@@ -3453,8 +3451,8 @@ class Configuration(object):
 
         self._log('Uploading %s/info.json' % self.channel)
         new_obj = bucket.Object('%s/info.json' % self.channel)
-        # Store the live SHA and normal alpha baseline together, before GitHub uploads.
-        new_obj_content = json.dumps(release_info)
+        new_obj_content = json.dumps({'version': self.version,
+                                                 'sha1' : release_sha1})
         new_obj.put(Body=new_obj_content, ContentType='application/json')
 
         # Editor update-v4.json
@@ -3528,9 +3526,6 @@ class Configuration(object):
             self._log("No channel specified!")
             sys.exit(0)
 
-        if self.manual_alpha_release and self.channel != 'alpha':
-            raise ValueError('--manual-alpha-release requires --channel=alpha')
-
         if run.shell_command('git config -l').find('remote.origin.url') != -1 and os.environ.get('GITHUB_WORKFLOW', None) is None:
             # NOTE: Only run fetch when we have a configured remote branch.
             # When running on buildbot we don't but fetching should not be required either
@@ -3541,14 +3536,9 @@ class Configuration(object):
         # The CI release job holds the channel lock for this check and all publication
         # below. Public channel metadata must be checked before even moving the tag.
         release_sha1 = self._git_sha1()
-        release_info = None
-        if not build_private.is_repo_private():
-            # Read S3 directly so a CDN cannot hide the last publication.
-            previous_info = s3.get_release_info(self.get_archive_path(), self.channel)
-            if release_to_github.is_stale_release(self, release_sha1, previous_info):
-                self._set_release_output(False)
-                return
-            release_info = release_to_github.make_release_info(self, release_sha1, previous_info)
+        if not build_private.is_repo_private() and release_to_github.is_stale_release(self, release_sha1):
+            self._set_release_output(False)
+            return
 
         prerelease = self.channel in ('alpha', 'beta')
         tag_name = None
@@ -3578,7 +3568,7 @@ class Configuration(object):
 
         # Only release the web pages for the public repo
         if not build_private.is_repo_private():
-            self._release_web_pages(releases, release_info)
+            self._release_web_pages(releases);
 
         # Release to github as well
         if tag_name:
@@ -4258,10 +4248,6 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       default = None,
                       help = 'A specific sha1 to use in github operations')
 
-    parser.add_option('--manual-alpha-release', dest='manual_alpha_release',
-                      action = 'store_true', default = False,
-                      help = 'Publish a temporary alpha release without advancing the normal dev release baseline')
-
     parser.add_option('--version', dest='version',
                       default = None,
                       help = 'Version to use instead of from VERSION file')
@@ -4396,8 +4382,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       gcloud_keyname = options.gcloud_keyname,
                       gcloud_certfile = options.gcloud_certfile,
                       gcloud_keyfile = options.gcloud_keyfile,
-                      verbose = options.verbose,
-                      manual_alpha_release = options.manual_alpha_release)
+                      verbose = options.verbose)
 
     commands_without_dynamo_home = ['shell', 'save_env', 'add_private_repo']
     needs_dynamo_home = any(cmd not in commands_without_dynamo_home for cmd in args)
