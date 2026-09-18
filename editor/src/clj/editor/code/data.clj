@@ -47,7 +47,8 @@
   (complex-text-width [this text] "The shaped width of a string containing a complex script.")
   (complex-text-col->x [this text col] "The visual x position of a logical offset in a complex string.")
   (complex-text-x->col [this text x] "The logical offset nearest a visual x position in a complex string.")
-  (complex-text-x->character-col [this text x] "The logical offset of the character at a visual x position in a complex string."))
+  (complex-text-x->character-col [this text x] "The logical offset of the character at a visual x position in a complex string.")
+  (complex-text-selection-spans [this text start-offset end-offset] "Visual [x0 x1] spans, relative to the run's left edge, covering the logical offsets [start-offset end-offset) in a complex string."))
 
 (defn- combining-character? [character]
   (let [character-type (Character/getType (unchecked-char character))]
@@ -730,6 +731,51 @@
                     (complex-text-width glyph-metrics (.substring line start end))))
           (advance-text-impl glyph-metrics tab-stops line index (count line) x))))))
 
+(defn- line-selection-spans
+  "The visual [x0 x1] document-space spans covering the columns
+  [start-col end-col) of a line. A selection that crosses a direction boundary
+  covers several disjoint spans rather than one, so this returns a vector."
+  [glyph-metrics tab-stops ^String line start-col end-col]
+  (let [ranges (complex-text-ranges line)
+        line-length (count line)
+        ;; The x an ordinary stretch is painted at comes from the advance walk,
+        ;; which is monotonic there, so a selected part of one is a single span.
+        ordinary-spans (fn [spans ^long from ^long to ^double from-x]
+                         (let [a (max start-col from)
+                               b (min end-col to)]
+                           (if (< a b)
+                             (let [x0 (advance-text-impl glyph-metrics tab-stops line from a from-x)
+                                   x1 (advance-text-impl glyph-metrics tab-stops line a b x0)]
+                               (conj spans [x0 x1]))
+                             spans)))
+        ;; The shaper reports a range's spans relative to where the run begins,
+        ;; which is the accumulated advance x - not col->x of the start column,
+        ;; since that routes through caret geometry and in a right-to-left run
+        ;; answers with the run's right edge.
+        range-spans (fn [spans ^long rs ^long re ^double base-x]
+                      (let [a (max start-col rs)
+                            b (min end-col re)]
+                        (if (< a b)
+                          (into spans
+                                (map (fn [[^double x0 ^double x1]]
+                                       [(+ base-x x0) (+ base-x x1)]))
+                                (complex-text-selection-spans glyph-metrics (subs line rs re) (- a rs) (- b rs)))
+                          spans)))]
+    (loop [range-index 0
+           index 0
+           x 0.0
+           spans []]
+      (if-let [[^long start ^long end] (get ranges range-index)]
+        (let [complex-start-x (advance-text-impl glyph-metrics tab-stops line index start x)
+              complex-end-x (+ ^double complex-start-x ^double (complex-text-width glyph-metrics (subs line start end)))]
+          (recur (inc range-index)
+                 end
+                 complex-end-x
+                 (-> spans
+                     (ordinary-spans index start x)
+                     (range-spans start end complex-start-x))))
+        (ordinary-spans spans index line-length x)))))
+
 (defn text-width
   "Simple text width measurement. Does not take tab stops into account, so don't feed it strings with tabs.
   Instead, you should be using the advance-text function to find the x position where text ends."
@@ -1286,33 +1332,72 @@
         top (- (row->y layout (.row adjusted-cursor)) 0.5)]
     (->Rect left top 1.0 (inc ^double (line-height (.glyph layout))))))
 
+(defn- shaped-selection?
+  "True if any shaped range of the line overlaps the columns [start-col end-col)."
+  [^String line ^long start-col ^long end-col]
+  (boolean (some (fn [[^long start ^long end]]
+                   (and (< start end-col) (> end start-col)))
+                 (complex-text-ranges line))))
+
+(defn- merge-rects
+  "Combines rects that abut or overlap, so a selection that happens to be
+  contiguous comes out as one rect."
+  [rects]
+  (reduce (fn [merged ^Rect rect]
+            (let [^Rect previous (peek merged)]
+              (if (and (some? previous)
+                       (<= (.x rect) (+ (.x previous) (.w previous) 0.5)))
+                (conj (pop merged)
+                      (->Rect (.x previous)
+                              (.y previous)
+                              (- (max (+ (.x previous) (.w previous))
+                                      (+ (.x rect) (.w rect)))
+                                 (.x previous))
+                              (.h previous)))
+                (conj merged rect))))
+          []
+          (sort-by (fn [^Rect rect] (.x rect)) rects)))
+
 (defn cursor-range-rects
   [^LayoutInfo layout lines ^CursorRange adjusted-cursor-range]
   (let [canvas ^Rect (.canvas layout)
         ^double line-height (line-height (.glyph layout))
         ;; Inside a right-to-left range the visual x decreases as the column
         ;; increases, so two columns' x positions are not ordered. The rect is
-        ;; the span between them either way. A selection crossing a direction
-        ;; boundary is drawn as one rect covering the whole visual span rather
-        ;; than as several - that wants range geometry from the shaper.
+        ;; the span between them either way.
         span-rect (fn [^double top ^double start-x ^double end-x]
                     (->Rect (min start-x end-x) top (Math/abs (- end-x start-x)) line-height))
-        col-to-col-rect (fn [^long row ^long start-col ^long end-col]
-                          (let [line (lines row)]
-                            (span-rect (row->y layout row)
-                                       (col->x layout start-col line)
-                                       (col->x layout end-col line))))
-        col-to-edge-rect (fn [^long row ^long col]
-                           (let [line (lines row)
-                                 top (row->y layout row)
-                                 left (col->x layout col line)
-                                 width (- (+ (.x canvas) (.w canvas)) left)]
-                             (->Rect left top width line-height)))
-        edge-to-col-rect (fn [^long row ^long col]
-                           (let [line (lines row)]
-                             (span-rect (row->y layout row)
-                                        (col->x layout 0 line)
-                                        (col->x layout col line))))
+        ;; A selection crossing a direction boundary is not one contiguous
+        ;; region, so a shaped range contributes one rect per directional run.
+        line-rects (fn [^long row ^long start-col ^long end-col]
+                     (let [line (lines row)
+                           top (row->y layout row)
+                           spans (when (shaped-selection? line start-col end-col)
+                                   (line-selection-spans (.glyph layout) (.tab-stops layout) line start-col end-col))]
+                       (if (seq spans)
+                         (mapv (fn [[^double x0 ^double x1]]
+                                 (->Rect (doc-x->x layout x0) top (- x1 x0) line-height))
+                               spans)
+                         ;; A selection spanning only zero-advance marks yields no spans -
+                         ;; fall back to a single rect between the column positions.
+                         [(span-rect top
+                                     (col->x layout start-col line)
+                                     (col->x layout end-col line))])))
+        col-to-col-rects (fn [^long row ^long start-col ^long end-col]
+                           (merge-rects (line-rects row start-col end-col)))
+        edge-to-col-rects (fn [^long row ^long col]
+                            (merge-rects (line-rects row 0 col)))
+        col-to-edge-rects (fn [^long row ^long col]
+                            (let [line (lines row)
+                                  top (row->y layout row)
+                                  ;; The strip past the end of the line starts
+                                  ;; where the advance walk ends, not at col->x
+                                  ;; of the last column - a range reaching the
+                                  ;; end of the line puts that at its left edge.
+                                  line-end-x (doc-x->x layout (line-width (.glyph layout) (.tab-stops layout) line))
+                                  width (- (+ (.x canvas) (.w canvas)) ^double line-end-x)]
+                              (merge-rects (conj (line-rects row col (count line))
+                                                 (->Rect line-end-x top width line-height)))))
         edge-to-edge-rect (fn [^long start-row ^long end-row]
                             (let [top (row->y layout start-row)
                                   left (col->x layout 0 "")
@@ -1322,12 +1407,12 @@
         {start-row :row start-col :col} (cursor-range-start adjusted-cursor-range)
         {end-row :row end-col :col} (cursor-range-end adjusted-cursor-range)]
     (case (- ^long end-row ^long start-row)
-      0 [(col-to-col-rect start-row start-col end-col)]
-      1 [(col-to-edge-rect start-row start-col)
-         (edge-to-col-rect end-row end-col)]
-      [(col-to-edge-rect start-row start-col)
-       (edge-to-edge-rect (inc ^long start-row) (dec ^long end-row))
-       (edge-to-col-rect end-row end-col)])))
+      0 (col-to-col-rects start-row start-col end-col)
+      1 (into (col-to-edge-rects start-row start-col)
+              (edge-to-col-rects end-row end-col))
+      (-> (col-to-edge-rects start-row start-col)
+          (conj (edge-to-edge-rect (inc ^long start-row) (dec ^long end-row)))
+          (into (edge-to-col-rects end-row end-col))))))
 
 (defn- scroll-x-limit
   ^double [^LayoutInfo layout]
@@ -3244,7 +3329,11 @@
         (when (not= cursor-ranges new-cursor-ranges)
           (merge {:cursor-ranges new-cursor-ranges
                   :hovered-element nil}
-                 (scroll-to-any-cursor layout lines new-cursor-ranges))))
+                 ;; Follow the pointer rather than the cursor: inside a shaped
+                 ;; range the cursor x is the run's far edge, which would scroll
+                 ;; a run width away from the mouse.
+                 (scroll-to-rect scroll-shortest scroll-shortest layout lines
+                                 (->Rect (double x) (double y) 1.0 1.0)))))
       nil)))
 
 (defn- element-at-position [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout x y]

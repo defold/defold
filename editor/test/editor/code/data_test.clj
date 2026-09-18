@@ -61,7 +61,22 @@
   (complex-text-width [_this _text] 100.0)
   (complex-text-col->x [_this _text _col] 0.0)
   (complex-text-x->col [_this _text _x] 3)
-  (complex-text-x->character-col [_this _text _x] 2))
+  (complex-text-x->character-col [_this _text _x] 2)
+  (complex-text-selection-spans [_this _text _start-offset _end-offset] [[10.0 20.0] [30.0 40.0]]))
+
+(defonce/record EmptySpansGlyphMetrics [^double line-height ^double char-width ^double ascent]
+  data/GlyphMetrics
+  (ascent [_this] ascent)
+  (line-height [_this] line-height)
+  (char-width [_this _character] char-width)
+  data/ComplexTextMetrics
+  (complex-text-width [_this _text] 100.0)
+  (complex-text-col->x [_this _text col] (* col 5.0))
+  (complex-text-x->col [_this _text _x] 3)
+  (complex-text-x->character-col [_this _text _x] 2)
+  ;; A selection covering only zero-advance marks (e.g. combining characters)
+  ;; makes the shaper report no spans at all.
+  (complex-text-selection-spans [_this _text _start-offset _end-offset] []))
 
 (defn layout-info
   ([] (layout-info nil))
@@ -116,6 +131,120 @@
     (is (= [[1 4]] (data/complex-text-ranges line)))
     (is (= 4 (data/x->col layout x line)))
     (is (= 3 (data/x->character-col layout x line)))))
+
+(defonce/record FarCaretGlyphMetrics [^double line-height ^double char-width ^double ascent]
+  data/GlyphMetrics
+  (ascent [_this] ascent)
+  (line-height [_this] line-height)
+  (char-width [_this _character] char-width)
+  data/ComplexTextMetrics
+  (complex-text-width [_this _text] 100.0)
+  ;; The caret of a column at the boundary of a right-to-left run lands at the
+  ;; far edge of the run, a long way from the mouse.
+  (complex-text-col->x [_this _text _col] 5000.0)
+  (complex-text-x->col [_this _text _x] 3)
+  (complex-text-x->character-col [_this _text _x] 2)
+  (complex-text-selection-spans [_this _text _start-offset _end-offset] [[10.0 20.0]]))
+
+(deftest drag-selection-scroll-follows-mouse-test
+  ;; Dragging a selection scrolls towards the pointer, not towards the caret,
+  ;; which inside a shaped range sits at the far edge of the run.
+  (let [lines ["ab\"\u0e44\u0e17\u0e22\"cd"]
+        cursor-ranges [(c 0 0)]
+        layout (data/layout-info 800.0 600.0 6000.0 0.0 0.0 lines 30.0 5.0 (->FarCaretGlyphMetrics 14.0 9.0 6.0) 4 false)
+        canvas-rect (.canvas layout)
+        gesture-start (#'data/gesture-info :cursor-range-selection :primary 1 40.0 7.0
+                                           :reference-cursor-range (c 0 0))
+        drag-to (fn [x y]
+                  (data/mouse-moved lines cursor-ranges nil layout nil gesture-start nil x y))]
+
+    (testing "The pointer inside the canvas does not scroll"
+      (let [props (drag-to (+ (.x canvas-rect) 100.0) 7.0)]
+        (is (contains? props :cursor-ranges))
+        (is (not (contains? props :scroll-x)))
+        (is (not (contains? props :scroll-y)))))
+
+    (testing "The pointer dragged past an edge scrolls towards it"
+      (let [props (drag-to (+ (.x canvas-rect) (.w canvas-rect) 10.0) 7.0)]
+        (is (contains? props :cursor-ranges))
+        (is (neg? ^double (:scroll-x props)))))))
+
+(deftest cursor-range-rects-test
+  ;; The shaped range covers the Thai characters, so an ordinary stretch of
+  ;; three characters is painted before it and three after the 100-wide range.
+  (let [glyph-metrics (->ComplexGlyphMetrics 14.0 9.0 6.0)
+        line "ab\"\u0e44\u0e17\u0e22\"cd"
+        lines [line ""]
+        layout (layout-info lines glyph-metrics)
+        canvas (.canvas layout)
+        left (.x canvas)
+        right (+ (.x canvas) (.w canvas))
+        rects (fn [cursor-range] (data/cursor-range-rects layout lines cursor-range))]
+    (is (= [[3 6]] (data/complex-text-ranges line)))
+
+    ;; A selection clear of any range is one rect, measured by advance alone.
+    (let [ascii-lines ["abcdef"]
+          ascii-layout (layout-info ascii-lines glyph-metrics)]
+      (is (= [(->Rect (+ (.x (.canvas ascii-layout)) 9.0) 0.0 18.0 14.0)]
+             (data/cursor-range-rects ascii-layout ascii-lines (cr [0 1] [0 3])))))
+
+    ;; A selection reaching into a range takes that part from the shaper, offset
+    ;; by the advance x where the range is painted.
+    (is (= [(->Rect (+ left 9.0) 0.0 18.0 14.0)
+            (->Rect (+ left 37.0) 0.0 10.0 14.0)
+            (->Rect (+ left 57.0) 0.0 10.0 14.0)]
+           (rects (cr [0 1] [0 5]))))
+
+    ;; A selection inside a range is the shaper's spans and nothing else.
+    (is (= [(->Rect (+ left 37.0) 0.0 10.0 14.0)
+            (->Rect (+ left 57.0) 0.0 10.0 14.0)]
+           (rects (cr [0 4] [0 5]))))
+
+    ;; Rects that touch come out as one - here the stretch after the range and
+    ;; the strip that extends a multi-line selection past the end of the line.
+    (is (= [(->Rect (+ left 9.0) 0.0 18.0 14.0)
+            (->Rect (+ left 37.0) 0.0 10.0 14.0)
+            (->Rect (+ left 57.0) 0.0 10.0 14.0)
+            (->Rect (+ left 127.0) 0.0 (- right (+ left 127.0)) 14.0)
+            (->Rect left 14.0 0.0 14.0)]
+           (rects (cr [0 1] [1 0])))))
+
+  ;; A range that reaches the end of the line must not drag the strip past the
+  ;; end of the line back to its left edge - the advance walk ends after it.
+  (let [glyph-metrics (->ComplexGlyphMetrics 14.0 9.0 6.0)
+        line "ab\"\u0e44\u0e17\u0e22"
+        lines [line ""]
+        layout (layout-info lines glyph-metrics)
+        canvas (.canvas layout)
+        left (.x canvas)
+        right (+ (.x canvas) (.w canvas))]
+    (is (= [[3 6]] (data/complex-text-ranges line)))
+    (is (= [(->Rect (+ left 37.0) 0.0 10.0 14.0)
+            (->Rect (+ left 57.0) 0.0 10.0 14.0)
+            (->Rect (+ left 127.0) 0.0 (- right (+ left 127.0)) 14.0)
+            (->Rect left 14.0 0.0 14.0)]
+           (data/cursor-range-rects layout lines (cr [0 4] [1 0])))))
+
+  ;; The same rects arise when the range is on the line the selection ends on.
+  (let [glyph-metrics (->ComplexGlyphMetrics 14.0 9.0 6.0)
+        line "ab\"\u0e44\u0e17\u0e22\"cd"
+        lines ["" line]
+        layout (layout-info lines glyph-metrics)
+        left (.x (.canvas layout))]
+    (is (= [(->Rect left 14.0 27.0 14.0)
+            (->Rect (+ left 37.0) 14.0 10.0 14.0)
+            (->Rect (+ left 57.0) 14.0 10.0 14.0)]
+           (subvec (data/cursor-range-rects layout lines (cr [0 0] [1 5])) 1))))
+
+  ;; A selection overlapping a range whose shaper reports no spans (e.g. it
+  ;; covers only zero-advance marks) falls back to a single rect instead of
+  ;; leaving cursor-range-rects empty.
+  (let [glyph-metrics (->EmptySpansGlyphMetrics 14.0 9.0 6.0)
+        line "ab\"ไทย\"cd"
+        lines [line]
+        layout (layout-info lines glyph-metrics)]
+    (is (= [[3 6]] (data/complex-text-ranges line)))
+    (is (not (empty? (data/cursor-range-rects layout lines (cr [0 4] [0 5])))))))
 
 (deftest word-boundary-before-index-test
   (is (true? (word-boundary-before-index? "word" 0)))

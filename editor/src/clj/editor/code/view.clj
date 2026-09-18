@@ -78,7 +78,7 @@
            [com.sun.javafx.font FontResource FontStrike PGFont]
            [com.sun.javafx.geom.transform BaseTransform]
            [com.sun.javafx.perf PerformanceTracker]
-           [com.sun.javafx.scene.text FontHelper TextLayout TextLayout$CaretGeometry$Single TextLayout$CaretGeometry$Split]
+           [com.sun.javafx.scene.text FontHelper TextLayout TextLayout$CaretGeometry$Single TextLayout$CaretGeometry$Split TextLayout$GeometryCallback]
            [com.sun.javafx.tk Toolkit]
            [com.sun.javafx.util Utils]
            [editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect]
@@ -220,7 +220,18 @@
   (complex-text-x->col [this text x]
     (.getInsertionIndex (.getHitInfo (text-layout (.font this) text) (float x) (float 0.0))))
   (complex-text-x->character-col [this text x]
-    (.getCharIndex (.getHitInfo (text-layout (.font this) text) (float x) (float 0.0)))))
+    (.getCharIndex (.getHitInfo (text-layout (.font this) text) (float x) (float 0.0))))
+  ;; A selection that crosses a direction boundary covers several disjoint
+  ;; stretches of the run, and only the shaper knows where they are.
+  (complex-text-selection-spans [this text start-offset end-offset]
+    (let [spans (volatile! [])
+          ;; The callback's arguments are the rect's edges, not its size, in
+          ;; spite of what the parameter names of addRectangle suggest.
+          callback (reify TextLayout$GeometryCallback
+                     (addRectangle [_this left _top right _bottom]
+                       (vswap! spans conj [(double left) (double right)])))]
+      (.getRange (text-layout (.font this) text) start-offset end-offset TextLayout/TYPE_TEXT callback)
+      @spans)))
 
 (defn make-glyph-metrics
   ^GlyphMetrics [^Font font ^double line-height-factor]
@@ -320,21 +331,23 @@
    [(.y r) (.y r) (+ (.y r) (.h r)) (+ (.y r) (.h r)) (.y r)]])
 
 (defn- cursor-range-outline [rects]
-  (let [^Rect a (first rects)
-        ^Rect b (second rects)
-        ^Rect y (peek (pop rects))
-        ^Rect z (peek rects)]
-    (cond
-      (nil? b)
-      [(rect-outline a)]
+  (if (empty? rects)
+    []
+    (let [^Rect a (first rects)
+          ^Rect b (second rects)
+          ^Rect y (peek (pop rects))
+          ^Rect z (peek rects)]
+      (cond
+        (nil? b)
+        [(rect-outline a)]
 
-      (and (identical? b z) (< (+ (.x b) (.w b)) (.x a)))
-      [(rect-outline a)
-       (rect-outline b)]
+        (and (identical? b z) (< (+ (.x b) (.w b)) (.x a)))
+        [(rect-outline a)
+         (rect-outline b)]
 
-      :else
-      [[[(.x b) (.x a) (.x a) (+ (.x a) (.w a)) (+ (.x a) (.w a)) (+ (.x z) (.w z)) (+ (.x z) (.w z)) (.x z) (.x b)]
-        [(.y b) (.y b) (.y a) (.y a) (+ (.y y) (.h y)) (+ (.y y) (.h y)) (+ (.y z) (.h z)) (+ (.y z) (.h z)) (.y b)]]])))
+        :else
+        [[[(.x b) (.x a) (.x a) (+ (.x a) (.w a)) (+ (.x a) (.w a)) (+ (.x z) (.w z)) (+ (.x z) (.w z)) (.x z) (.x b)]
+          [(.y b) (.y b) (.y a) (.y a) (+ (.y y) (.h y)) (+ (.y y) (.h y)) (+ (.y z) (.h z)) (+ (.y z) (.h z)) (.y b)]]]))))
 
 (defn- fill-cursor-range! [^GraphicsContext gc type ^Paint fill ^Paint _stroke rects]
   (when (some? fill)
