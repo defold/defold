@@ -4566,14 +4566,15 @@
       (dissoc :spine-scene)
       (assoc :path (:spine-scene spine-scene-desc))))
 
-(defn- sanitize-scene [workspace _read-opts _owner-resource scene]
-  (let [resource-types (workspace/get-resource-type-map workspace :editable)
+(defn- sanitize-gui-scene [read-opts _owner-resource scene-desc]
+  {:pre [(map? scene-desc)]} ; Gui$SceneDesc in map format.
+  (let [resource-types (get-in read-opts [:editable->type-ext->resource-type true])
         gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
         spine-scene-descs (mapv spine-scene-desc->resource-desc
-                                (:spine-scenes scene))
+                                (:spine-scenes scene-desc))
         merged-resource-descs (into spine-scene-descs
-                                    (:resources scene))]
-    (-> scene
+                                    (:resources scene-desc))]
+    (-> scene-desc
         (dissoc :background-color :spine-scenes)
         (protobuf/sanitize-repeated :nodes (partial sanitize-scene-node gui-node-type-registry))
         (protobuf/sanitize-repeated :layouts (partial sanitize-layout gui-node-type-registry))
@@ -4674,7 +4675,7 @@
           :dependencies-fn gui-scene-dependencies
           :load-fn load-gui-scene
           :allow-unloaded-use false ; Sort of works, but disabled until we can fix the file formats to not include all nodes imported from templates.
-          :sanitize-fn (partial sanitize-scene workspace)
+          :sanitize-fn sanitize-gui-scene
           :icon (:icon def)
           :icon-class (:icon-class def)
           :category (localization/message "resource.category.components")

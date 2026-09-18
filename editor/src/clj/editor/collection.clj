@@ -373,7 +373,7 @@
                        ;; If it is non-editable, simply connect the source resource directly.
                        (let [new-resource (:resource new-value)
                              project (project/get-project basis)]
-                         (if (some-> new-resource resource/editable?)
+                         (if (resource/editable-resource? new-resource)
                            ;; This is an editable source resource. Create an override node and make connections to enable full editing.
                            (let [{connect-tx-data :tx-data
                                   go-node :node-id
@@ -612,7 +612,7 @@
                (let [new-resource (:resource new-value)
                      project (project/get-project basis)
                      workspace (project/workspace project)]
-                 (if (some-> new-resource resource/editable?)
+                 (if (resource/editable-resource? new-resource)
                    ;; This is an editable source resource. Create an override node and make connections to enable full editing.
                    (let [{connect-tx-data :tx-data
                           coll-node :node-id
@@ -909,10 +909,6 @@
             :let [source-resource (resolve-resource (:collection coll-instance))]]
         (make-collection-instance self source-resource (:id coll-instance) coll-instance (:instance-properties coll-instance) nil)))))
 
-(defn- sanitize-collection [workspace read-opts owner-resource collection-desc]
-  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
-    (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type read-opts owner-resource)))
-
 (defn- string-encode-collection [workspace collection-desc]
   ;; GameObject$CollectionDesc in map format.
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
@@ -1023,7 +1019,7 @@
       :load-fn load-collection
       :allow-unloaded-use true
       :dependencies-fn collection-common/collection-dependencies-fn
-      :sanitize-fn (partial sanitize-collection workspace)
+      :sanitize-fn collection-common/collection-sanitize-fn
       :pb-encode-fn (partial string-encode-collection workspace)
       :icon collection-common/collection-icon
       :icon-class :design

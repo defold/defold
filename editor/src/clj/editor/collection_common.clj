@@ -111,6 +111,12 @@
       (protobuf/sanitize-repeated :embedded-instances #(sanitize-embedded-instance-desc % ext->embedded-component-resource-type read-opts owner-resource))
       (protobuf/sanitize-repeated :collection-instances sanitize-collection-instance-desc)))
 
+(defn collection-sanitize-fn [read-opts owner-resource collection-desc]
+  (let [editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
+        editable (resource/editable-resource? owner-resource)
+        type-ext->resource-type (editable->type-ext->resource-type editable)]
+    (sanitize-collection-desc collection-desc type-ext->resource-type read-opts owner-resource)))
+
 (defn- component-property-desc-overrides-properties? [component-property-desc]
   (not (coll/empty? (:properties component-property-desc))))
 
@@ -205,7 +211,7 @@
   {:pre [(map? collection-desc)]} ; GameObject$CollectionDesc in map format.
   (let [existing-proj-path-fn (:existing-proj-path-fn read-opts)
         editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
-        editable (resource/editable? owner-resource)
+        editable (resource/editable-resource? owner-resource)
         type-ext->resource-type (editable->type-ext->resource-type editable)
         go-resource-type (type-ext->resource-type "go")
         go-dependencies-fn (:dependencies-fn go-resource-type)]

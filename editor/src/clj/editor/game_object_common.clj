@@ -87,14 +87,17 @@
             sanitize-embedded-component-fn (:sanitize-embedded-component-fn (:component tag-opts))
             unsanitized-data-string (:data embedded-component-desc)]
         (try
-          (let [sanitized-data
+          (let [read-fn (:read-fn resource-type)
+
+                sanitized-data
                 (with-open [reader (StringReader. unsanitized-data-string)]
-                  ((:read-fn resource-type) read-opts owner-resource reader))
+                  (read-fn read-opts owner-resource reader))
 
                 [embedded-component-desc sanitized-data]
                 (if sanitize-embedded-component-fn
                   (sanitize-embedded-component-fn embedded-component-desc sanitized-data)
                   [embedded-component-desc sanitized-data])]
+
             (assoc embedded-component-desc :data sanitized-data))
           (catch Exception error
             ;; Leave unsanitized.
@@ -115,6 +118,13 @@
       (dissoc :property-resources)
       (protobuf/sanitize-repeated :components sanitize-component-desc)
       (protobuf/sanitize-repeated :embedded-components #(sanitize-embedded-component-desc % ext->embedded-component-resource-type read-opts owner-resource))))
+
+(defn game-object-sanitize-fn [read-opts owner-resource prototype-desc]
+  ;; GameObject$PrototypeDesc in map format.
+  (let [editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
+        editable (resource/editable-resource? owner-resource)
+        type-ext->resource-type (editable->type-ext->resource-type editable)]
+    (sanitize-prototype-desc prototype-desc type-ext->resource-type read-opts owner-resource)))
 
 (defn prototype-desc->component-property-descs [prototype-desc]
   (into []
@@ -173,7 +183,7 @@
   {:pre [(map? prototype-desc)]} ; GameObject$PrototypeDesc in map format.
   (let [existing-proj-path-fn (:existing-proj-path-fn read-opts)
         editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
-        editable (resource/editable? owner-resource)
+        editable (resource/editable-resource? owner-resource)
         type-ext->resource-type (editable->type-ext->resource-type editable)]
     (into []
           (comp cat

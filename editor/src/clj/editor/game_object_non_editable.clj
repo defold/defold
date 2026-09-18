@@ -330,10 +330,6 @@
   (output node-outline outline/OutlineData produce-node-outline)
   (output scene g/Any produce-scene))
 
-(defn- sanitize-non-editable-game-object [workspace read-opts owner-resource prototype-desc]
-  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
-    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type read-opts owner-resource)))
-
 (defn- string-encode-non-editable-game-object [workspace prototype-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (collection-string-data/string-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
@@ -357,7 +353,7 @@
       :node-type NonEditableGameObjectNode
       :ddf-type GameObject$PrototypeDesc
       :dependencies-fn game-object-common/game-object-dependencies-fn
-      :sanitize-fn (partial sanitize-non-editable-game-object workspace)
+      :sanitize-fn game-object-common/game-object-sanitize-fn
       :pb-encode-fn (partial string-encode-non-editable-game-object workspace)
       :load-fn load-non-editable-game-object
       :allow-unloaded-use true

@@ -670,11 +670,6 @@
           (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc owner-resource)
           (add-embedded-component self load-opts owner-resource type data id transform-properties false))))))
 
-(defn- sanitize-game-object [workspace read-opts owner-resource prototype-desc]
-  ;; GameObject$PrototypeDesc in map format.
-  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
-    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type read-opts owner-resource)))
-
 (defn- string-encode-game-object [workspace prototype-desc]
   ;; GameObject$PrototypeDesc in map format.
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace)]
@@ -796,7 +791,7 @@
       :load-fn load-game-object
       :allow-unloaded-use true
       :dependencies-fn game-object-common/game-object-dependencies-fn
-      :sanitize-fn (partial sanitize-game-object workspace)
+      :sanitize-fn game-object-common/game-object-sanitize-fn
       :pb-encode-fn (partial string-encode-game-object workspace)
       :icon game-object-common/game-object-icon
       :icon-class :design

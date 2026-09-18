@@ -645,10 +645,9 @@
       (is (thrown-with-msg?
             IllegalStateException
             #"custom_type_name 'TestCustom' resolves to custom_type"
-            (#'gui/sanitize-scene workspace {} nil {:nodes [mismatched-node]})))
-      (let [sanitized-node (-> (#'gui/sanitize-scene
-                                 workspace
-                                 {}
+            (#'gui/sanitize-gui-scene read-opts nil {:nodes [mismatched-node]})))
+      (let [sanitized-node (-> (#'gui/sanitize-gui-scene
+                                 read-opts
                                  nil
                                  {:nodes [{:type :type-custom
                                            :custom-type-name "TestCustom"
@@ -659,7 +658,7 @@
                                :nodes
                                first)]
         (is (not (contains? sanitized-node :custom-properties))))
-      (let [sanitized-node (-> (#'gui/sanitize-scene workspace {} nil {:nodes [boxed-node-with-stale-custom-type-name]})
+      (let [sanitized-node (-> (#'gui/sanitize-gui-scene read-opts nil {:nodes [boxed-node-with-stale-custom-type-name]})
                                :nodes
                                first)]
         (is (= {:type :type-box

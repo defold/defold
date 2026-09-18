@@ -322,10 +322,6 @@
   (output node-outline outline/OutlineData produce-node-outline)
   (output scene g/Any produce-scene))
 
-(defn- sanitize-non-editable-collection [workspace read-opts owner-resource collection-desc]
-  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
-    (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type read-opts owner-resource)))
-
 (defn- string-encode-non-editable-collection [workspace collection-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
@@ -352,7 +348,7 @@
       :node-type NonEditableCollectionNode
       :ddf-type GameObject$CollectionDesc
       :dependencies-fn collection-common/collection-dependencies-fn
-      :sanitize-fn (partial sanitize-non-editable-collection workspace)
+      :sanitize-fn collection-common/collection-sanitize-fn
       :pb-encode-fn (partial string-encode-non-editable-collection workspace)
       :load-fn load-non-editable-collection
       :allow-unloaded-use true

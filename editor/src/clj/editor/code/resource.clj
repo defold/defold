@@ -102,7 +102,7 @@
   project."
   [node-id resource]
   (let [lines+disk-sha256 (resource-io/with-error-translation resource node-id nil
-                            (resource/read-source-value+sha256-hex resource (partial read-fn {} resource)))]
+                            (resource/read-source-value+sha256-hex resource #(read-fn {} resource %)))]
     (if (g/error? lines+disk-sha256)
       [lines+disk-sha256 nil]
       lines+disk-sha256)))

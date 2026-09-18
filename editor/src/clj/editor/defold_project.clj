@@ -137,8 +137,14 @@
 
 (defn read-node-load-info [read-opts node-id resource]
   {:pre [(g/node-id? node-id)]}
-  (let [{:keys [lazy-loaded read-fn] :as resource-type} (resource/resource-type resource)
-        resource-metrics (du/when-metrics (:resource-metrics read-opts))
+  (let [resource-metrics (:resource-metrics read-opts)
+        editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
+        editable (resource/editable-resource? resource)
+        type-ext->resource-type (editable->type-ext->resource-type editable)
+
+        {:keys [lazy-loaded read-fn] :as resource-type}
+        (or (type-ext->resource-type (resource/type-ext resource))
+            (type-ext->resource-type resource/placeholder-resource-type-ext))
 
         ;; Seeing as how we're operating on a list of resources that we got from
         ;; the file system itself, you might assume that every resource will
