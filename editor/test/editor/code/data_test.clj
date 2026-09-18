@@ -250,7 +250,7 @@
         lines [line]
         layout (layout-info lines glyph-metrics)]
     (is (= [[3 6]] (data/complex-text-ranges line)))
-    (is (not (empty? (data/cursor-range-rects layout lines (cr [0 4] [0 5])))))))
+    (is (= 1 (count (data/cursor-range-rects layout lines (cr [0 4] [0 5])))))))
 
 (deftest word-boundary-before-index-test
   (is (true? (word-boundary-before-index? "word" 0)))

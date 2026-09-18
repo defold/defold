@@ -331,7 +331,7 @@
    [(.y r) (.y r) (+ (.y r) (.h r)) (+ (.y r) (.h r)) (.y r)]])
 
 (defn- cursor-range-outline [rects]
-  (if (empty? rects)
+  (if (coll/empty? rects)
     []
     (let [^Rect a (first rects)
           ^Rect b (second rects)
