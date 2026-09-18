@@ -14,6 +14,7 @@
 
 #import "AppDelegate.h"
 #import "AppDelegateProxy.h"
+#import "SceneDelegate.h"
 #import "ViewController.h"
 
 #include "internal.h"
@@ -41,7 +42,7 @@ int                 g_WasRebooted = 0;
 int                 g_Argc = 0;
 char**              g_Argv = 0;
 
-@synthesize window;
+@synthesize viewController;
 
 - (void)reinit:(UIApplication *)application
 {
@@ -49,6 +50,8 @@ char**              g_Argv = 0;
 
     // Restore window data
     _glfwWin = g_Savewin;
+    _glfwWin.window = g_ApplicationWindow;
+    _glfwWin.iconified = !_glfwPlatformIsSceneActive();
 
     // To avoid a race, since _glfwPlatformOpenWindow does not block,
     // update the glfw's cached screen dimensions ahead of time.
@@ -65,9 +68,10 @@ char**              g_Argv = 0;
     }
 
     // We then rebuild the GL view back within the application's event loop.
+    UIWindow* connectedWindow = g_ApplicationWindow;
     dispatch_async(dispatch_get_main_queue(), ^{
-        ViewController *controller = (ViewController *)window.rootViewController;
-        [controller createView:TRUE];
+        if (connectedWindow && connectedWindow == g_ApplicationWindow)
+            [viewController createView:TRUE];
     });
 }
 
@@ -76,38 +80,23 @@ char**              g_Argv = 0;
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-
-    // NOTE: On iPhone4 the "resolution" is 480x320 and not 960x640
-    // Points vs pixels (and scale factors). I'm not sure that this correct though
-    // and that we really get the correct and highest physical resolution in pixels.
-    CGRect bounds = [UIScreen mainScreen].bounds;
-
-    window = [[UIWindow alloc] initWithFrame:bounds];
-    window.rootViewController = [[[ViewController alloc] init] autorelease];
-    
-    // Retrieve the launch screen storyboard name from Info.plist
-    NSString *launchScreenName = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"UILaunchStoryboardName"];
-    if (launchScreenName) {
-        // Load the LaunchScreen storyboard
-        UIStoryboard *storyboard = [UIStoryboard storyboardWithName:launchScreenName bundle:nil];
-        UIViewController *launchScreenVC = [storyboard instantiateInitialViewController];
-        UIView *launchScreenView = launchScreenVC.view;
-    
-        // Add the launch screen view as a placeholder
-        launchScreenView.frame = self.window.bounds;
-        launchScreenView.tag = 999;
-        [window addSubview:launchScreenView];
-        [window bringSubviewToFront:launchScreenView];
-    }
-    
-    [window makeKeyAndVisible];
-
-    g_ApplicationWindow = window;
-
-    // Now, hook in the proxy as the intermediary app delegate
+    // Scene connection creates the window after process launch has completed.
     AppDelegateProxy* proxy = [[AppDelegateProxy alloc] init];
 
     return [proxy application:application didFinishLaunchingWithOptions:launchOptions];
+}
+
+- (UISceneConfiguration*)application:(UIApplication*)application configurationForConnectingSceneSession:(UISceneSession*)session options:(UISceneConnectionOptions*)options
+{
+    // UIKit discovers this selector on the initial delegate, before launch
+    // installs the proxy. Programmatic scene manifests depend on it.
+    UISceneConfiguration* configuration = [[[UISceneConfiguration alloc] initWithName:@"Defold" sessionRole:session.role] autorelease];
+    if ([session.role isEqualToString:UIWindowSceneSessionRoleApplication])
+    {
+        configuration.sceneClass = [UIWindowScene class];
+        configuration.delegateClass = [DefoldSceneDelegate class];
+    }
+    return configuration;
 }
 
 static void ShutdownEngine(bool call_exit)
@@ -159,25 +148,10 @@ static void ShutdownEngine(bool call_exit)
     ShutdownEngine(false);
 }
 
-- (void)applicationWillResignActive:(UIApplication *)application
-{
-    // We should pause the update loop when this message is sent
-    _glfwWin.iconified = GL_TRUE;
-
-    if(_glfwWin.windowFocusCallback)
-        _glfwWin.windowFocusCallback(0);
-}
-
-- (void)applicationDidBecomeActive:(UIApplication *)application
-{
-    _glfwWin.iconified = GL_FALSE;
-    if(_glfwWin.windowFocusCallback)
-        _glfwWin.windowFocusCallback(1);
-}
-
 - (void)dealloc
 {
-    [window release];
+    [viewController.baseView invalidateDisplayLink];
+    [viewController release];
     [super dealloc];
 }
 
@@ -190,6 +164,11 @@ static void ShutdownEngine(bool call_exit)
             NSLog(@"Failed to create engine instance.");
             exit(1);
         }
+        // Initial scene activation can precede engine creation (and reboot
+        // installs new callbacks). Synchronize the newly created engine once.
+        _glfwWin.iconified = !_glfwPlatformIsSceneActive();
+        if (_glfwWin.windowFocusCallback)
+            _glfwWin.windowFocusCallback(!_glfwWin.iconified);
         return;
     }
 
@@ -200,15 +179,7 @@ static void ShutdownEngine(bool call_exit)
     }
 
     // Cleanup the placeholder launch screen view once the engine is initialized
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        dispatch_async(dispatch_get_main_queue(), ^{
-            UIView *viewToRemove = [g_ApplicationWindow viewWithTag:999];
-            if (viewToRemove) {
-                [viewToRemove removeFromSuperview];
-            }
-        });
-    });
+    [[g_ApplicationWindow viewWithTag:999] removeFromSuperview];
 }
 
 @end

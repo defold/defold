@@ -13,8 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #import "AppDelegateProxy.h"
-
-@class AppDelegate;
+#import "AppDelegate.h"
 
 #include "internal.h"
 
@@ -22,37 +21,6 @@
 id<UIApplicationDelegate> g_AppDelegates[MAX_APP_DELEGATES];
 int g_AppDelegatesCount = 0;
 AppDelegate* g_ApplicationDelegate = 0;
-
-// Extensions compiled against older SDKs may still implement the legacy URL
-// selectors. Forward those dynamically, as we do other optional delegate methods.
-static BOOL InvokeLegacyOpenURL(id delegate, SEL selector, id* arguments, NSUInteger count)
-{
-    if (![delegate respondsToSelector:selector])
-        return NO;
-
-    NSInvocation* invocation = [NSInvocation invocationWithMethodSignature:[delegate methodSignatureForSelector:selector]];
-    [invocation setSelector:selector];
-    for (NSUInteger i = 0; i < count; ++i)
-        [invocation setArgument:&arguments[i] atIndex:i + 2];
-    [invocation invokeWithTarget:delegate];
-    BOOL handled = NO;
-    [invocation getReturnValue:&handled];
-    return handled;
-}
-
-static BOOL OpenURL(id<UIApplicationDelegate> delegate, UIApplication* application, NSURL* url,
-                    NSDictionary<UIApplicationOpenURLOptionsKey, id>* options)
-{
-    if ([delegate respondsToSelector:@selector(application:openURL:options:)])
-        return [delegate application:application openURL:url options:options];
-
-    id arguments[] = { application, url, options[UIApplicationOpenURLOptionsSourceApplicationKey],
-                       options[UIApplicationOpenURLOptionsAnnotationKey] };
-    BOOL handled = InvokeLegacyOpenURL(delegate, @selector(application:openURL:sourceApplication:annotation:), arguments, 4);
-    if (InvokeLegacyOpenURL(delegate, @selector(application:handleOpenURL:), arguments, 2))
-        handled = YES;
-    return handled;
-}
 
 @implementation AppDelegateProxy
 
@@ -76,12 +44,6 @@ static BOOL OpenURL(id<UIApplicationDelegate> delegate, UIApplication* applicati
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if ([g_AppDelegates[i] respondsToSelector: @selector(applicationDidFinishLaunching:)]) {
-            [g_AppDelegates[i] applicationDidFinishLaunching: application];
-        }
-    }
-
     BOOL handled = NO;
     for (int i = 0; i < g_AppDelegatesCount; ++i) {
         if ([g_AppDelegates[i] respondsToSelector: @selector(application:didFinishLaunchingWithOptions:)]) {
@@ -92,15 +54,10 @@ static BOOL OpenURL(id<UIApplicationDelegate> delegate, UIApplication* applicati
     return handled;
 }
 
-- (BOOL)application:(UIApplication *)application openURL:(NSURL *)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options {
-    // Every delegate must see the URL, even after another delegate handles it.
-    // Generic forwarding would only retain the last delegate's return value.
-    BOOL handled = OpenURL((id<UIApplicationDelegate>)g_ApplicationDelegate, application, url, options);
-    for (int i = 0; i < g_AppDelegatesCount; ++i) {
-        if (OpenURL(g_AppDelegates[i], application, url, options))
-            handled = YES;
-    }
-    return handled;
+- (UISceneConfiguration*)application:(UIApplication*)application configurationForConnectingSceneSession:(UISceneSession*)session options:(UISceneConnectionOptions*)options
+{
+    // Keep engine-owned configuration out of generic extension forwarding.
+    return [g_ApplicationDelegate application:application configurationForConnectingSceneSession:session options:options];
 }
 
 - (void)forwardInvocation:(NSInvocation *)anInvocation {

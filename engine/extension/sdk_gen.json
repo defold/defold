@@ -49,6 +49,8 @@
 				"ignore": [
 					"ExtensionRegisteriOSUIApplicationDelegate",
 					"ExtensionUnregisteriOSUIApplicationDelegate",
+					"ExtensionRegisteriOSUISceneDelegate",
+					"ExtensionUnregisteriOSUISceneDelegate",
 					"ExtensionRegisterCallback",
 					"luaL_openlib"
 				],
