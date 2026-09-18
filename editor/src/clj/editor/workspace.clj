@@ -527,7 +527,7 @@ ordinary paths."
 
 (defn make-read-opts
   [basis workspace & {:as additional-kw-opts}]
-  {:pre [(every? keyword? (keys additional-kw-opts))]}
+  {:pre [(coll/every? keyword? (coll/keys additional-kw-opts))]}
   (let [project-directory (project-directory basis workspace)
         editable-proj-path? (g/raw-property-value basis workspace :editable-proj-path?)
         proj-path->resource (g/raw-property-value basis workspace :resource-map)
@@ -543,10 +543,8 @@ ordinary paths."
             (resolve-proj-path project-directory base-proj-path proj-path-or-relative-path)))
 
         editable->type-ext->resource-type
-        (coll/into-> (pair true false) {}
-          (map (fn [editable]
-                 (pair editable
-                       (resource/resource-types-by-type-ext basis workspace editable)))))
+        {true (resource/resource-types-by-type-ext basis workspace true)
+         false (resource/resource-types-by-type-ext basis workspace false)}
 
         proj-path->resource-type
         (fn proj-path->resource-type [proj-path]

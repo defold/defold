@@ -90,7 +90,7 @@
     (.-ancestors ^NodeIdWithAncestors editor-lookup)))
 
 (def resource-path-coercer
-  (coerce/wrap-with-pred coerce/string #(and (string? %) (string/starts-with? % "/")) "is not a resource path"))
+  (coerce/wrap-with-pred coerce/string resource/proj-path? "is not a resource path"))
 
 (def unresolved-editor-lookup-coercer
   (coerce/one-of

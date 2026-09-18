@@ -130,11 +130,11 @@
 
 (defn- override-property-descs [original-property-descs overridden-property-descs]
   ;; GameObject$PropertyDescs in map format.
-  (-> (into {}
-            (comp cat
-                  (map (juxt :id identity)))
-            [original-property-descs overridden-property-descs])
-      (vals)
+  (-> [original-property-descs overridden-property-descs]
+      (coll/into-> {}
+        cat
+        (map (juxt :id identity)))
+      (coll/vals)
       (vec)))
 
 (defn- override-component-property-descs [original-component-property-descs override-component-property-descs]

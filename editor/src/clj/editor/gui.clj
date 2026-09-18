@@ -4707,9 +4707,8 @@
                 (coll/any? scene-node-desc-uses-default-font?
                            (:nodes scene-desc))
                 (coll/any? layout-node-desc-uses-default-font?
-                           (eduction
-                             (mapcat :nodes)
-                             (:layouts scene-desc))))
+                           (e/mapcat :nodes
+                                     (:layouts scene-desc))))
       default-dependencies
       (into []
             (distinct)

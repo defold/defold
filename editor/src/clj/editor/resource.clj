@@ -193,7 +193,8 @@
 (defn proj-path? [value]
   (and (string? value)
        (string/starts-with? value "/")
-       (not (string/ends-with? value "/"))))
+       (or (= 1 (count value))
+           (not (string/ends-with? value "/")))))
 
 (s/def ::proj-path-pattern proj-path?)
 (s/def ::proj-path-patterns (s/every ::proj-path-pattern :kind vector?))
