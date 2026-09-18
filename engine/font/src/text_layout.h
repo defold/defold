@@ -138,7 +138,6 @@ struct TextResolvedSpan
     uint8_t  m_UnderlinePattern;
     uint8_t  m_StrikePattern;
     uint8_t  m_HasObjectStyle;
-    float    m_FontSize;
 };
 
 enum TextResolvedDecorationFlags

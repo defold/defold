@@ -536,6 +536,7 @@ static bool ApplyStyleNode(HMarkup markup, const MarkupStyleNode& node, float ba
         if (!isfinite(size) || size <= 0.0f)
             return false;
         style->m_FontSize = size;
+        style->m_FontSizeUnit = TEXT_FONT_SIZE_PIXELS;
 
         style->m_Flags |= TEXT_RENDER_STYLE_FONT_SIZE;
     }
@@ -1066,6 +1067,12 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
     root.m_Style.m_OutlineColor[0] = root.m_Style.m_OutlineColor[1] = root.m_Style.m_OutlineColor[2] = root.m_Style.m_OutlineColor[3] = 1.0f;
     root.m_Style.m_ShadowColor[0] = root.m_Style.m_ShadowColor[1] = root.m_Style.m_ShadowColor[2] = root.m_Style.m_ShadowColor[3] = 1.0f;
     root.m_Style.m_FontSize = base_font_size;
+    const TextRenderStyle* base_style = settings->m_UseBaseStyle ? FontCollectionGetNamedStyle(collection, settings->m_BaseStyle) : 0;
+    if (base_style && (base_style->m_Flags & TEXT_RENDER_STYLE_FONT_SIZE))
+    {
+        root.m_Style.m_FontSize = base_style->m_FontSize;
+        root.m_Style.m_FontSizeUnit = base_style->m_FontSizeUnit;
+    }
     root.m_EffectNode = MARKUP_INVALID_INDEX;
     root.m_UnderlinePattern = TEXT_DECORATION_PATTERN_SOLID;
     root.m_StrikePattern = TEXT_DECORATION_PATTERN_SOLID;
@@ -1158,7 +1165,29 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
 
         if (!state.m_Invalid)
         {
-            state.m_HasObjectStyle |= GetObjectTag(nodes[i]) != 0;
+            const dmhash_t tag = GetObjectTag(nodes[i]);
+            state.m_HasObjectStyle |= tag != 0;
+            if (tag && !(state.m_Style.m_Flags & TEXT_RENDER_STYLE_FONT_SIZE))
+            {
+                dmhash_t               name = tag;
+                const char*            source = MarkupGetSource(markup);
+                const MarkupAttribute* attributes = MarkupGetAttributes(markup) + nodes[i].m_AttributeIndex;
+                for (uint32_t j = 0; j < nodes[i].m_AttributeCount; ++j)
+                {
+                    const MarkupAttribute& attribute = attributes[j];
+                    if (attribute.m_Name.m_Length == 5 && memcmp(source + attribute.m_Name.m_Offset, "style", 5) == 0 && attribute.m_Value.m_Length)
+                    {
+                        name = dmHashBuffer64(source + attribute.m_Value.m_Offset, attribute.m_Value.m_Length);
+                        break;
+                    }
+                }
+                const TextRenderStyle* style = FontCollectionGetNamedStyle(collection, name);
+                if (style && (style->m_Flags & TEXT_RENDER_STYLE_FONT_SIZE))
+                {
+                    state.m_Style.m_FontSize = style->m_FontSize;
+                    state.m_Style.m_FontSizeUnit = style->m_FontSizeUnit;
+                }
+            }
         }
 
         node_states[i] = state;
@@ -1197,9 +1226,17 @@ bool TextLayoutResolveMarkup(HFontCollection collection, HMarkup markup, TextLay
             }
         }
 
-        uint16_t style_index;
+        TextRenderStyle style = state.m_Style;
+        style.m_FontSize = style.m_FontSizeUnit == TEXT_FONT_SIZE_EM ? base_font_size * style.m_FontSize
+                         : style.m_FontSizeUnit == TEXT_FONT_SIZE_OFFSET ? base_font_size + style.m_FontSize : style.m_FontSize;
+        if (!isfinite(style.m_FontSize) || style.m_FontSize <= 0.0f)
+            style.m_FontSize = base_font_size;
+        style.m_FontSizeUnit = TEXT_FONT_SIZE_PIXELS;
+        if (style.m_FontSize != base_font_size)
+            style.m_Flags |= TEXT_RENDER_STYLE_FONT_SIZE;
 
-        if (!AddStyle(resolved, &style_indices, state.m_Style, &style_index))
+        uint16_t style_index;
+        if (!AddStyle(resolved, &style_indices, style, &style_index))
         {
             return false;
         }

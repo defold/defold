@@ -337,10 +337,10 @@ TEST_F(FontTest, StyleFragmentAcceptsObjectTags)
 
 TEST_F(FontTest, NamedStyleSizeUnits)
 {
-    const char* definitions[] = {"<size=25%>", "<size=0.25em>", "<size=8px>", "<size=+4>", "<size=-4>"};
-    const float values[] = {0.25f, 0.25f, 8.0f, 4.0f, -4.0f};
-    const TextFontSizeUnit units[] = {TEXT_FONT_SIZE_EM, TEXT_FONT_SIZE_EM, TEXT_FONT_SIZE_PIXELS, TEXT_FONT_SIZE_OFFSET, TEXT_FONT_SIZE_OFFSET};
-    const float sizes[] = {8.0f, 8.0f, 8.0f, 36.0f, 28.0f};
+    const char* definitions[] = {"<size=25%>", "<size=0.25em>", "<size=8px>", "<size=+4>", "<size=-4>", "<size=-40>"};
+    const float values[] = {0.25f, 0.25f, 8.0f, 4.0f, -4.0f, -40.0f};
+    const TextFontSizeUnit units[] = {TEXT_FONT_SIZE_EM, TEXT_FONT_SIZE_EM, TEXT_FONT_SIZE_PIXELS, TEXT_FONT_SIZE_OFFSET, TEXT_FONT_SIZE_OFFSET, TEXT_FONT_SIZE_OFFSET};
+    const float sizes[] = {8.0f, 8.0f, 8.0f, 36.0f, 28.0f, 32.0f};
     const dmhash_t name = dmHashString64("size");
     TextLayoutSettings settings = {};
     settings.m_Size = 32.0f;
@@ -348,6 +348,9 @@ TEST_F(FontTest, NamedStyleSizeUnits)
     settings.m_UseBaseStyle = 1;
     settings.m_BaseStyle = name;
     uint32_t text[] = {'A'};
+    const char source[] = "<color=#FC6600>A</color>";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(definitions); ++i)
     {
         ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, definitions[i], strlen(definitions[i]), 0));
@@ -358,7 +361,11 @@ TEST_F(FontTest, NamedStyleSizeUnits)
         ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, 1, &settings, &layout));
         ASSERT_EQ(sizes[i] / settings.m_Size, TextLayoutGetGlyphs(layout)[0].m_RenderScale);
         TextLayoutRelease(layout);
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+        ASSERT_EQ(sizes[i] / settings.m_Size, TextLayoutGetGlyphs(layout)[0].m_RenderScale);
+        TextLayoutRelease(layout);
     }
+    MarkupDestroy(markup);
 }
 
 TEST_F(FontTest, NamedStyleSizeChangesRequireRecreation)
@@ -417,7 +424,8 @@ TEST_F(FontTest, NamedObjectStyleSizeAndInlineOverrides)
     const char small[] = "<size=50%>";
     ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, dmHashString64("small"), small, sizeof(small) - 1, 0));
     const char source[] = "<link style=large></link>A<link style=large>B<link style=small>C</link>D"
-                          "<link style=missing>E</link><size=25%>F</size></link>G<link style=small>H</link>I";
+                          "<link style=missing>E</link><size=25%>F</size></link>G<link style=small>H</link>I"
+                          "<size=75%><link style=large>J</link>K</size>L";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
     TextLayoutSettings settings = {};
@@ -426,7 +434,7 @@ TEST_F(FontTest, NamedObjectStyleSizeAndInlineOverrides)
     HTextLayout layout = 0;
     ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
     MarkupDestroy(markup);
-    const float scales[] = {1.0f, 2.0f, 0.5f, 2.0f, 2.0f, 0.25f, 1.0f, 0.5f, 1.0f};
+    const float scales[] = {1.0f, 2.0f, 0.5f, 2.0f, 2.0f, 0.25f, 1.0f, 0.5f, 1.0f, 0.75f, 0.75f, 1.0f};
     ASSERT_EQ(DM_ARRAY_SIZE(scales), TextLayoutGetGlyphCount(layout));
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(scales); ++i)
         ASSERT_EQ(scales[i], TextLayoutGetGlyphs(layout)[i].m_RenderScale);
