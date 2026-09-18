@@ -69,10 +69,17 @@ def is_stale_release(config, release_sha):
     # info.json advances before GitHub uploads, so this also prevents rolling back a
     # newer, partially published release. Retrying that same commit remains allowed.
     info = s3.get_release_info(config.get_archive_path(), config.channel)
-    if info is None or info['sha1'] == release_sha:
+    if info is None:
         return False
 
     published_sha = info['sha1']
+    if config.channel == 'alpha':
+        # Legacy manual alphas preserved dev's last published commit separately.
+        # Use that baseline until normal publication replaces the legacy metadata.
+        published_sha = info.get('automatic_sha1') or published_sha
+    if published_sha == release_sha:
+        return False
+
     repository = os.environ.get('GITHUB_REPOSITORY') or get_current_repo()
     comparison = github.compare_commits(repository, published_sha, release_sha, config.github_token)
     status = comparison.get('status') if isinstance(comparison, dict) else None
