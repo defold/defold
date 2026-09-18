@@ -400,6 +400,56 @@ static dmhash_t GetObjectDefaultStyle(HTextLayout layout, const TextLayoutObject
     return object.m_Tag;
 }
 
+static float ResolveFontSize(const TextRenderStyle* style, float base_size)
+{
+    if (!style || !(style->m_Flags & TEXT_RENDER_STYLE_FONT_SIZE))
+        return base_size;
+    const float size = style->m_FontSizeUnit == TEXT_FONT_SIZE_EM ? base_size * style->m_FontSize
+                     : style->m_FontSizeUnit == TEXT_FONT_SIZE_OFFSET ? base_size + style->m_FontSize : style->m_FontSize;
+    return isfinite(size) && size > 0.0f ? size : base_size;
+}
+
+struct TextLayoutFontSizeRange
+{
+    uint32_t m_TextEnd;
+    float    m_Size;
+};
+
+static void ResolveSpanFontSizes(HTextLayout layout, float base_size)
+{
+    const float resolved_base_size = ResolveFontSize(FontCollectionGetNamedStyle(layout->m_FontCollection, layout->m_BaseStyleName), base_size);
+    dmArray<TextLayoutFontSizeRange> active_sizes;
+    uint32_t object_index = 0;
+    for (uint32_t i = 0; i < layout->m_ResolvedSpans.Size(); ++i)
+    {
+        TextResolvedSpan& span = layout->m_ResolvedSpans[i];
+        while (!active_sizes.Empty() && active_sizes.Back().m_TextEnd <= span.m_TextOffset)
+        {
+            active_sizes.Pop();
+        }
+        while (object_index < layout->m_Objects.Size() && layout->m_Objects[object_index].m_TextOffset <= span.m_TextOffset)
+        {
+            const TextLayoutObject& object = layout->m_Objects[object_index++];
+            const uint32_t          text_end = object.m_TextOffset + object.m_TextLength;
+            if (text_end <= span.m_TextOffset)
+                continue;
+            const TextRenderStyle* object_style = FontCollectionGetNamedStyle(layout->m_FontCollection, GetObjectDefaultStyle(layout, object));
+            if (object_style && (object_style->m_Flags & TEXT_RENDER_STYLE_FONT_SIZE))
+            {
+                if (active_sizes.Full())
+                    active_sizes.OffsetCapacity(8);
+                TextLayoutFontSizeRange range;
+                range.m_TextEnd = text_end;
+                range.m_Size = ResolveFontSize(object_style, base_size);
+                active_sizes.Push(range);
+            }
+        }
+        const TextRenderStyle& inline_style = layout->m_Styles[span.m_StyleIndex];
+        span.m_FontSize = (inline_style.m_Flags & TEXT_RENDER_STYLE_FONT_SIZE) ? ResolveFontSize(&inline_style, base_size)
+                       : active_sizes.Empty() ? resolved_base_size : active_sizes.Back().m_Size;
+    }
+}
+
 static void OverlayStyle(TextRenderStyle* target, const TextRenderStyle& overlay)
 {
     if (overlay.m_Flags & TEXT_RENDER_STYLE_FACE_COLOR)
@@ -410,6 +460,7 @@ static void OverlayStyle(TextRenderStyle* target, const TextRenderStyle& overlay
     if (overlay.m_Flags & TEXT_RENDER_STYLE_FONT_SIZE)
     {
         target->m_FontSize = overlay.m_FontSize;
+        target->m_FontSizeUnit = overlay.m_FontSizeUnit;
     }
 
     if (overlay.m_Flags & TEXT_RENDER_STYLE_OUTLINE_COLOR)
@@ -986,6 +1037,7 @@ void TextLayoutAdoptResolvedMarkup(HTextLayout layout, ResolvedMarkup* resolved,
         layout->m_ObjectAttributes.Swap(resolved->m_ObjectAttributes);
         layout->m_ReleaseObject = settings->m_ReleaseObject;
         layout->m_ObjectContext = settings->m_ObjectContext;
+        ResolveSpanFontSizes(layout, settings->m_Size);
         return;
     }
 
@@ -1005,6 +1057,7 @@ void TextLayoutAdoptResolvedMarkup(HTextLayout layout, ResolvedMarkup* resolved,
     }
     layout->m_ResolvedSpans.EnsureSize(1);
     layout->m_ResolvedSpans[0] = span;
+    ResolveSpanFontSizes(layout, settings->m_Size);
 }
 
 void TextLayoutReleaseObjects(HTextLayout layout)

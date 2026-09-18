@@ -15,10 +15,10 @@
     "FontcMarkupString.java": "47efd198bffaed80df24da818299e00a4b4af7a8a5e40de43e51d2939b1ad7c3",
     "FontcParams.java": "0cd2044c2da0fd2858e36f2e8c1cdaecd9bffe2608934953e858f43abeda36f6",
     "FontcProperties.java": "3800949f4987c2101d96e28561402861f230dd2c13e20b8697547652de2b701b",
-    "FontcStyle.java": "6c37b002727021afa8a87e5ec006c3ec4d0b8a8a2488ecbf0cdccfc16a04e678",
+    "FontcStyle.java": "39c849107f31656b91b7579c50b82671ced5f470d369801f77d6f08b4c6f68dc",
     "FontcStyleData.java": "67742c96126eedb03583284f7d929f9d5508661256be591be6b4293b9ccc180b",
     "FontcStyleEffect.java": "b9ec6b5dc2ce5670872bfc26d8d0023386fd0ec978866f90d74caea25aee442f",
     "FontcTexture.java": "ae6894c024c57c681967b741211f4fd9074e9154fc9c63ab3d9eb4d40d4cbb0a"
   },
-  "header_sha256": "263f43ad13f94ce1b49ebd239c6b74b9c88a2b82eb37d7f0e2d9406f4c62eb78"
+  "header_sha256": "b47122fe1de3b5014dfc4ea5b5e92bdc3c0abd96ee595226b7514a4234df94b9"
 }

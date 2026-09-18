@@ -470,11 +470,10 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
 
             if ((glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT) == 0 && glyph.m_StyleIndex < layout->m_Styles.Size())
             {
-                const TextRenderStyle& style = layout->m_Styles[glyph.m_StyleIndex];
-
-                if (style.m_Flags & TEXT_RENDER_STYLE_FONT_SIZE)
+                if (glyph.m_MarkupSpanIndex < layout->m_ResolvedSpans.Size() &&
+                    layout->m_ResolvedSpans[glyph.m_MarkupSpanIndex].m_FontSize != settings->m_Size)
                 {
-                    glyph.m_RenderScale = style.m_FontSize / settings->m_Size;
+                    glyph.m_RenderScale = layout->m_ResolvedSpans[glyph.m_MarkupSpanIndex].m_FontSize / settings->m_Size;
                     glyph.m_Width *= glyph.m_RenderScale;
                     glyph.m_Height *= glyph.m_RenderScale;
                     const float base_advance = glyph.m_Advance;

@@ -22,6 +22,7 @@
 
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/static_assert.h>
 #include <dlib/time.h>
 #include <dlib/utf8.h>
 
@@ -36,6 +37,10 @@
 
 namespace dmGameSystem
 {
+    DM_STATIC_ASSERT((uint32_t)dmRenderDDF::CompiledStyle::PIXELS == (uint32_t)TEXT_FONT_SIZE_PIXELS, Font_Size_Pixels_Mismatch);
+    DM_STATIC_ASSERT((uint32_t)dmRenderDDF::CompiledStyle::EM == (uint32_t)TEXT_FONT_SIZE_EM, Font_Size_Em_Mismatch);
+    DM_STATIC_ASSERT((uint32_t)dmRenderDDF::CompiledStyle::OFFSET == (uint32_t)TEXT_FONT_SIZE_OFFSET, Font_Size_Offset_Mismatch);
+
     const static dmhash_t EXT_HASH_TTF = dmHashString64("ttf");
     const static dmhash_t EXT_HASH_OTF = dmHashString64("otf");
     const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
@@ -53,13 +58,18 @@ namespace dmGameSystem
             if (!source.m_Name[0] || source.m_NameHash != dmHashString64(source.m_Name) ||
                 FontCollectionGetNamedStyle(collection, source.m_NameHash) ||
                 source.m_FaceColor.m_Count != 4 || source.m_OutlineColor.m_Count != 4 || source.m_ShadowColor.m_Count != 4 ||
-                (source.m_Flags & ~1023u) || (source.m_Flags & TEXT_RENDER_STYLE_FONT_SIZE) || source.m_Effects.m_Count > UINT16_MAX)
+                (source.m_FontSizeUnit != dmRenderDDF::CompiledStyle::PIXELS &&
+                 source.m_FontSizeUnit != dmRenderDDF::CompiledStyle::EM &&
+                 source.m_FontSizeUnit != dmRenderDDF::CompiledStyle::OFFSET) ||
+                (source.m_Flags & ~1023u) || source.m_Effects.m_Count > UINT16_MAX)
                 return false;
             TextRenderStyle style = {};
             memcpy(style.m_FaceColor, source.m_FaceColor.m_Data, sizeof(style.m_FaceColor));
             memcpy(style.m_OutlineColor, source.m_OutlineColor.m_Data, sizeof(style.m_OutlineColor));
             memcpy(style.m_ShadowColor, source.m_ShadowColor.m_Data, sizeof(style.m_ShadowColor));
             style.m_Flags = source.m_Flags;
+            style.m_FontSize = source.m_FontSize;
+            style.m_FontSizeUnit = (TextFontSizeUnit)(uint32_t)source.m_FontSizeUnit;
             style.m_OutlineWidth = source.m_OutlineWidth;
             style.m_ShadowX = source.m_ShadowX;
             style.m_ShadowY = source.m_ShadowY;

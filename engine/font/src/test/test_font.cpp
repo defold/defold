@@ -277,8 +277,160 @@ TEST_F(FontTest, ResourceStyleDecorationsAndEffects)
     ASSERT_EQ(3.0f, layout->m_Effects[1].m_Wave.m_Amplitude);
     TextLayoutRelease(layout);
 
-    const char invalid[] = "<size=48>";
+    const char runtime_decoration[] = "<ul pattern=dashed>";
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, runtime_decoration, sizeof(runtime_decoration) - 1, &error));
+    ASSERT_EQ((uint8_t)TEXT_RESOLVED_DECORATION_UNDERLINE, FontCollectionGetNamedStyleDecoration(m_FontCollection, name)->m_Flags);
+    ASSERT_EQ((uint8_t)TEXT_DECORATION_PATTERN_DASHED, FontCollectionGetNamedStyleDecoration(m_FontCollection, name)->m_UnderlinePattern);
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, "", 0, &error));
+    ASSERT_EQ(decoration.m_Flags, FontCollectionGetNamedStyleDecoration(m_FontCollection, name)->m_Flags);
+    ASSERT_EQ(decoration.m_UnderlinePattern, FontCollectionGetNamedStyleDecoration(m_FontCollection, name)->m_UnderlinePattern);
+
+    const char invalid[] = "<size=invalid>";
     ASSERT_FALSE(TextLayoutCompileStyleFragment(invalid, sizeof(invalid) - 1, &style, &effects, &decoration, &error));
+}
+
+TEST_F(FontTest, StyleMarkupClearsRuntimeDecorations)
+{
+    const dmhash_t name = dmHashString64("runtime");
+    const char definition[] = "<ul><strike>";
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, definition, sizeof(definition) - 1, 0));
+    ASSERT_NE((const TextNamedStyleDecoration*)0, FontCollectionGetNamedStyleDecoration(m_FontCollection, name));
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, "", 0, 0));
+    ASSERT_EQ((const TextNamedStyleDecoration*)0, FontCollectionGetNamedStyleDecoration(m_FontCollection, name));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_UseBaseStyle = 1;
+    settings.m_BaseStyle = name;
+    uint32_t text[] = {'A'};
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, 1, &settings, &layout));
+    ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
+    TextLayoutRelease(layout);
+}
+
+TEST_F(FontTest, StyleFragmentAcceptsObjectTags)
+{
+    const char definition[] = "<link id=target><sprite src=/icon.png width=2em height=50%><size=25%>";
+    TextRenderStyle style = {};
+    dmArray<TextEffect> effects;
+    TextNamedStyleDecoration decoration = {};
+    ASSERT_TRUE(TextLayoutCompileStyleFragment(definition, sizeof(definition) - 1, &style, &effects, &decoration, 0));
+    ASSERT_EQ(0.25f, style.m_FontSize);
+    ASSERT_EQ(TEXT_FONT_SIZE_EM, style.m_FontSizeUnit);
+
+    const dmhash_t name = dmHashString64("stored");
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, definition, sizeof(definition) - 1, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_UseBaseStyle = 1;
+    settings.m_BaseStyle = name;
+    uint32_t text[] = {'A', 'B'};
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, 2, &settings, &layout));
+    ASSERT_EQ(2u, TextLayoutGetGlyphCount(layout));
+    ASSERT_EQ(0u, TextLayoutGetObjectCount(layout));
+    ASSERT_EQ(0.25f, TextLayoutGetGlyphs(layout)[0].m_RenderScale);
+    TextLayoutRelease(layout);
+}
+
+TEST_F(FontTest, NamedStyleSizeUnits)
+{
+    const char* definitions[] = {"<size=25%>", "<size=0.25em>", "<size=8px>", "<size=+4>", "<size=-4>"};
+    const float values[] = {0.25f, 0.25f, 8.0f, 4.0f, -4.0f};
+    const TextFontSizeUnit units[] = {TEXT_FONT_SIZE_EM, TEXT_FONT_SIZE_EM, TEXT_FONT_SIZE_PIXELS, TEXT_FONT_SIZE_OFFSET, TEXT_FONT_SIZE_OFFSET};
+    const float sizes[] = {8.0f, 8.0f, 8.0f, 36.0f, 28.0f};
+    const dmhash_t name = dmHashString64("size");
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_UseBaseStyle = 1;
+    settings.m_BaseStyle = name;
+    uint32_t text[] = {'A'};
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(definitions); ++i)
+    {
+        ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, definitions[i], strlen(definitions[i]), 0));
+        const TextRenderStyle* style = FontCollectionGetNamedStyle(m_FontCollection, name);
+        ASSERT_EQ(values[i], style->m_FontSize);
+        ASSERT_EQ(units[i], style->m_FontSizeUnit);
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, 1, &settings, &layout));
+        ASSERT_EQ(sizes[i] / settings.m_Size, TextLayoutGetGlyphs(layout)[0].m_RenderScale);
+        TextLayoutRelease(layout);
+    }
+}
+
+TEST_F(FontTest, NamedStyleSizeChangesRequireRecreation)
+{
+    const dmhash_t name = dmHashString64("notice");
+    const char definition[] = "<shake fit=span><color=#FC6600><size=25%>";
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, definition, sizeof(definition) - 1, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_Width = 60.0f;
+    settings.m_LineBreak = 1;
+    settings.m_UseBaseStyle = 1;
+    settings.m_BaseStyle = name;
+    uint32_t text[] = {'A', 'B', 'C', ' ', 'A', 'B', 'C'};
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, 7, &settings, &layout));
+    ASSERT_EQ(0.25f, TextLayoutGetGlyphs(layout)[0].m_RenderScale);
+    ASSERT_EQ(1u, TextLayoutGetLineCount(layout));
+    float width, height;
+    TextLayoutGetBounds(layout, &width, &height);
+
+    const char larger[] = "<size=200%>";
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, larger, sizeof(larger) - 1, 0));
+    TextLayoutUpdate(layout, 0.5f);
+    ASSERT_EQ(0.25f, TextLayoutGetGlyphs(layout)[0].m_RenderScale);
+    ASSERT_EQ(1u, TextLayoutGetLineCount(layout));
+    float unchanged_width, unchanged_height;
+    TextLayoutGetBounds(layout, &unchanged_width, &unchanged_height);
+    ASSERT_EQ(width, unchanged_width);
+    ASSERT_EQ(height, unchanged_height);
+    TextLayoutRelease(layout);
+
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, 7, &settings, &layout));
+    ASSERT_EQ(2.0f, TextLayoutGetGlyphs(layout)[0].m_RenderScale);
+    ASSERT_GT(TextLayoutGetLineCount(layout), 1u);
+    float larger_width, larger_height;
+    TextLayoutGetBounds(layout, &larger_width, &larger_height);
+    ASSERT_GT(larger_height, height);
+
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, "", 0, 0));
+    TextLayoutUpdate(layout, 0.0f);
+    ASSERT_EQ(2.0f, TextLayoutGetGlyphs(layout)[0].m_RenderScale);
+    TextLayoutRelease(layout);
+
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, 7, &settings, &layout));
+    ASSERT_EQ(1.0f, TextLayoutGetGlyphs(layout)[0].m_RenderScale);
+    TextLayoutRelease(layout);
+}
+
+TEST_F(FontTest, NamedObjectStyleSizeAndInlineOverrides)
+{
+    const dmhash_t name = dmHashString64("large");
+    const char definition[] = "<size=200%>";
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, definition, sizeof(definition) - 1, 0));
+    const char small[] = "<size=50%>";
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, dmHashString64("small"), small, sizeof(small) - 1, 0));
+    const char source[] = "<link style=large></link>A<link style=large>B<link style=small>C</link>D"
+                          "<link style=missing>E</link><size=25%>F</size></link>G<link style=small>H</link>I";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+    const float scales[] = {1.0f, 2.0f, 0.5f, 2.0f, 2.0f, 0.25f, 1.0f, 0.5f, 1.0f};
+    ASSERT_EQ(DM_ARRAY_SIZE(scales), TextLayoutGetGlyphCount(layout));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(scales); ++i)
+        ASSERT_EQ(scales[i], TextLayoutGetGlyphs(layout)[i].m_RenderScale);
+    TextLayoutRelease(layout);
 }
 
 TEST_F(FontTest, LoadTTF)

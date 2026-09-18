@@ -36,19 +36,27 @@ enum TextRenderStyleFlags
     TEXT_RENDER_STYLE_SHADOW_ALPHA  = 1 << 9,
 };
 
+enum TextFontSizeUnit
+{
+    TEXT_FONT_SIZE_PIXELS, // Absolute size.
+    TEXT_FONT_SIZE_EM,     // Multiplier of the layout font size.
+    TEXT_FONT_SIZE_OFFSET, // Signed offset from the layout font size.
+};
+
 struct TextRenderStyle
 {
-    float    m_FaceColor[4];
-    float    m_OutlineColor[4];
-    float    m_ShadowColor[4];
-    float    m_FontSize;
-    float    m_OutlineWidth;
-    float    m_ShadowX;
-    float    m_ShadowY;
-    float    m_ShadowBlur;
-    float    m_OutlineAlpha;
-    float    m_ShadowAlpha;
-    uint32_t m_Flags;
+    float            m_FaceColor[4];
+    float            m_OutlineColor[4];
+    float            m_ShadowColor[4];
+    float            m_FontSize;
+    float            m_OutlineWidth;
+    float            m_ShadowX;
+    float            m_ShadowY;
+    float            m_ShadowBlur;
+    float            m_OutlineAlpha;
+    float            m_ShadowAlpha;
+    uint32_t         m_Flags;
+    TextFontSizeUnit m_FontSizeUnit;
 };
 
 enum TextEffectType
@@ -130,6 +138,7 @@ struct TextResolvedSpan
     uint8_t  m_UnderlinePattern;
     uint8_t  m_StrikePattern;
     uint8_t  m_HasObjectStyle;
+    float    m_FontSize;
 };
 
 enum TextResolvedDecorationFlags

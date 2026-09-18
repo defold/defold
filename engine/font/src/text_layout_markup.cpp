@@ -176,7 +176,7 @@ static bool ParseAnimationDirection(const MarkupAttribute* attribute, float* dir
     return false;
 }
 
-static bool ParseSize(HMarkup markup, const MarkupStyleNode& node, float base_size, float* size)
+static bool ParseSize(HMarkup markup, const MarkupStyleNode& node, float* size, TextFontSizeUnit* unit)
 {
     const MarkupAttribute* attribute = FindAttribute(markup, node, MARKUP_ATTRIBUTE_SHORTHAND);
 
@@ -193,7 +193,7 @@ static bool ParseSize(HMarkup markup, const MarkupStyleNode& node, float base_si
     const char*  source = MarkupGetSource(markup);
     MarkupString value = attribute->m_Value;
     float        number;
-    float        resolved_size;
+    *unit = TEXT_FONT_SIZE_PIXELS;
 
     if (value.m_Length > 0 && source[value.m_Offset + value.m_Length - 1] == '%')
     {
@@ -204,7 +204,8 @@ static bool ParseSize(HMarkup markup, const MarkupStyleNode& node, float base_si
             return false;
         }
 
-        resolved_size = base_size * number / 100.0f;
+        number /= 100.0f;
+        *unit = TEXT_FONT_SIZE_EM;
     }
     else if (value.m_Length > 2 && source[value.m_Offset + value.m_Length - 2] == 'e' && source[value.m_Offset + value.m_Length - 1] == 'm')
     {
@@ -215,7 +216,7 @@ static bool ParseSize(HMarkup markup, const MarkupStyleNode& node, float base_si
             return false;
         }
 
-        resolved_size = base_size * number;
+        *unit = TEXT_FONT_SIZE_EM;
     }
     else
     {
@@ -229,15 +230,16 @@ static bool ParseSize(HMarkup markup, const MarkupStyleNode& node, float base_si
             return false;
         }
 
-        resolved_size = (source[value.m_Offset] == '+' || source[value.m_Offset] == '-') ? base_size + number : number;
+        if (source[value.m_Offset] == '+' || source[value.m_Offset] == '-')
+            *unit = TEXT_FONT_SIZE_OFFSET;
     }
 
-    if (!isfinite(resolved_size) || resolved_size <= 0.0f)
+    if (!isfinite(number) || (number <= 0.0f && *unit != TEXT_FONT_SIZE_OFFSET))
     {
         return false;
     }
 
-    *size = resolved_size;
+    *size = number;
 
     return true;
 }
@@ -526,10 +528,14 @@ static bool ApplyStyleNode(HMarkup markup, const MarkupStyleNode& node, float ba
     }
     else if (node.m_Type == MARKUP_TAG_SIZE)
     {
-        if (!ParseSize(markup, node, base_size, &style->m_FontSize))
-        {
+        float            size;
+        TextFontSizeUnit unit;
+        if (!ParseSize(markup, node, &size, &unit))
             return false;
-        }
+        size = unit == TEXT_FONT_SIZE_EM ? base_size * size : unit == TEXT_FONT_SIZE_OFFSET ? base_size + size : size;
+        if (!isfinite(size) || size <= 0.0f)
+            return false;
+        style->m_FontSize = size;
 
         style->m_Flags |= TEXT_RENDER_STYLE_FONT_SIZE;
     }
@@ -931,7 +937,10 @@ bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_
         }
         else if (IsStyleNode(nodes[i]))
         {
-            if (nodes[i].m_Type == MARKUP_TAG_SIZE || !ApplyStyleNode(markup, nodes[i], 1.0f, style))
+            bool valid_node = nodes[i].m_Type == MARKUP_TAG_SIZE
+                ? ParseSize(markup, nodes[i], &style->m_FontSize, &style->m_FontSizeUnit)
+                : ApplyStyleNode(markup, nodes[i], 1.0f, style);
+            if (!valid_node)
             {
                 if (error)
                 {
@@ -942,8 +951,27 @@ bool TextLayoutCompileStyleFragment(const char* definition, uint32_t definition_
                 valid = false;
                 break;
             }
+            if (nodes[i].m_Type == MARKUP_TAG_SIZE)
+                style->m_Flags |= TEXT_RENDER_STYLE_FONT_SIZE;
         }
-        else
+        else if (nodes[i].m_Type == MARKUP_TAG_SPRITE)
+        {
+            const MarkupAttribute* width = FindAttribute(markup, nodes[i], MARKUP_ATTRIBUTE_WIDTH);
+            const MarkupAttribute* height = FindAttribute(markup, nodes[i], MARKUP_ATTRIBUTE_HEIGHT);
+            float                  dimension;
+            if ((width && !ParseObjectDimension(definition, width->m_Value, 1.0f, &dimension)) ||
+                (height && !ParseObjectDimension(definition, height->m_Value, 1.0f, &dimension)))
+            {
+                if (error)
+                {
+                    error->m_ByteOffset = nodes[i].m_Tag.m_Offset - 1;
+                    error->m_Type = MARKUP_ERROR_INVALID_TAG;
+                }
+                valid = false;
+                break;
+            }
+        }
+        else if (nodes[i].m_Type != MARKUP_TAG_LINK)
         {
             if (error)
             {

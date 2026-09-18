@@ -383,12 +383,9 @@ void TextLayoutSegmentRuns(uint32_t* codepoints, uint32_t num_codepoints,
     SBScriptLocatorRelease(locator);
 }
 
-static bool HasSameLayoutAttributes(const TextLayout* layout, const TextResolvedSpan& left, const TextResolvedSpan& right)
+static bool HasSameLayoutAttributes(const TextResolvedSpan& left, const TextResolvedSpan& right)
 {
-    const TextRenderStyle& left_style = layout->m_Styles[left.m_StyleIndex];
-    const TextRenderStyle& right_style = layout->m_Styles[right.m_StyleIndex];
-
-    return left_style.m_FontSize == right_style.m_FontSize &&
+    return left.m_FontSize == right.m_FontSize &&
            left.m_HasObjectStyle == right.m_HasObjectStyle &&
            left.m_DecorationFlags == right.m_DecorationFlags &&
            left.m_UnderlinePattern == right.m_UnderlinePattern &&
@@ -690,14 +687,14 @@ static bool LayoutText(LayoutContext* ctx,
             {
                 uint32_t resolved_span_end = resolved_span->m_TextOffset + resolved_span->m_TextLength;
                 run_end = run_end < resolved_span_end ? run_end : resolved_span_end;
-                font_size = layout->m_Styles[resolved_span->m_StyleIndex].m_FontSize;
+                font_size = resolved_span->m_FontSize;
                 uint32_t layout_span_index = resolved_span_index;
 
                 while (run_end < segment_end && layout_span_index + 1 < layout->m_ResolvedSpans.Size())
                 {
                     const TextResolvedSpan& next_span = layout->m_ResolvedSpans[layout_span_index + 1];
 
-                    if (next_span.m_TextOffset != run_end || !HasSameLayoutAttributes(layout, *resolved_span, next_span))
+                    if (next_span.m_TextOffset != run_end || !HasSameLayoutAttributes(*resolved_span, next_span))
                     {
                         break;
                     }
