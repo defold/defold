@@ -12,20 +12,23 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from log import log
 from string import Template
 import base64
 import github
 import json
-import mimetypes
 import os
 import re
 import run
 import s3
 import subprocess
+import tempfile
 import urllib
 from urllib.parse import urlparse
+
+ASSET_TRANSFER_WORKERS = 3
 
 def get_current_repo():
     # git@github.com:defold/defold.git
@@ -60,6 +63,27 @@ def get_defold_version_from_file():
     if process.returncode != 0:
         return None
     return out.strip()
+
+def is_stale_release(config, release_sha):
+    # Read S3 directly so a CDN cannot hide a publication completed by another job.
+    # info.json advances before GitHub uploads, so this also prevents rolling back a
+    # newer, partially published release. Retrying that same commit remains allowed.
+    info = s3.get_release_info(config.get_archive_path(), config.channel)
+    if info is None or info['sha1'] == release_sha:
+        return False
+
+    published_sha = info['sha1']
+    repository = os.environ.get('GITHUB_REPOSITORY') or get_current_repo()
+    comparison = github.compare_commits(repository, published_sha, release_sha, config.github_token)
+    status = comparison.get('status') if isinstance(comparison, dict) else None
+    if status == 'behind':
+        log("Skipping release %s to %s: the channel already publishes newer commit %s" %
+            (release_sha, config.channel, published_sha))
+        return True
+    if status in ('ahead', 'identical'):
+        return False
+    raise RuntimeError("Cannot safely order release %s against published commit %s (%s); refusing to publish" %
+                       (release_sha, published_sha, status))
 
 def release(config, tag_name, release_sha, s3_release, release_name=None, body=None, prerelease=True, editor_only=False):
     log("Releasing Defold %s to GitHub" % tag_name)
@@ -128,18 +152,10 @@ def release(config, tag_name, release_sha, s3_release, release_name=None, body=N
         log("Unable to update GitHub release for %s" % (config.version))
         exit(1)
 
-    # remove existing uploaded assets (It's not currently possible to update a release asset
-    prev_assets = {}
     for asset in release.get("assets", []):
-        prev_assets[asset.get("name")] = asset
         log("Found old asset: %s %s" % (asset.get("name"), asset.get("id")))
 
-    # upload_url is a Hypermedia link (https://developer.github.com/v3/#hypermedia)
-    # Example: https://uploads.github.com/repos/defold/defold/releases/25677114/assets{?name,label}
-    # Can be parsed and expanded using: https://pypi.org/project/uritemplate/
-    # for now we ignore this and fix it ourselves (note this may break if GitHub
-    # changes the way uploads are done)
-    log("Uploading artifacts to GitHub from S3")
+    log("Uploading artifacts to GitHub from S3 (%d workers)" % ASSET_TRANSFER_WORKERS)
     base_url = "https://" + urlparse(config.archive_path).hostname
 
     def is_editor_file(path):
@@ -194,35 +210,34 @@ def release(config, tag_name, release_sha, s3_release, release_name=None, body=N
         download_url = base_url + path
         urls.add(download_url)
 
-    upload_url = release.get("upload_url").replace("{?name,label}", "?name=%s")
-
-    for download_url in urls:
-        filepath = config._download(download_url)
-        filename = re.sub(r'https://%s/archive/(.*?)/' % config.archive_path, '', download_url)
-        basename = os.path.basename(filename)
-        # file stream upload to GitHub
-        with open(filepath, 'rb') as f:
-            content_type,_ = mimetypes.guess_type(basename)
-            headers = { "Content-Type": content_type or "application/octet-stream" }
+    def upload_asset(download_url):
+        # Keep each file outside the shared cache so another download cannot evict
+        # it while an upload or a retry is still reading it.
+        with tempfile.TemporaryDirectory(prefix='defold-release-') as cache_root:
+            filepath = config._download(download_url, cache_root=cache_root)
+            filename = re.sub(r'https://%s/archive/(.*?)/' % config.archive_path, '', download_url)
+            basename = os.path.basename(filename)
             name = filename
             if is_main_file(download_url):
                 name = basename
             elif is_platform_file(download_url): # For the executable files
                 name = convert_to_platform_name(download_url)
 
-            # Since there is no way to update an asset, we need to remove it first.
-            old_asset = prev_assets.get(name, None)
-            if old_asset is not None:
-                asset_url = old_asset.get("url")
-                log("Deleting %s -  %s" % (old_asset.get("id"), old_asset.get("name")))
-                github.delete(asset_url, config.github_token)
-
-            url = upload_url % (name)
-            log("Uploading to GitHub " + url)
-            response = github.post(url, config.github_token, data = f, headers = headers)
+            response = github.upload_release_asset(release, config.github_token, filepath, name)
             if not response:
                 log("Unable to upload GitHub release asset %s for %s" % (name, tag_name))
                 exit(1)
+
+    with ThreadPoolExecutor(max_workers=ASSET_TRANSFER_WORKERS) as executor:
+        transfers = [executor.submit(upload_asset, url) for url in sorted(urls)]
+        try:
+            for transfer in as_completed(transfers):
+                transfer.result()
+        finally:
+            # Stop queued work on failure; wait for running transfers before the
+            # release job can finish and relinquish its channel lock.
+            for transfer in transfers:
+                transfer.cancel()
 
     log("Released Defold %s to GitHub" % tag_name)
 
