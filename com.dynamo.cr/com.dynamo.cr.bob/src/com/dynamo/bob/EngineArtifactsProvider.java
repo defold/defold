@@ -120,7 +120,7 @@ public final class EngineArtifactsProvider {
         String[] exeSuffixes = platform.getExeSuffixes();
         String defaultDmengineExeName = getDefaultDmengineExeName(variant);
         OS os = platform.getOsID();
-        // Match the stripped native engines packaged by scripts/copy.sh. Keeping
+        // Match the stripped native engines selected by artifacts.gradle. Keeping
         // the same subdirectory in the cache also separates Android symbols.
         boolean stripped = os == OS.OS_ID_LINUX || os == OS.OS_ID_OSX || os == OS.OS_ID_IOS || os == OS.OS_ID_ANDROID;
         for (String exeSuffix : exeSuffixes) {
