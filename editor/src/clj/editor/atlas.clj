@@ -668,7 +668,7 @@
   ;; contain the animation metadata since it was produced from fake animations.
   ;; In order to produce a valid TextureSetResult, we complete the protobuf
   ;; animations inside the embedded TextureSet with our animation properties.
-  [animations layout-data atlas-images-variants rename-patterns]
+  [animations layout-data rename-patterns]
   (let [incomplete-ddf-texture-set (:texture-set layout-data)
         incomplete-ddf-animations (:animations incomplete-ddf-texture-set)
         animation-present-in-ddf? (comp coll/not-empty :images)
@@ -685,11 +685,12 @@
         ;; them here. The same image (i.e. rect) might be referenced multiple
         ;; times if it's used in different animations, that's fine and this is
         ;; how Bob does it in TextureSetGenerator. See also: comments in
-        ;; texture_set_ddf.proto about `image_name_hashes` field
+        ;; texture_set_ddf.proto about `image_name_hashes` field.
+        ;; The initial hashes must follow geometry/frame order, not atlas entry order.
         fixed-image-name-hashes (-> []
                                     (into
                                       (map #(-> % :path (texture-set-gen/resource-id rename-patterns) murmur/hash64))
-                                      atlas-images-variants)
+                                      (:geometry-images layout-data))
                                     (into
                                       (mapcat
                                         (fn [{:keys [id images]}]
