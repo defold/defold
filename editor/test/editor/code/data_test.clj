@@ -97,10 +97,16 @@
            (data/complex-text-ranges (str "\"" phrase "\"")))))
   (is (= [[0 7]] (data/complex-text-ranges "ไทย ไทย")))
 
-  ;; A letter, a digit or a tab ends the range, which leaves the neutrals
-  ;; between it and them outside.
+  ;; A letter or a tab ends the range, which leaves the neutrals between it
+  ;; and them outside.
   (is (= [[2 5]] (data/complex-text-ranges "a ไทย b")))
   (is (= [[0 3] [4 7]] (data/complex-text-ranges "ไทย\tไทย")))
+
+  ;; Digits buffer like neutrals, so a number inside an RTL phrase reaches the
+  ;; shaper with the words around it - but stays outside at a boundary.
+  (is (= [[0 10]] (data/complex-text-ranges "ไทย 12 ไทย")))
+  (is (= [[0 3]] (data/complex-text-ranges "ไทย 12")))
+  (is (= [[3 6]] (data/complex-text-ranges "12 ไทย")))
 
   ;; Quotes end a range too, so two adjacent string literals stay separate.
   (is (= [[1 4] [9 12]] (data/complex-text-ranges "\"ไทย\" : \"ไทย\"")))
@@ -649,6 +655,12 @@
 
   (testing "Peels one Thai combining mark at a time"
     (is (= [(c 0 1)] (data/move-cursors [(c 0 2)] #'data/cursor-left ["รี"]))))
+
+  (testing "Word movement lands on grapheme cluster boundaries"
+    (let [line (str "foo ba" (String. (Character/toChars 0x0301)) "r baz")]
+      (is (= [(c 0 4)] (data/move-cursors [(c 0 9)] #'data/cursor-prev-word [line])))
+      (is (= [(c 0 8)] (data/move-cursors [(c 0 4)] #'data/cursor-next-word [line])))
+      (is (= [(c 0 2)] (data/move-cursors [(c 0 0)] #'data/cursor-next-word ["รี ab"])))))
 
   (testing "Out-of-bounds movement"
     (is (= [(c 0 0)] (data/move-cursors [(c 0 0)] #'data/cursor-up ["a" "b" "c"])))

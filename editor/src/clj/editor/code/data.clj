@@ -65,11 +65,17 @@
   Tabs are excluded: a range must never contain one, since the shaper does not
   know the editor's tab stops. Quotes are excluded so that two adjacent string
   literals are never merged into one range - without syntax scopes to consult,
-  the delimiter is what keeps a range inside the string it started in."
+  the delimiter is what keeps a range inside the string it started in.
+
+  Digits count as neutral: the bidi algorithm keeps a number embedded in
+  right-to-left text with that text, so a digit run flanked by complex
+  characters must reach the shaper inside the range for the words around it
+  to come back in the right order."
   [character]
   (case character
     (\tab \" \' \`) false
-    (not (Character/isLetterOrDigit (unchecked-char character)))))
+    (or (Character/isDigit (unchecked-char character))
+        (not (Character/isLetterOrDigit (unchecked-char character))))))
 
 (defn complex-text-ranges
   "Ranges of the line, as [start end] character offsets, that must be measured
@@ -78,7 +84,7 @@
   A range spans a whole directional stretch, not one word: the spaces and
   punctuation between two complex characters are absorbed into it, so an Arabic
   phrase is handed to the shaper intact and comes back with its words in visual
-  order. A letter, a digit or a tab ends the range, which keeps it inside the
+  order. A letter or a tab ends the range, which keeps it inside the
   string or comment the complex text appears in - code outside those is ASCII."
   [^String line]
   (let [line-length (count line)]
@@ -1737,19 +1743,35 @@
         (->Cursor new-row (if (= last-row row) (count (lines last-row)) 0)))
       (->Cursor row (next-grapheme-boundary line col)))))
 
+(defn- grapheme-boundary?
+  [^String line ^long col]
+  (let [iterator (BreakIterator/getCharacterInstance Locale/ROOT)]
+    (.setText iterator line)
+    (.isBoundary iterator col)))
+
 (defn- cursor-prev-word
   ^Cursor [lines ^Cursor cursor]
   (let [left-adjusted (cursor-left lines cursor)]
     (if (not= (.row cursor) (.row left-adjusted))
       left-adjusted
-      (cursor-range-start (word-cursor-range-at-cursor lines left-adjusted)))))
+      ;; The word scan can stop between a base character and its combining
+      ;; mark - snap back to the cluster boundary.
+      (let [^Cursor target (cursor-range-start (word-cursor-range-at-cursor lines left-adjusted))
+            ^String line (lines (.row target))]
+        (if (grapheme-boundary? line (.col target))
+          target
+          (->Cursor (.row target) (previous-grapheme-boundary line (.col target))))))))
 
 (defn- cursor-next-word
   ^Cursor [lines ^Cursor cursor]
   (let [right-adjusted (cursor-right lines cursor)]
     (if (not= (.row cursor) (.row right-adjusted))
       right-adjusted
-      (cursor-range-end (word-cursor-range-at-cursor lines right-adjusted)))))
+      (let [^Cursor target (cursor-range-end (word-cursor-range-at-cursor lines right-adjusted))
+            ^String line (lines (.row target))]
+        (if (grapheme-boundary? line (.col target))
+          target
+          (->Cursor (.row target) (next-grapheme-boundary line (.col target))))))))
 
 (defn move-cursors [cursor-ranges move-fn lines]
   (into []
