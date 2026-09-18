@@ -606,6 +606,50 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
     dmGraphics::DeleteProgram(m_Context, program);
 }
 
+TEST_F(dmGraphicsTest, TestStorageBuffers)
+{
+    ASSERT_TRUE(dmGraphics::IsContextFeatureSupported(m_Context, dmGraphics::CONTEXT_FEATURE_STORAGE_BUFFER));
+
+    dmGraphics::GraphicsContextLimits limits = {};
+    dmGraphics::GetGraphicsContextLimits(m_Context, limits);
+    ASSERT_GT(limits.m_MaxStorageBufferRange, 0u);
+    ASSERT_GT(limits.m_MaxStorageBuffersPerStage, 0u);
+    ASSERT_EQ((dmGraphics::HStorageBuffer) 0, dmGraphics::NewStorageBuffer(
+        m_Context, 3, 0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW));
+
+    uint32_t initial_data[] = { 1, 2, 3, 4 };
+    dmGraphics::HStorageBuffer storage_buffer = dmGraphics::NewStorageBuffer(
+        m_Context, sizeof(initial_data), initial_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+    ASSERT_NE((dmGraphics::HStorageBuffer) 0, storage_buffer);
+    ASSERT_EQ(sizeof(initial_data), dmGraphics::GetStorageBufferSize(m_Context, storage_buffer));
+
+    dmGraphics::NullStorageBuffer* null_buffer = (dmGraphics::NullStorageBuffer*) storage_buffer;
+    ASSERT_EQ(0, memcmp(initial_data, null_buffer->m_Buffer, sizeof(initial_data)));
+
+    uint32_t replacement = 42;
+    dmGraphics::SetStorageBufferSubData(m_Context, storage_buffer, sizeof(uint32_t), sizeof(replacement), &replacement);
+    ASSERT_EQ(replacement, ((uint32_t*) null_buffer->m_Buffer)[1]);
+
+    const uint32_t unchanged = ((uint32_t*) null_buffer->m_Buffer)[3];
+    dmGraphics::SetStorageBufferSubData(m_Context, storage_buffer, sizeof(initial_data), sizeof(replacement), &replacement);
+    ASSERT_EQ(unchanged, ((uint32_t*) null_buffer->m_Buffer)[3]);
+
+    dmGraphics::SetStorageBufferData(m_Context, storage_buffer, 3, initial_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+    ASSERT_EQ(sizeof(initial_data), dmGraphics::GetStorageBufferSize(m_Context, storage_buffer));
+
+    uint32_t resized_data[] = { 5, 6, 7, 8, 9, 10 };
+    dmGraphics::SetStorageBufferData(m_Context, storage_buffer, sizeof(resized_data), resized_data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    ASSERT_EQ(sizeof(resized_data), dmGraphics::GetStorageBufferSize(m_Context, storage_buffer));
+    ASSERT_EQ(0, memcmp(resized_data, null_buffer->m_Buffer, sizeof(resized_data)));
+
+    dmGraphics::EnableStorageBuffer(m_Context, storage_buffer, 1, 2);
+    ASSERT_EQ(null_buffer, m_NullContext->m_StorageBuffers[1][2]);
+    dmGraphics::DisableStorageBuffer(m_Context, storage_buffer);
+    ASSERT_EQ((dmGraphics::NullStorageBuffer*) 0, m_NullContext->m_StorageBuffers[1][2]);
+
+    dmGraphics::DeleteStorageBuffer(m_Context, storage_buffer);
+}
+
 TEST_F(dmGraphicsTest, TestUniformBufferLayoutCompatibility)
 {
     const dmhash_t info_hash   = dmHashString64("info");

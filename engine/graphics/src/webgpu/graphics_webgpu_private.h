@@ -69,6 +69,12 @@ namespace dmGraphics
         WGPUBuffer    m_Buffer;
     };
 
+    struct WebGPUStorageBuffer
+    {
+        StorageBuffer m_Base;
+        WGPUBuffer    m_Buffer;
+    };
+
     struct WebGPUShaderModule
     {
         WGPUShaderModule m_Module = NULL;
@@ -207,6 +213,7 @@ namespace dmGraphics
         WebGPUBuffer*                      m_CurrentVertexBuffers[MAX_VERTEX_BUFFERS];
         uint32_t                           m_CurrentVertexBufferOffsets[MAX_VERTEX_BUFFERS];
         WebGPUUniformBuffer*               m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        WebGPUStorageBuffer*               m_CurrentStorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
         WebGPUTexture*                     m_DefaultTexture2D;
         WebGPUTexture*                     m_DefaultTexture2DArray;

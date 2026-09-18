@@ -1082,14 +1082,24 @@ bail:
         // yet so for now we just create a single subpass that connects an external source
         // (anything that has happend before this call) to the color output of the render pass,
         // which should be fine in most cases.
-        VkSubpassDependency vk_sub_pass_dependency;
-        memset(&vk_sub_pass_dependency, 0, sizeof(vk_sub_pass_dependency));
-        vk_sub_pass_dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
-        vk_sub_pass_dependency.dstSubpass    = 0;
-        vk_sub_pass_dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        vk_sub_pass_dependency.srcAccessMask = 0;
-        vk_sub_pass_dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        vk_sub_pass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        VkSubpassDependency vk_sub_pass_dependencies[2];
+        memset(vk_sub_pass_dependencies, 0, sizeof(vk_sub_pass_dependencies));
+        vk_sub_pass_dependencies[0].srcSubpass    = VK_SUBPASS_EXTERNAL;
+        vk_sub_pass_dependencies[0].dstSubpass    = 0;
+        vk_sub_pass_dependencies[0].srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        vk_sub_pass_dependencies[0].srcAccessMask = 0;
+        vk_sub_pass_dependencies[0].dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        vk_sub_pass_dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+        // Allow storage-buffer writes from one draw to become visible to later draws
+        // in the same subpass. The command-side dependency is emitted after writers.
+        vk_sub_pass_dependencies[1].srcSubpass      = 0;
+        vk_sub_pass_dependencies[1].dstSubpass      = 0;
+        vk_sub_pass_dependencies[1].srcStageMask    = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        vk_sub_pass_dependencies[1].srcAccessMask   = VK_ACCESS_SHADER_WRITE_BIT;
+        vk_sub_pass_dependencies[1].dstStageMask    = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        vk_sub_pass_dependencies[1].dstAccessMask   = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        vk_sub_pass_dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
         // The subpass description connects the input attachments to the render pass,
         // in a MRT situation writing to specific color outputs (gl_FragData[x]) match these numbers.
@@ -1110,8 +1120,8 @@ bail:
         render_pass_create_info.pAttachments    = vk_attachment_desc;
         render_pass_create_info.subpassCount    = 1;
         render_pass_create_info.pSubpasses      = &vk_sub_pass_description;
-        render_pass_create_info.dependencyCount = 1;
-        render_pass_create_info.pDependencies   = &vk_sub_pass_dependency;
+        render_pass_create_info.dependencyCount = DM_ARRAY_SIZE(vk_sub_pass_dependencies);
+        render_pass_create_info.pDependencies   = vk_sub_pass_dependencies;
 
         VkResult res = vkCreateRenderPass(vk_device, &render_pass_create_info, 0, renderPassOut);
 
