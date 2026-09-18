@@ -2537,15 +2537,6 @@ class Configuration(object):
 
             self.build_tracker.end_component('bob_plugin_%s' % plugin_name, self.host)
 
-    def _copy_bob_private_artifacts(self):
-        """Stage private-platform additions; public artifacts are packaged directly.
-
-        Use sh (not bash): on Windows, `bash` in PATH is often WSL's stub (no distro).
-        Git for Windows provides sh.exe. Avoid shell=True so cmd.exe is not used."""
-        bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        if os.path.isfile(join(bob_dir, 'scripts/copy_private.sh')):
-            run.env_command(self._form_env(), ['sh', 'scripts/copy.sh'], cwd=bob_dir)
-
     def build_bob_light(self):
         self.build_tracker.start_component('bob_light', self.host)
         log_cmd_build = 'Gradle build bob_light'
@@ -2798,8 +2789,6 @@ class Configuration(object):
         """Build Bob using the cross-platform tools already installed by install_ext."""
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
-
-        self._copy_bob_private_artifacts()
 
         env = self._form_env()
 
@@ -3513,8 +3502,8 @@ class Configuration(object):
         # Keep the public download list aligned with Gradle's packaging inputs.
         bob_artifacts = {'engine/' + path for path in self._bob_archive_artifacts()}
 
-        # Private copy hooks define their own inputs. Preserve the previous filtering
-        # within private-platform folders, which are absent from the public manifest.
+        # Preserve the existing download filters within private-platform folders,
+        # which are absent from the public manifest.
         private_excludes = re.compile(
             r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$'
             r'|/(armv7-android|wasm_pthread-web|x86_64-android|arm64_sim-ios)(/|$)|headless'

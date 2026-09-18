@@ -41,7 +41,6 @@ def engineArtifact = { String localPath, String archivePath ->
     useArchive && !settings.preferLocalEngines ? archivedArtifact(archivePath) : preferLocal(localPath, archivePath)
 }
 def entries = [:]
-Set<String> managedPaths = []
 def add = { String path, File source, boolean required = false ->
     entries[path] = [source: source, light: isLightTool(path), required: required]
 }
@@ -77,7 +76,6 @@ enginePlatforms.each { platform ->
                 platform.endsWith('web') ? ["${engine}.js", "${engine}.wasm"] : [engine]
         names.each { name ->
             def path = "libexec/${platform}/${name}".toString()
-            managedPaths.add(path)
             def stripped = !platform.endsWith('win32') && !platform.endsWith('web') ? 'stripped/' : ''
             def archivePath = "${platform}/${stripped}${name}".toString()
             def localPath = "bin/${platform}/${name}".toString()
@@ -89,10 +87,7 @@ enginePlatforms.each { platform ->
         }
     }
 }
-managedPaths.addAll(entries.keySet())
-
-// Local Switch builds used the same fallback as public engines. Archive builds
-// obtain these through copy_private.sh, so keep their staged paths available.
+// Local Switch builds use the same fallback as public engines.
 if (!useArchive) {
     ['dmengine', 'dmengine_release'].each { engine ->
         ['nss', 'nso'].each { extension ->
@@ -102,23 +97,9 @@ if (!useArchive) {
     }
 }
 
-// Retain private-platform additions, but never fall back to stale public copies.
-def privateFiles = files()
-if (settings.privateRoot || new File(bobDir, 'scripts/copy_private.sh').isFile()) {
-    privateFiles = fileTree(bobDir) {
-        include 'libexec/**', 'lib/**/*texc_shared*', 'lib/**/*modelc_shared*',
-                'lib/**/*shaderc_shared*', 'lib/**/*fontc_shared*', 'lib/**/*libc++*', 'lib/*.zip'
-        exclude '**/*dSYM.zip'
-        exclude { element -> managedPaths.contains(element.relativePath.pathString) }
-    }
-}
-def privateLightFiles = lightToolIncludes.isEmpty() ? files() : privateFiles.asFileTree.matching {
-    include(lightToolIncludes)
-}
-
 def engineJars = archivePaths.findAll { it.startsWith('share/java/') && it.endsWith('.jar') }.collectEntries { path ->
     [(new File(path).name): preferLocal(path, path)]
 }
-ext.bobArtifacts = [entries: entries, privateFiles: privateFiles, privateLightFiles: privateLightFiles, engineJars: engineJars,
+ext.bobArtifacts = [entries: entries, engineJars: engineJars,
                     builtinsZip: builtinsZip, luaJitShareZip: luaJitShareZip,
                     manifests: [archiveManifest, toolsManifest, lightToolsManifest]]

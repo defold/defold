@@ -12,8 +12,8 @@ installation, run `scripts/build.py install_ext build_bob`.
 Full Bob uses engines and builtins from `$DYNAMO_HOME/archive/<current revision>`
 when available, otherwise from the local engine build. Compiler libraries and
 helper JARs prefer local builds, with the archive as a fallback. Public artifacts
-are no longer copied into Bob's `lib` and `libexec` directories. Private-platform
-additions can still be provided by `scripts/copy_private.sh`.
+are no longer copied into Bob's `lib` and `libexec` directories. Console shader
+compiler plugins, where needed, are built separately from Bob.
 
 `scripts/update-editor-binaries.sh` installs Bob with `-Pprefer-local-engines` so
 local engine binaries and `classes.dex` take precedence over a synced archive.
@@ -23,15 +23,15 @@ headless engines and platforms omitted from `archive-artifacts.json`.
 `scripts/build.py sync_archive` downloads Bob's engine inputs from S3. The public
 paths in `archive-artifacts.json` are shared with Gradle's artifact selection;
 update that list when adding an archived input. Private-platform archive folders
-retain their existing download filters for private copy hooks.
+retain their existing download filters.
 
 Tool packaging is defined by two additional manifests:
 
 - `tools.json` maps full Bob's JAR entry paths to installed files relative to
   `$DYNAMO_HOME`. It includes external tools and their supporting libraries/data.
 - `bob-light-tools.json` lists Ant-style JAR path patterns for Bob Light's tools,
-  compiler libraries, and LuaJIT modules. The same allowlist selects private-platform
-  additions. Android bundling tools such as `aapt2` are included only in full Bob.
+  compiler libraries, and LuaJIT modules. Android bundling tools such as `aapt2`
+  are included only in full Bob.
 
 Compiler libraries still resolve from local engine builds or `archive-artifacts.json`;
 `lib/luajit-share.zip` is generated from the installed LuaJIT modules. Both JAR tasks
