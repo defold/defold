@@ -1162,7 +1162,8 @@ TEST_F(FontTest, StaticVectorEffectsUseBakedBitmapsWithoutSourceFont)
         for (uint32_t p = 0; p < (uint32_t)glyph->m_Bitmap.m_Width * glyph->m_Bitmap.m_Height; ++p)
         {
             outline_pixels += pixels[p * 3 + 1] > pixels[p * 3];
-            shadow_pixels += pixels[p * 3 + 1] == 0 && pixels[p * 3 + 2] > 0;
+            // The outline channel is an SDF and can stay nonzero outside the face.
+            shadow_pixels += pixels[p * 3] == 0 && pixels[p * 3 + 2] > 0 && pixels[p * 3 + 2] != pixels[p * 3 + 1];
         }
         ASSERT_GT(outline_pixels, 0u);
         if (i == 1)
