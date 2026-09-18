@@ -1041,7 +1041,8 @@ bail:
             // Keep depth and stencil load ops in sync for packed depth/stencil attachments so
             // the render-pass CLEAR fast path actually clears stencil too.
             attachment_depth.stencilLoadOp  = depthStencilAttachment->m_LoadOp;
-            attachment_depth.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+            // ReadPixels can split a pass before later draws consume its stencil mask.
+            attachment_depth.stencilStoreOp = depthStencilAttachment->m_StoreOp;
             attachment_depth.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
             attachment_depth.finalLayout    = depthStencilAttachment->m_ImageLayout;
 
@@ -1573,10 +1574,12 @@ bail:
         {
             DestroyRenderPass(vk_device, handle->m_RenderPassClearColorDepth);
         }
+        DestroyRenderPass(vk_device, handle->m_RenderPassLoad);
         handle->m_Framebuffer              = VK_NULL_HANDLE;
         handle->m_RenderPass               = VK_NULL_HANDLE;
         handle->m_RenderPassClear          = VK_NULL_HANDLE;
         handle->m_RenderPassClearColorDepth = VK_NULL_HANDLE;
+        handle->m_RenderPassLoad           = VK_NULL_HANDLE;
     }
 
     void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle)

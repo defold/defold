@@ -3980,8 +3980,100 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         g_DX12Context->m_CurrentTextures[unit] = 0x0;
     }
 
-    static void DX12ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
+    static void DX12ReadPixels(HContext _context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
+        DX12Context* context = (DX12Context*) _context;
+        DX12RenderTarget* rt = GetAssetFromContainer<DX12RenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+        DX12Texture* color = rt ? GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColor[0]) : 0;
+        if (!color || !buffer || !width || !height || x < 0 || y < 0 ||
+            uint64_t(width) * height * 4 > buffer_size || uint64_t(x) + width > color->m_Base.m_Width || uint64_t(y) + height > color->m_Base.m_Height)
+        {
+            dmLogError("DX12ReadPixels: invalid color attachment, destination or region");
+            return;
+        }
+        D3D12_RESOURCE_DESC source_desc = color->m_Resource->GetDesc();
+        if ((source_desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM && source_desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB &&
+             source_desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM && source_desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM_SRGB) || source_desc.SampleDesc.Count != 1)
+        {
+            dmLogError("DX12ReadPixels: expected a single-sample RGBA8/BGRA8 attachment");
+            return;
+        }
+
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
+        UINT64 staging_size;
+        context->m_Device->GetCopyableFootprints(&source_desc, 0, 1, 0, &footprint, 0, 0, &staging_size);
+        D3D12_HEAP_PROPERTIES heap = {};
+        heap.Type = D3D12_HEAP_TYPE_READBACK;
+        D3D12_RESOURCE_DESC staging_desc = CD3DX12_RESOURCE_DESC::Buffer(staging_size);
+        ID3D12Resource* staging = 0;
+        HRESULT hr = context->m_Device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &staging_desc,
+            D3D12_RESOURCE_STATE_COPY_DEST, 0, DM_IID_PPV_ARGS(&staging));
+        CHECK_HR_ERROR(hr);
+        if (FAILED(hr))
+            return;
+
+        HRenderTarget target = context->m_CurrentRenderTarget;
+        const bool was_bound = EndRenderPass(context);
+        const D3D12_RESOURCE_STATES state = color->m_ResourceStates[0];
+        D3D12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(color->m_Resource, state, D3D12_RESOURCE_STATE_COPY_SOURCE);
+        context->m_CommandList->ResourceBarrier(1, &barrier);
+        D3D12_TEXTURE_COPY_LOCATION source = {};
+        source.pResource = color->m_Resource;
+        source.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        D3D12_TEXTURE_COPY_LOCATION destination = {};
+        destination.pResource = staging;
+        destination.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+        destination.PlacedFootprint = footprint;
+        D3D12_BOX region = { (UINT) x, (UINT) y, 0, (UINT) x + width, (UINT) y + height, 1 };
+        context->m_CommandList->CopyTextureRegion(&destination, 0, 0, 0, &source, &region);
+        barrier = CD3DX12_RESOURCE_BARRIER::Transition(color->m_Resource, D3D12_RESOURCE_STATE_COPY_SOURCE, state);
+        context->m_CommandList->ResourceBarrier(1, &barrier);
+        hr = context->m_CommandList->Close();
+        CHECK_HR_ERROR(hr);
+        ID3D12CommandList* commands[] = { context->m_CommandList };
+        context->m_CommandQueue->ExecuteCommandLists(1, commands);
+        DX12FrameResource& frame = context->m_FrameResources[context->m_CurrentFrameIndex];
+        hr = context->m_CommandQueue->Signal(frame.m_Fence, frame.m_FenceValue);
+        CHECK_HR_ERROR(hr);
+        hr = frame.m_Fence->SetEventOnCompletion(frame.m_FenceValue, context->m_FenceEvent);
+        CHECK_HR_ERROR(hr);
+        WaitForSingleObject(context->m_FenceEvent, INFINITE);
+        ++frame.m_FenceValue;
+
+        D3D12_RANGE read_range = { (SIZE_T) footprint.Offset, (SIZE_T) staging_size };
+        uint8_t* mapped = 0;
+        hr = staging->Map(0, &read_range, (void**) &mapped);
+        CHECK_HR_ERROR(hr);
+        if (SUCCEEDED(hr))
+        {
+            uint8_t* pixels = (uint8_t*) buffer;
+            for (uint32_t row = 0; row < height; ++row)
+                memcpy(pixels + row * width * 4, mapped + footprint.Offset + row * footprint.Footprint.RowPitch, width * 4);
+            if (source_desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM || source_desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
+            {
+                for (uint32_t i = 0; i < width * height * 4; i += 4)
+                {
+                    uint8_t red = pixels[i];
+                    pixels[i] = pixels[i + 2];
+                    pixels[i + 2] = red;
+                }
+            }
+            D3D12_RANGE written = { 0, 0 };
+            staging->Unmap(0, &written);
+        }
+        staging->Release();
+
+        // Keep scratch allocations and upload data alive across the split;
+        // only command recording and its cached bindings need to restart.
+        hr = frame.m_CommandAllocator->Reset();
+        CHECK_HR_ERROR(hr);
+        hr = context->m_CommandList->Reset(frame.m_CommandAllocator, 0);
+        CHECK_HR_ERROR(hr);
+        ID3D12DescriptorHeap* heaps[] = { context->m_SamplerPool.m_DescriptorHeap, frame.m_ScratchBuffer.m_MemoryPools[0].m_DescriptorHeap };
+        context->m_CommandList->SetDescriptorHeaps(DM_ARRAY_SIZE(heaps), heaps);
+        context->m_ViewportChanged = 1;
+        if (was_bound)
+            BeginRenderPass(context, target);
     }
 
     static void DX12SetViewport(HContext _context, int32_t x, int32_t y, int32_t width, int32_t height)

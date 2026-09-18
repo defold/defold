@@ -98,5 +98,81 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64_sim-ios|x86_64-ps4|x86_64-ps5)$")
     endif()
     defold_target_link_libraries_web(test_app_graphics "${TARGET_PLATFORM}" library_sys.js library_glfw.js)
     defold_register_test_target(test_app_graphics OFF)
+    if(NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")
+      target_sources(test_app_graphics PRIVATE "${GRAPHICS_TEST_SRC_DIR}/graphics_capture.cpp")
+      target_compile_definitions(test_app_graphics PRIVATE DM_TEST_GRAPHICS_CAPTURE)
+      if(WIN32)
+        target_link_libraries(test_app_graphics PRIVATE d3dcompiler)
+      endif()
+
+      _defold_find_python(_graphics_python)
+      defold_test_run_settings(_graphics_runner _graphics_run_options graphics)
+      if(TARGET_PLATFORM MATCHES "macos$")
+        set(_graphics_matrix metal opengl webgpu)
+      elseif(TARGET_PLATFORM MATCHES "linux$")
+        set(_graphics_matrix vulkan)
+      else()
+        set(_graphics_matrix dx12)
+      endif()
+      set(_graphics_available)
+      foreach(_backend IN LISTS _graphics_matrix)
+        if(_backend STREQUAL "metal")
+          set(_symbol GraphicsAdapterMetal)
+        elseif(_backend STREQUAL "opengl")
+          set(_symbol GraphicsAdapterOpenGL)
+        elseif(_backend STREQUAL "webgpu")
+          set(_symbol GraphicsAdapterWebGPU)
+          if(NOT TARGET_PLATFORM STREQUAL "arm64-macos")
+            continue()
+          endif()
+        elseif(_backend STREQUAL "vulkan")
+          set(_symbol GraphicsAdapterVulkan)
+        else()
+          set(_symbol GraphicsAdapterDX12)
+        endif()
+        if(_symbol IN_LIST _graphics_app_symbols)
+          list(APPEND _graphics_available "${_backend}")
+        endif()
+      endforeach()
+      set(_graphics_python_command "${CMAKE_COMMAND}" -E env
+        "GRAPHICS_CAPTURE_EXECUTABLE=$<TARGET_FILE:test_app_graphics>"
+        "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/test_graphics_images.py")
+      set(_graphics_image_command "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_images.py"
+        --executable "$<TARGET_FILE:test_app_graphics>"
+        --capture-dir "${GRAPHICS_ROOT}/build/graphics-test-images"
+        --output "${GRAPHICS_ROOT}/build/graphics-render-report"
+        --matrix ${_graphics_matrix} --available ${_graphics_available})
+      add_custom_target(run_test_graphics_images_python
+        COMMAND ${_graphics_runner} ${_graphics_python_command}
+        DEPENDS test_app_graphics
+        ${_graphics_run_options} COMMENT "Testing graphics image capture and reporting")
+      add_custom_target(generate_graphics_test_images
+        COMMAND ${_graphics_runner} ${_graphics_image_command}
+        DEPENDS test_app_graphics run_test_graphics_images_python
+        ${_graphics_run_options} COMMENT "Rendering the graphics likeness matrix")
+
+      # Automatic hosted CI coverage is native Linux/Vulkan. The manual target
+      # above always remains available, regardless of this policy.
+      set(_graphics_ci_command ${_graphics_image_command})
+      if(DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$")
+        list(APPEND _graphics_ci_command --skip-all "Hosted CI graphics captures explicitly disabled for ${TARGET_PLATFORM}")
+        message(STATUS "Graphics captures skipped on hosted ${TARGET_PLATFORM} CI; manual target remains available")
+      endif()
+      add_custom_target(run_graphics_test_images
+        COMMAND ${_graphics_runner} ${_graphics_ci_command}
+        DEPENDS test_app_graphics
+        ${_graphics_run_options} COMMENT "Running graphics likeness tests with CI policy")
+      if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+        defold_add_to_run_tests(run_test_graphics_images_python RUN_GROUP graphics
+          COMMAND ${_graphics_python_command} DEPENDS test_app_graphics)
+        # This runner command carries the CI policy, while the manual target does not.
+        defold_add_to_run_tests(run_graphics_test_images RUN_GROUP graphics
+          COMMAND ${_graphics_ci_command} DEPENDS test_app_graphics)
+      endif()
+      defold_register_sequential_test_command(graphics_images_python
+        COMMAND ${_graphics_python_command} DEPENDS test_app_graphics)
+      defold_register_sequential_test_command(graphics_images
+        COMMAND ${_graphics_ci_command} DEPENDS test_app_graphics)
+    endif()
   endif()
 endif()
