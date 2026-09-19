@@ -42,7 +42,7 @@ namespace dmLiveUpdate
             case dmResource::RESULT_SIGNATURE_MISMATCH: return RESULT_SIGNATURE_MISMATCH;
             case dmResource::RESULT_NOT_SUPPORTED:      return RESULT_SCHEME_MISMATCH;
             case dmResource::RESULT_INVALID_DATA:       return RESULT_BUNDLED_RESOURCE_MISMATCH;
-            case dmResource::RESULT_DDF_ERROR:          return RESULT_FORMAT_ERROR;
+            case dmResource::RESULT_PROTOBUF_ERROR:          return RESULT_FORMAT_ERROR;
             default: break;
         }
         return RESULT_INVALID_RESOURCE;
