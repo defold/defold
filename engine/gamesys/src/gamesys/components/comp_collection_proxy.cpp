@@ -222,6 +222,37 @@ namespace dmGameSystem
         return (DoLoad(params->m_Factory, (CollectionProxyComponent *) params->m_UserData) == dmGameObject::UPDATE_RESULT_OK);
     }
 
+    static dmResource::Result GetCollectionPreloaderRequestCount(dmResource::HFactory factory, const char* path, uint32_t* request_count)
+    {
+        void* message_data = 0;
+        uint32_t message_size = 0;
+        dmResource::Result result = dmResource::GetRaw(factory, path, &message_data, &message_size);
+        if (result != dmResource::RESULT_OK)
+        {
+            return result;
+        }
+
+        dmGameObjectDDF::CollectionDesc* collection_desc = 0;
+        dmDDF::Result ddf_result = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(message_data, message_size, &collection_desc);
+        free(message_data);
+        if (ddf_result != dmDDF::RESULT_OK)
+        {
+            return dmResource::RESULT_DDF_ERROR;
+        }
+
+        uint32_t resource_count = collection_desc->m_ResourceCount;
+        dmDDF::FreeMessage(collection_desc);
+        if (resource_count >= INT32_MAX)
+        {
+            return dmResource::RESULT_OUT_OF_RESOURCES;
+        }
+
+        // resource_count excludes the collection itself, which occupies the root
+        // request in the preloader tree.
+        *request_count = resource_count + 1;
+        return dmResource::RESULT_OK;
+    }
+
 
     dmhash_t GetCollectionUrlHashFromComponent(const HCollectionProxyWorld world, dmhash_t instanceId, uint32_t index)
     {
@@ -567,7 +598,22 @@ namespace dmGameSystem
             {
                 PostProxyLoadingMessage(proxy, 0.0f);
             }
-            proxy->m_Preloader = dmResource::NewPreloader(context->m_Factory, path);
+
+            uint32_t request_count = 0;
+            dmResource::Result result = GetCollectionPreloaderRequestCount(context->m_Factory, path, &request_count);
+            if (result != dmResource::RESULT_OK)
+            {
+                dmLogError("The collection description %s could not be loaded.", path);
+                LoadComplete(proxy, dmGameObject::RESULT_UNKNOWN_ERROR);
+                return dmGameObject::RESULT_OK;
+            }
+
+            proxy->m_Preloader = dmResource::NewPreloader(context->m_Factory, path, request_count);
+            if (proxy->m_Preloader == 0)
+            {
+                dmLogError("The collection preloader for %s could not be created.", path);
+                LoadComplete(proxy, dmGameObject::RESULT_UNKNOWN_ERROR);
+            }
             return dmGameObject::RESULT_OK;
         }
         else
