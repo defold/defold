@@ -649,7 +649,7 @@
                       ^double (complex-text-width glyph-metrics (.substring line start end))))))
         (advance-text-impl glyph-metrics tab-stops line index col x)))))
 
-(defn- line-x->col-impl
+(defn- line-x->col
   [glyph-metrics tab-stops ^String line x round complex-hit past-end]
   (let [x (double x)
         round (double round)
@@ -686,15 +686,6 @@
               (if (<= x next-x)
                 (max 0 (+ col (long (+ round (/ (- x col-x) (- next-x col-x))))))
                 (recur next-col next-x)))))))))
-
-(defn- line-x->col
-  ^long [glyph-metrics tab-stops ^String line ^double x]
-  (line-x->col-impl glyph-metrics tab-stops line x 0.5 complex-text-x->col true))
-
-(defn- line-x->character-col
-  "Returns the column at x, or nil past the end of the line."
-  [glyph-metrics tab-stops ^String line ^double x]
-  (line-x->col-impl glyph-metrics tab-stops line x 0.0 complex-text-x->character-col false))
 
 (defn line-width
   "Returns an accurate line width measurement, taking tab stops into account."
@@ -957,7 +948,7 @@
   ^long [^LayoutInfo layout ^double x ^String line]
   (let [ranges (complex-text-ranges line)]
     (if (pos? (count ranges))
-      (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x))
+      (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x) 0.5 complex-text-x->col true)
       (let [line-x (x->doc-x layout x)
             line-length (count line)]
         (loop [col 0
@@ -973,7 +964,7 @@
 (defn x->character-col [^LayoutInfo layout ^double x ^String line]
   (let [ranges (complex-text-ranges line)]
     (if (pos? (count ranges))
-      (line-x->character-col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x))
+      (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x) 0.0 complex-text-x->character-col false)
       (let [line-x (x->doc-x layout x)
             line-length (count line)]
         (loop [col 0
@@ -1313,14 +1304,6 @@
         top (- (row->y layout (.row adjusted-cursor)) 0.5)]
     (->Rect left top 1.0 (inc ^double (line-height (.glyph layout))))))
 
-(defn- shaped-selection?
-  "True when the selection overlaps or touches shaped text.
-  Touching counts because bidi caret positions differ at range boundaries."
-  [^String line ^long start-col ^long end-col]
-  (coll/any? (fn [[^long start ^long end]]
-               (and (<= start end-col) (>= end start-col)))
-             (complex-text-ranges line)))
-
 (defn- merge-rects
   "Merges overlapping or adjacent rects."
   [rects]
@@ -1348,7 +1331,11 @@
         line-rects (fn [^long row ^long start-col ^long end-col]
                      (let [line (lines row)
                            top (row->y layout row)
-                           spans (when (shaped-selection? line start-col end-col)
+                           ;; Touching shaped text counts, since bidi caret
+                           ;; positions differ at range boundaries.
+                           spans (when (coll/any? (fn [[^long start ^long end]]
+                                                    (and (<= start end-col) (>= end start-col)))
+                                                  (complex-text-ranges line))
                                    (line-selection-spans (.glyph layout) (.tab-stops layout) line start-col end-col))]
                        (if (coll/empty? spans)
                          ;; Zero-width marks may produce no spans. RTL positions
