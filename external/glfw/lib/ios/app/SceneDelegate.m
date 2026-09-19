@@ -51,6 +51,18 @@ int _glfwPlatformIsSceneActive(void)
 @implementation DefoldSceneDelegate
 
 @synthesize window;
+@synthesize launchScreenView;
+
+- (void)removeLaunchScreen
+{
+    if (launchScreenView)
+    {
+        UIView* view = launchScreenView;
+        launchScreenView = nil;
+        [view removeFromSuperview];
+        [view release];
+    }
+}
 
 - (void)scene:(UIScene*)scene willConnectToSession:(UISceneSession*)session options:(UISceneConnectionOptions*)options
 {
@@ -79,10 +91,9 @@ int _glfwPlatformIsSceneActive(void)
     if (launchScreenName)
     {
         UIStoryboard* storyboard = [UIStoryboard storyboardWithName:launchScreenName bundle:nil];
-        UIView* launchScreenView = [storyboard instantiateInitialViewController].view;
+        self.launchScreenView = [storyboard instantiateInitialViewController].view;
         launchScreenView.frame = window.bounds;
         launchScreenView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        launchScreenView.tag = 999;
         [window addSubview:launchScreenView];
     }
     [window makeKeyAndVisible];
@@ -100,6 +111,7 @@ int _glfwPlatformIsSceneActive(void)
     {
         SetSceneActive(NO);
         [g_ApplicationDelegate.viewController.baseView invalidateDisplayLink];
+        [self removeLaunchScreen];
         window.hidden = YES;
         window.rootViewController = nil;
         window.windowScene = nil;
@@ -210,6 +222,7 @@ int _glfwPlatformIsSceneActive(void)
 
 - (void)dealloc
 {
+    [self removeLaunchScreen];
     [window release];
     [super dealloc];
 }

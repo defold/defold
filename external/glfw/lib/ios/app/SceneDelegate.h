@@ -17,8 +17,12 @@
 @interface DefoldSceneDelegate : NSObject <UIWindowSceneDelegate>
 {
     UIWindow* window;
+    UIView* launchScreenView;
 }
 
 @property (nonatomic, retain) UIWindow* window;
+@property (nonatomic, retain) UIView* launchScreenView;
+
+- (void)removeLaunchScreen;
 
 @end

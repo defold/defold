@@ -178,8 +178,9 @@ static void ShutdownEngine(bool call_exit)
         ShutdownEngine(true);
     }
 
-    // Cleanup the placeholder launch screen view once the engine is initialized
-    [[g_ApplicationWindow viewWithTag:999] removeFromSuperview];
+    // Remove only the scene's launch placeholder after the engine's first update.
+    DefoldSceneDelegate* sceneDelegate = (DefoldSceneDelegate*)g_ApplicationWindow.windowScene.delegate;
+    [sceneDelegate removeLaunchScreen];
 }
 
 @end

@@ -130,6 +130,69 @@ TEST_F(iOSSceneApplication, ProgrammaticSceneStartup)
     ASSERT_EQ(0U, g_ExtensionConfigurations);
 }
 
+// An extension may use tag 999 after startup. Frame updates must not mistake
+// its view for the engine's launch placeholder and remove it from the window.
+TEST_F(iOSSceneApplication, ExtensionViewWithLaunchTagSurvivesUpdates)
+{
+    UIWindow* window = (UIWindow*)glfwGetiOSUIWindow();
+    UIView* container = [[[UIView alloc] initWithFrame:window.bounds] autorelease];
+    UIView* extensionView = [[[UIView alloc] initWithFrame:container.bounds] autorelease];
+    extensionView.tag = 999;
+    [container addSubview:extensionView];
+    [window addSubview:container];
+    unsigned int before = g_UpdateCount;
+    EXPECT_TRUE(WaitUntil(^BOOL { return g_UpdateCount > before + 2; }));
+    EXPECT_EQ((void*)container, (void*)extensionView.superview);
+    [container removeFromSuperview];
+}
+
+// Launch cleanup must remove the retained placeholder even without its old tag,
+// while preserving an extension view with tag 999 during the same frame.
+TEST_F(iOSSceneApplication, LaunchCleanupRemovesOnlyPlaceholder)
+{
+    UIWindow* window = (UIWindow*)glfwGetiOSUIWindow();
+    UIView* extensionView = [[[UIView alloc] initWithFrame:window.bounds] autorelease];
+    extensionView.tag = 999;
+    [window addSubview:extensionView];
+    UIView* placeholder = [[[UIView alloc] initWithFrame:window.bounds] autorelease];
+    m_Delegate.launchScreenView = placeholder;
+    [window addSubview:placeholder];
+    unsigned int before = g_UpdateCount;
+    EXPECT_TRUE(WaitUntil(^BOOL { return g_UpdateCount > before + 2; }));
+    EXPECT_EQ((void*)nil, (void*)placeholder.superview);
+    EXPECT_EQ((void*)nil, (void*)m_Delegate.launchScreenView);
+    EXPECT_EQ((void*)window, (void*)extensionView.superview);
+    [placeholder removeFromSuperview];
+    m_Delegate.launchScreenView = nil;
+    [extensionView removeFromSuperview];
+}
+
+// Disconnecting before the first frame must clear the old placeholder; cleanup
+// must still remove a new placeholder after reconnecting the retained engine.
+TEST_F(iOSSceneApplication, LaunchCleanupAfterReconnect)
+{
+    UIWindow* window = (UIWindow*)glfwGetiOSUIWindow();
+    UIView* first = [[[UIView alloc] initWithFrame:window.bounds] autorelease];
+    m_Delegate.launchScreenView = first;
+    [window addSubview:first];
+    [m_Delegate sceneDidDisconnect:m_Scene];
+    EXPECT_EQ((void*)nil, (void*)first.superview);
+    EXPECT_EQ((void*)nil, (void*)m_Delegate.launchScreenView);
+    [m_Delegate scene:m_Scene willConnectToSession:m_Scene.session options:g_ConnectionOptions];
+    window = (UIWindow*)glfwGetiOSUIWindow();
+    UIView* second = [[[UIView alloc] initWithFrame:window.bounds] autorelease];
+    m_Delegate.launchScreenView = second;
+    [window addSubview:second];
+    [m_Delegate sceneDidBecomeActive:m_Scene];
+    unsigned int before = g_UpdateCount;
+    EXPECT_TRUE(WaitUntil(^BOOL { return g_UpdateCount > before + 2; }));
+    EXPECT_EQ((void*)nil, (void*)second.superview);
+    EXPECT_EQ((void*)nil, (void*)m_Delegate.launchScreenView);
+    [first removeFromSuperview];
+    [second removeFromSuperview];
+    m_Delegate.launchScreenView = nil;
+}
+
 // Fullscreen UIKit presentation detaches the game view. Engine callbacks must
 // keep running so an extension can dismiss its native UI from an update.
 TEST_F(iOSSceneApplication, UpdatesDuringFullscreenPresentation)
