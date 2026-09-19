@@ -624,7 +624,7 @@
       (g/transact (mapv #(g/delete-node (:node-id %)) (subvec children 1)))
       (let [saved (g/node-value node :save-value)]
         (is (= [{:name "default"}] (:styles saved)))
-        (is (= ["default"] (mapv :name (:styles (font/sanitize-font saved)))))
+        (is (= ["default"] (mapv :name (:styles (font/sanitize-font {} nil saved)))))
         (is (= 1 (count (FontStyles/compileStyles (protobuf/map->pb Font$FontDesc saved)))))))))
 
 (deftest style-errors-preserve-font-outline

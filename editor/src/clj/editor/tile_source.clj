@@ -1057,10 +1057,9 @@
 (defn- connect-tile-source [project self _resource]
   (g/connect self :collision-groups project :collision-groups))
 
-(defn- load-tile-source [project self resource tile-set]
+(defn- load-tile-source [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id tile-set :source-value}]
   {:pre [(map? tile-set)]} ; Tile$TileSet in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)
 
         animation-nodes-tx-data
         (mapv (partial make-animation-node self project nil)
