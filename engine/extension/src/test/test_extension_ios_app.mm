@@ -264,16 +264,19 @@ TEST_F(iOSSceneApplication, DisconnectStopsUpdates)
 
 static void* CreateTestEngine(int argc, char** argv)
 {
-    // Run tests from a run-loop timer, allowing UIKit and display-link callbacks
-    // to progress while each test waits for its asynchronous transitions.
-    SceneApplicationTestRunner* runner = [[[SceneApplicationTestRunner alloc] init] autorelease];
-    [NSTimer scheduledTimerWithTimeInterval:0.1 target:runner selector:@selector(runTests:) userInfo:nil repeats:NO];
     return &g_UpdateCount;
 }
 
 static int UpdateTestEngine(void* context)
 {
     ++g_UpdateCount;
+    if (g_UpdateCount == 1)
+    {
+        // Start only after the first update, outside the display-link callback,
+        // so each test can keep processing UIKit and frames through its run loop.
+        SceneApplicationTestRunner* runner = [[[SceneApplicationTestRunner alloc] init] autorelease];
+        [NSTimer scheduledTimerWithTimeInterval:0.0 target:runner selector:@selector(runTests:) userInfo:nil repeats:NO];
+    }
     if (g_DismissOnUpdate)
     {
         g_DismissOnUpdate = NO;
@@ -304,7 +307,7 @@ int main(int argc, char** argv)
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         if (!g_TestsStarted)
         {
-            fprintf(stderr, "Programmatic scene startup did not start the engine\n");
+            fprintf(stderr, "Programmatic scene startup did not start engine updates\n");
             exit(1);
         }
     });
