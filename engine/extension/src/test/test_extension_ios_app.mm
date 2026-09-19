@@ -26,11 +26,32 @@ static BOOL g_TestsStarted;
 static BOOL g_DismissOnUpdate;
 static UISceneConnectionOptions* g_ConnectionOptions;
 static unsigned int g_ExtensionConfigurations;
+static unsigned int g_WillLaunchCount;
+static unsigned int g_DidLaunchCount;
+static unsigned int g_LegacyLaunchCount;
+static BOOL g_WillLaunchHasOptions;
+static BOOL g_DidLaunchHasOptions;
 
 @interface SceneConnectionObserver : NSObject <UISceneDelegate, UIApplicationDelegate>
 @end
 
 @implementation SceneConnectionObserver
+- (BOOL)application:(UIApplication*)application willFinishLaunchingWithOptions:(NSDictionary*)options
+{
+    ++g_WillLaunchCount;
+    g_WillLaunchHasOptions = options != nil;
+    return NO;
+}
+- (BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)options
+{
+    ++g_DidLaunchCount;
+    g_DidLaunchHasOptions = options != nil;
+    return NO;
+}
+- (void)applicationDidFinishLaunching:(UIApplication*)application
+{
+    ++g_LegacyLaunchCount;
+}
 - (void)scene:(UIScene*)scene willConnectToSession:(UISceneSession*)session options:(UISceneConnectionOptions*)options
 {
     if (!g_ConnectionOptions)
@@ -79,6 +100,18 @@ public:
         [m_Scene release];
     }
 };
+
+// Real UIKit startup must deliver each modern launch callback once, with nil
+// options, and never synthesize the legacy applicationDidFinishLaunching: callback.
+TEST_F(iOSSceneApplication, ApplicationLaunchWithoutLegacyBridge)
+{
+    ASSERT_TRUE([[UIApplication sharedApplication].delegate isKindOfClass:[AppDelegateProxy class]]);
+    ASSERT_EQ(1U, g_WillLaunchCount);
+    ASSERT_EQ(1U, g_DidLaunchCount);
+    ASSERT_FALSE(g_WillLaunchHasOptions);
+    ASSERT_FALSE(g_DidLaunchHasOptions);
+    ASSERT_EQ(0U, g_LegacyLaunchCount);
+}
 
 // A manifest without UISceneConfigurations must start the engine through the
 // initial application delegate, before the launch callback installs its proxy.

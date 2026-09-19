@@ -14,7 +14,6 @@
 
 #include <jc_test/jc_test.h>
 #include <dmsdk/extension/extension.hpp>
-#import "AppDelegateProxy.h"
 #import "SceneDelegate.h"
 
 static int g_ReleasedSceneObservers;
@@ -26,30 +25,12 @@ static int g_ReleasedSceneObservers;
     int m_URLCount;
     int m_ActivityCount;
     int m_LegacyCount;
-    int m_WillLaunchCount;
-    int m_DidLaunchCount;
     id m_LastPayload;
     id m_RemoveObserver;
 }
 @end
 
 @implementation TestSceneObserver
-- (BOOL)application:(UIApplication*)application willFinishLaunchingWithOptions:(NSDictionary*)options
-{
-    ++m_WillLaunchCount;
-    m_LastPayload = options;
-    return YES;
-}
-- (BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)options
-{
-    ++m_DidLaunchCount;
-    m_LastPayload = options;
-    return YES;
-}
-- (void)applicationDidFinishLaunching:(UIApplication*)application
-{
-    ++m_LegacyCount;
-}
 - (void)sceneDidBecomeActive:(UIScene*)scene
 {
     ++m_ActiveCount;
@@ -86,17 +67,6 @@ static int g_ReleasedSceneObservers;
 }
 @end
 
-@interface TestAppDelegateProxy : AppDelegateProxy
-@end
-
-@implementation TestAppDelegateProxy
-- (id)init
-{
-    // Exercise forwarding without replacing UIApplication.delegate in the test process.
-    return self;
-}
-@end
-
 class iOSSceneDelegates : public jc_test_base_class
 {
 public:
@@ -120,25 +90,6 @@ public:
         [m_Pool drain];
     }
 };
-
-// Process launch callbacks remain available with scenes. Forward the modern
-// selectors unchanged, without synthesizing the older applicationDidFinishLaunching:.
-TEST_F(iOSSceneDelegates, ApplicationLaunchWithoutLegacyBridge)
-{
-    TestSceneObserver* observer = [[TestSceneObserver alloc] init];
-    AppDelegateProxy* proxy = [[TestAppDelegateProxy alloc] init];
-    ExtensionRegisteriOSUIApplicationDelegate(observer);
-    UIApplication* application = (UIApplication*)m_Scene;
-    ASSERT_TRUE([AppDelegateProxy application:application willFinishLaunchingWithOptions:nil]);
-    ASSERT_TRUE([proxy application:application didFinishLaunchingWithOptions:nil]);
-    ASSERT_EQ(1, observer->m_WillLaunchCount);
-    ASSERT_EQ(1, observer->m_DidLaunchCount);
-    ASSERT_EQ((void*)nil, (void*)observer->m_LastPayload);
-    ASSERT_EQ(0, observer->m_LegacyCount);
-    ExtensionUnregisteriOSUIApplicationDelegate(observer);
-    [proxy release];
-    [observer release];
-}
 
 // Both C and C++ registrations must reach the scene dispatcher; duplicate
 // registration must not deliver an event twice or leave a stale observer.
