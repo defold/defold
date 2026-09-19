@@ -96,7 +96,7 @@ fi
 
 ZIP="zip"
 UNZIP="unzip"
-ZIPALIGN="${DEFOLD_HOME}/com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-macos/zipalign"
+ZIPALIGN="${DYNAMO_HOME}/ext/bin/x86_64-macos/zipalign"
 APKSIGNER="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/apksigner"
 AAPT2="${ANDROID_SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/aapt2"
 KEYTOOL="keytool"

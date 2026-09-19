@@ -436,27 +436,6 @@ SDK_PIPELINE_TOOL_PLATFORMS = (
     'x86_64-win32'
 )
 
-BOB_TOOL_PACKAGE_PREFIXES = (
-    'aapt2-',
-    'apkc-',
-    'glslang-',
-    'gltf-validator-',
-    'lipo-',
-    'luajit-',
-    'ogg-',
-    'spirv-tools-',
-    'strip_android-',
-    'tint-',
-)
-
-BOB_TOOL_PACKAGES = ('codesign_allocate', 'strip', 'zipalign')
-
-BOB_EXTRA_PLATFORM_PACKAGES = {
-    'armv7-android': ["vkquality-1.1-2642a0d"],
-    'arm64-android': [sdk.ANDROID_PACKAGE, "vkquality-1.1-2642a0d"],
-    'x86_64-android': ["vkquality-1.1-2642a0d"]
-}
-
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
@@ -1022,36 +1001,6 @@ class Configuration(object):
         else:
             self._extract_tgz(file, path)
 
-    def _is_bob_tool_package(self, package):
-        return package in BOB_TOOL_PACKAGES or package.startswith(BOB_TOOL_PACKAGE_PREFIXES)
-
-    def install_bob_tool_packages(self):
-        def make_package_path(root, platform, package):
-            return join(root, 'packages', package) + '-%s.tar.gz' % platform
-
-        installed_packages = set()
-        for platform in BOB_TOOL_PLATFORMS:
-            packages = [package for package in PLATFORM_PACKAGES.get(platform, []) if self._is_bob_tool_package(package)]
-            packages.extend(BOB_EXTRA_PLATFORM_PACKAGES.get(platform, []))
-            if not packages:
-                continue
-            print("Installing Bob tool packages for %s" % platform)
-            for package in packages:
-                package_path = make_package_path(self.defold_root, platform, package)
-                if package_path in installed_packages:
-                    continue
-                self._extract_tgz(package_path, self.ext)
-                installed_packages.add(package_path)
-
-        for platform, packages in BOB_EXTRA_PLATFORM_PACKAGES.items():
-            print("Installing Bob extra packages for %s" % platform)
-            for package in packages:
-                package_path = make_package_path(self.defold_root, platform, package)
-                if package_path in installed_packages:
-                    continue
-                self._extract_tgz(package_path, self.ext)
-                installed_packages.add(package_path)
-
     def _copy(self, src, dst):
         self._log('Copying %s -> %s' % (src, dst))
         shutil.copy(src, dst)
@@ -1151,7 +1100,10 @@ class Configuration(object):
         installed_packages = set()
 
         for platform in other_platforms:
-            packages = [package for package in PLATFORM_PACKAGES.get(platform, []) if package not in PACKAGES_HOST]
+            # Bob Light packages LuaJIT for every desktop host directly from ext.
+            packages = [package for package in PLATFORM_PACKAGES.get(platform, [])
+                        if package not in PACKAGES_HOST or
+                        (platform in BOB_TOOL_PLATFORMS and package.startswith('luajit-'))]
             package_paths = make_package_paths(self.defold_root, platform, packages)
             print("Installing %s packages " % platform)
             for path in package_paths:
@@ -1802,11 +1754,15 @@ class Configuration(object):
         run.shell_command("%s %s" % (strip, path))
         return True
 
+    def _bob_archive_artifacts(self):
+        manifest = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.bob', 'archive-artifacts.json')
+        with open(manifest) as f:
+            return json.load(f)
+
     def archive_engine(self):
         sha1 = self._git_sha1()
         full_archive_path = join(sha1, 'engine', self.target_platform).replace('\\', '/')
         share_archive_path = join(sha1, 'engine', 'share').replace('\\', '/')
-        java_archive_path = join(sha1, 'engine', 'share', 'java').replace('\\', '/')
         dynamo_home = self.dynamo_home
         self.full_archive_path = full_archive_path
 
@@ -1874,12 +1830,10 @@ class Configuration(object):
             self.upload_to_archive(join(dynamo_home, 'share', zip_arch), '%s/%s' % (share_archive_path, zip_arch))
 
         if self.target_platform in ['x86_64-linux']:
-            # NOTE: It's arbitrary for which platform we archive dlib.jar. Currently set to linux 64-bit
-            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
-            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'modelimporter.jar'), '%s/modelimporter.jar' % (java_archive_path))
-            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'fontrenderer.jar'), '%s/fontrenderer.jar' % (java_archive_path))
-            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'texturecompiler.jar'), '%s/texturecompiler.jar' % (java_archive_path))
-            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'shaderc.jar'), '%s/shaderc.jar' % (java_archive_path))
+            # Archive the platform-independent JARs once, from the Linux build.
+            for path in self._bob_archive_artifacts():
+                if path.startswith('share/java/') and path.endswith('.jar'):
+                    self.upload_to_archive(join(dynamo_home, path), join(sha1, 'engine', path).replace('\\', '/'))
 
         if 'android' in self.target_platform:
             files = [
@@ -2582,14 +2536,6 @@ class Configuration(object):
 
             self.build_tracker.end_component('bob_plugin_%s' % plugin_name, self.host)
 
-    def _run_bob_copy_script(self):
-        """Run com.dynamo.cr.bob/scripts/copy.sh via POSIX sh.
-
-        Use sh (not bash): on Windows, `bash` in PATH is often WSL's stub (no distro).
-        Git for Windows provides sh.exe. Avoid shell=True so cmd.exe is not used."""
-        bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        run.env_command(self._form_env(), ['sh', 'scripts/copy.sh'], cwd=bob_dir)
-
     def build_bob_light(self):
         self.build_tracker.start_component('bob_light', self.host)
         log_cmd_build = 'Gradle build bob_light'
@@ -2838,121 +2784,10 @@ class Configuration(object):
         for p in glob(join(self.dynamo_home, 'share', 'java', 'plugins', '*.jar')):
             self.upload_to_archive(p, '%s/plugins/%s' % (full_archive_path, basename(p)))
 
-    def copy_local_bob_artefacts(self):
-        texc_name = format_lib('texc_shared', self.host)
-        modelc_name = format_lib('modelc_shared', self.host)
-        fontc_name = format_lib('fontc_shared', self.host)
-        shaderc_name = format_lib('shaderc_shared', self.host)
-        luajit_dir = tempfile.mkdtemp()
-        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        missing = {}
-        def add_missing(plf, txt):
-            txts = []
-            txts = missing.setdefault(plf, txts)
-            txts = txts.append(txt)
-
-        for plf in [['x86_64-win32', 'x86_64-win32'],
-                    ['x86_64-linux', 'x86_64-linux'],
-                    ['arm64-linux', 'arm64-linux'],
-                    ['x86_64-macos', 'x86_64-macos'],
-                    ['arm64-macos', 'arm64-macos']]:
-            luajit_package = [pkg for pkg in PLATFORM_PACKAGES[plf[0]] if "luajit" in pkg]
-            luajit_path = join(cwd, '../../packages/%s-%s.tar.gz' % (luajit_package[0], plf[0]))
-            if not os.path.exists(luajit_path):
-                add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
-            else:
-                self._extract(luajit_path, luajit_dir)
-                for name in ('luajit-64'):
-                    luajit_exe = format_exes(name, plf[0])[0]
-                    src = join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe))
-                    if not os.path.exists(src):
-                        continue
-                    tgt_dir = join(cwd, 'libexec/%s' % plf[1])
-                    self._mkdirs(tgt_dir)
-                    self._copy(src, join(tgt_dir, luajit_exe))
-
-        # Any shared libraries that we depend on
-        macos_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in [] for plf in [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']]])
-        linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']]])
-        js_files = {}
-        android_files = {'share/java/classes.dex': 'lib/classes.dex',
-                         'ext/share/java/android.jar': 'lib/android.jar', # this should be the stripped one
-                         'ext/share/vkquality/assets/vkqualitydata.vkq': 'lib/vkquality/vkqualitydata.vkq',
-                         'ext/lib/armv7-android/libvkquality.so': 'libexec/armv7-android/libvkquality.so',
-                         'ext/lib/arm64-android/libvkquality.so': 'libexec/arm64-android/libvkquality.so',
-                         'ext/lib/x86_64-android/libvkquality.so': 'libexec/x86_64-android/libvkquality.so'}
-
-        switch_files = {}
-
-        # bob loads these natively on whichever desktop platform it runs on, so it needs
-        # all of them and not just the host's. scripts/copy.sh takes them out of
-        # $DYNAMO_HOME/archive/$SHA1; without an archive they come straight from the
-        # engine builds in $DYNAMO_HOME instead.
-        desktop_native_files = {}
-        for plf in ('x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32'):
-            for lib in ('texc', 'modelc', 'shaderc', 'fontc'):
-                name = format_lib('%s_shared' % lib, plf)
-                desktop_native_files['lib/%s/%s' % (plf, name)] = 'lib/%s/%s' % (plf, name)
-
-        # This dict is being built up and will eventually be used for copying in the end
-        # - "type" - what the files are needed for, for error reporting
-        #   - pairs of src-file -> dst-file
-        artefacts = {'generic': {'share/java/dlib.jar': 'lib/dlib.jar',
-                                 'share/java/fontrenderer.jar': 'lib/fontrenderer.jar',
-                                 'share/java/modelimporter.jar': 'lib/modelimporter.jar',
-                                 'share/java/shaderc.jar': 'lib/shaderc.jar',
-                                 'share/java/texturecompiler.jar': 'lib/texturecompiler.jar',
-                                 'share/builtins.zip': 'lib/builtins.zip',
-                                 'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name),
-                                 'lib/%s/%s' % (self.host, modelc_name): 'lib/%s/%s' % (self.host, modelc_name),
-                                 'lib/%s/%s' % (self.host, fontc_name): 'lib/%s/%s' % (self.host, fontc_name),
-                                 'lib/%s/%s' % (self.host, shaderc_name): 'lib/%s/%s' % (self.host, shaderc_name)},
-                     'desktop-natives': desktop_native_files,
-                     'android-bundling': android_files,
-                     'win32-bundling': {},
-                     'web-bundling': js_files,
-                     'ios-bundling': {},
-                     'osx-bundling': macos_files,
-                     'linux-bundling': linux_files,
-                     'switch-bundling': switch_files}
-        # Add dmengine to 'artefacts' procedurally
-        for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android'], ['x86_64-android', 'x86_64-android']],
-                           'win32-bundling': [['x86_64-win32', 'x86_64-win32']],
-                           'web-bundling': [['wasm-web', 'wasm-web'], ['wasm_pthread-web', 'wasm_pthread-web']],
-                           'ios-bundling': [['arm64-ios', 'arm64-ios'], ['arm64_sim-ios', 'arm64_sim-ios']],
-                           'osx-bundling': [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']],
-                           'linux-bundling': [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']],
-                           'switch-bundling': [['arm64-nx64', 'arm64-nx64']]}.items():
-            # plfs is pairs of src-platform -> dst-platform
-            for plf in plfs:
-                exes = format_exes('dmengine', plf[1]) + format_exes('dmengine_release', plf[1])
-                artefacts[type].update(dict([['bin/%s/%s' % (plf[0], exe), 'libexec/%s/%s' % (plf[1], exe)] for exe in exes]))
-        # Perform the actual copy, or list which files are missing
-        for type, files in artefacts.items():
-            m = []
-            for src, dst in files.items():
-                src_path = join(self.dynamo_home, src)
-                if not os.path.exists(src_path):
-                    m.append(src_path)
-                else:
-                    dst_path = join(cwd, dst)
-                    self._mkdirs(os.path.dirname(dst_path))
-                    self._copy(src_path, dst_path)
-            if m:
-                add_missing(type, m)
-        if missing:
-            print('*** NOTE! There are missing artefacts.')
-            print(json.dumps(missing, indent=2))
-
     def build_bob(self):
+        """Build Bob using the cross-platform tools already installed by install_ext."""
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
-
-        sha1 = self._git_sha1()
-        self.install_bob_tool_packages()
-        self._run_bob_copy_script()
-        if not os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            self.copy_local_bob_artefacts()
 
         env = self._form_env()
 
@@ -3646,6 +3481,7 @@ class Configuration(object):
 # ------------------------------------------------------------
 
     def sync_archive(self):
+        """Download Bob's engine inputs; the editor downloads its archives separately."""
         u = urlparse(self.get_archive_path())
         bucket_name = u.hostname
         bucket = s3.get_bucket(bucket_name)
@@ -3662,25 +3498,25 @@ class Configuration(object):
 
         futures = []
         sha1 = self._git_sha1()
-        # Only s3 is supported (scp is deprecated)
-        # The pattern is used to filter out:
-        # * Editor files
-        # * Defold SDK files
-        # * launcher files, used to launch editor2
-        # * rarely used platforms: armv7-android, wasm_pthread-web,
-        #   x86_64-android and arm64_sim-ios
-        # * arm64-linux vanilla engines (keep native compiler libraries)
-        # * headless builds
-        pattern = re.compile(
+        # Keep the public download list aligned with Gradle's packaging inputs.
+        bob_artifacts = {'engine/' + path for path in self._bob_archive_artifacts()}
+
+        # Preserve the existing download filters within private-platform folders,
+        # which are absent from the public manifest.
+        private_excludes = re.compile(
             r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$'
             r'|/(armv7-android|wasm_pthread-web|x86_64-android|arm64_sim-ios)(/|$)|headless'
             r'|/arm64-linux/(stripped/)?(lib)?dmengine[^/]*$'
         )
-        prefix = s3.get_archive_prefix(self.get_archive_path(), self._git_sha1())
-        for obj_summary in bucket.objects.filter(Prefix=prefix):
-            rel = os.path.relpath(obj_summary.key, prefix)
+        prefix = s3.get_archive_prefix(self.get_archive_path(), sha1).replace('\\', '/').rstrip('/') + '/'
+        for obj_summary in bucket.objects.filter(Prefix=prefix + 'engine/'):
+            rel = obj_summary.key[len(prefix):]
+            parts = rel.split('/')
+            private_artifact = (len(parts) >= 3 and parts[0] == 'engine' and
+                                parts[1] not in BASE_PLATFORMS and parts[1] != 'share' and
+                                not private_excludes.search(rel))
 
-            if not pattern.search(rel):
+            if not rel.endswith('/') and (rel in bob_artifacts or private_artifact):
                 p = os.path.join(local_dir, sha1, rel)
                 self._mkdirs(os.path.dirname(p))
                 f = Future(self.thread_pool, download, bucket.Object(obj_summary.key), p)
@@ -4079,14 +3915,14 @@ build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk
 install_waf      - Install waf
-sync_archive     - Sync engine artifacts from S3
+sync_archive     - Download engine artifacts needed by Bob from S3
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor
 test_editor2     - Test editor
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
-build_bob        - Build bob with native libraries included for cross platform deployment
+build_bob        - Build bob with native libraries for cross platform deployment (requires install_ext)
 test_bob         - Test bob using an existing com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
 build_bob_light  - Build a lighter version of bob (mostly used for test content during builds)
 archive_bob      - Archive bob to path specified with --archive-path
