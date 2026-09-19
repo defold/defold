@@ -232,6 +232,10 @@ set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}" CACHE PATH "Install prefix" FORCE)
 
 set(_DEFOLD_BOB_LIGHT_DEPENDS
   "${DEFOLD_BOB_DIR}/build.gradle"
+  "${DEFOLD_BOB_DIR}/artifacts.gradle"
+  "${DEFOLD_BOB_DIR}/archive-artifacts.json"
+  "${DEFOLD_BOB_DIR}/tools.json"
+  "${DEFOLD_BOB_DIR}/bob-light-tools.json"
   "${DEFOLD_GRADLEW}")
 if(EXISTS "${DEFOLD_HOME}/.defold-platforms")
   list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS "${DEFOLD_HOME}/.defold-platforms")

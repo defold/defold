@@ -1099,7 +1099,7 @@
             game-project-content (String. content)]
         (is (not (.contains game-project-content dependency-url)))))))
 
-(deftest collision-groups-data-doesnt-break-build
+(deftest collision-group-contributors-dont-break-build
   (with-clean-system
     (let [workspace (test-util/setup-scratch-workspace! "test/resources/collision_project")
           project (test-util/setup-project! workspace)

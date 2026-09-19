@@ -31,7 +31,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [service.log :as log]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.eduction :as e])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
            [com.google.protobuf ByteString]))
@@ -132,11 +132,15 @@
     (= resource/Resource (:type edit-type))
     (resource-assignment-error node-id prop-kw prop-name value (:ext edit-type))))
 
-(defn lua-info->script-properties [lua-info]
-  (into []
-        (comp (filter #(= :ok (:status %)))
-              (util/distinct-by :name))
-        (:script-properties lua-info)))
+(defn lua-info->script-properties [lua-info proj-path->resource]
+  (coll/into-> (:script-properties lua-info) []
+    (filter #(= :ok (:status %)))
+    (util/distinct-by :name)
+    (map (fn [{:keys [type value] :as script-property-info}]
+           (cond-> script-property-info
+             (and (= :script-property-type-resource type)
+                  (some? value))
+             (update :value proj-path->resource))))))
 
 (defn lua-info->modules [lua-info]
   (into [] (remove lua/preinstalled-modules) (:modules lua-info)))
@@ -227,9 +231,10 @@
               (g/->error _node-id :modified-lines :fatal resource build-error-message)))
           (let [preprocessed-lua-info
                 (with-open [reader (data/lines-reader preprocessed-lines)]
-                  (lua-parser/lua-info basis workspace valid-resource-kind? reader))]
+                  (lua-parser/lua-info reader valid-resource-kind?))]
             (g/precluding-errors (lua-info-errors _node-id resource preprocessed-lua-info allow-go-properties)
-              (let [preprocessed-script-properties (lua-info->script-properties preprocessed-lua-info)
+              (let [proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)
+                    preprocessed-script-properties (lua-info->script-properties preprocessed-lua-info proj-path->resource)
                     preprocessed-modules (lua-info->modules preprocessed-lua-info)
                     preprocessed-go-props-with-source-resources
                     (map (fn [{:keys [name type value]}]

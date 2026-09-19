@@ -2409,6 +2409,7 @@
       :label font-label
       :node-type FontNode
       :ddf-type Font$FontDesc
+      :editor-dependencies ["/builtins/fonts/font-vector.fp"]
       :read-fn (fn [input]
                  ;; An explicit Static choice must override the Dynamic default
                  ;; for Vector fonts and the legacy project-wide runtime setting.

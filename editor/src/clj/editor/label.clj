@@ -495,6 +495,7 @@
     :ext "label"
     :node-type LabelNode
     :ddf-type Label$LabelDesc
+    :editor-dependencies ["/builtins/fonts/label-df.material"]
     :load-fn load-label
     :sanitize-fn sanitize-label
     :icon label-icon
