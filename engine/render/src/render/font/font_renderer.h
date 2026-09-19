@@ -76,6 +76,8 @@ namespace dmRender
         float       m_Leading;
         /// Text letter spacing
         float       m_Tracking;
+        /// Per-instance font size. Zero uses the font map size.
+        float       m_FontSize;
         /// True for linebreak
         bool        m_LineBreak;
         /// Horizontal alignment
@@ -93,10 +95,11 @@ namespace dmRender
      * @param render_context Context to use when rendering
      * @param font_map Font map handle
      * @param material Material handle (0 to use font_map internal material)
+     * @param shadow_material Optional material used for a separate shadow pass
      * @param batch_key Rendering order batch key
      * @param params Parameters to use when rendering
      */
-    void DrawText(HRenderContext render_context, HFontMap font_map, HMaterial material, uint64_t batch_key, const DrawTextParams& params);
+    void DrawText(HRenderContext render_context, HFontMap font_map, HMaterial material, HMaterial shadow_material, uint64_t batch_key, const DrawTextParams& params);
 
     /**
      * Produces render list entries for all the previously DrawText:ed texts.

@@ -31,6 +31,14 @@ set(RENDER_DEPENDENCIES
   lua
   resource
   script)
+set(RENDER_FONT_DEFAULT_DEPENDENCIES
+  ddf
+  dlib
+  font
+  font_render
+  graphics
+  script
+  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
 file(GLOB RENDER_PROTO_FILES CONFIGURE_DEPENDS "${RENDER_PROTO_ROOT}/render/*.proto")
 set(RENDER_PUBLIC_HEADERS
   "${RENDER_SRC_DIR}/render/display_profiles.h"
@@ -84,7 +92,21 @@ defold_target_link_libraries(render "${TARGET_PLATFORM}" SCOPE PUBLIC
   ${RENDER_DEPENDENCIES})
 defold_target_link_socket(render "${TARGET_PLATFORM}" PUBLIC)
 
-defold_install_targets(TARGETS render
+defold_add_library(render_font_default STATIC
+  "${RENDER_SRC_DIR}/render/font/default/font_default_vertex.cpp")
+target_include_directories(render_font_default PUBLIC
+  "${RENDER_SRC_DIR}"
+  "${RENDER_PROTO_ROOT}"
+  "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_definitions(render_font_default PRIVATE "DLIB_LOG_DOMAIN=\"RENDER\"")
+add_dependencies(render_font_default render_proto_headers render_proto_py render_bproto)
+if(TARGET graphics_proto)
+  add_dependencies(render_font_default graphics_proto_header)
+endif()
+defold_target_link_libraries(render_font_default "${TARGET_PLATFORM}" SCOPE PUBLIC
+  ${RENDER_FONT_DEFAULT_DEPENDENCIES})
+
+defold_install_targets(TARGETS render render_font_default
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

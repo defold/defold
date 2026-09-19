@@ -243,6 +243,25 @@ TEST(Shaderc, ModifyBindings)
     free(data);
 }
 
+TEST(Shaderc, SamplerlessIntegerTextureRetainsMaterialNameInGLSL)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/samplerless_uint.spv", &data_size);
+    ASSERT_NE((void*)0, data);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_GLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 330;
+    dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
+    ASSERT_NE((void*)0, dst->m_Data.Begin());
+    ASSERT_NE((const char*)0, FindFirstOccurrence(dst->m_Data, "usampler2D band_texture"));
+    ASSERT_EQ((const char*)0, FindFirstOccurrence(dst->m_Data, "SPIRV_Cross_DummySampler"));
+    dmShaderc::FreeShaderCompileResult(dst);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(shader_ctx);
+    free(data);
+}
+
 TEST(Shaderc, TestCompilerSPIRV)
 {
     uint32_t data_size;

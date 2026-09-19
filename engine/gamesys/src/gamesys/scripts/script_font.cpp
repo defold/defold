@@ -28,7 +28,7 @@
 #include <font/fontcollection.h>
 #include <font/text_layout.h>
 
-#include "gamesys/fontgen/fontgen.h"
+#include <font/fontgen.h>
 
 namespace dmGameSystem
 {
@@ -251,7 +251,13 @@ static void PrewarmTextCallback(void* _ctx, int result, const char* errmsg)
 
 
 /*#
- * prepopulates the font glyph cache with rasterised glyphs
+ * prepopulates the font glyph cache with generated glyphs
+ *
+ * @note This function can only be used with fonts whose **Glyph Generation**
+ * property is set to **Dynamic**.
+ * Vector fonts can be prewarmed before rendering. When outline/shadow SDF
+ * effects are enabled, generation uses the Size set in the .font resource,
+ * independently of label/GUI Font Size. Curve-only fonts use an internal reference.
  *
  * @name font.prewarm_text
  * @param fontc [type:string|hash] The path to the .fontc resource
@@ -318,6 +324,12 @@ static int PrewarmText(lua_State* L)
         {
             dmScript::DestroyCallback(cbk_ctx->m_Callback);
             delete cbk_ctx;
+        }
+
+        if (r == dmResource::RESULT_NOT_SUPPORTED)
+        {
+            return DM_LUA_ERROR("font.prewarm_text() cannot be used with static font %s. Set its 'Glyph Generation' property to 'Dynamic'.",
+                                dmHashReverseSafe64(fontc_path_hash));
         }
         return DM_LUA_ERROR("Failed to add glyphs to font %s", dmHashReverseSafe64(fontc_path_hash));
     }
@@ -420,13 +432,13 @@ static dmExtension::Result ScriptFontInitialize(dmExtension::Params* params)
     luaL_register(L, "font", Module_methods);
     lua_pop(L, 1); // pop the lua module
 
-    return dmGameSystem::FontGenInitialize(params);
+    return FontGenInitialize(params);
 }
 
 static dmExtension::Result ScriptFontFinalize(dmExtension::Params* params)
 {
     g_ResourceFactory = 0;
-    return dmGameSystem::FontGenFinalize(params);
+    return FontGenFinalize(params);
 }
 
 DM_DECLARE_EXTENSION(ScriptFont, "ScriptFont", 0, 0, ScriptFontInitialize, 0, 0, ScriptFontFinalize)

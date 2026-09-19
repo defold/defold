@@ -838,6 +838,7 @@ namespace dmGameSystem
         color.setW(node_desc->m_ShadowAlpha);
         dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SHADOW, color);
         dmGui::SetNodeProperty(scene, n, dmGui::PROPERTY_SLICE9, node_desc->m_Slice9);
+        dmGui::SetNodeFontSize(scene, n, node_desc->m_FontSize > 0.0f ? node_desc->m_FontSize : 16.0f);
 
         // texture and texture animation setup
         dmGui::SetNodeSizeMode(scene, n, (dmGui::SizeMode) node_desc->m_SizeMode);
@@ -1607,7 +1608,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    static uint64_t MakeTextLayoutCacheKey(FontResource* font_resource, uint32_t font_version, uint64_t text_hash, float width, bool line_break, float leading, float tracking)
+    static uint64_t MakeTextLayoutCacheKey(FontResource* font_resource, uint32_t font_version, uint64_t text_hash, float width, bool line_break, float leading, float tracking, float font_size)
     {
         HashState64 key_state;
         dmHashInit64(&key_state, false);
@@ -1620,6 +1621,7 @@ namespace dmGameSystem
         dmHashUpdateBuffer64(&key_state, &width, sizeof(width));
         dmHashUpdateBuffer64(&key_state, &leading, sizeof(leading));
         dmHashUpdateBuffer64(&key_state, &tracking, sizeof(tracking));
+        dmHashUpdateBuffer64(&key_state, &font_size, sizeof(font_size));
         dmHashUpdateBuffer64(&key_state, &line_break_flag, sizeof(line_break_flag));
         return dmHashFinal64(&key_state);
     }
@@ -1678,7 +1680,7 @@ namespace dmGameSystem
         }
     }
 
-    static HTextLayout GetOrCreateNodeTextLayout(dmGui::HScene scene, dmGui::HNode node, FontResource* font_resource, dmRender::HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, dmArray<uint32_t>& codepoints)
+    static HTextLayout GetOrCreateNodeTextLayout(dmGui::HScene scene, dmGui::HNode node, FontResource* font_resource, dmRender::HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, float font_size, dmArray<uint32_t>& codepoints)
     {
         const char* safe_text = text ? text : "";
         if (!font_resource || !font_map || safe_text[0] == '\0')
@@ -1690,7 +1692,7 @@ namespace dmGameSystem
 
         const uint32_t font_version = ResFontGetVersion(font_resource);
         const uint64_t text_hash = dmHashBufferNoReverse64(safe_text, (uint32_t)strlen(safe_text));
-        const uint64_t cache_key = MakeTextLayoutCacheKey(font_resource, font_version, text_hash, width, line_break, leading, tracking) ^ dmGui::GetNodeTextStyle(scene, node);
+        const uint64_t cache_key = MakeTextLayoutCacheKey(font_resource, font_version, text_hash, width, line_break, leading, tracking, font_size) ^ dmGui::GetNodeTextStyle(scene, node);
 
         dmGui::TextLayout text_layout = {};
         dmGui::GetNodeTextLayout(scene, node, &text_layout);
@@ -1704,7 +1706,7 @@ namespace dmGameSystem
         settings.m_LineBreak = line_break;
         settings.m_Leading = leading;
         settings.m_Tracking = tracking;
-        settings.m_Size = dmRender::GetFontMapSize(font_map);
+        settings.m_Size = font_size;
         settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
         settings.m_Padding = dmRender::GetFontMapPadding(font_map);
         settings.m_ResolveObject = ResolveGuiLayoutObject;
@@ -1768,9 +1770,12 @@ namespace dmGameSystem
         dmRender::HFontMap font_map = font_resource ? ResFontGetHandle(font_resource) : 0;
         const char* text = dmGui::GetNodeText(scene, node);
         Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
+        const float font_size = font_map && dmRender::GetFontMapIsVector(font_map)
+            ? dmGui::GetNodeFontSize(scene, node)
+            : (font_map ? dmRender::GetFontMapSize(font_map) : 0.0f);
         dmArray<uint32_t> text_codepoints;
         GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, text, size.getX(), dmGui::GetNodeLineBreak(scene, node),
-                                  dmGui::GetNodeTextLeading(scene, node), dmGui::GetNodeTextTracking(scene, node), text_codepoints);
+                                  dmGui::GetNodeTextLeading(scene, node), dmGui::GetNodeTextTracking(scene, node), font_size, text_codepoints);
     }
 
     static void RenderTextNodes(dmGui::HScene scene,
@@ -1818,6 +1823,7 @@ namespace dmGameSystem
             params.m_LineBreak = dmGui::GetNodeLineBreak(scene, node);
             params.m_Leading = dmGui::GetNodeTextLeading(scene, node);
             params.m_Tracking = dmGui::GetNodeTextTracking(scene, node);
+            params.m_FontSize = dmRender::GetFontMapIsVector(font_map) ? dmGui::GetNodeFontSize(scene, node) : dmRender::GetFontMapSize(font_map);
 
             if (render_constants)
             {
@@ -1833,14 +1839,19 @@ namespace dmGameSystem
             Vector4 size = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_SIZE);
             params.m_Width = size.getX();
             params.m_Height = size.getY();
-            params.m_TextLayout = GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, safe_text, params.m_Width, params.m_LineBreak, params.m_Leading, params.m_Tracking, text_codepoints);
+            params.m_TextLayout = GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, safe_text, params.m_Width, params.m_LineBreak, params.m_Leading, params.m_Tracking, params.m_FontSize, text_codepoints);
             params.m_Text = params.m_TextLayout ? 0 : safe_text;
             if (!params.m_TextLayout && safe_text[0] == '\0')
                 continue;
             ApplyStencilClipping(gui_context, stencil_scopes[i], params);
             GetGuiTextAlignment(scene, node, &params.m_Align, &params.m_VAlign);
 
-            dmRender::DrawText(gui_context->m_RenderContext, font_map, material, 0, params);
+            dmRender::DrawText(gui_context->m_RenderContext,
+                               font_map,
+                               material,
+                               dmGameSystem::ResFontGetShadowMaterial(font_resource),
+                               0,
+                               params);
         }
     }
 
@@ -3318,7 +3329,10 @@ namespace dmGameSystem
                     const bool  line_break = dmGui::GetNodeLineBreak(scene, node);
                     const float leading = dmGui::GetNodeTextLeading(scene, node);
                     const float tracking = dmGui::GetNodeTextTracking(scene, node);
-                    HTextLayout layout = GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, safe_text, size.getX(), line_break, leading, tracking, codepoints);
+                    const float font_size = dmRender::GetFontMapIsVector(font_map)
+                        ? dmGui::GetNodeFontSize(scene, node)
+                        : dmRender::GetFontMapSize(font_map);
+                    HTextLayout layout = GetOrCreateNodeTextLayout(scene, node, font_resource, font_map, safe_text, size.getX(), line_break, leading, tracking, font_size, codepoints);
 
                     if (layout)
                     {
@@ -3328,7 +3342,7 @@ namespace dmGameSystem
                         hit_test.m_Y = local_position.getY();
                         hit_test.m_Width = size.getX();
                         hit_test.m_Height = size.getY();
-                        hit_test.m_FontSize = dmRender::GetFontMapSize(font_map);
+                        hit_test.m_FontSize = font_size;
                         hit_test.m_MonospacePadding = dmRender::GetFontMapMonospaced(font_map) ? dmRender::GetFontMapPadding(font_map) : 0.0f;
                         dmRender::TextAlign  align;
                         dmRender::TextVAlign valign;

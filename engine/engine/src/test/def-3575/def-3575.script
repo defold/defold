@@ -131,8 +131,9 @@ function update(self, dt)
     --  outline_width: 4.0
     --  shadow_alpha: 1.0
     --  shadow_blur: 2
-    -- The 96 glyph advances total 809.15625 pixels. Layout padding adds
-    -- 6 pixels for bitmap fonts and 7 pixels for distance-field fonts.
+    -- The 96 glyph advances total 809.15625 pixels. Both TTF fixtures use
+    -- distance-field rendering, including the migrated legacy bitmap font,
+    -- so layout padding adds 7 pixels.
 
     local function test_label_metrics(label_name, test_metrics)
         -- Test that we are getting the expected value back from get_text_metrics
@@ -156,7 +157,7 @@ function update(self, dt)
     local function test_label_bitmap()
         local metrics_valid = {
             max_ascent  = 12.9951171875,
-            width       = 815.15625,
+            width       = 816.15625,
             height      = 16.296875,
             max_descent = 3.3017578125
         }

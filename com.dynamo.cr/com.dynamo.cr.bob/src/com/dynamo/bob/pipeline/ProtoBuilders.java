@@ -33,6 +33,7 @@ import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.font.FontStyles;
+import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.StringUtil;
@@ -56,6 +57,9 @@ import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleFX;
+import com.dynamo.render.proto.Font.FontDesc;
+import com.dynamo.render.proto.Font.FontTextureFormat;
+import com.dynamo.render.proto.Font.VectorFontMode;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.render.proto.Render.DisplayProfiles;
@@ -327,13 +331,32 @@ public class ProtoBuilders {
     }
 
     @ProtoParams(srcClass = LabelDesc.class, messageClass = LabelDesc.class)
-    @BuilderParams(name="LabelDesc", inExts=".label", outExt=".labelc")
+    @BuilderParams(name="LabelDesc", inExts=".label", outExt=".labelc", paramsForSignature={"font-rich-text"})
     public static class LabelDescBuilder extends ProtoBuilder<LabelDesc.Builder> {
+        @Override
+        protected LabelDesc.Builder getSrcBuilder(IResource input) throws IOException, CompileExceptionError {
+            LabelDesc.Builder builder = super.getSrcBuilder(input);
+            BuilderUtil.checkResource(this.project, input, "font", builder.getFont());
+            FontDesc font = FontBuilder.getEffectiveFontDesc(
+                FontBuilder.readFontDesc(this.project, builder.getFont()), false);
+            if (font.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD &&
+                font.getVectorFontMode() != VectorFontMode.VECTOR_FONT_MODE_VECTOR) {
+                builder.setMaterial(Fontc.getSdfMaterial(builder.getMaterial()));
+            }
+            return builder;
+        }
+
         @Override
         protected LabelDesc.Builder transform(Task task, IResource resource, LabelDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "material", messageBuilder.getMaterial());
             BuilderUtil.checkResource(this.project, resource, "font", messageBuilder.getFont());
+            FontBuilder.validateTextEffects(resource, FontBuilder.readFontDesc(this.project, messageBuilder.getFont()),
+                messageBuilder.getText(), this.project.option("font-rich-text", "true").equals("true"),
+                messageBuilder.getOutline().getX() != 0.0f || messageBuilder.getOutline().getY() != 0.0f ||
+                    messageBuilder.getOutline().getZ() != 0.0f || messageBuilder.getOutline().getW() != 1.0f,
+                messageBuilder.getShadow().getX() != 0.0f || messageBuilder.getShadow().getY() != 0.0f ||
+                    messageBuilder.getShadow().getZ() != 0.0f || messageBuilder.getShadow().getW() != 1.0f);
             if (!FontStyles.readStyleNames(this.project.getResource(messageBuilder.getFont())).contains(messageBuilder.getStyle()))
                 throw new CompileExceptionError(resource, 0, "Font style '" + messageBuilder.getStyle() + "' does not exist");
             messageBuilder.setStyleHash(messageBuilder.getStyle().isEmpty() ? 0 : MurmurHash.hash64(messageBuilder.getStyle()));

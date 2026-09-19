@@ -241,6 +241,35 @@ TEST(FontGlyphBank, LayoutMetrics)
     ASSERT_TRUE(destroyed);
 }
 
+TEST(FontGlyphBank, VectorLayoutScalesFromBakedSize)
+{
+    bool destroyed = false;
+    TestGlyphBankProvider* glyph_bank = CreateTestGlyphBank(1, &destroyed);
+    FontGlyphBankGlyph& glyph = glyph_bank->m_Glyphs[0];
+    glyph.m_Codepoint = 'A';
+    glyph.m_Width = glyph.m_Advance = 8.0f;
+    glyph.m_Ascent = 10.0f;
+    glyph.m_Descent = 2.0f;
+    glyph_bank->m_Provider.m_MaxAscent = 10.0f;
+    glyph_bank->m_Provider.m_MaxDescent = 2.0f;
+    glyph_bank->m_Provider.m_ReferenceSize = 16.0f;
+    HFont font = FontCreateGlyphBank("vector.glyph_bankc", &glyph_bank->m_Provider);
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = FontCollectionCreate();
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, font));
+    TextLayoutSettings settings = {};
+    settings.m_Leading = 1.0f;
+    settings.m_Size = 36.0f;
+    AssertGlyphBankLayout(collection, "AA", &settings, 36.0f, 27.0f, 1);
+    ASSERT_EQ(22.5f, FontGetAscent(font, FontGetScaleFromSize(font, 36)));
+    ASSERT_EQ(4.5f, FontGetDescent(font, FontGetScaleFromSize(font, 36)));
+    settings.m_Size = 16.0f;
+    AssertGlyphBankLayout(collection, "AA", &settings, 16.0f, 12.0f, 1);
+    FontCollectionDestroy(collection);
+    FontDestroy(font);
+    ASSERT_TRUE(destroyed);
+}
+
 TEST(FontGlyphBank, RejectsInvalidProvider)
 {
     FontGlyphBankProvider provider = {};

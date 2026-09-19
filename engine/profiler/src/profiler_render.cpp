@@ -209,7 +209,7 @@ namespace dmProfileRender
         dmRender::DrawTextParams prepared_params = params;
         prepared_params.m_Text = 0;
         prepared_params.m_TextLayout = layout;
-        dmRender::DrawText(render_context, font_map, 0, batch_key, prepared_params);
+        dmRender::DrawText(render_context, font_map, 0, 0, batch_key, prepared_params);
     }
 
     static bool CreateTransientTextLayout(HRenderProfile render_profile, dmRender::HFontMap font_map, const char* text, const dmRender::DrawTextParams& params, HTextLayout* out_layout)
@@ -256,7 +256,7 @@ namespace dmProfileRender
         dmRender::DrawTextParams raw_params = params;
         raw_params.m_Text = text ? text : "";
         raw_params.m_TextLayout = 0;
-        dmRender::DrawText(render_context, font_map, 0, batch_key, raw_params);
+        dmRender::DrawText(render_context, font_map, 0, 0, batch_key, raw_params);
     }
 
     static void DrawProfilerTextTransient(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map, uint64_t batch_key, const dmRender::DrawTextParams& params, const char* text)
@@ -271,7 +271,7 @@ namespace dmProfileRender
         dmRender::DrawTextParams raw_params = params;
         raw_params.m_Text = text ? text : "";
         raw_params.m_TextLayout = 0;
-        dmRender::DrawText(render_context, font_map, 0, batch_key, raw_params);
+        dmRender::DrawText(render_context, font_map, 0, 0, batch_key, raw_params);
     }
 
     static void FlushRecording(RenderProfile* render_profile, uint32_t capacity)

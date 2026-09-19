@@ -162,6 +162,7 @@ public class FontRendererTest {
             renderer.beginBatch();
             FontRenderer.Texture texture = renderer.generateTexture(0);
             assertEquals(4, texture.channels);
+            assertEquals(Byte.BYTES, texture.componentSize);
             assertNotNull(texture.pixels);
             assertEquals(6, getVertices(renderer, IDENTITY).vertexCount);
             for (int row = 0; row < 5; ++row) {
@@ -219,6 +220,290 @@ public class FontRendererTest {
             assertTrue(!legacyTexture.pixels.equals(skribidiTexture.pixels));
             assertEquals(18, getVertices(legacy, IDENTITY).vertexCount);
             assertEquals(24, getVertices(skribidi, IDENTITY).vertexCount);
+        }
+    }
+
+    @Test
+    public void testVectorPreviewWritesFacesAndEffectsWithRichText() throws Exception {
+        byte[] fontBytes;
+        try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {
+            fontBytes = input.readAllBytes();
+        }
+        for (boolean shaping : new boolean[] {false, true}) {
+            FontRenderer.Params params = new FontRenderer.Params();
+            params.size = 15;
+            params.cacheWidth = 128;
+            params.cacheHeight = 128;
+            params.vector = true;
+            params.useTextShaping = shaping;
+            params.outlineWidth = 2;
+            params.hasOutline = true;
+            params.shadowBlur = 2;
+            params.hasShadow = true;
+            params.layerMask = FontRenderer.LAYER_FACE | FontRenderer.LAYER_OUTLINE | FontRenderer.LAYER_SHADOW;
+            try (FontRenderer renderer = new FontRenderer("NotoSans-Regular.ttf", fontBytes, params)) {
+                renderer.setProperties(properties(100, 1, 0));
+                for (String text : new String[] {"A", "<outline size=1>A</outline>", "<shadow blur=1>A</shadow>",
+                        "<outline size=1><shadow blur=1>A</shadow></outline>", "<sprite/>A", "<ul>A</ul>"}) {
+                    renderer.setMarkup(text);
+                    renderer.beginBatch();
+                    renderer.generateTexture(0);
+                    FontRenderer.VertexBufferRequirements requirements = renderer.getVertexBufferRequirements();
+                    boolean outline = text.contains("<outline");
+                    boolean shadow = text.contains("<shadow");
+                    int vertexCount = 6 * (1 + (outline ? 1 : 0) + (shadow ? 1 : 0));
+                    assertEquals(text, vertexCount, requirements.vertexCount);
+                    assertEquals(vertexCount * 52, requirements.byteCount);
+                    ByteBuffer vertices = ByteBuffer.allocateDirect(requirements.byteCount).order(ByteOrder.nativeOrder());
+                    for (int i = 0; i < vertices.capacity(); ++i)
+                        vertices.put(i, (byte)0x7f);
+                    renderer.getVertices(IDENTITY, vertices, requirements);
+                    for (int i = 0; i < requirements.vertexCount; ++i) {
+                        assertTrue(text, Float.isFinite(vertices.getFloat(i * 52)));
+                        assertEquals(text, 0.0f, vertices.getFloat(i * 52 + 12), 0.0f);
+                        assertEquals(text, shadow && i < 6 ? 2.0f : outline && i < (shadow ? 12 : 6) ? 1.0f : 0.0f,
+                                vertices.getFloat(i * 52 + 28), 0.0f);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testVectorInvisibleGlyphsDoNotPoisonAtlas() throws Exception {
+        byte[] fontBytes;
+        try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {
+            fontBytes = input.readAllBytes();
+        }
+        for (boolean shaping : new boolean[] {false, true}) {
+            FontRenderer.Params params = new FontRenderer.Params();
+            params.vector = true;
+            params.size = 36;
+            params.cacheWidth = params.cacheHeight = 512;
+            params.useTextShaping = shaping;
+            try (FontRenderer renderer = new FontRenderer("NotoSans-Regular.ttf", fontBytes, params)) {
+                renderer.setProperties(properties(100, 1, 0));
+                renderer.setText("AB");
+                renderer.beginBatch();
+                long version = renderer.generateTexture(0).atlasVersion;
+                FontRenderer.Texture[] baseline = renderer.getVectorTextures(0);
+                TestVertices baselineVertices = getVertices(renderer, IDENTITY);
+                for (String text : new String[] {"A\u200CB", "A\u200DB", "A\u2060B", "A\uFEFFB", "\u200D", "AB"}) {
+                    renderer.setText(text);
+                    renderer.beginBatch();
+                    assertEquals(text, version, renderer.generateTexture(version).atlasVersion);
+                    FontRenderer.Texture[] textures = renderer.getVectorTextures(0);
+                    assertEquals(text, baseline[0].pixels, textures[0].pixels);
+                    assertEquals(text, baseline[1].pixels, textures[1].pixels);
+                    assertEquals(text, text.length() == 1 ? 0 : 12, getVertices(renderer, IDENTITY).vertexCount);
+                }
+                assertEquals(baselineVertices.vertices, getVertices(renderer, IDENTITY).vertices);
+            }
+        }
+    }
+
+    @Test
+    public void testVectorAtlasRecoversAfterOverflow() throws Exception {
+        byte[] fontBytes;
+        try (InputStream input = FontRendererTest.class.getResourceAsStream("/vector_atlas_stress.ttf")) {
+            assertNotNull(input);
+            fontBytes = input.readAllBytes();
+        }
+        StringBuilder overflowingText = new StringBuilder();
+        for (int i = 0; i < 800; ++i)
+            overflowingText.appendCodePoint(0xE000 + i);
+        for (boolean effects : new boolean[] {false, true}) {
+            FontRenderer.Params params = new FontRenderer.Params();
+            params.vector = true;
+            params.size = 8;
+            params.cacheWidth = params.cacheHeight = 1024;
+            params.hasOutline = effects;
+            params.outlineWidth = effects ? 1 : 0;
+            params.layerMask = FontRenderer.LAYER_FACE | (effects ? FontRenderer.LAYER_OUTLINE : 0);
+            try (FontRenderer renderer = new FontRenderer("vector_atlas_stress.ttf", fontBytes, params)) {
+                renderer.setProperties(properties(100, 1, 0));
+                renderer.setText("\uE000");
+                renderer.beginBatch();
+                FontRenderer.Texture baselineBitmap = renderer.generateTexture(0);
+                long version = baselineBitmap.atlasVersion;
+                FontRenderer.Texture[] baseline = renderer.getVectorTextures(0);
+                TestVertices baselineVertices = getVertices(renderer, IDENTITY);
+                assertEquals(effects ? 12 : 6, baselineVertices.vertexCount);
+                for (int pass = 0; pass < 2; ++pass) {
+                    renderer.setText(overflowingText.toString());
+                    renderer.beginBatch();
+                    version = renderer.generateTexture(version).atlasVersion;
+                    try {
+                        renderer.getVectorTextures(0);
+                        fail("Expected the numeric atlas to overflow");
+                    } catch (IllegalStateException expected) {
+                        assertTrue(expected.getMessage().contains("native result -4"));
+                    }
+
+                    renderer.setText("\uE000");
+                    renderer.beginBatch();
+                    FontRenderer.Texture recovered = renderer.generateTexture(version);
+                    assertTrue(recovered.atlasVersion > version);
+                    assertNotNull(recovered.pixels);
+                    if (effects)
+                        assertEquals(baselineBitmap.pixels, recovered.pixels);
+                    FontRenderer.Texture[] textures = renderer.getVectorTextures(version);
+                    for (int i = 0; i < 2; ++i) {
+                        assertEquals(baseline[i].pixels, textures[i].pixels);
+                        assertNull(renderer.getVectorTextures(recovered.atlasVersion)[i].pixels);
+                    }
+                    assertEquals(baselineVertices.vertices, getVertices(renderer, IDENTITY).vertices);
+                    version = recovered.atlasVersion;
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testVectorBatchFinalizesAllEntriesTogether() throws Exception {
+        byte[] fontBytes;
+        try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {
+            fontBytes = input.readAllBytes();
+        }
+        FontRenderer.Params params = new FontRenderer.Params();
+        params.vector = true;
+        params.size = 36;
+        params.cacheWidth = params.cacheHeight = 512;
+        String text = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        try (FontRenderer batch = new FontRenderer("NotoSans-Regular.ttf", fontBytes, params);
+             FontRenderer combined = new FontRenderer("NotoSans-Regular.ttf", fontBytes, params)) {
+            batch.setProperties(properties(1000, 1, 0));
+            combined.setProperties(properties(1000, 1, 0));
+            batch.beginBatch();
+            long version = 0;
+            for (int i = 0; i < text.length(); ++i) {
+                batch.setText(text.substring(i, i + 1));
+                version = batch.generateTexture(version).atlasVersion;
+                assertEquals(6, batch.getVertexBufferRequirements().vertexCount);
+            }
+            FontRenderer.Texture[] batchTextures = batch.getVectorTextures(0);
+            combined.setText(text);
+            combined.beginBatch();
+            combined.generateTexture(0);
+            FontRenderer.Texture[] combinedTextures = combined.getVectorTextures(0);
+            for (int i = 0; i < 2; ++i) {
+                assertEquals(combinedTextures[i].pixels, batchTextures[i].pixels);
+                assertNull(batch.getVectorTextures(version)[i].pixels);
+            }
+            batch.setText(text);
+            assertEquals(getVertices(combined, IDENTITY).vertices, getVertices(batch, IDENTITY).vertices);
+        }
+    }
+
+    @Test
+    public void testVectorTextureAndVertices() throws Exception {
+        byte[] fontBytes;
+        try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {
+            assertNotNull(input);
+            fontBytes = input.readAllBytes();
+        }
+        FontRenderer.Params params = new FontRenderer.Params();
+        params.size = 32.0f;
+        params.cacheWidth = 128;
+        params.cacheHeight = 128;
+        params.vector = true;
+        try (FontRenderer renderer = new FontRenderer("NotoSans-Regular.ttf", fontBytes, params)) {
+            renderer.setProperties(properties(100.0f, 1.0f, 0));
+            renderer.setText("Ag");
+            renderer.beginBatch();
+            FontRenderer.Texture texture = renderer.generateTexture(0);
+            assertEquals(Byte.BYTES, texture.componentSize);
+            FontRenderer.Texture[] numeric = renderer.getVectorTextures(0);
+            assertEquals(2, numeric.length);
+            assertEquals(4096, numeric[0].width);
+            assertEquals(Short.BYTES, numeric[0].componentSize);
+            assertEquals(Float.BYTES, numeric[1].componentSize);
+            assertEquals(4096, numeric[1].width);
+            for (FontRenderer.Texture atlas : numeric) {
+                assertEquals(texture.atlasVersion, atlas.atlasVersion);
+                assertEquals(atlas.width * atlas.height * 4 * atlas.componentSize, atlas.pixels.remaining());
+            }
+            // Every band field is an exactly representable uint16, not raster coverage.
+            for (int i = 0; i < numeric[1].pixels.remaining(); i += Float.BYTES) {
+                float field = numeric[1].pixels.getFloat(i);
+                assertTrue(field >= 0 && field <= 65535);
+                assertEquals(field, (float)(int)field, 0.0f);
+            }
+            FontRenderer.Texture[] unchanged = renderer.getVectorTextures(texture.atlasVersion);
+            assertNull(unchanged[0].pixels);
+            assertNull(unchanged[1].pixels);
+
+            FontRenderer.VertexBufferRequirements requirements = renderer.getVertexBufferRequirements();
+            assertEquals(12, requirements.vertexCount);
+            assertEquals(12 * 52, requirements.byteCount);
+            TestVertices vertices = getVertices(renderer, IDENTITY);
+            assertTrue(vertices.vertices.getFloat(6 * Float.BYTES) > 0.0f); // texcoord.z: curve count
+            assertTrue(vertices.vertices.getFloat(2 * Float.BYTES) >= 0.0f); // position.z: band texel
+
+            StringBuilder moreGlyphs = new StringBuilder("Ag");
+            for (char c = '!'; c <= '~'; ++c)
+                moreGlyphs.append(c);
+            renderer.setText(moreGlyphs.toString());
+            renderer.beginBatch();
+            FontRenderer.Texture update = renderer.generateTexture(texture.atlasVersion);
+            FontRenderer.Texture[] grown = renderer.getVectorTextures(texture.atlasVersion);
+            assertTrue(grown[1].height > numeric[1].height);
+            for (FontRenderer.Texture atlas : grown) {
+                assertEquals(update.atlasVersion, atlas.atlasVersion);
+                assertEquals(atlas.width * atlas.height * 4 * atlas.componentSize, atlas.pixels.remaining());
+            }
+            // Repacking the growing atlas must preserve the first text entry.
+            renderer.setText("Ag");
+            TestVertices repacked = getVertices(renderer, IDENTITY);
+            assertEquals(vertices.vertices, repacked.vertices);
+        }
+    }
+
+    @Test
+    public void testVectorVertexWidthsUseExactOutlineBounds() throws Exception {
+        byte[] fontBytes;
+        try (InputStream input = FontRendererTest.class.getResourceAsStream("/NotoSans-Regular.ttf")) {
+            assertNotNull(input);
+            fontBytes = input.readAllBytes();
+        }
+        String text = "AgWi";
+        for (boolean useTextShaping : new boolean[] {false, true}) {
+            float[] baselineWidths = null;
+            for (float referenceSize : new float[] {16.0f, 15.0f, 37.0f}) {
+                FontRenderer.Params params = new FontRenderer.Params();
+                params.size = referenceSize;
+                params.cacheWidth = 128;
+                params.cacheHeight = 128;
+                params.vector = true;
+                params.useTextShaping = useTextShaping;
+                try (FontRenderer renderer = new FontRenderer("NotoSans-Regular.ttf", fontBytes, params)) {
+                    renderer.setProperties(properties(0.0f, 1.0f, 0));
+                    renderer.setText(text);
+                    renderer.beginBatch();
+                    renderer.generateTexture(0);
+                    float scale = 15.0f / referenceSize;
+                    float[] transform = IDENTITY.clone();
+                    transform[0] = scale;
+                    transform[5] = scale;
+                    TestVertices vertices = getVertices(renderer, transform);
+                    assertEquals(text.length() * 6, vertices.vertexCount);
+                    int stride = vertices.vertices.remaining() / vertices.vertexCount;
+                    float[] widths = new float[text.length()];
+                    for (int glyphIndex = 0; glyphIndex < text.length(); ++glyphIndex) {
+                        int offset = glyphIndex * 6 * stride;
+                        float left = vertices.vertices.getFloat(offset);
+                        float right = vertices.vertices.getFloat(offset + 2 * stride);
+                        widths[glyphIndex] = right - left;
+                        FontRenderer.GeneratedGlyph glyph = renderer.generateGlyph(text.charAt(glyphIndex));
+                        assertEquals("Exact curve width for " + text.charAt(glyphIndex) + " at " + referenceSize,
+                                glyph.outlineWidth * scale, widths[glyphIndex], 0.00001f);
+                    }
+                    if (baselineWidths == null)
+                        baselineWidths = widths;
+                    else
+                        assertArrayEquals("Display widths at " + referenceSize, baselineWidths, widths, 0.00001f);
+                }
+            }
         }
     }
 
@@ -573,6 +858,65 @@ public class FontRendererTest {
             assertTrue(glyph.height > 0);
             assertEquals(1, glyph.channels);
             assertEquals(glyph.width * glyph.height * glyph.channels, glyph.pixels.remaining());
+        }
+    }
+
+    @Test
+    public void testBakedGlyphsPreserveRuntimeHorizontalPlacement() throws Exception {
+        for (String fontResource : new String[] {"/NotoSans-Regular.ttf", "/SourceCodePro-Regular.otf"}) {
+            byte[] fontBytes;
+            try (InputStream input = FontRendererTest.class.getResourceAsStream(fontResource)) {
+                assertNotNull(input);
+                fontBytes = input.readAllBytes();
+            }
+            for (boolean bitmap : new boolean[] {false, true}) {
+                for (boolean effects : new boolean[] {false, true}) {
+                    FontRenderer.Params params = new FontRenderer.Params();
+                    params.size = 36.0f;
+                    params.cacheWidth = 512;
+                    params.cacheHeight = 512;
+                    params.outputBitmap = bitmap;
+                    params.hasOutline = effects;
+                    params.hasShadow = effects;
+                    params.outlineWidth = effects ? 2.0f : 0.0f;
+                    params.shadowBlur = effects ? 2.0f : 0.0f;
+                    try (FontRenderer runtime = new FontRenderer(fontResource, fontBytes, params)) {
+                        FontRenderer.Layout metrics = runtime.measure("", false, 0.0f, 1.0f, 0.0f);
+                        for (char codepoint : new char[] {'E', 'j'}) {
+                            FontRenderer.GeneratedGlyph glyph = runtime.generateGlyph(codepoint);
+                            // Match the compiler's one-pixel atlas border around the generated image.
+                            int rowBytes = glyph.width * glyph.channels;
+                            int paddedRowBytes = (glyph.width + 2) * glyph.channels;
+                            byte[] pixels = new byte[paddedRowBytes * (glyph.height + 2)];
+                            for (int row = 0; row < glyph.height; ++row)
+                                glyph.pixels.get(row * rowBytes, pixels, (row + 1) * paddedRowBytes + glyph.channels, rowBytes);
+                            FontRenderer.GlyphBankGlyph[] glyphs = {
+                                new FontRenderer.GlyphBankGlyph(codepoint, glyph.width, glyph.advance,
+                                        glyph.leftBearing, glyph.ascent, glyph.descent, 0, pixels.length)
+                            };
+                            FontRenderer.GlyphBank bank = new FontRenderer.GlyphBank(glyphs, pixels, 1,
+                                    glyph.channels, metrics.maxAscent, metrics.maxDescent);
+                            try (FontRenderer offline = new FontRenderer("baked.glyph_bankc", bank, params)) {
+                                String text = String.valueOf(codepoint).repeat(2);
+                                for (FontRenderer renderer : new FontRenderer[] {runtime, offline}) {
+                                    renderer.setProperties(properties(100.0f, 1.0f, 0));
+                                    renderer.setText(text);
+                                    renderer.beginBatch();
+                                    renderer.generateTexture(0);
+                                }
+                                TestVertices expected = getVertices(runtime, IDENTITY);
+                                TestVertices actual = getVertices(offline, IDENTITY);
+                                assertEquals(expected.vertexCount, actual.vertexCount);
+                                for (int vertex = 0; vertex < expected.vertexCount; ++vertex) {
+                                    assertEquals(fontResource + " bitmap=" + bitmap + " effects=" + effects + " " + text,
+                                            expected.vertices.getFloat(vertex * VERTEX_STRIDE),
+                                            actual.vertices.getFloat(vertex * VERTEX_STRIDE), 0.00001f);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

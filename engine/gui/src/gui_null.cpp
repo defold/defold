@@ -567,6 +567,15 @@ namespace dmGui
         return 0.0f;
     }
 
+    void SetNodeFontSize(HScene scene, HNode node, float font_size)
+    {
+    }
+
+    float GetNodeFontSize(HScene scene, HNode node)
+    {
+        return 0.0f;
+    }
+
     HTextureSource GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
     {
         return 0;

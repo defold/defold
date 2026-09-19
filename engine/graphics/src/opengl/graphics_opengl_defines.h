@@ -98,6 +98,10 @@
 #define DMGRAPHICS_SAMPLER_2D_ARRAY                         (0x8DC1)
 #endif
 
+#define DMGRAPHICS_UNSIGNED_INT_SAMPLER_2D                  (0x8DD2)
+#define DMGRAPHICS_TEXTURE_FORMAT_R32UI                     (0x8236)
+#define DMGRAPHICS_TEXTURE_FORMAT_RED_INTEGER               (0x8D94)
+
 // Texture images
 #ifdef GL_IMAGE_2D
     #define DMGRAPHICS_IMAGE_2D                         (GL_IMAGE_2D)

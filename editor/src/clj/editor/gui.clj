@@ -194,6 +194,7 @@
 (defn render-tris [^GL2 gl render-args renderables _rcount]
   (let [user-data (get-in renderables [0 :user-data])
         clipping-state (:clipping-state user-data)
+        font-data (get-in user-data [:text-data :font-data])
         gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
         material-shader (get user-data :material-shader)
         blend-mode (get user-data :blend-mode)
@@ -207,8 +208,10 @@
               vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
                                (vtx2/use-with ::tris vb shader)
                                (vtx/use-with ::tris vb shader))]
-          (gl/with-gl-bindings gl render-args [shader vertex-binding gpu-texture]
-            (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
+          (gl/with-gl-bindings gl render-args (into [shader vertex-binding gpu-texture] (:vector-textures font-data))
+            (if (:vector? font-data)
+              (font/set-vector-uniforms! gl shader font-data)
+              (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture)))
             (clipping/setup-gl gl clipping-state)
             (gl/set-blend-mode gl blend-mode)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
@@ -216,11 +219,14 @@
             (clipping/restore-gl gl clipping-state)))
 
         pass/selection
-        (let [vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
+        (let [id-shader (or (:selection-shader font-data) id-shader)
+              vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
                                (vtx2/use-with ::tris vb id-shader)
                                (vtx/use-with ::tris vb id-shader))]
-          (gl/with-gl-bindings gl (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
-            (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture))
+          (gl/with-gl-bindings gl (assoc render-args (if (:vector? font-data) :id :id-color) (scene-picking/renderable-picking-id-uniform (first renderables))) (into [id-shader vertex-binding gpu-texture] (:vector-textures font-data))
+            (if (:vector? font-data)
+              (font/set-vector-uniforms! gl id-shader font-data)
+              (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture)))
             (clipping/setup-gl gl clipping-state)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
             (clipping/restore-gl gl clipping-state)))))))
@@ -2100,7 +2106,7 @@
 
 (def ^:private validate-font (partial validate-required-gui-resource-localized error-gui-font-not-found-in-scene-message-fn :font))
 
-(g/defnk produce-text-node-msg [visual-base-node-msg ^:raw manual-size ^:raw text ^:raw line-break ^:raw font ^:raw text-leading ^:raw text-tracking ^:raw outline ^:raw outline-alpha ^:raw shadow ^:raw shadow-alpha ^:raw style]
+(g/defnk produce-text-node-msg [visual-base-node-msg ^:raw manual-size ^:raw text ^:raw line-break ^:raw font ^:raw font-size ^:raw text-leading ^:raw text-tracking ^:raw outline ^:raw outline-alpha ^:raw shadow ^:raw shadow-alpha ^:raw style]
   (assoc visual-base-node-msg
     :manual-size manual-size
     :text text
@@ -2112,7 +2118,8 @@
     :outline outline
     :outline-alpha outline-alpha
     :shadow shadow
-    :shadow-alpha shadow-alpha))
+    :shadow-alpha shadow-alpha
+    :font-size font-size))
 
 (g/defnode TextNode
   (inherits VisualNode)
@@ -2157,6 +2164,15 @@
             (dynamic tooltip (properties/tooltip-dynamic :gui :font))
             (value (layout-property-getter font))
             (set (layout-property-setter font)))
+  (property font-size g/Num (default (protobuf/default Gui$NodeDesc :font-size))
+            (dynamic visible (g/fnk [font-data] (:vector? font-data)))
+            (dynamic error (g/fnk [_node-id font-size font-data]
+                             (when (and (:vector? font-data) (not (pos? font-size)))
+                               (validation/prop-error :fatal _node-id :font-size validation/prop-zero-or-below? font-size (properties/label-message :gui :font-size)))))
+            (dynamic edit-type (layout-property-edit-type font-size {:type g/Num}))
+            (dynamic label (properties/label-dynamic :gui :font-size))
+            (value (layout-property-getter font-size))
+            (set (layout-property-setter font-size)))
   (property text-leading g/Num (default (protobuf/default Gui$NodeDesc :text-leading))
             (dynamic edit-type (layout-property-edit-type text-leading {:type g/Num}))
             (dynamic label (properties/label-dynamic :gui :text-leading))
@@ -2170,6 +2186,8 @@
             (value (layout-property-getter text-tracking))
             (set (layout-property-setter text-tracking)))
   (property outline types/Color (default (protobuf/default Gui$NodeDesc :outline))
+            (dynamic read-only? (g/fnk [^:try font-data]
+                                  (not (font/supports-effect? (:font-map font-data) :outline))))
             (dynamic edit-type (layout-property-edit-type outline {:type types/Color
                                                                    :ignore-alpha true}))
             (dynamic label (properties/label-dynamic :gui :outline))
@@ -2177,6 +2195,8 @@
             (value (layout-property-getter outline))
             (set (layout-property-setter outline)))
   (property outline-alpha g/Num (default (protobuf/default Gui$NodeDesc :outline-alpha))
+            (dynamic read-only? (g/fnk [^:try font-data]
+                                  (not (font/supports-effect? (:font-map font-data) :outline))))
             (dynamic edit-type (layout-property-edit-type outline-alpha {:type :slider
                                                                          :min 0.0
                                                                          :max 1.0
@@ -2186,6 +2206,8 @@
             (value (layout-property-getter outline-alpha))
             (set (layout-property-setter outline-alpha)))
   (property shadow types/Color (default (protobuf/default Gui$NodeDesc :shadow))
+            (dynamic read-only? (g/fnk [^:try font-data]
+                                  (not (font/supports-effect? (:font-map font-data) :shadow))))
             (dynamic edit-type (layout-property-edit-type shadow {:type types/Color
                                                                   :ignore-alpha true}))
             (dynamic label (properties/label-dynamic :gui :shadow))
@@ -2193,6 +2215,8 @@
             (value (layout-property-getter shadow))
             (set (layout-property-setter shadow)))
   (property shadow-alpha g/Num (default (protobuf/default Gui$NodeDesc :shadow-alpha))
+            (dynamic read-only? (g/fnk [^:try font-data]
+                                  (not (font/supports-effect? (:font-map font-data) :shadow))))
             (dynamic edit-type (layout-property-edit-type shadow-alpha {:type :slider
                                                                         :min 0.0
                                                                         :max 1.0
@@ -2202,7 +2226,7 @@
             (value (layout-property-getter shadow-alpha))
             (set (layout-property-setter shadow-alpha)))
 
-  (display-order (into base-display-order [:manual-size :enabled :visible :text :line-break :font :style :material :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
+  (display-order (into base-display-order [:manual-size :enabled :visible :text :line-break :font :font-size :style :material :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
   (output font-data font/FontData (g/fnk [costly-gui-scene-info font]
                                     (let [font-datas (:font-datas costly-gui-scene-info)]
@@ -2214,37 +2238,41 @@
   (output gpu-texture TextureLifecycle (g/fnk [font-data] (:texture font-data)))
   (output scene-renderable-user-data g/Any :cached
           (g/fnk [costly-gui-scene-info manual-size font material material-shader pivot text-data color+alpha]
-                 (let [[w h] manual-size
-                       offset (pivot-offset pivot manual-size)
-                       lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))
-                       font-map (get-in text-data [:font-data :font-map])
-                       texture-recip-uniform (some-> font-map font/get-texture-recip-uniform)
-                       material-shader (when (not (empty? material)) material-shader)
-                       font-shaders (:font-shaders costly-gui-scene-info)
-                       font-shader (or material-shader (get font-shaders font) (get font-shaders ""))
-                       font-shader (assoc-in font-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
-                   ;; The material-shader output is used to propagate the shader
-                   ;; from the GuiSceneNode to our child nodes. Thus, we cannot
-                   ;; simply overload the material-shader output on this node.
-                   ;; Instead, the base VisualNode will pick it up from here.
-                   {:line-data lines
-                    :text-data text-data
-                    :color color+alpha
-                    :override-material-shader font-shader
-                    :renderable-tags #{:gui-text}})))
+            (let [[w h] manual-size
+                  offset (pivot-offset pivot manual-size)
+                  lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))
+                  font-map (get-in text-data [:font-data :font-map])
+                  material-shader (when (not (empty? material)) material-shader)
+                  font-shaders (:font-shaders costly-gui-scene-info)
+                  font-shader (or (get-in text-data [:font-data :preview-shader])
+                                  material-shader
+                                  (get font-shaders font)
+                                  (get font-shaders ""))
+                  font-shader (assoc-in font-shader [:uniforms "texture_size_recip"] (some-> font-map font/get-texture-recip-uniform))]
+              ;; The material-shader output is used to propagate the shader
+              ;; from the GuiSceneNode to our child nodes. Thus, we cannot
+              ;; simply overload the material-shader output on this node.
+              ;; Instead, the base VisualNode will pick it up from here.
+              {:line-data lines
+               :text-data text-data
+               :color color+alpha
+               :override-material-shader font-shader
+               :renderable-tags #{:gui-text}})))
   (output markup-error g/Any :cached (g/fnk [_node-id font-data text]
-                                            (font/markup-error _node-id :text (:font-map font-data) text)))
-  (output text-layout g/Any :cached (g/fnk [manual-size font-data text line-break text-leading text-tracking style]
-                                           (font/layout-text (some-> font-data :font-map (assoc :style style)) text line-break (first manual-size) text-tracking text-leading)))
+                                       (font/markup-error _node-id :text (:font-map font-data) text)))
+  (output text-layout g/Any :cached (g/fnk [manual-size font-data font-size text line-break text-leading text-tracking style]
+                                      (font/layout-text (some-> font-data :font-map (assoc :style style)) text line-break (first manual-size) text-tracking text-leading
+                                                        (when (:vector? font-data) font-size))))
   (output aabb g/Any :cached (g/fnk [pivot manual-size] (calc-aabb pivot manual-size)))
   (output aabb-size g/Any :cached (g/fnk [text-layout]
-                                         [(:width text-layout) (:height text-layout) 0]))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data color alpha outline outline-alpha shadow shadow-alpha aabb-size manual-size pivot]
+                                    [(:width text-layout) (:height text-layout) 0]))
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color alpha outline outline-alpha shadow shadow-alpha aabb-size manual-size pivot]
                                    (let [text-data {:text-layout text-layout
                                                     :font-data font-data
                                                     :color (assoc color 3 alpha)
                                                     :outline (assoc outline 3 outline-alpha)
                                                     :shadow (assoc shadow 3 shadow-alpha)
+                                                    :font-size (when (:vector? font-data) font-size)
                                                     :align (pivot->h-align pivot)}]
                                      (cond
                                        (nil? font-data)
@@ -2252,21 +2280,24 @@
 
                                        (get-in font-data [:font-map :native-renderer-spec])
                                        (assoc text-data
-                                              :box-height (second manual-size)
-                                              :offset (pivot-offset pivot manual-size)
-                                              :vertical-align (pivot->v-align pivot))
+                                         :box-height (second manual-size)
+                                         :offset (pivot-offset pivot manual-size)
+                                         :vertical-align (pivot->v-align pivot))
 
                                        :else
                                        (assoc text-data :offset (let [[x y] (pivot-offset pivot aabb-size)
                                                                       h (second aabb-size)]
                                                                   [x (+ y (- h (:max-ascent text-layout)))]))))))
   (output own-build-errors g/Any
-          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node costly-gui-scene-info font layout->prop->value]
+          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node font font-data outline outline-alpha shadow shadow-alpha ^:try markup-error costly-gui-scene-info layout->prop->value]
             (let [font-names (:font-names basic-gui-scene-info)
                   font-datas (:font-datas costly-gui-scene-info)]
               (g/package-errors
                 _node-id
                 build-errors-visual-node
+                (when (g/error-fatal? markup-error) markup-error)
+                (font/vector-color-effect-error _node-id :outline (:font-map font-data) (assoc outline 3 outline-alpha))
+                (font/vector-color-effect-error _node-id :shadow (:font-map font-data) (assoc shadow 3 shadow-alpha))
                 (mapv (fn [props]
                         (font/style-error _node-id
                                           (:font-map (get font-datas (:font props)))
