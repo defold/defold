@@ -163,10 +163,7 @@
             width)
           (double cached-width))))))
 
-;; Complex text is measured with a TextLayout rather than a Text node. A Text
-;; node measures via Prism's shared layout instance, which is not safe to touch
-;; from more than one thread, and doing so crashes the renderer. Each thread
-;; gets a private layout instead.
+;; Text nodes share an unsafe Prism layout, so give each thread its own.
 (defonce ^:private complex-text-layout
   (proxy [ThreadLocal] []
     (initialValue []
@@ -179,12 +176,8 @@
     layout))
 
 (defn- make-complex-width-cache [^Font font]
-  ;; Shaping is the most expensive thing on the paint path - milliseconds for a
-  ;; long line - and a run's width never changes, so each distinct run is
-  ;; measured once. When full the cache is dropped wholesale and refilled,
-  ;; rather than evicted from, which keeps the lookup free of bookkeeping. A
-  ;; document with more distinct runs than fit re-shapes a viewport's worth
-  ;; after each drop instead of never caching at all.
+  ;; Shaping long runs is expensive. Clear the bounded cache wholesale to keep
+  ;; lookups cheap.
   (let [cache (ConcurrentHashMap.)]
     (fn get-complex-width [^String text]
       (if-let [cached-width (.get cache text)]
@@ -205,15 +198,9 @@
   data/ComplexTextMetrics
   (complex-text-width [this text]
     ((.complex-width-cache this) text))
-  ;; The shaper is the authority for caret geometry inside a range: it reports
-  ;; positions in visual order, so the caret runs right-to-left through an
-  ;; Arabic phrase, which is what it should do.
   (complex-text-col->x [this text col]
     (let [geometry (.getCaretGeometry (text-layout (.font this) text) col true)]
-      ;; At a direction boundary the offset has two visual positions and the
-      ;; shaper reports both halves of a split caret. The editor draws one
-      ;; caret, so take the upper half, which is the position in the direction
-      ;; the offset's own character runs.
+      ;; Direction boundaries have two positions; use the character's side.
       (if (instance? TextLayout$CaretGeometry$Split geometry)
         (.x1 ^TextLayout$CaretGeometry$Split geometry)
         (.x ^TextLayout$CaretGeometry$Single geometry))))
@@ -221,12 +208,10 @@
     (.getInsertionIndex (.getHitInfo (text-layout (.font this) text) (float x) (float 0.0))))
   (complex-text-x->character-col [this text x]
     (.getCharIndex (.getHitInfo (text-layout (.font this) text) (float x) (float 0.0))))
-  ;; A selection that crosses a direction boundary covers several disjoint
-  ;; stretches of the run, and only the shaper knows where they are.
+  ;; Bidi selections can have disjoint visual spans.
   (complex-text-selection-spans [this text start-offset end-offset]
     (let [spans (volatile! [])
-          ;; The callback's arguments are the rect's edges, not its size, in
-          ;; spite of what the parameter names of addRectangle suggest.
+          ;; The callback receives edges, despite its misleading parameter names.
           callback (reify TextLayout$GeometryCallback
                      (addRectangle [_this left _top right _bottom]
                        (vswap! spans conj [(double left) (double right)])))]
@@ -332,9 +317,7 @@
 
 (defn- cursor-range-outline [rects]
   (if (or (coll/empty? rects)
-          ;; The connected polygon below assumes one rect per row. A selection
-          ;; over bidi text can produce several per row - outline each rect
-          ;; separately then.
+          ;; The connected outline assumes one rect per row.
           (not= (count rects)
                 (count (into #{} (map (fn [^Rect r] (.y r))) rects))))
     (mapv rect-outline rects)
@@ -497,15 +480,12 @@
             tab-character
             nil
 
-            ;; A shaped range must be drawn as a whole string, since shaping
-            ;; cannot be applied to individual glyphs.
+            ;; Splitting a shaped range would break glyph joining and reordering.
             complete-complex-range
             (when (< visible-start-x (+ next-x offset-x))
               (.fillText gc (.substring text i seg-end) (+ x offset-x) y))
 
-            ;; Currently using FontSmoothingType/GRAY results in poor kerning
-            ;; when drawing subsequent characters in a string given to fillText.
-            ;; Here glyphs are drawn individually at whole pixels as a workaround.
+            ;; Drawing ASCII one glyph at a time keeps GRAY-smoothed text crisp.
             :else
             (loop [^long glyph-index i
                    glyph-x (double x)]
@@ -550,10 +530,8 @@
                         (.scroll-y-remainder layout)
                         (* drawn-line-index line-height))]
           (if-some [runs (second (get syntax-info source-line-index))]
-            ;; Draw syntax-highlighted runs. A shaped range is drawn in one pass,
-            ;; even if syntax scopes split it, so it stays in sync with layout.
-            ;; The cost is that such a range takes the color of the scope it
-            ;; starts in rather than being colored per-scope.
+            ;; Keep shaped ranges intact, even across syntax scopes. They use the
+            ;; color of the scope where they start.
             (loop [run-index 0
                    start 0
                    glyph-offset line-x]
@@ -606,11 +584,7 @@
               (when (< i line-length)
                 (let [[range-start range-end] (get complex-ranges range-index)]
                   (if (= i range-start)
-                    ;; Skip the range in one step, by its shaped width, so the
-                    ;; marks after it stay aligned with the painted text. Space
-                    ;; dots inside the range are drawn separately below, using
-                    ;; the shaper's per-offset geometry, since the shaper may
-                    ;; reorder the range and the advance walk can't locate them.
+                    ;; Use shaped geometry because bidi may reorder spaces.
                     (when (< (+ x line-x) visible-end-x)
                       (let [^String sub (.substring line i range-end)]
                         (when visible-whitespace?

@@ -44,11 +44,11 @@
   (char-width [this character] "A rounded double representing the width of the specified character."))
 
 (defonce/protocol ComplexTextMetrics
-  (complex-text-width [this text] "The shaped width of a string containing a complex script.")
-  (complex-text-col->x [this text col] "The visual x position of a logical offset in a complex string.")
-  (complex-text-x->col [this text x] "The logical offset nearest a visual x position in a complex string.")
-  (complex-text-x->character-col [this text x] "The logical offset of the character at a visual x position in a complex string.")
-  (complex-text-selection-spans [this text start-offset end-offset] "Visual [x0 x1] spans, relative to the run's left edge, covering the logical offsets [start-offset end-offset) in a complex string."))
+  (complex-text-width [this text] "Returns the shaped width of text.")
+  (complex-text-col->x [this text col] "Returns the visual x position of a logical offset.")
+  (complex-text-x->col [this text x] "Returns the logical offset nearest x.")
+  (complex-text-x->character-col [this text x] "Returns the logical offset of the character at x.")
+  (complex-text-selection-spans [this text start-offset end-offset] "Returns selection spans relative to the run's left edge."))
 
 (defn- combining-character? [character]
   (let [character-type (Character/getType (unchecked-char character))]
@@ -57,20 +57,8 @@
         (= Character/ENCLOSING_MARK character-type))))
 
 (defn- neutral-character?
-  "True for an ASCII character that carries no direction of its own - spaces and
-  most punctuation. The bidi algorithm resolves a neutral run between two
-  right-to-left characters as right-to-left, so such a run belongs inside the
-  shaped range rather than between two of them.
-
-  Tabs are excluded: a range must never contain one, since the shaper does not
-  know the editor's tab stops. Quotes are excluded so that two adjacent string
-  literals are never merged into one range - without syntax scopes to consult,
-  the delimiter is what keeps a range inside the string it started in.
-
-  Digits count as neutral: the bidi algorithm keeps a number embedded in
-  right-to-left text with that text, so a digit run flanked by complex
-  characters must reach the shaper inside the range for the words around it
-  to come back in the right order."
+  "True for ASCII characters that may join complex text on both sides.
+  Tabs need editor tab stops, and quotes must keep adjacent literals separate."
   [character]
   (case character
     (\tab \" \' \`) false
@@ -78,14 +66,8 @@
         (not (Character/isLetterOrDigit (unchecked-char character))))))
 
 (defn complex-text-ranges
-  "Ranges of the line, as [start end] character offsets, that must be measured
-  and drawn as a shaped unit rather than one character at a time.
-
-  A range spans a whole directional stretch, not one word: the spaces and
-  punctuation between two complex characters are absorbed into it, so an Arabic
-  phrase is handed to the shaper intact and comes back with its words in visual
-  order. A letter or a tab ends the range, which keeps it inside the
-  string or comment the complex text appears in - code outside those is ASCII."
+  "Returns [start end] spans that must be shaped together.
+  Neutral text stays with surrounding complex text so bidi can reorder the phrase."
   [^String line]
   (let [line-length (count line)]
     (loop [index 0
@@ -99,14 +81,10 @@
         (let [character (.charAt line index)
               next-index (inc index)]
           (cond
-            ;; Complex: opens a range, or extends one across any neutrals
-            ;; buffered since the last complex character.
             (<= 0x80 (int character))
             (recur next-index
                    (if (neg? start)
-                     ;; A combining mark on a simple base must be shaped
-                     ;; together with it, so the range starts one character
-                     ;; earlier - but never on whitespace.
+                     ;; Include the base of a combining mark, but never a tab.
                      (if (and (pos? index)
                               (combining-character? character)
                               (not (Character/isWhitespace (.charAt line (dec index)))))
@@ -116,13 +94,10 @@
                    next-index
                    ranges)
 
-            ;; Neutral: only joins the range if another complex character
-            ;; follows, so it stays buffered until then.
             (and (not (neg? start))
                  (neutral-character? character))
             (recur next-index start end ranges)
 
-            ;; Anything else ends the range, which stops before the neutrals.
             (not (neg? start))
             (recur next-index -1 -1 (conj ranges [start end]))
 
@@ -660,11 +635,7 @@
           (< col start)
           (advance-text-impl glyph-metrics tab-stops line index col x)
 
-          ;; Both ends of the range included: in a right-to-left run the caret
-          ;; at the first column belongs at the run's right edge and the one at
-          ;; the last column at its left edge, which only the shaper knows.
-          ;; Taking the advance path at either end put the caret on the wrong
-          ;; side of the text.
+          ;; Range boundaries also need bidi-aware caret positions.
           (<= col end)
           (+ ^double (advance-text-impl glyph-metrics tab-stops line index start x)
              ^double (complex-text-col->x glyph-metrics (.substring line start end) (- col start)))
@@ -717,7 +688,7 @@
   (line-x->col-impl glyph-metrics tab-stops line x 0.5 complex-text-x->col true))
 
 (defn- line-x->character-col
-  "Returns the col of the character at x, or nil if x is past the end of the line."
+  "Returns the column at x, or nil past the end of the line."
   [glyph-metrics tab-stops ^String line ^double x]
   (line-x->col-impl glyph-metrics tab-stops line x 0.0 complex-text-x->character-col false))
 
@@ -738,14 +709,10 @@
           (advance-text-impl glyph-metrics tab-stops line index (count line) x))))))
 
 (defn- line-selection-spans
-  "The visual [x0 x1] document-space spans covering the columns
-  [start-col end-col) of a line. A selection that crosses a direction boundary
-  covers several disjoint spans rather than one, so this returns a vector."
+  "Returns the visual spans covering [start-col end-col)."
   [glyph-metrics tab-stops ^String line start-col end-col]
   (let [ranges (complex-text-ranges line)
 
-        ;; The x an ordinary stretch is painted at comes from the advance walk,
-        ;; which is monotonic there, so a selected part of one is a single span.
         ordinary-spans (fn [spans ^long from ^long to ^double from-x]
                          (let [a (max start-col from)
                                b (min end-col to)]
@@ -755,10 +722,7 @@
                                (conj spans [x0 x1]))
                              spans)))
 
-        ;; The shaper reports a range's spans relative to where the run begins,
-        ;; which is the accumulated advance x - not col->x of the start column,
-        ;; since that routes through caret geometry and in a right-to-left run
-        ;; answers with the run's right edge.
+        ;; Use the run's origin; an RTL caret at its start sits at the far edge.
         range-spans (fn [spans ^long rs ^long re ^double base-x]
                       (let [a (max start-col rs)
                             b (min end-col re)]
@@ -1340,18 +1304,15 @@
     (->Rect left top 1.0 (inc ^double (line-height (.glyph layout))))))
 
 (defn- shaped-selection?
-  "True if any shaped range of the line overlaps or touches the columns
-  [start-col end-col). Touching counts: col->x at a range boundary answers with
-  caret geometry - an RTL run's far edge - so even an adjacent selection must
-  take the span path to get its rect edges right."
+  "True when the selection overlaps or touches shaped text.
+  Touching counts because bidi caret positions differ at range boundaries."
   [^String line ^long start-col ^long end-col]
   (coll/any? (fn [[^long start ^long end]]
                (and (<= start end-col) (>= end start-col)))
              (complex-text-ranges line)))
 
 (defn- merge-rects
-  "Combines rects that abut or overlap, so a selection that happens to be
-  contiguous comes out as one rect."
+  "Merges overlapping or adjacent rects."
   [rects]
   (reduce (fn [merged ^Rect rect]
             (let [^Rect previous (peek merged)]
@@ -1373,19 +1334,15 @@
   (let [canvas ^Rect (.canvas layout)
         ^double line-height (line-height (.glyph layout))
 
-        ;; A selection crossing a direction boundary is not one contiguous
-        ;; region, so a shaped range contributes one rect per directional run.
+        ;; Bidi selections may have several visual spans on one line.
         line-rects (fn [^long row ^long start-col ^long end-col]
                      (let [line (lines row)
                            top (row->y layout row)
                            spans (when (shaped-selection? line start-col end-col)
                                    (line-selection-spans (.glyph layout) (.tab-stops layout) line start-col end-col))]
                        (if (coll/empty? spans)
-                         ;; A selection spanning only zero-advance marks yields no spans -
-                         ;; fall back to a single rect between the column positions. Inside
-                         ;; a right-to-left range the visual x decreases as the column
-                         ;; increases, so the two x positions are not ordered. The rect is
-                         ;; the span between them either way.
+                         ;; Zero-width marks may produce no spans. RTL positions
+                         ;; can be reversed, so build the fallback from both ends.
                          (let [start-x (col->x layout start-col line)
                                end-x (col->x layout end-col line)]
                            [(->Rect (min start-x end-x) top (Math/abs (- end-x start-x)) line-height)])
@@ -1399,10 +1356,7 @@
         col-to-edge-rects (fn [^long row ^long col]
                             (let [line (lines row)
                                   top (row->y layout row)
-                                  ;; The strip past the end of the line starts
-                                  ;; where the advance walk ends, not at col->x
-                                  ;; of the last column - a range reaching the
-                                  ;; end of the line puts that at its left edge.
+                                  ;; An RTL end caret is not the visual end of the line.
                                   line-end-x (doc-x->x layout (line-width (.glyph layout) (.tab-stops layout) line))
                                   width (- (+ (.x canvas) (.w canvas)) ^double line-end-x)]
                               (merge-rects (conj (line-rects row col (count line))
@@ -1684,7 +1638,7 @@
       (let [new-row (max 0 (dec row))
             new-col (if (zero? row) 0 (count (lines new-row)))]
         (->Cursor new-row new-col))
-      ;; Step over a surrogate pair as one code point.
+      ;; Keep the cursor outside UTF-16 surrogate pairs.
       (let [new-col (if (and (pos? new-col)
                              (Character/isLowSurrogate (.charAt line new-col))
                              (Character/isHighSurrogate (.charAt line (dec new-col))))
@@ -1704,7 +1658,7 @@
             new-row (min (inc row) last-row)
             new-col (if (= last-row row) (count (lines last-row)) 0)]
         (->Cursor new-row new-col))
-      ;; Step over a surrogate pair as one code point.
+      ;; Keep the cursor outside UTF-16 surrogate pairs.
       (let [new-col (if (and (< new-col (count line))
                              (Character/isHighSurrogate (.charAt line col))
                              (Character/isLowSurrogate (.charAt line new-col)))
@@ -1759,8 +1713,7 @@
   (let [left-adjusted (cursor-left lines cursor)]
     (if (not= (.row cursor) (.row left-adjusted))
       left-adjusted
-      ;; The word scan can stop between a base character and its combining
-      ;; mark - snap back to the cluster boundary.
+      ;; The word scan may stop inside a grapheme.
       (let [^Cursor target (cursor-range-start (word-cursor-range-at-cursor lines left-adjusted))
             ^String line (lines (.row target))]
         (if (grapheme-boundary? line (.col target))
@@ -2825,9 +2778,7 @@
     [(->CursorRange from to) [""]]))
 
 (defn delete-character-after-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
-  ;; Deletes a whole grapheme cluster, unlike backspace which deletes a single
-  ;; character. Deleting only the base character would orphan its combining
-  ;; marks, which would then attach to the preceding character.
+  ;; Avoid leaving combining marks attached to the preceding character.
   (let [from (CursorRange->Cursor cursor-range)
         to (cursor-right-grapheme lines from)]
     [(->CursorRange from to) [""]]))
@@ -3370,9 +3321,7 @@
         (when (not= cursor-ranges new-cursor-ranges)
           (merge {:cursor-ranges new-cursor-ranges
                   :hovered-element nil}
-                 ;; Follow the pointer rather than the cursor: inside a shaped
-                 ;; range the cursor x is the run's far edge, which would scroll
-                 ;; a run width away from the mouse.
+                 ;; A bidi caret can be far from the pointer driving the scroll.
                  (scroll-to-rect scroll-shortest scroll-shortest layout lines
                                  (->Rect (double x) (double y) 1.0 1.0)))))
       nil)))

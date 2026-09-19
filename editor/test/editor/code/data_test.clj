@@ -74,8 +74,7 @@
   (complex-text-col->x [_this _text col] (* col 5.0))
   (complex-text-x->col [_this _text _x] 3)
   (complex-text-x->character-col [_this _text _x] 2)
-  ;; A selection covering only zero-advance marks (e.g. combining characters)
-  ;; makes the shaper report no spans at all.
+  ;; Combining marks can produce no selection spans.
   (complex-text-selection-spans [_this _text _start-offset _end-offset] []))
 
 (defn layout-info
@@ -89,37 +88,33 @@
     (is (= [[1 (inc (count text))]]
            (data/complex-text-ranges (str "x" text "y")))))
 
-  ;; A range spans a whole directional stretch. The spaces between the words of
-  ;; an Arabic phrase are absorbed, so the shaper sees the phrase intact and can
-  ;; order its words right-to-left.
+  ;; Keep neutrals inside a directional run so bidi can reorder the phrase.
   (let [phrase "مرحبا بك"]
     (is (= [[1 (inc (count phrase))]]
            (data/complex-text-ranges (str "\"" phrase "\"")))))
   (is (= [[0 7]] (data/complex-text-ranges "ไทย ไทย")))
 
-  ;; A letter or a tab ends the range, which leaves the neutrals between it
-  ;; and them outside.
+  ;; Tabs and ASCII letters bound shaped ranges.
   (is (= [[2 5]] (data/complex-text-ranges "a ไทย b")))
   (is (= [[0 3] [4 7]] (data/complex-text-ranges "ไทย\tไทย")))
 
-  ;; Digits buffer like neutrals, so a number inside an RTL phrase reaches the
-  ;; shaper with the words around it - but stays outside at a boundary.
+  ;; Embedded digits stay in a run; leading and trailing digits do not.
   (is (= [[0 10]] (data/complex-text-ranges "ไทย 12 ไทย")))
   (is (= [[0 3]] (data/complex-text-ranges "ไทย 12")))
   (is (= [[3 6]] (data/complex-text-ranges "12 ไทย")))
 
-  ;; Quotes end a range too, so two adjacent string literals stay separate.
+  ;; Quotes keep adjacent literals separate.
   (is (= [[1 4] [9 12]] (data/complex-text-ranges "\"ไทย\" : \"ไทย\"")))
 
-  ;; A combining mark on an ASCII base pulls the base into the range.
+  ;; Combining marks include their ASCII base.
   (is (= [[0 2]] (data/complex-text-ranges "e\u0301")))
   (is (= [[1 3]] (data/complex-text-ranges "xe\u0301x")))
 
-  ;; ...but never onto whitespace, so a range cannot contain a tab.
+  ;; Whitespace is never treated as that base.
   (is (= [[1 2]] (data/complex-text-ranges "\t\u0301")))
   (is (= [[1 2]] (data/complex-text-ranges " \u0301")))
 
-  ;; Astral-plane characters are shaped rather than measured as surrogate halves.
+  ;; Shape surrogate pairs together.
   (is (= [[1 3]] (data/complex-text-ranges "a\uD83D\uDE00b")))
 
   (is (= [] (data/complex-text-ranges "plain Latin text")))
@@ -129,8 +124,6 @@
   (#'data/word-boundary-before-index? line index))
 
 (deftest complex-text-character-hover-test
-  ;; The shaped range covers the Thai characters, not the surrounding quotes, so
-  ;; the offsets the shaper reports are relative to col 1.
   (let [line "\"ไทย\""
         layout (layout-info [line] (->ComplexGlyphMetrics 14.0 9.0 6.0))
         x (+ (.x (.canvas layout)) 50.0)]
@@ -145,16 +138,13 @@
   (char-width [_this _character] char-width)
   data/ComplexTextMetrics
   (complex-text-width [_this _text] 100.0)
-  ;; The caret of a column at the boundary of a right-to-left run lands at the
-  ;; far edge of the run, a long way from the mouse.
+  ;; Simulate a bidi caret far from the pointer.
   (complex-text-col->x [_this _text _col] 5000.0)
   (complex-text-x->col [_this _text _x] 3)
   (complex-text-x->character-col [_this _text _x] 2)
   (complex-text-selection-spans [_this _text _start-offset _end-offset] [[10.0 20.0]]))
 
 (deftest drag-selection-scroll-follows-mouse-test
-  ;; Dragging a selection scrolls towards the pointer, not towards the caret,
-  ;; which inside a shaped range sits at the far edge of the run.
   (let [lines ["ab\"\u0e44\u0e17\u0e22\"cd"]
         cursor-ranges [(c 0 0)]
         layout (data/layout-info 800.0 600.0 6000.0 0.0 0.0 lines 30.0 5.0 (->FarCaretGlyphMetrics 14.0 9.0 6.0) 4 false)
@@ -176,8 +166,6 @@
         (is (neg? ^double (:scroll-x props)))))))
 
 (deftest cursor-range-rects-test
-  ;; The shaped range covers the Thai characters, so an ordinary stretch of
-  ;; three characters is painted before it and three after the 100-wide range.
   (let [glyph-metrics (->ComplexGlyphMetrics 14.0 9.0 6.0)
         line "ab\"\u0e44\u0e17\u0e22\"cd"
         lines [line ""]
@@ -188,34 +176,28 @@
         rects (fn [cursor-range] (data/cursor-range-rects layout lines cursor-range))]
     (is (= [[3 6]] (data/complex-text-ranges line)))
 
-    ;; A selection clear of any range is one rect, measured by advance alone.
     (let [ascii-lines ["abcdef"]
           ascii-layout (layout-info ascii-lines glyph-metrics)]
       (is (= [(->Rect (+ (.x (.canvas ascii-layout)) 9.0) 0.0 18.0 14.0)]
              (data/cursor-range-rects ascii-layout ascii-lines (cr [0 1] [0 3])))))
 
-    ;; A selection reaching into a range takes that part from the shaper, offset
-    ;; by the advance x where the range is painted.
+    ;; Shaped spans are relative to the run's origin.
     (is (= [(->Rect (+ left 9.0) 0.0 18.0 14.0)
             (->Rect (+ left 37.0) 0.0 10.0 14.0)
             (->Rect (+ left 57.0) 0.0 10.0 14.0)]
            (rects (cr [0 1] [0 5]))))
 
-    ;; A selection inside a range is the shaper's spans and nothing else.
     (is (= [(->Rect (+ left 37.0) 0.0 10.0 14.0)
             (->Rect (+ left 57.0) 0.0 10.0 14.0)]
            (rects (cr [0 4] [0 5]))))
 
-    ;; A selection that only touches a range boundary must still take the span
-    ;; path: the col->x fallback answers boundary columns with caret geometry,
-    ;; which for an RTL run is its far edge.
+    ;; Boundary carets cannot stand in for the run's visual edges.
     (is (= [(->Rect left 0.0 27.0 14.0)]
            (rects (cr [0 0] [0 3]))))
     (is (= [(->Rect (+ left 127.0) 0.0 18.0 14.0)]
            (rects (cr [0 6] [0 8]))))
 
-    ;; Rects that touch come out as one - here the stretch after the range and
-    ;; the strip that extends a multi-line selection past the end of the line.
+    ;; Merge the final span with the strip past the line.
     (is (= [(->Rect (+ left 9.0) 0.0 18.0 14.0)
             (->Rect (+ left 37.0) 0.0 10.0 14.0)
             (->Rect (+ left 57.0) 0.0 10.0 14.0)
@@ -223,8 +205,7 @@
             (->Rect left 14.0 0.0 14.0)]
            (rects (cr [0 1] [1 0])))))
 
-  ;; A range that reaches the end of the line must not drag the strip past the
-  ;; end of the line back to its left edge - the advance walk ends after it.
+  ;; The caret at the end of an RTL run is not the line's visual end.
   (let [glyph-metrics (->ComplexGlyphMetrics 14.0 9.0 6.0)
         line "ab\"\u0e44\u0e17\u0e22"
         lines [line ""]
@@ -239,7 +220,6 @@
             (->Rect left 14.0 0.0 14.0)]
            (data/cursor-range-rects layout lines (cr [0 4] [1 0])))))
 
-  ;; The same rects arise when the range is on the line the selection ends on.
   (let [glyph-metrics (->ComplexGlyphMetrics 14.0 9.0 6.0)
         line "ab\"\u0e44\u0e17\u0e22\"cd"
         lines ["" line]
@@ -250,9 +230,7 @@
             (->Rect (+ left 57.0) 14.0 10.0 14.0)]
            (subvec (data/cursor-range-rects layout lines (cr [0 0] [1 5])) 1))))
 
-  ;; A selection overlapping a range whose shaper reports no spans (e.g. it
-  ;; covers only zero-advance marks) falls back to a single rect instead of
-  ;; leaving cursor-range-rects empty.
+  ;; Zero-width selections still need a fallback rect.
   (let [glyph-metrics (->EmptySpansGlyphMetrics 14.0 9.0 6.0)
         line "ab\"ไทย\"cd"
         lines [line]
