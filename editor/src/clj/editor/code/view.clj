@@ -454,15 +454,15 @@
         nil
 
         :else
-        (let [range-index (loop [range-index range-index]
-                            (if-let [[_ range-end] (get complex-ranges range-index)]
-                              (if (<= range-end i)
-                                (recur (inc range-index))
-                                range-index)
-                              range-index))
+        (let [range-index (long (loop [range-index range-index]
+                                  (if-let [[_ ^long range-end] (get complex-ranges range-index)]
+                                    (if (<= range-end i)
+                                      (recur (inc range-index))
+                                      range-index)
+                                    range-index)))
               [range-start range-end] (get complex-ranges range-index)
               tab-character (= \tab (.charAt text i))
-              complete-complex-range (and (= i range-start) (<= range-end end-index))
+              complete-complex-range (and (= i range-start) (<= ^long range-end ^long end-index))
               seg-end (if tab-character
                         (inc i)
                         (if complete-complex-range
@@ -536,33 +536,33 @@
                    start 0
                    glyph-offset line-x]
               (when-some [[_ scope] (get runs run-index)]
-                (let [run-end (or (first (get runs (inc run-index)))
-                                  (count line))
+                (let [run-end (long (or (first (get runs (inc run-index)))
+                                        (count line)))
                       complex-range-index (loop [complex-range-index 0]
-                                            (if-let [[_ complex-end] (get complex-ranges complex-range-index)]
+                                            (if-let [[_ ^long complex-end] (get complex-ranges complex-range-index)]
                                               (if (<= complex-end start)
                                                 (recur (inc complex-range-index))
                                                 complex-range-index)
                                               complex-range-index))
                       [complex-start complex-end] (get complex-ranges complex-range-index)
-                      end (cond
-                            (= start complex-start) complex-end
-                            (and complex-start (< start complex-start) (< complex-start run-end)) complex-start
-                            :else run-end)
-                      next-run-index (if (= start complex-start)
-                                       (loop [next-run-index run-index]
-                                         (let [next-run-end (or (first (get runs (inc next-run-index)))
-                                                                (count line))]
-                                           (cond
-                                             (< next-run-end complex-end)
-                                             (recur (inc next-run-index))
+                      end (long (cond
+                                  (= start complex-start) complex-end
+                                  (and complex-start (< start ^long complex-start) (< ^long complex-start run-end)) complex-start
+                                  :else run-end))
+                      next-run-index (long (if (= start complex-start)
+                                             (loop [next-run-index run-index]
+                                               (let [next-run-end (long (or (first (get runs (inc next-run-index)))
+                                                                            (count line)))]
+                                                 (cond
+                                                   (< next-run-end ^long complex-end)
+                                                   (recur (inc next-run-index))
 
-                                             (= next-run-end complex-end)
-                                             (inc next-run-index)
+                                                   (= next-run-end complex-end)
+                                                   (inc next-run-index)
 
-                                             :else
-                                             next-run-index)))
-                                       (if (= end run-end) (inc run-index) run-index))]
+                                                   :else
+                                                   next-run-index)))
+                                             (if (= end run-end) (inc run-index) run-index)))]
                   (.setFill gc (color-match color-scheme scope))
                   (let [glyph-offset (fill-text! gc layout line complex-ranges start end glyph-offset line-y)]
                     (when (some? glyph-offset)
@@ -590,7 +590,7 @@
                         (when visible-whitespace?
                           (dotimes [j (.length sub)]
                             (when (= \space (.charAt sub j))
-                              (doseq [[x0 x1] (data/complex-text-selection-spans (.glyph layout) sub j (inc j))]
+                              (doseq [[^double x0 ^double x1] (data/complex-text-selection-spans (.glyph layout) sub j (inc j))]
                                 (let [sx (+ line-x x (Math/floor (* (+ x0 x1) 0.5)))
                                       sy (- line-y baseline-offset)]
                                   (when (and (< visible-start-x sx) (< sx visible-end-x))
