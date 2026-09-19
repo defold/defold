@@ -603,7 +603,7 @@
                 baseline-offset (Math/ceil (/ line-height 4.0))
                 visible-start-x (.x canvas-rect)
                 visible-end-x (+ visible-start-x (.w canvas-rect))]
-            (loop [inside-leading-whitespace? true
+            (loop [inside-leading-whitespace true
                    range-index 0
                    i 0
                    x 0.0]
@@ -631,15 +631,15 @@
                           next-x (double (data/advance-text layout line i next-i x))
                           draw-start-x (+ x line-x)
                           draw-end-x (+ next-x line-x)
-                          inside-visible-start? (< visible-start-x draw-end-x)
-                          inside-visible-end? (< draw-start-x visible-end-x)]
-                      (when (and inside-visible-start? inside-visible-end?)
+                          inside-visible-start (< visible-start-x draw-end-x)
+                          inside-visible-end (< draw-start-x visible-end-x)]
+                      (when (and inside-visible-start inside-visible-end)
                         (case character
                           \space (let [sx (+ line-x (Math/floor (* (+ x next-x) 0.5)))
                                        sy (- line-y baseline-offset)]
                                    (cond
                                      (and highlight-rogue-whitespace?
-                                          inside-leading-whitespace?
+                                          inside-leading-whitespace
                                           (= :tabs indent-type))
                                      (do (.setFill gc rogue-whitespace-color)
                                          (.fillRect gc sx sy 1.0 1.0))
@@ -652,7 +652,7 @@
                                      sy (- line-y baseline-offset)]
                                  (cond
                                    (and highlight-rogue-whitespace?
-                                        inside-leading-whitespace?
+                                        inside-leading-whitespace
                                         (not= :tabs indent-type))
                                    (do (.setFill gc rogue-whitespace-color)
                                        (.fillRect gc sx sy (- next-x x 4.0) 1.0))
@@ -661,8 +661,8 @@
                                    (do (.setFill gc tab-color)
                                        (.fillRect gc sx sy (- next-x x 4.0) 1.0))))
                           nil))
-                      (when inside-visible-end?
-                        (recur (and inside-leading-whitespace? (Character/isWhitespace character))
+                      (when inside-visible-end
+                        (recur (and inside-leading-whitespace (Character/isWhitespace character))
                                range-index
                                next-i
                                next-x))))))))
