@@ -97,6 +97,69 @@
     (localization/await-for-updates localization)
     (is (= "Hi, User!" (.getText label)))))
 
+;; Verifies that listener registration, removal, and unchanged locale or bundle
+;; updates do not notify watches and trigger unrelated UI refreshes.
+(deftest watches-ignore-unchanged-state-test
+  (let [test-bundle (bundle {"en" "hello = Hello!"})
+        localization (localization/make (test-util/make-test-prefs) :test test-bundle #(throw %))
+        initial-state @localization
+        notifications (atom [])
+        label (Label.)]
+    (add-watch localization ::watch
+               (fn [key _reference old-state new-state]
+                 (swap! notifications conj [key old-state new-state])))
+
+    (localization/localize! label localization (localization/message "hello"))
+    (is (= "Hello!" (.getText label)))
+    (localization/await-for-updates localization)
+
+    (localization/localize! label localization "Fixed text")
+    (is (= "Fixed text" (.getText label)))
+    (localization/unlocalize! label localization)
+    (localization/set-locale! localization (localization/current-locale initial-state))
+    (localization/set-bundle! localization :test test-bundle)
+    (localization/await-for-updates localization)
+
+    (is (identical? initial-state @localization))
+    (is (= [] @notifications))))
+
+;; Verifies that actual language and bundle changes notify watches exactly once,
+;; still refresh localized labels, and respect watch replacement and removal.
+(deftest watches-notify-localization-changes-test
+  (let [localization (make {"en" "hello = Hello!"
+                            "sv" "hello = Hej!"})
+        initial-state @localization
+        notifications (atom [])
+        label (Label.)]
+    (localization/localize! label localization (localization/message "hello"))
+    (localization/await-for-updates localization)
+    (add-watch localization ::watch
+               (fn [key _reference old-state new-state]
+                 (swap! notifications conj [key old-state new-state])))
+
+    (localization/set-locale! localization "sv")
+    (localization/await-for-updates localization)
+    (let [locale-state @localization]
+      (is (= [[::watch initial-state locale-state]] @notifications))
+      (is (= "Hej!" (.getText label)))
+
+      (add-watch localization ::watch
+                 (fn [key _reference old-state new-state]
+                   (swap! notifications conj [:replacement key old-state new-state])))
+      (localization/set-bundle! localization :test (bundle {"en" "hello = Goodbye!"
+                                                            "sv" "hello = Hej då!"}))
+      (localization/await-for-updates localization)
+      (let [expected-notifications [[::watch initial-state locale-state]
+                                    [:replacement ::watch locale-state @localization]]]
+        (is (= expected-notifications @notifications))
+        (is (= "Hej då!" (.getText label)))
+
+        (remove-watch localization ::watch)
+        (localization/set-locale! localization "en")
+        (localization/await-for-updates localization)
+        (is (= expected-notifications @notifications))
+        (is (= "Goodbye!" (.getText label)))))))
+
 (deftest listener-weak-reference-test
   (let [localization (make {"en" "hello = Hello, {name}."})
         update-count (atom 0)

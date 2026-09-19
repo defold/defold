@@ -2674,7 +2674,8 @@
                     (long (* 1e9 (/ 1 (double fps))))
                     0)
          unfocused-interval (max interval unfocused-timer-interval)]
-     {:last last
+     {:start start
+      :last last
       :timer (proxy [AnimationTimer] []
                (handle [^long now]
                  (profiler/profile "timer" name
@@ -3037,15 +3038,25 @@
 
   The supplied function will only be invoked if the node is a part of the
   rendered tree (i.e. it and its parents are visible, the node is on a showing
-  window)
+  window). Becoming visible also queues a refresh without waiting for a timer tick.
+
+  Returns a function that stops the timer and removes its listeners.
 
   Args:
     node    target Node
     fps     timer fps
     name    timer name, a string
-    f       0-arg function"
+    f       function receiving elapsed time in seconds"
   [^Node node fps name f]
-  (let [timer (->timer fps name (fn [_ _ _] (f)))
+  (let [running (volatile! false)
+        timer
+        (->timer fps name
+                 (fn [_ elapsed-time _]
+                   ;; A callback may already be queued when the node
+                   ;; is hidden or the timer is disposed.
+                   (when @running
+                     (f elapsed-time))))
+
         tree-visible-property (NodeHelper/treeVisibleProperty node)
         tree-showing-property (-> node
                                   (.sceneProperty)
@@ -3056,10 +3067,22 @@
                            #(and (.getValue tree-showing-property)
                                  (.get tree-visible-property))
                            (into-array Observable [tree-showing-property tree-visible-property]))
-        ^ChangeListener on-running-changed (fn [_ _ tree-visible]
-                                             (if tree-visible
-                                               (do (f) (timer-start! timer))
-                                               (timer-stop! timer)))
+        ^ChangeListener on-running-changed
+        (fn [_ _ tree-visible]
+          (vreset! running tree-visible)
+          (if-not tree-visible
+            (timer-stop! timer)
+            (let [now (System/nanoTime)]
+              ;; Do not catch up on ticks missed
+              ;; while the node was hidden.
+              (reset! (:last timer) now)
+              ;; JavaFX may still be walking the
+              ;; children while visibility changes.
+              (run-later
+                (when @running
+                  (f (* (- now (long (:start timer))) 1e-9))))
+              (timer-start! timer))))
+
         key (Object.)
         node-properties (.getProperties node)]
     (when (.get running-property)
@@ -3070,6 +3093,7 @@
     ;; don't keep the dispose-fn referenced
     (.put node-properties key running-property)
     (fn dispose-node-timer! []
+      (vreset! running false)
       (.remove node-properties key)
       (.removeListener running-property on-running-changed)
       (timer-stop! timer))))
