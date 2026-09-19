@@ -1340,10 +1340,13 @@
     (->Rect left top 1.0 (inc ^double (line-height (.glyph layout))))))
 
 (defn- shaped-selection?
-  "True if any shaped range of the line overlaps the columns [start-col end-col)."
+  "True if any shaped range of the line overlaps or touches the columns
+  [start-col end-col). Touching counts: col->x at a range boundary answers with
+  caret geometry - an RTL run's far edge - so even an adjacent selection must
+  take the span path to get its rect edges right."
   [^String line ^long start-col ^long end-col]
   (coll/any? (fn [[^long start ^long end]]
-               (and (< start end-col) (> end start-col)))
+               (and (<= start end-col) (>= end start-col)))
              (complex-text-ranges line)))
 
 (defn- merge-rects
@@ -1383,8 +1386,8 @@
                          ;; a right-to-left range the visual x decreases as the column
                          ;; increases, so the two x positions are not ordered. The rect is
                          ;; the span between them either way.
-                         (let [^double start-x (col->x layout start-col line)
-                               ^double end-x (col->x layout end-col line)]
+                         (let [start-x (col->x layout start-col line)
+                               end-x (col->x layout end-col line)]
                            [(->Rect (min start-x end-x) top (Math/abs (- end-x start-x)) line-height)])
                          (mapv (fn [[^double x0 ^double x1]]
                                  (->Rect (doc-x->x layout x0) top (- x1 x0) line-height))

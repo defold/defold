@@ -206,6 +206,14 @@
             (->Rect (+ left 57.0) 0.0 10.0 14.0)]
            (rects (cr [0 4] [0 5]))))
 
+    ;; A selection that only touches a range boundary must still take the span
+    ;; path: the col->x fallback answers boundary columns with caret geometry,
+    ;; which for an RTL run is its far edge.
+    (is (= [(->Rect left 0.0 27.0 14.0)]
+           (rects (cr [0 0] [0 3]))))
+    (is (= [(->Rect (+ left 127.0) 0.0 18.0 14.0)]
+           (rects (cr [0 6] [0 8]))))
+
     ;; Rects that touch come out as one - here the stretch after the range and
     ;; the strip that extends a multi-line selection past the end of the line.
     (is (= [(->Rect (+ left 9.0) 0.0 18.0 14.0)

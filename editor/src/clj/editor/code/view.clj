@@ -331,8 +331,13 @@
    [(.y r) (.y r) (+ (.y r) (.h r)) (+ (.y r) (.h r)) (.y r)]])
 
 (defn- cursor-range-outline [rects]
-  (if (coll/empty? rects)
-    []
+  (if (or (coll/empty? rects)
+          ;; The connected polygon below assumes one rect per row. A selection
+          ;; over bidi text can produce several per row - outline each rect
+          ;; separately then.
+          (not= (count rects)
+                (count (into #{} (map (fn [^Rect r] (.y r))) rects))))
+    (mapv rect-outline rects)
     (let [^Rect a (first rects)
           ^Rect b (second rects)
           ^Rect y (peek (pop rects))
@@ -353,9 +358,9 @@
   (when (some? fill)
     (.setFill gc fill)
     (case type
-      :word (let [^Rect r (data/expand-rect (first rects) 1.0 0.0)]
-              (assert (= 1 (count rects)))
-              (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
+      :word (doseq [rect rects]
+              (let [^Rect r (data/expand-rect rect 1.0 0.0)]
+                (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0)))
       :range (doseq [^Rect r rects]
                (.fillRect gc (.x r) (.y r) (.w r) (.h r)))
       :underline nil
@@ -380,9 +385,9 @@
     (.setStroke gc stroke)
     (.setLineWidth gc 1.0)
     (case type
-      :word (let [^Rect r (data/expand-rect (first rects) 1.5 0.0)]
-              (assert (= 1 (count rects)))
-              (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
+      :word (doseq [rect rects]
+              (let [^Rect r (data/expand-rect rect 1.5 0.0)]
+                (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0)))
       :range (doseq [polyline (cursor-range-outline rects)]
                (let [[xs ys] polyline]
                  (stroke-opaque-polyline! gc (double-array xs) (double-array ys))))
