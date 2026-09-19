@@ -79,6 +79,7 @@
            [com.sun.javafx.geom.transform BaseTransform]
            [com.sun.javafx.perf PerformanceTracker]
            [com.sun.javafx.scene.text FontHelper TextLayout TextLayout$CaretGeometry$Single TextLayout$CaretGeometry$Split TextLayout$GeometryCallback]
+           [com.sun.javafx.text GlyphLayout GlyphLayoutManager]
            [com.sun.javafx.tk Toolkit]
            [com.sun.javafx.util Utils]
            [editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect]
@@ -163,11 +164,27 @@
             width)
           (double cached-width))))))
 
+;; HACK: Pango releases this shared layout before cleaning it, so another
+;; thread can reuse and corrupt it. Reserve it until JavaFX fixes the race.
+(defonce ^:private reserved-glyph-layout
+  (delay
+    (let [field (doto (.getDeclaredField GlyphLayoutManager "REUSABLE_INSTANCE")
+                  (.setAccessible true))
+          reusable (.get field nil)]
+      (loop []
+        (let [glyph-layout (GlyphLayoutManager/getInstance)]
+          (if (identical? reusable glyph-layout)
+            glyph-layout
+            (do (.dispose ^GlyphLayout glyph-layout)
+                (Thread/yield)
+                (recur))))))))
+
 ;; Text nodes share an unsafe Prism layout, so give each thread its own.
 ;; Also remember the last font + text so repeated calls can skip reshaping.
 (defonce ^:private complex-text-layout-state
   (proxy [ThreadLocal] []
     (initialValue []
+      @reserved-glyph-layout
       (object-array [(.createLayout (.getTextLayoutFactory (Toolkit/getToolkit))) nil nil]))))
 
 (defn- text-layout
