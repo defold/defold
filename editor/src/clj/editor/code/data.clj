@@ -625,8 +625,8 @@
   (advance-text-impl (.glyph layout) (.tab-stops layout) text start-index end-index start-x))
 
 (defn- line-col->x
-  ^double [glyph-metrics tab-stops ^String line ^long col]
-  (let [ranges (complex-text-ranges line)]
+  [glyph-metrics tab-stops ^String line col ranges]
+  (let [col (long col)]
     (loop [range-index 0
            index 0
            x 0.0]
@@ -650,10 +650,9 @@
         (advance-text-impl glyph-metrics tab-stops line index col x)))))
 
 (defn- line-x->col
-  [glyph-metrics tab-stops ^String line x round complex-hit past-end]
+  [glyph-metrics tab-stops ^String line x round complex-hit past-end ranges]
   (let [x (double x)
-        round (double round)
-        ranges (complex-text-ranges line)]
+        round (double round)]
     (loop [range-index 0
            index 0
            start-x 0.0]
@@ -941,14 +940,14 @@
     (+ (.x ^Rect (.canvas layout))
        (.scroll-x layout)
        (double (if (pos? (count ranges))
-                 (line-col->x (.glyph layout) (.tab-stops layout) line col)
+                 (line-col->x (.glyph layout) (.tab-stops layout) line col ranges)
                  (advance-text layout line 0 col 0.0))))))
 
 (defn x->col
   ^long [^LayoutInfo layout ^double x ^String line]
   (let [ranges (complex-text-ranges line)]
     (if (pos? (count ranges))
-      (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x) 0.5 complex-text-x->col true)
+      (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x) 0.5 complex-text-x->col true ranges)
       (let [line-x (x->doc-x layout x)
             line-length (count line)]
         (loop [col 0
@@ -964,7 +963,7 @@
 (defn x->character-col [^LayoutInfo layout ^double x ^String line]
   (let [ranges (complex-text-ranges line)]
     (if (pos? (count ranges))
-      (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x) 0.0 complex-text-x->character-col false)
+      (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x) 0.0 complex-text-x->character-col false ranges)
       (let [line-x (x->doc-x layout x)
             line-length (count line)]
         (loop [col 0

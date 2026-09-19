@@ -164,15 +164,24 @@
           (double cached-width))))))
 
 ;; Text nodes share an unsafe Prism layout, so give each thread its own.
-(defonce ^:private complex-text-layout
+;; Also remember the last font + text so repeated calls can skip reshaping.
+(defonce ^:private complex-text-layout-state
   (proxy [ThreadLocal] []
     (initialValue []
-      (.createLayout (.getTextLayoutFactory (Toolkit/getToolkit))))))
+      (object-array [(.createLayout (.getTextLayoutFactory (Toolkit/getToolkit))) nil nil]))))
 
 (defn- text-layout
   ^TextLayout [^Font font ^String text]
-  (let [^TextLayout layout (.get ^ThreadLocal complex-text-layout)]
-    (.setContent layout text (FontHelper/getNativeFont font))
+  (let [^objects state (.get ^ThreadLocal complex-text-layout-state)
+        ^TextLayout layout (aget state 0)
+        last-font (aget state 1)
+        last-text (aget state 2)]
+    (when-not (and (identical? font last-font)
+                   (or (identical? text last-text)
+                       (.equals ^String text last-text)))
+      (.setContent layout text (FontHelper/getNativeFont font))
+      (aset state 1 font)
+      (aset state 2 text))
     layout))
 
 (defn- make-complex-width-cache [^Font font]
