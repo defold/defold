@@ -196,6 +196,13 @@ namespace dmGameSystem
         return luabody->m_Collection;
     }
 
+    dmhash_t GetBodyInstanceId(lua_State* L, int index)
+    {
+        B2DLuaBody* luabody = CheckBodyInternal(L, index);
+        VerifyBodyInternal(L, luabody);
+        return luabody->m_InstanceId;
+    }
+
     static b2BodyId* ToBody(lua_State* L, int index)
     {
         B2DLuaBody* luabody = (B2DLuaBody*)dmScript::ToUserType(L, index, TYPE_HASH_BODY);
