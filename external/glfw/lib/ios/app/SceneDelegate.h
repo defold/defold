@@ -1,4 +1,4 @@
-// Copyright 2020-2023 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -13,19 +13,16 @@
 // specific language governing permissions and limitations under the License.
 
 #import <UIKit/UIKit.h>
-#import "AppDelegateProxy.h"
 
-@class ViewController;
-
-@interface AppDelegate : NSObject <UIApplicationDelegate>
+@interface DefoldSceneDelegate : NSObject <UIWindowSceneDelegate>
 {
-@private
-    ViewController* viewController;
+    UIWindow* window;
+    UIView* launchScreenView;
 }
 
-- (void)reinit:(UIApplication*)application;
-- (void)appUpdate;
+@property (nonatomic, retain) UIWindow* window;
+@property (nonatomic, retain) UIView* launchScreenView;
 
-@property (nonatomic, retain) ViewController* viewController;
+- (void)removeLaunchScreen;
 
 @end

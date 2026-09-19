@@ -112,7 +112,7 @@ static void LogGLError(GLint err)
     g_glContext = glContext;
     g_glAuxContext = glAuxContext;
 
-    CGFloat scaleFactor = [[UIScreen mainScreen] scale];
+    CGFloat scaleFactor = g_ApplicationWindow.screen.scale;
     g_EAGLView = [[[EAGLView alloc] initWithFrame: bounds] autorelease];
     g_EAGLView.context = glContext;
     g_EAGLView.auxContext = glAuxContext;
@@ -328,6 +328,7 @@ int  _glfwPlatformOpenWindowOpenGL( int width, int height,
 
     _glfwWin.view = g_EAGLView;
     _glfwWin.window = g_ApplicationWindow;
+    _glfwWin.iconified = !_glfwPlatformIsSceneActive();
 
     _glfwWin.context = g_glContext;
     _glfwWin.aux_context = g_glAuxContext;

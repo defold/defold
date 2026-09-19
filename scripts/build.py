@@ -191,10 +191,10 @@ PACKAGES_HOST=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
+# Both iOS targets build GLFW from source in build_ext.
 PACKAGES_IOS_SIMULATOR=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
@@ -207,7 +207,6 @@ PACKAGES_IOS_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "moltenvk-1474891",
-    "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
@@ -3911,7 +3910,7 @@ Commands:
 distclean        - Removes DYNAMO_HOME and engine/external build caches
 clean            - Remove generated engine build outputs without removing DYNAMO_HOME
 install_ext      - Install external packages
-build_ext        - Build and install source dependencies with CMake (currently Bullet)
+build_ext        - Build and install source dependencies with CMake (Bullet, plus GLFW on iOS)
 build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk
