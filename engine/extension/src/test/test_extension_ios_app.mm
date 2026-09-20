@@ -19,6 +19,7 @@
 #import <objc/runtime.h>
 #import "AppDelegate.h"
 #import "EAGLView.h"
+#import "MetalView.h"
 #import "SceneDelegate.h"
 #import "ViewController.h"
 
@@ -45,6 +46,15 @@ static unsigned int g_ReleasedObjects;
     [super dealloc];
 }
 @end
+
+static void SetObservedMarkedTextStyle(BaseView* view)
+{
+    ReleaseObserver* observer = [[ReleaseObserver alloc] init];
+    NSDictionary* style = [[NSDictionary alloc] initWithObjectsAndKeys:observer, @"test", nil];
+    view.markedTextStyle = style;
+    [style release];
+    [observer release];
+}
 
 @interface SceneConnectionObserver : NSObject <UISceneDelegate, UIApplicationDelegate>
 @end
@@ -291,6 +301,60 @@ TEST_F(iOSSceneApplication, OpenGLViewDeallocation)
     [pool drain];
     EXPECT_EQ(1U, g_ReleasedObjects);
     EXPECT_EQ((void*)nil, (void*)[EAGLContext currentContext]);
+    [EAGLContext setCurrentContext:previousContext];
+    [previousContext release];
+}
+
+// UIKit must be able to read and set a copied marked-text style while composing
+// text; the previously missing accessors could raise an unrecognized selector.
+TEST_F(iOSSceneApplication, MarkedTextStyleDuringComposition)
+{
+    BaseView* view = m_Controller.baseView;
+    ASSERT_TRUE([view respondsToSelector:@selector(markedTextStyle)]);
+    ASSERT_TRUE([view respondsToSelector:@selector(setMarkedTextStyle:)]);
+    EXPECT_EQ((void*)nil, (void*)view.markedTextStyle);
+    EXPECT_TRUE([view becomeFirstResponder]);
+
+    NSMutableDictionary* style = [[NSMutableDictionary alloc] initWithObjectsAndKeys:@1, NSUnderlineStyleAttributeName, nil];
+    view.markedTextStyle = style;
+    [style setObject:@2 forKey:NSUnderlineStyleAttributeName];
+    [style release];
+    EXPECT_EQ(1, [view.markedTextStyle[NSUnderlineStyleAttributeName] intValue]);
+    view.markedTextStyle = view.markedTextStyle;
+    EXPECT_EQ(1, [view.markedTextStyle[NSUnderlineStyleAttributeName] intValue]);
+
+    [view setMarkedText:@"かな" selectedRange:NSMakeRange(2, 0)];
+    EXPECT_TRUE([[view textInRange:view.markedTextRange] isEqualToString:@"かな"]);
+    [view unmarkText];
+    EXPECT_TRUE([[view textInRange:view.markedTextRange] isEqualToString:@""]);
+    [view resignFirstResponder];
+    view.markedTextStyle = nil;
+    EXPECT_EQ((void*)nil, (void*)view.markedTextStyle);
+}
+
+// Both render views must release the copied style when replaced, cleared, or
+// deallocated, so repeated composition and view recreation cannot leak its values.
+TEST_F(iOSSceneApplication, MarkedTextStyleLifetime)
+{
+    ASSERT_TRUE([BaseView instancesRespondToSelector:@selector(setMarkedTextStyle:)]);
+    EAGLContext* previousContext = [[EAGLContext currentContext] retain];
+    Class viewClasses[] = {[MetalView class], [EAGLView class]};
+    for (unsigned int i = 0; i < 2; ++i)
+    {
+        NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
+        BaseView* view = [[viewClasses[i] alloc] initWithFrame:CGRectMake(0, 0, 32, 32)];
+        g_ReleasedObjects = 0;
+        SetObservedMarkedTextStyle(view);
+        EXPECT_EQ(0U, g_ReleasedObjects);
+        SetObservedMarkedTextStyle(view);
+        EXPECT_EQ(1U, g_ReleasedObjects);
+        view.markedTextStyle = nil;
+        EXPECT_EQ(2U, g_ReleasedObjects);
+        SetObservedMarkedTextStyle(view);
+        [view release];
+        [pool drain];
+        EXPECT_EQ(3U, g_ReleasedObjects);
+    }
     [EAGLContext setCurrentContext:previousContext];
     [previousContext release];
 }

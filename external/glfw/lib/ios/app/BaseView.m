@@ -586,6 +586,7 @@ NSString *const FAKE_STRING = @"Abcd";
 {
     [self invalidateDisplayLink];
     [self teardownView];
+    [_markedTextStyle release];
 
     [super dealloc];
 }
