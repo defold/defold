@@ -15,7 +15,7 @@ function(defold_import_basisu library platform)
     IMPORTED_LOCATION "${_path}"
     INTERFACE_INCLUDE_DIRECTORIES "${DEFOLD_SDK_ROOT}/ext/include"
     INTERFACE_COMPILE_FEATURES cxx_std_17)
-  if(library STREQUAL "basis_full")
+  if(library STREQUAL "basis_encoder")
     if(platform MATCHES "^(x86_64-win32|x86_64-macos)$")
       target_compile_definitions(${library} INTERFACE BASISU_SUPPORT_SSE=1)
     else()

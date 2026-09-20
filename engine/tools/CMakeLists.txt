@@ -103,7 +103,7 @@ if(TOOLS_IS_DESKTOP)
       texc
       profile_null
       platform_null
-      basis_full)
+      basis_encoder)
     list(APPEND TOOLS_INSTALL_TARGETS texconvert)
   endif()
 

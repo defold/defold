@@ -75,24 +75,24 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
     3rdparty/android_astc_decomp.cpp)
   list(TRANSFORM BASISU_ENCODER_SOURCES PREPEND "${BASISU_SOURCE_DIR}/encoder/")
   # One complete, uninstrumented library for offline tools and editor JNI.
-  add_library(basis_full STATIC ${BASISU_ENCODER_SOURCES}
+  add_library(basis_encoder STATIC ${BASISU_ENCODER_SOURCES}
     "${BASISU_SOURCE_DIR}/transcoder/basisu_transcoder.cpp"
     "${BASISU_SOURCE_DIR}/zstd/zstd.c")
-  target_compile_definitions(basis_full PRIVATE
+  target_compile_definitions(basis_encoder PRIVATE
     BASISD_SUPPORT_KTX2=1 BASISD_SUPPORT_KTX2_ZSTD=1
     BASISU_SUPPORT_OPENCL=0 BASISU_SUPPORT_ASTCENC=0 MINIZ_NO_STDIO)
 
   if(TARGET_PLATFORM MATCHES "^(x86_64-win32|x86_64-macos)$")
-    target_compile_definitions(basis_full PRIVATE BASISU_SUPPORT_SSE=1)
+    target_compile_definitions(basis_encoder PRIVATE BASISU_SUPPORT_SSE=1)
     if(NOT MSVC)
-      target_compile_options(basis_full PRIVATE -msse4.1)
+      target_compile_options(basis_encoder PRIVATE -msse4.1)
     endif()
   else()
-    target_compile_definitions(basis_full PRIVATE BASISU_SUPPORT_SSE=0)
+    target_compile_definitions(basis_encoder PRIVATE BASISU_SUPPORT_SSE=0)
   endif()
 
-  list(APPEND BASISU_TARGETS basis_full)
-  list(APPEND BASISU_INSTALL_TARGETS basis_full)
+  list(APPEND BASISU_TARGETS basis_encoder)
+  list(APPEND BASISU_INSTALL_TARGETS basis_encoder)
 endif()
 
 foreach(_target IN LISTS BASISU_TARGETS)
@@ -120,10 +120,8 @@ foreach(_target IN ITEMS basis_transcoder basis_encoder basis_encoder_noasan)
   endif()
 endforeach()
 
-# The full offline library replaces both external encoder archive names.
-foreach(_target IN ITEMS basis_encoder basis_encoder_noasan)
-  install(CODE "file(REMOVE \"\$ENV{DESTDIR}${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}/${CMAKE_STATIC_LIBRARY_PREFIX}${_target}${CMAKE_STATIC_LIBRARY_SUFFIX}\")")
-endforeach()
+# The uninstrumented encoder is shared by tools and editor JNI.
+install(CODE "file(REMOVE \"\$ENV{DESTDIR}${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}/${CMAKE_STATIC_LIBRARY_PREFIX}basis_encoder_noasan${CMAKE_STATIC_LIBRARY_SUFFIX}\")")
 
 install(DIRECTORY "${BASISU_SOURCE_DIR}/encoder"
                   "${BASISU_SOURCE_DIR}/transcoder"

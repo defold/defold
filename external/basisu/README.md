@@ -27,12 +27,12 @@ under `tmp/dynamo_home/ext/include/basis`; archives are installed under
 | Library | Platforms | Features |
 | --- | --- | --- |
 | `basis_transcoder` | All | Runtime `.basis` transcoding: UASTC LDR 4x4 and the existing restricted ETC1S support. No XUASTC, XUBC7, HDR, KTX2 parser, Zstd, or offline encoders. |
-| `basis_full` | Desktop | All upstream Basis Universal encoders and transcoders, its KTX2/DDS support, image readers, and Zstd compression/decompression. |
+| `basis_encoder` | Desktop | All upstream Basis Universal encoders and transcoders, its KTX2/DDS support, image readers, and Zstd compression/decompression. |
 
 The engine links `basis_transcoder`. The texture compiler, `texconvert`, and
-editor JNI library link `basis_full`, which replaces both `basis_encoder` and
-`basis_encoder_noasan`. External dependencies are uninstrumented, so tools and
-JNI use the same archive. Link one Basis library per executable/shared library;
+editor JNI library link `basis_encoder`. External dependencies are uninstrumented,
+so tools and JNI use the same archive and no separate `basis_encoder_noasan`
+is built. Link one Basis library per executable/shared library;
 the two variants contain overlapping transcoder symbols.
 
 The runtime matches Defold's previous codec selection through compiler
@@ -42,7 +42,7 @@ conversions and the new codecs, including their Zstd support.
 
 Basis requires C++17, which the CMake imports propagate to its consumers.
 Installation removes obsolete Basis archives from the SDK's `lib/<platform>`
-and retires the two old external encoder archives. OpenCL and the optional
+and retires the old external `basis_encoder_noasan` archive. OpenCL and the optional
 external astcenc backend are off; the full library's built-in codecs remain
 enabled. The existing SSE encoder setting is retained on x86-64 Windows and macOS.
 
@@ -66,7 +66,7 @@ The runtime tests use pre-encoded UASTC and ETC1S fixtures so no offline encoder
 can mask a missing runtime codec. They cover alpha and non-block-aligned mips
 down to 1x1 through Defold's runtime, and check that the new codecs are disabled.
 The texture compiler tests separately exercise encoding and KTX2
-transcoding, including the new codecs, through `basis_full`.
+transcoding, including the new codecs, through `basis_encoder`.
 
 ## Changes in the previous Defold copy
 
