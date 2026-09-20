@@ -9,7 +9,7 @@ defold_target_link_libraries(test_texc "${TARGET_PLATFORM}"
   mbedtls
   image
   profile_null
-  basis_encoder
+  basis_full
   astcenc)
 # Texture codec tests use memory and their own fixtures, without shared devices or ports.
 defold_register_test_target(test_texc ON "${TEXC_ROOT}" RUN_GROUP texc)

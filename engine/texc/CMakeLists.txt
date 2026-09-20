@@ -9,7 +9,7 @@ add_compile_definitions(DLIB_LOG_DOMAIN="TEXC")
 
 set(TEXC_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(TEXC_SRC_DIR "${TEXC_ROOT}/src")
-set(TEXC_DEPENDENCIES dlib zip mbedtls basis_encoder astcenc)
+set(TEXC_DEPENDENCIES dlib zip mbedtls basis_full astcenc)
 set(TEXC_BINDINGS_DEPENDENCIES jni_noasan)
 set(TEXC_SHARED_DEPENDENCIES
   dlib_noasan
@@ -18,7 +18,7 @@ set(TEXC_SHARED_DEPENDENCIES
   mbedtls_noasan
   profile_null_noasan
   jni_noasan
-  basis_encoder_noasan
+  basis_full
   astcenc)
 
 set(TEXC_IS_DESKTOP OFF)

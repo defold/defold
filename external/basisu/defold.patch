@@ -1,0 +1,56 @@
+--- a/transcoder/basisu_transcoder.cpp
++++ b/transcoder/basisu_transcoder.cpp
+@@ -20,7 +20,9 @@
+ 
+ #define BASISU_ASTC_HELPERS_IMPLEMENTATION
+ #include "basisu_astc_helpers.h"
++#if BASISD_SUPPORT_XUASTC
+ #include "basisu_xbc7_decoder.h"
++#endif
+ 
+ #include <limits.h>
+ 
+@@ -249,6 +251,7 @@
+ #endif
+ 	}
+ 	
++#if BASISD_SUPPORT_XUASTC
+ 	// Used by arith encoder/decoder
+ 	namespace arith_fastbits_f32
+ 	{
+@@ -256,6 +259,7 @@
+ 		float g_lut_edge[TABLE_SIZE + 1]; // samples at m = 1 + i/TABLE_SIZE (for linear)
+ 
+ 	} // namespace arith_fastbits_f32
++#endif
+ 
+ 	inline uint16_t byteswap_uint16(uint16_t v)
+ 	{
+@@ -42948,8 +42952,6 @@
+ 		xuastc_fixup_pvrtc1_4_modulation_rgb(temp_image, pvrtc1_endpoints.get_ptr(), pDst_blocks, dst_num_blocks_x, dst_num_blocks_y, from_alpha);
+ }
+ 
+-#endif // BASISD_SUPPORT_XUASTC
+-
+ static inline bool blocks_same_solid_colors(const astc_helpers::log_astc_block& a, const astc_helpers::log_astc_block& b, uint32_t tol)
+ {
+ 	if ((!a.m_solid_color_flag_ldr) || (!b.m_solid_color_flag_ldr))
+@@ -43069,6 +43071,8 @@
+ 		memcpy(pDst_weights, dequantized_weights, block_width * block_height);
+ 	}
+ }
++
++#endif // BASISD_SUPPORT_XUASTC
+ 
+ bool basisu_lowlevel_xuastc_ldr_transcoder::transcode_slice(
+ 	basis_tex_format src_format, bool use_astc_srgb_decode_profile,
+@@ -45956,7 +45960,9 @@
+ } // namespace basist
+ 
+ // XUBC7/XBC7 decoder source code
++#if BASISD_SUPPORT_XUASTC
+ #include "basisu_xbc7_decoder.inl"
++#endif
+ 
+ // Plain BC1/3/4/5 block unpackers (basist::bcu) and the DDS reader/transcoder (basist::dds_transcoder).
+ #include "basisu_dds_transcoder.inl"
