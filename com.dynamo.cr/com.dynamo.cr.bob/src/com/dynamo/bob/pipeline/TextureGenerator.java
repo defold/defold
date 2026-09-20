@@ -67,6 +67,10 @@ public class TextureGenerator {
 
     private static class DecodedImage {
         public boolean hdr;
+        public boolean premultiplied;
+        // KTX2 specifies its transfer function. Ordinary images retain legacy channel-value filtering.
+        public boolean srgbFiltering;
+        public TexcLibraryJni.Ktx2Texture ktx2;
         public String path;
         public int width;
         public int height;
@@ -82,6 +86,8 @@ public class TextureGenerator {
         public String compressorName;
         public String compressorPresetName;
         public boolean generateMipMaps;
+        public boolean recompress;
+        public boolean regenerateMipmaps;
         public int maxTextureSize;
         public boolean premulAlpha;
         public boolean powerOfTwo;
@@ -381,7 +387,15 @@ public class TextureGenerator {
         return settings;
     }
 
-    private static List<byte[]> generateFromDecodedImage(TextureImage.Image.Builder builder, DecodedImage source, TextureGenerationSettings settings, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
+    private static List<byte[]> generateFromDecodedImage(TextureImage.Image.Builder builder, DecodedImage source, TextureGenerationSettings settings, EnumSet<FlipAxis> flipAxis, int firstMipLevel) throws TextureGeneratorException {
+
+        if (source.ktx2 != null) {
+            try {
+                return generateFromKtx2(builder, source, settings, flipAxis);
+            } catch (IOException e) {
+                throw new TextureGeneratorException(e.getMessage());
+            }
+        }
 
         Logger logger = Logger.getLogger(TextureGenerator.class.getName());
 
@@ -416,37 +430,11 @@ public class TextureGenerator {
         }
 
         try {
-            int newWidth = source.width;
-            int newHeight = source.height;
+            int[] dimensions = textureDimensions(source, settings, textureCompressor);
+            int newWidth = dimensions[0];
+            int newHeight = dimensions[1];
 
-            if (settings.powerOfTwo) {
-                newWidth = TextureUtil.closestPOT(newWidth);
-                newHeight = TextureUtil.closestPOT(newHeight);
-            }
-
-            if (settings.maxTextureSize > 0) {
-                while (newWidth > settings.maxTextureSize || newHeight > settings.maxTextureSize) {
-                    newWidth = Math.max(newWidth / 2, 1);
-                    newHeight = Math.max(newHeight / 2, 1);
-                }
-
-                assert(newWidth <= settings.maxTextureSize && newHeight <= settings.maxTextureSize);
-            }
-
-            if (settings.squarePVRTC &&
-                (newHeight != newWidth) &&
-                (settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 ||
-                settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 ||
-                settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 ||
-                settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1)) {
-
-                logger.warning("PVR compressed texture is not square and will be resized.");
-
-                newWidth = Math.max(newWidth, newHeight);
-                newHeight = newWidth;
-            }
-
-            if (settings.premulAlpha && !ColorModel.getRGBdefault().isAlphaPremultiplied()) {
+            if (settings.premulAlpha && !source.premultiplied) {
                 TimeProfiler.start("PreMultiplyAlpha");
                 if (!TexcLibraryJni.PreMultiplyAlpha(textureImage)) {
                     throw new TextureGeneratorException("could not premultiply alpha");
@@ -454,14 +442,9 @@ public class TextureGenerator {
                 TimeProfiler.stop();
             }
 
-            if (settings.alignToCompressor) {
-                newWidth = textureCompressor.getAlignedWidth(settings.textureFormat, newWidth);
-                newHeight = textureCompressor.getAlignedHeight(settings.textureFormat, newHeight);
-            }
-
             if (source.width != newWidth || source.height != newHeight) {
                 TimeProfiler.start("Resize");
-                long resizedTextureImage = TexcLibraryJni.Resize(textureImage, newWidth, newHeight);
+                long resizedTextureImage = TexcLibraryJni.Resize(textureImage, newWidth, newHeight, source.srgbFiltering);
                 if (resizedTextureImage == 0) {
                     throw new TextureGeneratorException(settings.resizeErrorMessage);
                 }
@@ -494,9 +477,9 @@ public class TextureGenerator {
 
             List<byte[]> imageDatas = new ArrayList<>();
             int offset = 0;
-            int mipMapLevel = 0;
+            int mipMapLevel = firstMipLevel;
 
-            List<Long> mipImages = GenerateImages(textureImage, newWidth, newHeight, settings.generateMipMaps);
+            List<Long> mipImages = GenerateImages(textureImage, newWidth, newHeight, settings.generateMipMaps, source.srgbFiltering);
             TimeProfiler.start("textureCompressor.compress");
             TimeProfiler.addData("mips count", mipImages.size());
 
@@ -539,7 +522,166 @@ public class TextureGenerator {
         }
     }
 
-    private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain) throws TextureGeneratorException {
+    private static int[] textureDimensions(DecodedImage source, TextureGenerationSettings settings, ITextureCompressor textureCompressor) {
+        int newWidth = source.width;
+        int newHeight = source.height;
+
+        if (settings.powerOfTwo) {
+            newWidth = TextureUtil.closestPOT(newWidth);
+            newHeight = TextureUtil.closestPOT(newHeight);
+        }
+
+        if (settings.maxTextureSize > 0) {
+            while (newWidth > settings.maxTextureSize || newHeight > settings.maxTextureSize) {
+                newWidth = Math.max(newWidth / 2, 1);
+                newHeight = Math.max(newHeight / 2, 1);
+            }
+
+            assert(newWidth <= settings.maxTextureSize && newHeight <= settings.maxTextureSize);
+        }
+
+        if (settings.squarePVRTC &&
+            (newHeight != newWidth) &&
+            (settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 ||
+            settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 ||
+            settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 ||
+            settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1)) {
+
+            Logger.getLogger(TextureGenerator.class.getName()).warning("PVR compressed texture is not square and will be resized.");
+
+            newWidth = Math.max(newWidth, newHeight);
+            newHeight = newWidth;
+        }
+
+        if (settings.alignToCompressor) {
+            newWidth = textureCompressor.getAlignedWidth(settings.textureFormat, newWidth);
+            newHeight = textureCompressor.getAlignedHeight(settings.textureFormat, newHeight);
+        }
+        return new int[] { newWidth, newHeight };
+    }
+
+    /** Tests the KTX2 signature without loading the native texture compiler. */
+    public static boolean isKtx2(byte[] data) {
+        byte[] magic = {(byte)0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, (byte)0xbb, 0x0d, 0x0a, 0x1a, 0x0a};
+        if (data.length < magic.length) return false;
+        for (int i = 0; i < magic.length; ++i) {
+            if (data[i] != magic[i]) return false;
+        }
+        return true;
+    }
+
+    private static DecodedImage decodeKtx2Mip(DecodedImage source, int level, boolean premultiplyAlpha) throws IOException {
+        TexcLibraryJni.Ktx2Texture texture = source.ktx2;
+        DecodedImage decoded = new DecodedImage();
+        decoded.path = source.path;
+        decoded.width = Math.max(1, texture.width >> level);
+        decoded.height = Math.max(1, texture.height >> level);
+        decoded.componentCount = source.componentCount;
+        decoded.texcPixelFormat = source.texcPixelFormat;
+        decoded.texcColorSpace = source.texcColorSpace;
+        decoded.srgbFiltering = texture.srgb;
+        decoded.premultiplied = texture.premultiplied;
+        decoded.data = texture.decodeMip(level);
+        if (decoded.premultiplied && !premultiplyAlpha) {
+            for (int i = 0; i < decoded.data.length; i += 4) {
+                int alpha = decoded.data[i + 3] & 0xff;
+                for (int c = 0; c < 3; ++c) {
+                    int value = decoded.data[i + c] & 0xff;
+                    decoded.data[i + c] = (byte)(alpha == 0 ? 0 : Math.min(255, (value * 255 + alpha / 2) / alpha));
+                }
+            }
+            decoded.premultiplied = false;
+        }
+        return decoded;
+    }
+
+    private static List<byte[]> generateFromKtx2(TextureImage.Image.Builder builder, DecodedImage source,
+                                                TextureGenerationSettings settings, EnumSet<FlipAxis> flipAxis)
+            throws TextureGeneratorException, IOException {
+        TexcLibraryJni.Ktx2Texture texture = source.ktx2;
+        ITextureCompressor compressor = TextureCompression.getCompressor(settings.compressorName);
+        TextureCompressorPreset preset = TextureCompression.getPreset(settings.compressorPresetName);
+        if (compressor == null || preset == null || !compressor.supportsTextureFormat(settings.textureFormat)
+                || !compressor.supportsTextureCompressorPreset(preset)) {
+            throw new TextureGeneratorException("Invalid KTX2 texture compressor, preset, or output format.");
+        }
+        int[] dimensions = textureDimensions(source, settings, compressor);
+        int firstLevel = -1;
+        for (int level = 0; level < texture.levelCount; ++level) {
+            if (Math.max(1, texture.width >> level) == dimensions[0]
+                    && Math.max(1, texture.height >> level) == dimensions[1]) {
+                firstLevel = level;
+                break;
+            }
+        }
+        EnumSet<FlipAxis> flips = ktx2FlipAxes(texture, flipAxis);
+        if (firstLevel < 0) {
+            DecodedImage decoded = decodeKtx2Mip(source, 0, settings.premulAlpha);
+            List<byte[]> result = generateFromDecodedImage(builder, decoded, settings, flips, 0);
+            builder.setOriginalWidth(source.width).setOriginalHeight(source.height);
+            return result;
+        }
+
+        boolean preserve = texture.canRepack && !settings.recompress && flips.isEmpty()
+                && (texture.channels == 3 || texture.premultiplied == settings.premulAlpha)
+                && settings.compressorName.equals(TextureCompressorBasisU.TextureCompressorName)
+                && (settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGB || settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA)
+                && (texture.channels != 4 || settings.textureFormat == TextureFormat.TEXTURE_FORMAT_RGBA);
+        builder.setWidth(dimensions[0]).setHeight(dimensions[1])
+                .setOriginalWidth(source.width).setOriginalHeight(source.height).setFormat(settings.textureFormat);
+        List<byte[]> result = new ArrayList<>();
+        int offset = 0;
+        int lastLevel = settings.generateMipMaps && !settings.regenerateMipmaps ? texture.levelCount - 1 : firstLevel;
+        for (int level = firstLevel; level <= lastLevel; ++level) {
+            int width = Math.max(1, texture.width >> level);
+            int height = Math.max(1, texture.height >> level);
+            boolean completeTail = settings.generateMipMaps && level == lastLevel && (width > 1 || height > 1);
+            TextureImage.Image.Builder mipBuilder = TextureImage.Image.newBuilder();
+            List<byte[]> mipData;
+            if (preserve) {
+                byte[] bytes = texture.repackMip(level);
+                mipData = new ArrayList<>();
+                mipData.add(bytes);
+                mipBuilder.addMipMapDimensions(width).addMipMapDimensions(height);
+            } else {
+                TextureGenerationSettings mipSettings = createTextureGenerationSettings(source, settings.textureFormat,
+                        settings.compressorName, settings.compressorPresetName, completeTail, 0, settings.premulAlpha);
+                // Authored mip sizes have already been validated against the target dimensions.
+                mipSettings.powerOfTwo = false;
+                mipSettings.alignToCompressor = false;
+                mipData = generateFromDecodedImage(mipBuilder, decodeKtx2Mip(source, level, settings.premulAlpha), mipSettings, flips, level - firstLevel);
+            }
+            for (int mip = 0; mip < mipData.size(); ++mip) {
+                byte[] bytes = mipData.get(mip);
+                result.add(bytes);
+                builder.addMipMapOffset(offset).addMipMapSize(bytes.length).addMipMapSizeCompressed(bytes.length)
+                        .addMipMapDimensions(mipBuilder.getMipMapDimensions(mip * 2))
+                        .addMipMapDimensions(mipBuilder.getMipMapDimensions(mip * 2 + 1));
+                offset += bytes.length;
+            }
+            if (preserve && completeTail) {
+                // Generate only the missing descendants; never replace the last authored level.
+                TextureGenerationSettings tailSettings = createTextureGenerationSettings(source, settings.textureFormat,
+                        settings.compressorName, settings.compressorPresetName, true, 0, settings.premulAlpha);
+                tailSettings.powerOfTwo = false;
+                tailSettings.alignToCompressor = false;
+                TextureImage.Image.Builder tail = TextureImage.Image.newBuilder();
+                List<byte[]> tailData = generateFromDecodedImage(tail, decodeKtx2Mip(source, level, settings.premulAlpha), tailSettings, flips, level - firstLevel);
+                for (int mip = 1; mip < tailData.size(); ++mip) {
+                    byte[] bytes = tailData.get(mip);
+                    result.add(bytes);
+                    builder.addMipMapOffset(offset).addMipMapSize(bytes.length).addMipMapSizeCompressed(bytes.length)
+                            .addMipMapDimensions(tail.getMipMapDimensions(mip * 2))
+                            .addMipMapDimensions(tail.getMipMapDimensions(mip * 2 + 1));
+                    offset += bytes.length;
+                }
+            }
+        }
+        builder.setDataSize(offset);
+        return result;
+    }
+
+    private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain, boolean srgb) throws TextureGeneratorException {
         TimeProfiler.start("GenerateImages");
         List<Long> images = new ArrayList<>();
         int baseWidth = TexcLibraryJni.GetWidth(image);
@@ -550,7 +692,7 @@ public class TextureGenerator {
         if (baseMatches) {
             images.add(image);
         } else {
-            long resizedBase = TexcLibraryJni.Resize(image, width, height);
+            long resizedBase = TexcLibraryJni.Resize(image, width, height, srgb);
             if (resizedBase == 0) {
                 throw new TextureGeneratorException("Failed to create mipmap 0");
             }
@@ -568,7 +710,7 @@ public class TextureGenerator {
             long resizedImage;
 
             TimeProfiler.start("ResizeMipLevel" + mipLevel);
-            resizedImage = TexcLibraryJni.Resize(prevImage, mipWidth, mipHeight);
+            resizedImage = TexcLibraryJni.Resize(prevImage, mipWidth, mipHeight, srgb);
             if (resizedImage == 0) {
                 throw new TextureGeneratorException("Failed to create mipmap " + mipLevel);
             }
@@ -604,6 +746,11 @@ public class TextureGenerator {
     }
 
     public static GenerateResult generate(byte[] data, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
+        if (isKtx2(data)) {
+            try (TexcLibraryJni.Ktx2Texture texture = TexcLibraryJni.LoadKtx2(data)) {
+                return generate(createDecodedImage(texture), texProfile, compress, flipAxis);
+            }
+        }
         if (TexcLibraryJni.IsHDR(data)) {
             TimeProfiler.start("Load HDR Texture");
             Texc.Image hdrImage = TexcLibraryJni.CreateImageFromBuffer(data);
@@ -615,6 +762,44 @@ public class TextureGenerator {
         }
 
         return generate(new ByteArrayInputStream(data), texProfile, compress, flipAxis);
+    }
+
+    private static DecodedImage createDecodedImage(TexcLibraryJni.Ktx2Texture texture) {
+        DecodedImage source = new DecodedImage();
+        source.path = "KTX2";
+        source.width = texture.width;
+        source.height = texture.height;
+        // R and RG are data channels, not luminance and luminance-alpha.
+        source.componentCount = texture.channels == 3 ? 3 : 4;
+        source.texcPixelFormat = Texc.PixelFormat.PF_R8G8B8A8.getValue();
+        source.texcColorSpace = (texture.srgb ? Texc.ColorSpace.CS_SRGB : Texc.ColorSpace.CS_LRGB).getValue();
+        source.ktx2 = texture;
+        return source;
+    }
+
+    private static EnumSet<FlipAxis> ktx2FlipAxes(TexcLibraryJni.Ktx2Texture texture, EnumSet<FlipAxis> flipAxis) {
+        EnumSet<FlipAxis> flips = flipAxis.clone();
+        if (texture.flipX && !flips.remove(FlipAxis.FLIP_AXIS_X)) flips.add(FlipAxis.FLIP_AXIS_X);
+        if (texture.flipY && !flips.remove(FlipAxis.FLIP_AXIS_Y)) flips.add(FlipAxis.FLIP_AXIS_Y);
+        return flips;
+    }
+
+    /** Previews one authored mip at its original size, with editor orientation and premultiplied alpha. */
+    public static GenerateResult generateKtx2MipPreview(TexcLibraryJni.Ktx2Texture texture, int level)
+            throws TextureGeneratorException, IOException {
+        DecodedImage source = createDecodedImage(texture);
+        TextureGenerationSettings settings = createTextureGenerationSettings(source, TextureFormat.TEXTURE_FORMAT_RGBA,
+                TextureCompressorUncompressed.TextureCompressorName, TextureCompressorUncompressed.GetMigratedCompressionPreset(),
+                false, 0, true);
+        settings.powerOfTwo = false;
+        settings.alignToCompressor = false;
+        TextureImage.Image.Builder image = TextureImage.Image.newBuilder();
+        GenerateResult result = new GenerateResult();
+        result.imageDatas = new ArrayList<>(generateFromDecodedImage(image, decodeKtx2Mip(source, level, true), settings,
+                ktx2FlipAxes(texture, EnumSet.of(FlipAxis.FLIP_AXIS_Y)), 0));
+        result.textureImage = TextureImage.newBuilder().setType(TextureImage.Type.TYPE_2D).setCount(1)
+                .addAlternatives(image).build();
+        return result;
     }
 
     public static GenerateResult generate(InputStream inputStream) throws TextureGeneratorException, IOException {
@@ -707,7 +892,9 @@ public class TextureGenerator {
                                                                                          platformProfile.getMipmaps(),
                                                                                          platformProfile.getMaxTextureSize(),
                                                                                          !source.hdr && platformProfile.getPremultiplyAlpha());
-                    List<byte[]> imageDatas = generateFromDecodedImage(imageBuilder, source, settings, flipAxis);
+                    settings.recompress = platformProfile.getRecompress();
+                    settings.regenerateMipmaps = platformProfile.getRegenerateMipmaps();
+                    List<byte[]> imageDatas = generateFromDecodedImage(imageBuilder, source, settings, flipAxis, 0);
                     imageBuilder.setCompressionType(compressionType);
                     textureBuilder.addAlternatives(imageBuilder);
                     result.imageDatas.addAll(imageDatas);
@@ -731,7 +918,7 @@ public class TextureGenerator {
                                                                                  true,
                                                                                  0,
                                                                                  !source.hdr);
-            List<byte[]> imageDatas = generateFromDecodedImage(imageBuilder, source, settings, flipAxis);
+            List<byte[]> imageDatas = generateFromDecodedImage(imageBuilder, source, settings, flipAxis, 0);
             imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
             textureBuilder.addAlternatives(imageBuilder);
             result.imageDatas.addAll(imageDatas);
