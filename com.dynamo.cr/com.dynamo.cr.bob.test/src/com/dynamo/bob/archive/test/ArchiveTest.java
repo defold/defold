@@ -28,7 +28,10 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -37,6 +40,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveReader;
@@ -47,6 +51,8 @@ import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
+import com.sun.jna.Library;
+import com.sun.jna.Native;
 
 public class ArchiveTest {
 
@@ -366,6 +372,41 @@ public class ArchiveTest {
         byte[] actual = instance.compressResourceData(content);
 
         assertArrayEquals(expected, actual);
+    }
+
+    public interface LZ4Decoder extends Library {
+        int LZ4DecompressBuffer(byte[] buffer, int size, byte[] decompressed, int capacity, int[] decompressedSize);
+    }
+
+    @Test
+    public void testCompressResourceDataRoundTrip() throws Exception {
+        LZ4Decoder decoder = Native.load(Bob.getSharedLib("dlib_shared").getAbsolutePath(), LZ4Decoder.class);
+        ArchiveBuilder instance = new ArchiveBuilder(contentRoot, manifestBuilder, 4, project);
+        var executor = Executors.newFixedThreadPool(4);
+        try {
+            // Archive resources are compressed concurrently, including empty and incompressible data.
+            Callable<Void> roundTrip = () -> {
+                Random random = new Random(12345);
+                for (int size : new int[] { 0, 1, 12, 13, 255, 65536, 1048576 }) {
+                    byte[] content = new byte[size];
+                    random.nextBytes(content);
+                    byte[] original = content.clone();
+                    byte[] compressed = instance.compressResourceData(content);
+                    byte[] decompressed = new byte[size];
+                    int[] decompressedSize = new int[1];
+                    assertEquals(0, decoder.LZ4DecompressBuffer(compressed, compressed.length, decompressed, size, decompressedSize));
+                    assertEquals(size, decompressedSize[0]);
+                    assertArrayEquals(original, content);
+                    assertArrayEquals(original, decompressed);
+                }
+                return null;
+            };
+            for (var result : executor.invokeAll(List.of(roundTrip, roundTrip, roundTrip, roundTrip))) {
+                result.get();
+            }
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
