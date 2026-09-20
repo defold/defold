@@ -630,6 +630,8 @@
        (boolean? (:mipmaps value))
        (nat-int? (:max-texture-size value 0))
        (boolean? (:premultiply-alpha value true))
+       (boolean? (:recompress value false))
+       (boolean? (:regenerate-mipmaps value false))
        (let [formats (:formats value)]
          (or (nil? formats)
              (and (vector? formats)

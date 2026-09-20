@@ -47,7 +47,7 @@
 
 (def ^:private model-icon "icons/32/Icons_22-Model.png")
 
-(def ^:private supported-image-exts (conj image/exts "cubemap" "render_target"))
+(def ^:private supported-image-exts (conj image/exts "ktx2" "cubemap" "render_target"))
 
 (def ^:private animations-message (properties/label-message :model :animations))
 (def ^:private default-animation-message (properties/label-message :model :default-animation))

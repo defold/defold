@@ -96,7 +96,14 @@
                     :formats           [(update texture-format :format texture-format->editor-format)]
                     :mipmaps           (:mipmaps platform-profile)
                     :max-texture-size  (:max-texture-size platform-profile)
-                    :premultiply-alpha (:premultiply-alpha platform-profile)}]})))
+                    :premultiply-alpha (:premultiply-alpha platform-profile)
+                    :regenerate-mipmaps (:regenerate-mipmaps platform-profile false)}]})))
+
+(defn make-ktx2-texture-image
+  ^TextureGenerator$GenerateResult [^bytes data texture-profile compress preview]
+  (let [texture-profile (if preview (make-preview-profile texture-profile) texture-profile)
+        ^Graphics$TextureProfile profile (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))]
+    (TextureGenerator/generate data profile (boolean compress))))
 
 ;; SDK api (DEPRECATE 2-arity version with the next release of extension-texturepacker).
 (defn make-preview-texture-image

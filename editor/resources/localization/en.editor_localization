@@ -1295,6 +1295,19 @@ property.atlas.max-page-size.tooltip = The maximum width and height of each page
 property.atlas.rename-patterns = Rename Patterns
 property.atlas.rename-patterns.tooltip = Comma-separated `search=replace` patterns applied to every image's base name. For example, `hat=cat,_normal=` changes `hat_normal` to `cat`; matching names are useful when corresponding frames come from multiple atlases.
 
+# Properties: KTX2
+
+property.ktx2.dimensions = Size
+property.ktx2.format = Compression Format
+property.ktx2.supercompression = Supercompression
+property.ktx2.mip-count = Mip Count
+property.ktx2.level = Mip Level
+property.ktx2.channels = Channels
+property.ktx2.color-space = Color Space
+property.ktx2.premultiplied-alpha = Premultiplied Alpha
+property.ktx2.orientation = Orientation
+property.ktx2.orientation.tooltip = Source axis directions: `r`/`l` means right/left and `d`/`u` means down/up. The preview and build apply this orientation automatically.
+
 # Properties: camera
 
 property.camera.aspect-ratio = Aspect Ratio
@@ -1745,6 +1758,8 @@ property.tile-source.tile-width.tooltip = The width in pixels of each tile's ima
 
 outline.atlas.no-image = <No Image>
 outline.atlas = Atlas
+outline.ktx2 = KTX2 Texture
+outline.ktx2.mip = Mip {level} ({width} x {height})
 outline.camera = Camera
 outline.collection = Collection
 outline.collection-proxy = Collection Proxy
@@ -1822,6 +1837,7 @@ resource.type.gui-script = GUI Script
 resource.type.h = C/C++ Header
 resource.type.html = HTML
 resource.type.image = Image
+resource.type.ktx2 = KTX2 Texture
 resource.type.ini = INI
 resource.type.input-binding = Input Binding
 resource.type.jar = JAR
@@ -2560,6 +2576,8 @@ form.label.texture-profiles.profiles.platforms.formats.compressor-preset = Compr
 form.label.texture-profiles.profiles.platforms.mipmaps = Mipmaps
 form.label.texture-profiles.profiles.platforms.max-texture-size = Max Texture Size
 form.label.texture-profiles.profiles.platforms.premultiply-alpha = Premultiply Alpha
+form.label.texture-profiles.profiles.platforms.recompress = Recompress Source Texture
+form.label.texture-profiles.profiles.platforms.regenerate-mipmaps = Regenerate Source Mipmaps
 
 form.label.factory = Factory
 form.label.factory.prototype = Prototype

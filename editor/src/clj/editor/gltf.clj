@@ -225,7 +225,7 @@
                                                          (when-let [path (uri->proj-path source-path uri)]
                                                            (when-let [resource (resolve-resource path)]
                                                              (with-open [stream (io/input-stream resource)]
-                                                               (.readNBytes stream 8)))))))
+                                                               (.readNBytes stream 12)))))))
               children-by-group
               (reduce
                 (fn [groups ^GltfContainer$Asset asset]
