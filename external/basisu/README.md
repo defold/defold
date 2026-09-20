@@ -118,4 +118,5 @@ the full offline library builds the original source. All 115 vendored files
 still match upstream byte-for-byte. Keep future source edits in this patch,
 following `external/README.md`, with paths relative to the upstream source root
 and `a/` and `b/` prefixes. It can also be reapplied with `patch -p1` when
-updating versions.
+updating versions. Preserve the leading space on blank context lines so Git
+can also apply the patch after a Windows checkout converts it to CRLF.

@@ -5,30 +5,30 @@
  #include <stdint.h>
  #include <math.h>
 -#include <fenv.h>
-
+ 
  namespace astc_helpers
  {
 --- a/transcoder/basisu_transcoder.cpp
 +++ b/transcoder/basisu_transcoder.cpp
 @@ -20,7 +20,9 @@
-
+ 
  #define BASISU_ASTC_HELPERS_IMPLEMENTATION
  #include "basisu_astc_helpers.h"
 +#if BASISD_SUPPORT_XUASTC
  #include "basisu_xbc7_decoder.h"
 +#endif
-
+ 
  #include <limits.h>
-
+ 
 @@ -178,7 +180,7 @@
  	#include "../zstd/zstd.h"
  #endif
-
+ 
 -#if BASISD_SUPPORT_UASTC_HDR
 +#if BASISD_SUPPORT_UASTC_HDR || BASISD_SUPPORT_XUASTC
  using namespace basist::astc_6x6_hdr;
  #endif
-
+ 
 @@ -249,6 +251,7 @@
  #endif
  	}
@@ -39,16 +39,16 @@
  	{
 @@ -256,6 +259,7 @@
  		float g_lut_edge[TABLE_SIZE + 1]; // samples at m = 1 + i/TABLE_SIZE (for linear)
-
+ 
  	} // namespace arith_fastbits_f32
 +#endif
-
+ 
  	inline uint16_t byteswap_uint16(uint16_t v)
  	{
 @@ -2085,10 +2089,16 @@
  	void uastc_init();
  #endif
-
+ 
 -#if BASISD_SUPPORT_UASTC_HDR	
 +#if BASISD_SUPPORT_UASTC_HDR || BASISD_SUPPORT_XUASTC
  	namespace astc_6x6_hdr
@@ -66,7 +66,7 @@
 @@ -2123,11 +2133,13 @@
  		uastc_init();
  #endif
-
+ 
 -#if BASISD_SUPPORT_UASTC_HDR
 +#if BASISD_SUPPORT_UASTC_HDR || BASISD_SUPPORT_XUASTC
  		// TODO: Examine this, optimize for startup time/mem utilization.
@@ -78,11 +78,11 @@
 +#if BASISD_SUPPORT_UASTC_HDR
  		astc_hdr_core_init();
  #endif
-
+ 
 @@ -2239,9 +2251,12 @@
  		transcoder_init_pvrtc2();
  #endif
-
+ 
 +#if BASISD_SUPPORT_UASTC_HDR || BASISD_SUPPORT_XUASTC
 +		astc_6x6_hdr::init_quantize_tables();
 +#endif
@@ -94,9 +94,9 @@
  #endif
  		
 @@ -21247,6 +21262,200 @@
-
+ 
  	//-------------------------------
-
+ 
 +#if BASISD_SUPPORT_UASTC_HDR || BASISD_SUPPORT_XUASTC
 +	namespace astc_6x6_hdr
 +	{
@@ -306,9 +306,9 @@
 -			{ 3, -3 }, { 2, -3 }, { 1, -3 }, { 0, -3 }, { -1, -3 }, { -2, -3 }, { -3, -3 }, { -4, -3 },
 -			{ 3, -4 }, { 2, -4 }, { 1, -4 }, { 0, -4 }
 -		};
-
+ 
  		//--------------------------------------------------------------------------------------------------------------------------
-
+ 
 @@ -22956,9 +23157,6 @@
  			dst |= (bit << dst_bit);
  		}
@@ -316,13 +316,13 @@
 -		// Valid for weight ISE ranges 6-192 or 8-192 levels. Preserves upper 2 or 3 bits post-quantization.
 -		uint8_t g_quantize_tables_preserve2[21 - 1][256]; // astc_helpers::TOTAL_ISE_RANGES=21, valid for >= BISE_6_LEVELS
 -		uint8_t g_quantize_tables_preserve3[21 - 1][256]; // valid for >= BISE_8_LEVELS
-
+ 
  		const uint32_t g_part2_unique_index_to_seed[NUM_UNIQUE_PARTITIONS2] =
  		{
 @@ -23004,87 +23202,6 @@
  			1007, 1010, 1011, 1012, 1015, 1020, 1023
  		};
-
+ 
 -		static void init_quantize_tables()
 -		{
 -			// 9/15/2025 changed lower range for LDR
@@ -404,13 +404,13 @@
 -
 -			} // ise_range
 -		}
-
+ 
  		void requantize_ise_endpoints(uint32_t cem, uint32_t src_ise_endpoint_range, const uint8_t* pSrc_endpoints, uint32_t dst_ise_endpoint_range, uint8_t* pDst_endpoints)
  		{
 @@ -23284,94 +23401,6 @@
  			return cur_row_index;
  		}
-
+ 
 -		bool decode_values(basist::bitwise_decoder& decoder, uint32_t total_values, uint32_t ise_range, uint8_t* pValues)
 -		{
 -			assert(ise_range <= astc_helpers::BISE_256_LEVELS);
@@ -499,13 +499,13 @@
 -
 -			return true;
 -		}
-
+ 
  		static inline uint32_t get_num_endpoint_vals(uint32_t cem)
  		{
 @@ -23974,11 +24003,7 @@
  #endif
  		}
-
+ 
 -		static BASISU_FORCE_INLINE int fast_roundf_int(float x)
 -		{
 -			return (x >= 0.0f) ? (int)(x + 0.5f) : (int)(x - 0.5f);
@@ -518,7 +518,7 @@
 @@ -42948,8 +42973,6 @@
  		xuastc_fixup_pvrtc1_4_modulation_rgb(temp_image, pvrtc1_endpoints.get_ptr(), pDst_blocks, dst_num_blocks_x, dst_num_blocks_y, from_alpha);
  }
-
+ 
 -#endif // BASISD_SUPPORT_XUASTC
 -
  static inline bool blocks_same_solid_colors(const astc_helpers::log_astc_block& a, const astc_helpers::log_astc_block& b, uint32_t tol)
@@ -530,16 +530,16 @@
  }
 +
 +#endif // BASISD_SUPPORT_XUASTC
-
+ 
  bool basisu_lowlevel_xuastc_ldr_transcoder::transcode_slice(
  	basis_tex_format src_format, bool use_astc_srgb_decode_profile,
 @@ -45956,7 +45981,9 @@
  } // namespace basist
-
+ 
  // XUBC7/XBC7 decoder source code
 +#if BASISD_SUPPORT_XUASTC
  #include "basisu_xbc7_decoder.inl"
 +#endif
-
+ 
  // Plain BC1/3/4/5 block unpackers (basist::bcu) and the DDS reader/transcoder (basist::dds_transcoder).
  #include "basisu_dds_transcoder.inl"
