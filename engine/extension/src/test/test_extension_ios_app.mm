@@ -16,7 +16,9 @@
 #include <jc_test/jc_test.h>
 #include <glfw/glfw.h>
 #include <glfw/glfw_native.h>
+#import <objc/runtime.h>
 #import "AppDelegate.h"
+#import "EAGLView.h"
 #import "SceneDelegate.h"
 #import "ViewController.h"
 
@@ -31,6 +33,18 @@ static unsigned int g_DidLaunchCount;
 static unsigned int g_LegacyLaunchCount;
 static BOOL g_WillLaunchHasOptions;
 static BOOL g_DidLaunchHasOptions;
+static unsigned int g_ReleasedObjects;
+
+@interface ReleaseObserver : NSObject
+@end
+
+@implementation ReleaseObserver
+- (void)dealloc
+{
+    ++g_ReleasedObjects;
+    [super dealloc];
+}
+@end
 
 @interface SceneConnectionObserver : NSObject <UISceneDelegate, UIApplicationDelegate>
 @end
@@ -248,6 +262,37 @@ TEST_F(iOSSceneApplication, DisconnectStopsUpdates)
     ASSERT_EQ((void*)view, (void*)m_Controller.baseView);
     ASSERT_NE((void*)nil, (void*)view->displayLink);
     ASSERT_TRUE(WaitUntil(^BOOL { return g_UpdateCount > before + 2; }));
+}
+
+// Releasing an OpenGL view must run BaseView's cleanup and release both contexts;
+// an empty EAGLView dealloc used to leak the view and all of these resources.
+TEST_F(iOSSceneApplication, OpenGLViewDeallocation)
+{
+    EAGLContext* previousContext = [[EAGLContext currentContext] retain];
+    NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
+    EAGLView* view = [[EAGLView alloc] initWithFrame:CGRectMake(0, 0, 32, 32)];
+    EAGLContext* context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES3];
+    EAGLContext* auxContext = [[EAGLContext alloc] initWithAPI:context.API sharegroup:context.sharegroup];
+    EXPECT_NE((void*)nil, (void*)context);
+    EXPECT_NE((void*)nil, (void*)auxContext);
+    view.context = context;
+    view.auxContext = auxContext;
+
+    g_ReleasedObjects = 0;
+    ReleaseObserver* observer = [[ReleaseObserver alloc] init];
+    objc_setAssociatedObject(view, &g_ReleasedObjects, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(context, &g_ReleasedObjects, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(auxContext, &g_ReleasedObjects, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    [observer release];
+    [context release];
+    [auxContext release];
+    [view setCurrentContext];
+    [view release];
+    [pool drain];
+    EXPECT_EQ(1U, g_ReleasedObjects);
+    EXPECT_EQ((void*)nil, (void*)[EAGLContext currentContext]);
+    [EAGLContext setCurrentContext:previousContext];
+    [previousContext release];
 }
 
 @interface SceneApplicationTestRunner : NSObject

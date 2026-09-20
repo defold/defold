@@ -248,10 +248,6 @@ static void LogGLError(GLint err)
     }
 }
 
-- (void)dealloc
-{
-}
-
 @end
 
 
