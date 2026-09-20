@@ -2644,7 +2644,12 @@ class Configuration(object):
     def build_ext(self):
         self.check_sdk()
 
-        platform = self.target_platform
+        # Cross-builds also need host dependencies for tools such as texc.
+        self._build_ext_platform(self.host)
+        if self.target_platform != self.host:
+            self._build_ext_platform(self.target_platform)
+
+    def _build_ext_platform(self, platform):
         source_dir = join(self.defold_root, 'external')
         build_dir = join(source_dir, 'build', platform)
         build_type = self._find_cmake_build_type(self.waf_options)
