@@ -63,6 +63,7 @@ static int g_view_type = GLFW_NO_API;
 
     [[self view] insertSubview:baseView atIndex:0];
     [baseView setCurrentContext];
+    [baseView startDisplayLink];
 }
 
 - (void)viewDidLoad
