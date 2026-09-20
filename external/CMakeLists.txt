@@ -9,6 +9,7 @@ set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}/ext" CACHE PATH "External library i
 
 add_subdirectory(bullet3d)
 add_subdirectory(basisu)
+add_subdirectory(lz4)
 
 # Always build GLFW from source for iOS; these targets have no prebuilt package.
 if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")

@@ -1,4 +1,5 @@
 [
+    "lib/**/*dlib_shared*",
     "lib/**/*fontc_shared*",
     "lib/**/*modelc_shared*",
     "lib/**/*shaderc_shared*",

@@ -9,9 +9,14 @@ set(DLIB_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(DLIB_SRC_DIR "${DLIB_ROOT}/src")
 set(DLIB_CORE_DIR "${DLIB_SRC_DIR}/dlib")
 set(DLIB_MBEDTLS_DIR "${DLIB_SRC_DIR}/mbedtls")
-set(DLIB_DEPENDENCIES zip mbedtls)
-set(DLIB_NOASAN_DEPENDENCIES zip_noasan mbedtls_noasan)
-set(DLIB_SHARED_DEPENDENCIES profile_null_noasan mbedtls_noasan zip_noasan)
+set(DLIB_DEPENDENCIES zip mbedtls lz4)
+set(DLIB_NOASAN_DEPENDENCIES zip_noasan mbedtls_noasan lz4)
+set(DLIB_SHARED_DEPENDENCIES profile_null_noasan mbedtls_noasan zip_noasan lz4)
+
+add_library(lz4 STATIC IMPORTED GLOBAL)
+set_target_properties(lz4 PROPERTIES
+  IMPORTED_LOCATION "${DEFOLD_EXT_LIB_DIR}/liblz4${CMAKE_STATIC_LIBRARY_SUFFIX}")
+
 file(GLOB_RECURSE DLIB_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${DLIB_SRC_DIR}/dmsdk/*.h"
   "${DLIB_SRC_DIR}/dmsdk/*.hpp")
@@ -137,8 +142,7 @@ set(DLIB_MBEDTLS_INCLUDE_DIRS
 file(GLOB DLIB_BASE_SOURCES CONFIGURE_DEPENDS
      "${DLIB_CORE_DIR}/*.cpp"
      "${DLIB_CORE_DIR}/http/*.cpp"
-     "${DLIB_SRC_DIR}/zlib/*.c"
-     "${DLIB_SRC_DIR}/lz4/*.c")
+     "${DLIB_SRC_DIR}/zlib/*.c")
 
 set(DLIB_FEATURE_SOURCES)
 set(DLIB_FEATURE_FILES)

@@ -3915,7 +3915,7 @@ Commands:
 distclean        - Removes DYNAMO_HOME and engine/external build caches
 clean            - Remove generated engine build outputs without removing DYNAMO_HOME
 install_ext      - Install external packages
-build_ext        - Build and install source dependencies with CMake (Bullet, Basis Universal, plus GLFW on iOS)
+build_ext        - Build and install source dependencies with CMake
 build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk
