@@ -14,7 +14,7 @@
 
 tests_done = false
 
--- The id belongs to the body's owner, including bodies returned by queries.
+-- The id belongs to the body's owner, including bodies returned by queries and joints.
 -- Retained handles must fail after deletion, even after another body is created.
 function init(self)
     self.id = factory.create("#factory", vmath.vector3())
@@ -23,6 +23,7 @@ function init(self)
     assert(not pcall(b2d.get_gameobject_id, nil))
     assert(not pcall(b2d.get_gameobject_id, {}))
     assert(not pcall(b2d.get_gameobject_id, self.id))
+    self.other_id = factory.create("#factory", vmath.vector3(10, 0, 0))
     self.frame = 0
 end
 
@@ -52,13 +53,30 @@ function update(self, dt)
         self.ray_body = PHYSICS == "box2dv3" and b2d.shape.get_body(hit.shape.shape_id) or hit.fixture.body
         assert(b2d.get_gameobject_id(self.ray_body) == self.id)
 
+        local other_body = b2d.get_body(msg.url(nil, self.other_id, "collisionobject"))
+        local joint = b2d.joint.create_distance(self.body, other_body, {
+            local_anchor_a = vmath.vector3(),
+            local_anchor_b = vmath.vector3(),
+            length = 10,
+        })
+        self.joint_body_a = b2d.joint.get_body_a(joint)
+        self.joint_body_b = b2d.joint.get_body_b(joint)
+        assert(self.joint_body_a == self.body)
+        assert(self.joint_body_b == other_body)
+        assert(b2d.get_gameobject_id(self.joint_body_a) == self.id)
+        assert(b2d.get_gameobject_id(self.joint_body_b) == self.other_id)
+
         go.delete(self.id)
+        go.delete(self.other_id)
         return
     end
 
     assert(not go.exists(self.id))
+    assert(not go.exists(self.other_id))
     assert(not pcall(b2d.get_gameobject_id, self.body))
     assert(not pcall(b2d.get_gameobject_id, self.ray_body))
+    assert(not pcall(b2d.get_gameobject_id, self.joint_body_a))
+    assert(not pcall(b2d.get_gameobject_id, self.joint_body_b))
 
     local id = factory.create("#factory", vmath.vector3())
     local body = b2d.get_body(msg.url(nil, id, "collisionobject"))
