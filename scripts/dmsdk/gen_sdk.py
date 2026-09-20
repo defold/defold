@@ -207,6 +207,8 @@ def cleanup_implicit(ast):
 
 def cleanup_files(ast, source_path):
     loc = ast.get('loc', {})
+    # Macro-generated declarations belong to the file expanding the macro.
+    loc = loc.get('expansionLoc', loc)
     file = loc.get('file', None)
     if not file:
         file = loc.get('includedFrom', None)
