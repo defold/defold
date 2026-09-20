@@ -2644,7 +2644,12 @@ class Configuration(object):
     def build_ext(self):
         self.check_sdk()
 
-        platform = self.target_platform
+        # Cross-builds also compile host tools, including dlib_shared.
+        if self.host != self.target_platform:
+            self._build_ext_platform(self.host)
+        self._build_ext_platform(self.target_platform)
+
+    def _build_ext_platform(self, platform):
         source_dir = join(self.defold_root, 'external')
         build_dir = join(source_dir, 'build', platform)
         build_type = self._find_cmake_build_type(self.waf_options)
@@ -3911,7 +3916,7 @@ Commands:
 distclean        - Removes DYNAMO_HOME and engine/external build caches
 clean            - Remove generated engine build outputs without removing DYNAMO_HOME
 install_ext      - Install external packages
-build_ext        - Build and install source dependencies with CMake (currently Bullet)
+build_ext        - Build and install source dependencies with CMake
 build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk

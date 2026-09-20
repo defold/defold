@@ -8,3 +8,4 @@ project(defold_ext LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}/ext" CACHE PATH "External library install prefix" FORCE)
 
 add_subdirectory(bullet3d)
+add_subdirectory(lz4)
