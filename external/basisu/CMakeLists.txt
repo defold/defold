@@ -12,21 +12,22 @@ set(BASISU_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/package/basis_universal-2.50")
 find_package(Git REQUIRED)
 set(BASISU_RUNTIME_SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/runtime")
 set(BASISU_RUNTIME_SOURCE "${BASISU_RUNTIME_SOURCE_DIR}/transcoder/basisu_transcoder.cpp")
-add_custom_command(OUTPUT "${BASISU_RUNTIME_SOURCE}"
-  COMMAND "${CMAKE_COMMAND}" -E make_directory "${BASISU_RUNTIME_SOURCE_DIR}/transcoder"
-  COMMAND "${CMAKE_COMMAND}" -E copy
-    "${BASISU_SOURCE_DIR}/transcoder/basisu_transcoder.cpp" "${BASISU_RUNTIME_SOURCE}"
+set(BASISU_RUNTIME_HEADER "${BASISU_RUNTIME_SOURCE_DIR}/transcoder/basisu_astc_helpers.h")
+file(GLOB BASISU_RUNTIME_INPUTS CONFIGURE_DEPENDS "${BASISU_SOURCE_DIR}/transcoder/*")
+add_custom_command(OUTPUT "${BASISU_RUNTIME_SOURCE}" "${BASISU_RUNTIME_HEADER}"
+  # Copy the headers together so quoted includes resolve to the patched copy.
+  COMMAND "${CMAKE_COMMAND}" -E copy_directory
+    "${BASISU_SOURCE_DIR}/transcoder" "${BASISU_RUNTIME_SOURCE_DIR}/transcoder"
   COMMAND "${GIT_EXECUTABLE}" apply --unsafe-paths
     "--directory=${BASISU_RUNTIME_SOURCE_DIR}" "${CMAKE_CURRENT_LIST_DIR}/defold.patch"
-  DEPENDS "${BASISU_SOURCE_DIR}/transcoder/basisu_transcoder.cpp"
-          "${CMAKE_CURRENT_LIST_DIR}/defold.patch"
+  DEPENDS ${BASISU_RUNTIME_INPUTS} "${CMAKE_CURRENT_LIST_DIR}/defold.patch"
   WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/../.."
-  COMMENT "Applying Basis Universal runtime compile guards"
+  COMMENT "Applying Basis Universal runtime patches"
   VERBATIM)
 
 # Match the previous runtime's UASTC LDR and restricted ETC1S support.
 add_library(basis_transcoder STATIC "${BASISU_RUNTIME_SOURCE}")
-target_include_directories(basis_transcoder PRIVATE "${BASISU_SOURCE_DIR}/transcoder")
+target_include_directories(basis_transcoder PRIVATE "${BASISU_RUNTIME_SOURCE_DIR}/transcoder")
 target_compile_definitions(basis_transcoder PRIVATE
   BASISD_SUPPORT_UASTC=1 BASISD_SUPPORT_XUASTC=0 BASISD_SUPPORT_UASTC_HDR=0
   BASISD_SUPPORT_KTX2=0 BASISD_SUPPORT_KTX2_ZSTD=0
@@ -124,7 +125,7 @@ endforeach()
 install(CODE "file(REMOVE \"\$ENV{DESTDIR}${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}/${CMAKE_STATIC_LIBRARY_PREFIX}basis_encoder_noasan${CMAKE_STATIC_LIBRARY_SUFFIX}\")")
 
 install(DIRECTORY "${BASISU_SOURCE_DIR}/encoder"
-                  "${BASISU_SOURCE_DIR}/transcoder"
+                  "${BASISU_RUNTIME_SOURCE_DIR}/transcoder"
                   "${BASISU_SOURCE_DIR}/zstd"
   DESTINATION include/basis
   FILES_MATCHING PATTERN "*.h" PATTERN "*.inl" PATTERN "*.inc" PATTERN "*.hh")

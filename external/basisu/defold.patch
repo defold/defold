@@ -1,3 +1,13 @@
+--- a/transcoder/basisu_astc_helpers.h
++++ b/transcoder/basisu_astc_helpers.h
+@@ -6,7 +6,6 @@
+ #include <stdlib.h>
+ #include <stdint.h>
+ #include <math.h>
+-#include <fenv.h>
+
+ namespace astc_helpers
+ {
 --- a/transcoder/basisu_transcoder.cpp
 +++ b/transcoder/basisu_transcoder.cpp
 @@ -20,7 +20,9 @@

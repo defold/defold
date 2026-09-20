@@ -8,7 +8,8 @@ commit `9bebe16726b3a61c8c213eeee3b7cffb462ef34e`.
 `transcoder`, `zstd`, and `LICENSES` directories, plus `LICENSE`, `NOTICE`, and
 the upstream `CMakeLists.txt` for reference. Defold's build is in the parent
 `CMakeLists.txt`; it applies `defold.patch` to a build copy of the runtime
-transcoder to fix missing guards when the new codecs are disabled.
+transcoder to fix missing guards when the new codecs are disabled and remove
+an unused header dependency that breaks PS4 builds.
 `scripts/cmake/functions_basisu.cmake` imports the installed archives and their
 compiler settings into the separate engine/tools build.
 
@@ -97,7 +98,12 @@ XUASTC block helpers with `BASISD_SUPPORT_XUASTC`. Upstream 2.50 otherwise fails
 to compile with XUASTC/XUBC7 disabled. The runtime also disables
 `BASISD_SUPPORT_UASTC_HDR` and `BASISD_SUPPORT_KTX2_ZSTD`.
 
-`build_ext` uses Git to apply the patch to a generated runtime source file;
+The patch also removes the unused `<fenv.h>` include from
+`transcoder/basisu_astc_helpers.h`, where it prevents builds with PS4 toolchains
+that lack this header.
+
+`build_ext` uses Git to apply the patch to a build copy of the runtime source
+and headers, and installs those patched headers for engine consumers;
 the full offline library builds the original source. All 115 vendored files
 still match upstream byte-for-byte. Keep future source edits in this patch,
 following `external/README.md`, with paths relative to the upstream source root
