@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -221,12 +222,40 @@ public class IOSBundler implements IBundler {
 
     }
 
+    public static void validateSceneManifest(String manifest) throws IOException {
+        XMLPropertyListConfiguration plist = new XMLPropertyListConfiguration();
+        try {
+            plist.read(new StringReader(manifest));
+        } catch (ConfigurationException e) {
+            throw new IOException("Unable to read ios.infoplist", e);
+        }
+        String multipleScenes = "UIApplicationSceneManifest.UIApplicationSupportsMultipleScenes";
+        if (!plist.containsKey(multipleScenes) || plist.getBoolean(multipleScenes, true)) {
+            throw new IOException("ios.infoplist must contain UIApplicationSceneManifest with UIApplicationSupportsMultipleScenes set to false. Update custom plists from /builtins/manifests/ios/Info.plist.");
+        }
+        String configuration = "UIApplicationSceneManifest.UISceneConfigurations.UIWindowSceneSessionRoleApplication";
+        for (Object value : plist.getList(configuration)) {
+            if (!(value instanceof XMLPropertyListConfiguration)) {
+                throw new IOException("ios.infoplist application scene configurations must be dictionaries.");
+            }
+            XMLPropertyListConfiguration scene = (XMLPropertyListConfiguration) value;
+            String delegate = scene.getString("UISceneDelegateClassName", "DefoldSceneDelegate");
+            if (!"DefoldSceneDelegate".equals(delegate)) {
+                throw new IOException("ios.infoplist must use DefoldSceneDelegate for the application scene.");
+            }
+            if (scene.containsKey("UISceneStoryboardFile")) {
+                throw new IOException("ios.infoplist must not set UISceneStoryboardFile. Defold creates the game window programmatically; use UILaunchStoryboardName for the launch screen.");
+            }
+        }
+    }
+
     private void copyManifestFile(BundleHelper helper, Platform platform, File destDir) throws IOException, CompileExceptionError {
         File manifestFile = helper.copyOrWriteManifestFile(platform, destDir);
         String manifest = FileUtils.readFileToString(manifestFile, StandardCharsets.UTF_8);
         // remove attribute definition (https://github.com/defold/defold/pull/6914)
         // it is automatically removed if the manifest was merged
         manifest = manifest.replace("[ <!ATTLIST key merge (keep) #IMPLIED> ]", "");
+        validateSceneManifest(manifest);
         FileUtils.write(manifestFile, manifest);
     }
 
