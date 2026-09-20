@@ -98,6 +98,13 @@ XUASTC block helpers with `BASISD_SUPPORT_XUASTC`. Upstream 2.50 otherwise fails
 to compile with XUASTC/XUBC7 disabled. The runtime also disables
 `BASISD_SUPPORT_UASTC_HDR` and `BASISD_SUPPORT_KTX2_ZSTD`.
 
+The patch also makes the shared ASTC helpers and table initialization available
+when `BASISD_SUPPORT_XUASTC=1` and `BASISD_SUPPORT_UASTC_HDR=0`. This preserves
+the option to add XUASTC without HDR. With Zstd disabled, only XUASTC's
+arithmetic-coded profile is supported; XUBC7 decoding still requires Zstd.
+The default runtime continues to disable XUASTC. Any experimental build must
+set matching feature macros in both the library and its consumers.
+
 The patch also removes the unused `<fenv.h>` include from
 `transcoder/basisu_astc_helpers.h`, where it prevents builds with PS4 toolchains
 that lack this header.
