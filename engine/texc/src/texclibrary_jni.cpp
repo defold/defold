@@ -24,6 +24,7 @@
 #include <dlib/log.h>
 
 #include <texc.h>
+#include "texc_private.h"
 
 namespace
 {
@@ -181,6 +182,75 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_CreateImageFromBuffer(JNIEnv* env,
     return obj;
 }
 
+JNIEXPORT jobject JNICALL Java_TexcLibraryJni_LoadKtx2(JNIEnv* env, jclass cls, jbyteArray array)
+{
+    jobject result = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        if (!array)
+            return 0;
+        dmJNI::ScopedByteArray input(env, array);
+        dmTexc::Ktx2Info info;
+        const char* error = 0;
+        dmTexc::Ktx2Texture* texture = dmTexc::LoadKtx2((const uint8_t*)input.m_Array, input.m_ArraySize, &info, &error);
+        if (!texture)
+        {
+            env->ThrowNew(env->FindClass("java/io/IOException"), error);
+            return 0;
+        }
+        jclass type = env->FindClass("com/dynamo/bob/pipeline/TexcLibraryJni$Ktx2Texture");
+        jmethodID constructor = type ? env->GetMethodID(type, "<init>", "(JIIIIIII)V") : 0;
+        if (constructor)
+        {
+            int flags = (info.m_Srgb ? 1 : 0) | (info.m_Premultiplied ? 2 : 0) |
+                (info.m_FlipX ? 4 : 0) | (info.m_FlipY ? 8 : 0) | (info.m_CanRepack ? 16 : 0);
+            result = env->NewObject(type, constructor, (jlong)texture, (jint)info.m_Width, (jint)info.m_Height,
+                (jint)info.m_LevelCount, (jint)info.m_Channels, (jint)flags,
+                (jint)info.m_VkFormat, (jint)info.m_Supercompression);
+        }
+        if (!result)
+            dmTexc::DestroyKtx2(texture);
+        if (type)
+            env->DeleteLocalRef(type);
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return result;
+}
+
+static jbyteArray Ktx2Mip(JNIEnv* env, jlong handle, jint level, bool repack)
+{
+    jbyteArray result = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmArray<uint8_t> bytes;
+        const char* error = 0;
+        dmTexc::Ktx2Texture* texture = (dmTexc::Ktx2Texture*)handle;
+        bool success = repack ? dmTexc::RepackKtx2Mip(texture, level, bytes, &error)
+                              : dmTexc::DecodeKtx2Mip(texture, level, bytes, &error);
+        if (!success)
+        {
+            env->ThrowNew(env->FindClass("java/io/IOException"), error);
+            return 0;
+        }
+        result = env->NewByteArray(bytes.Size());
+        if (result)
+            env->SetByteArrayRegion(result, 0, bytes.Size(), (const jbyte*)bytes.Begin());
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return result;
+}
+
+JNIEXPORT jbyteArray JNICALL Java_TexcLibraryJni_DecodeKtx2Mip(JNIEnv* env, jclass cls, jlong texture, jint level)
+{
+    return Ktx2Mip(env, texture, level, false);
+}
+
+JNIEXPORT jbyteArray JNICALL Java_TexcLibraryJni_RepackKtx2Mip(JNIEnv* env, jclass cls, jlong texture, jint level)
+{
+    return Ktx2Mip(env, texture, level, true);
+}
+
+JNIEXPORT void JNICALL Java_TexcLibraryJni_DestroyKtx2(JNIEnv* env, jclass cls, jlong texture)
+{
+    dmTexc::DestroyKtx2((dmTexc::Ktx2Texture*)texture);
+}
+
 JNIEXPORT jint JNICALL Java_TexcLibraryJni_CreatePreviewImage(JNIEnv* env, jclass cls, jint width, jint height, jbyteArray inputArray, jbyteArray outputArray)
 {
     dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
@@ -257,14 +327,14 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_GetData(JNIEnv* env, jclass cls, j
     return obj;
 }
 
-JNIEXPORT jlong JNICALL Java_TexcLibraryJni_Resize(JNIEnv* env, jclass cls, jlong _image, jint width, jint height)
+JNIEXPORT jlong JNICALL Java_TexcLibraryJni_Resize(JNIEnv* env, jclass cls, jlong _image, jint width, jint height, jboolean srgb)
 {
     jlong obj = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
         dmTexc::Image* image = (dmTexc::Image*)_image;
         if (image)
         {
-            obj = (jlong)dmTexc::Resize(image, width, height);
+            obj = (jlong)dmTexc::Resize(image, width, height, srgb);
         }
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return obj;
@@ -484,13 +554,17 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
         // Image api
         JNIFUNC(CreateImage, "(Ljava/lang/String;IIII[B)J"),
         JNIFUNC(IsHDR, "([B)Z"),
+        JNIFUNC(LoadKtx2, "([B)Lcom/dynamo/bob/pipeline/TexcLibraryJni$Ktx2Texture;"),
+        JNIFUNC(DecodeKtx2Mip, "(JI)[B"),
+        JNIFUNC(RepackKtx2Mip, "(JI)[B"),
+        JNIFUNC(DestroyKtx2, "(J)V"),
         JNIFUNC(CreateImageFromBuffer, "([B)L" CLASS_NAME "$Image;"),
         JNIFUNC(CreatePreviewImage, "(II[B[B)I"),
         JNIFUNC(DestroyImage, "(J)V"),
         JNIFUNC(GetWidth, "(J)I"),
         JNIFUNC(GetHeight, "(J)I"),
         JNIFUNC(GetData, "(J)[B"),
-        JNIFUNC(Resize, "(JII)J"),
+        JNIFUNC(Resize, "(JIIZ)J"),
         JNIFUNC(PreMultiplyAlpha, "(J)Z"),
         JNIFUNC(Flip, "(JI)Z"),
         JNIFUNC(Dither, "(JI)Z"),

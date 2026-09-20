@@ -26,9 +26,35 @@
  */
 namespace dmTexc
 {
+    struct Ktx2Texture;
+    void InitBasisU();
+    struct Ktx2Info
+    {
+        uint32_t m_Width;
+        uint32_t m_Height;
+        uint32_t m_LevelCount;
+        uint32_t m_Channels;
+        uint32_t m_VkFormat;
+        uint32_t m_Supercompression;
+        bool m_Srgb;
+        bool m_Premultiplied;
+        // Flips needed to normalize the encoded orientation to top-left.
+        bool m_FlipX;
+        bool m_FlipY;
+        bool m_CanRepack;
+    };
+
+    // The texture owns a copy of the encoded input. Returned mip buffers belong to the caller.
+    Ktx2Texture* LoadKtx2(const uint8_t* data, uint32_t size, Ktx2Info* info, const char** error);
+    void DestroyKtx2(Ktx2Texture* texture);
+    // RGBA8 with channel swizzle applied, retaining source orientation and premultiplication.
+    bool DecodeKtx2Mip(Ktx2Texture* texture, uint32_t level, dmArray<uint8_t>& pixels, const char** error);
+    bool RepackKtx2Mip(Ktx2Texture* texture, uint32_t level, dmArray<uint8_t>& basis, const char** error);
+
     static const uint32_t COMPRESSION_ENABLED_PIXELCOUNT_THRESHOLD = 64; // do not compress mips with less than this pixelcount
 
-    Image* ResizeBasis(Image* image, uint32_t width, uint32_t height);
+    Image* Resize(Image* image, uint32_t width, uint32_t height, bool srgb);
+    Image* ResizeBasis(Image* image, uint32_t width, uint32_t height, bool srgb);
 
     uint16_t RGB888ToRGB565(uint8_t red, uint8_t green, uint8_t blue);
     uint16_t RGBA8888ToRGBA4444(uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha);

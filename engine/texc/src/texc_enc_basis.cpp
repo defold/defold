@@ -45,17 +45,20 @@ namespace dmTexc
     };
 
 
-    static void InitBasisU()
+    static bool InitializeBasisU()
     {
-        static int first = 1;
-        if (first)
-        {
-            basisu::basisu_encoder_init();
-            first = 0;
-        }
+        basisu::basisu_encoder_init();
+        return true;
     }
 
-    Image* ResizeBasis(Image* image, uint32_t width, uint32_t height)
+    void InitBasisU()
+    {
+        // Function-local static initialization serializes the first encoder/decoder use.
+        static const bool initialized = InitializeBasisU();
+        (void)initialized;
+    }
+
+    Image* ResizeBasis(Image* image, uint32_t width, uint32_t height, bool srgb)
     {
         InitBasisU();
 
@@ -64,11 +67,13 @@ namespace dmTexc
         orig.init(image->m_Data, image->m_Width, image->m_Height, components);
 
         basisu::image tmp(width, height);
-        basisu::image_resample(orig, tmp);
+        basisu::image_resample(orig, tmp, srgb);
 
         Image* out = new Image;
         out->m_Width = width;
         out->m_Height = height;
+        out->m_PixelFormat = image->m_PixelFormat;
+        out->m_ColorSpace = image->m_ColorSpace;
         out->m_DataCount = width * height * components;
         out->m_Data = (uint8_t*)malloc(out->m_DataCount);
         memcpy(out->m_Data, tmp.get_ptr(), out->m_DataCount);
@@ -206,6 +211,7 @@ namespace dmTexc
         basisu::basis_compressor_params comp_params;
 
         comp_params.m_mip_gen = 0;
+        comp_params.set_srgb_options(input->m_ColorSpace == CS_SRGB);
         comp_params.m_pack_uastc_ldr_4x4_flags = input->m_pack_uastc_flags;
         comp_params.set_format_mode(basist::basis_tex_format::cUASTC_LDR_4x4);
         comp_params.m_rdo_uastc_ldr_4x4 = input->m_rdo_uastc;

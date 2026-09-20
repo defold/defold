@@ -93,10 +93,62 @@ public class TexcLibraryJni {
 
     public static native int GetWidth(long image);
     public static native int GetHeight(long image);
-    public static native long Resize(long image, int width, int height); // Creates a new image. Call DestroyImage
+    public static long Resize(long image, int width, int height) {
+        return Resize(image, width, height, false);
+    }
+    // Creates a new image. Call DestroyImage. With srgb, filter RGB in linear light and alpha linearly.
+    public static native long Resize(long image, int width, int height, boolean srgb);
     public static native boolean PreMultiplyAlpha(long image);
     public static native boolean Flip(long image, int flipAxis);
     public static native boolean Dither(long image, int pixelFormat);
+
+    /** An owned native KTX2 source. Decoding is deferred until a mip is requested. */
+    public static final class Ktx2Texture implements AutoCloseable {
+        private long handle;
+        public final int width, height, levelCount, channels, vkFormat, supercompression;
+        public final boolean srgb, premultiplied, flipX, flipY, canRepack;
+
+        private Ktx2Texture(long handle, int width, int height, int levelCount, int channels, int flags,
+                            int vkFormat, int supercompression) {
+            this.handle = handle;
+            this.width = width;
+            this.height = height;
+            this.levelCount = levelCount;
+            this.channels = channels;
+            this.vkFormat = vkFormat;
+            this.supercompression = supercompression;
+            srgb = (flags & 1) != 0;
+            premultiplied = (flags & 2) != 0;
+            flipX = (flags & 4) != 0;
+            flipY = (flags & 8) != 0;
+            canRepack = (flags & 16) != 0;
+        }
+
+        public synchronized byte[] decodeMip(int level) throws IOException {
+            if (handle == 0) throw new IllegalStateException("KTX2 source is closed");
+            return DecodeKtx2Mip(handle, level);
+        }
+
+        public synchronized byte[] repackMip(int level) throws IOException {
+            if (handle == 0) throw new IllegalStateException("KTX2 source is closed");
+            if (!canRepack) throw new IOException("KTX2 source requires decoding before BasisU encoding");
+            return RepackKtx2Mip(handle, level);
+        }
+
+        @Override
+        public synchronized void close() {
+            if (handle != 0) {
+                DestroyKtx2(handle);
+                handle = 0;
+            }
+        }
+    }
+
+    /** Opens encoded KTX2 bytes; the caller must close the returned source. */
+    public static native Ktx2Texture LoadKtx2(byte[] data) throws IOException;
+    private static native byte[] DecodeKtx2Mip(long texture, int level) throws IOException;
+    private static native byte[] RepackKtx2Mip(long texture, int level) throws IOException;
+    private static native void DestroyKtx2(long texture);
 
     // Part of the basisu compressor api
     public static native byte[] BasisUEncode(Texc.BasisUEncodeSettings input);
