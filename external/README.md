@@ -1,6 +1,6 @@
 # External
 
-`./scripts/build.py build_ext` builds source dependencies (currently Bullet)
+`./scripts/build.py build_ext` builds source dependencies (Bullet and Basis Universal)
 with the regular Defold CMake toolchain and installs them into
 `tmp/dynamo_home/ext`. Run it after `install_ext`, before the first engine
 build, and whenever these sources or the toolchain change. Use `--platform`
