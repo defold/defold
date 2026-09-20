@@ -408,18 +408,12 @@ namespace dmGameSystem
         distance_input.proxyB = proxy_b;
         distance_input.transformA = xf_a;
         distance_input.transformB = xf_b;
-        distance_input.useRadii = true;
+        distance_input.useRadii = false;
 
         b2DistanceOutput distance_output;
         b2Distance(&distance_output, &cache, &distance_input);
 
-        cache.count = 0;
-        b2DistanceInput normal_input = distance_input;
-        normal_input.useRadii = false;
-        b2DistanceOutput normal_output;
-        b2Distance(&normal_output, &cache, &normal_input);
-
-        b2Vec2 normal = normal_output.pointA - normal_output.pointB;
+        b2Vec2 normal = distance_output.pointA - distance_output.pointB;
         float length = normal.Length();
         if (length > b2_epsilon)
         {
@@ -436,7 +430,9 @@ namespace dmGameSystem
         }
 
         *out_fraction = toi_output.t;
-        *out_point = distance_output.pointB;
+        // TOI allows a small overlap, where useRadii would return the midpoint
+        // of the core witness points instead of a point on the hit shape.
+        *out_point = distance_output.pointB + proxy_b.m_radius * normal;
         *out_normal = normal;
         return true;
     }
