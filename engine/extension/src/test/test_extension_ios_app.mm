@@ -56,6 +56,27 @@ static void SetObservedMarkedTextStyle(BaseView* view)
     [observer release];
 }
 
+@interface AppearanceObserver : UIViewController
+{
+@public
+    unsigned int m_AppearanceCount;
+    unsigned int m_DisappearanceCount;
+}
+@end
+
+@implementation AppearanceObserver
+- (void)viewDidAppear:(BOOL)animated
+{
+    [super viewDidAppear:animated];
+    ++m_AppearanceCount;
+}
+- (void)viewDidDisappear:(BOOL)animated
+{
+    [super viewDidDisappear:animated];
+    ++m_DisappearanceCount;
+}
+@end
+
 @interface SceneConnectionObserver : NSObject <UISceneDelegate, UIApplicationDelegate>
 @end
 
@@ -192,9 +213,16 @@ TEST_F(iOSSceneApplication, LaunchCleanupRemovesOnlyPlaceholder)
 }
 
 // Disconnecting before the first frame must clear the old placeholder; cleanup
-// must still remove a new placeholder after reconnecting the retained engine.
+// must still remove a new placeholder after reconnecting the retained engine,
+// with completed disappearance and appearance callbacks between connections.
 TEST_F(iOSSceneApplication, LaunchCleanupAfterReconnect)
 {
+    AppearanceObserver* observer = [[[AppearanceObserver alloc] init] autorelease];
+    [m_Controller addChildViewController:observer];
+    [m_Controller.view addSubview:observer.view];
+    [observer didMoveToParentViewController:m_Controller];
+    EXPECT_TRUE(WaitUntil(^BOOL { return observer->m_AppearanceCount == 1; }));
+
     UIWindow* window = (UIWindow*)glfwGetiOSUIWindow();
     UIView* first = [[[UIView alloc] initWithFrame:window.bounds] autorelease];
     m_Delegate.launchScreenView = first;
@@ -202,6 +230,9 @@ TEST_F(iOSSceneApplication, LaunchCleanupAfterReconnect)
     [m_Delegate sceneDidDisconnect:m_Scene];
     EXPECT_EQ((void*)nil, (void*)first.superview);
     EXPECT_EQ((void*)nil, (void*)m_Delegate.launchScreenView);
+    // UIKit finishes removing the old root controller on its next event-loop
+    // pass. Reconnecting before that starts an overlapping appearance transition.
+    EXPECT_TRUE(WaitUntil(^BOOL { return observer->m_DisappearanceCount == 1; }));
     [m_Delegate scene:m_Scene willConnectToSession:m_Scene.session options:g_ConnectionOptions];
     window = (UIWindow*)glfwGetiOSUIWindow();
     UIView* second = [[[UIView alloc] initWithFrame:window.bounds] autorelease];
@@ -210,11 +241,16 @@ TEST_F(iOSSceneApplication, LaunchCleanupAfterReconnect)
     [m_Delegate sceneDidBecomeActive:m_Scene];
     unsigned int before = g_UpdateCount;
     EXPECT_TRUE(WaitUntil(^BOOL { return g_UpdateCount > before + 2; }));
+    EXPECT_EQ(2U, observer->m_AppearanceCount);
+    EXPECT_EQ(1U, observer->m_DisappearanceCount);
     EXPECT_EQ((void*)nil, (void*)second.superview);
     EXPECT_EQ((void*)nil, (void*)m_Delegate.launchScreenView);
     [first removeFromSuperview];
     [second removeFromSuperview];
     m_Delegate.launchScreenView = nil;
+    [observer willMoveToParentViewController:nil];
+    [observer.view removeFromSuperview];
+    [observer removeFromParentViewController];
 }
 
 // Fullscreen UIKit presentation detaches the game view. Engine callbacks must
