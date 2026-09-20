@@ -87,8 +87,8 @@ for building and repacking an APK for Android 14 or newer.
 ## Invocation
 
 After `install_ext`, run `./scripts/build.py --platform=<platform> build_ext`
-before the first engine build. This builds source dependencies (Bullet and,
-on iOS, GLFW) with the same platform toolchain and installs them into
+before the first engine build. This builds Bullet, Basis Universal, and,
+on iOS, GLFW with the same platform toolchain and installs them into
 `tmp/dynamo_home/ext`. Re-run it when those sources or the toolchain change.
 Its persistent CMake cache lives under `external/build/<platform>` and is
 separate from the engine build to keep normal rebuilds fast.
