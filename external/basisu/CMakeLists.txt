@@ -37,6 +37,11 @@ target_compile_definitions(basis_transcoder PRIVATE
   BASISD_SUPPORT_ETC2_EAC_RG11=0 BASISD_SUPPORT_ETC2_EAC_A8=0
   BASISD_SUPPORT_PVRTC1=0 BASISD_SUPPORT_PVRTC2=0
   BASISD_SUPPORT_BC7_MODE5=0 BASISD_SUPPORT_FXT1=0)
+if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+  # Source options follow the inherited platform -O3/-O0 options.
+  set_property(SOURCE "${BASISU_RUNTIME_SOURCE}" APPEND PROPERTY COMPILE_OPTIONS
+    "$<$<NOT:$<CONFIG:Debug>>:-Oz>")
+endif()
 set(BASISU_TARGETS basis_transcoder)
 set(BASISU_INSTALL_TARGETS basis_transcoder)
 

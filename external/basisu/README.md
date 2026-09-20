@@ -41,6 +41,9 @@ definitions. The ETC1S-to-GPU conversion restrictions do not disable UASTC's
 own GPU conversion paths. The full offline library enables all of these ETC1S
 conversions and the new codecs, including their Zstd support.
 
+Non-Debug web builds compile the runtime transcoder with `-Oz` to reduce its
+code size. The engine's optimization and link settings are unchanged.
+
 Basis requires C++17, which the CMake imports propagate to its consumers.
 Installation removes obsolete Basis archives from the SDK's `lib/<platform>`
 and retires the old external `basis_encoder_noasan` archive. OpenCL and the optional
