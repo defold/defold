@@ -122,7 +122,7 @@
              "}\n"))
 
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
               model-node-id (test-util/resource-node project "/robot.model")
               gltf-resource (workspace/find-resource workspace "/models/robot.gltf")

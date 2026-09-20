@@ -26,7 +26,8 @@
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [internal.util :as util]
-            [service.log :as log])
+            [service.log :as log]
+            [util.coll :as coll])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [java.io StringReader]))
 
@@ -116,6 +117,29 @@
       (protobuf/sanitize-repeated :components sanitize-component-desc)
       (protobuf/sanitize-repeated :embedded-components #(sanitize-embedded-component-desc % ext->embedded-component-resource-type))))
 
+(defn prototype-desc->component-property-descs [prototype-desc]
+  (into []
+        (keep (fn [component-desc]
+                (let [component-id (:id component-desc)
+                      property-descs (:properties component-desc)]
+                  (when (coll/not-empty property-descs)
+                    {:id component-id
+                     :properties property-descs}))))
+        (:components prototype-desc)))
+
+(defn component-property-descs->resources [component-property-descs proj-path->resource]
+  (eduction
+    (mapcat :properties)
+    (map #(dissoc % :id))
+    (distinct)
+    (keep #(properties/property-desc->resource % proj-path->resource))
+    component-property-descs))
+
+(defn prototype-desc->referenced-property-resources [prototype-desc proj-path->resource]
+  (-> prototype-desc
+      prototype-desc->component-property-descs
+      (component-property-descs->resources proj-path->resource)))
+
 (defn any-descs->duplicate-ids [any-instance-descs]
   ;; GameObject$ComponentDesc, GameObject$EmbeddedComponentDesc, GameObject$InstanceDesc, GameObject$EmbeddedInstanceDesc, or GameObject$CollectionInstanceDesc in map format.
   (into (sorted-set)
@@ -130,28 +154,35 @@
   (when (not-empty duplicate-ids)
     (g/->error node-id :build-targets :fatal nil (localization/message "error.non-unique-ids" {"ids" (localization/and-list (vec duplicate-ids))}))))
 
-(defn- embedded-component-desc->dependencies [{:keys [id type data] :as _embedded-component-desc} ext->embedded-component-resource-type]
+(defn- embedded-component-desc->dependencies [type-ext->resource-type read-opts owner-resource {:keys [id type data] :as _embedded-component-desc}]
   ;; If sanitation failed (due to a corrupt file), the embedded data might still
   ;; be a string. In that case we report no dependencies. The load-fn will
   ;; eventually mark our resource node as defective, so it doesn't matter.
   (when (map? data)
-    (when-some [component-resource-type (ext->embedded-component-resource-type type)]
-      (let [component-dependencies-fn (:dependencies-fn component-resource-type)]
+    (let [component-resource-type (type-ext->resource-type type)
+          component-dependencies-fn (:dependencies-fn component-resource-type)]
+      (when component-dependencies-fn
         (try
-          (component-dependencies-fn data)
+          (component-dependencies-fn read-opts owner-resource data)
           (catch Exception error
             (log/warn :msg (format "Couldn't determine dependencies for embedded component '%s'." id) :exception error)
             nil))))))
 
-(defn make-game-object-dependencies-fn [make-ext->embedded-component-resource-type-fn]
-  {:pre [(ifn? make-ext->embedded-component-resource-type-fn)]}
-  ;; TODO: This should probably also consider resource property overrides?
-  (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$PrototypeDesc)]
-    (fn [prototype-desc]
-      (let [ext->embedded-component-resource-type (make-ext->embedded-component-resource-type-fn)]
-        (into (default-dependencies-fn prototype-desc)
-              (mapcat #(embedded-component-desc->dependencies % ext->embedded-component-resource-type))
-              (:embedded-components prototype-desc))))))
+(defonce ^:private default-game-object-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$PrototypeDesc))
+
+(defn game-object-dependencies-fn [read-opts owner-resource prototype-desc]
+  {:pre [(map? prototype-desc)]} ; GameObject$PrototypeDesc in map format.
+  (let [existing-proj-path-fn (:existing-proj-path-fn read-opts)
+        editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
+        editable (resource/editable? owner-resource)
+        type-ext->resource-type (editable->type-ext->resource-type editable)]
+    (into []
+          (comp cat
+                (distinct))
+          [(default-game-object-dependencies-fn read-opts owner-resource prototype-desc)
+           (prototype-desc->referenced-property-resources prototype-desc existing-proj-path-fn)
+           (coll/into-> (:embedded-components prototype-desc) :eduction
+             (mapcat #(embedded-component-desc->dependencies type-ext->resource-type read-opts owner-resource %)))])))
 
 (defn embedded-component-instance-data [build-resource embedded-component-desc pose]
   {:pre [(workspace/build-resource? build-resource)
@@ -165,10 +196,10 @@
 
 (defn referenced-component-instance-data [build-resource component-desc pose proj-path->resource-property-build-target]
   {:pre [(workspace/build-resource? build-resource)
-         (map? component-desc) ; GameObject$ComponentDesc in map format, but PropertyDescs must have a :clj-value.
+         (map? component-desc) ; GameObject$ComponentDesc in map format, but its GameObject$PropertyDescs in map format must have a :clj-value.
          (pose/pose? pose)
          (ifn? proj-path->resource-property-build-target)]}
-  (let [go-props-with-source-resources (:properties component-desc) ; Every PropertyDesc must have a :clj-value with actual Resource, etc.
+  (let [go-props-with-source-resources (:properties component-desc) ; Every GameObject$PropertyDesc must have a :clj-value with actual Resource, etc.
         [go-props go-prop-dep-build-targets] (properties/build-target-go-props proj-path->resource-property-build-target go-props-with-source-resources)]
     {:resource build-resource
      :pose pose
@@ -189,8 +220,9 @@
   ;; might have been fused into one BuildResource if they had the same contents.
   ;; We must update any references to these BuildResources to instead point to
   ;; the resulting fused BuildResource. We also extract :component-instance-data
-  ;; from the component build targets and embed these as ComponentDesc instances
-  ;; in the PrototypeDesc that represents the game object.
+  ;; from the component build targets and embed these as
+  ;; GameObject$ComponentDesc instances in the GameObject$PrototypeDesc that
+  ;; represents the game object.
   (let [component-instance-data->fused-build-resource-proj-path
         (fn component-instance-data->fused-build-resource-proj-path [component-instance-data]
           (let [build-resource (:resource component-instance-data)]

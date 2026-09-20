@@ -148,8 +148,7 @@
    (let [root-ids (mapv #(:node-id (value %)) src-item-iterators)
          fragment (-> (g/copy root-ids {:traverse? traverse?
                                         :external-refs {project :project}
-                                        :external-labels {project #{:collision-group-nodes
-                                                                    :collision-groups-data
+                                        :external-labels {project #{:collision-groups
                                                                     :display-height
                                                                     :display-width
                                                                     :default-tex-params
@@ -204,7 +203,7 @@
   (g/read-graph text (core/read-handlers)))
 
 (defn- paste [project fragment]
-  (g/paste (g/node-id->graph-id project) fragment {:external-refs {:project project}}))
+  (g/paste fragment {:external-refs {:project project}}))
 
 (defn- nodes-by-id
   [paste-data]

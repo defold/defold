@@ -24,8 +24,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -64,7 +66,7 @@ public class IOSBundler implements IBundler {
             ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
             IOUtils.copy(errorIn, errorOut);
             errorIn.close();
-            String errorMessage = new String(errorOut.toByteArray());
+            String errorMessage = errorOut.toString();
 
             int ret = process.waitFor();
             if (ret != 0) {
@@ -100,7 +102,7 @@ public class IOSBundler implements IBundler {
         return binaries;
     }
 
-    private static final String SYMBOL_EXE_RELATIVE_PATH = String.format("Contents/Resources/DWARF/dmengine");
+    private static final String SYMBOL_EXE_RELATIVE_PATH = "Contents/Resources/DWARF/dmengine";
 
     public static List<File> getSymbolDirsFromArchitectures(File buildDir, List<Platform> architectures) {
         final String[] prefixes = {"", "src" + File.separator};
@@ -220,21 +222,47 @@ public class IOSBundler implements IBundler {
 
     }
 
+    public static void validateSceneManifest(String manifest) throws IOException {
+        XMLPropertyListConfiguration plist = new XMLPropertyListConfiguration();
+        try {
+            plist.read(new StringReader(manifest));
+        } catch (ConfigurationException e) {
+            throw new IOException("Unable to read ios.infoplist", e);
+        }
+        String multipleScenes = "UIApplicationSceneManifest.UIApplicationSupportsMultipleScenes";
+        if (!plist.containsKey(multipleScenes) || plist.getBoolean(multipleScenes, true)) {
+            throw new IOException("ios.infoplist must contain UIApplicationSceneManifest with UIApplicationSupportsMultipleScenes set to false. Update custom plists from /builtins/manifests/ios/Info.plist.");
+        }
+        String configuration = "UIApplicationSceneManifest.UISceneConfigurations.UIWindowSceneSessionRoleApplication";
+        for (Object value : plist.getList(configuration)) {
+            if (!(value instanceof XMLPropertyListConfiguration)) {
+                throw new IOException("ios.infoplist application scene configurations must be dictionaries.");
+            }
+            XMLPropertyListConfiguration scene = (XMLPropertyListConfiguration) value;
+            String delegate = scene.getString("UISceneDelegateClassName", "DefoldSceneDelegate");
+            if (!"DefoldSceneDelegate".equals(delegate)) {
+                throw new IOException("ios.infoplist must use DefoldSceneDelegate for the application scene.");
+            }
+            if (scene.containsKey("UISceneStoryboardFile")) {
+                throw new IOException("ios.infoplist must not set UISceneStoryboardFile. Defold creates the game window programmatically; use UILaunchStoryboardName for the launch screen.");
+            }
+        }
+    }
+
     private void copyManifestFile(BundleHelper helper, Platform platform, File destDir) throws IOException, CompileExceptionError {
         File manifestFile = helper.copyOrWriteManifestFile(platform, destDir);
         String manifest = FileUtils.readFileToString(manifestFile, StandardCharsets.UTF_8);
         // remove attribute definition (https://github.com/defold/defold/pull/6914)
         // it is automatically removed if the manifest was merged
         manifest = manifest.replace("[ <!ATTLIST key merge (keep) #IMPLIED> ]", "");
+        validateSceneManifest(manifest);
         FileUtils.write(manifestFile, manifest);
     }
 
     private void codesign(File target, String identity, String... extraArgs) throws IOException {
         List<String> args = new ArrayList<String>();
         args.add("codesign");
-        for (String extraArg : extraArgs) {
-            args.add(extraArg);
-        }
+        args.addAll(Arrays.asList(extraArgs));
         args.add("-f");
         args.add("-s");
         args.add(identity);
@@ -260,7 +288,7 @@ public class IOSBundler implements IBundler {
             }
         }
         else {
-            System.out.printf("No ./Framework folder to sign\n");
+            System.out.print("No ./Framework folder to sign\n");
         }
 
         File pluginsDir = new File(appDir, "PlugIns");
@@ -279,7 +307,7 @@ public class IOSBundler implements IBundler {
             }
         }
         else {
-            System.out.printf("No ./PlugIns folder to sign\n");
+            System.out.print("No ./PlugIns folder to sign\n");
         }
     }
 
@@ -339,7 +367,7 @@ public class IOSBundler implements IBundler {
 
         String provisioningProfile = project.option("mobileprovisioning", null);
         String identity = project.option("identity", null);
-        Boolean shouldSign = provisioningProfile != null && identity != null;
+        boolean shouldSign = provisioningProfile != null && identity != null;
 
         // The simulator cannot use device signing; simctl installs ad-hoc signed bundles
         final boolean isSimulator = platform == Platform.Arm64IosSim;

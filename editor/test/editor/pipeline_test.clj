@@ -77,7 +77,7 @@
 
 (defmacro with-clean-system [& forms]
   `(ts/with-clean-system
-     (let [~'workspace (test-util/setup-scratch-workspace! ~'world project-path)
+     (let [~'workspace (test-util/setup-scratch-workspace! project-path)
            ~'project (test-util/setup-project! ~'workspace)]
        ~@forms)))
 

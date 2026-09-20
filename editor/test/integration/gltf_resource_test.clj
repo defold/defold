@@ -115,7 +115,7 @@
                ["models/robot.gltf" content]])
             (fs/create-file! (io/file project-path "models/robot.gltf") content))
           (with-clean-system
-            (let [workspace (test-util/setup-workspace! world project-path)]
+            (let [workspace (test-util/setup-workspace! project-path)]
               (when (= :zip origin)
                 (test-util/set-cached-project-dependencies! workspace [library-uri])
                 (workspace/resource-sync! workspace))

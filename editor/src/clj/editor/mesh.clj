@@ -38,6 +38,7 @@
             [editor.resource-node :as resource-node]
             [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders]
             [editor.texture-util :as texture-util]
             [editor.types :as types]
             [editor.validation :as validation]
@@ -60,26 +61,7 @@
 (def ^:private position-stream-message (properties/label-message :mesh :position-stream))
 (def ^:private vertices-message (properties/label-message :mesh :vertices))
 
-(shader/defshader model-id-vertex-shader
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (uniform mat4 world_view_proj)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq gl_Position (* world_view_proj position))
-    (setq var_texcoord0 texcoord0)))
-
-(shader/defshader model-id-fragment-shader
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
-  (uniform vec4 id)
-  (defn void main []
-    (setq vec4 color (texture2D texture_sampler var_texcoord0.xy))
-    (if (> color.a 0.05)
-      (setq gl_FragColor id)
-      (discard))))
-
-(def id-shader (shader/make-shader ::model-id-shader model-id-vertex-shader model-id-fragment-shader {"id" :id "world_view_proj" :world-view-proj}))
+(def id-shader shaders/selection-uniform-local-space)
 
 (g/defnk produce-save-value [primitive-type position-stream normal-stream material vertices textures]
   (protobuf/make-map-without-defaults MeshProto$MeshDesc
@@ -236,7 +218,7 @@
                                                           (:view render-args)
                                                           (:projection render-args)
                                                           (:texture render-args)))
-        render-args (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))]
+        render-args (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform renderable))]
     (gl/with-gl-bindings gl render-args [id-shader]
       (doseq [[name texture] textures]
         (gl/bind gl texture render-args)
@@ -442,7 +424,7 @@
   (property textures resource/ResourceVec ; Nil is valid default.
             (value (gu/passthrough texture-resources))
             (set (fn [evaluation-context self old-value new-value]
-                   (let [project (project/get-project (:basis evaluation-context) self)
+                   (let [project (project/get-project (:basis evaluation-context))
                          connections [[:resource :texture-resources]
                                       [:build-targets :dep-build-targets]
                                       [:gpu-texture-generator :gpu-texture-generators]]]

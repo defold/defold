@@ -81,11 +81,6 @@ public class Platform {
         return platform;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        return this == o;
-    }
-
     OS     osID;
     String arch;
     String osName;

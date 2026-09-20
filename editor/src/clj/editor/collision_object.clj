@@ -352,7 +352,6 @@
                                                        scene-shapes/disc-lines
                                                        scene-shapes/capsule-lines))}}]}))
 
-
 (defn- preview-box-shape-renderable
   [visibility-aabb user-data prop-kw->override-value]
   (let [^Point3d ext-override
@@ -782,17 +781,14 @@
 
 (defn make-shape-node
   [parent {:keys [shape-type] :as shape}]
-  (let [graph-id (g/node-id->graph-id parent)
-        node-type (case shape-type
+  (let [node-type (case shape-type
                     :type-sphere SphereShape
                     :type-box BoxShape
                     :type-capsule CapsuleShape
                     :type-hull HullShape
                     :type-mesh MeshShape)
         node-props (dissoc shape :index :count :id-hash)]
-    (g/make-nodes
-      graph-id
-      [shape-node [node-type node-props]]
+    (g/make-nodes [shape-node [node-type node-props]]
       (attach-shape-node false parent shape-node))))
 
 (defn- decode-embedded-shape [embedded-collision-shape-data shape]
@@ -804,7 +800,11 @@
         decoded-shape-data (decode-shape-data shape shape-data)]
     (merge shape decoded-shape-data)))
 
-(defn load-collision-object
+(defn- connect-collision-object
+  [project self _resource]
+  (g/connect self :group project :collision-groups))
+
+(defn- load-collision-object
   [project self resource collision-object-desc]
   {:pre [(map? collision-object-desc)]} ; Physics$CollisionObjectDesc in map format.
   (let [basis (g/now)
@@ -830,8 +830,6 @@
         event-collision :event-collision
         event-contact :event-contact
         event-trigger :event-trigger)
-      (g/connect self :collision-group-node project :collision-group-nodes)
-      (g/connect project :collision-groups-data self :collision-groups-data)
       (g/connect project :settings self :project-settings)
       (when-some [{:keys [data shapes]} (:embedded-collision-shape collision-object-desc)]
         (sequence (comp (map #(assoc %1 :node-outline-key %2))
@@ -864,7 +862,7 @@
                       :passes [pass/transparent pass/selection]
                       :user-data {:color color
                                   :double-sided true
-                                  :geometry {:primitive-type GL2/GL_POLYGON
+                                  :geometry {:primitive-type GL2/GL_TRIANGLE_FAN
                                              :vbuf vbuf}}}
          :children [{:node-id _node-id
                      :aabb aabb
@@ -1045,10 +1043,6 @@
                       :mesh-sets mesh-sets}
           :deps dep-build-targets})])))
 
-(g/defnk produce-collision-group-color
-  [collision-groups-data group]
-  (collision-groups/color collision-groups-data group))
-
 (defn- tilemap-collision-shape? [collision-shape]
   (boolean
     (when collision-shape
@@ -1062,7 +1056,6 @@
   (input collision-shape-resource resource/Resource)
   (input dep-build-targets g/Any :array)
   (input collision-mesh-set-infos g/Any :array)
-  (input collision-groups-data g/Any)
   (input project-settings g/Any)
   (input convex-shape-data g/Any)
   (input shape-errors g/Any :array)
@@ -1158,8 +1151,7 @@
   (output id-counts NameCounts :cached (g/fnk [shapes] (frequencies (keep :id shapes))))
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
-  (output collision-group-node g/Any :cached (g/fnk [_node-id group] {:node-id _node-id :collision-group group}))
-  (output collision-group-color g/Any :cached produce-collision-group-color))
+  (output collision-group-color g/Any (g/fnk [group] (collision-groups/color group))))
 
 (node-types/register-node-type-name! SphereShape "shape-type-sphere")
 (node-types/register-node-type-name! BoxShape "shape-type-box")
@@ -1185,6 +1177,7 @@
       :label (localization/message "resource.type.collisionobject")
       :node-type CollisionObjectNode
       :ddf-type Physics$CollisionObjectDesc
+      :connect-fn connect-collision-object
       :load-fn load-collision-object
       :sanitize-fn sanitize-collision-object
       :icon collision-object-icon

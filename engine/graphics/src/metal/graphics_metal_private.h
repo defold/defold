@@ -359,6 +359,7 @@ namespace dmGraphics
         uint32_t                           m_NumFramesInFlight       : 2;
         uint32_t                           m_RenderTargetBound       : 1;
         uint32_t                           m_MainRTBegunThisFrame    : 1;
+        uint32_t                           m_MainMSAAColorNeedsResolve : 1;
         uint32_t                           m_ViewportChanged         : 1;
         uint32_t                           m_ScissorChanged          : 1;
         uint32_t                           m_CullFaceChanged         : 1;
@@ -368,6 +369,7 @@ namespace dmGraphics
         // See OpenGL backend: separate flag for ASTC array textures
         uint32_t                           m_ASTCArrayTextureSupport : 1;
         uint32_t                           m_AsyncProcessingSupport  : 1;
+        uint32_t                           m_CombinedMSAAStoreAndResolveSupport : 1;
     };
 }
 

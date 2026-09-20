@@ -1,6 +1,7 @@
 import argparse
 import configparser
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -247,6 +248,9 @@ class AndroidTestRunner(object):
         self._adb = get_adb_command(self._env, adb)
         self._device = get_device_name(self._env, device)
         self._log_fn = log_fn
+        self._asan_runtime = self._env.get('ANDROID_ASAN_RUNTIME')
+        if self._asan_runtime and not os.path.isfile(self._asan_runtime):
+            raise RuntimeError('android-test: ASAN runtime not found: %s' % self._asan_runtime)
         self.device_root = device_root
         self._prepared = False
         self._library_name = None
@@ -363,6 +367,12 @@ class AndroidTestRunner(object):
             self._log('android-test: failed to create device folder')
             return ret
 
+        if self._asan_runtime:
+            runtime_path = '%s/%s' % (self._library_root, os.path.basename(self._asan_runtime))
+            ret = self._push_file(self._asan_runtime, runtime_path)
+            if ret != 0:
+                return ret
+
         if folders != None:
             for source, target in folders.items():
                 ret = self._push_source_path(cwd, source, target)
@@ -418,7 +428,18 @@ class AndroidTestRunner(object):
             self._log('android-test: failed to chmod test binary')
             return ret
 
-        cmd = ['shell', 'cd', self._library_root, '&&', './%s' % device_program]
+        cmd = ['shell', 'cd', shlex.quote(self._library_root), '&&']
+        if self._asan_runtime:
+            # adb does not forward the host environment. Load the NDK runtime
+            # beside the executable and keep ASAN diagnostics in the test log.
+            asan_options = 'log_to_syslog=false:allow_user_segv_handler=1'
+            if self._env.get('ASAN_OPTIONS'):
+                asan_options += ':' + self._env['ASAN_OPTIONS']
+            cmd.extend([
+                'LD_LIBRARY_PATH=%s' % shlex.quote(self._library_root),
+                'ASAN_OPTIONS=%s' % shlex.quote(asan_options),
+            ])
+        cmd.append(shlex.quote('./%s' % device_program))
         if self._configfile:
             relative_config = './unittest.cfg'
             self._log('android-test: using staged config file %s' % relative_config)

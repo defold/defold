@@ -15,15 +15,17 @@
 #import <UIKit/UIKit.h>
 #import "AppDelegateProxy.h"
 
+@class ViewController;
+
 @interface AppDelegate : NSObject <UIApplicationDelegate>
 {
 @private
-    UIWindow* window;
+    ViewController* viewController;
 }
 
 - (void)reinit:(UIApplication*)application;
 - (void)appUpdate;
 
-@property (nonatomic, retain) IBOutlet UIWindow* window;
+@property (nonatomic, retain) ViewController* viewController;
 
 @end

@@ -137,7 +137,7 @@
       (fs/create-file! (io/file models-directory "robot.gltf") (gltf-content "GltfPaint"))
       (fs/create-file! (io/file models-directory "robot.glb") (glb-content "GlbPaint"))
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
           (doseq [[source-proj-path material-label]
                   [["/models/robot.gltf" "GltfPaint [0].material"]
                    ["/models/robot.glb" "GlbPaint [0].material"]]]
@@ -189,7 +189,7 @@
       (fs/create-file! (io/file project-path "robot.model")
                        "mesh: \"/robot.glb\"\nmaterials { name: \"Paint/Chrome\" material: \"/robot.glb/materials/0.material\" }\n")
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
           (f workspace (test-util/setup-project! workspace) source-file))))))
 
 (deftest copying-an-embedded-material-preserves-its-name-and-content
@@ -245,7 +245,7 @@
     (with-open [_deleter (test-util/make-directory-deleter project-path)]
       (fs/create-file! (io/file project-path "existing.glb") (glb-content "Paint"))
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
               prompts (atom [])
               dependencies (project/project-dependencies project)]
@@ -283,7 +283,7 @@
                 editor-server (http-server/start! (web-server/make-dynamic-handler []))]
       (fs/create-file! (io/file project-path "robot.gltf") (gltf-content "Paint"))
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
               app-view (test-util/setup-app-view! project)
               library-url (test-util/lib-server-uri library-server "lib_resource_project")
@@ -331,7 +331,7 @@
     (with-open [_project-directory-deleter (test-util/make-directory-deleter project-path)]
       (fs/create-file! source-file unsupported-content)
       (with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
               notifications (workspace/notifications workspace)
               warnings (fn []

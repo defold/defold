@@ -58,6 +58,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.icons :as icons]
             [editor.keymap :as keymap]
+            [editor.launcher :as launcher]
             [editor.library :as library]
             [editor.live-update-settings :as live-update-settings]
             [editor.localization :as localization]
@@ -105,10 +106,8 @@
             [util.profiler :as profiler]
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
-           [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
-           [java.lang.management ManagementFactory]
            [java.net SocketTimeoutException URL]
            [java.time LocalTime]
            [java.time.format DateTimeFormatter]
@@ -474,8 +473,8 @@
        resource))))
 
 (defn- disconnect-sources [basis target-node target-label]
-  (for [[source-node source-label] (g/sources-of basis target-node target-label)]
-    (g/disconnect source-node source-label target-node target-label)))
+  (for [arc (g/inputs basis target-node target-label)]
+    (g/disconnect (gt/source-id arc) (gt/source-label arc) target-node target-label)))
 
 (defn- replace-connection [basis source-node source-label target-node target-label]
   (concat
@@ -662,23 +661,6 @@
   (run []
     (let [^Stage main-stage (ui/main-stage)]
       (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST)))))
-
-(defn- start-launcher! []
-  (if (system/defold-dev?)
-    (apply process/start!
-           {:dir (System/getProperty "user.dir")
-            :out :inherit
-            :err :inherit}
-           (str (io/file (System/getProperty "java.home") "bin" (if (os/is-win32?) "java.exe" "java")))
-           (into (vec (.getInputArguments (ManagementFactory/getRuntimeMXBean)))
-                 ["-cp" (System/getProperty "java.class.path") "com.defold.editor.Main"]))
-    (let [resources-path (system/defold-resourcespath)]
-      (process/start!
-        {:dir (.getCanonicalFile
-                (case (.getOs (Platform/getHostPlatform))
-                  "macos" (io/file resources-path "../../")
-                  ("linux" "win32") (io/file resources-path)))}
-        (system/defold-launcherpath)))))
 
 (defn store-window-dimensions [^Stage stage prefs]
   (let [dims    {:x           (.getX stage)
@@ -919,6 +901,11 @@
 (defn- build-in-progress? []
   @build-in-progress-atom)
 
+(def ^:private bob-task-in-progress-atom (atom false))
+
+(defn- bob-task-in-progress? []
+  @bob-task-in-progress-atom)
+
 (declare async-save!)
 
 (defn- async-reload-on-app-focus? [prefs]
@@ -933,7 +920,7 @@
 
 (defn- can-async-save? []
   (and (disk-availability/available?)
-       (not (bob/build-in-progress?))))
+       (not (bob-task-in-progress?))))
 
 (defn async-reload!
   [app-view changes-view workspace moved-files]
@@ -1296,7 +1283,7 @@
 
         start-lint!
         (fn start-lint! []
-          (when lint (lsp/pull-workspace-diagnostics! (lsp/get-node-lsp project) lint-promise)))
+          (when lint (lsp/pull-workspace-diagnostics! (lsp/get-lsp) lint-promise)))
 
         run-on-background-thread!
         (fn run-on-background-thread! [background-thread-fn ui-thread-fn]
@@ -1646,7 +1633,7 @@
     (PipedOutputStream. in)))
 
 (defn invoke-bob! [app-view project changes-view build-errors-view prefs options commands]
-  (if-not (disk-availability/try-push-busy!)
+  (if-not (compare-and-set! bob-task-in-progress-atom false true)
     {:error (g/error-fatal (localization/message "error.bob.project-operation-in-progress"))}
     (try
       (let [evaluation-context (g/make-evaluation-context)
@@ -1672,7 +1659,7 @@
           (ui/run-now (render-build-error! error)))
         build-results)
       (finally
-        (disk-availability/pop-busy!)))))
+        (reset! bob-task-in-progress-atom false)))))
 
 (defn- build-html5! [app-view project prefs web-server build-errors-view changes-view bob-commands]
   (future/io
@@ -1988,7 +1975,7 @@
   (run [] (ui/reload-root-styles!)))
 
 (handler/defhandler :file.open-project :global
-  (run [] (start-launcher!)))
+  (run [] (launcher/start!)))
 
 (handler/register-menu! ::menubar
   [{:label (localization/message "menu.file")
@@ -2283,6 +2270,7 @@
              (.select (.getSelectionModel tab-pane)))))))
 
 (defn- configure-editor-tab-pane! [^TabPane tab-pane app-view prefs]
+  (ui/init-tab-pane! tab-pane)
   (apply-tab-pane-active-style! tab-pane false)
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
   (.setTabDragPolicy tab-pane TabPane$TabDragPolicy/REORDER)
@@ -2338,10 +2326,11 @@
              right-split-desc (g/node-value app-view :right-split-desc evaluation-context)]
     (ui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
 
-(defn make-app-view [graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
+(defn make-app-view [project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)
         editor-tab-pane (TabPane.)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
+    (ui/init-tab-pane! tool-tab-pane)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (ui/make-title))
     (.add (.getItems editor-tabs-split) editor-tab-pane)
@@ -2350,16 +2339,16 @@
                      (g/tx-nodes-added
                        (g/transact
                          {:undoable false}
-                         (g/make-node graph AppView
-                                      :stage stage
-                                      :scene app-scene
-                                      :editor-tabs-split editor-tabs-split
-                                      :right-split right-split
-                                      :tool-tab-pane tool-tab-pane
-                                      :active-tool :move
-                                      :manip-space :world
-                                      :keymap keymap
-                                      :localization localization))))]
+                         (g/make-node AppView
+                           :stage stage
+                           :scene app-scene
+                           :editor-tabs-split editor-tabs-split
+                           :right-split right-split
+                           :tool-tab-pane tool-tab-pane
+                           :active-tool :move
+                           :manip-space :world
+                           :keymap keymap
+                           :localization localization))))]
       (configure-editor-tab-pane! editor-tab-pane app-view prefs)
 
       (ui/observe (.focusOwnerProperty app-scene)
@@ -2489,8 +2478,8 @@
     `:view-type` - optional, view-type map. See workspace/register-view-type
     `:wrap-content-fn` - optional, (fn [parent]) returning the tab content
                          wrapping the view parent
-    `:make-view-fn` - required, (fn [graph parent opts]) returning a
-                      view/WorkbenchView created in the supplied graph
+    `:make-view-fn` - required, (fn [parent opts]) returning a
+                      view/WorkbenchView
     `:connect-view-fn` - optional, (fn [view-node-id]) returning transaction
                          data applied together with the AppView connections
     `:on-closed-fn` - optional, (fn [view-node-id]) called when the tab closes,
@@ -2510,9 +2499,8 @@
               (.setGraphic icon)
               (editor-tab/set-view-type! view-type)
               (editor-tab/set-instance-key! instance-key))
-        graph (g/node-id->graph-id app-view)
         undo-stack-revisions-before (g/undo-stack-revisions)
-        view (make-view-fn graph parent (assoc opts :app-view app-view :tab tab))]
+        view (make-view-fn parent (assoc opts :app-view app-view :tab tab))]
     (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
             (format "The editor tab :make-view-fn created undo steps for '%s'."
                     (.getText tab)))
@@ -2548,7 +2536,7 @@
 
 (defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
   (let [basis (g/now)
-        project (project/get-project basis resource-node)
+        project (project/get-project basis)
         resource (resource-node/resource basis resource-node)
         workspace (resource/workspace resource)
         resource-type (resource/lookup-resource-type basis workspace resource)
@@ -2580,8 +2568,8 @@
                                          (ui/children! [(make-info-box! localization)
                                                         (doto parent (VBox/setVgrow Priority/ALWAYS))]))))
 
-                  :make-view-fn (fn make-resource-view [view-graph parent view-opts]
-                                  ((:make-view-fn view-type) view-graph parent resource-node view-opts))
+                  :make-view-fn (fn make-resource-view [parent view-opts]
+                                  ((:make-view-fn view-type) parent resource-node view-opts))
 
                   :connect-view-fn (fn connect-view [view]
                                      (view/connect-resource-node view resource-node))
@@ -2842,12 +2830,12 @@
 (g/defnode ReleaseNotesView
   (inherits view/NonResourceWorkbenchView))
 
-(defn- make-release-notes-view [view-graph parent {:keys [content project ^Tab tab]}]
+(defn- make-release-notes-view [parent {:keys [content project ^Tab tab]}]
   (let [view (first
                (g/tx-nodes-added
                  (g/transact
                    {:undoable false}
-                   (g/make-node view-graph ReleaseNotesView))))]
+                   (g/make-node ReleaseNotesView))))]
     (ui/advance-graph-user-data-component!
       view :view
       {:fx/type fxui/ext-with-anchor-pane-props
@@ -3074,7 +3062,7 @@
 (defn- restart-defold! [^Stage stage prefs]
   (store-window-state! stage prefs)
   (ui/close! stage)
-  (start-launcher!))
+  (launcher/start!))
 
 (handler/defhandler :app.restart :global
   (run [app-view changes-view project prefs localization]
@@ -3118,12 +3106,12 @@
                 :text (localization (localization/message "dialog.save-and-upgrade.version-control.info.after-manual"))}]}))
 
 (handler/defhandler :file.save-all :global
-  (enabled? [] (not (bob/build-in-progress?)))
+  (enabled? [] (not (bob-task-in-progress?)))
   (run [app-view changes-view project prefs]
     (async-save! app-view changes-view project prefs project/dirty-save-data)))
 
 (handler/defhandler :file.save-and-upgrade-all :global
-  (enabled? [] (not (bob/build-in-progress?)))
+  (enabled? [] (not (bob-task-in-progress?)))
   (run [app-view changes-view project prefs workspace localization]
     (let [git (g/node-value changes-view :git)]
       (when (and
@@ -3438,7 +3426,6 @@
                              image-view ^ImageView (.getGraphic tooltip)]
                          (when-not (.getImage image-view)
                            (let [resource-node (project/get-resource-node project resource)
-                                 graph (g/node-id->graph-id app-view)
                                  select-fn (partial select app-view)
                                  opts (assoc ((:id view-type) (:view-opts resource-type))
                                         :app-view app-view
@@ -3446,7 +3433,7 @@
                                         :project project
                                         :workspace workspace)
                                  undo-stack-revisions-before (g/undo-stack-revisions)
-                                 preview (make-preview-fn graph resource-node opts 256 256)]
+                                 preview (make-preview-fn resource-node opts 256 256)]
                              (try
                                (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
                                        (format "The %s view-type :make-preview-fn created undo steps for '%s'."

@@ -193,11 +193,13 @@
        (or (.isFile value)
            (not (.exists value)))))
 
-(s/def ::proj-path-pattern
-  (s/and string?
-         #(string/starts-with? % "/")
-         #(not (string/ends-with? % "/"))))
+(defn proj-path? [value]
+  (and (string? value)
+       (string/starts-with? value "/")
+       (or (= 1 (count value))
+           (not (string/ends-with? value "/")))))
 
+(s/def ::proj-path-pattern proj-path?)
 (s/def ::proj-path-patterns (s/every ::proj-path-pattern :kind vector?))
 (s/def ::proj-path-pred ifn?)
 (s/def ::project-directory project-directory?)

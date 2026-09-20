@@ -25,7 +25,6 @@ import javax.vecmath.Vector3f;
 import javax.vecmath.Vector4d;
 
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.fs.IResource;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
@@ -56,15 +55,12 @@ public class MathUtil {
             return false;
         }
         float lenSq = q.getX()*q.getX() + q.getY()*q.getY() + q.getZ()*q.getZ() + q.getW()*q.getW();
-        if (Math.abs(lenSq - 1.0f) > 1e-4f) {
-            return false;
-        }
-        return true;
+        return !(Math.abs(lenSq - 1.0f) > 1e-4f);
     }
 
     public static Quat4d ddfToVecmath(Quat q, String owner) {
         if (!isValid(q)) {
-            String err = new StringBuilder().append("Invalid quaternion: ").append(q).append(" in ").append(owner).toString();
+            String err = "Invalid quaternion: " + q + " in " + owner;
             throw new RuntimeException(new CompileExceptionError(err));
         }
         return new Quat4d(q.getX(), q.getY(), q.getZ(), q.getW());

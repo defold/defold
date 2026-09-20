@@ -1,0 +1,22 @@
+--- a/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/font/Fontc.java
++++ b/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/font/Fontc.java
+@@ -854,7 +854,7 @@
+ 
+         double[] distanceData = new double[width*height];
+ 
+-        df.render(distanceData, u0, v0, u1, v1, width, height);
++        df.render(distanceData, u0 + 0.5, v0 + 0.5, u1 + 0.5, v1 + 0.5, width, height);
+ 
+         double widthInverse  = 1 / (double)width;
+         double heightInverse = 1 / (double)height;
+@@ -865,8 +865,8 @@
+         for (int v=0;v<height;v++) {
+             int ofs = v * width;
+             for (int u=0;u<width;u++) {
+-                double gx = u0 + widthInverse * u * (u1 - u0);
+-                double gy = v0 + heightInverse * v * (v1 - v0);
++                double gx = u0 + widthInverse * (u + 0.5) * (u1 - u0);
++                double gy = v0 + heightInverse * (v + 0.5) * (v1 - v0);
+                 double distanceToEdge   = distanceData[ofs + u];
+                 double distanceToBorder = -(distanceToEdge - fontDesc.getOutlineWidth());
+ 

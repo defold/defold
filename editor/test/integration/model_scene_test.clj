@@ -32,6 +32,7 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
             [service.log :as log]
             [support.test-support :as test-support]
             [util.coll :as coll])
@@ -211,7 +212,7 @@
           (io/file project-path "defold-pbr/shaders" shader-filename)))
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)]
           (doseq [source-proj-path ["/models/preview.gltf"
                                     "/models/preview.glb"]]
@@ -226,7 +227,7 @@
                   (testing name
                     (let [material-node-id (test-util/resource-node project (str source-proj-path "/materials/" index ".material"))
                           image-node-id (test-util/resource-node project (str source-proj-path "/images/" index ".png"))
-                          preview-binding-node-id (ffirst (g/targets-of material-node-id :shader))
+                          preview-binding-node-id (some-> (first (g/outputs (g/now) material-node-id :shader)) gt/target-id)
                           expected-shader (g/node-value material-node-id :shader)
                           expected-gpu-texture (g/node-value image-node-id :gpu-texture)
                           expected-sampler (first (g/node-value material-node-id :samplers))
@@ -277,7 +278,7 @@
       (fs/create-file! (io/file models-directory "preview.glb") (preview-glb-content))
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
               app-view (test-util/setup-app-view! project)]
           (doseq [source-proj-path ["/models/preview.gltf"
@@ -415,8 +416,8 @@
       (g/set-properties! collision-shape :mesh-name "Triangle" :mesh-index 0)
 
       (is (= ["simpleTriangle.bin"] (g/node-value model-scene :source-value)))
-      (is (= [[buffer-node :sha256]]
-             (g/sources-of model-scene :external-buffer-sha256s)))
+      (is (= [(gt/->Arc buffer-node :sha256 model-scene :external-buffer-sha256s)]
+             (g/inputs (g/now) model-scene :external-buffer-sha256s)))
       (is (coll/empty? (get-in (g/node-value model-scene :content)
                                [:mesh-set :raw-models 0 :meshes])))
       (is (= 0.0 (first-x)))

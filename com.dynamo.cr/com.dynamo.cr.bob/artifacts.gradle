@@ -1,0 +1,105 @@
+// Copyright 2020-2026 The Defold Foundation
+// Licensed under the Defold License version 1.0
+
+import groovy.json.JsonSlurper
+import org.apache.tools.ant.types.selectors.SelectorUtils
+
+// Resolve installed artifacts to their paths inside Bob without staging copies.
+def settings = project.bobArtifactSettings
+def bobDir = settings.bobDir
+def dynamoHome = settings.dynamoHome
+def archiveDir = new File(dynamoHome, "archive/${settings.revision}/engine")
+def useArchive = archiveDir.parentFile.isDirectory()
+// Shared with scripts/build.py for Bob downloads and engine JAR uploads.
+def archiveManifest = new File(bobDir, 'archive-artifacts.json')
+def toolsManifest = new File(bobDir, 'tools.json')
+def lightToolsManifest = new File(bobDir, 'bob-light-tools.json')
+def archivePaths = new JsonSlurper().parse(archiveManifest) as Set
+def toolSources = new JsonSlurper().parse(toolsManifest)
+def lightToolIncludes = new JsonSlurper().parse(lightToolsManifest)
+def lightToolPatterns = lightToolIncludes.collect { it.replace('/' as char, File.separatorChar) }
+def isLightTool = { String path ->
+    def platformPath = path.replace('/' as char, File.separatorChar)
+    lightToolPatterns.any { SelectorUtils.matchPath(it, platformPath) }
+}
+def desktopPlatforms = ['x86_64-macos', 'arm64-macos', 'x86_64-linux', 'arm64-linux', 'x86_64-win32']
+
+def libraryName = { String platform, String name ->
+    platform.endsWith('win32') ? "${name}.dll" : "lib${name}.${platform.endsWith('macos') ? 'dylib' : 'so'}"
+}
+def archivedArtifact = { String path ->
+    if (!archivePaths.contains(path)) {
+        throw new GradleException("Missing Bob archive artifact in archive-artifacts.json: ${path}")
+    }
+    new File(archiveDir, path)
+}
+def preferLocal = { String localPath, String archivePath ->
+    def localFile = new File(dynamoHome, localPath)
+    localFile.isFile() || !useArchive ? localFile : archivedArtifact(archivePath)
+}
+def engineArtifact = { String localPath, String archivePath ->
+    useArchive && !settings.preferLocalEngines ? archivedArtifact(archivePath) : preferLocal(localPath, archivePath)
+}
+def entries = [:]
+def add = { String path, File source, boolean required = false ->
+    entries[path] = [source: source, light: isLightTool(path), required: required]
+}
+
+toolSources.each { path, source ->
+    add(path, new File(dynamoHome, source), true)
+}
+desktopPlatforms.each { platform ->
+    ['texc', 'modelc', 'shaderc', 'fontc'].each { library ->
+        def name = libraryName(platform, "${library}_shared")
+        // Match the existing preference for fresh local compiler libraries.
+        add("lib/${platform}/${name}", preferLocal("lib/${platform}/${name}", "${platform}/${name}"), useArchive)
+    }
+}
+def builtinsZip = useArchive ? archivedArtifact('share/builtins.zip') : new File(dynamoHome, 'share/builtins.zip')
+def luaJitShareZip = new File(bobDir, 'tmp/luajit-share.zip')
+add('lib/builtins.zip', builtinsZip, true)
+add('lib/luajit-share.zip', luaJitShareZip, true)
+add('lib/classes.dex', engineArtifact('share/java/classes.dex', 'arm64-android/classes.dex'), useArchive)
+['lib/report_template.html', 'lib/time_report_template.html', 'lib/x86_64-linux/libc++.so'].each { path ->
+    add(path, new File(bobDir, path))
+}
+
+def enginePlatforms = desktopPlatforms + ['arm64-ios', 'arm64_sim-ios', 'armv7-android', 'arm64-android', 'x86_64-android', 'wasm-web', 'wasm_pthread-web']
+def engines = ['dmengine', 'dmengine_release']
+if (settings.preferLocalEngines) {
+    engines.add('dmengine_headless')
+}
+enginePlatforms.each { platform ->
+    engines.each { engine ->
+        def names = platform.endsWith('win32') ? ["${engine}.exe"] :
+                platform.endsWith('android') ? ["lib${engine}.so"] :
+                platform.endsWith('web') ? ["${engine}.js", "${engine}.wasm"] : [engine]
+        names.each { name ->
+            def path = "libexec/${platform}/${name}".toString()
+            def stripped = !platform.endsWith('win32') && !platform.endsWith('web') ? 'stripped/' : ''
+            def archivePath = "${platform}/${stripped}${name}".toString()
+            def localPath = "bin/${platform}/${name}".toString()
+            if (!useArchive || archivePaths.contains(archivePath) ||
+                    (settings.preferLocalEngines && new File(dynamoHome, localPath).isFile())) {
+                def source = engineArtifact(localPath, archivePath)
+                add(path, source, useArchive)
+            }
+        }
+    }
+}
+// Local Switch builds use the same fallback as public engines.
+if (!useArchive) {
+    ['dmengine', 'dmengine_release'].each { engine ->
+        ['nss', 'nso'].each { extension ->
+            def path = "arm64-nx64/${engine}.${extension}"
+            add("libexec/${path}", new File(dynamoHome, "bin/${path}"))
+        }
+    }
+}
+
+def engineJars = archivePaths.findAll { it.startsWith('share/java/') && it.endsWith('.jar') }.collectEntries { path ->
+    [(new File(path).name): preferLocal(path, path)]
+}
+ext.bobArtifacts = [entries: entries, engineJars: engineJars,
+                    builtinsZip: builtinsZip, luaJitShareZip: luaJitShareZip,
+                    manifests: [archiveManifest, toolsManifest, lightToolsManifest]]

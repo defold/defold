@@ -47,6 +47,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
             [editor.scene-tools :as scene-tools]
+            [editor.shaders :as shaders]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -127,32 +128,8 @@
   (vec3 position)
   (vec4 color))
 
-(shader/defshader line-vertex-shader
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
-
-(shader/defshader line-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
-
-(shader/defshader line-id-vertex-shader
-  (attribute vec4 position)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
-
-(shader/defshader line-id-fragment-shader
-  (uniform vec4 id)
-  (defn void main []
-    (setq gl_FragColor id)))
-
-(def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"id" :id}))
+(def line-shader shaders/basic-color-straight-alpha-world-space)
+(def line-id-shader shaders/selection-color-world-space)
 
 (defn- curve->pb-spline-points [curve]
   (->> curve
@@ -275,7 +252,7 @@
             vs (into (vec (geom/transf-p world-transform-no-scale (geom/scale scale-f vs-screen)))
                      (geom/transf-p world-transform vs-world))
             render-args (if (= pass/selection (:pass render-args))
-                          (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))
+                          (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform renderable))
                           render-args)
             vertex-binding (vtx/use-with ::lines (->vbuf vs vcount color) shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding]
@@ -455,7 +432,7 @@
   (doseq [renderable renderables]
     (let [{:keys [color emitter-index emitter-sim-data material-attribute-infos max-particle-count vertex-attribute-bytes]} (:user-data renderable)]
       (when-let [shader (:shader emitter-sim-data)]
-        (let [shader-attribute-reflection-infos (shader/attribute-reflection-infos shader gl)
+        (let [shader-attribute-reflection-infos (shader/attribute-reflection-infos shader)
               combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos :coordinate-space-world)
               vertex-description (graphics.types/make-vertex-description combined-attribute-infos)
               pfx-sim-request-id (some-> renderable :updatable :node-id)]
@@ -1178,21 +1155,20 @@
 
 (defn- make-modifier
   [parent-id modifier node-outline-key]
-  (let [graph-id (g/node-id->graph-id parent-id)]
-    (g/make-nodes graph-id [mod-node [ModifierNode :node-outline-key node-outline-key]]
-      (gu/set-properties-from-pb-map mod-node Particle$Modifier modifier
-        position :position
-        rotation :rotation
-        type :type
-        use-direction (protobuf/int->boolean :use-direction))
-      (into []
-            (mapcat (fn [property]
-                      (case (:key property)
-                        :modifier-key-magnitude (g/set-property mod-node :magnitude (pb-property->curve-spread property))
-                        :modifier-key-max-distance (g/set-property mod-node :max-distance (pb-property->curve property))
-                        nil)))
-            (:properties modifier))
-      (attach-modifier parent-id mod-node false))))
+  (g/make-nodes [mod-node [ModifierNode :node-outline-key node-outline-key]]
+    (gu/set-properties-from-pb-map mod-node Particle$Modifier modifier
+      position :position
+      rotation :rotation
+      type :type
+      use-direction (protobuf/int->boolean :use-direction))
+    (into []
+          (mapcat (fn [property]
+                    (case (:key property)
+                      :modifier-key-magnitude (g/set-property mod-node :magnitude (pb-property->curve-spread property))
+                      :modifier-key-max-distance (g/set-property mod-node :max-distance (pb-property->curve property))
+                      nil)))
+          (:properties modifier))
+    (attach-modifier parent-id mod-node false)))
 
 (defn- add-modifier-handler [parent-id type select-fn]
   (when-some [modifier (get-in mod-types [type :template])]
@@ -1241,11 +1217,10 @@
   ([self emitter]
    (make-emitter self emitter nil false))
   ([self emitter select-fn resolve-id?]
-   (let [project (project/get-project self)
+   (let [project (project/get-project)
          workspace (project/workspace project)
-         graph-id (g/node-id->graph-id self)
          resolve-resource #(workspace/resolve-workspace-resource workspace %)]
-     (g/make-nodes graph-id [emitter-node EmitterNode]
+     (g/make-nodes [emitter-node EmitterNode]
        (gu/set-properties-from-pb-map emitter-node Particle$Emitter emitter
          position :position
          rotation :rotation
@@ -1313,7 +1288,6 @@
                :command :edit.add-embedded-component
                :user-data {:emitter-type type}})
             emitter-types))))
-
 
 ;;--------------------------------------------------------------------
 ;; Manipulators

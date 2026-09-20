@@ -76,8 +76,16 @@
                         util.defonce/type hooks.util-defonce/type
                         util.fn/defamong hooks.util-fn/defamong}}
  :linters {:defold/defn-return-type-hint-placement {:level :warning}
+           :defold/deprecated-make-nodes-graph-id {:level :warning}
            :defold/prefer-coll-join-to-string {:level :warning}
            :defold/prefer-defonce {:level :warning}
            :defold/prefer-util-coll {:level :warning}
+           :deprecated-var {:exclude {internal.graph.types/node-id->graph-id
+                                      {:namespaces [dynamo.graph]}}}
+           :discouraged-var {dynamo.graph/node-id->graph-id
+                             {:message "node-id->graph-id is deprecated."}
+                             editor.defold-project/get-project
+                             {:arities #{2}
+                              :message "The two-argument get-project arity is deprecated."}}
            :refer-all {:exclude [clojure.test]}}
  :config-in-ns {editor.gl.translate-test {:linters {:inline-def {:level :off}}}}}

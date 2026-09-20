@@ -1403,7 +1403,7 @@ static void GetLayoutVertexConfig(HFontRenderer renderer, HTextLayout layout, co
     config->m_DecorationV = 0.5f / renderer->m_AtlasHeight;
     config->m_SdfEdge = 0.75f;
     config->m_SdfOutline = renderer->m_SdfOutline;
-    config->m_SdfSmoothing = 0.25f / (renderer->m_SdfSpread * dmMath::Max(0.000001f, properties.m_SdfScale));
+    config->m_SdfSmoothing = FONT_SDF_DISTANCE_SCALE / (renderer->m_SdfSpread * dmMath::Max(0.000001f, properties.m_SdfScale));
     config->m_SdfShadow = renderer->m_SdfShadow;
     config->m_SdfSpread = renderer->m_SdfSpread;
     config->m_OutlineWidth = renderer->m_OutlineWidth;

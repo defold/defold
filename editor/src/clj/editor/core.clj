@@ -16,6 +16,7 @@
   "Essential node types"
   (:require [cognitect.transit :as transit]
             [dynamo.graph :as g]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.util :as util]))
 
@@ -59,7 +60,7 @@
    (direct-owned-node-ids (g/now) scope-id))
   ([basis scope-id]
    {:pre [(g/node-id? scope-id)]}
-   (let [incoming-arcs (g/explicit-arcs-by-target basis scope-id)
+   (let [incoming-arcs (g/explicit-inputs basis scope-id)
          scope-node-type (g/node-type* basis scope-id)
          cascade-delete-input-labels (g/cascade-deletes scope-node-type)
          arc-connects-to-cascade-delete-input? (comp cascade-delete-input-labels gt/target-label)]
@@ -82,8 +83,8 @@
    (owner-node-id (g/now) node-id))
   ([basis node-id]
    {:pre [(g/node-id? node-id)]}
-   (let [targets (g/targets basis node-id)
-         target-id->labels (util/group-into {} [] #(% 0) #(% 1) targets)]
+   (let [outputs (g/outputs basis node-id)
+         target-id->labels (util/group-into {} [] gt/target-id gt/target-label outputs)]
      (some (fn [[target-id labels]]
              (let [target-node-type (g/node-type* basis target-id)
                    cascade-delete-input-label? (g/cascade-deletes target-node-type)]
@@ -107,7 +108,7 @@ When a Scope is deleted, all nodes within that scope will also be deleted."
    (some (fn [outgoing-arc]
            (when (= :nodes (gt/target-label outgoing-arc))
              (gt/target-id outgoing-arc)))
-         (gt/arcs-by-source basis node-id :_node-id))))
+         (ig/arcs-by-source basis node-id :_node-id))))
 
 (defn scope-of-type
   ([node-id node-type]

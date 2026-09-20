@@ -859,6 +859,7 @@ menu.edit = Edit
 menu.debug = Debug
 menu.view = View
 menu.help = Help
+menu.dock.new-window = New Window
 
 # Commands
 

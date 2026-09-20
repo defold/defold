@@ -253,9 +253,11 @@ ordinary paths."
                         for common values; defaults to \"plaintext\"
     :build-ext          file extension of a built resource, defaults to :ext's
                         value with appended \"c\"
-    :dependencies-fn    fn of node's :source-value output to a collection of
-                        resource project paths that this node depends on,
-                        affects loading order
+    :dependencies-fn    a function from read-opts, owner-resource and a node's
+                        source-value output to a collection of proj-paths that
+                        this node depends on. Determines the order in which the
+                        nodes are loaded into the graph. See the make-read-opts
+                        function for details.
     :connect-fn         a function from project, new node id and resource to
                         connection transaction steps, invoked when the resource
                         shell is added to the project and before any resource
@@ -488,18 +490,69 @@ ordinary paths."
      rel-path
      (str base "/" rel-path))))
 
+(defn resolve-proj-path
+  ^String [^File project-directory ^String base-proj-path ^String proj-path-or-relative-path]
+  (if (absolute-proj-path? proj-path-or-relative-path)
+    proj-path-or-relative-path
+    (if-not (resource/proj-path? base-proj-path)
+      (throw (IllegalArgumentException. (str "base-proj-path is not a proj-path: " (pr-str base-proj-path))))
+      (let [project-directory-path (path/of project-directory)
+            base-file-path (path/of project-directory-path (subs base-proj-path 1))
+            resolved-file-path (path/normalized (path/resolve-sibling base-file-path proj-path-or-relative-path))]
+        (if-not (path/starts-with? resolved-file-path project-directory-path)
+          (throw (IllegalArgumentException. (str "relative-path resolves to path outside the project-directory: " (pr-str proj-path-or-relative-path))))
+          (let [resolved-file (io/file (if (path/exists? resolved-file-path)
+                                         (path/actual-cased resolved-file-path)
+                                         resolved-file-path))]
+            (resource/file->proj-path project-directory resolved-file)))))))
+
 (defn resolve-resource
   ([base-resource path]
    (resolve-resource (g/now) base-resource path))
   ([basis base-resource path]
-   (when-not (empty? path)
+   (when-not (coll/empty? path)
      (let [workspace (resource/workspace base-resource)
-           path (if (absolute-proj-path? path)
-                  path
-                  (resource/file->proj-path (project-directory basis workspace)
-                                            (.getCanonicalFile (io/file (.getParentFile (io/file base-resource))
-                                                                        path))))]
-       (resolve-workspace-resource basis workspace path)))))
+           project-directory (project-directory basis workspace)
+           base-proj-path (resource/proj-path base-resource)
+           proj-path (resolve-proj-path project-directory base-proj-path path)]
+       (resolve-workspace-resource basis workspace proj-path)))))
+
+(defn make-read-opts
+  [basis workspace & {:as additional-kw-opts}]
+  {:pre [(coll/every? keyword? (coll/keys additional-kw-opts))]}
+  (let [project-directory (project-directory basis workspace)
+        editable-proj-path? (g/raw-property-value basis workspace :editable-proj-path?)
+        proj-path->resource (g/raw-property-value basis workspace :resource-map)
+
+        existing-proj-path-fn
+        (fn existing-proj-path-fn [value]
+          (when (contains? proj-path->resource value)
+            value))
+
+        resolve-proj-path-fn
+        (fn resolve-proj-path-fn [base-resource proj-path-or-relative-path]
+          (let [base-proj-path (resource/proj-path base-resource)]
+            (resolve-proj-path project-directory base-proj-path proj-path-or-relative-path)))
+
+        editable->type-ext->resource-type
+        {true (resource/resource-types-by-type-ext basis workspace true)
+         false (resource/resource-types-by-type-ext basis workspace false)}
+
+        proj-path->resource-type
+        (fn proj-path->resource-type [proj-path]
+          (let [editable (editable-proj-path? proj-path)
+                type-ext (resource/filename->type-ext proj-path)
+                type-ext->resource-type (editable->type-ext->resource-type editable)]
+            (or (type-ext->resource-type type-ext)
+                (type-ext->resource-type resource/placeholder-resource-type-ext))))]
+
+    (assoc additional-kw-opts
+      :editable->type-ext->resource-type editable->type-ext->resource-type
+      :editable-proj-path? editable-proj-path?
+      :existing-proj-path-fn existing-proj-path-fn
+      :proj-path->resource proj-path->resource
+      :proj-path->resource-type proj-path->resource-type
+      :resolve-proj-path-fn resolve-proj-path-fn)))
 
 (def ^:private default-user-resource-path "/templates/default.")
 (def ^:private java-resource-path "templates/template.")
@@ -1085,7 +1138,7 @@ ordinary paths."
 
 (defn- make-editable-proj-path-predicate [non-editable-directory-proj-paths]
   {:pre [(vector? non-editable-directory-proj-paths)
-         (every? string? non-editable-directory-proj-paths)]}
+         (coll/every? resource/proj-path? non-editable-directory-proj-paths)]}
   (fn editable-proj-path? [proj-path]
     (not-any? (fn [non-editable-directory-proj-path]
                 ;; A proj-path is considered non-editable if it matches or is
@@ -1107,7 +1160,7 @@ ordinary paths."
    (not= fn/constantly-true
          (g/raw-property-value basis workspace :editable-proj-path?))))
 
-(defn make-workspace [graph project-path build-settings workspace-config localization]
+(defn make-workspace [project-path build-settings workspace-config localization]
   (let [project-directory (.getCanonicalFile (io/file project-path))
         unloaded-proj-path? (resource/defunload-pred project-directory)
         editable-proj-path? (if-some [non-editable-directory-proj-paths (not-empty (:non-editable-directories workspace-config))]
@@ -1117,17 +1170,16 @@ ordinary paths."
       (g/tx-nodes-added
         (g/transact
           {:undoable false}
-          (g/make-nodes graph
-            [workspace [Workspace
-                        :root (.getPath project-directory)
-                        :opened-files (atom #{})
-                        :resource-listeners (atom [])
-                        :build-settings build-settings
-                        :editable-proj-path? editable-proj-path?
-                        :unloaded-proj-path? unloaded-proj-path?
-                        :localization localization]
-             code-preprocessors code.preprocessors/CodePreprocessorsNode
-             notifications notifications/NotificationsNode]
+          (g/make-nodes [workspace [Workspace
+                                    :root (.getPath project-directory)
+                                    :opened-files (atom #{})
+                                    :resource-listeners (atom [])
+                                    :build-settings build-settings
+                                    :editable-proj-path? editable-proj-path?
+                                    :unloaded-proj-path? unloaded-proj-path?
+                                    :localization localization]
+                         code-preprocessors code.preprocessors/CodePreprocessorsNode
+                         notifications notifications/NotificationsNode]
             (concat
               (g/connect notifications :_node-id workspace :notifications)
               (g/connect code-preprocessors :_node-id workspace :code-preprocessors))))))))
@@ -1157,7 +1209,7 @@ ordinary paths."
               MessagePattern or a string
 
   Optional kv-args:
-    :make-view-fn          fn of graph, parent (AnchorPane), resource node and
+    :make-view-fn          fn of parent (AnchorPane), resource node and
                            opts that should create new view node, set it up and
                            return the node id; opts is a map that will contain:
                            - :app-view
@@ -1170,7 +1222,7 @@ ordinary paths."
                            - any extra opts passed from the code
                            if not present, the resource will be opened in
                            the OS-associated application
-    :make-preview-fn       fn of graph, resource node, opts, width and height
+    :make-preview-fn       fn of resource node, opts, width and height
                            that should return a node id with :image output (with
                            value of type Image); opts is a map with:
                            - :app-view

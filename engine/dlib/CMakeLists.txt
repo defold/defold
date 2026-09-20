@@ -12,7 +12,6 @@ set(DLIB_MBEDTLS_DIR "${DLIB_SRC_DIR}/mbedtls")
 set(DLIB_DEPENDENCIES zip mbedtls)
 set(DLIB_NOASAN_DEPENDENCIES zip_noasan mbedtls_noasan)
 set(DLIB_SHARED_DEPENDENCIES profile_null_noasan mbedtls_noasan zip_noasan)
-set(DLIB_BASIS_TRANSCODER_DEPENDENCIES dlib)
 file(GLOB_RECURSE DLIB_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${DLIB_SRC_DIR}/dmsdk/*.h"
   "${DLIB_SRC_DIR}/dmsdk/*.hpp")
@@ -347,48 +346,15 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
   endif()
 endif()
 
-set(DLIB_BASIS_FLAGS BASISD_SUPPORT_KTX2_ZSTD=0)
-if(TARGET_PLATFORM MATCHES "^(x86_64-win32|x86_64-macos)$")
-  list(APPEND DLIB_BASIS_FLAGS BASISU_SUPPORT_SSE=1)
-endif()
-
-file(GLOB_RECURSE DLIB_BASIS_TRANSCODER_SOURCES CONFIGURE_DEPENDS "${DLIB_SRC_DIR}/basis/transcoder/*.cpp")
-defold_add_library(basis_transcoder STATIC ${DLIB_BASIS_TRANSCODER_SOURCES})
-target_include_directories(basis_transcoder PUBLIC "${DLIB_SRC_DIR}/basis")
-target_compile_definitions(basis_transcoder PUBLIC
-  DM_BASIS_TRANSCODER_UASTC
-  BASISD_SUPPORT_KTX2=0
-  MINIZ_NO_STDIO
-  ${DLIB_BASIS_FLAGS})
-target_link_libraries(basis_transcoder PUBLIC ${DLIB_BASIS_TRANSCODER_DEPENDENCIES})
-
-if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos|arm64-macos)$")
-  file(GLOB_RECURSE DLIB_BASIS_ENCODER_SOURCES CONFIGURE_DEPENDS
-       "${DLIB_SRC_DIR}/basis/encoder/*.c"
-       "${DLIB_SRC_DIR}/basis/encoder/*.cpp"
-       "${DLIB_SRC_DIR}/basis/transcoder/*.cpp")
-  defold_add_library(basis_encoder STATIC ${DLIB_BASIS_ENCODER_SOURCES})
-  target_include_directories(basis_encoder PUBLIC "${DLIB_SRC_DIR}/basis")
-  target_compile_definitions(basis_encoder PUBLIC DM_BASIS_ENCODER MINIZ_NO_STDIO ${DLIB_BASIS_FLAGS})
-
-  defold_add_library(basis_encoder_noasan STATIC ${DLIB_BASIS_ENCODER_SOURCES})
-  target_include_directories(basis_encoder_noasan PUBLIC "${DLIB_SRC_DIR}/basis")
-  target_compile_definitions(basis_encoder_noasan PUBLIC DM_BASIS_ENCODER MINIZ_NO_STDIO ${DLIB_BASIS_FLAGS})
-endif()
-
 set(DLIB_INSTALL_TARGETS
   dlib dlib_noasan zip zip_noasan mbedtls mbedtls_noasan
   image image_noasan image_null image_null_noasan
-  profile profile_noasan profile_null profile_null_noasan
-  basis_transcoder)
+  profile profile_noasan profile_null profile_null_noasan)
 if(TARGET dlib_shared)
   list(APPEND DLIB_INSTALL_TARGETS dlib_shared)
 endif()
 if(TARGET dlib_memprofile)
   list(APPEND DLIB_INSTALL_TARGETS dlib_memprofile)
-endif()
-if(TARGET basis_encoder)
-  list(APPEND DLIB_INSTALL_TARGETS basis_encoder basis_encoder_noasan)
 endif()
 
 defold_install_targets(TARGETS ${DLIB_INSTALL_TARGETS}
@@ -495,8 +461,6 @@ install(FILES ${DLIB_HTTP_PUBLIC_HEADERS} DESTINATION include/dlib/http)
 install(FILES "${DLIB_CORE_DIR}/profile/profile.h" DESTINATION include/dlib/profile)
 install(DIRECTORY "${DLIB_SRC_DIR}/stb/" DESTINATION ext/include/stb FILES_MATCHING PATTERN "*.h")
 install(DIRECTORY "${DLIB_SRC_DIR}/jc/" DESTINATION ext/include/jc FILES_MATCHING PATTERN "*.h")
-install(DIRECTORY "${DLIB_SRC_DIR}/basis/encoder/" DESTINATION ext/include/basis/encoder FILES_MATCHING PATTERN "*.h")
-install(DIRECTORY "${DLIB_SRC_DIR}/basis/transcoder/" DESTINATION ext/include/basis/transcoder FILES_MATCHING PATTERN "*.h")
 install(FILES "${DLIB_SRC_DIR}/python/dlib/__init__.py" DESTINATION lib/python/dlib)
 install(FILES "${DLIB_CORE_DIR}/memprofile.py" DESTINATION lib/python)
 install(PROGRAMS "${DLIB_ROOT}/bin/memprofile.sh" DESTINATION bin)
