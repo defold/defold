@@ -4,7 +4,7 @@ defold_log("functions_graphics.cmake:")
 # TARGET_PLATFORM-like tuple (e.g., x86_64-macos, arm64-linux, x86_64-win32).
 #
 # The selection mirrors waf_dynamo.py: platform_graphics_libs_and_symbols.
-# It considers the toggles WITH_OPENGL, WITH_VULKAN, WITH_DX12, WITH_WEBGPU
+# It considers the toggles WITH_OPENGL, WITH_VULKAN, WITH_DX12, WITH_METAL, WITH_WEBGPU
 # if they are defined in the including scope; otherwise assumes OFF.
 #
 # Usage:
@@ -52,6 +52,9 @@ function(defold_get_graphics_symbols OUT_VAR PLATFORM)
     if("${PLATFORM}" MATCHES "^(arm64-ios|arm64_sim-ios)$")
         set(_use_opengles ON)
         set(_use_vulkan ${_WITH_VULKAN})
+        if(WITH_METAL)
+            set(_use_metal ON)
+        endif()
     elseif("${PLATFORM}" MATCHES "^(arm64-macos|x86_64-macos)$")
         set(_use_opengl ${_WITH_OPENGL})
         set(_use_vulkan ${_WITH_VULKAN})
@@ -242,6 +245,9 @@ function(defold_target_link_graphics target platform)
     if("${platform}" MATCHES "^(arm64-ios|arm64_sim-ios)$")
         set(_use_opengles ON)
         set(_use_vulkan ${_WITH_VULKAN})
+        if(WITH_METAL)
+            set(_use_metal ON)
+        endif()
     elseif("${platform}" MATCHES "^(arm64-macos|x86_64-macos)$")
         set(_use_opengl ${_WITH_OPENGL})
         set(_use_vulkan ${_WITH_VULKAN})

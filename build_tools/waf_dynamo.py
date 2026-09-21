@@ -256,6 +256,7 @@ def platform_graphics_libs_and_symbols(platform):
     if platform in ('arm64-ios', 'arm64_sim-ios'):
         use_opengles = True
         use_vulkan = Options.options.with_vulkan
+        use_metal = Options.options.with_metal
     elif platform in ('arm64-macos', 'x86_64-macos'):
         use_opengl = Options.options.with_opengl
         use_vulkan = Options.options.with_vulkan
@@ -2330,6 +2331,7 @@ def options(opt):
     opt.add_option('--with-opengl', action='store_true', default=False, dest='with_opengl', help='Enables OpenGL as the graphics backend')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
     opt.add_option('--with-vulkan-validation', action='store_true', default=False, dest='with_vulkan_validation', help='Enables Vulkan validation layers (on osx and ios)')
+    opt.add_option('--with-metal', action='store_true', default=False, dest='with_metal', help='Enables Metal as a graphics backend on iOS and the iOS simulator')
     opt.add_option('--with-dx12', action='store_true', default=False, dest='with_dx12', help='Enables DX12 as a graphics backend')
     opt.add_option('--with-opus', action='store_true', default=False, dest='with_opus', help='Enable Opus audio codec support in runtime')
     opt.add_option('--with-webgpu', action='store_true', default=False, dest='with_webgpu', help='Enables WebGPU as graphics backend')

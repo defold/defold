@@ -80,8 +80,10 @@ matching `WITH_*` cache options, such as `WITH_ASAN=ON`. The graphics toggles
 such as `--with-vulkan` continue to map to `WITH_VULKAN`.
 
 macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
-include Vulkan as an additional adapter; `--with-metal` is no longer needed or
-supported. iOS still defaults to OpenGL ES. App manifest graphics selections
+include Vulkan as an additional adapter. iOS and the iOS simulator still default
+to OpenGL ES; pass `--with-metal` (or `WITH_METAL=ON`) to include Metal as an
+additional adapter on those platforms. This option has no effect on macOS or
+other platforms. App manifest graphics selections
 control the bundled adapters and Bob's shader formats: Metal uses MSL, while
 Vulkan uses SPIR-V.
 
