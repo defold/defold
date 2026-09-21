@@ -494,6 +494,7 @@ function(defold_add_executable target)
 
   # Forward all remaining args directly to add_executable
   add_executable(${target} ${_sources})
+  defold_validate_android_elf(${target})
 
   if(DEFINED DEFOLD_PLATFORM_EXECUTABLE_SUFFIX)
     set_target_properties(${target} PROPERTIES SUFFIX "${DEFOLD_PLATFORM_EXECUTABLE_SUFFIX}")
@@ -587,6 +588,7 @@ function(defold_add_library target)
 
   # Forward all remaining args directly to add_library
   add_library(${target} ${_sources})
+  defold_validate_android_elf(${target})
 
   if(TARGET defold_sdk)
     get_target_property(_defold_target_type ${target} TYPE)
