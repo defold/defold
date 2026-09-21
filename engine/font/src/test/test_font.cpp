@@ -421,8 +421,8 @@ TEST_F(FontTest, NamedObjectStyleSizeAndInlineOverrides)
     const dmhash_t name = dmHashString64("large");
     const char definition[] = "<size=200%>";
     ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, definition, sizeof(definition) - 1, 0));
-    const char small[] = "<size=50%>";
-    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, dmHashString64("small"), small, sizeof(small) - 1, 0));
+    const char small_definition[] = "<size=50%>";
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, dmHashString64("small"), small_definition, sizeof(small_definition) - 1, 0));
     const char source[] = "<link style=large></link>A<link style=large>B<link style=small>C</link>D"
                           "<link style=missing>E</link><size=25%>F</size></link>G<link style=small>H</link>I"
                           "<size=75%><link style=large>J</link>K</size>L";
