@@ -181,11 +181,11 @@
 
 (deftest merge-rects-test
   ;; RTL runs hand back spans out of order, and touching spans must join.
-  (is (= [[10.0 15.0] [30.0 10.0]]
-         (mapv (juxt :x :w)
-               (#'data/merge-rects [(->Rect 30.0 0.0 10.0 14.0)
-                                    (->Rect 10.0 0.0 10.0 14.0)
-                                    (->Rect 20.0 0.0 5.0 14.0)])))))
+  (is (= [(->Rect 10.0 0.0 15.0 14.0)
+          (->Rect 30.0 0.0 10.0 14.0)]
+         (#'data/merge-rects [(->Rect 30.0 0.0 10.0 14.0)
+                              (->Rect 10.0 0.0 10.0 14.0)
+                              (->Rect 20.0 0.0 5.0 14.0)]))))
 
 (deftest cursor-range-rects-test
   (let [glyph-metrics (->ComplexGlyphMetrics 14.0 9.0 6.0)
