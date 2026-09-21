@@ -95,8 +95,8 @@
     (when (and (= "/game.project" (resource/proj-path owner-resource))
                (= path ["project" "dependencies"]))
       (g/expand-ec
-        (fn update-fetch-libraries-notification [evaluation-context]
-          (project/update-fetch-libraries-notification project evaluation-context))))))
+        (fn update-library-notifications [evaluation-context]
+          (project/update-library-notifications project [] evaluation-context))))))
 
 (defn clear-tx-data [{:keys [node-id resource-setting-nodes meta-settings] :as _user-data} path]
   (concat

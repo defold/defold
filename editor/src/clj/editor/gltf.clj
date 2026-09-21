@@ -226,10 +226,6 @@
                                                            (when-let [resource (resolve-resource path)]
                                                              (with-open [stream (io/input-stream resource)]
                                                                (.readNBytes stream 8)))))))
-              diagnostics (into []
-                                ;; Keep unsupported KTX2 images quiet in the editor for now.
-                                (remove #(re-matches #"Image \d+: unsupported image MIME type 'image/ktx2'" %))
-                                (.diagnostics extraction))
               children-by-group
               (reduce
                 (fn [groups ^GltfContainer$Asset asset]
@@ -266,16 +262,14 @@
                     (update groups group (fnil conj []) child)))
                 (sorted-map)
                 (.assets extraction))]
-          {:data {::diagnostics diagnostics}
-           :children (into []
+          {:children (into []
                            (map (fn [[group children]]
                                   (resource/make-resource-entry source {:path group :children children})))
                            children-by-group)}))
       (catch Exception exception
         (log/warn :message (format "Failed to expose glTF resources from '%s'" (resource/proj-path source))
                   :exception exception)
-        {:data {::diagnostics [(ex-message exception)]}
-         :children []}))))
+        {:children []}))))
 
 (defn make-snapshot
   "Returns the resource tree, status map and cached discovery for loaded glTF containers."
@@ -350,12 +344,3 @@
                           (when (= :file (resource/source-type source))
                             (resource/children source))))))
         moved-proj-paths))
-
-(defn diagnostics
-  "Returns extraction diagnostics by source path for display in the editor."
-  [resources]
-  (into {}
-        (keep (fn [source]
-                (when-let [diagnostics (coll/not-empty (get-in source [:data ::diagnostics]))]
-                  (pair (resource/proj-path source) diagnostics))))
-        resources))

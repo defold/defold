@@ -175,11 +175,8 @@ dialog.model-auto-fill.content = This assigns the materials and referenced textu
 dialog.model-auto-fill.content-replace = This replaces the model's existing material and texture assignments with the resources exposed by the glTF file.
 dialog.model-auto-fill.button.keep-current = Keep Current
 dialog.model-auto-fill.button.auto-fill = Auto Fill
-dialog.gltf-pbr-library.title = Add PBR Shader Library?
-dialog.gltf-pbr-library.header = Add the shader library needed by glTF materials?
-dialog.gltf-pbr-library.content = The materials in glTF and GLB files depend on PBR shaders\nin the asset-pbr library.\n\n{url}\n\nAdd this library to the project dependencies and fetch it?
-dialog.gltf-pbr-library.button.add = Add Library
-notification.gltf.unsupported-assets = Some assets in "{file}" could not be loaded:\n{diagnostics}
+notification.gltf-pbr-library = glTF materials require the PBR shader library.
+notification.gltf-pbr-library.action.add = Add Library
 
 # Error Dialog
 

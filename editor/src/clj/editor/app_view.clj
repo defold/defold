@@ -3611,7 +3611,7 @@
               [lib-results false]
               (ui/run-now
                 (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs localization web-server)
-                (project/update-fetch-libraries-notification! project)
+                (project/update-library-notifications! project [])
                 [lib-results true]))))
         (catch Throwable error
           (error-reporting/report-exception! error)
