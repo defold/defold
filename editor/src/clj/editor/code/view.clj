@@ -164,7 +164,7 @@
             width)
           (double cached-width))))))
 
-;; HACK: Pango returns this shared layout to the pool before freeing its own
+;; WORKAROUND: Pango returns this shared layout to the pool before freeing its own
 ;; native pointers, so another thread can take it and double-free them. Reserve
 ;; it until JavaFX fixes the race. The CoreText, DirectWrite and HarfBuzz
 ;; backends keep no such state, so they are left alone. Re-check on upgrade.
