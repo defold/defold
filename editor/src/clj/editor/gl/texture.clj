@@ -282,7 +282,7 @@
   ^long [data-format]
   ;; Internal format signifies only color content, not channel order.
   (case data-format
-    :gray GL3/GL_RGBA8
+    :gray GL2/GL_RGBA
     :bgr  GL2/GL_RGB
     :abgr GL2/GL_RGBA
     :rgb  GL2/GL_RGB
@@ -430,7 +430,7 @@
 
 (def format->gl-format
   {Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE
-   GL3/GL_RGBA8 ; The source data is expanded to RGBA before upload.
+   GL2/GL_RGBA ; The source data is expanded to RGBA before upload.
 
    Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGB
    GL2/GL_RGB
@@ -446,13 +446,13 @@
 (defn- image->mipmap-buffers
   ^"[Ljava.nio.Buffer;" [^Graphics$TextureImage$Image image mip-image-byte-arrays]
   (assert (= (.getMipMapSizeCount image) (.getMipMapOffsetCount image) (count mip-image-byte-arrays)))
-  (let [luminance? (= Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE (.getFormat image))
+  (let [is-luminance (= Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE (.getFormat image))
         mipmap-count (.getMipMapSizeCount image)
         ^"[Ljava.nio.Buffer;" bufs (make-array Buffer mipmap-count)]
     (loop [i 0]
       (if (< i mipmap-count)
         (let [buf (ByteBuffer/wrap (nth mip-image-byte-arrays i))
-              buf (if luminance?
+              buf (if is-luminance
                     (expand-gray-buffer-to-rgba buf)
                     buf)]
           (aset bufs i buf)
@@ -475,21 +475,17 @@
          mip-image-byte-arrays (.imageDatas texture-generator-result)
          image (select-texture-image-image texture-image)
          gl-profile (GLProfile/getGL2GL3)
-         texture-format (.getFormat image)
-         gl-internal-format (int (format->gl-format texture-format))
-         gl-pixel-format (if (= Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE texture-format)
-                           GL2/GL_RGBA
-                           gl-internal-format)
+         gl-format (int (format->gl-format (.getFormat image)))
          mipmap-buffers (image->mipmap-buffers image mip-image-byte-arrays)
 
          texture-data
          (TextureData.
            gl-profile
-           gl-internal-format
+           gl-format
            (.getWidth image)
            (.getHeight image)
            0                   ; border
-           gl-pixel-format
+           gl-format
            GL/GL_UNSIGNED_BYTE ; gl type
            false               ; compressed?
            false               ; flip vertically?
