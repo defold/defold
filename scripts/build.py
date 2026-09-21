@@ -163,6 +163,7 @@ def get_default_target_platforms():
     return BASE_PLATFORMS
 
 PACKAGES_ALL=[
+    sdk.ANDROID_PACKAGE,
     "protobuf-35.1",
     "junit-4.6",
     "jsign-4.2",
@@ -361,7 +362,6 @@ PACKAGES_ANDROID=[
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-a4a2f5"]
-PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
     "luajit-2.1.0-3e223cb",
@@ -375,7 +375,6 @@ PACKAGES_ANDROID_64=[
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-a4a2f5"]
-PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_X86_64=[
     "luajit-2.1.0-3e223cb",
@@ -389,7 +388,6 @@ PACKAGES_ANDROID_X86_64=[
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-a4a2f5"]
-PACKAGES_ANDROID_X86_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
     "glfw-2.7.1",
