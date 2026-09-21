@@ -105,8 +105,9 @@ AppDelegate* g_ApplicationDelegate = 0;
     if (!signature)
     {
         for (int i = 0; i < g_AppDelegatesCount; ++i) {
-            if ([g_AppDelegates[i] respondsToSelector: aSelector]) {
-                return [g_AppDelegates[i] methodSignatureForSelector:aSelector];
+            id delegate = g_AppDelegates[i];
+            if ([delegate respondsToSelector: aSelector]) {
+                return [delegate methodSignatureForSelector:aSelector];
             }
         }
     }

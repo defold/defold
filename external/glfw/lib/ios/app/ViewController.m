@@ -177,11 +177,6 @@ static int g_view_type = GLFW_NO_API;
     [super viewDidAppear: animated];
 }
 
-- (void)viewDidUnload
-{
-    [super viewDidUnload];
-}
-
 - (UIRectEdge)preferredScreenEdgesDeferringSystemGestures {
     return UIRectEdgeAll;
 }
