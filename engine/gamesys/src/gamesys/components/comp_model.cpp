@@ -83,7 +83,7 @@ namespace dmGameSystem
         dmGraphics::HVertexDeclaration m_InstanceVertexDeclaration;
         dmRender::HMaterial            m_Material;          // Material this was set up for; re-setup when effective material changes
         uint16_t                       m_RenderItemIndex;   // Index into ModelComponent::m_RenderItems this data belongs to
-        uint8_t                        m_LastUsedFrame : 7; // Last frame (ModelWorld::m_CurrentFrameTick) this entry was used
+        uint8_t                        m_LastUsedFrame;      // Last frame (ModelWorld::m_CurrentFrameTick) this entry was used
         uint8_t                        m_Initialized   : 1;
     };
 
@@ -310,6 +310,15 @@ namespace dmGameSystem
         rd->m_RenderItemIndex = 0;
         rd->m_LastUsedFrame   = 0;
         rd->m_Initialized     = false;
+    }
+
+    static uint8_t GetFrameTickAge(uint8_t current_tick, uint8_t last_used_tick)
+    {
+        // m_CurrentFrameTick uses the range 0..254. 0xFF is reserved as a
+        // sentinel for recently enabled render items.
+        return current_tick >= last_used_tick
+            ? current_tick - last_used_tick
+            : current_tick + (0xFF - last_used_tick);
     }
 
     dmGameObject::CreateResult CompModelDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
@@ -1027,12 +1036,21 @@ namespace dmGameSystem
             return attribute_rd;
         }
 
-        // Look for an existing entry for this render item + material combination
+        // Look for an existing entry for this render item + material combination,
+        // and remember a released slot that can be reused on a cache miss.
+        MeshAttributeRenderData* free_rd = 0x0;
         for (uint32_t i = 0; i < component->m_MeshAttributeRenderDatas.Size(); ++i)
         {
             MeshAttributeRenderData* rd = &component->m_MeshAttributeRenderDatas[i];
-            if (rd->m_Initialized &&
-                rd->m_Material == render_material &&
+            if (!rd->m_Initialized)
+            {
+                if (!free_rd)
+                {
+                    free_rd = rd;
+                }
+                continue;
+            }
+            if (rd->m_Material == render_material &&
                 rd->m_RenderItemIndex == render_item_index)
             {
                 rd->m_LastUsedFrame = world->m_CurrentFrameTick;
@@ -1045,6 +1063,10 @@ namespace dmGameSystem
         if (attribute_rd && !attribute_rd->m_Initialized)
         {
             rd = attribute_rd;
+        }
+        else if (free_rd)
+        {
+            rd = free_rd;
         }
         else
         {
@@ -2392,7 +2414,7 @@ namespace dmGameSystem
                 {
                     continue;
                 }
-                if ((current_tick - rd.m_LastUsedFrame) > ATTRIBUTE_RENDER_DATA_MAX_FRAME_TICKS)
+                if (GetFrameTickAge(current_tick, rd.m_LastUsedFrame) > ATTRIBUTE_RENDER_DATA_MAX_FRAME_TICKS)
                 {
                     ReleaseMeshAttributeRenderData(&rd);
                 }
@@ -3136,5 +3158,24 @@ namespace dmGameSystem
         *vx_buffer = rd.m_VertexBuffer;
         *vx_decl = rd.m_VertexDeclaration;
         *inst_decl = rd.m_InstanceVertexDeclaration;
+    }
+
+    uint32_t GetModelComponentAttributeRenderDataCount(void* model_component, uint32_t* initialized_count)
+    {
+        ModelComponent* component = (ModelComponent*) model_component;
+        uint32_t count = 0;
+        for (uint32_t i = 0; i < component->m_MeshAttributeRenderDatas.Size(); ++i)
+        {
+            count += component->m_MeshAttributeRenderDatas[i].m_Initialized;
+        }
+        *initialized_count = count;
+        return component->m_MeshAttributeRenderDatas.Size();
+    }
+
+    void SetModelWorldCurrentFrameTick(void* model_world, uint8_t current_frame_tick)
+    {
+        ModelWorld* world = (ModelWorld*) model_world;
+        assert(current_frame_tick != 0xFF);
+        world->m_CurrentFrameTick = current_frame_tick;
     }
 }

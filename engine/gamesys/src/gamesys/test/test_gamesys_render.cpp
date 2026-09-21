@@ -2423,6 +2423,120 @@ TEST_F(ModelTest, MeshAttributeRenderDataPurge)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+TEST_F(ModelTest, MeshAttributeRenderDataStaysAliveAndBoundedAcrossFrameTickWrap)
+{
+    dmGameSystem::MaterialResource* override_material_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/material_local_vertexspace.materialc", (void**) &override_material_resource));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/dynamic_vertex_attributes.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    uint32_t component_type;
+    dmGameObject::HComponent component;
+    dmGameObject::HComponentWorld world;
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &component, &world));
+
+    dmRender::RenderContext* render_context = (dmRender::RenderContext*) m_RenderContext;
+    const uint32_t frame_count = 300;
+    for (uint32_t frame = 0; frame < frame_count; ++frame)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+        uint32_t initialized_count = 0;
+        if (frame > 0)
+        {
+            ASSERT_EQ(2u, dmGameSystem::GetModelComponentAttributeRenderDataCount(component, &initialized_count));
+            ASSERT_EQ(2u, initialized_count);
+        }
+
+        dmRender::RenderListBegin(m_RenderContext);
+        dmGameObject::Render(m_Collection);
+        dmRender::RenderListEnd(m_RenderContext);
+
+        render_context->m_Material = 0;
+        dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+        render_context->m_Material = override_material_resource->m_Material;
+        dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+        render_context->m_Material = 0;
+
+        ASSERT_EQ(2u, dmGameSystem::GetModelComponentAttributeRenderDataCount(component, &initialized_count));
+        ASSERT_EQ(2u, initialized_count);
+    }
+
+    // Expire both entries, then render both materials again. The released
+    // override entry must be reused instead of growing the cache.
+    for (uint32_t frame = 0; frame < 32; ++frame)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    }
+
+    uint32_t initialized_count = 0;
+    ASSERT_EQ(2u, dmGameSystem::GetModelComponentAttributeRenderDataCount(component, &initialized_count));
+    ASSERT_EQ(0u, initialized_count);
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+
+    render_context->m_Material = 0;
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+    render_context->m_Material = override_material_resource->m_Material;
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+    render_context->m_Material = 0;
+
+    ASSERT_EQ(2u, dmGameSystem::GetModelComponentAttributeRenderDataCount(component, &initialized_count));
+    ASSERT_EQ(2u, initialized_count);
+
+    dmResource::Release(m_Factory, override_material_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ModelTest, MeshAttributeRenderDataPurgeAcrossFrameTickWrap)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/dynamic_vertex_attributes.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    uint32_t component_type;
+    dmGameObject::HComponent component;
+    dmGameObject::HComponentWorld world;
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &component, &world));
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameSystem::SetModelWorldCurrentFrameTick(world, 240);
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+
+    dmGraphics::HVertexBuffer vx_buffer;
+    dmGraphics::HVertexDeclaration vx_decl;
+    dmGraphics::HVertexDeclaration inst_decl;
+
+    // The entry is still current on tick 240 and must survive this update.
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameSystem::GetModelComponentAttributeRenderData(component, 0, &vx_buffer, &vx_decl, &inst_decl);
+    ASSERT_NE((dmGraphics::HVertexBuffer)0, vx_buffer);
+    ASSERT_NE((dmGraphics::HVertexDeclaration)0, vx_decl);
+
+    // Advance through 254 -> 0 until the modular age exceeds the purge limit.
+    for (uint32_t i = 0; i < 31; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    }
+
+    dmGameSystem::GetModelComponentAttributeRenderData(component, 0, &vx_buffer, &vx_decl, &inst_decl);
+    ASSERT_EQ((dmGraphics::HVertexBuffer)0, vx_buffer);
+    ASSERT_EQ((dmGraphics::HVertexDeclaration)0, vx_decl);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ModelTest, PbrProperties)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/pbr_properties.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
