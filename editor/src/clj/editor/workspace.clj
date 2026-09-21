@@ -263,9 +263,13 @@ ordinary paths."
                         value with appended \"c\"
     :dependencies-fn    a function from read-opts, owner-resource and a node's
                         source-value output to a collection of proj-paths that
-                        this node depends on. Determines the order in which the
-                        nodes are loaded into the graph. See the make-read-opts
-                        function for details.
+                        this node depends on. Determines the order in which nodes
+                        are loaded into the graph. See make-read-opts for details.
+    :prerequisites-fn   same signature as :dependencies-fn, but reports only
+                        resources whose node structure must be loaded before
+                        this resource (for example, override sources). Used to
+                        materialize prerequisites alongside an unloaded node.
+                        Omitted means no additional nodes must be materialized.
     :connect-fn         a function from project, new node id and resource to
                         connection transaction steps, invoked when the resource
                         shell is added to the project and before any resource
@@ -347,7 +351,7 @@ ordinary paths."
     :auto-connect-save-data?    whether changes to the resource are saved
                                 to disc (this can also be enabled in load-fn)
                                 when there is a :write-fn, default true"
-  [workspace & {:keys [textual? language editable ext build-ext node-type connect-fn load-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon icon-class category view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded allow-unloaded-use auto-connect-save-data?]}]
+  [workspace & {:keys [textual? language editable ext build-ext node-type connect-fn load-fn prerequisites-fn dependencies-fn search-fn search-value-fn source-value-fn read-fn write-fn icon icon-class category view-types view-opts tags tag-opts template test-info label stateless? lazy-loaded allow-unloaded-use auto-connect-save-data?]}]
   {:pre [(or (nil? icon-class) (resource/icon-class->style-class icon-class))]}
   (let [view-types (mapv canonical-view-type-id view-types)
         editable (if (nil? editable) true (boolean editable))
@@ -359,6 +363,7 @@ ordinary paths."
                        :node-type node-type
                        :connect-fn connect-fn
                        :load-fn load-fn
+                       :prerequisites-fn prerequisites-fn
                        :dependencies-fn dependencies-fn
                        :write-fn write-fn
                        :read-fn read-fn

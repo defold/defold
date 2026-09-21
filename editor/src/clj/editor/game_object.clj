@@ -788,6 +788,7 @@
       :ddf-type GameObject$PrototypeDesc
       :load-fn load-game-object
       :allow-unloaded-use true
+      :prerequisites-fn game-object-common/game-object-prerequisites
       :dependencies-fn game-object-common/game-object-dependencies-fn
       :sanitize-fn game-object-common/game-object-sanitize-fn
       :pb-encode-fn (partial string-encode-game-object workspace)

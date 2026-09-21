@@ -163,13 +163,13 @@
   (when (not-empty duplicate-ids)
     (g/->error node-id :build-targets :fatal nil (localization/message "error.non-unique-ids" {"ids" (localization/and-list (vec duplicate-ids))}))))
 
-(defn- embedded-component-desc->dependencies [type-ext->resource-type read-opts owner-resource {:keys [id type data] :as _embedded-component-desc}]
+(defn- embedded-component-desc->dependencies [dependencies-key type-ext->resource-type read-opts owner-resource {:keys [id type data] :as _embedded-component-desc}]
   ;; If sanitation failed (due to a corrupt file), the embedded data might still
   ;; be a string. In that case we report no dependencies. The load-fn will
   ;; eventually mark our resource node as defective, so it doesn't matter.
   (when (map? data)
     (let [component-resource-type (type-ext->resource-type type)
-          component-dependencies-fn (:dependencies-fn component-resource-type)]
+          component-dependencies-fn (dependencies-key component-resource-type)]
       (when component-dependencies-fn
         (try
           (component-dependencies-fn read-opts owner-resource data)
@@ -191,7 +191,24 @@
           [(default-game-object-dependencies-fn read-opts owner-resource prototype-desc)
            (prototype-desc->referenced-property-resources prototype-desc existing-proj-path-fn)
            (coll/into-> (:embedded-components prototype-desc) :eduction
-             (mapcat #(embedded-component-desc->dependencies type-ext->resource-type read-opts owner-resource %)))])))
+             (mapcat #(embedded-component-desc->dependencies :dependencies-fn type-ext->resource-type read-opts owner-resource %)))])))
+
+(defn game-object-prerequisites [read-opts owner-resource prototype-desc]
+  (let [resolve-proj-path (:resolve-proj-path-fn read-opts)
+        proj-path->resource-type (:proj-path->resource-type read-opts)
+        editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
+        editable (resource/editable-resource? owner-resource)
+        type-ext->resource-type (editable->type-ext->resource-type editable)]
+    (into []
+          (comp cat
+                (distinct))
+          [(coll/into-> (:components prototype-desc) :eduction
+             (keep :component)
+             (remove coll/empty?)
+             (map #(resolve-proj-path owner-resource %))
+             (filter #(resource/overridable-resource-type? (proj-path->resource-type %))))
+           (coll/into-> (:embedded-components prototype-desc) :eduction
+             (mapcat #(embedded-component-desc->dependencies :prerequisites-fn type-ext->resource-type read-opts owner-resource %)))])))
 
 (defn embedded-component-instance-data [build-resource embedded-component-desc pose]
   {:pre [(workspace/build-resource? build-resource)
