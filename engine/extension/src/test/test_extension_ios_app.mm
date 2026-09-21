@@ -16,7 +16,10 @@
 #include <jc_test/jc_test.h>
 #include <glfw/glfw.h>
 #include <glfw/glfw_native.h>
+#import <objc/runtime.h>
 #import "AppDelegate.h"
+#import "EAGLView.h"
+#import "MetalView.h"
 #import "SceneDelegate.h"
 #import "ViewController.h"
 
@@ -31,6 +34,48 @@ static unsigned int g_DidLaunchCount;
 static unsigned int g_LegacyLaunchCount;
 static BOOL g_WillLaunchHasOptions;
 static BOOL g_DidLaunchHasOptions;
+static unsigned int g_ReleasedObjects;
+
+@interface ReleaseObserver : NSObject
+@end
+
+@implementation ReleaseObserver
+- (void)dealloc
+{
+    ++g_ReleasedObjects;
+    [super dealloc];
+}
+@end
+
+static void SetObservedMarkedTextStyle(BaseView* view)
+{
+    ReleaseObserver* observer = [[ReleaseObserver alloc] init];
+    NSDictionary* style = [[NSDictionary alloc] initWithObjectsAndKeys:observer, @"test", nil];
+    view.markedTextStyle = style;
+    [style release];
+    [observer release];
+}
+
+@interface AppearanceObserver : UIViewController
+{
+@public
+    unsigned int m_AppearanceCount;
+    unsigned int m_DisappearanceCount;
+}
+@end
+
+@implementation AppearanceObserver
+- (void)viewDidAppear:(BOOL)animated
+{
+    [super viewDidAppear:animated];
+    ++m_AppearanceCount;
+}
+- (void)viewDidDisappear:(BOOL)animated
+{
+    [super viewDidDisappear:animated];
+    ++m_DisappearanceCount;
+}
+@end
 
 @interface SceneConnectionObserver : NSObject <UISceneDelegate, UIApplicationDelegate>
 @end
@@ -168,9 +213,16 @@ TEST_F(iOSSceneApplication, LaunchCleanupRemovesOnlyPlaceholder)
 }
 
 // Disconnecting before the first frame must clear the old placeholder; cleanup
-// must still remove a new placeholder after reconnecting the retained engine.
+// must still remove a new placeholder after reconnecting the retained engine,
+// with completed disappearance and appearance callbacks between connections.
 TEST_F(iOSSceneApplication, LaunchCleanupAfterReconnect)
 {
+    AppearanceObserver* observer = [[[AppearanceObserver alloc] init] autorelease];
+    [m_Controller addChildViewController:observer];
+    [m_Controller.view addSubview:observer.view];
+    [observer didMoveToParentViewController:m_Controller];
+    EXPECT_TRUE(WaitUntil(^BOOL { return observer->m_AppearanceCount == 1; }));
+
     UIWindow* window = (UIWindow*)glfwGetiOSUIWindow();
     UIView* first = [[[UIView alloc] initWithFrame:window.bounds] autorelease];
     m_Delegate.launchScreenView = first;
@@ -178,6 +230,9 @@ TEST_F(iOSSceneApplication, LaunchCleanupAfterReconnect)
     [m_Delegate sceneDidDisconnect:m_Scene];
     EXPECT_EQ((void*)nil, (void*)first.superview);
     EXPECT_EQ((void*)nil, (void*)m_Delegate.launchScreenView);
+    // UIKit finishes removing the old root controller on its next event-loop
+    // pass. Reconnecting before that starts an overlapping appearance transition.
+    EXPECT_TRUE(WaitUntil(^BOOL { return observer->m_DisappearanceCount == 1; }));
     [m_Delegate scene:m_Scene willConnectToSession:m_Scene.session options:g_ConnectionOptions];
     window = (UIWindow*)glfwGetiOSUIWindow();
     UIView* second = [[[UIView alloc] initWithFrame:window.bounds] autorelease];
@@ -186,11 +241,16 @@ TEST_F(iOSSceneApplication, LaunchCleanupAfterReconnect)
     [m_Delegate sceneDidBecomeActive:m_Scene];
     unsigned int before = g_UpdateCount;
     EXPECT_TRUE(WaitUntil(^BOOL { return g_UpdateCount > before + 2; }));
+    EXPECT_EQ(2U, observer->m_AppearanceCount);
+    EXPECT_EQ(1U, observer->m_DisappearanceCount);
     EXPECT_EQ((void*)nil, (void*)second.superview);
     EXPECT_EQ((void*)nil, (void*)m_Delegate.launchScreenView);
     [first removeFromSuperview];
     [second removeFromSuperview];
     m_Delegate.launchScreenView = nil;
+    [observer willMoveToParentViewController:nil];
+    [observer.view removeFromSuperview];
+    [observer removeFromParentViewController];
 }
 
 // Fullscreen UIKit presentation detaches the game view. Engine callbacks must
@@ -248,6 +308,91 @@ TEST_F(iOSSceneApplication, DisconnectStopsUpdates)
     ASSERT_EQ((void*)view, (void*)m_Controller.baseView);
     ASSERT_NE((void*)nil, (void*)view->displayLink);
     ASSERT_TRUE(WaitUntil(^BOOL { return g_UpdateCount > before + 2; }));
+}
+
+// Releasing an OpenGL view must run BaseView's cleanup and release both contexts;
+// an empty EAGLView dealloc used to leak the view and all of these resources.
+TEST_F(iOSSceneApplication, OpenGLViewDeallocation)
+{
+    EAGLContext* previousContext = [[EAGLContext currentContext] retain];
+    NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
+    EAGLView* view = [[EAGLView alloc] initWithFrame:CGRectMake(0, 0, 32, 32)];
+    EAGLContext* context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES3];
+    EAGLContext* auxContext = [[EAGLContext alloc] initWithAPI:context.API sharegroup:context.sharegroup];
+    EXPECT_NE((void*)nil, (void*)context);
+    EXPECT_NE((void*)nil, (void*)auxContext);
+    view.context = context;
+    view.auxContext = auxContext;
+
+    g_ReleasedObjects = 0;
+    ReleaseObserver* observer = [[ReleaseObserver alloc] init];
+    objc_setAssociatedObject(view, &g_ReleasedObjects, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(context, &g_ReleasedObjects, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(auxContext, &g_ReleasedObjects, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    [observer release];
+    [context release];
+    [auxContext release];
+    [view setCurrentContext];
+    [view release];
+    [pool drain];
+    EXPECT_EQ(1U, g_ReleasedObjects);
+    EXPECT_EQ((void*)nil, (void*)[EAGLContext currentContext]);
+    [EAGLContext setCurrentContext:previousContext];
+    [previousContext release];
+}
+
+// UIKit must be able to read and set a copied marked-text style while composing
+// text; the previously missing accessors could raise an unrecognized selector.
+TEST_F(iOSSceneApplication, MarkedTextStyleDuringComposition)
+{
+    BaseView* view = m_Controller.baseView;
+    ASSERT_TRUE([view respondsToSelector:@selector(markedTextStyle)]);
+    ASSERT_TRUE([view respondsToSelector:@selector(setMarkedTextStyle:)]);
+    EXPECT_EQ((void*)nil, (void*)view.markedTextStyle);
+    EXPECT_TRUE([view becomeFirstResponder]);
+
+    NSMutableDictionary* style = [[NSMutableDictionary alloc] initWithObjectsAndKeys:@1, NSUnderlineStyleAttributeName, nil];
+    view.markedTextStyle = style;
+    [style setObject:@2 forKey:NSUnderlineStyleAttributeName];
+    [style release];
+    EXPECT_EQ(1, [view.markedTextStyle[NSUnderlineStyleAttributeName] intValue]);
+    view.markedTextStyle = view.markedTextStyle;
+    EXPECT_EQ(1, [view.markedTextStyle[NSUnderlineStyleAttributeName] intValue]);
+
+    [view setMarkedText:@"かな" selectedRange:NSMakeRange(2, 0)];
+    EXPECT_TRUE([[view textInRange:view.markedTextRange] isEqualToString:@"かな"]);
+    [view unmarkText];
+    EXPECT_TRUE([[view textInRange:view.markedTextRange] isEqualToString:@""]);
+    [view resignFirstResponder];
+    view.markedTextStyle = nil;
+    EXPECT_EQ((void*)nil, (void*)view.markedTextStyle);
+}
+
+// Both render views must release the copied style when replaced, cleared, or
+// deallocated, so repeated composition and view recreation cannot leak its values.
+TEST_F(iOSSceneApplication, MarkedTextStyleLifetime)
+{
+    ASSERT_TRUE([BaseView instancesRespondToSelector:@selector(setMarkedTextStyle:)]);
+    EAGLContext* previousContext = [[EAGLContext currentContext] retain];
+    Class viewClasses[] = {[MetalView class], [EAGLView class]};
+    for (unsigned int i = 0; i < 2; ++i)
+    {
+        NSAutoreleasePool* pool = [[NSAutoreleasePool alloc] init];
+        BaseView* view = [[viewClasses[i] alloc] initWithFrame:CGRectMake(0, 0, 32, 32)];
+        g_ReleasedObjects = 0;
+        SetObservedMarkedTextStyle(view);
+        EXPECT_EQ(0U, g_ReleasedObjects);
+        SetObservedMarkedTextStyle(view);
+        EXPECT_EQ(1U, g_ReleasedObjects);
+        view.markedTextStyle = nil;
+        EXPECT_EQ(2U, g_ReleasedObjects);
+        SetObservedMarkedTextStyle(view);
+        [view release];
+        [pool drain];
+        EXPECT_EQ(3U, g_ReleasedObjects);
+    }
+    [EAGLContext setCurrentContext:previousContext];
+    [previousContext release];
 }
 
 @interface SceneApplicationTestRunner : NSObject

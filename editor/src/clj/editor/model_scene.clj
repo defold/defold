@@ -1174,7 +1174,7 @@
                                             [:sha256 :external-buffer-sha256s]))
           new-value)))
 
-(defn load-model-scene-node [project self resource external-buffer-uris]
+(defn load-model-scene-node [{:keys [project]} {self :node-id resource :owner-resource external-buffer-uris :source-value}]
   (let [basis (g/now)
         workspace (resource/workspace resource)
         source-path (resource/path resource)
@@ -1264,10 +1264,13 @@
 
 (defn- load-gltf-mesh-node
   "Connects a virtual mesh preview to its source scene so materials and reloads are shared."
-  [_project self mesh-resource]
+  [_load-opts {self :node-id mesh-resource :owner-resource}]
   (let [source-proj-path (-> mesh-resource resource/proj-path resource/parent-proj-path resource/parent-proj-path)
         source-resource (workspace/resolve-workspace-resource (resource/workspace mesh-resource) source-proj-path)]
     (g/set-property self :source source-resource)))
+
+(defn- read-model-scene [_read-opts _owner-resource readable]
+  (model-loader/read-external-buffer-uris readable))
 
 (defn register-resource-types [workspace]
   (into
@@ -1276,7 +1279,7 @@
       :label (localization/message "resource.type.model-scene")
       :node-type ModelSceneNode
       :load-fn load-model-scene-node
-      :read-fn model-loader/read-external-buffer-uris
+      :read-fn read-model-scene
       :icon mesh-icon
       :icon-class :design
       :view-types [:scene :text])

@@ -84,57 +84,140 @@
 
 (def resource-node-type (comp resource-type->node-type resource/resource-type))
 
-(defn- load-resource-node [project resource-node-id resource source-value transpiler-tx-data-fn]
+(defn make-load-opts [project]
+  (g/with-auto-evaluation-context evaluation-context
+    (let [basis (:basis evaluation-context)
+          workspace (g/raw-property-value basis project :workspace)
+          code-preprocessor (workspace/code-preprocessors workspace evaluation-context)
+          script-intelligence (g/node-value project :script-intelligence evaluation-context)
+          project-directory (workspace/project-directory basis workspace)
+          proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)
+
+          resolve-resource-fn
+          (fn resolve-resource-fn [owner-resource path]
+            (when-not (coll/empty? path)
+              (let [owner-proj-path (some-> owner-resource resource/proj-path)
+                    proj-path (workspace/resolve-proj-path project-directory owner-proj-path path)]
+                (proj-path->resource proj-path))))
+
+          editable->type-ext->resource-type
+          {true (resource/resource-types-by-type-ext basis workspace true)
+           false (resource/resource-types-by-type-ext basis workspace false)}]
+
+      {:code-preprocessor code-preprocessor
+       :editable->type-ext->resource-type editable->type-ext->resource-type
+       :project project
+       :resolve-resource-fn resolve-resource-fn
+       :script-intelligence script-intelligence
+       :workspace workspace})))
+
+(defn- load-resource-node [{:keys [project] :as load-opts} {:keys [node-id resource resource-type] :as node-load-info} transpiler-tx-data-fn]
   (try
-    (let [{:keys [read-fn load-fn] :as resource-type} (resource/resource-type resource)
-          transpiler-tx-data (transpiler-tx-data-fn resource-node-id resource)]
+    (let [load-fn (:load-fn resource-type)
+          transpiler-tx-data (transpiler-tx-data-fn node-id resource)]
       (cond-> []
 
-              load-fn
-              (into coll/flatten-xf
-                    (if (nil? read-fn)
-                        (load-fn project resource-node-id resource)
-                        (load-fn project resource-node-id resource source-value)))
+        load-fn
+        (into coll/flatten-xf
+              (load-fn load-opts node-load-info))
 
-              (and (:auto-connect-save-data? resource-type)
-                   (resource/save-tracked? resource))
-              (into (g/connect resource-node-id :save-data project :save-data))
+        (and (:auto-connect-save-data? resource-type)
+             (resource/save-tracked? resource))
+        (into (g/connect node-id :save-data project :save-data))
 
-              transpiler-tx-data
-              (into transpiler-tx-data)
+        transpiler-tx-data
+        (into transpiler-tx-data)
 
-              :always
-              not-empty))
+        :always
+        not-empty))
     (catch Exception exception
       (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception exception)
-      (let [node-type (resource-node-type resource)
-            invalid-content-error (resource-io/invalid-content-error resource-node-id nil :fatal resource exception)]
-        (g/mark-defective resource-node-id node-type invalid-content-error)))
+      (let [node-type (:node-type resource-type)
+            invalid-content-error (resource-io/invalid-content-error node-id nil :fatal resource exception)]
+        (g/mark-defective node-id node-type invalid-content-error)))
     (catch Throwable throwable
-      (let [node-type (resource-node-type resource)
+      (let [node-type (:node-type resource-type)
             proj-path (resource/proj-path resource)]
         (throw (ex-info (format "Error when loading resource '%s'" proj-path)
                         {:node-type node-type
                          :proj-path proj-path}
                         throwable))))))
 
-(defn load-embedded-resource-node [project embedded-resource-node-id embedded-resource source-value]
+(defn- embedded-node-load-info
+  [owner-resource embedded-resource embedded-resource-node-id source-value]
+  {:pre [(resource/resource? owner-resource)
+         (resource/memory-resource? embedded-resource)
+         (g/node-id? embedded-resource-node-id)]}
+  {:node-id embedded-resource-node-id
+   :owner-resource owner-resource
+   :resource embedded-resource
+   :resource-type (resource/resource-type embedded-resource)
+   :source-value source-value})
+
+(defn load-embedded-resource-node [load-opts owner-resource embedded-resource-node-id embedded-resource source-value]
   (let [embedded-resource-type (resource/resource-type embedded-resource)
-        load-fn (:load-fn embedded-resource-type)]
-    (load-fn project embedded-resource-node-id embedded-resource source-value)))
+        load-fn (:load-fn embedded-resource-type)
+        node-load-info (embedded-node-load-info owner-resource embedded-resource embedded-resource-node-id source-value)]
+    (load-fn load-opts node-load-info)))
 
 (defn- make-file-not-found-error [node-id resource]
   (resource-io/file-not-found-error node-id nil :fatal resource))
 
 (defn- make-file-not-found-node-load-info [node-id resource]
   {:node-id node-id
+   :owner-resource resource
    :resource resource
    :read-error (make-file-not-found-error node-id resource)})
 
-(defn read-node-load-info [read-opts node-id resource]
+(defn read-node-load-info
+  "Reads from disk and returns a node-load-info map. The map contains the
+  following entries:
+
+  :node-id
+    The supplied node-id.
+
+  :resource
+    The supplied resource.
+
+  :owner-resource
+    The Resource that owns the node-id. For node-load-infos returned by this
+    function, this will always be the supplied resource, but we also synthesize
+    node-load-infos when loading embedded resources. In that case, the
+    :owner-resource will be the Resource that ultimately owns the embedded
+    MemoryResource, and :resource will be the MemoryResource we're reading from.
+    Use the :owner-resource to resolve paths and decide editability, and the
+    :resource to read data and decide the resource-type.
+
+  :resource-type
+    The resource-type of the supplied resource.
+
+  :read-error (optional)
+    If the resource does not exist, or an error occurs when reading, this will
+    be an ErrorValue with details about what went wrong. None of the fields
+    below will be present if we have a :read-error.
+
+  :source-value (optional)
+    When the resource-type specifies a :read-fn, this will be its return value
+    after we successfully call it.
+
+  :disk-sha256 (optional)
+    When the resource-type specifies a :read-fn, this will be a hex string hash
+    of the bytes consumed during the read operation.
+
+  :dependency-proj-paths (optional)
+    Whe the resource-type specifies both a :read-fn and a :dependencies-fn, this
+    will be a vector of proj-paths reported as dependencies by the
+    :dependencies-fn when we give it the source-value returned by the :read-fn."
+  [read-opts node-id resource]
   {:pre [(g/node-id? node-id)]}
-  (let [{:keys [lazy-loaded read-fn] :as resource-type} (resource/resource-type resource)
-        resource-metrics (du/when-metrics (:resource-metrics read-opts))
+  (let [resource-metrics (:resource-metrics read-opts)
+        editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
+        editable (resource/editable-resource? resource)
+        type-ext->resource-type (editable->type-ext->resource-type editable)
+
+        {:keys [lazy-loaded read-fn] :as resource-type}
+        (or (type-ext->resource-type (resource/type-ext resource))
+            (type-ext->resource-type resource/placeholder-resource-type-ext))
 
         ;; Seeing as how we're operating on a list of resources that we got from
         ;; the file system itself, you might assume that every resource will
@@ -147,7 +230,7 @@
                  (not lazy-loaded))
           (try
             (du/measuring resource-metrics (resource/proj-path resource) :read-source-value
-              (resource/read-source-value+sha256-hex resource read-fn))
+              (resource/read-source-value+sha256-hex resource #(read-fn read-opts resource %)))
             (catch FileNotFoundException _
               (make-file-not-found-error node-id resource))
             (catch Exception exception
@@ -186,7 +269,9 @@
                 nil))))]
 
     (cond-> {:node-id node-id
-             :resource resource}
+             :owner-resource resource
+             :resource resource
+             :resource-type resource-type}
             read-error (assoc :read-error read-error)
             source-value (assoc :source-value source-value)
             disk-sha256 (assoc :disk-sha256 disk-sha256)
@@ -215,15 +300,14 @@
 (defn- sort-node-ids-for-loading [node-ids node-id->dependency-node-ids]
   (first (sort-node-ids-for-loading-impl node-ids #{} [] #{} (set node-ids) node-id->dependency-node-ids)))
 
-(defn ^{:dynamic (system/defold-dev?)} node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} project transpiler-tx-data-fn]
+(defn ^{:dynamic (system/defold-dev?)} node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} load-opts transpiler-tx-data-fn]
   ;; At this point, the node-id refers to a created node in the graph.
   (e/cons
     (g/set-property node-id :loaded true)
     (if read-error
       (let [node-type (resource-node-type resource)]
         (g/mark-defective node-id node-type read-error))
-      (let [source-value (:source-value node-load-info)]
-        (load-resource-node project node-id resource source-value transpiler-tx-data-fn)))))
+      (load-resource-node load-opts node-load-info transpiler-tx-data-fn))))
 
 (defn- sort-node-load-infos-for-loading
   "Sorts the node-load-infos so that referenced nodes are loaded before the
@@ -295,7 +379,8 @@
   [project node-load-infos render-generate-tx-data-progress! render-apply-tx-data-progress! resource-metrics]
   {:pre [(ifn? render-generate-tx-data-progress!)
          (ifn? render-apply-tx-data-progress!)]}
-  (let [node-count (count node-load-infos)
+  (let [load-opts (make-load-opts project)
+        node-count (count node-load-infos)
 
         resource-metrics-load-timer
         (du/when-metrics
@@ -320,26 +405,32 @@
         node-load-info-tx-data-fn
         (if (identical? progress/null-render-progress! render-generate-tx-data-progress!)
           (fn node-load-info-tx-data-fn [node-load-info _progress]
-            (node-load-info-tx-data node-load-info project transpiler-tx-data-fn))
+            (node-load-info-tx-data node-load-info load-opts transpiler-tx-data-fn))
           (fn node-load-info-tx-data-fn [node-load-info progress]
             (render-generate-tx-data-progress! (update progress :message localization/set-message-key "progress.processing-resource"))
-            (node-load-info-tx-data node-load-info project transpiler-tx-data-fn)))]
+            (node-load-info-tx-data node-load-info load-opts transpiler-tx-data-fn)))]
 
-    (coll/into-> node-load-infos :eduction
-      (coll/mapcat-indexed
-        (fn [^long node-index node-load-info]
-          (let [resource (:resource node-load-info)
-                proj-path (resource/proj-path resource)
-                progress-message (localization/message "progress.loading-resource" {"resource" proj-path})
-                progress (progress/make progress-message node-count (inc node-index))]
-            (e/concat
-              (g/callback render-apply-tx-data-progress! progress)
-              (du/when-metrics
-                (g/callback start-resource-metrics-load-timer!))
-              (du/measuring resource-metrics proj-path :generate-load-tx-data
-                (node-load-info-tx-data-fn node-load-info progress))
-              (du/when-metrics
-                (g/callback stop-resource-metrics-load-timer! proj-path)))))))))
+    (e/concat
+      ;; Property setters can load embedded or previously unloaded resources.
+      ;; Make the batch's options available to those loads as well.
+      (g/callback-ec
+        (fn [evaluation-context]
+          (swap! (:tx-data-context evaluation-context) assoc :load-opts load-opts)))
+      (coll/into-> node-load-infos :eduction
+        (coll/mapcat-indexed
+          (fn [^long node-index node-load-info]
+            (let [resource (:resource node-load-info)
+                  proj-path (resource/proj-path resource)
+                  progress-message (localization/message "progress.loading-resource" {"resource" proj-path})
+                  progress (progress/make progress-message node-count (inc node-index))]
+              (e/concat
+                (g/callback render-apply-tx-data-progress! progress)
+                (du/when-metrics
+                  (g/callback start-resource-metrics-load-timer!))
+                (du/measuring resource-metrics proj-path :generate-load-tx-data
+                  (node-load-info-tx-data-fn node-load-info progress))
+                (du/when-metrics
+                  (g/callback stop-resource-metrics-load-timer! proj-path))))))))))
 
 (defn read-node-load-infos [read-opts node-id+resource-pairs ^long progress-size render-progress!]
   {:pre [(or (nil? node-id+resource-pairs) (counted? node-id+resource-pairs))]}
@@ -991,10 +1082,6 @@
                 :resource-metrics @resource-metrics
                 :transaction-metrics @transaction-metrics}))
      project)))
-
-(defn make-embedded-resource [project editability ext data]
-  (let [workspace (g/node-value project :workspace)]
-    (workspace/make-memory-resource workspace editability ext data)))
 
 (defn all-save-data
   ([project]
@@ -1711,11 +1798,14 @@
                     tx-data-context-map' (assoc tx-data-context-map :read-opts read-opts)]
                 (pair tx-data-context-map' read-opts)))
 
+            load-opts (or (:load-opts tx-data-context-map') (make-load-opts project))
+            tx-data-context-map' (assoc tx-data-context-map' :load-opts load-opts)
+
             node-load-info (read-node-load-info read-opts node-id resource)
             {:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state [node-load-info])
             load-tx-data (e/concat
                            (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
-                           (node-load-info-tx-data node-load-info project transpiler-tx-data-fn))
+                           (node-load-info-tx-data node-load-info load-opts transpiler-tx-data-fn))
             loaded-resources' (conj (or loaded-resources #{}) resource)
             tx-data-context-map' (assoc tx-data-context-map' :loaded-resources loaded-resources')]
         [tx-data-context-map' node-id+source-value-pairs load-tx-data]))))
@@ -1749,7 +1839,7 @@
             ;; during resource-sync. Mark it as loaded and defective.
             creation-tx-data
             (let [node-load-info (make-file-not-found-node-load-info node-id resource)]
-              (node-load-info-tx-data node-load-info project nil))
+              (node-load-info-tx-data node-load-info (make-load-opts project) nil))
 
             ;; If we're about to connect a defunloaded resource that does not
             ;; :allow-unloaded-use, ensure it is loaded as part of this

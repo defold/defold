@@ -613,10 +613,9 @@
 (defn- legacy-texture->sampler [name]
   (assoc default-pb-sampler :name name))
 
-(defn load-material [project self resource material-desc]
+(defn load-material [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id material-desc :source-value}]
   {:pre [(map? material-desc)]} ; Material$MaterialDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)
         attributes->editable-attributes #(mapv attribute->editable-attribute %)]
     (concat
       (g/connect project :default-sampler-filter-modes self :default-sampler-filter-modes)
@@ -640,7 +639,7 @@
   :samplers if we encounter them. Ignores :textures that already have
   :samplers with the same name. Also ensures that there are no duplicate
   entries in the :samplers list, based on :name."
-  [material-desc]
+  [_read-opts _owner-resource material-desc]
   ;; Material$MaterialDesc in map format.
   (let [existing-samplers (:samplers material-desc)
         samplers-created-from-textures (map legacy-texture->sampler (:textures material-desc))

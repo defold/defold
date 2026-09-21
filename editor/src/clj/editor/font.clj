@@ -1565,7 +1565,7 @@
   (doto (BMFont.)
     (.parse input-stream)))
 
-(defn load-bitmap-font-source [_project self resource]
+(defn load-bitmap-font-source [{:keys [resolve-resource-fn workspace]} {:keys [owner-resource resource] self :node-id}]
   (let [[^BMFont bm-font disk-sha256] (resource/read-source-value+sha256-hex resource read-bm-font)]
     (let [;; this weird dance stolen from Fontc.java
           texture-file-name (-> bm-font
@@ -1575,12 +1575,11 @@
                                 (Paths/get (into-array String []))
                                 (.getFileName)
                                 (.toString))
-          texture-resource (workspace/resolve-resource resource texture-file-name)]
+          texture-resource (resolve-resource-fn owner-resource texture-file-name)]
       (concat
         (g/set-property self :texture texture-resource)
         (when disk-sha256
-          (let [workspace (resource/workspace resource)]
-            (workspace/set-disk-sha256 workspace self disk-sha256)))))))
+          (workspace/set-disk-sha256 workspace self disk-sha256))))))
 
 (g/defnode TrueTypeFontSourceNode
   (inherits resource-node/ResourceNode)
@@ -1591,7 +1590,7 @@
               (resource-io/with-error-translation resource _node-id :runtime-generation-build-target
                 (pipeline/make-source-bytes-build-target _node-id resource))))))
 
-(defn load-true-type-font-source [project self _resource]
+(defn load-true-type-font-source [{:keys [project]} {self :node-id}]
   (g/connect project :settings self :project-settings))
 
 (g/defnode OpenTypeFontSourceNode
@@ -2000,10 +1999,9 @@
                                              :native-renderer-spec (:native-renderer-spec font-map)}))
   (output preview-text g/Str :cached produce-preview-text))
 
-(defn load-font [project self resource font-desc]
+(defn load-font [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id font-desc :source-value}]
   {:pre [(map? font-desc)]} ; Font$FontDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (into
       [(g/connect project :use-font-layout self :use-font-layout)
        (g/connect project :use-rich-text self :use-rich-text)
@@ -2037,7 +2035,7 @@
         cache-height :cache-height
         render-mode :render-mode))))
 
-(defn sanitize-font [{:keys [characters extra-characters] :as font-desc}]
+(defn sanitize-font [_read-opts _owner-resource {:keys [characters extra-characters] :as font-desc}]
   {:pre [(map? font-desc)]} ; Font$FontDesc in map format.
   ;; In a previous file format, we would always include all printable ASCII
   ;; characters in the font, and the user could specify :extra-characters to

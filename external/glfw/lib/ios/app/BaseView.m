@@ -171,8 +171,8 @@ NSString *const FAKE_STRING = @"Abcd";
     return [[UITextInputStringTokenizer alloc] initWithTextInput:self];
 }
 
-- (UITextWritingDirection) baseWritingDirectionForPosition: (UITextPosition *)position inDirection: (UITextStorageDirection)direction {
-    return UITextWritingDirectionRightToLeft;
+- (NSWritingDirection) baseWritingDirectionForPosition: (UITextPosition *)position inDirection: (UITextStorageDirection)direction {
+    return NSWritingDirectionRightToLeft;
 }
 
 - (UITextAutocorrectionType) autocorrectionType {
@@ -221,7 +221,7 @@ NSString *const FAKE_STRING = @"Abcd";
 - (NSComparisonResult)comparePosition:(UITextPosition *)position
                            toPosition:(UITextPosition *)other { return NSOrderedSame; }
 
-- (void) setBaseWritingDirection: (UITextWritingDirection)writingDirection forRange:(UITextRange *)range { }
+- (void) setBaseWritingDirection: (NSWritingDirection)writingDirection forRange:(UITextRange *)range { }
 
 - (void)swapBuffers
 {
@@ -586,6 +586,7 @@ NSString *const FAKE_STRING = @"Abcd";
 {
     [self invalidateDisplayLink];
     [self teardownView];
+    [_markedTextStyle release];
 
     [super dealloc];
 }

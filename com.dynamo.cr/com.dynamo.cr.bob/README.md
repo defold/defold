@@ -37,6 +37,10 @@ Compiler libraries still resolve from local engine builds or `archive-artifacts.
 `lib/luajit-share.zip` is generated from the installed LuaJIT modules. Both JAR tasks
 track the manifests as inputs, so changing a list updates the packaged contents.
 
+Archive compression uses the engine's raw LZ4 high-compression implementation
+through JNA and `dlib_shared`, packaged in both Bob and Bob Light. Local builds
+must include `dlib_shared` for the host platform.
+
 Both JARs copy dependency entries directly when their compression method matches
 the output, preserving the compressed bytes. Loose files are compressed in
 parallel. `-Pkeep-bob-uncompressed` still stores every entry without compression;

@@ -25,7 +25,7 @@ except:
 import struct
 import hashlib
 import optparse
-import lz4.block
+import dlib
 import resource.liveupdate_ddf_pb2
 
 import traceback
@@ -208,7 +208,7 @@ if __name__ == "__main__":
                             xtea_decryptCTR(bytearray(b'aQj8CScgNP4VsfXK'), data)
                         if compressed_size != 0xFFFFFFFF:
                             if options.uncompress:
-                                data = lz4.block.decompress(data, uncompressed_size)
+                                data = dlib.dmLZ4DecompressBuffer(data, uncompressed_size)
                             else:
                                 url += ".lz4";
 

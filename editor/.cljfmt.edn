@@ -110,6 +110,7 @@
                  integration.test-util/set-code-editor-lines [[:inner 0]]
                  integration.test-util/set-code-editor-lines! [[:inner 0]]
                  integration.test-util/with-changes-reverted [[:inner 0]]
+                 integration.test-util/with-graph-queries-blocked [[:inner 0]]
                  integration.test-util/with-loaded-project [[:inner 0]]
                  integration.test-util/with-logged-calls [[:inner 0]]
                  integration.test-util/with-prop [[:inner 0]]

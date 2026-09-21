@@ -284,10 +284,9 @@
   (output save-value g/Any :cached produce-save-value)
   (output scene g/Any :cached produce-scene))
 
-(defn load-cubemap [project self resource cubemap]
+(defn load-cubemap [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id cubemap :source-value}]
   {:pre [(map? cubemap)]} ; Graphics$Cubemap in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (concat
       (g/connect project :build-settings self :build-settings)
       (g/connect project :texture-profiles self :texture-profiles)

@@ -635,11 +635,12 @@ namespace dmGraphics
         m_ScratchBufferPool.Push(buffer);
     }
 
-    MetalConstantScratchBuffer* MetalArgumentBufferPool::Allocate(const MetalContext* context, uint32_t size)
+    MetalConstantScratchBuffer* MetalArgumentBufferPool::Allocate(const MetalContext* context, uint32_t size, uint32_t alignment)
     {
         MetalConstantScratchBuffer* current = Get();
+        uint32_t                    padding = DM_ALIGN(current->m_MappedDataCursor, alignment) - current->m_MappedDataCursor;
 
-        if (!current->CanAllocate(size))
+        if (!current->CanAllocate(padding + size))
         {
             m_ScratchBufferIndex++;
             if (m_ScratchBufferIndex >= m_ScratchBufferPool.Size())
@@ -647,25 +648,29 @@ namespace dmGraphics
                 AddBuffer(context);
             }
             current = Get();
+            current->EnsureSize(context, size);
+            padding = 0;
         }
 
-        assert(current->CanAllocate(size));
+        current->Advance(padding);
         return current;
     }
 
     MetalArgumentBinding MetalArgumentBufferPool::Bind(const MetalContext* context, MTL::ArgumentEncoder* encoder)
     {
-        uint32_t encode_size_aligned = DM_ALIGN(encoder->encodedLength(), 16);
+        // Argument buffers use the constant address space and must satisfy both alignment requirements.
+        uint32_t alignment = dmMath::Max((uint32_t) encoder->alignment(), UNIFORM_BUFFER_ALIGNMENT);
+        uint32_t encode_size_aligned = DM_ALIGN(encoder->encodedLength(), alignment);
         assert(encode_size_aligned > 0);
 
-        MetalConstantScratchBuffer* current = Allocate(context, encode_size_aligned);
+        MetalConstantScratchBuffer* current = Allocate(context, encode_size_aligned, alignment);
 
         MetalArgumentBinding arg_binding = {};
         arg_binding.m_Buffer = current->m_DeviceBuffer.m_Buffer;
         arg_binding.m_Offset = current->m_MappedDataCursor;
 
         encoder->setArgumentBuffer(current->m_DeviceBuffer.m_Buffer, current->m_MappedDataCursor);
-        current->Advance(encoder->encodedLength());
+        current->Advance(encode_size_aligned);
 
         return arg_binding;
     }
@@ -1801,6 +1806,8 @@ namespace dmGraphics
             else
             {
                 colorAttachment->setTexture(tex->m_Texture);
+                if (rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
+                    colorAttachment->setSlice(rt->m_Base.m_CubeMapFace);
                 colorAttachment->setStoreAction(is_memoryless || rt->m_ColorBufferStoreOps[i] == ATTACHMENT_OP_DONT_CARE ? MTL::StoreActionDontCare : MTL::StoreActionStore);
             }
         }
@@ -1849,11 +1856,15 @@ namespace dmGraphics
                     if (depthAttachment)
                     {
                         depthAttachment->setTexture(tex->m_Texture);
+                        if (rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
+                            depthAttachment->setSlice(rt->m_Base.m_CubeMapFace);
                         depthAttachment->setStoreAction(is_memoryless ? MTL::StoreActionDontCare : MTL::StoreActionStore);
                     }
                     if (stencilAttachment)
                     {
                         stencilAttachment->setTexture(tex->m_Texture);
+                        if (rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
+                            stencilAttachment->setSlice(rt->m_Base.m_CubeMapFace);
                         stencilAttachment->setStoreAction(is_memoryless ? MTL::StoreActionDontCare : MTL::StoreActionStore);
                     }
                 }
@@ -4239,10 +4250,10 @@ namespace dmGraphics
         return MTL::StorageModePrivate;
     }
 
-    static MTL::Texture* NewMetalRenderTargetTexture(MetalContext* context, const TextureParams& params, MTL::PixelFormat format, uint8_t usage_hints, uint32_t sample_count)
+    static MTL::Texture* NewMetalRenderTargetTexture(MetalContext* context, const TextureParams& params, MTL::PixelFormat format, uint8_t usage_hints, uint32_t sample_count, TextureType texture_type)
     {
         MTL::TextureDescriptor* desc = MTL::TextureDescriptor::alloc()->init();
-        desc->setTextureType(sample_count > 1 ? MTL::TextureType2DMultisample : MTL::TextureType2D);
+        desc->setTextureType(sample_count > 1 ? MTL::TextureType2DMultisample : (texture_type == TEXTURE_TYPE_CUBE_MAP ? MTL::TextureTypeCube : MTL::TextureType2D));
         desc->setPixelFormat(format);
         desc->setWidth(params.m_Width);
         desc->setHeight(params.m_Height);
@@ -4274,8 +4285,8 @@ namespace dmGraphics
         texture->m_Base.m_Format      = params.m_Format;
         texture->m_Base.m_Depth       = 1;
         texture->m_Base.m_MipMapCount = 1;
-        texture->m_Base.m_PageCount   = 1;
-        texture->m_LayerCount         = 1;
+        texture->m_Base.m_PageCount   = texture->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+        texture->m_LayerCount         = texture->m_Base.m_PageCount;
         SetTextureResourceSize(&texture->m_Base, sizeof(MetalTexture));
     }
 
@@ -4410,7 +4421,9 @@ namespace dmGraphics
             params.m_DepthBufferParams :
             params.m_StencilBufferParams;
         rt->m_Base.m_DepthStencilTextureParams = rt->m_DepthStencilTextureParams;
-        rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, MetalGetSupportedSampleCounts(context->m_Device), "Metal");
+        uint32_t supported_sample_counts = params.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? 1 : MetalGetSupportedSampleCounts(context->m_Device);
+        rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, supported_sample_counts, "Metal");
+        rt->m_Base.m_TextureType = params.m_TextureType;
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS && rt->m_Width == 0 && rt->m_Height == 0; ++i)
         {
             if (buffer_type_flags & GetBufferTypeFromIndex(i))
@@ -4498,7 +4511,7 @@ namespace dmGraphics
                 // attachment itself can remain transient/memoryless.
                 color_usage_hints &= ~(TEXTURE_USAGE_FLAG_SAMPLE | TEXTURE_USAGE_FLAG_INPUT | TEXTURE_USAGE_FLAG_STORAGE);
             }
-            MTL::Texture* native_color_texture = NewMetalRenderTargetTexture(context, color_buffer_params, GetMetalPixelFormat(color_buffer_params.m_Format), color_usage_hints, rt->m_Base.m_SampleCount);
+            MTL::Texture* native_color_texture = NewMetalRenderTargetTexture(context, color_buffer_params, GetMetalPixelFormat(color_buffer_params.m_Format), color_usage_hints, rt->m_Base.m_SampleCount, rt->m_Base.m_TextureType);
             if (!native_color_texture)
             {
                 return FailMetalRenderTargetCreation(_context, rt, color_buffer_params.m_Width, color_buffer_params.m_Height);
@@ -4514,7 +4527,7 @@ namespace dmGraphics
                 assert(resolve_texture);
                 rt->m_Base.m_TextureColorResolve[color_index] = resolve_handle;
 
-                MTL::Texture* native_resolve_texture = NewMetalRenderTargetTexture(context, color_buffer_params, GetMetalPixelFormat(color_buffer_params.m_Format), resolve_creation_params.m_UsageHintBits, 1);
+                MTL::Texture* native_resolve_texture = NewMetalRenderTargetTexture(context, color_buffer_params, GetMetalPixelFormat(color_buffer_params.m_Format), resolve_creation_params.m_UsageHintBits, 1, rt->m_Base.m_TextureType);
                 if (!native_resolve_texture)
                 {
                     return FailMetalRenderTargetCreation(_context, rt, color_buffer_params.m_Width, color_buffer_params.m_Height);
@@ -4567,7 +4580,7 @@ namespace dmGraphics
             assert(depth_texture_ptr);
 
             rt->m_DepthStencilFormat = (has_depth && !has_stencil) ? MTL::PixelFormatDepth32Float : MTL::PixelFormatDepth32Float_Stencil8;
-            MTL::Texture* native_depth_stencil_texture = NewMetalRenderTargetTexture(context, ds_params, rt->m_DepthStencilFormat, ds_create_params.m_UsageHintBits, rt->m_Base.m_SampleCount);
+            MTL::Texture* native_depth_stencil_texture = NewMetalRenderTargetTexture(context, ds_params, rt->m_DepthStencilFormat, ds_create_params.m_UsageHintBits, rt->m_Base.m_SampleCount, rt->m_Base.m_TextureType);
             if (!native_depth_stencil_texture)
             {
                 return FailMetalRenderTargetCreation(_context, rt, ds_params.m_Width, ds_params.m_Height);
@@ -4591,13 +4604,18 @@ namespace dmGraphics
         delete rt;
     }
 
-    static void MetalSetRenderTarget(HContext _context, HRenderTarget render_target, uint32_t transient_buffer_types)
+    static void MetalSetRenderTarget(HContext _context, HRenderTarget render_target, const RenderTargetBindingParams& params)
     {
-        (void) transient_buffer_types;
         MetalContext* context = (MetalContext*) _context;
         HRenderTarget new_rt = render_target != 0x0 ? render_target : context->m_MainRenderTarget;
+        MetalRenderTarget* target = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, new_rt);
+        if (!target)
+        {
+            new_rt = context->m_MainRenderTarget;
+            target = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, new_rt);
+        }
 
-        if (context->m_CurrentRenderTarget == new_rt)
+        if (context->m_CurrentRenderTarget == new_rt && target->m_Base.m_CubeMapFace == params.m_CubeMapFace)
         {
             return;
         }
@@ -4609,6 +4627,7 @@ namespace dmGraphics
             EndRenderPass(context);
         }
 
+        target->m_Base.m_CubeMapFace = params.m_CubeMapFace;
         context->m_CurrentRenderTarget = new_rt;
         context->m_ViewportChanged = 1;
         context->m_ScissorChanged = 1;
@@ -4654,14 +4673,14 @@ namespace dmGraphics
                 {
                     usage_hints &= ~(TEXTURE_USAGE_FLAG_SAMPLE | TEXTURE_USAGE_FLAG_INPUT | TEXTURE_USAGE_FLAG_STORAGE);
                 }
-                color_textures[i] = NewMetalRenderTargetTexture(context, resized_params, rt->m_ColorFormat[i], usage_hints, rt->m_Base.m_SampleCount);
+                color_textures[i] = NewMetalRenderTargetTexture(context, resized_params, rt->m_ColorFormat[i], usage_hints, rt->m_Base.m_SampleCount, rt->m_Base.m_TextureType);
                 allocation_failed = color_textures[i] == 0;
             }
             if (!allocation_failed && rt->m_Base.m_TextureColorResolve[i])
             {
                 MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_Base.m_TextureColorResolve[i]);
                 assert(texture);
-                color_resolve_textures[i] = NewMetalRenderTargetTexture(context, resized_params, rt->m_ColorFormat[i], texture->m_Base.m_UsageHintFlags, 1);
+                color_resolve_textures[i] = NewMetalRenderTargetTexture(context, resized_params, rt->m_ColorFormat[i], texture->m_Base.m_UsageHintFlags, 1, rt->m_Base.m_TextureType);
                 allocation_failed = color_resolve_textures[i] == 0;
             }
         }
@@ -4673,7 +4692,7 @@ namespace dmGraphics
         {
             MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, rt->m_TextureDepthStencil);
             assert(texture);
-            depth_stencil_texture = NewMetalRenderTargetTexture(context, resized_depth_stencil_params, rt->m_DepthStencilFormat, texture->m_Base.m_UsageHintFlags, rt->m_Base.m_SampleCount);
+            depth_stencil_texture = NewMetalRenderTargetTexture(context, resized_depth_stencil_params, rt->m_DepthStencilFormat, texture->m_Base.m_UsageHintFlags, rt->m_Base.m_SampleCount, rt->m_Base.m_TextureType);
             allocation_failed = depth_stencil_texture == 0;
         }
 

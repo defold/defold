@@ -1,7 +1,7 @@
 # External
 
-`./scripts/build.py build_ext` builds source dependencies (Bullet, Basis Universal,
-and GLFW on iOS) with the regular Defold CMake toolchain and installs them into
+`./scripts/build.py build_ext` builds source dependencies
+with the regular Defold CMake toolchain and installs them into
 `tmp/dynamo_home/ext`. Run it after `install_ext`, before the first engine
 build, and whenever these sources or the toolchain change. Use `--platform`
 for cross-compilation; this builds dependencies for the host tools first,
