@@ -216,7 +216,7 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertEqual(1, result['counts']['fail'])
         self.assertEqual(len(report.CASES), len([r for r in result['comparisons'] if r['kind'] == 'reference']))
         self.assertTrue((self.output / 'results.json').exists())
-        page = (self.output / 'index.html').read_text()
+        page = (self.output / 'index.html').read_text(encoding='utf-8')
         self.assertIn('data:image/png;base64,', page)
         self.assertIn('Rebuild this report', page)
         self.assertNotIn('src="http', page)
@@ -261,7 +261,7 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertEqual(['pass', 'fail'], [check['status'] for check in checks])
         self.assertGreater(checks[1]['likeness_percent'], 99)
         self.assertTrue(Path(checks[1]['difference']).is_file())
-        page = (self.output / 'index.html').read_text()
+        page = (self.output / 'index.html').read_text(encoding='utf-8')
         for path in (original, repeated, Path(checks[1]['difference'])):
             self.assertIn(report.base64.b64encode(path.read_bytes()).decode(), page)
         self.assertIn('FAIL · likeness 100.00000%', page)
@@ -284,7 +284,7 @@ class GraphicsImagesTest(unittest.TestCase):
         report.diagnostic_path(moved / 'metal/triangle.png', 'viewport-actual').unlink()
         result = self.make_report([moved])
         self.assertEqual(1, result['counts']['fail'])
-        self.assertIn('No After readback image'.lower(), (self.output / 'index.html').read_text().lower())
+        self.assertIn('No After readback image'.lower(), (self.output / 'index.html').read_text(encoding='utf-8').lower())
 
     def test_saved_backend_mismatch_and_graphics_error(self):
         self.add_backend('metal')
@@ -358,7 +358,7 @@ class GraphicsImagesTest(unittest.TestCase):
         self.records[0]['log'] = '<script>alert(1)</script>'
         (self.images / 'captures.json').write_text(json.dumps(self.records))
         self.make_report()
-        page = (self.output / 'index.html').read_text()
+        page = (self.output / 'index.html').read_text(encoding='utf-8')
         self.assertNotIn('<script>', page)
         self.assertIn('&lt;script&gt;', page)
 
