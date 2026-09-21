@@ -31,7 +31,11 @@ target_include_directories(vkquality PRIVATE "${VKQUALITY_CPP_DIR}")
 target_compile_features(vkquality PRIVATE cxx_std_17)
 target_compile_options(vkquality PRIVATE -Os -Wall)
 target_link_options(vkquality PRIVATE -Wl,-z,max-page-size=16384)
+if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-android$")
+  target_link_options(vkquality PRIVATE -Wl,-z,common-page-size=16384)
+endif()
 target_link_libraries(vkquality PRIVATE android EGL GLESv3 log dl)
+defold_validate_android_elf(vkquality)
 
 install(TARGETS vkquality
         LIBRARY DESTINATION "lib/${TARGET_PLATFORM}")
