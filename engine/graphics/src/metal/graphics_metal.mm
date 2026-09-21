@@ -648,10 +648,10 @@ namespace dmGraphics
                 AddBuffer(context);
             }
             current = Get();
+            current->EnsureSize(context, size);
             padding = 0;
         }
 
-        assert(current->CanAllocate(padding + size));
         current->Advance(padding);
         return current;
     }

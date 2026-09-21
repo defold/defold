@@ -16,6 +16,7 @@
 #include <jc_test/jc_test.h>
 
 #include <QuartzCore/QuartzCore.h>
+#include <platform/window.hpp>
 
 #include "metal/graphics_metal_private.h"
 
@@ -108,6 +109,56 @@ TEST_F(MetalArgumentBufferTest, PaddingRolloverAndRewind)
     ASSERT_EQ(first->m_DeviceBuffer.m_Buffer, binding.m_Buffer);
     ASSERT_EQ(0u, binding.m_Offset);
     ASSERT_EQ(0u, second->m_MappedDataCursor);
+}
+
+TEST_F(MetalArgumentBufferTest, OversizedAllocationsGrowUnusedBuffers)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams window_params;
+    WindowCreateParamsInitialize(&window_params);
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, window_params));
+
+    dmGraphics::ContextParams context_params;
+    context_params.m_Window = window;
+    dmGraphics::MetalContext context(context_params);
+    context.m_Device = m_Device;
+    dmGraphics::ResourcesToDestroyList deferred_resources;
+    context.m_FrameResources[0].m_ResourcesToDestroy = &deferred_resources;
+
+    MTL::Buffer* first_buffer = m_Pool.Get()->m_DeviceBuffer.m_Buffer;
+    m_Pool.Get()->Advance(256);
+    const uint32_t size = m_Pool.m_SizePerBuffer * 3;
+    dmGraphics::MetalConstantScratchBuffer* buffer = m_Pool.Allocate(&context, size, 256);
+
+    ASSERT_EQ(1u, m_Pool.m_ScratchBufferIndex);
+    ASSERT_EQ(0u, buffer->m_MappedDataCursor);
+    ASSERT_GE(buffer->m_DeviceBuffer.m_Buffer->length(), size);
+    ASSERT_TRUE(buffer->CanAllocate(size));
+    MTL::Buffer* grown_buffer = buffer->m_DeviceBuffer.m_Buffer;
+    buffer->Advance(size);
+
+    buffer = m_Pool.Allocate(&context, size * 2, 256);
+    ASSERT_EQ(2u, m_Pool.m_ScratchBufferIndex);
+    ASSERT_EQ(0u, buffer->m_MappedDataCursor);
+    ASSERT_GE(buffer->m_DeviceBuffer.m_Buffer->length(), size * 2);
+    ASSERT_TRUE(buffer->CanAllocate(size * 2));
+    ASSERT_EQ(first_buffer, m_Pool.m_ScratchBufferPool[0].m_DeviceBuffer.m_Buffer);
+    ASSERT_EQ(256u, m_Pool.m_ScratchBufferPool[0].m_MappedDataCursor);
+    ASSERT_EQ(grown_buffer, m_Pool.m_ScratchBufferPool[1].m_DeviceBuffer.m_Buffer);
+    ASSERT_EQ(size, m_Pool.m_ScratchBufferPool[1].m_MappedDataCursor);
+
+    m_Pool.Rewind();
+    buffer = m_Pool.Allocate(&context, size, 256);
+    ASSERT_EQ(grown_buffer, buffer->m_DeviceBuffer.m_Buffer);
+    ASSERT_EQ(0u, buffer->m_MappedDataCursor);
+    ASSERT_EQ(2u, deferred_resources.Size());
+
+    for (uint32_t i = 0; i < deferred_resources.Size(); ++i)
+    {
+        deferred_resources[i].m_DeviceBuffer->release();
+    }
+    dmPlatform::CloseWindow(window);
+    dmPlatform::DeleteWindow(window);
 }
 
 int main(int argc, char** argv)
