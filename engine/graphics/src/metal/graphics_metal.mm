@@ -635,11 +635,12 @@ namespace dmGraphics
         m_ScratchBufferPool.Push(buffer);
     }
 
-    MetalConstantScratchBuffer* MetalArgumentBufferPool::Allocate(const MetalContext* context, uint32_t size)
+    MetalConstantScratchBuffer* MetalArgumentBufferPool::Allocate(const MetalContext* context, uint32_t size, uint32_t alignment)
     {
         MetalConstantScratchBuffer* current = Get();
+        uint32_t                    padding = DM_ALIGN(current->m_MappedDataCursor, alignment) - current->m_MappedDataCursor;
 
-        if (!current->CanAllocate(size))
+        if (!current->CanAllocate(padding + size))
         {
             m_ScratchBufferIndex++;
             if (m_ScratchBufferIndex >= m_ScratchBufferPool.Size())
@@ -647,25 +648,32 @@ namespace dmGraphics
                 AddBuffer(context);
             }
             current = Get();
+            padding = 0;
         }
 
-        assert(current->CanAllocate(size));
+        assert(current->CanAllocate(padding + size));
+        current->Advance(padding);
         return current;
     }
 
     MetalArgumentBinding MetalArgumentBufferPool::Bind(const MetalContext* context, MTL::ArgumentEncoder* encoder)
     {
-        uint32_t encode_size_aligned = DM_ALIGN(encoder->encodedLength(), 16);
+        uint32_t alignment = encoder->alignment();
+#if defined(IOS_SIMULATOR)
+        // Argument buffers use the constant address space, which requires 256-byte offsets in Simulator.
+        alignment = dmMath::Max(alignment, UNIFORM_BUFFER_ALIGNMENT);
+#endif
+        uint32_t encode_size_aligned = DM_ALIGN(encoder->encodedLength(), alignment);
         assert(encode_size_aligned > 0);
 
-        MetalConstantScratchBuffer* current = Allocate(context, encode_size_aligned);
+        MetalConstantScratchBuffer* current = Allocate(context, encode_size_aligned, alignment);
 
         MetalArgumentBinding arg_binding = {};
         arg_binding.m_Buffer = current->m_DeviceBuffer.m_Buffer;
         arg_binding.m_Offset = current->m_MappedDataCursor;
 
         encoder->setArgumentBuffer(current->m_DeviceBuffer.m_Buffer, current->m_MappedDataCursor);
-        current->Advance(encoder->encodedLength());
+        current->Advance(encode_size_aligned);
 
         return arg_binding;
     }

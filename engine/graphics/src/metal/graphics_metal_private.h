@@ -120,7 +120,7 @@ namespace dmGraphics
 
         void                        Initialize(const MetalContext* context, uint32_t size_per_buffer);
         void                        AddBuffer(const MetalContext* context);
-        MetalConstantScratchBuffer* Allocate(const MetalContext* context, uint32_t size);
+        MetalConstantScratchBuffer* Allocate(const MetalContext* context, uint32_t size, uint32_t alignment);
         MetalArgumentBinding        Bind(const MetalContext* context, MTL::ArgumentEncoder* encode);
 
         inline MetalConstantScratchBuffer* Get() { return &m_ScratchBufferPool[m_ScratchBufferIndex]; }
