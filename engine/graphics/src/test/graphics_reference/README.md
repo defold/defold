@@ -86,7 +86,13 @@ report directory; the HTML embeds all images and logs and can be copied alone.
 Keep any diagnostic PNGs alongside the original capture when copying a
 capture directory. Capture attempts and skips remove stale diagnostic images.
 
-The ordinary and sequential runners also register these tests. Hosted CI
+The manual `test_app_graphics webgpu read-pixels` regression checks the
+default framebuffer: two consecutive clears, BGRA channel order and an
+unaligned subregion. Add `msaa` to test the resolved surface with four samples.
+For a browser build, pass `webgpu`, `read-pixels` and optionally `msaa` as
+application arguments. The same test accepts the other named app adapters.
+
+The ordinary and sequential runners register the likeness tests. Hosted CI
 automatically captures only on native Linux/Vulkan (Mesa software Vulkan
 under Xvfb); macOS and Windows record explicit policy skips. This does not
 disable the manual target. Native macOS WebGPU requires the Apple Silicon

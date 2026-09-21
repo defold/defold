@@ -1213,6 +1213,17 @@ static void WebGPUConfigure(WebGPUContext* context, uint32_t width, uint32_t hei
 #endif
         surface_conf.device                   = context->m_Device;
         surface_conf.usage                    = g_rendertarget_usage;
+#if defined(DM_GRAPHICS_WEBGPU2)
+        // Surface copy usage is optional. Keep unsupported surfaces renderable.
+        WGPUSurfaceCapabilities capabilities = WGPU_SURFACE_CAPABILITIES_INIT;
+        if (wgpuSurfaceGetCapabilities(context->m_Surface, context->m_Adapter, &capabilities) == WGPUStatus_Success)
+            surface_conf.usage |= capabilities.usages & WGPUTextureUsage_CopySrc;
+        wgpuSurfaceCapabilitiesFreeMembers(capabilities);
+#else
+        // The legacy Emscripten API has no usage capabilities; canvas textures
+        // support COPY_SRC when it is requested during configuration.
+        surface_conf.usage |= WGPUTextureUsage_CopySrc;
+#endif
         surface_conf.format                   = context->m_Format;
         surface_conf.width                    = width;
         surface_conf.height                   = height;
