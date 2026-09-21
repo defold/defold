@@ -626,6 +626,7 @@
 (def explicit-vulkan-osx-toggles
   (concat
     (libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+    (exclude-libs-toggles vulkan-osx ["platform"])
     (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterVulkan"])
     (generic-contains-toggles vulkan-osx :frameworks ["Metal" "IOSurface" "QuartzCore"])))
 
@@ -651,6 +652,7 @@
     (exclude-libs-toggles vulkan-osx ["graphics"])
     (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterOpenGL"])))
 
+;; Final :metal is :none: Metal and its link inputs are supplied by the engine.
 (def graphics-setting-osx
   (make-choice-setting
     :open-gl (concat open-gl-osx-toggles exclude-metal-osx-toggles exclude-vulkan-osx-toggles)
@@ -658,7 +660,7 @@
     :vulkan (concat explicit-vulkan-osx-toggles exclude-open-gl-osx-toggles exclude-metal-osx-toggles)
     :open-gl-metal (concat open-gl-osx-toggles metal-osx-toggles exclude-vulkan-osx-toggles)
     :open-gl-vulkan (concat open-gl-osx-toggles explicit-vulkan-osx-toggles exclude-metal-osx-toggles)
-    :vulkan))
+    :metal))
 
 (def open-gl-ios-toggles [])
 

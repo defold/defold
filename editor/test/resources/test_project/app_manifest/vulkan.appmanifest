@@ -3,7 +3,7 @@
 platforms:
     arm64-osx:
         context:
-            excludeLibs: ["graphics", "graphics_metal"]
+            excludeLibs: ["graphics", "graphics_metal", "platform"]
             excludeSymbols: ["GraphicsAdapterOpenGL", "GraphicsAdapterMetal"]
             symbols: ["GraphicsAdapterVulkan"]
             libs: ["graphics_vulkan", "platform_vulkan", "MoltenVK"]
@@ -12,7 +12,7 @@ platforms:
 
     x86_64-osx:
         context:
-            excludeLibs: ["graphics", "graphics_metal"]
+            excludeLibs: ["graphics", "graphics_metal", "platform"]
             excludeSymbols: ["GraphicsAdapterOpenGL", "GraphicsAdapterMetal"]
             symbols: ["GraphicsAdapterVulkan"]
             libs: ["graphics_vulkan", "platform_vulkan", "MoltenVK"]

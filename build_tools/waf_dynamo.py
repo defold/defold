@@ -240,7 +240,7 @@ def platform_get_platform_lib(platform):
         return 'PLATFORM_NULL'
 
     if platform_glfw_version(platform) == 3:
-        if Options.options.with_vulkan or platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
+        if Options.options.with_vulkan or platform == 'arm64-nx64':
             return 'PLATFORM_VULKAN'
     return 'PLATFORM'
 
@@ -251,14 +251,14 @@ def platform_graphics_libs_and_symbols(platform):
     use_opengl = False
     use_opengles = False
     use_vulkan = False
-    use_metal = Options.options.with_metal and platform_supports_feature(platform, 'metal', {})
+    use_metal = platform in ('arm64-macos', 'x86_64-macos')
 
     if platform in ('arm64-ios', 'arm64_sim-ios'):
         use_opengles = True
         use_vulkan = Options.options.with_vulkan
-    elif platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
+    elif platform in ('arm64-macos', 'x86_64-macos'):
         use_opengl = Options.options.with_opengl
-        use_vulkan = True
+        use_vulkan = Options.options.with_vulkan
     elif platform in ('arm64-linux'):
         use_opengles = True
         use_vulkan = Options.options.with_vulkan
@@ -294,7 +294,7 @@ def platform_graphics_libs_and_symbols(platform):
 
     if use_metal:
         graphics_libs += ['GRAPHICS_METAL']
-        if platform in ('arm64-ios', 'arm64_sim-ios') and not use_opengl and not use_opengles and not use_vulkan:
+        if not use_opengl and not use_opengles and not use_vulkan:
             graphics_libs += ['DMGLFW']
         graphics_libs += ['METAL']
         graphics_lib_symbols.append('GraphicsAdapterMetal')
@@ -501,7 +501,7 @@ def default_flags(self):
     for f in ['CFLAGS', 'CXXFLAGS']:
         self.env.append_value(f, flags)
 
-    if Options.options.with_metal or platform_supports_feature(build_util.get_target_platform(), 'metal', {}):
+    if platform_supports_feature(build_util.get_target_platform(), 'metal', {}):
         self.env.append_value('CXXFLAGS', ['-std=c++17']) # Due to metal-cpp library
     elif not use_cl_exe:
         self.env.append_value('CXXFLAGS', ['-std=c++11']) # Due to Basis library
@@ -2333,7 +2333,6 @@ def options(opt):
     opt.add_option('--with-dx12', action='store_true', default=False, dest='with_dx12', help='Enables DX12 as a graphics backend')
     opt.add_option('--with-opus', action='store_true', default=False, dest='with_opus', help='Enable Opus audio codec support in runtime')
     opt.add_option('--with-webgpu', action='store_true', default=False, dest='with_webgpu', help='Enables WebGPU as graphics backend')
-    opt.add_option('--with-metal', action='store_true', default=False, dest='with_metal', help='Enables Metal as graphics backend (on osx and ios)')
     opt.add_option('--size-analyze', action='store_true', default=False, dest='size_analyze', help='Emit extra wasm-web analysis artifacts such as source maps and separate DWARF')
 
     # Currently supported features: physics
