@@ -658,11 +658,8 @@ namespace dmGraphics
 
     MetalArgumentBinding MetalArgumentBufferPool::Bind(const MetalContext* context, MTL::ArgumentEncoder* encoder)
     {
-        uint32_t alignment = encoder->alignment();
-#if defined(IOS_SIMULATOR)
-        // Argument buffers use the constant address space, which requires 256-byte offsets in Simulator.
-        alignment = dmMath::Max(alignment, UNIFORM_BUFFER_ALIGNMENT);
-#endif
+        // Argument buffers use the constant address space and must satisfy both alignment requirements.
+        uint32_t alignment = dmMath::Max((uint32_t) encoder->alignment(), UNIFORM_BUFFER_ALIGNMENT);
         uint32_t encode_size_aligned = DM_ALIGN(encoder->encodedLength(), alignment);
         assert(encode_size_aligned > 0);
 

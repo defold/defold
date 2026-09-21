@@ -74,9 +74,7 @@ TEST_F(MetalArgumentBufferTest, ConsecutiveBindingsAreAligned)
     ASSERT_EQ(first.m_Buffer, second.m_Buffer);
     ASSERT_GE(second.m_Offset, first.m_Offset + m_Encoder->encodedLength());
     ASSERT_EQ(0u, second.m_Offset % m_Encoder->alignment());
-#if defined(IOS_SIMULATOR)
-    ASSERT_EQ(0u, second.m_Offset % 256);
-#endif
+    ASSERT_EQ(0u, second.m_Offset % dmGraphics::UNIFORM_BUFFER_ALIGNMENT);
     ASSERT_LE(second.m_Offset + m_Encoder->encodedLength(), m_Pool.m_SizePerBuffer);
 }
 
