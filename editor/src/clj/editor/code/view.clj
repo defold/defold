@@ -164,20 +164,24 @@
             width)
           (double cached-width))))))
 
-;; HACK: Pango releases this shared layout before cleaning it, so another
-;; thread can reuse and corrupt it. Reserve it until JavaFX fixes the race.
+;; HACK: Pango returns this shared layout to the pool before freeing its own
+;; native pointers, so another thread can take it and double-free them. Reserve
+;; it until JavaFX fixes the race. The CoreText, DirectWrite and HarfBuzz
+;; backends keep no such state, so they are left alone. Re-check on upgrade.
 (defonce ^:private reserved-glyph-layout
   (delay
     (let [field (doto (.getDeclaredField GlyphLayoutManager "REUSABLE_INSTANCE")
                   (.setAccessible true))
           reusable (.get field nil)]
-      (loop []
-        (let [glyph-layout (GlyphLayoutManager/getInstance)]
-          (if (identical? reusable glyph-layout)
-            glyph-layout
-            (do (.dispose ^GlyphLayout glyph-layout)
-                (Thread/yield)
-                (recur))))))))
+      (when (= "com.sun.javafx.font.freetype.PangoGlyphLayout"
+               (.getName (class reusable)))
+        (loop []
+          (let [glyph-layout (GlyphLayoutManager/getInstance)]
+            (if (identical? reusable glyph-layout)
+              glyph-layout
+              (do (.dispose ^GlyphLayout glyph-layout)
+                  (Thread/yield)
+                  (recur)))))))))
 
 ;; Text nodes share an unsafe Prism layout, so give each thread its own.
 ;; Also remember the last font + text so repeated calls can skip reshaping.
