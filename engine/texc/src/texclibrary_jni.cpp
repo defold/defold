@@ -327,14 +327,14 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_GetData(JNIEnv* env, jclass cls, j
     return obj;
 }
 
-JNIEXPORT jlong JNICALL Java_TexcLibraryJni_Resize(JNIEnv* env, jclass cls, jlong _image, jint width, jint height, jboolean srgb)
+JNIEXPORT jlong JNICALL Java_TexcLibraryJni_Resize(JNIEnv* env, jclass cls, jlong _image, jint width, jint height, jboolean srgb, jboolean premultiplied)
 {
     jlong obj = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
         dmTexc::Image* image = (dmTexc::Image*)_image;
         if (image)
         {
-            obj = (jlong)dmTexc::Resize(image, width, height, srgb);
+            obj = (jlong)dmTexc::Resize(image, width, height, srgb, premultiplied);
         }
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return obj;
@@ -564,7 +564,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
         JNIFUNC(GetWidth, "(J)I"),
         JNIFUNC(GetHeight, "(J)I"),
         JNIFUNC(GetData, "(J)[B"),
-        JNIFUNC(Resize, "(JIIZ)J"),
+        JNIFUNC(Resize, "(JIIZZ)J"),
         JNIFUNC(PreMultiplyAlpha, "(J)Z"),
         JNIFUNC(Flip, "(JI)Z"),
         JNIFUNC(Dither, "(JI)Z"),

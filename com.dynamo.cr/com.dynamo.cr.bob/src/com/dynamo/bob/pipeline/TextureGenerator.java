@@ -444,7 +444,7 @@ public class TextureGenerator {
 
             if (source.width != newWidth || source.height != newHeight) {
                 TimeProfiler.start("Resize");
-                long resizedTextureImage = TexcLibraryJni.Resize(textureImage, newWidth, newHeight, source.srgbFiltering);
+                long resizedTextureImage = TexcLibraryJni.Resize(textureImage, newWidth, newHeight, source.srgbFiltering, settings.premulAlpha);
                 if (resizedTextureImage == 0) {
                     throw new TextureGeneratorException(settings.resizeErrorMessage);
                 }
@@ -479,7 +479,7 @@ public class TextureGenerator {
             int offset = 0;
             int mipMapLevel = firstMipLevel;
 
-            List<Long> mipImages = GenerateImages(textureImage, newWidth, newHeight, settings.generateMipMaps, source.srgbFiltering);
+            List<Long> mipImages = GenerateImages(textureImage, newWidth, newHeight, settings.generateMipMaps, source.srgbFiltering, settings.premulAlpha);
             TimeProfiler.start("textureCompressor.compress");
             TimeProfiler.addData("mips count", mipImages.size());
 
@@ -681,7 +681,7 @@ public class TextureGenerator {
         return result;
     }
 
-    private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain, boolean srgb) throws TextureGeneratorException {
+    private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain, boolean srgb, boolean premultiplied) throws TextureGeneratorException {
         TimeProfiler.start("GenerateImages");
         List<Long> images = new ArrayList<>();
         int baseWidth = TexcLibraryJni.GetWidth(image);
@@ -692,7 +692,7 @@ public class TextureGenerator {
         if (baseMatches) {
             images.add(image);
         } else {
-            long resizedBase = TexcLibraryJni.Resize(image, width, height, srgb);
+            long resizedBase = TexcLibraryJni.Resize(image, width, height, srgb, premultiplied);
             if (resizedBase == 0) {
                 throw new TextureGeneratorException("Failed to create mipmap 0");
             }
@@ -710,7 +710,7 @@ public class TextureGenerator {
             long resizedImage;
 
             TimeProfiler.start("ResizeMipLevel" + mipLevel);
-            resizedImage = TexcLibraryJni.Resize(prevImage, mipWidth, mipHeight, srgb);
+            resizedImage = TexcLibraryJni.Resize(prevImage, mipWidth, mipHeight, srgb, premultiplied);
             if (resizedImage == 0) {
                 throw new TextureGeneratorException("Failed to create mipmap " + mipLevel);
             }

@@ -185,6 +185,44 @@ public class Ktx2TextureGeneratorTest {
     }
 
     @Test
+    public void srgbPremultipliedFilteringKeepsTransparentEdges() throws Exception {
+        for (boolean premultiplied : new boolean[] {false, true}) {
+            byte transparentWhite = premultiplied ? 0 : (byte)255;
+            byte[] pixels = {-1, -1, -1, -1, transparentWhite, transparentWhite, transparentWhite, 0,
+                            -1, -1, -1, -1, transparentWhite, transparentWhite, transparentWhite, 0};
+            byte[] expected = solid(1, 128, 128, 128, 128);
+            byte[] source = raw(2, 2, 4, true, premultiplied, null, pixels, solid(1, 0, 0, 0, 0));
+            TextureGenerator.GenerateResult regenerated = generate(source, profile(false, true, true, 0, false, true), false);
+            assertArrayEquals(expected, regenerated.imageDatas.get(1));
+
+            source = raw(2, 2, 4, true, premultiplied, null, pixels);
+            TextureGenerator.GenerateResult resized = generate(source, profile(false, false, true, 1, false, false), false);
+            assertArrayEquals(expected, resized.imageDatas.get(0));
+
+            source = raw(4, 4, 4, true, premultiplied, null, solid(16, 0, 0, 0, 0), pixels);
+            TextureGenerator.GenerateResult completed = generate(source, profile(false, true, true, 0, false, false), false);
+            assertArrayEquals(regenerated.imageDatas.get(0), completed.imageDatas.get(1));
+            assertArrayEquals(expected, completed.imageDatas.get(2));
+        }
+    }
+
+    @Test
+    public void srgbPremultipliedFilteringWeightsColorInLinearLight() throws Exception {
+        for (boolean premultiplied : new boolean[] {false, true}) {
+            byte white = premultiplied ? (byte)128 : (byte)255;
+            byte[] pixels = {0, 0, 0, -1, white, white, white, (byte)128,
+                            0, 0, 0, -1, white, white, white, (byte)128};
+            byte[] source = raw(2, 2, 4, true, premultiplied, null, pixels);
+            byte[] mip = generate(source, profile(false, true, true, 0, false, false), false).imageDatas.get(1);
+            for (int channel = 0; channel < 3; ++channel) {
+                // Linear intensity 128/383, encoded to sRGB and multiplied by mean alpha 191.5/255.
+                assertEquals(117, mip[channel] & 0xff, 1);
+            }
+            assertEquals(192, mip[3] & 0xff, 1);
+        }
+    }
+
+    @Test
     public void ordinaryImagesKeepChannelValueFiltering() throws Exception {
         BufferedImage image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
         image.setRGB(0, 0, 2, 2, new int[] {0xff000000, 0xffffffff, 0xff000000, 0xffffffff}, 0, 2);

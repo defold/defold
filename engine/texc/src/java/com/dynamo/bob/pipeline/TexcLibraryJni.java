@@ -94,10 +94,11 @@ public class TexcLibraryJni {
     public static native int GetWidth(long image);
     public static native int GetHeight(long image);
     public static long Resize(long image, int width, int height) {
-        return Resize(image, width, height, false);
+        return Resize(image, width, height, false, false);
     }
     // Creates a new image. Call DestroyImage. With srgb, filter RGB in linear light and alpha linearly.
-    public static native long Resize(long image, int width, int height, boolean srgb);
+    // Premultiplied sRGB is unassociated for transfer conversion and filtered with alpha weighting.
+    public static native long Resize(long image, int width, int height, boolean srgb, boolean premultiplied);
     public static native boolean PreMultiplyAlpha(long image);
     public static native boolean Flip(long image, int flipAxis);
     public static native boolean Dither(long image, int pixelFormat);

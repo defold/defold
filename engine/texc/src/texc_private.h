@@ -53,8 +53,8 @@ namespace dmTexc
 
     static const uint32_t COMPRESSION_ENABLED_PIXELCOUNT_THRESHOLD = 64; // do not compress mips with less than this pixelcount
 
-    Image* Resize(Image* image, uint32_t width, uint32_t height, bool srgb);
-    Image* ResizeBasis(Image* image, uint32_t width, uint32_t height, bool srgb);
+    Image* Resize(Image* image, uint32_t width, uint32_t height, bool srgb, bool premultiplied);
+    Image* ResizeBasis(Image* image, uint32_t width, uint32_t height, bool srgb, bool premultiplied);
 
     uint16_t RGB888ToRGB565(uint8_t red, uint8_t green, uint8_t blue);
     uint16_t RGBA8888ToRGBA4444(uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha);

@@ -58,16 +58,60 @@ namespace dmTexc
         (void)initialized;
     }
 
-    Image* ResizeBasis(Image* image, uint32_t width, uint32_t height, bool srgb)
+    static bool ResizePremultipliedSrgb(Image* image, basisu::image& resized)
+    {
+        basisu::imagef linear(image->m_Width, image->m_Height);
+        for (uint32_t i = 0; i < image->m_Width * image->m_Height; ++i)
+        {
+            const uint8_t* pixel = image->m_Data + i * 4;
+            float alpha = pixel[3] / 255.0f;
+            linear.get_ptr()[i][3] = alpha;
+            for (uint32_t c = 0; c < 3; ++c)
+            {
+                // Transfer functions apply to straight RGB. Filter alpha-weighted linear light.
+                float straight = pixel[3] ? basisu::minimum(1.0f, (float)pixel[c] / pixel[3]) : 0.0f;
+                linear.get_ptr()[i][c] = basisu::srgb_to_linear(straight) * alpha;
+            }
+        }
+
+        basisu::imagef filtered(resized.get_width(), resized.get_height());
+        if (!basisu::image_resample(linear, filtered))
+            return false;
+
+        for (uint32_t i = 0; i < resized.get_width() * resized.get_height(); ++i)
+        {
+            const basisu::vec4F& pixel = filtered.get_ptr()[i];
+            float alpha = basisu::clamp(pixel[3], 0.0f, 1.0f);
+            basisu::color_rgba& out = resized.get_ptr()[i];
+            out[3] = (uint8_t)(alpha * 255.0f + 0.5f);
+            for (uint32_t c = 0; c < 3; ++c)
+            {
+                float straight = alpha > 0.0f ? basisu::clamp(pixel[c] / alpha, 0.0f, 1.0f) : 0.0f;
+                // Store premultiplied sRGB again, using the stored alpha to keep RGB <= alpha.
+                out[c] = (uint8_t)(basisu::linear_to_srgb(straight) * out[3] + 0.5f);
+            }
+        }
+        return true;
+    }
+
+    Image* ResizeBasis(Image* image, uint32_t width, uint32_t height, bool srgb, bool premultiplied)
     {
         InitBasisU();
 
         int components = 4;
-        basisu::image orig;
-        orig.init(image->m_Data, image->m_Width, image->m_Height, components);
-
         basisu::image tmp(width, height);
-        basisu::image_resample(orig, tmp, srgb);
+        if (srgb && premultiplied)
+        {
+            if (!ResizePremultipliedSrgb(image, tmp))
+                return 0;
+        }
+        else
+        {
+            basisu::image orig;
+            orig.init(image->m_Data, image->m_Width, image->m_Height, components);
+            if (!basisu::image_resample(orig, tmp, srgb))
+                return 0;
+        }
 
         Image* out = new Image;
         out->m_Width = width;
