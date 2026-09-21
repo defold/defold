@@ -37,6 +37,7 @@ public class ShaderProgramBuilderEditor {
 
         ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
         options.defines.add("EDITOR");
+        options.glslEmitUboAsPlainUniforms = true;
         options.glslEsDefaultFloatPrecision = floatPrecision;
         options.glslEsDefaultIntPrecision = intPrecision;
 
@@ -45,7 +46,7 @@ public class ShaderProgramBuilderEditor {
             Shaderc.ShaderCompileResult result = pipeline.crossCompile(shaderType, shaderLanguage);
 
             String compiledSource = new String(result.data);
-            ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(compiledSource, maxPageCount);
+            ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(compiledSource, maxPageCount, shaderLanguage == Graphics.ShaderDesc.Language.LANGUAGE_GLSL_SM330);
             SPIRVReflector reflector = pipeline.getReflectionData(shaderType);
 
             // If the variant transformation didn't do anything, we pass the original source but without array samplers

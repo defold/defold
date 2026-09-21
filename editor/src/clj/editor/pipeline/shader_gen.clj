@@ -107,10 +107,6 @@
      :location reflected-location
      :array-size array-size}))
 
-(def ^:private transpile-target-pb-shader-language
-  ;; Use the old GLES2-compatible shaders for rendering in the editor.
-  (shader-language->pb-shader-language :language-glsl-sm120))
-
 (defn- decorate-transpile-error
   [^Exception cause shader-type ^String shader-proj-path ^String shader-source max-page-count & extra-key-value-pairs]
   (let [ex-message
@@ -175,48 +171,54 @@
   "Compiles a single shader source file, for example, a .vp or a .fp file into an
   augmented-shader-info map with the transpiled shader source and various
   reflection info. The precision strings should be either \"highp\" or \"mediump\";
-  when nil, mediump float and highp int are used."
-  [^String shader-path ^String shader-source max-page-count float-precision-str int-precision-str]
-  {:pre [(string? shader-path)
-         (pos? (count shader-path))
-         (string? shader-source)
-         (pos? (count shader-source))]}
-  (let [shader-type (graphics.types/filename-shader-type shader-path)
-        pb-shader-type (graphics.types/shader-type-pb-shader-type shader-type)
+  when nil, mediump float and highp int are used. The optional target-language
+  selects SM120 (the default) or SM330 for development and tests. Both targets
+  expose uniform-buffer members as ordinary uniforms for editor binding."
+  ([shader-path shader-source max-page-count float-precision-str int-precision-str]
+   (transpile-shader-source shader-path shader-source max-page-count float-precision-str int-precision-str :language-glsl-sm120))
+  ([^String shader-path ^String shader-source max-page-count float-precision-str int-precision-str target-language]
+   {:pre [(string? shader-path)
+          (pos? (count shader-path))
+          (string? shader-source)
+          (pos? (count shader-source))
+          (contains? #{:language-glsl-sm120 :language-glsl-sm330} target-language)]}
+   (let [shader-type (graphics.types/filename-shader-type shader-path)
+         transpile-target-pb-shader-language (shader-language->pb-shader-language target-language)
+         pb-shader-type (graphics.types/shader-type-pb-shader-type shader-type)
 
-        ^ShaderUtil$Common$GLSLCompileResult glsl-compile-result
-        (try
-          (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type transpile-target-pb-shader-language ^long max-page-count (precision-string->enum float-precision-str) (precision-string->enum int-precision-str))
-          (catch CompileExceptionError cause
-            (let [error-line-number (.getLineNumber cause)
-                  error-proj-path (or (some-> cause .getResource .getPath (str "/"))
-                                      shader-path)]
-              (throw (decorate-transpile-error
-                       cause shader-type shader-path shader-source ^long max-page-count
-                       :error-line-number error-line-number
-                       :error-proj-path error-proj-path))))
-          (catch Exception cause
-            (throw (decorate-transpile-error
-                     cause shader-type shader-path shader-source ^long max-page-count))))
+         ^ShaderUtil$Common$GLSLCompileResult glsl-compile-result
+         (try
+           (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-path shader-source pb-shader-type transpile-target-pb-shader-language ^long max-page-count (precision-string->enum float-precision-str) (precision-string->enum int-precision-str))
+           (catch CompileExceptionError cause
+             (let [error-line-number (.getLineNumber cause)
+                   error-proj-path (or (some-> cause .getResource .getPath (str "/"))
+                                       shader-path)]
+               (throw (decorate-transpile-error
+                        cause shader-type shader-path shader-source ^long max-page-count
+                        :error-line-number error-line-number
+                        :error-proj-path error-proj-path))))
+           (catch Exception cause
+             (throw (decorate-transpile-error
+                      cause shader-type shader-path shader-source ^long max-page-count))))
 
-        transpiled-shader-source (.source glsl-compile-result)
-        array-sampler-names (vec (.arraySamplers glsl-compile-result))
-        spirv-reflector (.reflector glsl-compile-result)
-        resource-binding-namespaces (resource-binding-namespaces spirv-reflector)
-        preview-light-capacity (preview-light-capacity spirv-reflector)
+         transpiled-shader-source (.source glsl-compile-result)
+         array-sampler-names (vec (.arraySamplers glsl-compile-result))
+         spirv-reflector (.reflector glsl-compile-result)
+         resource-binding-namespaces (resource-binding-namespaces spirv-reflector)
+         preview-light-capacity (preview-light-capacity spirv-reflector)
 
-        attribute-reflection-infos
-        (coll/into-> (.getInputs spirv-reflector) []
-          (filter vertex-shader-resource?)
-          (map make-attribute-reflection-info))]
+         attribute-reflection-infos
+         (coll/into-> (.getInputs spirv-reflector) []
+           (filter vertex-shader-resource?)
+           (map make-attribute-reflection-info))]
 
-    {:shader-type shader-type
-     :max-page-count ^long max-page-count
-     :transpiled-shader-source transpiled-shader-source
-     :resource-binding-namespaces resource-binding-namespaces
-     :preview-light-capacity preview-light-capacity
-     :array-sampler-names array-sampler-names
-     :attribute-reflection-infos attribute-reflection-infos}))
+     {:shader-type shader-type
+      :max-page-count ^long max-page-count
+      :transpiled-shader-source transpiled-shader-source
+      :resource-binding-namespaces resource-binding-namespaces
+      :preview-light-capacity preview-light-capacity
+      :array-sampler-names array-sampler-names
+      :attribute-reflection-infos attribute-reflection-infos})))
 
 (defn- resource-binding-namespaces->regex-str
   ^String [resource-binding-namespaces]
