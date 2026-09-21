@@ -195,6 +195,13 @@ namespace dmGameSystem
         return meta ? meta->m_Collection : 0;
     }
 
+    dmhash_t GetBullet3DCollisionObjectInstanceId(lua_State* L, int index)
+    {
+        Bullet3DCollisionObjectMeta* meta = 0;
+        VerifyCollisionObjectInternal(L, CheckCollisionObjectInternal(L, index), true, &meta);
+        return meta->m_InstanceId;
+    }
+
     uint64_t GetOrCreateBullet3DCollisionObjectId(lua_State* L, void* collision_object_ptr, dmGameObject::HCollection collection, dmhash_t instance_id)
     {
         if (!collision_object_ptr)

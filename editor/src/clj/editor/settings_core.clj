@@ -254,13 +254,24 @@
      b)))
 
 (defn- trim-trailing-c [value]
-  (if (= (last value) \c)
-    (subs value 0 (dec (count value)))
-    value))
+  (let [last-index (dec (count value))]
+    (if (= \c (nth value last-index nil))
+      (subs value 0 last-index)
+      value)))
 
-(defn- sanitize-value [{:keys [type preserve-extension]} value]
-  (if (and (= type :resource) (not preserve-extension))
-    (trim-trailing-c value)
+(defn- sanitize-value [meta-setting value]
+  (case (:type meta-setting)
+    :resource
+    (if (:preserve-extension meta-setting)
+      value
+      (trim-trailing-c value))
+
+    :list
+    (let [element-meta-setting (get meta-setting :element default-list-element-meta-setting)]
+      (coll/transform-> value
+        (map #(sanitize-value element-meta-setting %))))
+
+    ;; else
     value))
 
 (defn- sanitize-help [{:keys [type preserve-extension default]} help]
@@ -367,8 +378,13 @@
                         (contains? setting :severity-default) (update :severity-default keyword))))
                 settings)))))))
 
-(defn sanitize-settings [meta-settings settings]
-  (mapv (partial sanitize-setting (make-meta-settings-map meta-settings)) settings))
+(defn sanitize-settings [settings meta-settings]
+  (mapv (partial sanitize-setting (make-meta-settings-map meta-settings))
+        settings))
+
+(defn type-annotate-settings [settings meta-settings]
+  (let [meta-settings-map (make-meta-settings-map meta-settings)]
+    (mapv #(assoc % :type (:type (meta-settings-map (:path %)))) settings)))
 
 (defn resolve-resource-settings [settings value-field resolve-resource-fn]
   (mapv (fn [setting]
@@ -441,6 +457,26 @@
     (string/join (interleave (map #(category->str % (cat-grouped-settings %))
                                   cat-order)
                              (repeat "\n\n")))))
+
+(defn make-settings-dependencies-fn [meta-settings]
+  (let [meta-settings-map (make-meta-settings-map meta-settings)]
+    (fn settings-dependencies-fn [read-opts owner-resource raw-settings]
+      (let [resolve-proj-path-fn (:resolve-proj-path-fn read-opts)]
+        (coll/into-> raw-settings []
+          (mapcat
+            (fn [{:keys [path value]}]
+              (let [meta-setting (meta-settings-map path)]
+                (when (and (= :resource (:type meta-setting))
+                           (not (coll/empty? value)))
+                  (cond->>
+                    (->> value
+                         (parse-setting-value meta-setting)
+                         (sanitize-value meta-setting))
+
+                    (string? value)
+                    (vector))))))
+          (keep #(resolve-proj-path-fn owner-resource %))
+          (distinct))))))
 
 (defmulti render-raw-setting-value (fn [meta-setting value] (:type meta-setting)))
 

@@ -559,7 +559,7 @@ static void RenderStencilFaces(HContext context)
 
 static void RenderCapture(HContext context, const CaptureResources& resources, const char* name)
 {
-    SetRenderTarget(context, resources.m_Target, 0);
+    SetRenderTarget(context, resources.m_Target, RenderTargetBindingParams());
     SetViewport(context, 0, 0, CAPTURE_SIZE, CAPTURE_SIZE);
     DisableState(context, STATE_BLEND);
     DisableState(context, STATE_DEPTH_TEST);
@@ -757,7 +757,7 @@ static bool CaptureImage(HContext context, const CaptureResources& resources, co
     // The triangle uses the untextured program shared by these continuation probes.
     if (strcmp(name, "triangle") == 0 && !CheckReadbackContinuation(context, resources, filename))
         valid = false;
-    SetRenderTarget(context, 0, 0);
+    SetRenderTarget(context, 0, RenderTargetBindingParams());
     SetColorMask(context, true, true, true, true);
     DisableState(context, STATE_STENCIL_TEST);
     Clear(context, BUFFER_TYPE_COLOR0_BIT, 37, 73, 109, 255, 1.0f, 0);

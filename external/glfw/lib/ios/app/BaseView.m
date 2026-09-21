@@ -63,10 +63,6 @@ NSString *const FAKE_STRING = @"Abcd";
     g_BaseView = self;
     if ((self = [super initWithFrame:frame]))
     {
-        displayLink = [[[UIScreen mainScreen] displayLinkWithTarget:self selector:@selector(newFrame)] retain];
-        [displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
-        // The default display-link cadence is one callback per display frame.
-
         [self setupView];
     }
 
@@ -175,8 +171,8 @@ NSString *const FAKE_STRING = @"Abcd";
     return [[UITextInputStringTokenizer alloc] initWithTextInput:self];
 }
 
-- (UITextWritingDirection) baseWritingDirectionForPosition: (UITextPosition *)position inDirection: (UITextStorageDirection)direction {
-    return UITextWritingDirectionRightToLeft;
+- (NSWritingDirection) baseWritingDirectionForPosition: (UITextPosition *)position inDirection: (UITextStorageDirection)direction {
+    return NSWritingDirectionRightToLeft;
 }
 
 - (UITextAutocorrectionType) autocorrectionType {
@@ -225,7 +221,7 @@ NSString *const FAKE_STRING = @"Abcd";
 - (NSComparisonResult)comparePosition:(UITextPosition *)position
                            toPosition:(UITextPosition *)other { return NSOrderedSame; }
 
-- (void) setBaseWritingDirection: (UITextWritingDirection)writingDirection forRange:(UITextRange *)range { }
+- (void) setBaseWritingDirection: (NSWritingDirection)writingDirection forRange:(UITextRange *)range { }
 
 - (void)swapBuffers
 {
@@ -233,7 +229,7 @@ NSString *const FAKE_STRING = @"Abcd";
 
 - (void)newFrame
 {
-    if (_glfwWin.iconified)
+    if (!_glfwPlatformIsSceneActive() || _glfwWin.iconified)
         return;
 
     countDown--;
@@ -549,6 +545,18 @@ NSString *const FAKE_STRING = @"Abcd";
     backingHeight = height;
 }
 
+- (void)startDisplayLink
+{
+    // Fullscreen native presentation can detach the game view while its scene
+    // stays active. A replacement view still needs to drive engine callbacks.
+    UIScreen* screen = self.window ? self.window.screen : g_ApplicationWindow.screen;
+    if (!displayLink && screen)
+    {
+        displayLink = [[screen displayLinkWithTarget:self selector:@selector(newFrame)] retain];
+        [displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
+    }
+}
+
 - (void)invalidateDisplayLink
 {
     if (displayLink)
@@ -559,10 +567,26 @@ NSString *const FAKE_STRING = @"Abcd";
     }
 }
 
+- (void)didMoveToWindow
+{
+    [super didMoveToWindow];
+    if (self.window)
+    {
+        [self invalidateDisplayLink];
+        self.contentScaleFactor = self.window.screen.scale;
+        self.layer.contentsScale = self.contentScaleFactor;
+        [self startDisplayLink];
+        [self setNeedsLayout];
+    }
+    // Detachment can be temporary. Scene disconnection and view replacement
+    // explicitly invalidate the link; a modal presentation must keep it running.
+}
+
 - (void)dealloc
 {
     [self invalidateDisplayLink];
     [self teardownView];
+    [_markedTextStyle release];
 
     [super dealloc];
 }

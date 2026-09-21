@@ -42,6 +42,7 @@
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders]
             [editor.tile-map-common :as tile-map-common]
             [editor.tile-source :as tile-source]
             [editor.validation :as validation]
@@ -341,28 +342,7 @@
   (vec3 position)
   (vec2 texcoord0))
 
-(shader/defshader tile-map-id-vertex-shader
-  (uniform mat4 view_proj)
-  (uniform mat4 world)
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq mat4 mvp (* view_proj world))
-    (setq gl_Position (* mvp (vec4 position.xyz 1.0)))
-    (setq var_texcoord0 texcoord0)))
-
-(shader/defshader tile-map-id-fragment-shader
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D DIFFUSE_TEXTURE)
-  (uniform vec4 id)
-  (defn void main []
-    (setq vec4 color (texture2D DIFFUSE_TEXTURE var_texcoord0))
-    (if (> color.a 0.05)
-      (setq gl_FragColor id)
-      (discard))))
-
-(def tile-map-id-shader (shader/make-shader ::tile-map-id-shader tile-map-id-vertex-shader tile-map-id-fragment-shader {"view_proj" :view-proj "world" :world "id" :id}))
+(def tile-map-id-shader shaders/selection-uniform-local-space)
 
 (defn render-layer
   [^GL2 gl render-args renderables n]
@@ -403,7 +383,7 @@
             {:keys [node-id vbuf gpu-texture]} user-data]
         (when vbuf
           (let [vertex-binding (vtx/use-with node-id vbuf tile-map-id-shader)]
-            (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [tile-map-id-shader vertex-binding gpu-texture]
+            (gl/with-gl-bindings gl (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform (first renderables))) [tile-map-id-shader vertex-binding gpu-texture]
               (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))))))
 
 (defn make-tile-uv-lookup-cache
@@ -573,17 +553,16 @@
 
 (def ^:private default-material-proj-path (protobuf/default Tile$TileGrid :material))
 
-(defn- sanitize-tile-map [{:keys [material] :as tile-grid}]
+(defn- sanitize-tile-map [_read-opts _owner-resource {:keys [material] :as tile-grid}]
   {:pre [(map? tile-grid)]} ; Tile$TileGrid in map format.
   (cond-> tile-grid
           (nil? material)
           (assoc :material default-material-proj-path)))
 
 (defn- load-tile-map
-  [project self resource tile-grid]
+  [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id tile-grid :source-value}]
   {:pre [(map? tile-grid)]} ; Tile$TileGrid in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (gu/set-properties-from-pb-map self Tile$TileGrid tile-grid
@@ -742,42 +721,13 @@
 ;;--------------------------------------------------------------------
 ;; tool
 
-(shader/defshader pos-uv-vert
-  (uniform mat4 world_view_proj)
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq gl_Position (* world_view_proj position))
-    (setq var_texcoord0 texcoord0)))
-
-(shader/defshader pos-uv-frag
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
-  (defn void main []
-    (setq gl_FragColor (texture2D texture_sampler var_texcoord0.xy))))
-
-(def tex-shader (shader/make-shader ::tex-shader pos-uv-vert pos-uv-frag {"world_view_proj" :world-view-proj}))
+(def tex-shader shaders/basic-texture-local-space)
 
 (vtx/defvertex color-vtx
   (vec3 position)
   (vec4 color))
 
-(shader/defshader pos-color-vert
-  (uniform mat4 world_view_proj)
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* world_view_proj position))
-    (setq var_color color)))
-
-(shader/defshader pos-color-frag
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def color-shader (shader/make-shader ::color-shader pos-color-vert pos-color-frag {"world_view_proj" :world-view-proj}))
+(def color-shader shaders/basic-color-straight-alpha-local-space)
 
 (def ^:private white-color (double-array (map #(/ % 255.0) [255 255 255])))
 (def ^:private blue-color (double-array (map #(/ % 255.0) [0 191 255])))

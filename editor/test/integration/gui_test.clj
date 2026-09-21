@@ -43,6 +43,157 @@
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc]
            [java.io StringReader]))
 
+(defn- gui-scene-dependencies [workspace read-opts scene-desc]
+  (let [resource (workspace/make-memory-resource workspace :editable "gui" scene-desc)]
+    (vec
+      (sort
+        (gui/gui-scene-dependencies
+          read-opts
+          resource
+          scene-desc)))))
+
+(deftest gui-scene-editor-dependencies-test
+  (test-util/with-loaded-project "test/resources/empty_project"
+    (let [basis (g/now)
+          read-opts (workspace/make-read-opts basis workspace :include-editor-dependencies true)
+          gui-scene-dependencies (partial gui-scene-dependencies workspace read-opts)]
+      (testing "Empty scene depends on default resources needed by the editor."
+        (is (= ["/builtins/fonts/default.font"
+                "/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {})))))))
+
+(deftest gui-scene-dependencies-test
+  (test-util/with-loaded-project "test/resources/empty_project"
+    (let [basis (g/now)
+          read-opts (workspace/make-read-opts basis workspace :include-editor-dependencies false)
+          gui-scene-dependencies (partial gui-scene-dependencies workspace read-opts)]
+      (testing "Empty scene."
+        (is (= ["/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {}))))
+
+      (testing "Script specified."
+        (is (= ["/builtins/materials/gui.material"
+                "/specified.gui_script"]
+               (gui-scene-dependencies
+                 {:script "/specified.gui_script"}))))
+
+      (testing "Default material specified."
+        (is (= ["/specified.material"]
+               (gui-scene-dependencies
+                 {:material "/specified.material"}))))
+
+      (testing "Declared font."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.font"]
+               (gui-scene-dependencies
+                 {:fonts [{:name "declared"
+                           :font "/declared.font"}]}))))
+
+      (testing "Declared material."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.material"]
+               (gui-scene-dependencies
+                 {:materials [{:name "declared"
+                               :material "/declared.material"}]}))))
+
+      (testing "Declared particlefx."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.particlefx"]
+               (gui-scene-dependencies
+                 {:particlefxs [{:name "declared"
+                                 :particlefx "/declared.particlefx"}]}))))
+
+      (testing "Declared resource."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.resource"]
+               (gui-scene-dependencies
+                 {:resources [{:name "declared"
+                               :path "/declared.resource"}]}))))
+
+      (testing "Declared spine scene (legacy)."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.spinescene"]
+               (gui-scene-dependencies
+                 {:spine-scenes [{:name "declared"
+                                  :spine-scene "/declared.spinescene"}]}))))
+
+      (testing "Declared texture."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.atlas"]
+               (gui-scene-dependencies
+                 {:textures [{:name "declared"
+                              :texture "/declared.atlas"}]}))))
+
+      (testing "Shape node without dependencies."
+        (is (= ["/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-pie}]}))))
+
+      (testing "Template node."
+        (is (= ["/builtins/materials/gui.material"
+                "/template.gui"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-template
+                           :template "/template.gui"}]}))))
+
+      (testing "Text node brings in the default font when font is unspecified."
+        (is (= ["/builtins/fonts/default.font"
+                "/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-text}]}))))
+
+      (testing "Text node does not bring in the default font when font is specified."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.font"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-text
+                           :font "declared"}]
+                  :fonts [{:name "declared"
+                           :font "/declared.font"}]}))))
+
+      (testing "Template-overridden text node does not bring in the default font when font is not overridden."
+        (is (= ["/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-text
+                           :template-node-child true
+                           :overridden-fields [(gui/prop-key->pb-field-index :text)]}]}))))
+
+      (testing "Template-overridden text node brings in the default font when font is overridden."
+        (is (= ["/builtins/fonts/default.font"
+                "/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-text
+                           :template-node-child true
+                           :overridden-fields [(gui/prop-key->pb-field-index :font)]}]}))))
+
+      (testing "Layout-overridden text node does not bring in the default font when font is not overridden."
+        (is (= ["/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:layouts [{:nodes [{:type :type-text
+                                      :overridden-fields [(gui/prop-key->pb-field-index :text)]}]}]}))))
+
+      (testing "Layout-overridden text node brings in the default font when font is overridden."
+        (is (= ["/builtins/fonts/default.font"
+                "/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:layouts [{:nodes [{:type :type-text
+                                      :overridden-fields [(gui/prop-key->pb-field-index :font)]}]}]}))))
+
+      (testing "Default font is not reported multiple times."
+        (is (= ["/builtins/fonts/default.font"
+                "/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:fonts [{:name "default"
+                           :font "/builtins/fonts/default.font"}]
+                  :nodes [{:type :type-text}
+                          {:type :type-text
+                           :template-node-child true
+                           :overridden-fields [(gui/prop-key->pb-field-index :font)]}]
+                  :layouts [{:nodes [{:type :type-text
+                                      :overridden-fields [(gui/prop-key->pb-field-index :font)]}]}]})))))))
+
 (defn- prop [node-id label]
   (test-util/prop node-id label))
 
@@ -471,7 +622,9 @@
         (is (not (contains? saved-node :custom-type)))
         (is (str/includes? source "custom_type_name: \"TestCustom\""))
         (is (not (str/includes? source "custom_type:")))))
-    (let [gui-resource-type (get (workspace/get-resource-type-map workspace :editable) "gui")
+    (let [basis (g/now)
+          read-opts (workspace/make-read-opts basis workspace)
+          gui-resource-type (get (workspace/get-resource-type-map workspace :editable) "gui")
           mismatched-node {:type :type-custom
                            :custom-type-name "TestCustom"
                            :custom-type (inc (murmur/hash32 "TestCustom"))
@@ -486,15 +639,16 @@
              (-> (with-open [reader (StringReader.
                                       (format "nodes { type: TYPE_CUSTOM custom_type: %d id: \"custom\" }"
                                               (murmur/hash32 "TestCustom")))]
-                   ((:read-fn gui-resource-type) reader))
+                   ((:read-fn gui-resource-type) read-opts nil reader))
                  (get-in [:nodes 0])
                  (select-keys [:type :custom-type-name :custom-type :id]))))
       (is (thrown-with-msg?
             IllegalStateException
             #"custom_type_name 'TestCustom' resolves to custom_type"
-            (#'gui/sanitize-scene workspace {:nodes [mismatched-node]})))
-      (let [sanitized-node (-> (#'gui/sanitize-scene
-                                 workspace
+            (#'gui/sanitize-gui-scene read-opts nil {:nodes [mismatched-node]})))
+      (let [sanitized-node (-> (#'gui/sanitize-gui-scene
+                                 read-opts
+                                 nil
                                  {:nodes [{:type :type-custom
                                            :custom-type-name "TestCustom"
                                            :id "custom"
@@ -504,7 +658,7 @@
                                :nodes
                                first)]
         (is (not (contains? sanitized-node :custom-properties))))
-      (let [sanitized-node (-> (#'gui/sanitize-scene workspace {:nodes [boxed-node-with-stale-custom-type-name]})
+      (let [sanitized-node (-> (#'gui/sanitize-gui-scene read-opts nil {:nodes [boxed-node-with-stale-custom-type-name]})
                                :nodes
                                first)]
         (is (= {:type :type-box

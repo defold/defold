@@ -23,7 +23,8 @@
             [editor.tile-source :as tile-source]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :as test-support]))
+            [support.test-support :as test-support]
+            [util.coll :as coll]))
 
 (defn- vertex-buffer->vertices
   [vertex-buffer]
@@ -61,7 +62,7 @@
                vertices))))
 
     (testing "collision overlays"
-      (let [vertices (-> (tile-source/gen-tile-outlines-vbuf tile-source-attributes [nil] [1.0 1.0] nil)
+      (let [vertices (-> (tile-source/gen-tile-outlines-vbuf tile-source-attributes [nil] [1.0 1.0])
                          (vertex-buffer->vertices))]
         (is (quad-lines? vertices))
         (is (= (repeat 8 (vec (repeat 4 (float 0.15))))
@@ -100,15 +101,17 @@
     (let [node-id (test-util/open-tab! project app-view "/tilesource/valid.tilesource")]
       (app-view/select! app-view [node-id])
       (testing "collision-group-id"
-               (let [group (add-collision-group! app-view node-id)]
-                 (test-util/with-prop [group :id ""]
-                   (is (g/error? (test-util/prop-error group :id))))))
+        (let [group (add-collision-group! app-view node-id)]
+          (test-util/with-prop [group :id ""]
+            (is (g/error? (test-util/prop-error group :id))))))
       (testing "collision-group-max"
-               (let [groups (mapv (fn [_] (add-collision-group! app-view node-id)) (range 17))]
-                 (is (every? #(test-util/prop-error % :id) groups))
-                 (g/transact
-                   (for [group groups]
-                     (g/delete-node group))))))))
+        (let [groups (mapv (fn [_] (add-collision-group! app-view node-id)) (range 17))
+              project-error (g/flatten-errors (g/node-value project :build-errors))]
+          (is (g/error-warning? project-error))
+          (is (coll/every? nil? (mapv #(test-util/prop-error % :id) groups)))
+          (g/transact
+            (g/delete-nodes groups))
+          (is (nil? (g/flatten-errors (g/node-value project :build-errors)))))))))
 
 (deftest animation-validation
   (test-util/with-loaded-project

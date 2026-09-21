@@ -184,6 +184,8 @@ namespace dmGraphics
             // Main RT aliases context->m_MainRenderPassLoad; offscreen RTs own it.
             VkRenderPass  m_RenderPassLoad;
             VkFramebuffer m_Framebuffer;
+            VkFramebuffer m_CubeMapFramebuffers[CUBEMAP_FACE_COUNT - 1];
+            VkImageView   m_CubeMapAttachmentViews[CUBEMAP_FACE_COUNT][MAX_BUFFER_COLOR_ATTACHMENTS + 1];
             uint8_t       m_LastUsedFrame;
         };
 

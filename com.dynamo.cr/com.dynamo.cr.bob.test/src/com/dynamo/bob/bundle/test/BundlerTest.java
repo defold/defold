@@ -474,10 +474,12 @@ public class BundlerTest {
         createFile(outputContentRoot, "builtins/manifests/web/light_theme.css", "");
         createFile(outputContentRoot, "builtins/manifests/web/dark_theme.css", "");
         createFile(outputContentRoot, "builtins/manifests/osx/Info.plist", "");
-        // Only the keys that identify the Apple platform, since those are the ones the simulator bundle rewrites
+        // Platform keys rewritten by simulator bundling and the required scene manifest.
         String IOS_INFO_PLIST = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                 + "<plist version=\"1.0\">\n"
                 + "<dict>\n"
+                + "        <key>UIApplicationSceneManifest</key>\n"
+                + "        <dict><key>UIApplicationSupportsMultipleScenes</key><false/></dict>\n"
                 + "        <key>CFBundleSupportedPlatforms</key>\n"
                 + "        <array>\n"
                 + "                <string>iPhoneOS</string>\n"

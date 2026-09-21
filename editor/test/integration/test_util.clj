@@ -122,7 +122,7 @@
 
 (def project-path "test/resources/test_project")
 
-(def ^:private ^:const system-cache-size 1000)
+(def ^:const system-cache-size 1000)
 
 ;; String urls that will be added as library dependencies to our test project.
 ;; These extensions register additional protobuf resource types that we want to
@@ -330,7 +330,7 @@
 
 (defn set-non-editable-directories! [project-path non-editable-directory-proj-paths]
   {:pre [(seqable? non-editable-directory-proj-paths)
-         (every? string? non-editable-directory-proj-paths)]}
+         (coll/every? resource/proj-path? non-editable-directory-proj-paths)]}
   (test-support/spit-until-new-mtime
     (shared-editor-settings/shared-editor-settings-file project-path)
     (shared-editor-settings/map->save-data-content
@@ -454,17 +454,13 @@
 
 (defn setup-project!
   ([workspace]
-   (let [extensions (extensions/make)
-         project (project/make-project workspace extensions)
-         project (project/load-project! project)]
-     (g/reset-undo! :undo/global)
-     project))
+   (let [extensions (extensions/make)]
+     (-> (project/make-project workspace extensions)
+         (project/load-project!))))
   ([workspace resources]
-   (let [extensions (extensions/make)
-         project (project/make-project workspace extensions)
-         project (project/load-project! project progress/null-render-progress! resources)]
-     (g/reset-undo! :undo/global)
-     project)))
+   (let [extensions (extensions/make)]
+     (-> (project/make-project workspace extensions)
+         (project/load-project! progress/null-render-progress! resources)))))
 
 (defn project-node-resources [project]
   (->> (g/node-value project :node-id+resources)
@@ -731,6 +727,23 @@
                  ret# (do ~@body)]
              (lsp/await (lsp/get-lsp))
              ret#))))))
+
+(defn unexpected-graph-query [& _args]
+  (throw (AssertionError. "Graph queries are not allowed from this context.")))
+
+(defmacro with-graph-queries-blocked
+  [mode & body]
+  (case mode
+    :allow-unsafe-basis
+    `(with-redefs [g/make-evaluation-context unexpected-graph-query
+                   g/now unexpected-graph-query]
+       ~@body)
+
+    :disallow-unsafe-basis
+    `(with-redefs [g/make-evaluation-context unexpected-graph-query
+                   g/now unexpected-graph-query
+                   g/unsafe-basis unexpected-graph-query]
+       ~@body)))
 
 (defmacro with-ui-run-later-rebound
   [& forms]
@@ -1513,7 +1526,7 @@
     nil
     resource-types-by-build-ext))
 
-(defn- make-build-output-infos-by-path-impl [workspace resource-types-by-build-ext ^String build-output-path]
+(defn- make-build-output-infos-by-path-impl [workspace resource-types-by-build-ext read-opts ^String build-output-path]
   (let [resource-type (resource-type-for-build-output-path resource-types-by-build-ext build-output-path)
         _ (assert (some? resource-type) (format "Unknown resource type for: '%s'" build-output-path))
         test-info (:test-info resource-type)
@@ -1531,8 +1544,10 @@
       (let [dependencies-fn (resource-node/make-ddf-dependencies-fn pb-class)
             pb (protobuf/bytes->pb pb-class built-bytes)
             pb-map (protobuf/pb->map-without-defaults pb)
+            ext (:ext resource-type)
+            fake-source-resource (workspace/make-memory-resource workspace :editable ext pb-map)
             dep-build-resource-paths (into (sorted-set)
-                                           (dependencies-fn pb-map))]
+                                           (dependencies-fn read-opts fake-source-resource pb-map))]
         (into (sorted-map
                 build-output-path
                 (assoc build-output-info
@@ -1540,7 +1555,7 @@
                   :pb pb
                   :pb-map pb-map
                   :dep-paths dep-build-resource-paths))
-              (mapcat #(make-build-output-infos-by-path-impl workspace resource-types-by-build-ext %))
+              (mapcat #(make-build-output-infos-by-path-impl workspace resource-types-by-build-ext read-opts %))
               dep-build-resource-paths)))))
 
 (defn make-build-output-infos-by-path
@@ -1555,13 +1570,17 @@
   [workspace ^String build-output-path]
   {:pre [(string? build-output-path)
          (string/starts-with? build-output-path "/")]}
-  (let [resource-types-by-build-ext
+  (let [basis (g/now)
+        read-opts (workspace/make-read-opts basis workspace :include-editor-dependencies false)
+
+        resource-types-by-build-ext
         (into {}
               (map (fn [[_ {:keys [build-ext] :as resource-type}]]
                      (assert (string? build-ext))
                      (pair build-ext resource-type)))
-              (workspace/get-resource-type-map workspace))]
-    (make-build-output-infos-by-path-impl workspace resource-types-by-build-ext build-output-path)))
+              (resource/resource-types-by-type-ext basis workspace :editable))]
+
+    (make-build-output-infos-by-path-impl workspace resource-types-by-build-ext read-opts build-output-path)))
 
 (defn unpack-property-declarations [property-declarations]
   {:pre [(or (nil? property-declarations) (map? property-declarations))]}
@@ -1899,7 +1918,10 @@
         read-fn (:read-fn resource-type)]
     (if read-fn
       ;; Compare data.
-      (let [disk-value (resource-node/save-value->source-value (read-fn resource) resource-type)
+      (let [basis (g/now)
+            workspace (resource/workspace resource)
+            read-opts (workspace/make-read-opts basis workspace)
+            disk-value (resource-node/save-value->source-value (read-fn read-opts resource resource) resource-type)
             save-value (resource-node/save-value->source-value (:save-value save-data) resource-type)]
         (value-diff-message disk-value save-value))
 
@@ -1919,7 +1941,10 @@
         are-values-equivalent
         (if-not read-fn
           false
-          (let [disk-value (resource-node/save-value->source-value (read-fn resource) resource-type)
+          (let [basis (g/now)
+                workspace (resource/workspace resource)
+                read-opts (workspace/make-read-opts basis workspace)
+                disk-value (resource-node/save-value->source-value (read-fn read-opts resource resource) resource-type)
                 save-value (resource-node/save-value->source-value (:save-value save-data) resource-type)]
             ;; We have a read-fn, compare data.
             (check-value-equivalence! disk-value save-value message)))]

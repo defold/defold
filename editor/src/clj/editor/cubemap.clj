@@ -30,6 +30,7 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
+            [editor.shaders :as shaders]
             [editor.texture-util :as texture-util]
             [editor.types :as types]
             [editor.validation :as validation]
@@ -55,41 +56,19 @@
       (conj! vbuf v))
     (persistent! vbuf)))
 
-(shader/defshader pos-norm-vert
-  (uniform mat4 view_proj)
-  (uniform mat4 world)
-  (attribute vec3 position)
-  (attribute vec3 normal)
-  (varying vec3 vWorld)
-  (varying vec3 vNormal)
-  (defn void main []
-    (setq vNormal (normalize (* (mat3 (.xyz (nth world 0)) (.xyz (nth world 1)) (.xyz (nth world 2))) normal)))
-    (setq vWorld (.xyz (* world (vec4 position 1.0))))
-    (setq gl_Position (* view_proj (vec4 position 1.0)))))
-
-(shader/defshader pos-norm-frag
-  (uniform vec3 cameraPosition)
-  (uniform samplerCube envMap)
-  (varying vec3 vWorld)
-  (varying vec3 vNormal)
-  (defn void main []
-    (setq vec3 camToV (normalize (- vWorld cameraPosition)))
-    (setq vec3 refl (reflect camToV vNormal))
-    (setq gl_FragColor (textureCube envMap refl))))
-
-; TODO - macro of this
-(def cubemap-shader (shader/make-shader ::cubemap-shader pos-norm-vert pos-norm-frag {"view_proj" :view-proj}))
+(def cubemap-shader shaders/cubemap-world-space)
 
 (defn render-cubemap
   [^GL2 gl render-args camera gpu-texture vertex-binding]
-  (gl/with-gl-bindings gl render-args [cubemap-shader vertex-binding gpu-texture]
-    (shader/set-uniform cubemap-shader gl "world" geom/Identity4d)
-    (shader/set-uniform cubemap-shader gl "cameraPosition" (types/position camera))
-    (shader/set-uniform cubemap-shader gl "envMap" 0)
-    (gl/gl-enable gl GL2/GL_CULL_FACE)
-    (gl/gl-cull-face gl GL2/GL_BACK)
-    (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (* 6 (* sphere-lats sphere-longs)))
-    (gl/gl-disable gl GL2/GL_CULL_FACE)))
+  (let [render-args (assoc render-args
+                      :camera-position (types/position camera)
+                      :world geom/Identity4d)]
+    (gl/with-gl-bindings gl render-args [cubemap-shader vertex-binding gpu-texture]
+      (shader/set-uniform cubemap-shader gl "environment_sampler" 0)
+      (gl/gl-enable gl GL2/GL_CULL_FACE)
+      (gl/gl-cull-face gl GL2/GL_BACK)
+      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (* 6 (* sphere-lats sphere-longs)))
+      (gl/gl-disable gl GL2/GL_CULL_FACE))))
 
 (g/defnk produce-save-value [right left top bottom front back]
   (protobuf/make-map-without-defaults Graphics$Cubemap
@@ -305,10 +284,9 @@
   (output save-value g/Any :cached produce-save-value)
   (output scene g/Any :cached produce-scene))
 
-(defn load-cubemap [project self resource cubemap]
+(defn load-cubemap [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id cubemap :source-value}]
   {:pre [(map? cubemap)]} ; Graphics$Cubemap in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (concat
       (g/connect project :build-settings self :build-settings)
       (g/connect project :texture-profiles self :texture-profiles)

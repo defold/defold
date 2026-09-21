@@ -261,19 +261,29 @@ ordinary paths."
                         for common values; defaults to \"plaintext\"
     :build-ext          file extension of a built resource, defaults to :ext's
                         value with appended \"c\"
-    :dependencies-fn    fn of node's :source-value output to a collection of
-                        resource project paths that this node depends on,
-                        affects loading order
+    :dependencies-fn    a function from read-opts, owner-resource and a node's
+                        source-value output to a collection of proj-paths that
+                        this node depends on. Determines the order in which the
+                        nodes are loaded into the graph. See the make-read-opts
+                        function for details.
     :connect-fn         a function from project, new node id and resource to
                         connection transaction steps, invoked when the resource
                         shell is added to the project and before any resource
                         load-fns run
-    :load-fn            a function from project, new node id and resource to
-                        transaction step, invoked on loading the resource of
-                        the type; default editor.placeholder-resource/load-node
-    :read-fn            a fn from clojure.java.io/reader-able object (e.g.
-                        a resource or a Reader) to a data structure
-                        representation of the resource (a source value)
+    :load-fn            a function from load-opts and node-load-info to
+                        transaction steps, invoked on loading the resource. The
+                        load-opts map is shared across a load batch and contains
+                        various helpers useful during loading. See the
+                        project/make-load-opts function for details. For details
+                        on node-load-info, see the project/read-node-load-info
+                        function.
+    :read-fn            a fn from read-opts, owner-resource and a readable to a
+                        source-value. The readable can be a resource, stream or
+                        reader. Embedded values retain their containing resource
+                        as owner; ownerless templates use nil. Protobuf readers
+                        also apply the registered :sanitize-fn. Readers and
+                        sanitizers must use the read-opts snapshot instead of
+                        querying the graph. See make-read-opts for details.
     :write-fn           a fn from a data representation of the resource
                         (a save-value) to string
     :source-value-fn    a fn from a save-value to whatever you want to cache as
@@ -496,36 +506,109 @@ ordinary paths."
      rel-path
      (str base "/" rel-path))))
 
+(defn resolve-proj-path
+  ^String [^File project-directory ^String base-proj-path ^String proj-path-or-relative-path]
+  (if (absolute-proj-path? proj-path-or-relative-path)
+    proj-path-or-relative-path
+    (cond
+      (nil? base-proj-path)
+      (throw (ex-info
+               (format "Unable to resolve relative path %s without a base-proj-path."
+                       (pr-str proj-path-or-relative-path))
+               {:relative-path proj-path-or-relative-path}))
+
+      (not (resource/proj-path? base-proj-path))
+      (throw (IllegalArgumentException. (str "base-proj-path is not a proj-path: " (pr-str base-proj-path))))
+
+      :else
+      (let [project-directory-path (path/of project-directory)
+            base-file-path (path/of project-directory-path (subs base-proj-path 1))
+            resolved-file-path (path/normalized (path/resolve-sibling base-file-path proj-path-or-relative-path))]
+        (if-not (path/starts-with? resolved-file-path project-directory-path)
+          (throw (IllegalArgumentException. (str "relative-path resolves to path outside the project-directory: " (pr-str proj-path-or-relative-path))))
+          (let [resolved-file (io/file (if (path/exists? resolved-file-path)
+                                         (path/actual-cased resolved-file-path)
+                                         resolved-file-path))]
+            (resource/file->proj-path project-directory resolved-file)))))))
+
 (defn resolve-resource
   ([base-resource path]
    (resolve-resource (g/now) base-resource path))
   ([basis base-resource path]
-   (when-not (empty? path)
+   (when-not (coll/empty? path)
      (let [workspace (resource/workspace base-resource)
-           path (if (absolute-proj-path? path)
-                  path
-                  (resource/file->proj-path (project-directory basis workspace)
-                                            (.getCanonicalFile (io/file (.getParentFile (io/file base-resource))
-                                                                        path))))]
-       (resolve-workspace-resource basis workspace path)))))
+           project-directory (project-directory basis workspace)
+           base-proj-path (resource/proj-path base-resource)
+           proj-path (resolve-proj-path project-directory base-proj-path path)]
+       (resolve-workspace-resource basis workspace proj-path)))))
 
 (def ^:private default-user-resource-path "/templates/default.")
 (def ^:private java-resource-path "templates/template.")
 
-(defn template-resource [basis workspace resource-type consider-user-resource]
+(defn- find-template-resource [proj-path->resource resource-type consider-user-resource]
   (when resource-type
     (let [resource-path (:template resource-type)
           ext (:ext resource-type)]
       (or
         ;; default user resource
         (when consider-user-resource
-          (find-resource basis workspace (str default-user-resource-path ext)))
+          (proj-path->resource (str default-user-resource-path ext)))
 
         ;; editor resource provided from extensions
-        (when resource-path (find-resource basis workspace resource-path))
+        (when resource-path (proj-path->resource resource-path))
 
         ;; java resource
         (io/resource (str java-resource-path ext))))))
+
+(defn make-read-opts
+  "Captures workspace data for readers, sanitizers and dependency discovery.
+  The resource-type maps, resource map and lookup functions use this snapshot
+  without querying the graph. :template-resource-fn takes a resource-type and
+  a boolean indicating whether to consider user templates."
+  [basis workspace & {:as additional-kw-opts}]
+  {:pre [(coll/every? keyword? (coll/keys additional-kw-opts))]}
+  (let [project-directory (project-directory basis workspace)
+        editable-proj-path? (g/raw-property-value basis workspace :editable-proj-path?)
+        proj-path->resource (g/raw-property-value basis workspace :resource-map)
+
+        existing-proj-path-fn
+        (fn existing-proj-path-fn [value]
+          (when (contains? proj-path->resource value)
+            value))
+
+        resolve-proj-path-fn
+        (fn resolve-proj-path-fn [base-resource proj-path-or-relative-path]
+          (let [base-proj-path (resource/proj-path base-resource)]
+            (resolve-proj-path project-directory base-proj-path proj-path-or-relative-path)))
+
+        editable->type-ext->resource-type
+        {true (resource/resource-types-by-type-ext basis workspace true)
+         false (resource/resource-types-by-type-ext basis workspace false)}
+
+        proj-path->resource-type
+        (fn proj-path->resource-type [proj-path]
+          (let [editable (editable-proj-path? proj-path)
+                type-ext (resource/filename->type-ext proj-path)
+                type-ext->resource-type (editable->type-ext->resource-type editable)]
+            (or (type-ext->resource-type type-ext)
+                (type-ext->resource-type resource/placeholder-resource-type-ext))))
+
+        template-resource-fn
+        (fn template-resource-fn [resource-type consider-user-resource]
+          (find-template-resource proj-path->resource resource-type consider-user-resource))]
+
+    (assoc additional-kw-opts
+      :editable->type-ext->resource-type editable->type-ext->resource-type
+      :editable-proj-path? editable-proj-path?
+      :existing-proj-path-fn existing-proj-path-fn
+      :proj-path->resource proj-path->resource
+      :proj-path->resource-type proj-path->resource-type
+      :resolve-proj-path-fn resolve-proj-path-fn
+      :template-resource-fn template-resource-fn)))
+
+(defn template-resource [basis workspace resource-type consider-user-resource]
+  (let [proj-path->resource (g/raw-property-value basis workspace :resource-map)]
+    (find-template-resource proj-path->resource resource-type consider-user-resource)))
 
 (defn has-template?
   ([workspace resource-type]
@@ -541,9 +624,11 @@ ordinary paths."
      (let [{:keys [read-fn write-fn]} resource-type]
        (if (and read-fn write-fn)
          ;; Sanitize the template.
-         (write-fn
-           (with-open [reader (io/reader resource)]
-             (read-fn reader)))
+         (let [read-opts (make-read-opts basis workspace)
+               owner-resource (when (resource/resource? resource) resource)]
+           (write-fn
+             (with-open [reader (io/reader resource)]
+               (read-fn read-opts owner-resource reader))))
 
          ;; Just read the file as-is.
          (with-open [reader (io/reader resource)]
@@ -1090,7 +1175,7 @@ ordinary paths."
 
 (defn- make-editable-proj-path-predicate [non-editable-directory-proj-paths]
   {:pre [(vector? non-editable-directory-proj-paths)
-         (every? string? non-editable-directory-proj-paths)]}
+         (coll/every? resource/proj-path? non-editable-directory-proj-paths)]}
   (fn editable-proj-path? [proj-path]
     (not-any? (fn [non-editable-directory-proj-path]
                 ;; A proj-path is considered non-editable if it matches or is

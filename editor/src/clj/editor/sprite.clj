@@ -34,6 +34,7 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.validation :as validation]
@@ -41,8 +42,7 @@
             [internal.util :as util]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [com.dynamo.bob.pipeline ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
-           [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
+  (:import [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
@@ -70,22 +70,7 @@
   (vec3 position)
   (vec4 color))
 
-(shader/defshader outline-vertex-shader
-  (uniform mat4 view_proj)
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* view_proj position))
-    (setq var_color color)))
-
-(shader/defshader outline-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-; TODO - macro of this
-(def outline-shader (shader/make-shader ::outline-shader outline-vertex-shader outline-fragment-shader {"view_proj" :view-proj}))
+(def outline-shader shaders/basic-color-straight-alpha-world-space)
 
 (defn- renderable-data [renderable]
   (let [{:keys [world-transform updatable user-data]} renderable
@@ -134,32 +119,7 @@
 
 ; Rendering
 
-(shader/defshader sprite-id-vertex-shader
-  (uniform mat4 view_proj)
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (attribute float page_index)
-  (varying vec2 var_texcoord0)
-  (varying float var_page_index)
-  (defn void main []
-    (setq gl_Position (* view_proj (vec4 position.xyz 1.0)))
-    (setq var_texcoord0 texcoord0)
-    (setq var_page_index page_index)))
-
-(shader/defshader sprite-id-fragment-shader
-  (varying vec2 var_texcoord0)
-  (varying float var_page_index)
-  (uniform vec4 id)
-  (uniform sampler2DArray texture_sampler)
-  (defn void main []
-    (setq vec4 color (texture2DArray texture_sampler (vec3 var_texcoord0 var_page_index)))
-    (if (> color.a 0.05)
-      (setq gl_FragColor id)
-      (discard))))
-
-(def id-shader
-  (let [augmented-fragment-shader-source (.source (ShaderUtil$VariantTextureArrayFallback/transform sprite-id-fragment-shader ShaderUtil$Common/MAX_ARRAY_SAMPLERS))]
-    (shader/make-shader ::sprite-id-shader sprite-id-vertex-shader augmented-fragment-shader-source {"view_proj" :view-proj "id" :id})))
+(def id-shader shaders/selection-uniform-paged-world-space)
 
 (defn- quad-count [size-mode slice9]
   (let [[^double x0 ^double y0 ^double x1 ^double y1] slice9
@@ -186,7 +146,7 @@
         scene-infos (:scene-infos user-data)
         pass (:pass render-args)
         {:keys [blend-mode material-attribute-infos shader]} user-data
-        shader-attribute-reflection-infos (shader/attribute-reflection-infos shader gl)
+        shader-attribute-reflection-infos (shader/attribute-reflection-infos shader)
         combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos :coordinate-space-world)
         has-semantic-type-world-matrix (some #(= :semantic-type-world-matrix (:semantic-type %)) combined-attribute-infos)
         has-semantic-type-normal-matrix (some #(= :semantic-type-normal-matrix (:semantic-type %)) combined-attribute-infos)
@@ -216,7 +176,7 @@
       (let [vbuf (graphics/put-attributes! (->texture-vtx num-vertices) renderable-datas)
             vertex-binding (vtx/use-with ::sprite-selection vbuf id-shader)
             gpu-texture (:gpu-texture (first scene-infos))]
-        (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
+        (gl/with-gl-bindings gl (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
           (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 num-vertices))))))
 
@@ -659,7 +619,7 @@
 
 (def ^:private default-material-proj-path (protobuf/default Sprite$SpriteDesc :material))
 
-(defn- sanitize-sprite [{:keys [size size-mode slice9 material textures tile-set] :as sprite-desc}]
+(defn- sanitize-sprite [_read-opts _owner-resource {:keys [size size-mode slice9 material textures tile-set] :as sprite-desc}]
   {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.
   (cond-> (dissoc sprite-desc :tile-set)
 
@@ -680,10 +640,9 @@
           (assoc :textures [{:sampler "texture_sampler"
                              :texture tile-set}])))
 
-(defn- load-sprite [project self resource sprite-desc]
+(defn- load-sprite [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id sprite-desc :source-value}]
   {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)

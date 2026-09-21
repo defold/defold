@@ -275,7 +275,7 @@ struct DepthTextureTest : ClearBackbufferTest
                     dmGraphics::SetRenderTargetSize(context, target, size, size);
                 }
 
-                dmGraphics::SetRenderTarget(context, target, 0);
+                dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
                 dmGraphics::Clear(context, flags, 0, 0, 0, 255, 0.5f, 0);
                 dmGraphics::HTexture depth = dmGraphics::GetRenderTargetTexture(context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
                 if (!dmGraphics::IsAssetHandleValid(context, depth) ||
@@ -285,7 +285,7 @@ struct DepthTextureTest : ClearBackbufferTest
                     dmLogError("Depth texture allocation/resize failed (color=%u, size=%u)", color, size);
                     engine->m_Failed = true;
                 }
-                dmGraphics::SetRenderTarget(context, 0, 0);
+                dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
             }
             dmGraphics::DeleteRenderTarget(context, target);
         }
@@ -369,7 +369,7 @@ struct CubemapFaceOrderTest : ITest
             {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}
         };
 
-        dmGraphics::SetRenderTarget(context, m_RenderTarget, 0);
+        dmGraphics::SetRenderTarget(context, m_RenderTarget, dmGraphics::RenderTargetBindingParams());
         dmGraphics::SetViewport(context, 0, 0, 1, 1);
         dmGraphics::EnableProgram(context, m_Program);
         dmGraphics::SetSampler(context, GetUniformLocation(m_Program, "cubemap"), 0);
@@ -450,7 +450,7 @@ struct CubemapFaceOrderTest : ITest
         dmGraphics::DisableVertexDeclaration(context, m_VertexDeclaration);
         dmGraphics::DisableVertexBuffer(context, m_VertexBuffer);
         dmGraphics::DisableProgram(context);
-        dmGraphics::SetRenderTarget(context, 0, 0);
+        dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
         engine->m_Running = 0;
     }
 

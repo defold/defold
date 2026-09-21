@@ -14,9 +14,31 @@
 
 (ns editor.collection-common-test
   (:require [clojure.test :refer :all]
-            [editor.collection-common :as collection-common]))
+            [editor.collection-common :as collection-common]
+            [editor.resource-node :as resource-node]
+            [editor.workspace :as workspace])
+  (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]))
 
 (set! *warn-on-reflection* true)
+
+(deftest embedded-sanitizer-owner-resource-test
+  (let [read-opts {:marker "sanitized"}
+        owner-resource (Object.)
+        resource-types
+        {"test" (with-redefs [workspace/register-resource-type (fn [_workspace & {:as args}] args)]
+                  (resource-node/register-ddf-resource-type nil
+                    :ext "test"
+                    :ddf-type GameObject$PrototypeDesc
+                    :sanitize-fn (fn [actual-read-opts actual-owner-resource source-value]
+                                   (is (identical? read-opts actual-read-opts))
+                                   (is (identical? owner-resource actual-owner-resource))
+                                   (assoc source-value :marker (:marker actual-read-opts)))))}
+        collection-desc {:embedded-instances
+                         [{:id "go"
+                           :data "embedded_components { id: \"comp\" type: \"test\" data: \"\" }"}]}
+        sanitized (collection-common/sanitize-collection-desc collection-desc resource-types read-opts owner-resource)]
+    (is (= {:marker "sanitized"}
+           (get-in sanitized [:embedded-instances 0 :data :embedded-components 0 :data])))))
 
 (deftest sort-instance-descs-for-build-output-test
   (is (= [{:id "chest"
