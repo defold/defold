@@ -275,15 +275,25 @@ TEST_F(FontTest, ResourceStyleDecorationsAndEffects)
     ASSERT_EQ(decoration_count, TextLayoutGetDecorationCount(layout));
     ASSERT_EQ(2u, layout->m_Effects.Size());
     ASSERT_EQ(3.0f, layout->m_Effects[1].m_Wave.m_Amplitude);
-    TextLayoutRelease(layout);
 
     const char runtime_decoration[] = "<ul pattern=dashed>";
     ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, runtime_decoration, sizeof(runtime_decoration) - 1, &error));
     ASSERT_EQ((uint8_t)TEXT_RESOLVED_DECORATION_UNDERLINE, FontCollectionGetNamedStyleDecoration(m_FontCollection, name)->m_Flags);
     ASSERT_EQ((uint8_t)TEXT_DECORATION_PATTERN_DASHED, FontCollectionGetNamedStyleDecoration(m_FontCollection, name)->m_UnderlinePattern);
+    TextLayoutUpdate(layout, 0.0f);
+    ASSERT_EQ(decoration_count / 2, TextLayoutGetDecorationCount(layout));
+    for (uint32_t i = 0; i < TextLayoutGetDecorationCount(layout); ++i)
+    {
+        ASSERT_LT(TextLayoutGetDecorations(layout)[i].m_Y, 0.0f);
+        ASSERT_EQ((uint8_t)TEXT_DECORATION_PATTERN_DASHED, TextLayoutGetDecorations(layout)[i].m_Pattern);
+    }
     ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, "", 0, &error));
     ASSERT_EQ(decoration.m_Flags, FontCollectionGetNamedStyleDecoration(m_FontCollection, name)->m_Flags);
     ASSERT_EQ(decoration.m_UnderlinePattern, FontCollectionGetNamedStyleDecoration(m_FontCollection, name)->m_UnderlinePattern);
+    TextLayoutUpdate(layout, 0.0f);
+    ASSERT_EQ(decoration_count, TextLayoutGetDecorationCount(layout));
+    ASSERT_EQ(decoration.m_UnderlinePattern, TextLayoutGetDecorations(layout)[0].m_Pattern);
+    TextLayoutRelease(layout);
 
     const char invalid[] = "<size=invalid>";
     ASSERT_FALSE(TextLayoutCompileStyleFragment(invalid, sizeof(invalid) - 1, &style, &effects, &decoration, &error));
@@ -295,8 +305,6 @@ TEST_F(FontTest, StyleMarkupClearsRuntimeDecorations)
     const char definition[] = "<ul><strike>";
     ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, definition, sizeof(definition) - 1, 0));
     ASSERT_NE((const TextNamedStyleDecoration*)0, FontCollectionGetNamedStyleDecoration(m_FontCollection, name));
-    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, "", 0, 0));
-    ASSERT_EQ((const TextNamedStyleDecoration*)0, FontCollectionGetNamedStyleDecoration(m_FontCollection, name));
     TextLayoutSettings settings = {};
     settings.m_Size = 32.0f;
     settings.m_Leading = 1.0f;
@@ -305,7 +313,43 @@ TEST_F(FontTest, StyleMarkupClearsRuntimeDecorations)
     uint32_t text[] = {'A'};
     HTextLayout layout = 0;
     ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, 1, &settings, &layout));
+    ASSERT_EQ(2u, TextLayoutGetDecorationCount(layout));
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, "", 0, 0));
+    ASSERT_EQ((const TextNamedStyleDecoration*)0, FontCollectionGetNamedStyleDecoration(m_FontCollection, name));
+    TextLayoutUpdate(layout, 0.0f);
     ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
+    TextLayoutRelease(layout);
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, 1, &settings, &layout));
+    ASSERT_EQ(0u, TextLayoutGetDecorationCount(layout));
+    TextLayoutRelease(layout);
+}
+
+TEST_F(FontTest, BaseStyleDecorationChangesPreserveInlinePatterns)
+{
+    const dmhash_t name = dmHashString64("runtime");
+    const char definition[] = "<ul><strike><wave amplitude=2 hz=1>";
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, definition, sizeof(definition) - 1, 0));
+    const char source[] = "A<ul pattern=dashed><strike pattern=dashed>B</strike></ul>";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_UseBaseStyle = 1;
+    settings.m_BaseStyle = name;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+    ASSERT_TRUE(FontCollectionSetNamedStyleMarkup(m_FontCollection, name, "", 0, 0));
+    TextLayoutUpdate(layout, 0.0f);
+    ASSERT_EQ(2u, TextLayoutGetDecorationCount(layout));
+    for (uint32_t i = 0; i < TextLayoutGetDecorationCount(layout); ++i)
+    {
+        const TextDecoration& decoration = TextLayoutGetDecorations(layout)[i];
+        ASSERT_EQ(1u, decoration.m_GlyphStart);
+        ASSERT_EQ(1u, decoration.m_GlyphCount);
+        ASSERT_EQ((uint8_t)TEXT_DECORATION_PATTERN_DASHED, decoration.m_Pattern);
+    }
     TextLayoutRelease(layout);
 }
 

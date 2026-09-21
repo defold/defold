@@ -560,6 +560,21 @@ static void ApplyBaseStyle(HTextLayout layout)
     if (!base)
         return;
 
+    const TextNamedStyleDecoration* decoration = FontCollectionGetNamedStyleDecoration(layout->m_FontCollection, layout->m_BaseStyleName);
+    for (uint32_t i = 0; i < layout->m_BaseResolvedSpanCount; ++i)
+    {
+        TextResolvedSpan& span = layout->m_ResolvedSpans[i];
+        span.m_DecorationFlags = span.m_InlineDecorationFlags;
+        if (decoration)
+        {
+            span.m_DecorationFlags |= decoration->m_Flags;
+            if (!(span.m_InlineDecorationFlags & TEXT_RESOLVED_DECORATION_UNDERLINE))
+                span.m_UnderlinePattern = decoration->m_UnderlinePattern;
+            if (!(span.m_InlineDecorationFlags & TEXT_RESOLVED_DECORATION_STRIKE))
+                span.m_StrikePattern = decoration->m_StrikePattern;
+        }
+    }
+
     dmArray<uint16_t> styles;
     styles.SetCapacity(layout->m_BaseStyleCount);
     for (uint32_t i = 0; i < layout->m_BaseStyleCount; ++i)

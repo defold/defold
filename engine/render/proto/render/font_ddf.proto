@@ -44,7 +44,12 @@ message StyleEffect
 // properties; separate alpha values allow inheriting the component's RGB.
 message CompiledStyle
 {
-    enum FontSizeUnit { PIXELS = 0; EM = 1; OFFSET = 2; }
+    enum FontSizeUnit
+    {
+        PIXELS = 0;
+        EM = 1;
+        OFFSET = 2;
+    }
     required string name = 1;
     required uint64 name_hash = 2;
     optional uint32 flags = 3;
