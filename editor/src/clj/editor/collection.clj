@@ -527,7 +527,7 @@
   (input sub-build-targets g/Any :array)
   (input dep-build-targets g/Any :array)
   (input base-url g/Str)
-  (input go-inst-ids g/Any :array)
+  (input go-inst-ids g/Any :array :substitute gu/array-subst-remove-errors)
   (input ddf-properties g/Any :array)
   (input resource-property-build-targets g/Any :array)
   (input referenced-collection-resources g/Any :array)
