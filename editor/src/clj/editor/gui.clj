@@ -4663,6 +4663,15 @@
             (distinct)
             (conj default-dependencies default-font-proj-path)))))
 
+(defn gui-scene-prerequisites [read-opts owner-resource scene-desc]
+  (let [resolve-proj-path-fn (:resolve-proj-path-fn read-opts)]
+    (coll/into-> (:nodes scene-desc) []
+      (filter #(= :type-template (:type %)))
+      (keep :template)
+      (remove coll/empty?)
+      (map #(resolve-proj-path-fn owner-resource %))
+      (distinct))))
+
 (defn- register [workspace def]
   (let [ext (:ext def)
         exts (if (vector? ext) ext [ext])]
@@ -4674,6 +4683,7 @@
           :build-ext (:build-ext def)
           :node-type GuiSceneNode
           :ddf-type (:pb-class def)
+          :prerequisites-fn gui-scene-prerequisites
           :dependencies-fn gui-scene-dependencies
           :load-fn load-gui-scene
           :allow-unloaded-use false ; Sort of works, but disabled until we can fix the file formats to not include all nodes imported from templates.

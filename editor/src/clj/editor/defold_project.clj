@@ -204,9 +204,15 @@
     of the bytes consumed during the read operation.
 
   :dependency-proj-paths (optional)
-    Whe the resource-type specifies both a :read-fn and a :dependencies-fn, this
-    will be a vector of proj-paths reported as dependencies by the
-    :dependencies-fn when we give it the source-value returned by the :read-fn."
+    When the resource-type specifies both a :read-fn and a :dependencies-fn,
+    this will be a vector of proj-paths reported as dependencies by the
+    :dependencies-fn when we give it the source-value returned by the :read-fn.
+
+  :prerequisite-proj-paths (optional)
+    When the resource-type specifies both a :read-fn and a :prerequisites-fn,
+    this will be a vector of proj-paths reported as prerequisites by the
+    :prerequisites-fn when we give it the source-value returned by the :read-fn.
+    Prerequisite resource nodes are guaranteed to be loaded before our node."
   [read-opts node-id resource]
   {:pre [(g/node-id? node-id)]}
   (let [resource-metrics (:resource-metrics read-opts)
@@ -265,6 +271,18 @@
                 (log/warn :msg (format "Unable to determine dependencies for resource '%s', assuming none."
                                        (resource/proj-path resource))
                           :exception exception)
+                nil))))
+
+        prerequisite-proj-paths
+        (when (some? source-value)
+          (when-let [prerequisites-fn (:prerequisites-fn resource-type)]
+            (try
+              (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies
+                (coll/not-empty (vec (prerequisites-fn read-opts resource source-value))))
+              (catch Exception exception
+                (log/warn :msg (format "Unable to determine prerequisites for resource '%s', assuming none."
+                                       (resource/proj-path resource))
+                          :exception exception)
                 nil))))]
 
     (cond-> {:node-id node-id
@@ -274,7 +292,8 @@
             read-error (assoc :read-error read-error)
             source-value (assoc :source-value source-value)
             disk-sha256 (assoc :disk-sha256 disk-sha256)
-            dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths))))
+            dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths)
+            prerequisite-proj-paths (assoc :prerequisite-proj-paths prerequisite-proj-paths))))
 
 (defn- sort-node-ids-for-loading-impl
   ([node-ids in-progress queue queued batch node-id->dependency-node-ids]

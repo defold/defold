@@ -352,6 +352,7 @@
       :label (localization/message "resource.type.go.non-editable")
       :node-type NonEditableGameObjectNode
       :ddf-type GameObject$PrototypeDesc
+      :prerequisites-fn game-object-common/game-object-prerequisites
       :dependencies-fn game-object-common/game-object-dependencies-fn
       :sanitize-fn game-object-common/game-object-sanitize-fn
       :pb-encode-fn (partial string-encode-non-editable-game-object workspace)

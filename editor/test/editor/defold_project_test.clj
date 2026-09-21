@@ -83,6 +83,7 @@
               (swap! seen-load-opts conj load-opts)
               (is (string? (:disk-sha256 node-load-info)))
               (is (= [(:b source-value)] (:dependency-proj-paths node-load-info)))
+              (is (= [(:b source-value)] (:prerequisite-proj-paths node-load-info)))
               (let [source-resource (workspace/resolve-resource owner-resource (:b source-value))]
                 (e/concat
                   (g/callback-ec
@@ -113,6 +114,7 @@
                                                  :node-type ANode
                                                  :read-fn (fn [read-opts owner-resource readable]
                                                             (sanitize-a read-opts owner-resource (read-a read-opts owner-resource readable)))
+                                                 :prerequisites-fn dependencies-a
                                                  :dependencies-fn dependencies-a
                                                  :connect-fn connect-a
                                                  :load-fn load-a

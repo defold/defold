@@ -1017,6 +1017,7 @@
       :ddf-type GameObject$CollectionDesc
       :load-fn load-collection
       :allow-unloaded-use true
+      :prerequisites-fn collection-common/collection-prerequisites
       :dependencies-fn collection-common/collection-dependencies-fn
       :sanitize-fn collection-common/collection-sanitize-fn
       :pb-encode-fn (partial string-encode-collection workspace)

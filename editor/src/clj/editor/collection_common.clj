@@ -235,6 +235,24 @@
                                  :exception error)
                        nil))))))])))
 
+(defn collection-prerequisites [read-opts owner-resource collection-desc]
+  (let [resolve-proj-path (:resolve-proj-path-fn read-opts)]
+    (into []
+          (comp cat
+                (distinct))
+          [(coll/into-> (:instances collection-desc) :eduction
+             (keep :prototype)
+             (remove coll/empty?)
+             (map #(resolve-proj-path owner-resource %)))
+           (coll/into-> (:collection-instances collection-desc) :eduction
+             (keep :collection)
+             (remove coll/empty?)
+             (map #(resolve-proj-path owner-resource %)))
+           (coll/into-> (:embedded-instances collection-desc) :eduction
+             (map :data)
+             (filter map?)
+             (mapcat #(game-object-common/game-object-prerequisites read-opts owner-resource %)))])))
+
 (defn game-object-instance-build-target [game-object-build-target instance-desc-with-go-props pose proj-path->resource-property-build-target]
   {:pre [(map? game-object-build-target)
          (workspace/build-resource? (:resource game-object-build-target))

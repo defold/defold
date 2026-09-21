@@ -347,6 +347,7 @@
       :label (localization/message "resource.type.collection.non-editable")
       :node-type NonEditableCollectionNode
       :ddf-type GameObject$CollectionDesc
+      :prerequisites-fn collection-common/collection-prerequisites
       :dependencies-fn collection-common/collection-dependencies-fn
       :sanitize-fn collection-common/collection-sanitize-fn
       :pb-encode-fn (partial string-encode-non-editable-collection workspace)
