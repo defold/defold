@@ -93,30 +93,27 @@
   [workspace & {:keys [sanitize-fn pb-encode-fn] :as args}]
   {:pre [(not (contains? args :ddf-type))
          (string? (not-empty (:ext args)))]}
-  (let [default-data-desc-delay
-        (delay
-          ;; Read the default DataProto$Data in Protobuf map format from the
-          ;; non-user template associated with the file extension, if there is
-          ;; one. If there is no template, return nil when forced. If there is a
-          ;; template but the read fails, throw a decorated exception whenever
-          ;; the delay is forced. This ensures any resource-nodes using this
-          ;; resource-type will be marked defective. We want this since
-          ;; unsanitized data can corrupt project files when saved.
-          (some-> (workspace/template-resource (g/unsafe-basis) workspace args false)
-                  (read-default-data-desc-pb-map (:ext args))
-                  (data-desc-pb-map->data-desc)))
-
-        data-desc-pb-map->data-desc-with-defaults
-        (fn data-desc-pb-map->data-desc-with-defaults [data-desc-pb-map]
-          (coll/deep-merge
-            (force default-data-desc-delay)
-            (data-desc-pb-map->data-desc data-desc-pb-map)))
+  (let [default-data-desc-delay-fn
+        (memoize
+          (fn default-data-desc-delay-fn [template-resource]
+            (delay
+              ;; Cache both the default data and read failures per template.
+              ;; A failed template read must mark resource nodes defective to
+              ;; prevent unsanitized data from corrupting files when saved.
+              (some-> template-resource
+                      (read-default-data-desc-pb-map (:ext args))
+                      (data-desc-pb-map->data-desc)))))
 
         ddf-sanitize-fn
-        (if-not sanitize-fn
-          data-desc-pb-map->data-desc-with-defaults
-          (fn ddf-sanitize-fn [data-desc-pb-map]
-            (sanitize-fn (data-desc-pb-map->data-desc-with-defaults data-desc-pb-map))))
+        (fn ddf-sanitize-fn [read-opts owner-resource data-desc-pb-map]
+          (let [template-resource-fn (:template-resource-fn read-opts)
+                template-resource (template-resource-fn args false)
+                default-data-desc (force (default-data-desc-delay-fn template-resource))
+                data-desc (coll/deep-merge default-data-desc
+                                           (data-desc-pb-map->data-desc data-desc-pb-map))]
+            (if-not sanitize-fn
+              data-desc
+              (sanitize-fn read-opts owner-resource data-desc))))
 
         ddf-pb-encode-fn
         (if-not pb-encode-fn

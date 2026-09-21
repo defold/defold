@@ -19,6 +19,7 @@
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.progress :as progress]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
@@ -45,7 +46,7 @@
     (let [old-count (node-count (g/now))
           old-node-ids (set (ig/node-ids (g/now)))
           old-basis (g/now)
-          mem-resource (project/make-embedded-resource project :editable resource-type-name inline-resource)
+          mem-resource (workspace/make-memory-resource workspace :editable resource-type-name inline-resource)
           node-id+resource-pairs (project/make-node-id+resource-pairs [mem-resource])
           node-load-infos (project/read-nodes node-id+resource-pairs)
           prelude-tx-data (project/make-resource-nodes-tx-data project node-id+resource-pairs)
