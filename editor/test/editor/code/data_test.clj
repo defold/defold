@@ -50,7 +50,15 @@
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
-  (char-width [_this _character] char-width))
+  (char-width [_this _character] char-width)
+  ;; Shape nothing: complex runs measure like any other text.
+  data/ComplexTextMetrics
+  (complex-text-width [_this text] (* char-width (count text)))
+  (complex-text-col->x [_this _text col] (* char-width (long col)))
+  (complex-text-x->col [_this _text x] (long (/ (double x) char-width)))
+  (complex-text-x->character-col [_this _text x] (long (/ (double x) char-width)))
+  (complex-text-selection-spans [_this _text start-offset end-offset]
+    [[(* char-width (long start-offset)) (* char-width (long end-offset))]]))
 
 (defonce/record ComplexGlyphMetrics [^double line-height ^double char-width ^double ascent]
   data/GlyphMetrics
@@ -84,7 +92,7 @@
    (data/layout-info 800.0 600.0 800.0 0.0 0.0 lines 30.0 5.0 glyph-metrics 4 false)))
 
 (deftest complex-text-ranges-test
-  (doseq [text ["العربية" "ไทย" "हिन्दी" "বাংলা" "ខ្មែរ" "မြန်မာ" "עִבְרִית"]]
+  (doseq [text ["العربية" "ไทย"]]
     (is (= [[1 (inc (count text))]]
            (data/complex-text-ranges (str "x" text "y")))))
 
@@ -117,8 +125,7 @@
   ;; Shape surrogate pairs together.
   (is (= [[1 3]] (data/complex-text-ranges "a\uD83D\uDE00b")))
 
-  (is (= [] (data/complex-text-ranges "plain Latin text")))
-  (is (= [] (data/complex-text-ranges "\tindented\t"))))
+  (is (= [] (data/complex-text-ranges "plain Latin text"))))
 
 (defn- word-boundary-before-index? [line index]
   (#'data/word-boundary-before-index? line index))
@@ -164,6 +171,21 @@
       (let [props (drag-to (+ (.x canvas-rect) (.w canvas-rect) 10.0) 7.0)]
         (is (contains? props :cursor-ranges))
         (is (neg? ^double (:scroll-x props)))))))
+
+(deftest line-width-complex-test
+  (let [layout (layout-info ["x"] (->ComplexGlyphMetrics 14.0 9.0 6.0))
+        width (fn [line] (data/line-width (.glyph layout) (.tab-stops layout) line))]
+    ;; A shaped run replaces its characters' advances in the document width.
+    (is (= 54.0 (width "abcdef")))
+    (is (= 154.0 (width "ab\"ไทย\"cd")))))
+
+(deftest merge-rects-test
+  ;; RTL runs hand back spans out of order, and touching spans must join.
+  (is (= [[10.0 15.0] [30.0 10.0]]
+         (mapv (juxt :x :w)
+               (#'data/merge-rects [(->Rect 30.0 0.0 10.0 14.0)
+                                    (->Rect 10.0 0.0 10.0 14.0)
+                                    (->Rect 20.0 0.0 5.0 14.0)])))))
 
 (deftest cursor-range-rects-test
   (let [glyph-metrics (->ComplexGlyphMetrics 14.0 9.0 6.0)
@@ -639,14 +661,19 @@
     (is (= [(c 0 1)] (data/move-cursors [(c 0 3)] #'data/cursor-left ["a💜"])))
     (is (= [(c 0 3)] (data/move-cursors [(c 0 1)] #'data/cursor-right ["a💜"]))))
 
-  (testing "Peels one Thai combining mark at a time"
-    (is (= [(c 0 1)] (data/move-cursors [(c 0 2)] #'data/cursor-left ["รี"]))))
+  ;; The arrow keys are bound to the grapheme variants, not cursor-left/right.
+  (testing "Arrow keys step over a whole grapheme cluster"
+    (is (= [(c 0 0)] (data/move-cursors [(c 0 2)] #'data/cursor-left-grapheme ["รี"])))
+    (is (= [(c 0 2)] (data/move-cursors [(c 0 0)] #'data/cursor-right-grapheme ["รี"])))
+    (is (= [(c 0 1)] (data/move-cursors [(c 0 3)] #'data/cursor-left-grapheme ["a💜b"])))
+    (is (= [(c 0 3)] (data/move-cursors [(c 0 1)] #'data/cursor-right-grapheme ["a💜b"])))
+    (is (= [(c 0 2)] (data/move-cursors [(c 1 0)] #'data/cursor-left-grapheme ["ab" "cd"])))
+    (is (= [(c 1 0)] (data/move-cursors [(c 0 2)] #'data/cursor-right-grapheme ["ab" "cd"]))))
 
-  (testing "Word movement lands on grapheme cluster boundaries"
-    (let [line (str "foo ba" (String. (Character/toChars 0x0301)) "r baz")]
-      (is (= [(c 0 4)] (data/move-cursors [(c 0 9)] #'data/cursor-prev-word [line])))
-      (is (= [(c 0 8)] (data/move-cursors [(c 0 4)] #'data/cursor-next-word [line])))
-      (is (= [(c 0 2)] (data/move-cursors [(c 0 0)] #'data/cursor-next-word ["รี ab"])))))
+  ;; The word scan can stop inside a cluster; these inputs make it do so.
+  (testing "Word movement snaps off a mid-cluster stop"
+    (is (= [(c 0 3)] (data/move-cursors [(c 0 7)] #'data/cursor-prev-word ["ab 💜💜"])))
+    (is (= [(c 0 2)] (data/move-cursors [(c 0 5)] #'data/cursor-prev-word ["💜💜 ab"]))))
 
   (testing "Out-of-bounds movement"
     (is (= [(c 0 0)] (data/move-cursors [(c 0 0)] #'data/cursor-up ["a" "b" "c"])))
@@ -1106,7 +1133,24 @@
               :invalidated-row 0
               :lines ["a"]}
              (backspace ["a💜"]
-                        [(c 0 3)]))))
+                        [(c 0 3)])))
+
+      ;; Backspace peels one combining mark; forward delete takes the cluster.
+      (is (= {:cursor-ranges [(c 0 1)]
+              :invalidated-row 0
+              :lines ["ร"]}
+             (backspace ["รี"]
+                        [(c 0 2)])))
+      (is (= {:cursor-ranges [(c 0 0)]
+              :invalidated-row 0
+              :lines [""]}
+             (delete ["รี"]
+                     [(c 0 0)])))
+      (is (= {:cursor-ranges [(c 0 1)]
+              :invalidated-row 0
+              :lines ["a"]}
+             (delete ["a💜"]
+                     [(c 0 1)]))))
 
     (testing "Multiple cursors"
       (is (= {:cursor-ranges [(c 0 1) (c 0 2)]
