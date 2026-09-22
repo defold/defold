@@ -12,6 +12,15 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+// Numeric atlas row width in texels, used to decode the linear glyph-header address.
+// Must match FONT_VECTOR_SLUG_WIDTH in engine/font/src/font_vector_slug.h.
+const float SLUG_TEXTURE_WIDTH = 4096.0;
+
+// Highest band index on either axis: eight bands indexed from 0 through 7.
+// Keep this one less than the band count passed by PrepareVectorData() in
+// engine/font/src/fontc/fontc.cpp.
+const float SLUG_BAND_MAX = 7.0;
+
 uniform mat4 view_proj;
 attribute vec4 position;
 attribute vec4 texcoord;
@@ -30,7 +39,8 @@ void main()
     var_mode = texcoord.w;
     var_color = color;
     var_banding = effect_params;
-    var_glyph = vec4(mod(header, 4096.0), floor(header / 4096.0), 7.0, 7.0);
+    var_glyph = vec4(mod(header, SLUG_TEXTURE_WIDTH), floor(header / SLUG_TEXTURE_WIDTH),
+                     SLUG_BAND_MAX, SLUG_BAND_MAX);
     var_curve_count = texcoord.z;
     // Native vertices keep world Z separate from the numeric glyph address.
     gl_Position = view_proj * vec4(position.xy, position.w, 1.0);
