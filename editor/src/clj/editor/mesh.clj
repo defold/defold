@@ -45,7 +45,7 @@
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]])
   (:import [com.dynamo.gamesys.proto MeshProto$MeshDesc MeshProto$MeshDesc$PrimitiveType]
-           [com.jogamp.opengl GL3]
+           [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
            [editor.graphics.types ElementType]
@@ -148,7 +148,7 @@
                 samplers
                 gpu-texture-generators)))
 
-(defn- request-vb! [^GL3 gl node-id user-data world-transform]
+(defn- request-vb! [^GL2 gl node-id user-data world-transform]
   (let [request-id [node-id (:vertex-attributes user-data) (:vertex-count user-data)]
         world-transform-clj (math/vecmath->clj world-transform)
         data (-> user-data
@@ -166,11 +166,11 @@
 (defn- gl-primitive-type
   ^long [primitive-type]
   (case primitive-type
-    :primitive-triangles GL3/GL_TRIANGLES
-    :primitive-triangle-strip GL3/GL_TRIANGLE_STRIP
-    :primitive-lines GL3/GL_LINES))
+    :primitive-triangles GL2/GL_TRIANGLES
+    :primitive-triangle-strip GL2/GL_TRIANGLE_STRIP
+    :primitive-lines GL2/GL_LINES))
 
-(defn- render-scene-opaque [^GL3 gl render-args renderables _renderable-count]
+(defn- render-scene-opaque [^GL2 gl render-args renderables _renderable-count]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         gl-primitive-type (gl-primitive-type (:primitive-type user-data))
@@ -190,9 +190,9 @@
         (gl/bind gl texture render-args)
         (shader/set-samplers-by-name shader gl name (:texture-units texture)))
       (light/bind-preview-lights-for-shader! gl shader render-args)
-      (.glBlendFunc gl GL3/GL_ONE GL3/GL_ONE_MINUS_SRC_ALPHA)
-      (gl/gl-enable gl GL3/GL_CULL_FACE)
-      (gl/gl-cull-face gl GL3/GL_BACK)
+      (.glBlendFunc gl GL2/GL_ONE GL2/GL_ONE_MINUS_SRC_ALPHA)
+      (gl/gl-enable gl GL2/GL_CULL_FACE)
+      (gl/gl-cull-face gl GL2/GL_BACK)
       (doseq [renderable renderables
               :let [node-id (:node-id renderable)
                     user-data (:user-data renderable)
@@ -200,12 +200,12 @@
                     vertex-binding (vtx/use-with [node-id ::mesh] vb shader)]]
         (gl/with-gl-bindings gl render-args [vertex-binding]
           (gl/gl-draw-arrays gl gl-primitive-type 0 (count vb))))
-      (gl/gl-disable gl GL3/GL_CULL_FACE)
-      (.glBlendFunc gl GL3/GL_SRC_ALPHA GL3/GL_ONE_MINUS_SRC_ALPHA)
+      (gl/gl-disable gl GL2/GL_CULL_FACE)
+      (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA)
       (doseq [[_name texture] textures]
         (gl/unbind gl texture render-args)))))
 
-(defn- render-scene-opaque-selection [^GL3 gl render-args renderables _renderable-count]
+(defn- render-scene-opaque-selection [^GL2 gl render-args renderables _renderable-count]
   (assert (= 1 (count renderables)))
   (let [renderable (first renderables)
         node-id (:node-id renderable)
@@ -223,13 +223,13 @@
       (doseq [[name texture] textures]
         (gl/bind gl texture render-args)
         (shader/set-samplers-by-name id-shader gl name (:texture-units texture)))
-      (gl/gl-enable gl GL3/GL_CULL_FACE)
-      (gl/gl-cull-face gl GL3/GL_BACK)
+      (gl/gl-enable gl GL2/GL_CULL_FACE)
+      (gl/gl-cull-face gl GL2/GL_BACK)
       (let [vb (request-vb! gl node-id user-data world-transform)
             vertex-binding (vtx/use-with [node-id ::mesh-selection] vb id-shader)]
         (gl/with-gl-bindings gl render-args [vertex-binding]
           (gl/gl-draw-arrays gl gl-primitive-type 0 (count vb))))
-      (gl/gl-disable gl GL3/GL_CULL_FACE)
+      (gl/gl-disable gl GL2/GL_CULL_FACE)
       (doseq [[_name texture] textures]
         (gl/unbind gl texture render-args)))))
 
@@ -238,7 +238,7 @@
           (buffer/stream-data->array nil type (count data)))
         array-streams))
 
-(defn- render-scene [^GL3 gl render-args renderables rcount]
+(defn- render-scene [^GL2 gl render-args renderables rcount]
   ;; TODO(instancing): Update rendering to use AttributeBufferBindings. Share scene representation with ModelSceneNode?
   (let [pass (:pass render-args)]
     (condp = pass
@@ -607,7 +607,7 @@
   (let [vertex-description (graphics.types/make-vertex-description vertex-attributes)]
     (vtx/make-vertex-buffer vertex-description :static vertex-count)))
 
-(defn- update-vb! [^GL3 _gl ^VertexBuffer vb data]
+(defn- update-vb! [^GL2 _gl ^VertexBuffer vb data]
   (let [data' (update data :world-transform
                       (fn [world-transform]
                         (doto (Matrix4d.)
@@ -617,11 +617,11 @@
         (populate-vb! data')
         (vtx/flip!))))
 
-(defn- make-vb [^GL3 gl data]
+(defn- make-vb [^GL2 gl data]
   (let [{:keys [vertex-attributes vertex-count]} data
         vb (make-vb-from-vertex-attributes vertex-attributes vertex-count)]
     (update-vb! gl vb data)))
 
-(defn- destroy-vbs! [^GL3 _gl _vbs _])
+(defn- destroy-vbs! [^GL2 _gl _vbs _])
 
 (scene-cache/register-object-cache! ::vb make-vb update-vb! destroy-vbs!)

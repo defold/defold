@@ -16,7 +16,7 @@
   (:require [dynamo.graph :as g]
             [schema.core :as s]
             [editor.types :as types])
-  (:import [com.jogamp.opengl GL GL3]))
+  (:import [com.jogamp.opengl GL GL2]))
 
 (set! *warn-on-reflection* true)
 
@@ -64,8 +64,8 @@
 (defmulti prepare-gl (fn [pass gl] pass))
 
 (defmethod prepare-gl background
-  [_ ^GL3 gl]
-  (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL3/GL_FILL)
+  [_ ^GL2 gl]
+  (.glPolygonMode gl GL/GL_FRONT_AND_BACK GL2/GL_FILL)
   (.glDisable gl GL/GL_BLEND)
   (.glDisable gl GL/GL_DEPTH_TEST)
   (.glDepthMask gl false)
@@ -75,9 +75,9 @@
   (.glColorMask gl true true true true))
 
 (defmethod prepare-gl infinity-grid
-  [_ ^GL3 gl]
+  [_ ^GL2 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
     (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
     (.glDisable GL/GL_DEPTH_TEST)
@@ -88,9 +88,9 @@
     (.glColorMask true true true true)))
 
 (defmethod prepare-gl opaque
-  [_ ^GL3 gl]
+  [_ ^GL2 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glDisable GL/GL_BLEND)
     (.glEnable GL/GL_DEPTH_TEST)
     (.glDepthMask true)
@@ -100,9 +100,9 @@
     (.glColorMask true true true true)))
 
 (defmethod prepare-gl outline
-  [_ ^GL3 gl]
+  [_ ^GL2 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_LINE)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_LINE)
     (.glDisable GL/GL_BLEND)
     (.glDisable GL/GL_DEPTH_TEST)
     (.glDepthMask false)
@@ -112,9 +112,9 @@
     (.glColorMask true true true true)))
 
 (defmethod prepare-gl transparent
-  [_ ^GL3 gl]
+  [_ ^GL2 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
     (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
     (.glEnable GL/GL_DEPTH_TEST)
@@ -125,9 +125,9 @@
     (.glColorMask true true true true)))
 
 (defmethod prepare-gl opaque-selection
-  [_ ^GL3 gl]
+  [_ ^GL2 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glDisable GL/GL_BLEND)
     (.glEnable GL/GL_DEPTH_TEST)
     (.glDepthMask true)
@@ -137,9 +137,9 @@
     (.glColorMask true true true true)))
 
 (defmethod prepare-gl selection
-  [_ ^GL3 gl]
+  [_ ^GL2 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
     (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
     (.glEnable GL/GL_DEPTH_TEST)
@@ -150,9 +150,9 @@
     (.glColorMask true true true true)))
 
 (defmethod prepare-gl manipulator
-  [_ ^GL3 gl]
+  [_ ^GL2 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
     (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
     (.glDisable GL/GL_DEPTH_TEST)
@@ -163,9 +163,9 @@
     (.glColorMask true true true true)))
 
 (defmethod prepare-gl manipulator-selection
-  [_ ^GL3 gl]
+  [_ ^GL2 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
     (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
     (.glDisable GL/GL_DEPTH_TEST)
@@ -176,9 +176,9 @@
     (.glColorMask true true true true)))
 
 (defmethod prepare-gl overlay
-  [_ ^GL3 gl]
+  [_ ^GL2 gl]
   (doto gl
-    (.glPolygonMode GL/GL_FRONT_AND_BACK GL3/GL_FILL)
+    (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
     (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
     (.glDisable GL/GL_DEPTH_TEST)

@@ -20,23 +20,30 @@
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.num :as num])
-  (:import [com.jogamp.opengl GL GL3 GLAutoDrawable GLCapabilities GLContext GLDrawableFactory GLException GLOffscreenAutoDrawable GLProfile]
+  (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLCapabilities GLContext GLDrawableFactory GLException GLOffscreenAutoDrawable GLProfile]
+           [java.nio IntBuffer]
            [java.util.concurrent.atomic AtomicLong]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (defonce ^:private gl-info-atom (atom nil))
-(def ^:private required-functions ["glGenBuffers" "glGenVertexArrays" "glVertexAttribDivisor"])
+(defonce ^:private required-functions ["glGenBuffers"])
 
-(defn profile
-  "The desktop core profile used by editor drawables."
-  ^GLProfile []
-  (GLProfile/get GLProfile/GL3))
+(defn- profile ^GLProfile []
+  (try
+    (GLProfile/getGL2ES1)
+    (catch GLException e
+      (log/warn :message "Failed to acquire GL profile for GL2/GLES1.")
+      (GLProfile/getDefault))))
+
+(defn drawable-factory
+  (^GLDrawableFactory [] (drawable-factory (profile)))
+  (^GLDrawableFactory [^GLProfile profile] (GLDrawableFactory/getFactory profile)))
 
 (defn- unchecked-offscreen-drawable ^GLOffscreenAutoDrawable [w h]
   (let [profile (profile)
-        factory (GLDrawableFactory/getFactory profile)
+        factory (drawable-factory profile)
         caps    (doto (GLCapabilities. profile)
                   (.setOnscreen false)
                   (.setFBO true)
@@ -58,32 +65,22 @@
 
 (def ^:private ignored-message-ids
   (int-array
-    [;; Buffer object n will use VIDEO memory as the source for buffer
+    [;; Software processing fallback warning. The render mode is
+     ;; GL_FEEDBACK or GL_SELECT, neither of which is hardware accelerated.
+     0x20005
+     ;; Buffer object n will use VIDEO memory as the source for buffer
      ;; object operations
      0x20071]))
 
 (defn- ignore-some-gl-warnings! [^GLContext context]
   (.glDebugMessageControl context
-                          GL3/GL_DEBUG_SOURCE_API
-                          GL3/GL_DEBUG_TYPE_OTHER
-                          GL3/GL_DONT_CARE
+                          GL2/GL_DEBUG_SOURCE_API
+                          GL2/GL_DEBUG_TYPE_OTHER
+                          GL2/GL_DONT_CARE
                           (count ignored-message-ids)
                           ignored-message-ids
                           0
                           false))
-
-(defn- bind-context-vao! [^GLContext context new-context]
-  ;; VAOs cannot be shared between contexts. Context destruction releases the
-  ;; object; recreate it if JOGL recreates the native context on this wrapper.
-  (let [^GL3 gl (.getGL3 (.getGL context))
-        key "editor.gl/default-vao"
-        vao (or (when-not new-context (.getAttachedObject context key))
-                (let [names (int-array 1)]
-                  (.glGenVertexArrays gl 1 names 0)
-                  (let [name (aget names 0)]
-                    (.attachObject context key name)
-                    name)))]
-    (.glBindVertexArray gl (int vao))))
 
 (defn make-current ^GLContext [^GLAutoDrawable drawable]
   (when-let [^GLContext context (.getContext drawable)]
@@ -94,14 +91,8 @@
             (when (time-to-log?)
               (log/warn :message "Failed to set gl context as current."))
             nil)
-          (do
-            (bind-context-vao! context (= result GLContext/CONTEXT_CURRENT_NEW))
-            (when (.isGLDebugMessageEnabled context)
-              (ignore-some-gl-warnings! context))
-            context)))
+          (doto context ignore-some-gl-warnings!)))
       (catch Exception e
-        (when (.isCurrent context)
-          (.release context))
         (when (time-to-log?)
           (log/error :exception e))
         nil))))
@@ -110,114 +101,102 @@
   [^GLAutoDrawable drawable & forms]
   `(when-let [^GLContext ~'gl-context (make-current ~drawable)]
      (try
-       (let [^GL3 ~'gl (.getGL3 (.getGL ~'gl-context))]
+       (let [^GL2 ~'gl (.getGL ~'gl-context)]
          ~@forms)
        (finally (.release ~'gl-context)))))
 
-(defn- query-context-info []
-  (try
-    (let [drawable (unchecked-offscreen-drawable 100 100)]
-      (try
-        (or (with-drawable-as-current drawable
-              {:vendor (.glGetString gl GL3/GL_VENDOR)
-               :actual-profile (.getName (.getGLProfile gl))
-               :core-profile (.isGLCoreProfile gl-context)
-               :renderer (.glGetString gl GL3/GL_RENDERER)
-               :version (.glGetString gl GL3/GL_VERSION)
-               :shading-language-version (.glGetString gl GL3/GL_SHADING_LANGUAGE_VERSION)
-               :desc (.toString gl-context)
-               :missing-functions (filterv (fn [^String name] (not (.isFunctionAvailable gl-context name))) required-functions)})
-            {:error "Could not make the requested OpenGL core context current."})
-        (finally (.destroy drawable))))
-    (catch GLException e
-      {:error (.getMessage e)})))
+(defn- init-info! []
+  (let [drawable (unchecked-offscreen-drawable 100 100)]
+    (with-drawable-as-current drawable
+      (let [^GL gl (.getGL gl-context)]
+        (reset! gl-info-atom {:vendor (.glGetString gl GL2/GL_VENDOR)
+                              :requested-profile GLProfile/GL2ES1
+                              :actual-profile (.getName (.getGLProfile gl))
+                              :core-profile (.isGLCoreProfile gl-context)
+                              :preview-shader-language :language-glsl-sm120
+                              :renderer (.glGetString gl GL2/GL_RENDERER)
+                              :version (.glGetString gl GL2/GL_VERSION)
+                              :shading-language-version (.glGetString gl GL2/GL_SHADING_LANGUAGE_VERSION)
+                              :desc (.toString gl-context)
+                              :missing-functions (filterv (fn [^String name] (not (.isFunctionAvailable gl-context name))) required-functions)})))
+    (.destroy drawable)
+    @gl-info-atom))
 
 (defn info []
-  (or @gl-info-atom
-      (reset! gl-info-atom
-              (assoc (query-context-info)
-                :requested-profile GLProfile/GL3
-                :preview-shader-language :language-glsl-sm330))))
-
-(defn- version-at-least? [version minimum]
-  (when-let [[_ major minor] (and version (re-find #"^(\d+)\.(\d+)" version))]
-    (not (neg? (compare [(Long/parseLong major) (Long/parseLong minor)] minimum)))))
-
-(defn- info->support-error ^String [info]
-  (when (or (:error info)
-            (not (:core-profile info))
-            (not (version-at-least? (:version info) [3 3]))
-            (not (version-at-least? (:shading-language-version info) [3 30]))
-            (seq (:missing-functions info)))
-    (string/join "\n"
-                 (cond-> ["The editor requires desktop OpenGL 3.3 core or newer with GLSL 3.30 support."
-                          (format "Requested profile: %s; actual profile: %s (core: %s)"
-                                  (:requested-profile info) (or (:actual-profile info) "unavailable") (boolean (:core-profile info)))
-                          (format "GPU: %s" (or (:renderer info) "unavailable"))
-                          (format "OpenGL: %s; GLSL: %s" (or (:version info) "unavailable") (or (:shading-language-version info) "unavailable"))]
-                   (seq (:missing-functions info)) (conj (str "Missing functions: " (string/join ", " (:missing-functions info))))
-                   (:error info) (conj (:error info))))))
+  (or @gl-info-atom (init-info!)))
 
 (defn gl-support-error ^String []
-  (info->support-error (info)))
+  (let [info (info)]
+    (when-let [missing (seq (:missing-functions info))]
+      (string/join "\n"
+                   [(format "The graphics device does not support: %s" (string/join ", " missing))
+                    (format "GPU: %s" (:renderer info))
+                    (format "Driver: %s" (:version info))]))))
 
 (defn offscreen-drawable ^GLOffscreenAutoDrawable [w h]
-  (when-not (gl-support-error)
+  (when (empty? (:missing-functions (info)))
     (unchecked-offscreen-drawable w h)))
 
+(defn gl-init-vba [^GL2 gl]
+  (let [vba-name-buf (IntBuffer/allocate 1)]
+    (.glGenVertexArrays gl 1 vba-name-buf)
+    (let [vba-name (.get vba-name-buf 0)]
+      (.glBindVertexArray gl vba-name)
+      vba-name)))
+
 (defn gl-gen-buffers
-  ^ints [^GL3 gl nbufs]
+  ^ints [^GL2 gl nbufs]
   (let [names (int-array nbufs)]
     (.glGenBuffers gl nbufs names 0)
     names))
 
 (defn gl-gen-buffer
-  ^long [^GL3 gl]
+  ^long [^GL2 gl]
   (let [names (int-array 1)]
     (.glGenBuffers gl 1 names 0)
     (aget names 0)))
 
-(defn gl-delete-buffers [^GL3 gl bufs]
+(defn gl-delete-buffers [^GL2 gl bufs]
   (let [names (int-array bufs)
         nbufs (alength names)]
     (.glDeleteBuffers gl nbufs names 0)))
 
 (defmacro gl-polygon-mode [gl face mode] `(.glPolygonMode ~(with-meta gl {:tag `GL}) ~face ~mode))
 
-(defmacro gl-get-attrib-location [gl shader name]                        `(.glGetAttribLocation ~(with-meta gl {:tag `GL3}) ~shader ~name))
-(defmacro gl-bind-buffer [gl type name]                                  `(.glBindBuffer ~(with-meta gl {:tag `GL3}) ~type ~name))
-(defmacro gl-buffer-data [gl type size data usage]                       `(.glBufferData ~(with-meta gl {:tag `GL3}) ~type ~size ~data ~usage))
-(defmacro gl-vertex-attrib-pointer [gl idx size type norm stride offset] `(.glVertexAttribPointer ~(with-meta gl {:tag `GL3}) ~idx ~size ~type ~norm ~stride ~offset))
-(defmacro gl-vertex-attrib-divisor [gl idx divisor]                      `(.glVertexAttribDivisor ~(with-meta gl {:tag `GL3}) ~idx ~divisor))
-(defmacro gl-enable-vertex-attrib-array [gl idx]                         `(.glEnableVertexAttribArray ~(with-meta gl {:tag `GL3}) ~idx))
-(defmacro gl-disable-vertex-attrib-array [gl idx]                        `(.glDisableVertexAttribArray ~(with-meta gl {:tag `GL3}) ~idx))
-(defmacro gl-use-program [gl idx]                                        `(.glUseProgram ~(with-meta gl {:tag `GL3}) ~idx))
-(defmacro gl-enable [gl cap]                                             `(.glEnable ~(with-meta gl {:tag `GL3}) ~cap))
-(defmacro gl-disable [gl cap]                                            `(.glDisable ~(with-meta gl {:tag `GL3}) ~cap))
-(defmacro gl-cull-face [gl mode]                                         `(.glCullFace ~(with-meta gl {:tag `GL3}) ~mode))
-(defmacro gl-blend-func [gl sfactor dfactor]                             `(.glBlendFunc ~(with-meta gl {:tag `GL3}) ~sfactor ~dfactor))
-(defmacro gl-front-face [gl mode]                                        `(.glFrontFace ~(with-meta gl {:tag `GL3}) ~mode))
+(defmacro gl-get-attrib-location [gl shader name]                        `(.glGetAttribLocation ~(with-meta gl {:tag `GL2}) ~shader ~name))
+(defmacro gl-bind-buffer [gl type name]                                  `(.glBindBuffer ~(with-meta gl {:tag `GL2}) ~type ~name))
+(defmacro gl-buffer-data [gl type size data usage]                       `(.glBufferData ~(with-meta gl {:tag `GL2}) ~type ~size ~data ~usage))
+(defmacro gl-vertex-attrib-pointer [gl idx size type norm stride offset] `(.glVertexAttribPointer ~(with-meta gl {:tag `GL2}) ~idx ~size ~type ~norm ~stride ~offset))
+(defmacro gl-vertex-attrib-divisor [gl idx divisor]                      `(.glVertexAttribDivisor ~(with-meta gl {:tag `GL2}) ~idx ~divisor))
+(defmacro gl-enable-vertex-attrib-array [gl idx]                         `(.glEnableVertexAttribArray ~(with-meta gl {:tag `GL2}) ~idx))
+(defmacro gl-disable-vertex-attrib-array [gl idx]                        `(.glDisableVertexAttribArray ~(with-meta gl {:tag `GL2}) ~idx))
+(defmacro gl-use-program [gl idx]                                        `(.glUseProgram ~(with-meta gl {:tag `GL2}) ~idx))
+(defmacro gl-enable [gl cap]                                             `(.glEnable ~(with-meta gl {:tag `GL2}) ~cap))
+(defmacro gl-disable [gl cap]                                            `(.glDisable ~(with-meta gl {:tag `GL2}) ~cap))
+(defmacro gl-cull-face [gl mode]                                         `(.glCullFace ~(with-meta gl {:tag `GL2}) ~mode))
+(defmacro gl-blend-func [gl sfactor dfactor]                             `(.glBlendFunc ~(with-meta gl {:tag `GL2}) ~sfactor ~dfactor))
+(defmacro gl-front-face [gl mode]                                        `(.glFrontFace ~(with-meta gl {:tag `GL2}) ~mode))
 
 (defmacro ^:private gl-get-integer [gl param]
   `(int
      (let [out# (int-array 1)]
-       (.glGetIntegerv ~(with-meta gl {:tag `GL3}) (int ~param) out# 0)
+       (.glGetIntegerv ~(with-meta gl {:tag `GL2}) (int ~param) out# 0)
 
        (aget out# 0))))
 
 (defn gl-max-texture-units
-  ^long [^GL3 gl]
-  (gl-get-integer gl GL3/GL_MAX_TEXTURE_IMAGE_UNITS))
+  ^long [^GL2 gl]
+  (gl-get-integer gl GL2/GL_MAX_TEXTURE_UNITS))
 
 (defn gl-active-texture
-  ^long [^GL3 gl]
-  (gl-get-integer gl GL3/GL_ACTIVE_TEXTURE))
+  ^long [^GL2 gl]
+  (gl-get-integer gl GL2/GL_ACTIVE_TEXTURE))
 
 (defn gl-current-program
-  ^long [^GL3 gl]
-  (gl-get-integer gl GL3/GL_CURRENT_PROGRAM))
+  ^long [^GL2 gl]
+  (gl-get-integer gl GL2/GL_CURRENT_PROGRAM))
 
-(defn gl-clear [^GL3 gl r g b a]
+(defn gl-clear [^GL2 gl r g b a]
   (.glClearColor gl r g b a)
   (.glEnable gl GL/GL_DEPTH_TEST)
   (.glDepthMask gl true)
@@ -240,7 +219,7 @@
          (.swapBuffers ~canvas)))))
 
 (defn disable-vertex-attrib-arrays!
-  [^GL3 gl ^long base-location ^long attribute-count]
+  [^GL2 gl ^long base-location ^long attribute-count]
   (loop [attribute-index 0]
     (when (< attribute-index attribute-count)
       (let [location (+ base-location attribute-index)]
@@ -248,221 +227,221 @@
         (recur (inc attribute-index))))))
 
 (defn clear-attributes!
-  [^GL3 gl ^long base-location ^long attribute-count]
+  [^GL2 gl ^long base-location ^long attribute-count]
   (loop [attribute-index 0]
     (when (< attribute-index attribute-count)
       (let [location (+ base-location attribute-index)]
         (.glVertexAttrib1f gl location 0.0) ; Sets components to [0.0 0.0 0.0 1.0].
         (recur (inc attribute-index))))))
 
-(defn set-attribute-1bv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-1bv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (let [x (float (aget value-array offset))]
     (.glVertexAttrib1f gl location x)))
 
-(defn set-attribute-2bv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-2bv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (let [x (float (aget value-array offset))
         y (float (aget value-array (inc offset)))]
     (.glVertexAttrib2f gl location x y)))
 
-(defn set-attribute-3bv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-3bv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (let [x (float (aget value-array offset))
         y (float (aget value-array (+ offset 1)))
         z (float (aget value-array (+ offset 2)))]
     (.glVertexAttrib3f gl location x y z)))
 
-(defn set-attribute-4bv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-4bv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (.glVertexAttrib4bv gl location value-array offset))
 
-(defn set-attribute-1nbv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-1nbv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (let [x (num/byte-range->normalized (aget value-array offset))]
     (.glVertexAttrib1f gl location x)))
 
-(defn set-attribute-2nbv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-2nbv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (let [x (num/byte-range->normalized (aget value-array offset))
         y (num/byte-range->normalized (aget value-array (inc offset)))]
     (.glVertexAttrib2f gl location x y)))
 
-(defn set-attribute-3nbv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-3nbv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (let [x (num/byte-range->normalized (aget value-array offset))
         y (num/byte-range->normalized (aget value-array (+ offset 1)))
         z (num/byte-range->normalized (aget value-array (+ offset 2)))]
     (.glVertexAttrib3f gl location x y z)))
 
-(defn set-attribute-4nbv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-4nbv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (.glVertexAttrib4Nbv gl location value-array offset))
 
-(defn set-attribute-1ubv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-1ubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (let [x (num/ubyte->float (aget value-array offset))]
     (.glVertexAttrib1f gl location x)))
 
-(defn set-attribute-2ubv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-2ubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (let [x (num/ubyte->float (aget value-array offset))
         y (num/ubyte->float (aget value-array (inc offset)))]
     (.glVertexAttrib2f gl location x y)))
 
-(defn set-attribute-3ubv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-3ubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (let [x (num/ubyte->float (aget value-array offset))
         y (num/ubyte->float (aget value-array (+ offset 1)))
         z (num/ubyte->float (aget value-array (+ offset 2)))]
     (.glVertexAttrib3f gl location x y z)))
 
-(defn set-attribute-4ubv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-4ubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (.glVertexAttrib4ubv gl location value-array offset))
 
-(defn set-attribute-1nubv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-1nubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (let [x (num/ubyte-range->normalized (aget value-array offset))]
     (.glVertexAttrib1f gl location x)))
 
-(defn set-attribute-2nubv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-2nubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (let [x (num/ubyte-range->normalized (aget value-array offset))
         y (num/ubyte-range->normalized (aget value-array (inc offset)))]
     (.glVertexAttrib2f gl location x y)))
 
-(defn set-attribute-3nubv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-3nubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (let [x (num/ubyte-range->normalized (aget value-array offset))
         y (num/ubyte-range->normalized (aget value-array (+ offset 1)))
         z (num/ubyte-range->normalized (aget value-array (+ offset 2)))]
     (.glVertexAttrib3f gl location x y z)))
 
-(defn set-attribute-4nubv! [^GL3 gl ^long location ^bytes value-array ^long offset]
+(defn set-attribute-4nubv! [^GL2 gl ^long location ^bytes value-array ^long offset]
   (.glVertexAttrib4Nubv gl location value-array offset))
 
-(defn set-attribute-1sv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-1sv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (.glVertexAttrib1sv gl location value-array offset))
 
-(defn set-attribute-2sv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-2sv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (.glVertexAttrib2sv gl location value-array offset))
 
-(defn set-attribute-3sv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-3sv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (.glVertexAttrib3sv gl location value-array offset))
 
-(defn set-attribute-4sv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-4sv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (.glVertexAttrib4sv gl location value-array offset))
 
-(defn set-attribute-1nsv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-1nsv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (let [x (num/short-range->normalized (aget value-array offset))]
     (.glVertexAttrib1f gl location x)))
 
-(defn set-attribute-2nsv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-2nsv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (let [x (num/short-range->normalized (aget value-array offset))
         y (num/short-range->normalized (aget value-array (inc offset)))]
     (.glVertexAttrib2f gl location x y)))
 
-(defn set-attribute-3nsv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-3nsv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (let [x (num/short-range->normalized (aget value-array offset))
         y (num/short-range->normalized (aget value-array (+ offset 1)))
         z (num/short-range->normalized (aget value-array (+ offset 2)))]
     (.glVertexAttrib3f gl location x y z)))
 
-(defn set-attribute-4nsv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-4nsv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (.glVertexAttrib4Nsv gl location value-array offset))
 
-(defn set-attribute-1usv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-1usv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (let [x (num/ushort->float (aget value-array offset))]
     (.glVertexAttrib1f gl location x)))
 
-(defn set-attribute-2usv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-2usv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (let [x (num/ushort->float (aget value-array offset))
         y (num/ushort->float (aget value-array (inc offset)))]
     (.glVertexAttrib2f gl location x y)))
 
-(defn set-attribute-3usv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-3usv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (let [x (num/ushort->float (aget value-array offset))
         y (num/ushort->float (aget value-array (+ offset 1)))
         z (num/ushort->float (aget value-array (+ offset 2)))]
     (.glVertexAttrib3f gl location x y z)))
 
-(defn set-attribute-4usv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-4usv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (.glVertexAttrib4usv gl location value-array offset))
 
-(defn set-attribute-1nusv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-1nusv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (let [x (num/ushort-range->normalized (aget value-array offset))]
     (.glVertexAttrib1f gl location x)))
 
-(defn set-attribute-2nusv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-2nusv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (let [x (num/ushort-range->normalized (aget value-array offset))
         y (num/ushort-range->normalized (aget value-array (inc offset)))]
     (.glVertexAttrib2f gl location x y)))
 
-(defn set-attribute-3nusv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-3nusv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (let [x (num/ushort-range->normalized (aget value-array offset))
         y (num/ushort-range->normalized (aget value-array (+ offset 1)))
         z (num/ushort-range->normalized (aget value-array (+ offset 2)))]
     (.glVertexAttrib3f gl location x y z)))
 
-(defn set-attribute-4nusv! [^GL3 gl ^long location ^shorts value-array ^long offset]
+(defn set-attribute-4nusv! [^GL2 gl ^long location ^shorts value-array ^long offset]
   (.glVertexAttrib4Nusv gl location value-array offset))
 
-(defn set-attribute-1iv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-1iv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (let [x (float (aget value-array offset))]
     (.glVertexAttrib1f gl location x)))
 
-(defn set-attribute-2iv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-2iv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (let [x (float (aget value-array offset))
         y (float (aget value-array (inc offset)))]
     (.glVertexAttrib2f gl location x y)))
 
-(defn set-attribute-3iv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-3iv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (let [x (float (aget value-array offset))
         y (float (aget value-array (+ offset 1)))
         z (float (aget value-array (+ offset 2)))]
     (.glVertexAttrib3f gl location x y z)))
 
-(defn set-attribute-4iv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-4iv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (.glVertexAttrib4iv gl location value-array offset))
 
-(defn set-attribute-1niv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-1niv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (let [x (num/int-range->normalized (aget value-array offset))]
     (.glVertexAttrib1f gl location x)))
 
-(defn set-attribute-2niv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-2niv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (let [x (num/int-range->normalized (aget value-array offset))
         y (num/int-range->normalized (aget value-array (inc offset)))]
     (.glVertexAttrib2f gl location x y)))
 
-(defn set-attribute-3niv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-3niv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (let [x (num/int-range->normalized (aget value-array offset))
         y (num/int-range->normalized (aget value-array (+ offset 1)))
         z (num/int-range->normalized (aget value-array (+ offset 2)))]
     (.glVertexAttrib3f gl location x y z)))
 
-(defn set-attribute-4niv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-4niv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (.glVertexAttrib4Niv gl location value-array offset))
 
-(defn set-attribute-1uiv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-1uiv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (let [x (num/uint->float (aget value-array offset))]
     (.glVertexAttrib1f gl location x)))
 
-(defn set-attribute-2uiv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-2uiv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (let [x (num/uint->float (aget value-array offset))
         y (num/uint->float (aget value-array (inc offset)))]
     (.glVertexAttrib2f gl location x y)))
 
-(defn set-attribute-3uiv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-3uiv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (let [x (num/uint->float (aget value-array offset))
         y (num/uint->float (aget value-array (+ offset 1)))
         z (num/uint->float (aget value-array (+ offset 2)))]
     (.glVertexAttrib3f gl location x y z)))
 
-(defn set-attribute-4uiv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-4uiv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (.glVertexAttrib4uiv gl location value-array offset))
 
-(defn set-attribute-1nuiv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-1nuiv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (let [x (num/uint-range->normalized (aget value-array offset))]
     (.glVertexAttrib1f gl location x)))
 
-(defn set-attribute-2nuiv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-2nuiv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (let [x (num/uint-range->normalized (aget value-array offset))
         y (num/uint-range->normalized (aget value-array (inc offset)))]
     (.glVertexAttrib2f gl location x y)))
 
-(defn set-attribute-3nuiv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-3nuiv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (let [x (num/uint-range->normalized (aget value-array offset))
         y (num/uint-range->normalized (aget value-array (+ offset 1)))
         z (num/uint-range->normalized (aget value-array (+ offset 2)))]
     (.glVertexAttrib3f gl location x y z)))
 
-(defn set-attribute-4nuiv! [^GL3 gl ^long location ^ints value-array ^long offset]
+(defn set-attribute-4nuiv! [^GL2 gl ^long location ^ints value-array ^long offset]
   (.glVertexAttrib4Nuiv gl location value-array offset))
 
 (defmacro set-attribute-1fv! [gl location value-array offset]
@@ -477,7 +456,7 @@
 (defmacro set-attribute-4fv! [gl location value-array offset]
   `(.glVertexAttrib4fv ~gl ~location ~value-array ~offset))
 
-(defn with-gl-bindings-impl [^GL3 gl render-args bindable-items body-fn!]
+(defn with-gl-bindings-impl [^GL2 gl render-args bindable-items body-fn!]
   (let [[bound-items exception]
         (transduce
           (coll/find-values gl.types/gl-binding?)
@@ -505,10 +484,10 @@
 (defmacro with-gl-bindings [gl-expr render-args-expr bindable-items-expr & body]
   `(with-gl-bindings-impl ~gl-expr ~render-args-expr ~bindable-items-expr (fn ~'body-fn! [] ~@body)))
 
-(defn bind [^GL3 gl bindable render-args]
+(defn bind [^GL2 gl bindable render-args]
   (gl.types/bind! bindable gl render-args))
 
-(defn unbind [^GL3 gl bindable render-args]
+(defn unbind [^GL2 gl bindable render-args]
   (gl.types/unbind! bindable gl render-args))
 
 (defmacro do-gl
@@ -531,32 +510,32 @@
 
 (defmacro gl-uniform-matrix-4fv [gl idx cnt transpose val offset] `(.glUniformMatrix4fv ~gl ~idx ~cnt ~transpose ~val ~offset))
 
-(def red                    GL3/GL_RED)
-(def green                  GL3/GL_GREEN)
-(def blue                   GL3/GL_BLUE)
-(def alpha                  GL3/GL_ALPHA)
-(def zero                   GL3/GL_ZERO)
-(def one                    GL3/GL_ONE)
-(def lequal                 GL3/GL_LEQUAL)
-(def gequal                 GL3/GL_GEQUAL)
-(def less                   GL3/GL_LESS)
-(def greater                GL3/GL_GREATER)
-(def equal                  GL3/GL_EQUAL)
-(def notequal               GL3/GL_NOTEQUAL)
-(def always                 GL3/GL_ALWAYS)
-(def never                  GL3/GL_NEVER)
-(def clamp-to-edge          GL3/GL_CLAMP_TO_EDGE)
-(def clamp-to-border        GL3/GL_CLAMP_TO_BORDER)
-(def mirrored-repeat        GL3/GL_MIRRORED_REPEAT)
-(def repeat                 GL3/GL_REPEAT)
-(def compare-ref-to-texture GL3/GL_COMPARE_REF_TO_TEXTURE)
-(def none                   GL3/GL_NONE)
-(def nearest                GL3/GL_NEAREST)
-(def linear                 GL3/GL_LINEAR)
-(def nearest-mipmap-nearest GL3/GL_NEAREST_MIPMAP_NEAREST)
-(def linear-mipmap-nearest  GL3/GL_LINEAR_MIPMAP_NEAREST)
-(def nearest-mipmap-linear  GL3/GL_NEAREST_MIPMAP_LINEAR)
-(def linear-mipmap-linear   GL3/GL_LINEAR_MIPMAP_LINEAR)
+(def red                    GL2/GL_RED)
+(def green                  GL2/GL_GREEN)
+(def blue                   GL2/GL_BLUE)
+(def alpha                  GL2/GL_ALPHA)
+(def zero                   GL2/GL_ZERO)
+(def one                    GL2/GL_ONE)
+(def lequal                 GL2/GL_LEQUAL)
+(def gequal                 GL2/GL_GEQUAL)
+(def less                   GL2/GL_LESS)
+(def greater                GL2/GL_GREATER)
+(def equal                  GL2/GL_EQUAL)
+(def notequal               GL2/GL_NOTEQUAL)
+(def always                 GL2/GL_ALWAYS)
+(def never                  GL2/GL_NEVER)
+(def clamp-to-edge          GL2/GL_CLAMP_TO_EDGE)
+(def clamp-to-border        GL2/GL_CLAMP_TO_BORDER)
+(def mirrored-repeat        GL2/GL_MIRRORED_REPEAT)
+(def repeat                 GL2/GL_REPEAT)
+(def compare-ref-to-texture GL2/GL_COMPARE_REF_TO_TEXTURE)
+(def none                   GL2/GL_NONE)
+(def nearest                GL2/GL_NEAREST)
+(def linear                 GL2/GL_LINEAR)
+(def nearest-mipmap-nearest GL2/GL_NEAREST_MIPMAP_NEAREST)
+(def linear-mipmap-nearest  GL2/GL_LINEAR_MIPMAP_NEAREST)
+(def nearest-mipmap-linear  GL2/GL_NEAREST_MIPMAP_LINEAR)
+(def linear-mipmap-linear   GL2/GL_LINEAR_MIPMAP_LINEAR)
 
 (defn set-blend-mode [^GL gl blend-mode]
   ;; Assumes pre-multiplied source/destination

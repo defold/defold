@@ -24,7 +24,7 @@
             [editor.slice9 :as slice9]
             [util.coll :refer [pair]])
   (:import [com.google.protobuf ByteString]
-           [com.jogamp.opengl GL3]
+           [com.jogamp.opengl GL2]
            [editor.gl.vertex2 VertexBuffer]
            [java.nio ByteOrder FloatBuffer]
            [javax.vecmath Matrix4d Point3d Vector3d]))
@@ -411,7 +411,7 @@
       6)))
 
 (defn render-animation-overlay
-  [^GL3 gl render-args renderables]
+  [^GL2 gl render-args renderables]
   (let [{:keys [camera viewport]} render-args
         world-pos (Vector3d. animation-preview-offset (- (double (:bottom viewport)) animation-preview-offset) 0.0)]
     (doseq [renderable renderables]
@@ -451,4 +451,4 @@
                 (render-util/render-color-line-loop! gl render-args ::animation-outline colors/outline-color positions)
                 (gl/with-gl-bindings gl render-args [animation-overlay-shader vertex-binding gpu-texture]
                   (shader/set-samplers-by-index animation-overlay-shader gl 0 (:texture-units gpu-texture))
-                  (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 vertex-count))))))))))
+                  (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 vertex-count))))))))))

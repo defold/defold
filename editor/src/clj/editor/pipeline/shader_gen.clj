@@ -171,8 +171,8 @@
   "Compiles a single shader source file, for example, a .vp or a .fp file into an
   augmented-shader-info map with the transpiled shader source and various
   reflection info. The precision strings should be either \"highp\" or \"mediump\".
-  The target-language selects SM330 for editor previews or SM120 for
-  compatibility tests. Both targets expose uniform-buffer members as ordinary
+  The target-language selects SM120 for editor previews or SM330 for
+  development and tests. Both targets expose uniform-buffer members as ordinary
   uniforms for editor binding."
   [^String shader-path ^String shader-source max-page-count float-precision-str int-precision-str target-language]
   {:pre [(string? shader-path)

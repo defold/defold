@@ -16,7 +16,7 @@
   (:require [editor.graphics.types :as graphics.types]
             [util.coll :refer [pair]]
             [util.defonce :as defonce])
-  (:import [com.jogamp.opengl GL3]
+  (:import [com.jogamp.opengl GL2]
            [editor.buffers BufferData]
            [editor.graphics.types ElementType]
            [java.nio Buffer]))
@@ -40,13 +40,13 @@
 (defn data-type-gl-type
   ^long [data-type]
   (case data-type
-    :type-byte GL3/GL_BYTE
-    :type-unsigned-byte GL3/GL_UNSIGNED_BYTE
-    :type-short GL3/GL_SHORT
-    :type-unsigned-short GL3/GL_UNSIGNED_SHORT
-    :type-int GL3/GL_INT
-    :type-unsigned-int GL3/GL_UNSIGNED_INT
-    :type-float GL3/GL_FLOAT))
+    :type-byte GL2/GL_BYTE
+    :type-unsigned-byte GL2/GL_UNSIGNED_BYTE
+    :type-short GL2/GL_SHORT
+    :type-unsigned-short GL2/GL_UNSIGNED_SHORT
+    :type-int GL2/GL_INT
+    :type-unsigned-int GL2/GL_UNSIGNED_INT
+    :type-float GL2/GL_FLOAT))
 
 (defn gl-compatible-shader-type? [value]
   ;; Enum values for compute shaders exist in Protobuf but are not supported by
@@ -61,50 +61,50 @@
   ;; Enum values for compute shaders exist in Protobuf but are not supported by
   ;; the OpenGL profile we use in the editor. Uncomment if we update.
   (case shader-type
-    :shader-type-vertex GL3/GL_VERTEX_SHADER
-    :shader-type-fragment GL3/GL_FRAGMENT_SHADER
+    :shader-type-vertex GL2/GL_VERTEX_SHADER
+    :shader-type-fragment GL2/GL_FRAGMENT_SHADER
     #_#_ :shader-type-compute GL3/GL_COMPUTE_SHADER))
 
 (defn gl-attribute-type-vector-type+data-type [^long gl-attribute-type]
   {:post [(graphics.types/vector-type? (key %))
           (graphics.types/data-type? (val %))]}
   (condp = gl-attribute-type
-    GL3/GL_FLOAT (pair :vector-type-scalar :type-float)
-    GL3/GL_FLOAT_VEC2 (pair :vector-type-vec2 :type-float)
-    GL3/GL_FLOAT_VEC3 (pair :vector-type-vec3 :type-float)
-    GL3/GL_FLOAT_VEC4 (pair :vector-type-vec4 :type-float)
-    GL3/GL_FLOAT_MAT2 (pair :vector-type-mat2 :type-float)
-    GL3/GL_FLOAT_MAT3 (pair :vector-type-mat3 :type-float)
-    GL3/GL_FLOAT_MAT4 (pair :vector-type-mat4 :type-float)
-    GL3/GL_INT (pair :vector-type-scalar :type-int)
-    GL3/GL_INT_VEC2 (pair :vector-type-vec2 :type-int)
-    GL3/GL_INT_VEC3 (pair :vector-type-vec3 :type-int)
-    GL3/GL_INT_VEC4 (pair :vector-type-vec4 :type-int)
-    GL3/GL_UNSIGNED_INT (pair :vector-type-scalar :type-unsigned-int)
-    GL3/GL_UNSIGNED_INT_VEC2 (pair :vector-type-vec2 :type-unsigned-int)
-    GL3/GL_UNSIGNED_INT_VEC3 (pair :vector-type-vec3 :type-unsigned-int)
-    GL3/GL_UNSIGNED_INT_VEC4 (pair :vector-type-vec4 :type-unsigned-int)))
+    GL2/GL_FLOAT (pair :vector-type-scalar :type-float)
+    GL2/GL_FLOAT_VEC2 (pair :vector-type-vec2 :type-float)
+    GL2/GL_FLOAT_VEC3 (pair :vector-type-vec3 :type-float)
+    GL2/GL_FLOAT_VEC4 (pair :vector-type-vec4 :type-float)
+    GL2/GL_FLOAT_MAT2 (pair :vector-type-mat2 :type-float)
+    GL2/GL_FLOAT_MAT3 (pair :vector-type-mat3 :type-float)
+    GL2/GL_FLOAT_MAT4 (pair :vector-type-mat4 :type-float)
+    GL2/GL_INT (pair :vector-type-scalar :type-int)
+    GL2/GL_INT_VEC2 (pair :vector-type-vec2 :type-int)
+    GL2/GL_INT_VEC3 (pair :vector-type-vec3 :type-int)
+    GL2/GL_INT_VEC4 (pair :vector-type-vec4 :type-int)
+    GL2/GL_UNSIGNED_INT (pair :vector-type-scalar :type-unsigned-int)
+    GL2/GL_UNSIGNED_INT_VEC2 (pair :vector-type-vec2 :type-unsigned-int)
+    GL2/GL_UNSIGNED_INT_VEC3 (pair :vector-type-vec3 :type-unsigned-int)
+    GL2/GL_UNSIGNED_INT_VEC4 (pair :vector-type-vec4 :type-unsigned-int)))
 
 (defn gl-uniform-type-uniform-type [^long gl-uniform-type]
   {:post [(graphics.types/uniform-type? %)]}
   (condp = gl-uniform-type
-    GL3/GL_FLOAT :uniform-type-float
-    GL3/GL_FLOAT_VEC2 :uniform-type-float-vec2
-    GL3/GL_FLOAT_VEC3 :uniform-type-float-vec3
-    GL3/GL_FLOAT_VEC4 :uniform-type-float-vec4
-    GL3/GL_FLOAT_MAT2 :uniform-type-float-mat2
-    GL3/GL_FLOAT_MAT3 :uniform-type-float-mat3
-    GL3/GL_FLOAT_MAT4 :uniform-type-float-mat4
-    GL3/GL_INT :uniform-type-int
-    GL3/GL_INT_VEC2 :uniform-type-int-vec2
-    GL3/GL_INT_VEC3 :uniform-type-int-vec3
-    GL3/GL_INT_VEC4 :uniform-type-int-vec4
-    GL3/GL_BOOL :uniform-type-bool
-    GL3/GL_BOOL_VEC2 :uniform-type-bool-vec2
-    GL3/GL_BOOL_VEC3 :uniform-type-bool-vec3
-    GL3/GL_BOOL_VEC4 :uniform-type-bool-vec4
-    GL3/GL_SAMPLER_2D :uniform-type-sampler-2d
-    GL3/GL_SAMPLER_CUBE :uniform-type-sampler-cube))
+    GL2/GL_FLOAT :uniform-type-float
+    GL2/GL_FLOAT_VEC2 :uniform-type-float-vec2
+    GL2/GL_FLOAT_VEC3 :uniform-type-float-vec3
+    GL2/GL_FLOAT_VEC4 :uniform-type-float-vec4
+    GL2/GL_FLOAT_MAT2 :uniform-type-float-mat2
+    GL2/GL_FLOAT_MAT3 :uniform-type-float-mat3
+    GL2/GL_FLOAT_MAT4 :uniform-type-float-mat4
+    GL2/GL_INT :uniform-type-int
+    GL2/GL_INT_VEC2 :uniform-type-int-vec2
+    GL2/GL_INT_VEC3 :uniform-type-int-vec3
+    GL2/GL_INT_VEC4 :uniform-type-int-vec4
+    GL2/GL_BOOL :uniform-type-bool
+    GL2/GL_BOOL_VEC2 :uniform-type-bool-vec2
+    GL2/GL_BOOL_VEC3 :uniform-type-bool-vec3
+    GL2/GL_BOOL_VEC4 :uniform-type-bool-vec4
+    GL2/GL_SAMPLER_2D :uniform-type-sampler-2d
+    GL2/GL_SAMPLER_CUBE :uniform-type-sampler-cube))
 
 (defn element-type-gl-type
   ^long [^ElementType element-type]
@@ -117,9 +117,9 @@
 (defn usage-gl-usage
   ^long [usage]
   (case usage
-    :dynamic GL3/GL_DYNAMIC_DRAW
-    :static GL3/GL_STATIC_DRAW
-    :stream GL3/GL_STREAM_DRAW))
+    :dynamic GL2/GL_DYNAMIC_DRAW
+    :static GL2/GL_STATIC_DRAW
+    :stream GL2/GL_STREAM_DRAW))
 
 (defn gl-compatible-buffer? [^Buffer value]
   (and (instance? Buffer value)

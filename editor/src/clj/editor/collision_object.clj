@@ -49,7 +49,7 @@
   (:import [com.dynamo.bob.pipeline CollisionMeshCompiler]
            [com.dynamo.gamesys.proto Physics$CollisionObjectDesc Physics$CollisionObjectType Physics$CollisionShape$Shape]
            [com.dynamo.rig.proto Rig$MeshSet]
-           [com.jogamp.opengl GL3]
+           [com.jogamp.opengl GL2]
            [javax.vecmath Matrix4d Point3d Quat4d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -632,14 +632,14 @@
         :user-data {:color color
                     :point-count (graphics.types/element-count position-buffer)
                     :point-size 3.0
-                    :geometry {:primitive-type GL3/GL_POINTS
+                    :geometry {:primitive-type GL2/GL_POINTS
                                :position-buffer position-buffer}}}
        {:render-fn render-triangles-uniform-scale
         :tags #{:collision-shape :gizmo}
         :passes [pass/transparent pass/selection]
         :user-data {:color color
                     :double-sided true
-                    :geometry {:primitive-type GL3/GL_TRIANGLES
+                    :geometry {:primitive-type GL2/GL_TRIANGLES
                                :index-buffer index-buffer
                                :position-buffer position-buffer}}})}))
 
@@ -861,7 +861,7 @@
                       :passes [pass/transparent pass/selection]
                       :user-data {:color color
                                   :double-sided true
-                                  :geometry {:primitive-type GL3/GL_TRIANGLE_FAN
+                                  :geometry {:primitive-type GL2/GL_TRIANGLE_FAN
                                              :vbuf vbuf}}}
          :children [{:node-id _node-id
                      :aabb aabb
@@ -869,7 +869,7 @@
                                   :tags #{:collision-shape :gizmo :outline}
                                   :passes [pass/outline]
                                   :user-data {:color color
-                                              :geometry {:primitive-type GL3/GL_LINE_LOOP
+                                              :geometry {:primitive-type GL2/GL_LINE_LOOP
                                                          :vbuf vbuf}}}}]}
         {:node-id _node-id
          :node-outline-key "3D Convex Hull"
@@ -879,7 +879,7 @@
                       :passes [pass/outline pass/selection]
                       :user-data {:color color
                                   :point-size 3.0
-                                  :geometry {:primitive-type GL3/GL_POINTS
+                                  :geometry {:primitive-type GL2/GL_POINTS
                                              :vbuf vbuf}}}}))))
 
 (g/defnk produce-scene

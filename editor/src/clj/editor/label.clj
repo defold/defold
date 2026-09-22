@@ -41,7 +41,7 @@
             [util.coll :refer [pair]]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Label$LabelDesc Label$LabelDesc$BlendMode Label$LabelDesc$Pivot]
-           [com.jogamp.opengl GL GL3]
+           [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]))
 
 (set! *warn-on-reflection* true)
@@ -79,13 +79,13 @@
                          (->color-vtx vcount)
                          renderables)))))
 
-(defn render-lines [^GL3 gl render-args renderables rcount]
+(defn render-lines [^GL2 gl render-args renderables rcount]
   (when-let [vb (gen-lines-vb renderables)]
     (let [vertex-binding (vtx/use-with ::lines vb line-shader)]
       (gl/with-gl-bindings gl render-args [line-shader vertex-binding]
         (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
 
-(defn- gen-vb [^GL3 gl renderables render-args]
+(defn- gen-vb [^GL2 gl renderables render-args]
   (let [user-data (get-in renderables [0 :user-data])
         font-data (get-in user-data [:text-data :font-data])
         text-entries (mapv (fn [r] (let [text-data (get-in r [:user-data :text-data])
@@ -99,7 +99,7 @@
     (when font-data
       (font/request-vertex-buffer gl node-ids font-data text-entries render-args))))
 
-(defn render-tris [^GL3 gl render-args renderables rcount]
+(defn render-tris [^GL2 gl render-args renderables rcount]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)

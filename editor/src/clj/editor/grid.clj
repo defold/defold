@@ -26,7 +26,7 @@
             [editor.types :as types]
             [editor.ui.settings-popup :as settings-popup]
             [util.array :as array])
-  (:import com.jogamp.opengl.GL3
+  (:import com.jogamp.opengl.GL2
            [editor.types AABB Camera]
            [java.util List]
            [javafx.scene Parent]
@@ -146,7 +146,7 @@
     (array/of-floats 0.0 1.0 0.0 0.0)))
 
 (defn render-scaled-grids
-  [^GL3 gl render-args renderables _count]
+  [^GL2 gl render-args renderables _count]
   (let [renderable (first renderables)
         {:keys [camera grids options]} (:user-render-data renderable)
         view-matrix (c/camera-view-matrix camera)
@@ -159,7 +159,7 @@
                       :fog-color (float-array colors/scene-background)
                       :fog-parameters (grid-fog-parameters camera))]
     (gl/with-gl-bindings gl render-args [grid-shader vertex-binding]
-      (gl/gl-draw-arrays gl GL3/GL_LINES 0 (count vertex-buffer)))))
+      (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count vertex-buffer)))))
 
 (g/defnk produce-renderable
   [camera grids merged-options]

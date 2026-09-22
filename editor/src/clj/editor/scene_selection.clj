@@ -29,7 +29,7 @@
             [editor.workspace :as workspace]
             [schema.core :as s]
             [util.eduction :as e])
-  (:import [com.jogamp.opengl GL3]
+  (:import [com.jogamp.opengl GL2]
            [editor.types Rect]
            [java.lang Math Runnable]
            [javafx.scene Node Scene]
@@ -58,7 +58,7 @@
     :command :scene.visibility.show-all}
    (menu-items/separator-with-id ::context-menu-end)])
 
-(defn render-selection-box [^GL3 gl render-args renderables _count]
+(defn render-selection-box [^GL2 gl render-args renderables _count]
   (let [user-data (:user-data (first renderables))
         start (:start user-data)
         current (:current user-data)]

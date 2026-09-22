@@ -42,7 +42,7 @@
             [util.coll :as coll]
             [util.num :as num])
   (:import [com.google.protobuf ByteString]
-           [com.jogamp.opengl GL GL3]
+           [com.jogamp.opengl GL GL2]
            [java.nio ByteOrder FloatBuffer]
            [javax.vecmath Matrix4d Vector4d]))
 
@@ -230,7 +230,7 @@
                       (not (neg? max-index))
                       (assoc :index-buffer indices)))))))))
 
-(defn- render-mesh-opaque [^GL3 gl render-args renderables]
+(defn- render-mesh-opaque [^GL2 gl render-args renderables]
   (let [renderable (first renderables)
         {:keys [attribute-bindings coordinate-space-info index-buffer material-data shader textures]} (:user-data renderable)
         render-args (math/rederive-render-transforms render-args coordinate-space-info)
@@ -252,7 +252,7 @@
       (doseq [[_name t] textures]
         (gl/unbind gl t render-args)))))
 
-(defn- render-mesh-opaque-selection [^GL3 gl render-args renderables]
+(defn- render-mesh-opaque-selection [^GL2 gl render-args renderables]
   ;; TODO(instancing): We should use instanced rendering and put the picking-id as a per-instance attribute.
   (let [{:keys [picking-id user-data]} (first renderables)
         {:keys [index-buffer textures]} user-data
@@ -277,7 +277,7 @@
       (doseq [[_name t] textures]
         (gl/unbind gl t render-args)))))
 
-(defn- render-mesh [^GL3 gl render-args renderables rcount]
+(defn- render-mesh [^GL2 gl render-args renderables rcount]
   ;; TODO(instancing): Batch instanced meshes together and populate an instance-buffer with the per-instance attributes.
   (assert (= 1 rcount) "Batching is disabled in the editor for simplicity.")
   (condp = (:pass render-args)

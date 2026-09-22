@@ -27,7 +27,7 @@
             [util.array :as array]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [com.jogamp.opengl GL3]
+  (:import [com.jogamp.opengl GL2]
            [javax.vecmath Matrix4d Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -94,7 +94,7 @@
   "Streams local-space positions with a uniform per-vertex color and draws them
   using the shared straight-alpha color shader. Positions may contain two or
   three components, and colors may contain three or four components."
-  [^GL3 gl render-args request-id primitive-type color positions]
+  [^GL2 gl render-args request-id primitive-type color positions]
   {:pre [(every? #(<= 2 (count %) 3) positions)
          (<= 3 (count color) 4)]}
   (when-not (coll/empty? positions)
@@ -105,13 +105,13 @@
 
 (defn render-color-quad!
   "Streams and draws four ordered local-space corners as two triangles."
-  [^GL3 gl render-args request-id color positions]
-  (render-color-geometry! gl render-args request-id GL3/GL_TRIANGLES color (quad->triangles positions)))
+  [^GL2 gl render-args request-id color positions]
+  (render-color-geometry! gl render-args request-id GL2/GL_TRIANGLES color (quad->triangles positions)))
 
 (defn render-color-line-loop!
   "Streams and draws local-space positions as a closed line loop."
-  [^GL3 gl render-args request-id color positions]
-  (render-color-geometry! gl render-args request-id GL3/GL_LINE_LOOP color positions))
+  [^GL2 gl render-args request-id color positions]
+  (render-color-geometry! gl render-args request-id GL2/GL_LINE_LOOP color positions))
 
 ;; -----------------------------------------------------------------------------
 ;; aabb-outline
@@ -178,12 +178,12 @@
     (vtx/flip! vertex-buffer)))
 
 (defn- render-aabb-outline
-  [^GL3 gl render-args renderables _renderable-count]
+  [^GL2 gl render-args renderables _renderable-count]
   (let [vertex-description (shaders/vertex-description aabb-outline-shader)
         vertex-buffer (make-aabb-outline-vertex-buffer vertex-description renderables)
         vertex-binding (vtx/use-with ::aabb-outline vertex-buffer aabb-outline-shader)]
     (gl/with-gl-bindings gl render-args [aabb-outline-shader vertex-binding]
-      (gl/gl-draw-arrays gl GL3/GL_LINES 0 (count vertex-buffer)))))
+      (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count vertex-buffer)))))
 
 (defn- make-aabb-outline-renderable-raw
   [tags]
@@ -241,7 +241,7 @@
     (vtx/flip! vertex-buffer)))
 
 (defn- render-textured-quad
-  [^GL3 gl render-args renderables _renderable-count]
+  [^GL2 gl render-args renderables _renderable-count]
   (let [first-renderable (first renderables)
         user-data (:user-data first-renderable)
         gpu-texture (:gpu-texture user-data @texture/white-pixel)
@@ -250,7 +250,7 @@
         vertex-binding (vtx/use-with ::textured-quad vertex-buffer textured-quad-shader)]
     (gl/with-gl-bindings gl render-args [textured-quad-shader vertex-binding gpu-texture]
       (shader/set-samplers-by-index textured-quad-shader gl 0 (:texture-units gpu-texture))
-      (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vertex-buffer)))))
+      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vertex-buffer)))))
 
 (defn- make-textured-quad-renderable
   [tags x y width height gpu-texture page-index]

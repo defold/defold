@@ -16,7 +16,7 @@
   (:require [clojure.pprint :refer [cl-format]]
             [dynamo.graph :as g]
             [util.coll :refer [pair]])
-  (:import [com.jogamp.opengl GL GL3]))
+  (:import [com.jogamp.opengl GL GL2]))
 
 ;;
 ;; Clipping
@@ -616,18 +616,18 @@
       trickle-down-default-layers
       render-keys))
 
-(defn setup-gl [^GL3 gl state]
+(defn setup-gl [^GL2 gl state]
   (when state
     (.glEnable gl GL/GL_STENCIL_TEST)
     (.glStencilOp gl GL/GL_KEEP GL/GL_REPLACE GL/GL_REPLACE)
-    (.glStencilFunc gl GL3/GL_EQUAL (:ref-val state) (:mask state))
+    (.glStencilFunc gl GL2/GL_EQUAL (:ref-val state) (:mask state))
     (.glStencilMask gl (:write-mask state))
     (when (:clear state)
       (.glClear gl GL/GL_STENCIL_BUFFER_BIT))
     (let [[c0 c1 c2 c3] (:color-mask state)]
       (.glColorMask gl c0 c1 c2 c3))))
 
-(defn restore-gl [^GL3 gl state]
+(defn restore-gl [^GL2 gl state]
   (when state
     (.glDisable gl GL/GL_STENCIL_TEST)
     (.glColorMask gl true true true true)))

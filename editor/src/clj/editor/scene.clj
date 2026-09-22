@@ -70,7 +70,7 @@
             [util.eduction :as e]
             [util.http-server :as http-server]
             [util.profiler :as profiler])
-  (:import [com.jogamp.opengl GL GL3 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
+  (:import [com.jogamp.opengl GL GL2 GLAutoDrawable GLContext GLOffscreenAutoDrawable]
            [com.jogamp.opengl.util GLPixelStorageModes]
            [editor.pose Pose]
            [editor.types AABB Camera Rect Region]
@@ -201,7 +201,7 @@
         gl (.getGL glc)
         psm (GLPixelStorageModes.)]
     (.setPackAlignment psm gl 1)
-    (.glReadPixels gl 0 0 w h GL3/GL_BGRA GL/GL_UNSIGNED_BYTE (IntBuffer/wrap (.getDataStorage ^IntegerComponentRaster (.getRaster image))))
+    (.glReadPixels gl 0 0 w h GL2/GL_BGRA GL/GL_UNSIGNED_BYTE (IntBuffer/wrap (.getDataStorage ^IntegerComponentRaster (.getRaster image))))
     (.restore psm gl)
     image))
 
@@ -253,7 +253,7 @@
 (defn vp-dims [^Region viewport]
   (types/dimensions viewport))
 
-(defn- render-camera-inset-border! [^GL3 gl ^Region viewport]
+(defn- render-camera-inset-border! [^GL2 gl ^Region viewport]
   (let [border-shader shaders/basic-color-local-space
         vertex-description (shaders/vertex-description border-shader)
         [^double viewport-width ^double viewport-height] (vp-dims viewport)
@@ -282,7 +282,7 @@
     (.glDisable gl GL/GL_DEPTH_TEST)
     (.glLineWidth gl 2.0)
     (gl/with-gl-bindings gl render-args [border-shader border-binding]
-      (gl/gl-draw-arrays gl GL3/GL_LINES 0 (count border-vbuf)))
+      (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count border-vbuf)))
     (.glLineWidth gl 1.0)))
 
 (defn- find-selected-camera-renderable [scene-render-data]
@@ -337,15 +337,15 @@
            0)]
         (render-key view-matrix world-translation index is-topmost)))
 
-(defn gl-viewport [^GL3 gl ^Region viewport]
+(defn gl-viewport [^GL2 gl ^Region viewport]
   (.glViewport gl (.left viewport) (.top viewport) (- (.right viewport) (.left viewport)) (- (.bottom viewport) (.top viewport))))
 
 (defn- setup-pass
-  [^GL3 gl pass]
+  [^GL2 gl pass]
   (pass/prepare-gl pass gl))
 
 (defn- render-nodes
-  [^GL3 gl render-args [first-renderable :as renderables] count]
+  [^GL2 gl render-args [first-renderable :as renderables] count]
   (when-let [render-fn (:render-fn first-renderable)]
     (try
       (let [shared-world-transform (:world-transform first-renderable math/identity-mat4) ; rulers apparently don't have world-transform
@@ -489,7 +489,7 @@
 
 (defn- render!
   [^GLContext context render-mode renderables updatable-states viewport pass->render-args [clear-r clear-g clear-b clear-a]]
-  (let [^GL3 gl (.getGL3 (.getGL context))
+  (let [^GL2 gl (.getGL context)
         batch-key (render-mode-batch-key render-mode)]
     (gl/gl-clear gl clear-r clear-g clear-b clear-a)
     (gl-viewport gl viewport)
@@ -525,7 +525,7 @@
                                  (render-camera-inset-border! gl camera-inset-viewport)
                                  (.glActiveTexture gl GL/GL_TEXTURE0)
                                  (.glBindTexture gl GL/GL_TEXTURE_2D 0)
-                                 (.glUseProgram ^GL3 gl 0)
+                                 (.glUseProgram ^GL2 gl 0)
                                  (let [[w h] (vp-dims camera-inset-viewport)
                                        buffered-image (read-to-buffered-image cached-camera-inset-buf-img-ref w h)]
                                    (scene-cache/prune-context! gl)
@@ -1207,8 +1207,8 @@
           (.glFlush gl)
           (.glFinish gl)
           ;; Pixels read back are like 0xAARRGGBB
-          (.glReadPixels ^GL3 gl 0 0 ^int picking-drawable-size ^int picking-drawable-size
-                         GL3/GL_BGRA GL3/GL_UNSIGNED_BYTE (IntBuffer/wrap buf))
+          (.glReadPixels ^GL2 gl 0 0 ^int picking-drawable-size ^int picking-drawable-size
+                         GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE (IntBuffer/wrap buf))
           (transduce (comp (map scene-picking/argb->picking-id)
                            (keep picking-id->picking-node-id)
                            (take 1))
@@ -1249,8 +1249,8 @@
         (.glFlush gl)
         (.glFinish gl)
         ;; Pixels read back are like 0xAARRGGBB
-        (.glReadPixels ^GL3 gl 0 0 ^int picking-drawable-size ^int picking-drawable-size
-                       GL3/GL_BGRA GL3/GL_UNSIGNED_BYTE (IntBuffer/wrap buf))
+        (.glReadPixels ^GL2 gl 0 0 ^int picking-drawable-size ^int picking-drawable-size
+                       GL2/GL_BGRA GL2/GL_UNSIGNED_BYTE (IntBuffer/wrap buf))
         (transduce (comp (map scene-picking/argb->picking-id)
                          (keep picking-id->renderable)
                          (take 1))

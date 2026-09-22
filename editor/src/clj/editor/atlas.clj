@@ -64,7 +64,7 @@
   (:import [com.dynamo.bob.pipeline AtlasUtil]
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult TextureSetLayout]
            [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
-           [com.jogamp.opengl GL GL3]
+           [com.jogamp.opengl GL GL2]
            [editor.types Animation Image]
            [java.lang.ref WeakReference]
            [java.nio ByteBuffer]
@@ -99,7 +99,7 @@
     (pose/translation-pose page-offset 0.0 0.0)))
 
 (defn- render-rect
-  [^GL3 gl render-args rect color offset-x]
+  [^GL2 gl render-args rect color offset-x]
   (let [x0 (+ offset-x (:x rect))
         y0 (:y rect)
         x1 (+ x0 (:width rect))
@@ -152,7 +152,7 @@
     (vtx/flip! vbuf)))
 
 (defn- render-image-outlines
-  [^GL3 gl render-args renderables _renderable-count]
+  [^GL2 gl render-args renderables _renderable-count]
   (condp = (:pass render-args)
     pass/outline
     (let [vertex-count (renderables->outline-vertex-component-count renderables)
@@ -162,7 +162,7 @@
         (gl/gl-draw-arrays gl GL/GL_LINES 0 vertex-count)))))
 
 (defn- render-image-selection
-  [^GL3 gl render-args renderables renderable-count]
+  [^GL2 gl render-args renderables renderable-count]
   (assert (= (:pass render-args) pass/selection))
   (assert (= renderable-count 1))
   (let [renderable (first renderables)
@@ -394,7 +394,7 @@
     (g/connect atlas-node     :rename-patterns  animation-node :rename-patterns)))
 
 (defn render-animation
-  [^GL3 gl render-args renderables _renderable-count]
+  [^GL2 gl render-args renderables _renderable-count]
   (texture-set/render-animation-overlay gl render-args renderables))
 
 (g/defnk produce-animation-updatable

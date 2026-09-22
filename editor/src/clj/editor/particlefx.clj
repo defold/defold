@@ -54,7 +54,7 @@
             [util.coll :as coll :refer [pair]])
   (:import [com.dynamo.particle.proto Particle$BlendMode Particle$EmissionSpace Particle$Emitter Particle$Emitter$ParticleProperty Particle$Emitter$Property Particle$EmitterKey Particle$EmitterType Particle$Modifier Particle$Modifier$Property Particle$ParticleFX Particle$ParticleKey Particle$ParticleOrientation Particle$PlayMode Particle$SizeMode Particle$SplinePoint]
            [com.google.protobuf ByteString]
-           [com.jogamp.opengl GL GL3]
+           [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
            [editor.properties Curve CurveSpread]
@@ -234,7 +234,7 @@
     (.setRotationScale m' r)
     m'))
 
-(defn render-lines [^GL3 gl render-args renderables _rcount]
+(defn render-lines [^GL2 gl render-args renderables _rcount]
   (let [camera (:camera render-args)
         viewport (:viewport render-args)
         scale-f (camera/scale-factor camera viewport)
@@ -428,7 +428,7 @@
 (defn- convert-blend-mode [^long blend-mode-index]
   (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/forNumber blend-mode-index))))
 
-(defn- render-emitters-sim [^GL3 gl render-args renderables _rcount]
+(defn- render-emitters-sim [^GL2 gl render-args renderables _rcount]
   (doseq [renderable renderables]
     (let [{:keys [color emitter-index emitter-sim-data material-attribute-infos max-particle-count vertex-attribute-bytes]} (:user-data renderable)]
       (when-let [shader (:shader emitter-sim-data)]
@@ -461,7 +461,7 @@
                     (gl/gl-draw-arrays gl GL/GL_TRIANGLES (:v-index render-data) (:v-count render-data))
                     (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))))))))
 
-(defn- render-emitters [^GL3 gl render-args renderables _rcount]
+(defn- render-emitters [^GL2 gl render-args renderables _rcount]
   (let [pass (:pass render-args)]
     (condp = pass
       pass/selection (render-lines gl render-args renderables count)
@@ -1045,7 +1045,7 @@
                     :dep-resources dep-resources}
         :deps dep-build-targets})]))
 
-(defn- render-pfx [^GL3 gl render-args renderables count])
+(defn- render-pfx [^GL2 gl render-args renderables count])
 
 (g/defnk produce-scene [_node-id child-scenes scene-updatable]
   (let [scene {:node-id _node-id
