@@ -31,7 +31,7 @@ env:
   # The code being built was not written by anyone with push access, so it must not see any
   # credential that can sign, publish or write anything. The build reads its SDK packages
   # from DM_PACKAGES_URL and produces GitHub Actions artifacts instead of S3 objects.
-  # Redaction is not a control here - the build executes wscripts, CMakeLists, Gradle and
+  # Redaction is not a control here - the build executes CMakeLists, Gradle and
   # Clojure straight from the pull request - so the secrets are withheld outright.
   #
   # Untrusted is decided by the branch being built, not by the event: the three terms are
@@ -362,7 +362,7 @@ jobs:
           force-avd-creation: false
           disable-animations: true
           emulator-options: "-no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save -camera-back none -camera-front none"
-          # The unit tests are run inline by waf, per engine library, so the emulator has
+          # The unit tests run during the engine build, so the emulator has
           # to stay up for the whole build. ANDROID_SERIAL points both the ABI check in
           # build_android.py and the adb test harness at it. Without a device those would
           # quietly fall back to --skip-tests, so bail out instead of building for nothing.

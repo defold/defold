@@ -471,7 +471,6 @@ install(FILES "${GRAPHICS_SRC_DIR}/opengl/graphics_opengl_defines.h" DESTINATION
 install(FILES "${GRAPHICS_PROTO}" DESTINATION share/proto/graphics)
 install(FILES "${GRAPHICS_BPROTO}" DESTINATION share/proto/graphics)
 install(FILES "${GRAPHICS_SRC_DIR}/texc.py" DESTINATION bin)
-install(FILES "${GRAPHICS_SRC_DIR}/waf_graphics.py" DESTINATION lib/python)
 install(FILES "${GRAPHICS_PROTO_PY_INIT}" "${GRAPHICS_PROTO_PY}" DESTINATION lib/python/graphics)
 install(DIRECTORY "${GRAPHICS_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 
