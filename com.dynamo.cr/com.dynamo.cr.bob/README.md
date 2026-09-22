@@ -46,6 +46,25 @@ the output, preserving the compressed bytes. Loose files are compressed in
 parallel. `-Pkeep-bob-uncompressed` still stores every entry without compression;
 compressed dependency entries are inflated once while writing the output.
 
+## Android resource shrinking
+
+Selecting `android.r8_keep_rules` enables R8 code optimization and, with SDKs that
+support it, Android resource shrinking. Extender runs both in the same R8 invocation
+and returns the optimized proto archive as `compiledresources.apk` for Bob to package
+into APK and AAB files.
+
+Resources accessed only through names constructed at runtime or native code need
+an explicit resource keep rule. For example, with `project.bundle_resources` set to
+`/bundle`, put this in `bundle/android/res/raw/keep.xml`:
+
+```xml
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/dynamic_icon,@raw/runtime_data" />
+```
+
+Resource keep XML is separate from the Java `.keep` configuration. Projects without
+`android.r8_keep_rules` continue using D8.
+
 ## Content pipeline
 
 The primary build tool is bob. Bob is used for the editor but also for engine-tests. In the first build-step a standalone version of bob is built. A legacy pipeline, waf/python and some classes from bob.jar, is still used for gamesys and for built-in content. This might be changed in the future but integrating bob with waf 1.5.x is pretty hard as waf 1.5.x is very restrictive where source and built content is located. Built-in content is compiled, via .arc-files, to header-files, installed to $DYNAMO_HOME, etc In other words tightly integrated with waf.
