@@ -83,6 +83,7 @@
            [com.sun.javafx.tk Toolkit]
            [com.sun.javafx.util Utils]
            [editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect]
+           [java.text Bidi]
            [java.util BitSet Collection]
            [java.util.concurrent ConcurrentHashMap]
            [java.util.regex Pattern]
@@ -205,6 +206,18 @@
       (aset state 2 text))
     layout))
 
+;; HACK: The shaper guesses a direction from the first letter of the text it is
+;; given, and we hand it one run at a time. A run that starts with Hebrew or
+;; Arabic is read as right-to-left, so its words come out backwards. JavaFX has
+;; no working way to say "left-to-right", so we put an invisible left-to-right
+;; character in front and shift offsets past it. Only runs that contain
+;; right-to-left text get one. Shaping whole lines would fix this properly.
+(defn- ltr-text
+  ^String [^String text]
+  (if (Bidi/requiresBidi (.toCharArray text) 0 (.length text))
+    (str \u200e text)
+    text))
+
 (defn- make-complex-width-cache [^Font font]
   ;; Shaping long runs is expensive. Clear the bounded cache wholesale to keep
   ;; lookups cheap.
@@ -212,7 +225,7 @@
     (fn get-complex-width [^String text]
       (if-let [cached-width (.get cache text)]
         cached-width
-        (let [width (double (.getWidth (.getBounds (text-layout font text))))]
+        (let [width (double (.getWidth (.getBounds (text-layout font (ltr-text text)))))]
           (when (<= 4096 (.size cache))
             (.clear cache))
           (.put cache text width)
@@ -229,23 +242,31 @@
   (complex-text-width [this text]
     ((.complex-width-cache this) text))
   (complex-text-col->x [this text col]
-    (let [geometry (.getCaretGeometry (text-layout (.font this) text) col true)]
+    (let [marked-text (ltr-text text)
+          mark-length (- (.length marked-text) (.length ^String text))
+          geometry (.getCaretGeometry (text-layout (.font this) marked-text) (+ (long col) mark-length) true)]
       ;; Direction boundaries have two positions; use the character's side.
       (if (instance? TextLayout$CaretGeometry$Split geometry)
         (.x1 ^TextLayout$CaretGeometry$Split geometry)
         (.x ^TextLayout$CaretGeometry$Single geometry))))
   (complex-text-x->col [this text x]
-    (.getInsertionIndex (.getHitInfo (text-layout (.font this) text) (float x) (float 0.0))))
+    (let [marked-text (ltr-text text)
+          mark-length (- (.length marked-text) (.length ^String text))]
+      (max 0 (- (.getInsertionIndex (.getHitInfo (text-layout (.font this) marked-text) (float x) (float 0.0))) mark-length))))
   (complex-text-x->character-col [this text x]
-    (.getCharIndex (.getHitInfo (text-layout (.font this) text) (float x) (float 0.0))))
+    (let [marked-text (ltr-text text)
+          mark-length (- (.length marked-text) (.length ^String text))]
+      (max 0 (- (.getCharIndex (.getHitInfo (text-layout (.font this) marked-text) (float x) (float 0.0))) mark-length))))
   ;; Bidi selections can have disjoint visual spans.
   (complex-text-selection-spans [this text start-offset end-offset]
     (let [spans (volatile! [])
+          marked-text (ltr-text text)
+          mark-length (- (.length marked-text) (.length ^String text))
           ;; The callback receives edges, despite its misleading parameter names.
           callback (reify TextLayout$GeometryCallback
                      (addRectangle [_this left _top right _bottom]
                        (vswap! spans conj [(double left) (double right)])))]
-      (.getRange (text-layout (.font this) text) start-offset end-offset TextLayout/TYPE_TEXT callback)
+      (.getRange (text-layout (.font this) marked-text) (+ (long start-offset) mark-length) (+ (long end-offset) mark-length) TextLayout/TYPE_TEXT callback)
       @spans)))
 
 (defn make-glyph-metrics
@@ -513,7 +534,7 @@
             ;; Splitting a shaped range would break glyph joining and reordering.
             complete-complex-range
             (when (< visible-start-x (+ next-x offset-x))
-              (.fillText gc (.substring text i seg-end) (+ x offset-x) y))
+              (.fillText gc (ltr-text (.substring text i seg-end)) (+ x offset-x) y))
 
             ;; Drawing ASCII one glyph at a time keeps GRAY-smoothed text crisp.
             :else
