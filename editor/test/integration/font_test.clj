@@ -348,7 +348,7 @@
     (let [game-project (test-util/resource-node project "/game.project")
           font-node (test-util/resource-node project "/editor1/test.font")
           app-manifest (test-util/resource-node project "/app_manifest/default.appmanifest")]
-      (is (true? (g/node-value app-manifest :loaded)))
+      (is (false? (g/node-value app-manifest :loaded)))
       (is (false? (font-map-uses-text-shaping? font-node)))
       (g/transact {:undoable false}
         (form/set-value (:form-ops (g/node-value game-project :form-data))

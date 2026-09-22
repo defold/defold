@@ -114,6 +114,12 @@
       (vec)))
 
 (defn- make-resource-change-plans-atom! [project]
+  ;; These tests compare disk state recorded when a resource was materialized.
+  ;; Keep code resources with their separate lazy disk state unread.
+  (g/with-auto-evaluation-context evaluation-context
+    (doseq [[node-id resource] (g/node-value project :node-id+resources evaluation-context)
+            :when (not (:lazy-loaded (resource/resource-type resource)))]
+      (g/materialize-node! node-id evaluation-context)))
   ;; Add a resource listener to the workspace, so we can get the resulting
   ;; resource change plans. We need to be the first listener in the list so that
   ;; we get the resulting resource change plan before it is executed.
@@ -140,6 +146,7 @@
         (g/inputs (g/now) project :save-data)))
 
 (defn- perform-edits-to-all-editable-files! [project]
+  (test-util/materialize-project! project)
   (g/transact (perform-edits-to-all-editable-files project))
 
   ;; Sanity-check: Ensure all editable files are now considered dirty.

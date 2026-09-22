@@ -399,11 +399,10 @@
    ;; out-of-transaction value from something like a property setter or override
    ;; :traverse-fn. However, it is perfectly valid to evaluate on the
    ;; out-of-transaction basis to generate the transaction steps themselves.
-   ;; Since we use a lot of lazy sequences in functions that return transaction
-   ;; steps, we flatten and realize the lazy sequence outside the
-   ;; do-strict-evaluation-context-scope-body block to avoid false positives
-   ;; when strict evaluation-context scope checks are enabled.
-   (let [txs (cond-> txs strict-evaluation-context-scopes eager-tx-data)
+   ;; Producing transaction steps can materialize nodes in the system. Realize
+   ;; them before taking the transaction's basis snapshot, also when strict
+   ;; evaluation-context scope checks are disabled.
+   (let [txs (eager-tx-data txs)
          transaction-context (make-transaction-context opts)
          pre-tx-basis (:basis transaction-context)
          undoable-changes (when (:undoable opts true)
@@ -429,6 +428,11 @@
   setters. Used before applying load steps that have already been generated."
   [node-id]
   (it/materialize-shell node-id))
+
+(defn materialize-node!
+  "Materializes a shell before inspecting its structure in evaluation-context."
+  [node-id evaluation-context]
+  (it/materialize-node! evaluation-context node-id))
 
 (defn transact-in-evaluation-context!
   "Applies transaction steps to an evaluation context, retaining all realized

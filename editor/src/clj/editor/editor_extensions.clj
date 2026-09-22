@@ -791,14 +791,15 @@
     ;; perform annotation sync asynchronously since it potentially involves writing a lot
     ;; of lua annotation files
     (error-reporting/catch-all!
-      (g/let-ec [sync-hash (script-annotations/sync-hash script-annotations evaluation-context)
-                 workspace (g/node-value project :workspace evaluation-context)
-                 project-root (g/raw-property-value (:basis evaluation-context) workspace :root)]
-        (lsp/set-servers!
-          lsp
-          (-> ext-language-servers
-              (conj (lsp.project/language-server project))
-              (into (built-in-lua-language-servers project-root sync-hash))))))))
+      (lsp.async/with-auto-evaluation-context evaluation-context
+        (let [sync-hash (script-annotations/sync-hash script-annotations evaluation-context)
+              workspace (g/node-value project :workspace evaluation-context)
+              project-root (g/raw-property-value (:basis evaluation-context) workspace :root)]
+          (lsp/set-servers!
+            lsp
+            (-> ext-language-servers
+                (conj (lsp.project/language-server project))
+                (into (built-in-lua-language-servers project-root sync-hash)))))))))
 
 ;; endregion
 

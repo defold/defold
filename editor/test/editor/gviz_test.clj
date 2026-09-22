@@ -51,6 +51,7 @@
     (let [workspace (test-util/setup-workspace!)
           project (test-util/setup-project! workspace)
           node-id (test-util/resource-node project "/logic/main.gui")
+          _ (g/node-value node-id :node-outline)
           basis (g/now)
           dot (gviz/subgraph->dot basis :root-id node-id :input-fn (fn [arc]
                                                                      (when-let [type (g/node-type* basis (gt/target-id arc))]

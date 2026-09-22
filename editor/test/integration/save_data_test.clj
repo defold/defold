@@ -793,6 +793,7 @@
   ;; until the user changes something significant in the file. More involved
   ;; migrations might be covered by tests elsewhere.
   (test-util/with-loaded-project project-path
+    (test-util/materialize-project! project)
     (test-util/clear-cached-save-data! project)
 
     (testing "collection"
@@ -1526,6 +1527,7 @@
 
 (defn- check-project-save-data-disk-equivalence! [project->save-datas]
   (test-util/with-loaded-project project-path
+    (test-util/materialize-project! project)
     (test-util/clear-cached-save-data! project)
     (doseq [save-data (project->save-datas project)]
       (test-util/check-save-data-disk-equivalence! save-data project-path))))
@@ -1561,6 +1563,7 @@
   ;; any other tests in this module are failing as well, you should address them
   ;; first.
   (test-util/with-scratch-project project-path
+    (test-util/materialize-project! project)
     (test-util/clear-cached-save-data! project)
     (let [checked-resources (checked-resources workspace)
           dirty-proj-paths (into (sorted-set)
@@ -1601,7 +1604,7 @@
 
 (deftest resource-save-data-retention-test
   ;; This test is intended to verify that the system cache is populated with the
-  ;; save-related data for each editable resource after the project loads, but
+  ;; save-related data for each editable resource after it is requested, but
   ;; is evicted from the cache when the resource is edited.
   (letfn [(check-resource-at-index [resource-index]
             ;; We want to test each resource in isolation to avoid interference
@@ -1613,6 +1616,7 @@
                 (when-some [resource (get checked-resources resource-index)]
                   (let [proj-path (resource/proj-path resource)
                         node-id (test-util/resource-node project resource)]
+                    (g/node-value node-id :save-data)
 
                     (testing (format "File `%s` should have its save-related data in the cache before editing." proj-path)
                       (is (= (test-util/cacheable-save-data-outputs node-id)
@@ -1635,6 +1639,7 @@
   ;; and is intended to verify that save-related data is retained in memory in
   ;; situations that are impractical to cover on an individual resource basis.
   (test-util/with-scratch-project project-path
+    (test-util/materialize-project! project)
     (let [checked-resources (checked-resources workspace)]
 
       (testing "Save-related data is in cache after loading the project."
@@ -1801,7 +1806,7 @@
                             (test-util/with-graph-queries-blocked :allow-unsafe-basis
                               (coll/into-> (node-load-info-tx-data node-load-info load-opts transpiler-tx-data-fn) []
                                 coll/flatten-xf))))]
-            (test-util/setup-project! workspace)))
+            (test-util/materialize-project! (test-util/setup-project! workspace))))
 
         ;; Sanity check to verify files were resolved.
         (is (contains? @resolved-paths "/referenced/referenced.collection"))

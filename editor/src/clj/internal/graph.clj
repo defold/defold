@@ -1283,7 +1283,7 @@
 (defn basis-plan-set-raw-property
   [basis node-id property-label new-raw-value]
   (when-let [node (node-by-id-at basis node-id)]
-    (let [assigned-properties (gt/assigned-properties node)
+    (let [assigned-properties (if (:_materialize-fn node) node (gt/assigned-properties node))
           old-raw-value (get assigned-properties property-label unassigned-sentinel)]
       (when (not= old-raw-value new-raw-value)
         {:node-id node-id

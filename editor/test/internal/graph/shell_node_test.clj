@@ -22,7 +22,7 @@
 (g/defnode ShellTestNode
   (property identity g/Str :unjammable)
   (property value g/Int (default 0))
-  (input dependency g/Int)
+  (input dependency g/Int :cascade-delete)
   (output result g/Int :cached (g/fnk [value dependency] (+ value (or dependency 0)))))
 
 (g/defnode ShellConsumer
@@ -167,3 +167,96 @@
         (is (in/shell-node? (g/node-by-id (g/now) b)))
         (is (= 1 (g/node-value b :result)))
         (is (= {a :loaded b :loaded} (g/node-value shared :values)))))))
+
+(deftest tracing-materializes-with-real-values-test
+  (with-clean-system
+    (let [[parent child] (g/take-node-ids 2)]
+      (g/transact
+        [(g/add-node (g/construct-shell ShellTestNode
+                       (fn [self evaluation-context]
+                         (g/set-property self :value (g/node-value child :result evaluation-context)))
+                       {:_node-id parent}))
+         (g/add-node (g/construct-shell ShellTestNode
+                       (fn [self _evaluation-context] (g/set-property self :value 23))
+                       {:_node-id child}))])
+      (let [evaluation-context (g/make-evaluation-context)]
+        (g/node-value parent :result (assoc evaluation-context :dry-run true))
+        (is (= 23 (g/node-value parent :result evaluation-context)))
+        (g/update-system-from-evaluation-context! evaluation-context)
+        (is (= 23 (g/node-value parent :result)))
+        (is (= 23 (g/node-value child :result)))))))
+
+(deftest editing-unjammable-property-preserves-shell-test
+  (with-clean-system
+    (let [node-id (first (g/take-node-ids 1))
+          calls (atom 0)]
+      (g/transact
+        (g/add-node (g/construct-shell ShellTestNode
+                      (fn [self _evaluation-context]
+                        (swap! calls inc)
+                        (g/set-property self :value 7))
+                      {:_node-id node-id :identity "before"})))
+      (g/transact (g/set-property node-id :identity "after"))
+      (is (= "after" (g/node-value node-id :identity)))
+      (is (zero? @calls))
+      (is (in/shell-node? (g/node-by-id (g/now) node-id)))
+      (g/undo! :undo/global)
+      (is (= "before" (g/node-value node-id :identity)))
+      (is (= 7 (g/node-value node-id :result))))))
+
+(deftest materialization-while-producing-transaction-steps-test
+  (with-clean-system
+    (let [[source target] (g/take-node-ids 2)]
+      (g/transact
+        [(g/add-node (g/construct-shell ShellTestNode
+                       (fn [self _evaluation-context] (g/set-property self :value 31))
+                       {:_node-id source}))
+         (g/add-node (g/construct ShellTestNode :_node-id target))])
+      (g/transact
+        (eduction
+          (map (fn [node-id]
+                 (g/set-property target :value (g/node-value node-id :result))))
+          [source]))
+      (is (= 31 (g/node-value target :result)))
+      (is (= 31 (g/node-value source :result))))))
+
+(deftest overriding-unmaterialized-shell-includes-substructure-test
+  (with-clean-system
+    (let [[source child] (g/take-node-ids 2)
+          overrides (atom nil)]
+      (g/transact
+        (g/add-node (g/construct-shell ShellTestNode
+                      (fn [self _evaluation-context]
+                        [(g/add-node (g/construct ShellTestNode :_node-id child :value 19))
+                         (g/connect child :result self :dependency)])
+                      {:_node-id source})))
+      (g/transact
+        (g/override source {}
+          (fn [_evaluation-context original->override]
+            (reset! overrides original->override)
+            (g/set-property (original->override child) :value 29))))
+      (is (= #{source child} (into #{} (map key) @overrides)))
+      (is (= 19 (g/node-value source :result)))
+      (is (= 29 (g/node-value (@overrides source) :result))))))
+
+(deftest evaluation-transaction-producers-retain-execution-order-test
+  (with-clean-system
+    (let [parent (g/make-node! ShellTestNode)
+          child (atom nil)]
+      (g/transact
+        (g/expand-ec
+          (fn [_evaluation-context]
+            (eduction
+              (map (fn [step]
+                     (case step
+                       :create
+                       (g/expand
+                         (fn []
+                           (let [node-id (first (g/take-node-ids 1))]
+                             (reset! child node-id)
+                             (g/add-node (g/construct ShellTestNode :_node-id node-id :value 37)))))
+
+                       :connect
+                       (g/connect @child :result parent :dependency))))
+              [:create :connect]))))
+      (is (= 37 (g/node-value parent :result))))))

@@ -340,6 +340,7 @@
   (test-util/with-loaded-project
     (let [collision-object-path "/collision_object/three_shapes.collisionobject"
           collision-object (project/get-resource-node project collision-object-path)
+          _ (g/node-value collision-object :node-outline)
           child-scene-arcs (g/inputs (g/now) collision-object :child-scenes)
           sphere-shape (gt/source-id (nth child-scene-arcs 0))
           box-shape (gt/source-id (nth child-scene-arcs 1))

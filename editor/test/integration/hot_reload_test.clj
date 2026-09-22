@@ -44,7 +44,8 @@
   (test-util/with-loaded-project project-path
     (with-open [server (http-server/start! (http-server/router-handler (hot-reload/routes workspace)))]
       (let [game-project (test-util/resource-node project "/game.project")]
-        (project-build project game-project (g/make-evaluation-context))
+        (g/with-auto-evaluation-context evaluation-context
+          (project-build project game-project evaluation-context))
         (let [res  @(http/request (str (http-server/url server) (->build-url "/main/main.collectionc")) :as :byte-array)
               data (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (:body res))]
           (is (= 200 (:status res)))
@@ -56,7 +57,8 @@
   (test-util/with-loaded-project project-path
     (with-open [server (http-server/start! (http-server/router-handler (hot-reload/routes workspace)))]
       (let [game-project (test-util/resource-node project "/game.project")]
-        (project-build project game-project (g/make-evaluation-context))
+        (g/with-auto-evaluation-context evaluation-context
+          (project-build project game-project evaluation-context))
         (let [etags (workspace/etags workspace)
               body (string/join "\n" (map (fn [[path etag]] (format "%s %s" (->build-url path) etag)) etags))
               res @(http/request (str (http-server/url server) hot-reload/verify-etags-url-prefix) :method "POST" :body body :as :string)

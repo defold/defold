@@ -368,13 +368,13 @@
 (defn- make-reload-resources-fn [workspace]
   (let [resource-sync (bound-fn* workspace/resource-sync!)]
     (fn reload-resources! []
-      (resource-sync workspace)
+      (ui/run-now (resource-sync workspace))
       (future/completed nil))))
 
 (defn- make-save-fn [project]
   (let [save-project! (bound-fn* test-util/save-project!)]
     (fn save! []
-      (save-project! project)
+      (ui/run-now (save-project! project))
       (future/completed nil))))
 
 (defn- open-resource-noop! [_resource _opts]
@@ -399,16 +399,17 @@
                                                kind :all
                                                open-resource! open-resource-noop!
                                                web-server stopped-server}}]
-  (extensions/reload! project kind
-                      :prefs (or prefs (test-util/make-test-prefs))
-                      :localization test-util/localization
-                      :reload-resources! (make-reload-resources-fn (project/workspace project))
-                      :display-output! display-output!
-                      :save! (make-save-fn project)
-                      :open-resource! open-resource!
-                      :fetch-libraries! fetch-libraries!
-                      :invoke-bob! (make-invoke-bob-fn project)
-                      :web-server web-server))
+  (ui/run-now
+    (extensions/reload! project kind
+                        :prefs (or prefs (test-util/make-test-prefs))
+                        :localization test-util/localization
+                        :reload-resources! (make-reload-resources-fn (project/workspace project))
+                        :display-output! display-output!
+                        :save! (make-save-fn project)
+                        :open-resource! open-resource!
+                        :fetch-libraries! fetch-libraries!
+                        :invoke-bob! (make-invoke-bob-fn project)
+                        :web-server web-server)))
 
 (deftest project-editor-script-change-stays-reload-needed-after-library-reload-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
@@ -435,12 +436,13 @@
       (handler/eval-contexts [command-context] false evaluation-context))))
 
 (defn- decorated-outline [resource-node outline-path]
-  (let [node-outline (g/node-value resource-node :node-outline)
-        decorated-outline (:outline (outline-view/decorate-outline node-outline #{} #{} @test-util/localization #{}))]
-    (reduce (fn [outline-selection index]
-              (nth (:children outline-selection) index))
-            decorated-outline
-            outline-path)))
+  (ui/run-now
+    (let [node-outline (g/node-value resource-node :node-outline)
+          decorated-outline (:outline (outline-view/decorate-outline node-outline #{} #{} @test-util/localization #{}))]
+      (reduce (fn [outline-selection index]
+                (nth (:children outline-selection) index))
+              decorated-outline
+              outline-path))))
 
 (deftest editor-scripts-commands-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
@@ -2721,12 +2723,13 @@ localization.message('progress.loading-resource', {resource = message}) => Loadi
         (fn [[proj-path view-node-type view-node-args label]]
           (let [resource-node (test-util/resource-node project proj-path)
                 view-node (first (g/take-node-ids 1))]
-            (g/transact
-              {:undoable false}
-              (concat
-                (g/add-node (apply g/construct view-node-type :_node-id view-node view-node-args))
-                (view/connect-resource-node view-node resource-node)
-                (g/set-property app-view :active-view view-node)))
+            (ui/run-now
+              (g/transact
+                {:undoable false}
+                (concat
+                  (g/add-node (apply g/construct view-node-type :_node-id view-node view-node-args))
+                  (view/connect-resource-node view-node resource-node)
+                  (g/set-property app-view :active-view view-node))))
             (let [command-contexts (g/with-auto-evaluation-context evaluation-context
                                      (handler/eval-contexts
                                        [(handler/->context :global {:app-view app-view})]

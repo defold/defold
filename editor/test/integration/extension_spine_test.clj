@@ -278,7 +278,9 @@
                 main-collection (test-util/resource-node project main-collection-resource)
                 main-gui (test-util/resource-node project main-gui-resource)]
             (testing "Without the extension, resources with embedded Spine data cannot be edited."
+              (g/node-value main-collection :save-value)
               (is (g/defective? main-collection))
+              (g/node-value main-gui :save-value)
               (is (g/defective? main-gui)))
             (testing "Without the extension, resources with embedded Spine data aren't connected to the save-data system, and cannot be corrupted by save."
               (is (not-any? #{main-collection-resource main-gui-resource}
@@ -359,6 +361,7 @@
             ;; from an up-to-date version of Spine, so we just have to update
             ;; our references to point to the new Spine JSON.
             (testing "Updating references to the new version of the Spine JSON."
+              (test-util/materialize-project! project)
               (let [save-data-content-by-proj-path-before (save-data-content-by-proj-path project)
                     new-spine-json-resource (workspace/find-resource workspace "/assets/spineboy/spineboy.spinejson")
                     new-spine-atlas-resource (workspace/find-resource workspace "/assets/spineboy/spineboy.atlas")

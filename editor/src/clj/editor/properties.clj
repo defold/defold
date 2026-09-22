@@ -1390,6 +1390,7 @@
   immediate override node of the source-node-id."
   {:arglists '([source-node-id source-prop-infos-by-prop-kw evaluation-context])}
   (fn [source-node-id _source-prop-infos-by-prop-kw evaluation-context]
+    (resource-node/materialize-resource-types! #{"collection" "go" "gui"} evaluation-context)
     (g/node-type-kw (:basis evaluation-context) source-node-id)))
 
 (defmethod push-down-overrides-plan-alternatives :default
