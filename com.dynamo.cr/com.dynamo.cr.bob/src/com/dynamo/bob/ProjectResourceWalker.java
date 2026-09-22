@@ -38,8 +38,6 @@ class ProjectResourceWalker {
     private final Project project;
     private final IFileSystem fileSystem;
     private List<String> allResourcePathsCache; // Cache for all resource paths, since Bob doesn't change project files during build
-    private List<String> ignoredResourcePathPatterns;
-    private Predicate<String> ignoredResourcePathPredicate;
 
     ProjectResourceWalker(Project project, IFileSystem fileSystem) {
         this.project = project;
@@ -48,12 +46,6 @@ class ProjectResourceWalker {
 
     public void clearCaches() {
         allResourcePathsCache = null;
-        ignoredResourcePathPatterns = null;
-        ignoredResourcePathPredicate = null;
-    }
-
-    public void initIgnorePatterns() throws CompileExceptionError {
-        loadIgnoredResourcePathPatterns();
     }
 
     public void findResourcePathsByExtension(String path, String ext, Collection<String> result) {
@@ -126,10 +118,11 @@ class ProjectResourceWalker {
 
     // Centralized project walk that applies .defignore filtering before delegating.
     private void walkResources(String path, IFileSystem.IWalker walker, Collection<String> results) {
+        Predicate<String> ignoredResourcePathPredicate = makeIgnoredResourcePathPredicate();
         fileSystem.walk(path, new FileSystemWalker() {
             @Override
             public boolean handleDirectory(String dir, Collection<String> results) {
-                if (isIgnoredResourcePath(dir)) {
+                if (isIgnoredResourcePath(ignoredResourcePathPredicate, dir)) {
                     return false;
                 }
                 return walker.handleDirectory(dir, results);
@@ -137,7 +130,7 @@ class ProjectResourceWalker {
 
             @Override
             public void handleFile(String filePath, Collection<String> results) {
-                if (!isIgnoredResourcePath(filePath)) {
+                if (!isIgnoredResourcePath(ignoredResourcePathPredicate, filePath)) {
                     walker.handleFile(filePath, results);
                 }
             }
@@ -146,11 +139,7 @@ class ProjectResourceWalker {
 
     // Returns the `.defignore` patterns as project paths. The matching rules
     // live in PathUtil.makeProjPathPredicate, which the editor uses as well.
-    private List<String> loadIgnoredResourcePathPatterns() throws CompileExceptionError {
-        if (ignoredResourcePathPatterns != null) {
-            return ignoredResourcePathPatterns;
-        }
-
+    private Collection<String> loadIgnoredResourcePathPatterns() throws CompileExceptionError {
         LinkedHashSet<String> patterns = new LinkedHashSet<>();
         for (String excludeFolder : BundleHelper.createArrayFromString(project.option("exclude-build-folder", ""))) {
             String normalizedPath = normalizeIgnoredPathPattern(excludeFolder);
@@ -177,27 +166,20 @@ class ProjectResourceWalker {
             }
         }
 
-        ignoredResourcePathPatterns = new ArrayList<>(patterns);
-        ignoredResourcePathPredicate = PathUtil.makeProjPathPredicate(ignoredResourcePathPatterns);
-        return ignoredResourcePathPatterns;
+        return patterns;
     }
 
-    private Predicate<String> getIgnoredResourcePathPredicate() {
+    private Predicate<String> makeIgnoredResourcePathPredicate() {
         try {
-            loadIgnoredResourcePathPatterns();
+            return PathUtil.makeProjPathPredicate(loadIgnoredResourcePathPatterns());
         } catch (CompileExceptionError e) {
             throw new RuntimeException(e);
         }
-        return ignoredResourcePathPredicate;
     }
 
-    private boolean isIgnoredResourcePath(String path) {
+    private static boolean isIgnoredResourcePath(Predicate<String> ignoredResourcePathPredicate, String path) {
         String normalizedPath = normalizeResourcePathForMatching(path);
-        if (normalizedPath.isEmpty()) {
-            return false;
-        }
-
-        return getIgnoredResourcePathPredicate().test("/" + normalizedPath);
+        return !normalizedPath.isEmpty() && ignoredResourcePathPredicate.test("/" + normalizedPath);
     }
 
     private static String normalizeIgnoredPathPattern(String path) {
