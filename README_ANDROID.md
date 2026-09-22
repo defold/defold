@@ -254,7 +254,9 @@ E.g. when an APK produces a crash, backing it up is always a good idea before yo
 ## Upgrading SDK (i.e. API LEVEL)
 
 In essence, updating the "sdk" means to update the supported api level.
-This is done by updating the `defold/packages/android-<android version>-<arch>.tar.gz` etc
+This is done by updating `defold/packages/android-<android version>-common.tar.gz`.
+The package contains `android.jar`, which is shared by all target architectures
+and is also required when building Bob on desktop hosts.
 
 Some relevant links:
 
@@ -276,17 +278,15 @@ Creating a new android package is straight forward:
     mkdir -p share/java
     cp ../tmp/dynamo_home/ext/SDKs/android-sdk/platforms/android-$APILEVEL/android.jar share/java
     ./../scripts/mobile/android_jar_reduce_size.sh share/java/android.jar
-    tar -cvzf android-$APILEVEL-armv7-android.tar.gz share
-    tar -cvzf android-$APILEVEL-arm64-android.tar.gz share
-    cp android-$APILEVEL-armv7-android.tar.gz ../packages
-    cp android-$APILEVEL-arm64-android.tar.gz ../packages
+    COPYFILE_DISABLE=1 tar -cvzf android-$APILEVEL-common.tar.gz share
+    cp android-$APILEVEL-common.tar.gz ../packages
 
 
 ### Update build script
 
-Update the reference to the tar ball in `<defold>/scripts/build.py`
-
-    PACKAGES_ANDROID="... android-36 ...".split()
+Update `ANDROID_TARGET_API_LEVEL` in `build_tools/sdk.py`. The common package
+list in `scripts/build.py` uses `sdk.ANDROID_PACKAGE` to select the matching
+archive automatically.
 
 Find and update all `ANDROID_BUILD_TOOLS_VERSION`, `ANDROID_TARGET_API_LEVEL` and `ANDROID_PLATFORM` in the `defold` project folder.
 
