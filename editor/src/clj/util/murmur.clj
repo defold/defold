@@ -15,11 +15,15 @@
 (ns util.murmur
   (:import [com.dynamo.bob.util MurmurHash]))
 
-(defn hash32 [v]
-  (MurmurHash/hash32 v))
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
-(defn hash64 [v]
-  (MurmurHash/hash64 v))
+(definline hash32 [v]
+  `(MurmurHash/hash32 ~v))
 
-(defn hash64-bytes [^bytes data]
+(definline hash64 [v]
+  `(MurmurHash/hash64 ~v))
+
+(defn hash64-bytes
+  ^long [^bytes data]
   (MurmurHash/hash64 data (alength data)))

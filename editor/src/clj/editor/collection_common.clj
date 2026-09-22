@@ -27,7 +27,7 @@
             [editor.workspace :as workspace]
             [internal.util :as util]
             [service.log :as log]
-            [util.coll :refer [pair]])
+            [util.coll :as coll :refer [pair]])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$InstanceDesc GameObject$PrototypeDesc]))
 
 (set! *warn-on-reflection* true)
@@ -72,11 +72,11 @@
       (protobuf/sanitize-repeated :children)
       (game-object-common/sanitize-component-property-descs-at-key component-property-descs-key)))
 
-(defn- sanitize-embedded-game-object-data [embedded-instance-desc ext->embedded-component-resource-type]
+(defn- sanitize-embedded-game-object-data [embedded-instance-desc ext->embedded-component-resource-type read-opts owner-resource]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (try
     (let [unsanitized-prototype-desc (protobuf/str->map-without-defaults GameObject$PrototypeDesc (:data embedded-instance-desc))
-          sanitized-prototype-desc (game-object-common/sanitize-prototype-desc unsanitized-prototype-desc ext->embedded-component-resource-type)]
+          sanitized-prototype-desc (game-object-common/sanitize-prototype-desc unsanitized-prototype-desc ext->embedded-component-resource-type read-opts owner-resource)]
       (assoc embedded-instance-desc
         :data sanitized-prototype-desc))
     (catch Exception error
@@ -89,10 +89,10 @@
   (-> instance-desc
       (sanitize-any-instance-desc :component-properties)))
 
-(defn- sanitize-embedded-instance-desc [embedded-instance-desc ext->embedded-component-resource-type]
+(defn- sanitize-embedded-instance-desc [embedded-instance-desc ext->embedded-component-resource-type read-opts owner-resource]
   ;; GameObject$EmbeddedInstanceDesc in map format.
   (cond-> (sanitize-any-instance-desc embedded-instance-desc :component-properties)
-          (string? (:data embedded-instance-desc)) (sanitize-embedded-game-object-data ext->embedded-component-resource-type)))
+          (string? (:data embedded-instance-desc)) (sanitize-embedded-game-object-data ext->embedded-component-resource-type read-opts owner-resource)))
 
 (defn- sanitize-collection-instance-desc [collection-instance-desc]
   ;; GameObject$CollectionInstanceDesc in map format.
@@ -100,7 +100,7 @@
       (sanitize-any-instance-desc-scale)
       (protobuf/sanitize-repeated :instance-properties #(game-object-common/sanitize-component-property-descs-at-key % :properties))))
 
-(defn sanitize-collection-desc [collection-desc ext->embedded-component-resource-type]
+(defn sanitize-collection-desc [collection-desc ext->embedded-component-resource-type read-opts owner-resource]
   {:pre [(map? collection-desc)
          (ifn? ext->embedded-component-resource-type)]}
   ;; GameObject$CollectionDesc in map format.
@@ -108,24 +108,132 @@
       (assoc :scale-along-z (:scale-along-z collection-desc scale-along-z-default)) ; Keep this field around even though it is optional - we may want to change its default.
       (dissoc :component-types :property-resources)
       (protobuf/sanitize-repeated :instances sanitize-instance-desc)
-      (protobuf/sanitize-repeated :embedded-instances #(sanitize-embedded-instance-desc % ext->embedded-component-resource-type))
+      (protobuf/sanitize-repeated :embedded-instances #(sanitize-embedded-instance-desc % ext->embedded-component-resource-type read-opts owner-resource))
       (protobuf/sanitize-repeated :collection-instances sanitize-collection-instance-desc)))
 
-(defn make-collection-dependencies-fn [game-object-resource-type-fn]
-  {:pre [(ifn? game-object-resource-type-fn)]}
-  (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc)]
-    (fn [source-value]
-      (let [go-resource-type (game-object-resource-type-fn)
-            go-dependencies-fn (:dependencies-fn go-resource-type)]
-        (into (default-dependencies-fn source-value)
-              (mapcat (fn [embedded-instance-desc]
-                        (try
-                          (go-dependencies-fn (:data embedded-instance-desc))
-                          (catch Exception error
-                            (log/warn :msg (format "Couldn't determine dependencies for embedded instance %s" (:id embedded-instance-desc))
-                                      :exception error)
-                            nil))))
-              (:embedded-instances source-value))))))
+(defn collection-sanitize-fn [read-opts owner-resource collection-desc]
+  (let [editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
+        editable (resource/editable-resource? owner-resource)
+        type-ext->resource-type (editable->type-ext->resource-type editable)]
+    (sanitize-collection-desc collection-desc type-ext->resource-type read-opts owner-resource)))
+
+(defn- component-property-desc-overrides-properties? [component-property-desc]
+  (not (coll/empty? (:properties component-property-desc))))
+
+(defn- maybe-instance-property-desc [game-object-instance-id component-property-descs]
+  (when-let [component-property-descs (coll/not-empty (filterv component-property-desc-overrides-properties? component-property-descs))]
+    {:id game-object-instance-id
+     :properties component-property-descs}))
+
+(defn- component-property-descs->component-id->property-descs [component-property-descs]
+  (into {}
+        (keep (fn [component-property-desc]
+                (let [component-id (:id component-property-desc)
+                      property-descs (:properties component-property-desc)]
+                  (when (coll/not-empty property-descs)
+                    (pair component-id property-descs)))))
+        component-property-descs))
+
+(defn- override-property-descs [original-property-descs overridden-property-descs]
+  ;; GameObject$PropertyDescs in map format.
+  (-> [original-property-descs overridden-property-descs]
+      (coll/into-> {}
+        cat
+        (map (juxt :id identity)))
+      (coll/vals)
+      (vec)))
+
+(defn- override-component-property-descs [original-component-property-descs override-component-property-descs]
+  ;; Takes two sequences of GameObject$ComponentPropertyDescs in map format, and
+  ;; returns a sequence of GameObject$ComponentPropertyDescs in map format.
+  (mapv (fn [[component-id property-descs]]
+          {:id component-id
+           :properties property-descs})
+        (merge-with override-property-descs
+                    (component-property-descs->component-id->property-descs original-component-property-descs)
+                    (component-property-descs->component-id->property-descs override-component-property-descs))))
+
+(defn- embedded-instance-desc->instance-property-desc [embedded-instance-desc]
+  ;; GameObject$EmbeddedInstanceDesc in map format.
+  (let [game-object-instance-id (:id embedded-instance-desc)
+        component-property-descs (override-component-property-descs
+                                   (game-object-common/prototype-desc->component-property-descs (:data embedded-instance-desc))
+                                   (:component-properties embedded-instance-desc))]
+    (maybe-instance-property-desc game-object-instance-id component-property-descs)))
+
+(defn- instance-desc->instance-property-desc [instance-desc]
+  ;; GameObject$InstanceDesc in map format.
+  (maybe-instance-property-desc (:id instance-desc) (:component-properties instance-desc)))
+
+(defn- collection-instance-desc->instance-property-descs [collection-instance-desc]
+  ;; GameObject$CollectionInstanceDesc in map format.
+  (into []
+        (keep (fn [instance-property-desc]
+                (maybe-instance-property-desc (:id instance-property-desc) (:properties instance-property-desc))))
+        (:instance-properties collection-instance-desc)))
+
+(defn collection-desc->instance-property-descs [collection-desc]
+  (-> []
+      (into (keep instance-desc->instance-property-desc) (:instances collection-desc))
+      (into (keep embedded-instance-desc->instance-property-desc) (:embedded-instances collection-desc))
+      (into (mapcat collection-instance-desc->instance-property-descs) (:collection-instances collection-desc))))
+
+(defn- instance-property-descs->resources [instance-property-descs proj-path->resource]
+  (eduction
+    (map :properties)
+    (mapcat #(game-object-common/component-property-descs->resources % proj-path->resource))
+    (distinct)
+    instance-property-descs))
+
+(defn collection-desc->referenced-property-resources [collection-desc proj-path->resource]
+  ;; This returns a sequence of all distinct resources referenced by
+  ;; GameObject$ComponentPropertyDesc property overrides in the
+  ;; GameObject$CollectionDescs contained GameObject$InstanceDescs,
+  ;; GameObject$EmbeddedInstanceDescs, and GameObject$CollectionInstanceDescs.
+  ;;
+  ;; The resulting resources build targets will be connected to the
+  ;; own-resource-property-build-targets input of our NonEditableCollectionNode.
+  ;;
+  ;; Elsewhere, any referenced collection, game object, and component will have
+  ;; their resource-property-build-targets output connected to our
+  ;; other-resource-property-build-targets input to ensure we have access to the
+  ;; non-overridden resource property dependencies. As a result, our
+  ;; resource-property-build-targets output will include not only our own
+  ;; overrides, but the set union of all original and overridden resource
+  ;; property dependencies. This is also how it works for mutable collections.
+  (-> collection-desc
+      (collection-desc->instance-property-descs)
+      (instance-property-descs->resources proj-path->resource)))
+
+(defonce ^:private default-collection-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc))
+
+(defn collection-dependencies-fn [read-opts owner-resource collection-desc]
+  {:pre [(map? collection-desc)]} ; GameObject$CollectionDesc in map format.
+  (let [existing-proj-path-fn (:existing-proj-path-fn read-opts)
+        editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
+        editable (resource/editable-resource? owner-resource)
+        type-ext->resource-type (editable->type-ext->resource-type editable)
+        go-resource-type (type-ext->resource-type "go")
+        go-dependencies-fn (:dependencies-fn go-resource-type)]
+    (into []
+          (comp cat
+                (distinct))
+          [(default-collection-dependencies-fn read-opts owner-resource collection-desc)
+           (collection-desc->referenced-property-resources collection-desc existing-proj-path-fn)
+           (coll/into-> (:embedded-instances collection-desc) :eduction
+             (mapcat
+               (fn [{:keys [data] :as embedded-instance-desc}]
+                 ;; If sanitation failed (due to a corrupt file), the embedded
+                 ;; data might still be a string. In that case we report no
+                 ;; dependencies. The load-fn will eventually mark our resource
+                 ;; node as defective, so it doesn't matter.
+                 (when (map? data)
+                   (try
+                     (go-dependencies-fn read-opts owner-resource data)
+                     (catch Exception error
+                       (log/warn :msg (format "Couldn't determine dependencies for embedded instance %s" (:id embedded-instance-desc))
+                                 :exception error)
+                       nil))))))])))
 
 (defn game-object-instance-build-target [game-object-build-target instance-desc-with-go-props pose proj-path->resource-property-build-target]
   {:pre [(map? game-object-build-target)
@@ -143,9 +251,9 @@
   ;; You might also want to familiarize yourself with how this process works in
   ;; `game_object.clj`, since it is similar but less complicated there.
   ;;
-  ;; NOTE: A `go-prop` is basically a PropertyDesc in map form with an
-  ;; additional :clj-value entry. See `properties/build-target-go-props`
-  ;; for more info.
+  ;; NOTE: A `go-prop` is basically a GameObject$PropertyDesc in map form with
+  ;; an additional :clj-value entry. See `properties/build-target-go-props` for
+  ;; more info.
   (let [build-target-go-props (partial properties/build-target-go-props
                                        proj-path->resource-property-build-target)
         component-property-infos (mapv (comp build-target-go-props :properties)
@@ -169,15 +277,6 @@
 
 (defn- source-resource-component-property-desc [component-property-desc]
   (protobuf/sanitize-repeated component-property-desc :properties properties/source-resource-go-prop))
-
-(defn override-property-descs [original-property-descs overridden-property-descs]
-  ;; GameObject$PropertyDescs in map format.
-  (-> (into {}
-            (comp cat
-                  (map (juxt :id identity)))
-            [original-property-descs overridden-property-descs])
-      (vals)
-      (vec)))
 
 (defn- flatten-game-object-instance-data [game-object-instance-data collection-instance-id collection-instance-pose child-game-object-instance-id? game-object-instance-id->component-property-descs proj-path->resource-property-build-target]
   (let [{:keys [resource instance-msg pose]} game-object-instance-data
@@ -273,16 +372,17 @@
   ;; when reading this. It will clear up how the output binaries are structured.
   ;; Be aware that these structures are also used to store the saved project
   ;; data. Sometimes a field will only be used by the editor *or* the runtime.
-  ;; In the case of CollectionDesc, neither the `collection_instances` nor the
-  ;; `embedded_instances` fields are read by the runtime. Instead, all the game
-  ;; objects brought in from these two fields are recursively collected into a
-  ;; flat list of InstanceDesc under the `instances` field, each referencing a
-  ;; BuildResource of a PrototypeDesc binary produced from the referenced or
+  ;; In the case of GameObject$CollectionDesc, neither the
+  ;; `collection_instances` nor the `embedded_instances` fields are read by the
+  ;; runtime. Instead, all the game objects brought in from these two fields are
+  ;; recursively collected into a flat list of GameObject$InstanceDesc under the
+  ;; `instances` field, each referencing a BuildResource of a
+  ;; GameObject$PrototypeDesc binary produced from the referenced or
   ;; embedded game objects. However, embedded game objects from different
   ;; collections might have been fused into a single BuildResource if they are
   ;; equivalent. We must update any references to these BuildResources
   ;; to instead point to the resulting fused BuildResource. The same goes for
-  ;; resource property overrides inside the InstanceDescs.
+  ;; resource property overrides inside the GameObject$InstanceDescs.
   (let [{:keys [name game-object-instance-datas]} user-data
         build-go-props (partial properties/build-go-props dep-resources)
         go-instance-msgs (map :instance-msg game-object-instance-datas)

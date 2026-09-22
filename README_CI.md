@@ -11,6 +11,19 @@ The Defold CI jobs are divided into separate GitHub Actions workflows:
 
 The workflow files listed above sets up the jobs and distributes them to multiple workers to build, test and release the engine and/or editor. The bulk of the work is done in the [ci.py](/ci/ci.py) script.
 
+`Main` uses the event's commit for every public build, test, release-note, and
+publication job; private builds receive it as `public_sha`. Push and manual workflow
+runs use `github.sha`, and pull request runs use the PR head SHA. Repository dispatches
+must supply the requested ref in `client_payload.branch` and a full commit SHA in
+`client_payload.sha`; `ci/trigger-build.py` resolves the ref through GitHub before
+dispatching. Missing branches or invalid SHAs fail before checkout. For `master`,
+`beta`, and `dev`, every job also verifies that the SHA belongs to the requested
+branch's history. A pinned ancestor remains valid after the branch advances;
+unmerged feature commits and failed ancestry checks stop the job before checkout.
+Branch names still select release channels. Publication checks that all editor
+download bundles exist for that commit and channel before changing tags or channel
+pointers.
+
 ## Pull request release notes check
 
 The `Release notes` check passes when the PR has `skip release notes`. Otherwise, it
@@ -51,23 +64,28 @@ You can use the `ci/trigger-build.py` script to manually trigger a build using t
 ./ci/trigger-build.py --token=<personal_access_token> --branch=9a32ac5e9513e8aff669cf4cbe4334aeec2fbf8e --skip-engine --skip-sdk --skip-bob
 ```
 
+`--branch` is required and accepts a branch, tag, or commit. The script sends both
+the requested ref and its resolved SHA. Other repository-dispatch callers must also
+include `client_payload.sha`; a branch name alone is no longer accepted.
+
 Available options are:
 
 ```
 $ ./ci/trigger-build.py --help                                                                   
 usage: trigger-build.py [-h] [--token TOKEN] [--action ACTION]
-                        [--branch BRANCH] [--skip-engine] [--skip-sdk]
-                        [--skip-bob] [--skip-editor]
+                        --branch BRANCH [--skip-engine] [--skip-sdk]
+                        [--skip-bob] [--skip-editor] [--skip-sign]
 
 optional arguments:
   -h, --help       show this help message and exit
   --token TOKEN    GitHub API personal access token
   --action ACTION  The trigger action
-  --branch BRANCH  The branch to build
+  --branch BRANCH  The branch, tag, or commit to build
   --skip-engine    Skip building the engine
   --skip-sdk       Skip building the Defold SDK
   --skip-bob       Skip building bob
   --skip-editor    Skip building the editor
+  --skip-sign      Skip signing the artefacts
 ```
 
 ## External contributions

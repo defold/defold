@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -96,7 +95,7 @@ class ProjectResourceWalker {
         List<String> filteredPaths = allResourcePathsCache.parallelStream()
                 .filter(p -> (ext == null || p.endsWith(ext))
                         && (normalizedPath == null || normalizedPath.isEmpty() || p.startsWith(normalizedPath)))
-                .collect(Collectors.toList());
+                .toList();
         result.addAll(filteredPaths);
         TimeProfiler.stop();
     }

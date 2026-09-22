@@ -22,7 +22,6 @@ import java.util.Set;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.render.proto.Font.CompiledStyle;
 import com.dynamo.render.proto.Font.FontDesc;
-import com.dynamo.render.proto.Font.FontRenderMode;
 import com.dynamo.render.proto.Font.StyleDesc;
 import com.dynamo.render.proto.Font.StyleEffect;
 
@@ -75,8 +74,7 @@ public final class FontStyles {
             FontRenderer.Style style;
             if (source.getName().equals("default")) {
                 style = new FontRenderer.Style();
-                if (font.getRenderMode() == FontRenderMode.MODE_MULTI_LAYER
-                        && !font.getFont().toLowerCase(java.util.Locale.ROOT).endsWith(".fnt")) {
+                if (!font.getFont().toLowerCase(java.util.Locale.ROOT).endsWith(".fnt")) {
                     if (font.getOutlineWidth() > 0 && font.getOutlineAlpha() > 0) {
                         style.flags |= FontRenderer.Style.FLAG_OUTLINE_WIDTH | FontRenderer.Style.FLAG_OUTLINE_ALPHA;
                         style.outlineWidth = font.getOutlineWidth();
@@ -105,6 +103,8 @@ public final class FontStyles {
 
     private static CompiledStyle toCompiledStyle(String name, FontRenderer.Style style) {
         CompiledStyle.Builder output = CompiledStyle.newBuilder().setName(name).setNameHash(MurmurHash.hash64(name));
+        output.setFontSize(style.fontSize);
+        output.setFontSizeUnit(CompiledStyle.FontSizeUnit.forNumber(style.fontSizeUnit));
         output.setOutlineWidth(style.outlineWidth);
         output.setShadowX(style.shadowX);
         output.setShadowY(style.shadowY);
@@ -133,6 +133,8 @@ public final class FontStyles {
 
     public static FontRenderer.Style toNativeStyle(CompiledStyle input) {
         FontRenderer.Style style = new FontRenderer.Style();
+        style.fontSize = input.getFontSize();
+        style.fontSizeUnit = input.getFontSizeUnit().getNumber();
         style.outlineWidth = input.getOutlineWidth();
         style.shadowX = input.getShadowX();
         style.shadowY = input.getShadowY();

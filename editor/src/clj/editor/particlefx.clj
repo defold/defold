@@ -47,6 +47,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.scene-picking :as scene-picking]
             [editor.scene-tools :as scene-tools]
+            [editor.shaders :as shaders]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -127,32 +128,8 @@
   (vec3 position)
   (vec4 color))
 
-(shader/defshader line-vertex-shader
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
-
-(shader/defshader line-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
-
-(shader/defshader line-id-vertex-shader
-  (attribute vec4 position)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
-
-(shader/defshader line-id-fragment-shader
-  (uniform vec4 id)
-  (defn void main []
-    (setq gl_FragColor id)))
-
-(def line-id-shader (shader/make-shader ::line-id-shader line-id-vertex-shader line-id-fragment-shader {"id" :id}))
+(def line-shader shaders/basic-color-straight-alpha-world-space)
+(def line-id-shader shaders/selection-color-world-space)
 
 (defn- curve->pb-spline-points [curve]
   (->> curve
@@ -275,7 +252,7 @@
             vs (into (vec (geom/transf-p world-transform-no-scale (geom/scale scale-f vs-screen)))
                      (geom/transf-p world-transform vs-world))
             render-args (if (= pass/selection (:pass render-args))
-                          (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable))
+                          (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform renderable))
                           render-args)
             vertex-binding (vtx/use-with ::lines (->vbuf vs vcount color) shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding]
@@ -455,7 +432,7 @@
   (doseq [renderable renderables]
     (let [{:keys [color emitter-index emitter-sim-data material-attribute-infos max-particle-count vertex-attribute-bytes]} (:user-data renderable)]
       (when-let [shader (:shader emitter-sim-data)]
-        (let [shader-attribute-reflection-infos (shader/attribute-reflection-infos shader gl)
+        (let [shader-attribute-reflection-infos (shader/attribute-reflection-infos shader)
               combined-attribute-infos (graphics/combined-attribute-infos shader-attribute-reflection-infos material-attribute-infos :coordinate-space-world)
               vertex-description (graphics.types/make-vertex-description combined-attribute-infos)
               pfx-sim-request-id (some-> renderable :updatable :node-id)]
@@ -1237,12 +1214,10 @@
             mod-types))))
 
 (defn- make-emitter
-  ([self emitter]
-   (make-emitter self emitter nil false))
-  ([self emitter select-fn resolve-id?]
-   (let [project (project/get-project)
-         workspace (project/workspace project)
-         resolve-resource #(workspace/resolve-workspace-resource workspace %)]
+  ([self resolve-resource-fn owner-resource emitter]
+   (make-emitter self resolve-resource-fn owner-resource emitter nil false))
+  ([self resolve-resource-fn owner-resource emitter select-fn resolve-id?]
+   (let [resolve-resource #(resolve-resource-fn owner-resource %)]
      (g/make-nodes [emitter-node EmitterNode]
        (gu/set-properties-from-pb-map emitter-node Particle$Emitter emitter
          position :position
@@ -1288,11 +1263,14 @@
 
 (defn- add-emitter-handler [self type select-fn]
   (when-let [resource (io/resource emitter-template)]
-    (let [emitter (protobuf/read-map-without-defaults Particle$Emitter resource)]
+    (let [basis (g/now)
+          owner-resource (resource-node/owner-resource basis self)
+          resolve-resource-fn #(workspace/resolve-resource basis %1 %2)
+          emitter (protobuf/read-map-without-defaults Particle$Emitter resource)]
       (g/transact
         (concat
           (g/operation-label (localization/message "operation.particlefx.add-emitter"))
-          (make-emitter self (assoc emitter :type type) select-fn true))))))
+          (make-emitter self resolve-resource-fn owner-resource (assoc emitter :type type) select-fn true))))))
 
 (handler/defhandler :edit.add-embedded-component :workbench
   (active? [selection evaluation-context] (selection->particlefx selection evaluation-context))
@@ -1361,12 +1339,12 @@
                       :emitter-key-size-y new-y
                       :emitter-key-size-z new-z)}))
 
-(defn load-particle-fx [project self _resource pb]
+(defn load-particle-fx [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id pb :source-value}]
   (concat
     (g/connect project :settings self :project-settings)
     (g/connect project :default-tex-params self :default-tex-params)
     (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)
-    (map (partial make-emitter self)
+    (map (partial make-emitter self resolve-resource-fn owner-resource)
          (:emitters pb))
     (map (partial make-modifier self)
          (:modifiers pb)
@@ -1394,7 +1372,7 @@
   ;; the editor?
   (update modifier :properties #(or (not-empty %) (get-in mod-types [(:type modifier) :template :properties]))))
 
-(defn- sanitize-particle-fx [particle-fx]
+(defn- sanitize-particle-fx [_read-opts _owner-resource particle-fx]
   ;; Particle$ParticleFX in map format.
   (-> particle-fx
       (protobuf/sanitize-repeated :emitters sanitize-emitter)

@@ -211,7 +211,7 @@ def build(bld):
                 web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
                 content_root = '../test',
                 dynamic_fonts = dynamic_fonts,
-                source = bld.path.ant_glob('test_gamesys.cpp'),
+                source = bld.path.ant_glob('test_gamesys.cpp test_gamesys_components.cpp test_gamesys_gui.cpp test_gamesys_render.cpp test_gamesys_script.cpp'),
                 embed_source = embed_source,
                 target = 'test_gamesys')
 

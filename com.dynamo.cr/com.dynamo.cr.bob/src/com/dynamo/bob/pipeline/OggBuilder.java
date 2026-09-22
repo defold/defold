@@ -62,7 +62,7 @@ public class OggBuilder extends CopyBuilder{
                 }
             } catch (IOException exc) {
                 throw new CompileExceptionError(task.firstInput(), 0,
-                        String.format("Cannot copy ogg file to further process", new String(exc.getMessage())));
+                        String.format("Cannot copy ogg file to further process", exc.getMessage()));
             }
             Result result = Exec.execResult(oggzValidateExePath, tmpOggFile.getAbsolutePath());
 
@@ -73,7 +73,7 @@ public class OggBuilder extends CopyBuilder{
         }
 
         boolean soundStreaming = this.project.option("sound-stream-enabled", "false").equals("true"); // if no value set use old hardcoded path (backward compatability)
-        boolean compressSounds = soundStreaming ? false : true; // We want to be able to read directly from the files as-is (without compression)
+        boolean compressSounds = !soundStreaming; // We want to be able to read directly from the files as-is (without compression)
         for(IResource res : task.getOutputs()) {
             if (!compressSounds) {
                 project.addOutputFlags(res.getAbsPath(), Project.OutputFlags.UNCOMPRESSED);

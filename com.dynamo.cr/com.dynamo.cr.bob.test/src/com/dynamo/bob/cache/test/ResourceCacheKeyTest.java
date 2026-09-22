@@ -17,7 +17,7 @@ package com.dynamo.bob.cache.test;
 import static java.util.Map.entry;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotNull;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -51,7 +51,7 @@ import com.dynamo.bob.test.util.MockResource;
 public class ResourceCacheKeyTest {
 
 	@BuilderParams(name = "DummyBuilder", outExt = "", inExts = {}, paramsForSignature = {"important_option"})
-	private class DummyBuilder extends Builder {
+	private static class DummyBuilder extends Builder {
 		private TaskBuilder builder;
 
 		public DummyBuilder() {
@@ -108,7 +108,7 @@ public class ResourceCacheKeyTest {
 		DummyBuilder builder = new DummyBuilder();
 		Task task = builder.addInput(input).addOutput(output).create(null);
 		String key = ResourceCacheKey.calculate(task.calculateSignature(), output);
-		assertTrue(key != null);
+        assertNotNull(key);
 	}
 
 	// do we always get the same key with the same input?
@@ -223,9 +223,7 @@ public class ResourceCacheKeyTest {
 				allOptions.add(option.longOpt);
 			}
 
-			for (String key :project.getOptions().keySet()) {
-				allOptions.add(key);
-			}
+            allOptions.addAll(project.getOptions().keySet());
 
 			// Validate each parameter in classToParamsDigest
 			for (Class<?> klass : map.keySet()) {
@@ -272,68 +270,67 @@ public class ResourceCacheKeyTest {
 			}
 			Collections.sort(allOptions);
 
-			List<String> existentParameters = new ArrayList<>(List.of(new String[]{
-                "architectures",
-                "archive",
-                "archive-resource-padding",
-                "auth",
-                "binary-output",
-                "build-artifacts",
-                "build-input",
-                "build-input-file",
-                "build-report",
-                "build-report-html",
-                "build-report-json",
-                "build-server",
-                "build-server-header",
-                "bundle-format",
-                "bundle-output",
-                "certificate",
-                "debug",
-                "debug-ne-upload",
-                "debug-output-glsl",
-                "debug-output-hlsl",
-                "debug-output-spirv",
-                "debug-output-wgsl",
-                "debug-output-msl",
-                "defoldsdk",
-                "email",
-                "exclude-archive",
-                "exclude-build-folder",
-                "experimental-path-minification",
-                "help",
-                "identity",
-                "input",
-                "key-pass",
-                "keystore",
-                "keystore-alias",
-                "keystore-pass",
-                "liveupdate",
-                "max-cpu-threads",
-                "mobileprovisioning",
-                "ne-build-dir",
-                "ne-output-name",
-                "output",
-                "platform",
-                "private-key",
-                "resource-cache-local",
-                "resource-cache-remote",
-                "resource-cache-remote-pass",
-                "resource-cache-remote-user",
-                "root",
-                "settings",
-                "strip-executable",
-                "texture-compression",
-                "texture-profiles",
-                "use-async-build-server",
-                "use-lua-bytecode-delta",
-                "use-uncompressed-lua-source",
-                "use-vanilla-lua",
-                "variant",
-                "verbose",
-                "version",
-                "with-sha1",
-                "with-symbols"}));
+			List<String> existentParameters = new ArrayList<>(List.of("architectures",
+                    "archive",
+                    "archive-resource-padding",
+                    "auth",
+                    "binary-output",
+                    "build-artifacts",
+                    "build-input",
+                    "build-input-file",
+                    "build-report",
+                    "build-report-html",
+                    "build-report-json",
+                    "build-server",
+                    "build-server-header",
+                    "bundle-format",
+                    "bundle-output",
+                    "certificate",
+                    "debug",
+                    "debug-ne-upload",
+                    "debug-output-glsl",
+                    "debug-output-hlsl",
+                    "debug-output-spirv",
+                    "debug-output-wgsl",
+                    "debug-output-msl",
+                    "defoldsdk",
+                    "email",
+                    "exclude-archive",
+                    "exclude-build-folder",
+                    "experimental-path-minification",
+                    "help",
+                    "identity",
+                    "input",
+                    "key-pass",
+                    "keystore",
+                    "keystore-alias",
+                    "keystore-pass",
+                    "liveupdate",
+                    "max-cpu-threads",
+                    "mobileprovisioning",
+                    "ne-build-dir",
+                    "ne-output-name",
+                    "output",
+                    "platform",
+                    "private-key",
+                    "resource-cache-local",
+                    "resource-cache-remote",
+                    "resource-cache-remote-pass",
+                    "resource-cache-remote-user",
+                    "root",
+                    "settings",
+                    "strip-executable",
+                    "texture-compression",
+                    "texture-profiles",
+                    "use-async-build-server",
+                    "use-lua-bytecode-delta",
+                    "use-uncompressed-lua-source",
+                    "use-vanilla-lua",
+                    "variant",
+                    "verbose",
+                    "version",
+                    "with-sha1",
+                    "with-symbols"));
 
 			Collections.sort(existentParameters);
 

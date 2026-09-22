@@ -62,6 +62,7 @@ local function test_v3_chains(body)
     local world = b2d.get_world()
     assert(world ~= nil)
     assert(world == b2d.body.get_world(body))
+    assert(b2d.chain.from_shape(body, 1) == nil)
 
     local chain, segments = b2d.body.create_chain(body, {
         vertices = {
@@ -100,7 +101,6 @@ local function test_v3_chains(body)
 
     local chain_from_shape = b2d.chain.from_shape(segments[1].shape_id)
     assert(chain_from_shape == chain)
-    assert(b2d.chain.from_shape(body, 1) == nil)
 
     local chain_segments = b2d.chain.get_segments(chain)
     assert(#chain_segments == 2)
@@ -250,7 +250,12 @@ local function test_v3_chains(body)
     end)
 end
 
-function init(self)
+-- Collision objects are enabled when added to update, after init().
+function update(self, dt)
+    if tests_done then
+        return
+    end
+
     if b2d ~= nil then
         local body = b2d.get_body("#collisionobject")
         assert(body ~= nil)

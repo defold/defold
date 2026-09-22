@@ -54,6 +54,7 @@
             [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
             [editor.scene-tools :as scene-tools]
+            [editor.shaders :as shaders]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.util :as eutil]
@@ -113,61 +114,9 @@
   (vec4 color)
   (vec1 page_index))
 
-(shader/defshader vertex-shader
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (attribute vec4 color)
-  (varying vec2 var_texcoord0)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_texcoord0 texcoord0)
-    (setq var_color color)))
-
-(shader/defshader fragment-shader
-  (varying vec2 var_texcoord0)
-  (varying vec4 var_color)
-  (uniform sampler2D texture_sampler)
-  (defn void main []
-    (setq gl_FragColor (* var_color (texture2D texture_sampler var_texcoord0.xy)))))
-
-; TODO - macro of this
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader))
-
-(shader/defshader gui-id-vertex-shader
-  (attribute vec4 position)
-  (attribute vec2 texcoord0)
-  (varying vec2 var_texcoord0)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_texcoord0 texcoord0)))
-
-(shader/defshader gui-id-fragment-shader
-  (varying vec2 var_texcoord0)
-  (uniform sampler2D texture_sampler)
-  (uniform vec4 id)
-  (defn void main []
-    (setq vec4 color (texture2D texture_sampler var_texcoord0.xy))
-    (if (> color.a 0.05)
-      (setq gl_FragColor id)
-      (discard))))
-
-(def id-shader (shader/make-shader ::id-shader gui-id-vertex-shader gui-id-fragment-shader {"id" :id}))
-
-(shader/defshader line-vertex-shader
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
-
-(shader/defshader line-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
+(def shader shaders/basic-texture-color-straight-alpha-world-space)
+(def id-shader shaders/selection-uniform-world-space)
+(def line-shader shaders/basic-color-straight-alpha-world-space)
 
 (defn- ->color-vtx-vb [vs colors vcount]
   (let [vb (->color-vtx vcount)
@@ -270,8 +219,8 @@
         (let [vertex-binding (if (instance? editor.gl.vertex2.VertexBuffer vb)
                                (vtx2/use-with ::tris vb id-shader)
                                (vtx/use-with ::tris vb id-shader))]
-          (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
-            (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture))
+          (gl/with-gl-bindings gl (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
+            (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture))
             (clipping/setup-gl gl clipping-state)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
             (clipping/restore-gl gl clipping-state)))))))
@@ -1765,6 +1714,8 @@
   (output own-build-errors g/Any (gu/passthrough build-errors-visual-node)))
 
 (def ^:private validate-texture-resource (partial validate-optional-gui-resource-localized error-gui-texture-not-found-in-scene-message-fn :texture))
+
+(def ^:private is-font-pb-field-index? (partial = (prop-key->pb-field-index :font)))
 
 (def ^:private size-pb-field-index (prop-key->pb-field-index :manual-size))
 
@@ -4253,13 +4204,14 @@
             custom-property-overrides
             (coll/merge custom-property-overrides))))
 
+(def ^:private default-font-proj-path "/builtins/fonts/default.font")
 (def ^:private default-material-proj-path (protobuf/default Gui$SceneDesc :material))
 
-(defn load-gui-scene [project self resource scene]
+(defn load-gui-scene [{:keys [project resolve-resource-fn workspace] :as load-opts} {:keys [owner-resource] self :node-id scene :source-value}]
   {:pre [(map? scene)]} ; Gui$SceneDesc in map format.
-  (let [workspace (resource/workspace resource)
-        basis (g/now)
-        resource-types (resource/resource-types-by-type-ext basis workspace :editable)
+  (let [editable->type-ext->resource-type (:editable->type-ext->resource-type load-opts)
+        editable (resource/editable-resource? owner-resource)
+        resource-types (editable->type-ext->resource-type editable)
         gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
         gui-resource-kind-registry (gui-resource-kind-registry-from-resource-types resource-types)
 
@@ -4327,7 +4279,7 @@
                                               (pair importing-id nil))))]
                     (when (pos? (count imported-id->prop->override))
                       (pair importing-id imported-id->prop->override))))))
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+        resolve-resource #(resolve-resource-fn owner-resource %)]
     (concat
       ;; TODO(save-value-cleanup): We could use set-properties-from-pb-map when setting Gui$NodeDesc properties as well.
       (gu/set-properties-from-pb-map self Gui$SceneDesc scene
@@ -4344,7 +4296,7 @@
       (g/make-nodes [fonts-node FontsNode
                      no-font [FontNode
                               :name ""
-                              :font (resolve-resource "/builtins/fonts/default.font")]]
+                              :font (resolve-resource default-font-proj-path)]]
         (g/connect fonts-node :_node-id self :fonts-node) ; for the tests :/
         (g/connect fonts-node :_node-id self :nodes)
         (g/connect fonts-node :build-errors self :build-errors)
@@ -4614,14 +4566,17 @@
       (dissoc :spine-scene)
       (assoc :path (:spine-scene spine-scene-desc))))
 
-(defn- sanitize-scene [workspace scene]
-  (let [resource-types (workspace/get-resource-type-map workspace :editable)
+(defn- sanitize-gui-scene [read-opts owner-resource scene-desc]
+  {:pre [(map? scene-desc)]} ; Gui$SceneDesc in map format.
+  (let [editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
+        editable (resource/editable-resource? owner-resource)
+        resource-types (editable->type-ext->resource-type editable)
         gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
         spine-scene-descs (mapv spine-scene-desc->resource-desc
-                                (:spine-scenes scene))
+                                (:spine-scenes scene-desc))
         merged-resource-descs (into spine-scene-descs
-                                    (:resources scene))]
-    (-> scene
+                                    (:resources scene-desc))]
+    (-> scene-desc
         (dissoc :background-color :spine-scenes)
         (protobuf/sanitize-repeated :nodes (partial sanitize-scene-node gui-node-type-registry))
         (protobuf/sanitize-repeated :layouts (partial sanitize-layout gui-node-type-registry))
@@ -4677,6 +4632,37 @@
   [root-id _selection workspace _world-pos resources]
   (mapv (partial add-dropped-resource root-id workspace) resources))
 
+(defn scene-node-desc-uses-default-font? [node-desc]
+  {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
+  (and (= :type-text (:type node-desc))
+       (= "" (:font node-desc ""))
+       (or (not (:template-node-child node-desc))
+           (coll/any? is-font-pb-field-index?
+                      (:overridden-fields node-desc)))))
+
+(defn layout-node-desc-uses-default-font? [node-desc]
+  {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
+  (and (= :type-text (:type node-desc))
+       (= "" (:font node-desc ""))
+       (coll/any? is-font-pb-field-index?
+                  (:overridden-fields node-desc))))
+
+(defonce ^:private default-gui-scene-dependencies-fn (resource-node/make-ddf-dependencies-fn Gui$SceneDesc))
+
+(defn gui-scene-dependencies [read-opts owner-resource scene-desc]
+  {:pre [(map? scene-desc)]} ; Gui$SceneDesc in map format.
+  (let [default-dependencies (default-gui-scene-dependencies-fn read-opts owner-resource scene-desc)]
+    (if-not (or (:include-editor-dependencies read-opts)
+                (coll/any? scene-node-desc-uses-default-font?
+                           (:nodes scene-desc))
+                (coll/any? layout-node-desc-uses-default-font?
+                           (e/mapcat :nodes
+                                     (:layouts scene-desc))))
+      default-dependencies
+      (into []
+            (distinct)
+            (conj default-dependencies default-font-proj-path)))))
+
 (defn- register [workspace def]
   (let [ext (:ext def)
         exts (if (vector? ext) ext [ext])]
@@ -4688,9 +4674,10 @@
           :build-ext (:build-ext def)
           :node-type GuiSceneNode
           :ddf-type (:pb-class def)
+          :dependencies-fn gui-scene-dependencies
           :load-fn load-gui-scene
           :allow-unloaded-use false ; Sort of works, but disabled until we can fix the file formats to not include all nodes imported from templates.
-          :sanitize-fn (partial sanitize-scene workspace)
+          :sanitize-fn sanitize-gui-scene
           :icon (:icon def)
           :icon-class (:icon-class def)
           :category (localization/message "resource.category.components")

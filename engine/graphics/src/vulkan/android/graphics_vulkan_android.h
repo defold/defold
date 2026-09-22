@@ -28,6 +28,7 @@ namespace dmGraphics
     void     AndroidVulkanInitializeContext(VulkanContext* context);
     bool     AndroidVulkanIsRecommended(const VkPhysicalDeviceProperties* physical_device_properties);
     void     SyncAndroidVulkanWindowSize(VulkanContext* context);
+    void     DestroyAndroidWindowSurface(VkInstance instance, VkSurfaceKHR surface);
     VkResult RecreateAndroidWindowSurface(void* ctx);
 }
 

@@ -4211,7 +4211,8 @@ namespace dmGui
 
     /*# sets the node color
      * Sets the color of the supplied node. The components
-     * of the supplied vector3 or vector4 should contain the color channel values:
+     * of the supplied vector3 or vector4 should contain the color channel values
+     * in the range 0 to 1:
      *
      * Component        | Color value
      * ---------------- | -------------

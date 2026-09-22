@@ -321,7 +321,7 @@
                                           :render-clear-color project-render-clear-color}
                               :passes [pass/outline pass/selection]}}]}))
 
-(defn load-camera [project self _resource camera-desc]
+(defn load-camera [{:keys [project]} {self :node-id camera-desc :source-value}]
   {:pre [(map? camera-desc)]} ; Camera$CameraDesc in map format.
   (concat
     (g/connect project :display-width self :project-display-width)

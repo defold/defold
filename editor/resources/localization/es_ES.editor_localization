@@ -1,0 +1,1335 @@
+# Key naming convention:
+# 1. Use dot-separated hierarchy (from broad to specific)
+# 2. Use at least 2 dot-separated elements
+# 3. Use lower-cased kebab-case
+# 4. Avoid suffixes baked into the last path element (e.g., -label, -button)
+# 5. For dialog elements, use consistent names: title, header, detail, content
+# 6. Use label as a penultimate element of form input keys: <ctx>.label.<input>
+# 7. Use button as a penultimate element of button keys: <ctx>.button.<name>
+# 8. Use ellipsis character (…) instead of triple dots (...)
+
+# Localizations of the Welcome dialog
+welcome.button.open-from-disk = Abrir desde el disco…
+welcome.button.open-selected = Abrir selección
+welcome.button.create-new-project = Crear proyecto nuevo
+welcome.button.cancel-download = Cancelar descarga
+welcome.recent-projects = Proyectos recientes
+welcome.tab.new-project = NUEVO PROYECTO
+welcome.tab.home = MIS PROYECTOS
+welcome.greeting = ¡Bienvenido\! Tan pronto como comiences a trabajar con Defold, todos tus proyectos recientes aparecerán aquí.
+welcome.downloading-project = Descargando {template}…
+welcome.header.open = Abrir
+welcome.header.new-project-from = Crear desde
+welcome.tab.templates = PLANTILLAS
+welcome.tab.tutorials = TUTORIALES
+welcome.tab.samples = EJEMPLOS
+welcome.new-project.default-name = Mi proyecto
+welcome.new-project.title = Título
+welcome.new-project.location = Ubicación
+welcome.open-from-disk.dialog.title = Abrir proyecto
+welcome.open-from-disk.dialog.filter.defold = Archivos de proyecto de Defold
+welcome.new-project.location.dialog.title = Seleccionar nueva ubicación del proyecto
+welcome.new-project.error.no-project-title.title = Sin título de proyecto
+welcome.new-project.error.no-project-title.header = Debes especificar un título para el proyecto
+welcome.new-project.error.invalid-project-title.title = Título del proyecto inválido
+welcome.new-project.error.invalid-project-title.header = No se permiten espacios en blanco alrededor del título del proyecto
+welcome.new-project.error.conflicting-project-location.title = Conflicto de ubicación del proyecto
+welcome.new-project.error.conflicting-project-location.header = Ya existe una carpeta con contenido en la ubicación elegida
+welcome.new-project.error.no-internet-connection.title = No hay conexión a internet
+welcome.new-project.error.no-internet-connection.header = Debes estar conectado a internet para descargar el contenido del proyecto
+welcome.new-project.error.host-unreachable.title = Servidor inaccesible
+welcome.new-project.error.host-unreachable.header = Un cortafuegos podría estar bloqueando conexiones de red
+welcome.new-project.error.host-not-responding.title = El servidor no responde
+welcome.new-project.error.host-not-responding.header = Tiempo de conexión agotado
+welcome.new-project.error.ssl-connection-error.title = Error de conexión SSL
+welcome.new-project.error.ssl-connection-error.header = No se pudo establecer una conexión SSL
+welcome.new-project.error.ssl-connection-error.common-causes = Las causas comunes son\:\n  • Antivirus configurado para escanear conexiones cifradas\n  • Certificado de servidor caducado o mal configurado\n  • Certificado de servidor no confiable\n\nLas siguientes preguntas frecuentes pueden aplicar\: 
+welcome.new-project.error.ssl-connection-error.pkix-faq-entry = Falló la construcción de la ruta PKIX
+
+# Welcome -> New Project -> From Template
+welcome.new-project.empty-project.title = Proyecto vacío
+welcome.new-project.empty-project.description = Elige esta plantilla si deseas empezar con un lienzo en blanco.
+welcome.new-project.mobile-game.title = Juego para móvil
+welcome.new-project.mobile-game.description = Esta plantilla contiene configuraciones útiles y recursos si quieres empezar a construir un juego para dispositivos móviles.
+welcome.new-project.desktop-game.title = Juego para PC
+welcome.new-project.desktop-game.description = Esta plantilla contiene configuraciones útiles y recursos si quieres empezar a construir un juego para el ordenador.
+welcome.new-project.poki-html5-game.title = Juego HTML5 para Poki
+welcome.new-project.poki-html5-game.description = Esta plantilla incluye el SDK de Poki, diseñado para juegos de escritorio y web móviles. También proporciona una opción de exportación rápida a la plataforma Poki para desarrolladores.
+welcome.new-project.native-extension.title = Extensión nativa
+welcome.new-project.native-extension.description = Esta plantilla contiene la configuración básica si quieres empezar a crear una extensión nativa.
+welcome.new-project.basic-3d-project.title = Proyecto básico 3D
+welcome.new-project.basic-3d-project.description = Esta plantilla contiene una configuración básica para hacer renderizado 3D.
+welcome.new-project.platformer-game.title = Juego de plataformas
+welcome.new-project.platformer-game.description = Esta plantilla contiene una configuración básica si quieres comenzar a construir un juego de plataformas.
+welcome.new-project.rive-project.title = Proyecto Rive
+welcome.new-project.rive-project.description = Esta plantilla utiliza la extensión de Rive para empezar.
+
+# Welcome -> New Project -> From Tutorial
+welcome.new-project.side-scroller-tutorial.title = Tutorial de desplazamiento lateral
+welcome.new-project.side-scroller-tutorial.description = En este tutorial para principiantes obtendrás una idea de cómo construir un juego en Defold modificando un juego de desplazamiento lateral muy sencillo.
+welcome.new-project.walking-astronaut-tutorial.title = Tutorial de movimiento de vista superior
+welcome.new-project.walking-astronaut-tutorial.description = En este tutorial para principiantes aprendes cómo capturar pulsaciones del jugador y hacer que el personaje se mueva y anime. También aprenderás sobre los bloques de construcción principales\: objetos del juego, componentes y colecciones.
+welcome.new-project.movement-tutorial.title = Tutorial de movimiento
+welcome.new-project.war-battles-tutorial.title = Tutorial de batallas de guerra
+welcome.new-project.war-battles-tutorial.description = En este tutorial de dificultad media se construyen los cimientos para un juego de disparo de vista superior basado en el paquete de recursos RTS "War Battles".
+welcome.new-project.colorslide-tutorial.title = Tutorial de deslizador de color
+
+# Welcome -> New Project -> From Sample
+welcome.new-project.sample-3d-platformer.title = Kit de inicio 3D de plataformas
+welcome.new-project.sample-3d-platformer.description = Esto es un ejemplo de plataforma 3D con movimiento de personaje fluido, salto, una cámara de órbita, coleccionables, personajes animados, iluminación y sombras.
+welcome.new-project.sample-3d-third-person-playground.title = Entorno de pruebas 3D en tercera persona
+welcome.new-project.linker-sample-game.title = Ejemplo de juego de conectar
+welcome.new-project.roids-sample-game.title = Ejemplo de juego de asteroides
+welcome.new-project.roids-sample-game.description = Esto es un ejemplo completo de juego donde diriges una nave espacial y te abres camino disparando a través de una tormenta de meteoros.
+welcome.new-project.pixel-line-platformer.title = Juego de plataformas pixel
+welcome.new-project.pixel-line-platformer.description = Este es un juego completo de plataformas con un estilo de arte de pixel creado por Kenney.
+welcome.new-project.main-menu-animation.title = Animación del menú principal
+welcome.new-project.main-menu-animation.description = En este ejemplo demostramos efectos para presentar un menú principal.
+welcome.new-project.parallax.title = Efecto paralaje (Parallax en inglés)
+welcome.new-project.parallax.description = En esta muestra demostramos cómo usar un efecto paralaje para simular profundidad en el mundo del juego.
+welcome.new-project.hud.title = Interfaz de usuario (HUD)
+welcome.new-project.hud.description = En esta muestra demostramos los efectos para contar las puntuaciones.
+welcome.new-project.level-complete.title = Nivel completado
+welcome.new-project.level-complete.description = En esta muestra demostramos efectos para mostrar el recuento de puntuaciones que podría ocurrir cuando un nivel se ha completado.
+welcome.new-project.rpg-map-sample.title = Ejemplo de mapa RPG
+welcome.new-project.rpg-map-sample.description = Este ejemplo muestra cómo puedes crear un mapa RPG grande que se desplaza una pantalla a la vez a medida que el héroe progresa.
+welcome.new-project.shadertoy-sample.title = Ejemplo Shadertoy
+welcome.new-project.shadertoy-sample.description = Este ejemplo contiene un shader GLSL que fue tomado de Shadertoy y convertido a Defold. Muestra cómo trabajar con materiales y shaders en Defold.
+welcome.new-project.3d-treasure-scene.title = Escena del Tesoro 3D
+welcome.new-project.3d-treasure-scene.description = Este ejemplo muestra una escena 3D estilizada con animación.
+welcome.new-project.perspective-parallax.title = Perspectiva en paralaje (Parallax en inglés)
+welcome.new-project.perspective-parallax.description = Este ejemplo muestra un efecto de paralaje con la cámara de perspectiva.
+welcome.new-project.lightning-vfx.title = Efectos visuales de relámpagos
+
+# Updater
+updater.button.update-available = Actualización disponible
+updater.button.restart-to-update = Reiniciar para actualizar
+updater.download-or-restart-dialog.title = ¿Instalar actualización?
+updater.download-or-restart-dialog.header = La actualización está lista, pero hay una versión aún más nueva disponible
+updater.download-or-restart-dialog.detail = Puedes instalar la actualización descargada o descargar la más reciente
+updater.platform-not-supported-dialog.title = Plataforma incompatible
+updater.platform-not-supported-dialog.header = Las actualizaciones ya no se proporcionan para esta plataforma
+updater.platform-not-supported-dialog.detail = Las plataformas soportadas son Linux de 64 bits, macOS y Windows
+updater.download-dialog.title = ¿Descargar actualización?
+updater.download-dialog.header = ¡Hay una versión más nueva de Defold disponible\!
+updater.update-failed.title = La actualización ha fallado
+updater.update-failed.header = Se ha producido un error durante la instalación de actualización
+updater.update-failed.detail = Probablemente deberías realizar una instalación nueva
+updater.dialog.title = ¿Instalar actualizaciones y reiniciar?
+updater.dialog.header = ¿Instalar actualización descargada y reiniciar?
+updater.dialog.button.not-now = Ahora no
+updater.dialog.button.download = Descargar actualización
+updater.dialog.button.install-and-restart = Instalar y reiniciar
+updater.dialog.button.download-newer-version = Descargar versión más reciente
+updater.dialog.button.skip-version = Omitir esta versión
+updater.dialog.button.skip-newer-version = Omitir versión más reciente
+updater.release-notes-dialog.title = Actualización disponible
+updater.release-notes-dialog.header = Resumen de lanzamiento Defold - Novedades{count, plural, \=1{ en {version}} other{}}
+updater.release-notes-dialog.button.later = Quizá luego
+updater.release-notes-dialog.button.update-now = Actualizar ahora
+updater.up-to-date-dialog.title = No hay actualizaciones disponibles
+updater.up-to-date-dialog.header = Estás ejecutando la última versión de Defold
+updater.check-failed-dialog.title = La comprobación ha fallado
+updater.check-failed-dialog.header = No se pudo comprobar si hay actualizaciones. Inténtalo de nuevo más tarde.
+updater.download-in-progress-dialog.title = Actualización en progreso
+updater.download-in-progress-dialog.header = Defold ya está descargando una actualización
+
+# Bundled release notes shown on first launch of a version and via Help > Release Notes
+release-notes-tab.title = Notas de lanzamiento
+
+# Time
+time.vague.unknown = Desconocido
+time.vague.just-now = Justo ahora
+time.vague.a-minute-ago = Hace un minuto
+time.vague.a-few-minutes-ago = Hace unos minutos
+time.vague.minutes-ago = Hace {count} minutos
+time.vague.half-an-hour-ago = Hace media hora
+time.vague.an-hour-ago = Hace una hora
+time.vague.a-few-hours-ago = Hace unas horas
+time.vague.hours-ago = Hace {count} horas
+time.vague.a-day-ago = Hace un día
+
+# Common dialogs
+
+dialog.button.close = Cerrar
+dialog.button.quit = Salir
+dialog.button.open-defold-website = Abrir defold.com
+dialog.button.dismiss = Descartar
+dialog.button.report = Informar
+dialog.button.disable-scene-editor = Desactivar editor de escena
+dialog.button.cancel = Cancelar
+dialog.button.delete = Eliminar
+dialog.button.apply = Aplicar
+
+# Error Dialog
+
+dialog.error.title = Error
+dialog.error.header = Ocurrió un error
+dialog.error.footer = Puede ayudarnos a solucionar este problema informando y proporcionando más información sobre lo que estaba haciendo cuando sucedió.
+
+# Build Error Dialog
+
+dialog.build-error.title = Error de compilación
+dialog.build-error.cycle.header = Dependencia cíclica de recursos detectada
+dialog.build-error.cycle.message = {header}. {detail}
+dialog.build-error.cycle.detail.collection = Esto es causado por dos o más colecciones a las que se hace referencia en un bucle desde las colecciones de proxies o fábricas de colecciones. Uno de los recursos es\: {resource}.
+dialog.build-error.cycle.detail.game-object = Esto es causado por dos o más objetos de juego referenciados en un bucle desde las fábricas de objetos de juego. Uno de los recursos es\: {resource}.
+dialog.build-error.cycle.detail.script = Esto es causado por dos o más módulos de Lua requeridos en un bucle. Uno de los recursos es\: {resource}.
+dialog.build-error.cycle.detail.generic = Esto es causado por dos o más recursos referenciados en un bucle. Uno de los recursos es\: {resource}.
+
+# Clean Build Dialog
+
+
+# Defunload Issues Dialog
+
+dialog.defunload-issues.title = Revisar patrones .defunload
+dialog.defunload-issues.advice = Por favor, corrija los patrones en el archivo `.defunload` para evitar cargar recursos no deseados.
+dialog.defunload-issues.report-path = El informe completo ha sido escrito a\:
+dialog.defunload-issues.button.ignore = Ignorar
+dialog.defunload-issues.button.open-report = Abrir informe
+dialog.defunload-issues.report.section-loading-resources = \#\#\# Cargando Recursos \#\#\#
+dialog.defunload-issues.report.loaded-undesired = Los siguientes recursos que coinciden con los patrones `.defunload` fueron cargados por necesidad\:
+
+notification.defunload-issues.action.show-details = Mostrar detalles…
+
+# Launch Failed Dialog
+
+dialog.launch-failed.title = Inicio fallido
+dialog.launch-failed.detail = Si el motor ya está ejecutándose, cierra el proceso manualmente y reinténtalo
+dialog.launch-failed.target.new-local-engine = Nuevo motor local
+
+# Hot Reload Failed Dialog
+
+dialog.hot-reload-failed.header = Falló la recarga de recursos en el motor "{engine}"
+
+# GL support error dialog
+
+dialog.gl-support.title = Soporte de OpenGL insuficiente
+dialog.gl-support.header = Este es un problema muy común. Mira si alguna de estas instrucciones ayuda\:
+dialog.gl-support.linux = OpenGL en linux
+dialog.gl-support.gl-gen-buffers = glGenBuffers
+dialog.gl-support.detail = Puedes continuar con la edición de escena desactivada.
+
+# New folder
+
+dialog.new-folder.title = Nueva carpeta
+dialog.new-folder.header = Introduce el nombre de la nueva carpeta
+dialog.new-folder.label.name = Nombre
+dialog.new-folder.label.preview = Vista previa
+dialog.new-folder.button.create-folder = Crear carpeta
+
+# Target IP dialog
+
+dialog.target-ip.header = Introduce la dirección IP de destino
+dialog.target-ip.label.ip = Dirección IP de destino
+
+# Search in Files Dialogs
+
+dialog.search-in-files.title = Buscar en archivos
+dialog.search-in-files.label.search = Patrón de búsqueda (* para coincidir con cualquier texto)
+dialog.search-in-files.label.types = Tipos de archivos en los que buscar (separados por comas)
+dialog.search-in-files.label.include-libraries = Buscar dentro de las bibliotecas
+dialog.search-in-files.button.keep-results = Mantener resultados
+
+# Target Discovery Log Dialog
+
+dialog.target-discovery-log.title = Registro de detección de destino
+dialog.target-discovery-log.header = Registro de detección de destino
+dialog.target-discovery-log.button.clear-log = Limpiar registro
+dialog.target-discovery-log.button.restart-discovery = Reiniciar detección
+
+# Generic file/directory dialog titles
+
+dialog.directory.title.set-path = Definir ruta
+dialog.directory.title.select = Seleccionar directorio
+dialog.file.title.select = Seleccionar archivo
+
+# Set Custom Resolution dialog
+
+dialog.custom-resolution.title = Definir resolución personalizada
+dialog.custom-resolution.header = Definir resolución de juego personalizada
+dialog.custom-resolution.detail = La ventana del juego se redimensionará a este tamaño
+dialog.custom-resolution.label.width = Ancho
+dialog.custom-resolution.label.height = Alto
+dialog.custom-resolution.button.set-resolution = Definir resolución
+
+# Tracked internal files dialog
+
+dialog.tracked-internal-files.title = Archivos internos bajo control de versiones
+dialog.tracked-internal-files.header = Los archivos internos fueron situados bajo control de versiones
+dialog.tracked-internal-files.content = Parece que los archivos internos como las dependencias descargadas o las compilaciones fueron situadas bajo el control de versiones.\nEsto puede pasar si un 'commit' fue confirmado cuando un archivo .gitignore no estaba configurado apropiadamente.\n\nPara arreglarlo, confirma un 'commit' donde borras los directorios .internal y build. Entonces reabre el proyecto.
+
+# Quit Defold dialog
+
+dialog.quit-defold.title = ¿Salir de Defold?
+dialog.quit-defold.button.cancel = Cancelar y seguir trabajando
+dialog.quit-defold.button.quit = Salir sin guardar
+
+# Project directory unavailable dialog
+
+dialog.project-directory-unavailable.title = Carpeta de proyecto no disponible
+dialog.project-directory-unavailable.header = La carpeta del proyecto ya no se puede encontrar
+dialog.project-directory-unavailable.content = La carpeta del proyecto fue movida, renombrada o eliminada fuera de Defold. Defold debe salir. Los cambios no guardados se perderán.
+
+# Restart Defold dialog
+
+dialog.restart-defold.title = ¿Reiniciar Defold?
+dialog.restart-defold.header = Existen cambios sin guardar. ¿Guardar cambios antes de reiniciar Defold?
+dialog.restart-defold.button.cancel = Cancelar
+dialog.restart-defold.button.save-and-restart = Guardar y reiniciar
+
+# Save and upgrade file formats dialogs
+
+dialog.save-and-upgrade.title.not-safe = No es seguro mejorar los formatos de archivos
+dialog.save-and-upgrade.version-control.header = Control de versiones recomendado
+dialog.save-and-upgrade.version-control.preamble = Debido a posibles problemas de pérdida de datos, las mejoras de formato de archivos solo deben realizarse en proyectos bajo control de versiones.
+dialog.save-and-upgrade.version-control.info.before-manual = Un proyecto bajo control de versiones mantiene un historial de cambios y le permite colaborar con otros enviando cambios a un servidor.\n\nPuedes leer sobre cómo configurar el control de versiones en el 
+dialog.save-and-upgrade.version-control.info.manual-link = Manual de Defold
+dialog.save-and-upgrade.version-control.info.after-manual = .
+dialog.save-and-upgrade.uncommitted.header = Cambios sin confirmar detectados
+dialog.save-and-upgrade.uncommitted.content = Debido a posibles problemas de pérdida de datos, las mejoras de formato de archivos deben empezar desde un directorio de trabajo limpio.\n\nRecomendamos que confirmes un 'commit' con tus cambios locales antes de reintentar la operación.
+dialog.save-and-upgrade.confirm.title = ¿Guardar y mejorar los formatos de archivos?
+dialog.save-and-upgrade.confirm.header = ¿Volver a guardar todos los archivos en el último formato de archivo?
+dialog.save-and-upgrade.confirm.content = Archivos en el proyecto serán guardados en el último formato de archivo. Esta operación no se puede deshacer.\n\nDebido al gran número de archivos afectados potencialmente, deberías coordinarte con tu líder de proyecto antes de hacer esto.
+dialog.save-and-upgrade.button.abort = Abortar
+dialog.save-and-upgrade.button.proceed-anyway = Proceder igualmente
+dialog.save-and-upgrade.button.upgrade-editable-files = Mejorar archivos editables
+dialog.save-and-upgrade.button.upgrade-project-files = Mejorar archivos del proyecto
+dialog.save-and-upgrade.button.upgrade-all-files = Mejorar todos los archivos
+
+# Plugin load error dialog
+
+dialog.plugin-load-error.title = Incapaz de cargar el plugin
+dialog.plugin-load-error.header = El plugin del editor "{plugin}" no es compatible con esta versión del editor. Por favor, edite las dependencias de su proyecto para referirse a una versión adecuada.
+
+# Desktop entry dialogs
+
+dialog.desktop-entry.created.title = Acceso directo creado
+dialog.desktop-entry.created.header = ¡El acceso directo ha sido creado\!
+dialog.desktop-entry.created.content = Ahora puede iniciar el editor Defold desde el menú del sistema.
+dialog.desktop-entry.creation-failed.title = La creación del acceso directo falló
+dialog.desktop-entry.creation-failed.content = Ocurrió un error creando el acceso directo\: {error}
+
+# Texture compressor error dialog
+
+dialog.texture-compressor-error.title = Incapaz de cargar el plugin
+dialog.texture-compressor-error.header = Falló al inicializar los compresores de textura
+dialog.texture-compressor-error.content = Las siguientes clases de plugins de editor no son compatibles con esta versión del editor\:\n\n{classes}\n\nEl proyecto podría no ser compilado sin ellos.\nPor favor edite las dependencias de su proyecto para referirse a una versión adecuada.
+
+# Lua preprocessors error dialog
+
+dialog.lua-preprocessors-error.title = Incapaz de cargar el plugin
+dialog.lua-preprocessors-error.content = Las siguientes clases de plugins de editor no son compatibles con esta versión del editor\:\n\n{classes}\n\nEl proyecto podría no ser compilado sin ellos.\nPor favor edite las dependencias de su proyecto para referirse a una versión adecuada.
+dialog.lua-preprocessors-error.construct.header = Falló al construir preprocesadores de Lua
+dialog.lua-preprocessors-error.initialize.header = Falló al inicializar preprocesadores de Lua
+
+# Lua transpilers error dialog
+
+dialog.lua-transpilers-error.title = Incapaz de cargar el plugin
+dialog.lua-transpilers-error.content = Las siguientes clases de plugins de editor no son compatibles con esta versión del editor\:\n\n{classes}\n\nEl proyecto podría no ser compilado sin ellos.\nPor favor edite las dependencias de su proyecto para referirse a una versión adecuada.
+dialog.lua-transpilers-error.construct.header = Falló al construir transpiladores de Lua
+dialog.lua-transpilers-error.initialize.header = Falló al inicializar transpiladores de Lua
+dialog.lua-transpilers-error.generic.header = Falló al cargar transpiladores de Lua
+
+# Diff view dialogs
+
+dialog.diff-view.title = Diferencias
+dialog.diff-view.unchanged.title = El archivo no se ha modificado
+dialog.diff-view.unchanged.header = El archivo no está modificado
+dialog.diff-view.binary.title = Incapaz de ver diferencias en archivos binarios
+dialog.diff-view.binary.header = Incapaz de ver diferencias en archivos binarios
+
+# Fetch libraries dialog
+
+dialog.fetch-libraries.host-unreachable.title = Falló la obtención
+dialog.fetch-libraries.host-unreachable.header = La obtención fue abortada porque no se pudo acceder al servidor
+dialog.fetch-libraries.host-unreachable.content = Servidor inaccesible\: {host}\n\nPor favor, verifica tu conexión de internet e inténtalo de nuevo.
+
+# Notification view
+
+notification.more = + {count} más
+
+# Fetch libraries notification
+
+notification.fetch-libraries.changed = Las dependencias del proyecto han cambiado. ¿Quieres obtener las bibliotecas ahora?
+notification.fetch-libraries.problems = Se encontraron problemas en las siguientes dependencias\:\n{dependencies}
+notification.fetch-libraries.action.fetch = Obtener bibliotecas
+notification.fetch-libraries.action.open-game-project = Abrir game.project
+notification.fetch-libraries.problem.missing = no encontrado
+notification.fetch-libraries.problem.fetch-failed = falló al obtener
+notification.fetch-libraries.problem.failed-http-request = falló al obtener (HTTP {status})
+notification.fetch-libraries.problem.http-connect-timeout = falló al obtener (tiempo de conexión agotado)
+notification.fetch-libraries.problem.invalid-archive = no es un archivo Defold válido
+notification.fetch-libraries.problem.defold-min-version = requiere Defold {required} o más reciente (la versión de Defold es {current}). Actualiza Defold o comprueba versiones de extensión anteriores por compatibilidad.
+notification.fetch-libraries.problem.install-failed = falló al instalar
+notification.fetch-libraries.problem.unknown = problema desconocido — {problem}
+notification.fetch-libraries.dependency-problem = {uri}\: {problem}
+
+# Editor scripts notification
+
+notification.reload-editor-scripts = Los scripts del editor han cambiado. ¿Quieres recargarlos ahora?
+notification.reload-editor-scripts.action.reload = Recargar scripts del editor
+
+# Reload plugins notification
+
+notification.reload-plugins-failed.action.restart = Reiniciar Defold
+
+# Disabled functionality notification
+
+notification.disabled-functionality.action.enable = Reactivar
+notification.disabled-functionality.action.restart = Reiniciar
+
+# Open custom editor notifications
+
+notification.open-custom-editor-failed.error = No se pudo ejecutar el editor externo "{editor}".\n\nError subyacente del sistema operativo\:\n{error}
+notification.open-custom-editor-failed.action.open-preferences = Abrir preferencias…
+
+# Settings notifications
+
+notification.liveupdate-settings.action.open-game-project = Abrir game.project
+notification.liveupdate-settings.unavailable.error = No se puede abrir la configuración de Live Update\: {reason}
+notification.shared-editor-settings.unavailable.error = No se puede abrir la configuración del editor compartido\: {reason}
+notification.ensure-exists.reason.missing = no se ha configurado ningún archivo de configuración.
+notification.ensure-exists.reason.folder = la ruta configurada apunta a una carpeta.
+
+# Language server notification
+
+notification.lsp.language-server-missing.prompt = No se puede realizar esta acción porque no hay ningún servidor de lenguaje ejecutándose para el lenguaje {language}.
+notification.lsp.language-server-missing.action.about = Acerca de LSP en Defold
+notification.lsp.formatting-failed.prompt = No se puede formatear {path} porque no respondió ningún servidor de lenguaje.
+
+# Asset browser notifications
+
+notification.asset-browser.circular-paste.error = No se puede pegar la carpeta {source} en su subcarpeta {target}.
+
+# Workspace notifications
+
+notification.resource-collision.directory.warning = La carpeta "{resource}" está colisionando con una carpeta con el mismo nombre.
+notification.resource-collision.builtins.warning = La carpeta "{resource}" está colisionando con una carpeta con el mismo nombre en ''builtins''.
+notification.resource-collision.library.warning = La carpeta "{resource}" está colisionando con una carpeta con el mismo nombre en una dependencia del proyecto\: {library}
+
+# Web server notifications
+
+notification.web-server.port-fallback.warning = Falló al iniciar un servidor en el puerto solicitado {requested} ({reason}). Utilizando el puerto de respaldo {fallback} en su lugar.
+
+# Changes view notifications
+
+notification.changes-view.git-error = Debido a un error de Git, las funciones de Git no están disponibles para este proyecto.
+
+# Debug view notifications
+
+notification.debug-view.connect-failed.error = {error}\n\nComprueba que el juego está funcionando y es accesible a través de la red.
+
+# Target notifications
+
+notification.targets.selected-target-unavailable.error = {error}\n\nEl objetivo que has elegido no está disponible.
+
+# Form view dialogs
+
+dialog.form-view.directory-not-in-project.title = Directorio inválido
+dialog.form-view.directory-not-in-project.header = El directorio debe residir dentro del proyecto.
+dialog.form-view.file-not-in-project.title = Archivo inválido
+dialog.form-view.file-not-in-project.header = El archivo debe residir dentro del proyecto.
+
+# Shared editor settings load error dialog
+
+dialog.shared-editor-settings.load-error.title = Error al cargar la configuración compartida del editor
+dialog.shared-editor-settings.load-error.detail = Volviendo a los valores predeterminados. Tu experiencia de usuario puede verse afectada.
+dialog.shared-editor-settings.load-error.content = Archivo\: {file}\n\n{error}
+
+# Updated gitignore dialog
+
+dialog.gitignore-updated.title = Archivo .gitignore actualizado
+dialog.gitignore-updated.header = Archivo .gitignore actualizado
+dialog.gitignore-updated.content = El archivo .gitignore fue actualizado automáticamente para ignorar el resultado de la compilación y los archivos de metadatos. Deberías incluirlo junto con tus cambios la próxima vez que sincronices.
+
+# Asset browser reserved targets dialog
+
+dialog.asset-paste-reserved.title = No se puede pegar
+dialog.asset-paste-reserved.header = Algunos directorios de destino están reservados
+dialog.asset-paste-reserved.content = Los siguientes directorios de destino están reservados\:\n{directories}
+
+# Asset deletion dialogs
+
+dialog.asset-delete-single.title = ¿Eliminar archivo?
+dialog.asset-delete-single.header = ¿Realmente quieres eliminar {name}?
+dialog.asset-delete-multiple.title = ¿Eliminar archivos?
+dialog.asset-delete-multiple.header = ¿Realmente quieres eliminar estos archivos?
+dialog.asset-delete-multiple.content = Estás a punto de eliminar\:{items}
+dialog.asset-delete-multiple.content.item = \n  • {name}
+
+# Rename dialog
+
+dialog.rename.title = Renombrar {name}
+dialog.rename.preview = Vista previa
+dialog.rename.button.rename = Renombrar
+dialog.rename.label.folder = Nuevo nombre de carpeta
+dialog.rename.label.file = Nuevo nombre de archivo
+dialog.rename.header.folder = Renombrar carpeta
+dialog.rename.header.files = Renombrar {n, plural, one {archivo} other {\# archivos}}
+dialog.rename.error.reserved-name = El nombre {name} está reservado
+
+# Name conflict dialog (appears on conflict during rename)
+
+dialog.name-conflict.title = Conflicto de nombres
+dialog.name-conflict.header = El destino tiene {count, plural, one {una entrada con el mismo nombre} other {\# entradas con nombres en conflicto}}.
+dialog.name-conflict.button.name-differently = Nombra diferente
+dialog.name-conflict.button.overwrite-files = Sobreescribir ficheros
+
+# New file dialog
+
+dialog.new-file.title.file = Nuevo archivo
+dialog.new-file.title.resource = Nuevo {type}
+dialog.new-file.header.file = Introduce el nombre del archivo
+dialog.new-file.header.resource = Introduce el nombre del archivo {type}
+dialog.new-file.label.name = Nombre
+dialog.new-file.label.location = Ubicación
+dialog.new-file.label.preview = Vista previa
+dialog.new-file.button.create.file = Crear
+dialog.new-file.button.create.resource = Crear {type}
+
+# List dialogs
+
+dialog.select-item.title = Seleccionar elemento
+dialog.select-item.prompt = Escribe para filtrar
+dialog.select-item.button.ok = Aceptar
+dialog.open-assets.title = Abrir recurso
+dialog.open-assets.button.ok = Abrir
+dialog.referencing-files.title = Archivos de referencia
+dialog.referencing-files.button.ok = Abrir
+dialog.dependencies.title = Dependencias
+dialog.dependencies.button.ok = Abrir
+dialog.add-atlas-images.title = Seleccionar imágenes
+dialog.select-game-object-file.title = Seleccionar archivo de objeto del juego
+dialog.select-collection-file.title = Seleccionar archivo de colección
+dialog.select-component-file.title = Seleccionar archivo de componente
+dialog.select-gui-component.title = Seleccionar {component}
+dialog.select-resource.title = Seleccionar recurso
+dialog.recent-files.title = Archivos recientes
+dialog.recent-files.button.ok = Abrir
+dialog.jump-to-symbol.title = Ir al símbolo
+dialog.jump-to-symbol.prompt = Buscar símbolo…
+dialog.jump-to-symbol.button.ok = Aceptar
+
+# Open resource dialogs
+
+dialog.open-resource.excluded.title = Recurso excluido de la carga
+dialog.open-resource.excluded.header = No se puede abrir "{resource}", ya que se excluyó de la carga por el archivo ".defunload".
+dialog.open-resource.unrecognized.title = No se puede abrir el recurso
+dialog.open-resource.unrecognized.header = No se puede abrir "{resource}", ya que contiene datos no reconocibles. ¿El proyecto podría no tener una extensión necesaria?
+dialog.open-resource.open-file-failed.title = No se pudo abrir el archivo
+dialog.open-resource.open-file-failed.header = No se pudo abrir "{resource}"
+dialog.open-resource.open-file-failed.detail = Esto puede suceder si el tipo de archivo no está asignado a una aplicación en su sistema operativo.\n\nError subyacente del sistema operativo\:\n{error}
+
+# Loading project dialog
+
+dialog.loading-project.header = Cargando proyecto
+
+# Bundle dialog
+
+dialog.bundle.title = Empaquetar aplicación
+dialog.bundle.button.create = Crear empaquetado…
+dialog.bundle.hint.select-output-folder = Proceda a seleccionar la carpeta de salida.
+dialog.bundle.header.linux = Empaquetar aplicación de Linux
+dialog.bundle.header.macos = Empaquetar aplicación de macOS
+dialog.bundle.header.html5 = Empaquetar aplicación HTML5
+dialog.bundle.header.windows = Empaquetar aplicación Windows 
+dialog.bundle.header.ios = Empaquetar aplicación iOS
+dialog.bundle.header.android = Empaquetar aplicación Android
+dialog.bundle.label.variant = Variante
+dialog.bundle.option.variant.debug = Depurar
+dialog.bundle.option.variant.release = Lanzamiento
+dialog.bundle.option.variant.headless = Sin interfaz
+dialog.bundle.label.platform = Plataforma
+dialog.bundle.option.platform.x86_64-linux = X64
+dialog.bundle.option.platform.arm64-linux = Arm64
+dialog.bundle.option.platform.x86_64-win32 = 64-bits
+dialog.bundle.option.identity.none = Ninguna
+dialog.bundle.label.architectures = Arquitecturas
+dialog.bundle.option.architecture.x86_64-macos = x86_64
+dialog.bundle.option.architecture.arm64-macos = arm64
+dialog.bundle.option.architecture.wasm-web = WebAssembly (Wasm)
+dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + soporte para hilos
+dialog.bundle.option.architecture.armv7-android = 32 bits (armv7)
+dialog.bundle.option.architecture.arm64-android = 64-bits (arm64)
+dialog.bundle.option.architecture.x86_64-android = 64-bits (x86_64)
+dialog.bundle.label.sign-application = Firmar aplicación
+dialog.bundle.label.code-signing-identity = Identificación de firma de código
+dialog.bundle.label.provisioning-profile = Perfil de aprovisionamiento
+dialog.bundle.title.choose-provisioning-profile = Elegir perfil de aprovisionamiento
+dialog.bundle.filter.provisioning-profile = Perfiles de aprovisionamiento (*.mobileprovision)
+dialog.bundle.label.on-bundled = Al empaquetar
+dialog.bundle.option.on-bundled.install = Instalar en dispositivo conectado
+dialog.bundle.option.on-bundled.launch = Iniciar aplicación instalada
+dialog.bundle.label.android.keystore = Almacén de clave
+dialog.bundle.label.android.keystore-pass = Contraseña de almacén de clave
+dialog.bundle.label.android.key-pass = Contraseña de clave
+dialog.bundle.label.android.bundle-format = Formato de paquete
+dialog.bundle.option.bundle-format.apk = APK
+dialog.bundle.option.bundle-format.aab = AAB
+dialog.bundle.title.choose-keystore = Elige almacén de clave
+dialog.bundle.filter.keystore = Almacén de clave (*.keystore, *.jks)
+dialog.bundle.title.choose-keystore-pass = Elegir contraseña del almacén de clave
+dialog.bundle.filter.keystore-pass = Contraseña del almacén de clave (*.txt)
+dialog.bundle.title.choose-key-pass = Elegir contraseña de clave
+dialog.bundle.filter.key-pass = Contraseña de clave (*.txt)
+dialog.bundle.hint.android.keystore = Asigna almacén de clave, o deja en blanco para firmar con un certificado de depuración generado automáticamente.
+dialog.bundle.label.texture-compression = Compresión de texturas
+dialog.bundle.option.texture-compression.enabled = Habilitado
+dialog.bundle.option.texture-compression.disabled = Deshabilitado
+dialog.bundle.option.texture-compression.editor = Usar preferencia del editor
+dialog.bundle.label.with-symbols = Generar símbolos de depuración
+dialog.bundle.label.build-report = Generar informe de compilación
+dialog.bundle.label.liveupdate = Publicar contenido Live Update
+dialog.bundle.failed.title = Falló empaquetado
+dialog.bundle.failed.header = Empaquetar el proyecto falló
+dialog.bundle.failed.hint = Por favor, arregla los errores de compilación e inténtalo de nuevo
+dialog.bundle.output-directory.title = Directorio de salida
+dialog.bundle.output-directory.error-file.title = No se puede sobrescribir el archivo
+dialog.bundle.output-directory.error-file.header = No se puede crear un directorio
+dialog.bundle.output-directory.error-file.message = No se puede crear el directorio en la ruta "{path}", hay un archivo con el mismo nombre que el directorio que estamos intentando crear
+dialog.bundle.output-directory.overwrite.title = ¿Sobrescribir el directorio existente?
+dialog.bundle.output-directory.overwrite.header = Ya existe un directorio
+dialog.bundle.output-directory.overwrite.message = ¿Sobrescribir "{path}"?
+dialog.bundle.output-directory.button.overwrite = Sobrescribir
+dialog.bundle.error.architectures-required = Al menos una arquitectura debe ser seleccionada.
+dialog.bundle.error.identity.not-found = No se encontraron identidades de firma de código en este equipo.
+dialog.bundle.error.identity.required = La identidad de firma de código debe establecerse para firmar la aplicación.
+dialog.bundle.error.provisioning.required = El perfil de aprovisionamiento debe estar establecido para firmar la aplicación.
+dialog.bundle.error.provisioning.invalid = Perfil de aprovisionamiento inválido.
+dialog.bundle.error.provisioning.not-found = Archivo de perfil de aprovisionamiento no encontrado.
+dialog.bundle.error.provisioning.not-file = El perfil de aprovisionamiento debe ser un archivo.
+dialog.bundle.error.keystore.not-found = Archivo de almacén de clave no encontrado.
+dialog.bundle.error.keystore.invalid = Almacén de clave inválido.
+dialog.bundle.error.keystore.required-with-pass = El almacén de clave debe estar establecido si la contraseña del almacén de clave está especificada.
+dialog.bundle.error.keystore-pass.not-found = El archivo de la contraseña del almacén de clave no encontrado.
+dialog.bundle.error.keystore-pass.invalid = Archivo de contraseña del almacén de clave inválido.
+dialog.bundle.error.keystore-pass.required-with-keystore = La contraseña del almacén de clave debe estar establecida si el almacén de clave está especificado.
+dialog.bundle.error.key-pass.invalid = Archivo de contraseña de clave no válido.
+dialog.bundle.error.key-pass.required-with-keystore = Almacén de clave debe estar establecido si la contraseña de clave está especificada.
+dialog.bundle.error.bundle-format.required = Ningún formato de paquete seleccionado.
+
+# Editor panes
+
+pane.assets = Recursos
+pane.changed-files = Archivos modificados
+pane.outline = Esquema
+pane.structure = Estructura
+pane.properties = Propiedades
+pane.console = Consola
+pane.curve-editor = Editor de curvas
+pane.build-errors = Errores de compilación
+pane.search-results = Resultados de búsqueda
+pane.breakpoints = Puntos de interrupción
+pane.debugger.call-stack = Pila de llamadas
+pane.debugger.variables = Variables
+
+# Assets
+
+assets.dependencies = Dependencias
+
+# Console
+
+console.button.clear = Limpiar
+console.button.filter = Filtrar
+console.filter.enable-filtering = Habilitar filtrado
+console.filter.add-filter = Añadir filtro (ej\: texto, \!excluir)
+console.search = Buscar
+
+# Breakpoints Tab
+
+breakpoints.button.enable-all = Habilitar todo
+breakpoints.button.disable-all = Deshabilitar todo
+breakpoints.button.toggle-all = Alternar todo
+breakpoints.button.remove-all = Borrar todos
+breakpoints.column.enabled = Habilitado
+breakpoints.column.line = Línea
+breakpoints.column.name = Nombre
+breakpoints.column.condition = Condición
+breakpoints.column.path = Ruta
+breakpoints.context-menu.edit-selected = Editar condición
+breakpoints.context-menu.remove-selected = Eliminar punto de interrupción seleccionado
+breakpoints.context-menu.toggle-selected-enabled = Alternar punto de interrupción seleccionado
+breakpoints.context-menu.go-to-line = Ir a la línea
+
+# Changes view
+
+changes-view.button.diff = Diferencias
+changes-view.button.revert = Revertir
+dialog.changes-revert.title = ¿Revertir cambios?
+dialog.changes-revert.header = ¿Está seguro que desea revertir los cambios en los archivos seleccionados?
+dialog.changes-revert.button.revert-changes = Revertir cambios
+
+# Prefs
+
+prefs.dialog.title = Preferencias
+
+prefs.tab.general = General
+prefs.tab.code = Código
+prefs.tab.extensions = Extensiones
+prefs.tab.tools = Herramientas
+prefs.tab.dev = Desarrollador
+prefs.tab.keymap = Mapa de teclado
+
+# General tab
+prefs.label.workflow.load-external-changes-on-app-focus = Cargar cambios externos al obtener el foco de la aplicación
+prefs.label.workflow.save-on-app-focus-lost = Guardar todo al perder el foco de la aplicación
+prefs.label.bundle.open-output-directory = Abrir la carpeta objetivo del paquete
+prefs.label.build.open-html5-build = Abrir navegador después de "Compilar HTML5"
+prefs.label.build.texture-compression = Activar compresión de texturas
+prefs.label.run.quit-on-escape = Tecla 'Esc' cierra el juego
+prefs.label.asset-browser.track-active-tab = Rastrear pestaña activa en el navegador de recursos
+prefs.label.build.lint-code = Analiza el código al compilar
+prefs.label.window.locale = Idioma del editor
+prefs.label.run.engine-arguments = Argumentos del motor
+prefs.prompt.run.engine-arguments = Un argumento por línea
+prefs.help.run.engine-arguments = Argumentos que se pasarán a los ejecutables de dmengine cuando el editor compile y ejecute.\nUtiliza un argumento por línea. Por ejemplo\:\n--config\=bootstrap.main_collection\=/my dir/1.collectionc\n--verbose\n--graphics-adapter\=vulkan
+
+# Code tab
+prefs.label.code.custom-editor = Editor personalizado
+prefs.label.code.open-file = Abrir archivo
+prefs.label.code.open-file-at-line = Abrir archivo en la línea
+prefs.label.code.font.name = Fuente del editor de código (requiere reiniciar)
+prefs.label.code.zoom-on-scroll = Hacer zoom con la rueda del ratón
+prefs.label.code.hover = Ventana emergente al pasar el cursor
+prefs.help.code.hover = Mostrar ventana emergente de documentación de código al pasar el cursor
+prefs.label.code.auto-closing-parens = Insertar automáticamente paréntesis de cierre
+prefs.label.code.format-on-save = Formatear al guardar
+prefs.help.code.format-on-save = Ejecutar el servidor de formateo de lenguaje en archivos abiertos al guardar
+
+# Extensions tab
+
+# Tools
+prefs.label.tools.adb-path = Ruta ADB
+prefs.help.tools.adb-path = Ruta al comando ADB que podría utilizarse para instalar y ejecutar la aplicación Android cuando esté empaquetada
+prefs.label.tools.ios-deploy-path = Ruta a ios-deploy
+prefs.help.tools.ios-deploy-path = Ruta al comando ios-deploy que podría utilizarse para instalar y ejecutar la aplicación de iOS cuando esté empaquetada
+
+# Dev tab
+prefs.label.dev.custom-engine = Motor personalizado
+
+# Keymap tab
+prefs.keymap.filter.prompt = Filtrar mapa de teclado…
+prefs.keymap.command = Comando
+prefs.keymap.shortcuts = Accesos directos
+prefs.keymap.badge.mouse-binding = Asignaciones de ratón
+prefs.keymap.badge.mouse-modifier = Modificador de ratón
+prefs.keymap.context-menu.new-shortcut = Nuevo atajo…
+prefs.keymap.context-menu.reset-to-default = Reiniciar a valores por defecto
+prefs.keymap.context-menu.remove = Eliminar {shortcut}
+prefs.keymap.context-menu.add = Añadir {shortcut}
+prefs.keymap.new-shortcut = Nuevo atajo "{shortcut}"
+prefs.keymap.new-shortcut.press-desired-combination = Pulse la combinación de teclas deseada
+prefs.keymap.new-shortcut.commit = Pulsa {enter} para confirmar
+prefs.keymap.new-shortcut.commit-or-cancel = Pulsa {enter} para confirmar, {escape} de nuevo para cancelar
+prefs.keymap.warnings = Avisos\:{warnings}
+prefs.keymap.warning = \n• {warning}
+prefs.keymap.warning.conflicts = Conflictos con {shortcuts}
+prefs.keymap.warning.duplicate = La asignación ya existe, será ignorada
+prefs.keymap.mouse-binding.button.left = Izquierdo
+prefs.keymap.mouse-binding.button.middle = Medio
+prefs.keymap.mouse-binding.button.right = Derecho
+prefs.keymap.mouse-binding.section.button = Botón del ratón
+prefs.keymap.mouse-binding.section.modifiers = Modificadores
+prefs.keymap.context-menu.add-mouse-binding = Añadir asignación al ratón
+prefs.keymap.context-menu.reset-mouse-bindings-to-defaults = Reiniciar a valores por defecto
+prefs.keymap.context-menu.edit-modifier = Editar modificador
+prefs.keymap.inherited-from = Heredado de {context}
+
+# Progress
+
+progress.ready = Preparado
+progress.writing = Escribiendo {resource}
+progress.linting = Analizando código…
+progress.fetching-engine = Obteniendo motor…
+progress.executing-pre-build-hooks = Ejecutando scripts de precompilación…
+progress.executing-post-build-hooks = Ejecutando scripts de post-compilación…
+progress.executing-bundle-hook = Ejecutando script de empaquetado…
+progress.installing-updated-libraries = Instalando bibliotecas actualizadas…
+progress.initializing-editor = Inicializando editor {lib}
+progress.loading-editor = Cargando editor
+progress.loading = Cargando
+progress.loading-resource = Cargando {resource}
+progress.processing-resource = Procesando {resource}
+progress.resolving-resource = Resolviendo {resource}
+progress.reading-resource = Leyendo {resource}
+progress.finalizing = Finalizando…
+progress.saving = Guardando…
+progress.compiling = Compilando…
+progress.compiling-resource = Compilando {resource}…
+progress.updating-dependencies = Actualizando dependencias…
+progress.syncing-resources = Sincronizando recursos…
+progress.loading-project = Cargando proyecto…
+progress.loading-external-changes = Cargando cambios externos…
+progress.editor-scripts-reloaded = Scripts del editor recargados a las {time}
+progress.writing-files = Escribiendo archivos…
+progress.caching-save-results = Guardando en caché los resultados…
+progress.reading-timestamps = Leyendo registro de tiempo…
+progress.fetching = Obteniendo {uri}
+progress.downloading-update = Descargando actualización
+progress.extracting-update = Extrayendo actualización
+progress.waiting = Esperando
+progress.bundling = Empaquetando…
+progress.cleaning-engine = Limpiando motor…
+progress.downloading-symbols = Descargando símbolos…
+progress.transpiling-to-lua = Convirtiendo a Lua…
+progress.reading-tasks = Leyendo tareas…
+progress.cleaning = Limpiando…
+progress.generating-report = Generando informe…
+progress.working = Trabajando…
+progress.reading-classes = Leyendo clases…
+progress.downloading-archives = Descargando {count, plural, one {\# archivo} other {\# archivos}}…
+progress.downloading-archive = Descargando {uri}…
+progress.launching-engine = Iniciando motor…
+progress.launched-engine = Iniciado {engine}
+progress.engine-launch-failed = Inicio fallido
+progress.rebooting-engine = Reiniciando {engine}…
+progress.rebooted-engine = Reiniciado {engine}
+progress.engine-reboot-failed = Reinicio fallido
+progress.aborting = Abortando…
+progress.percentage = {percentage}%
+
+# Engine targets
+
+engine.url.unavailable = servicio de motor no disponible
+engine.url.invalid-host = servidor inválido
+engine.name.local = {name} local
+engine.name.with-url = {name} — {url}
+engine.name.with-instance = {name} — instancia {instance}
+
+# Search results: overrides
+
+search.overrides.title.all = Todas las sobrescrituras de propiedades de{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { en}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.list = {list} sobrescrituras de propiedades de{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { en}}}}{resource, select, none {} other { "{resource}"}}
+search.overrides.title.specific = Sobrescrituras de propiedades específicas de{qualifier, select, none {} other { "{qualifier}"}}{qualifier, select, none {} other {{resource, select, none {} other { en}}}}{resource, select, none {} other { "{resource}"}}
+search.column.resource = Recurso
+
+# Menus
+
+menu.file = Archivo
+menu.project = Proyecto
+menu.edit = Editar
+menu.debug = Depurar
+menu.view = Ver
+menu.help = Ayuda
+
+# Commands
+
+command.tooltip = {command}{shortcut, select, none {} other { ({shortcut})}}
+
+command.file.new = Nuevo…
+command.file.new.option.any-file = Archivo
+command.file.new.any-file = Nuevo archivo
+command.file.new-folder = Nueva carpeta
+command.file.open = Abrir…
+command.file.open-as = Abrir como
+command.file.open-as.option.associated-application = Aplicación asociada
+command.file.open-as.option.in-custom-editor = {view} en editor personalizado
+command.file.open-as.option.in-defold-editor = {view} en editor de Defold
+command.file.open-selected = Abrir
+command.file.load-external-changes = Cargar cambios externos
+command.file.save-all = Guardar todo
+command.file.save-and-upgrade-all = Actualizar formatos de archivo…
+command.file.search = Buscar en Archivos…
+command.file.reopen-recent = Reabrir archivo cerrado
+command.private.recent-files.option.entry = {path} • {view}
+command.private.recent-files = Archivos recientes
+command.private.recent-files.option.more = Más…
+command.window.tab.close = Cerrar
+command.window.tab.close-all = Cerrar todo
+command.window.tab.close-others = Cerrar los demás
+command.window.tab.join-groups = Unir pestañas
+command.window.tab.move-to-other-group = Mover a otra pestaña
+command.window.tab.swap-with-other-group = Intercambiar con otra pestaña
+command.file.show-in-assets = Mostrar en navegador de recursos
+command.file.show-in-desktop = Mostrar en escritorio
+command.file.show-references = Archivos de referencia…
+command.file.show-dependencies = Dependencias…
+command.run.hot-reload = Recarga durante ejecución
+command.run.select-target = Objetivo
+command.run.select-target.option.all-launched-instances = Todas las instancias iniciadas
+command.run.select-target.option.new-local-engine = Nuevo motor local
+command.run.stop = Cerrar motor
+command.run.set-instance-count = Cuenta de instancias iniciada
+command.run.set-instance-count.option.count = {count, plural, one {\# instancia} other {\# instancias}}
+command.run.show-target-log = Registro de detección de destino
+command.run.open-profiler = Abrir analizador web
+command.run.open-resource-profiler = Abrir analizador de recursos
+command.run.reset-resolution = Restablecer resolución simulada
+command.run.set-resolution = Definir resolución
+command.run.set-resolution.option.android-devices = Dispositivos Android
+command.run.set-resolution.option.apple = Apple
+command.run.set-resolution.option.custom-resolution = Resolución personalizada…
+command.run.set-resolution.option.handheld = Consola portátil
+command.run.set-resolution.option.ipad = iPad
+command.run.set-resolution.option.iphone = iPhone
+command.run.set-resolution.option.native-resolutions = Resoluciones nativas
+command.run.set-resolution.option.viewport-resolutions = Resoluciones de la ventana de visualización
+command.run.toggle-device-rotated = Dispositivo girado
+command.file.open-liveupdate-settings = Configuración de Live Update
+command.file.open-project = Abrir proyecto…
+command.file.open-shared-editor-settings = Configuración compartida del editor
+command.app.preferences = Preferencias…
+command.app.quit = Salir
+command.project.build = Compilar
+command.project.clean-build = Compilación nueva
+command.project.build-html5 = Compilar HTML5
+command.project.clean-build-html5 = Compilación nueva HTML5
+command.project.bundle = Empaquetar
+command.project.bundle-ios = Aplicación iOS…
+command.project.bundle-android = Aplicación Android…
+command.project.bundle-macos = Aplicación macOS…
+command.project.bundle-windows = Aplicación Windows…
+command.project.bundle-linux = Aplicación Linux…
+command.project.bundle-html5 = Aplicación HTML5…
+command.project.rebundle = Reempaquetar
+command.project.fetch-libraries = Obtener bibliotecas
+command.project.reload-editor-scripts = Recargar scripts del editor
+command.private.clear-override = Borrar sobrescritura de {property}
+command.edit.undo = Deshacer
+command.edit.redo = Rehacer
+command.edit.add-embedded-component = Añadir
+command.edit.add-embedded-component.variant.atlas = Añadir animación
+command.edit.add-embedded-component.variant.collection = Añadir objeto del juego
+command.edit.add-embedded-component.variant.collision-object = Añadir forma
+command.edit.add-embedded-component.variant.collision-object.option.box = Caja
+command.edit.add-embedded-component.variant.collision-object.option.capsule = Cápsula
+command.edit.add-embedded-component.variant.collision-object.option.sphere = Esfera
+command.edit.add-embedded-component.variant.game-object = Añadir componente
+command.edit.add-embedded-component.variant.gui.option.textures = Texturas…
+command.edit.add-embedded-component.variant.gui.option.materials = Materiales…
+command.edit.add-embedded-component.variant.gui.option.fonts = Fuentes…
+command.edit.add-embedded-component.variant.gui.option.layer = Capa
+command.edit.add-embedded-component.variant.gui.option.particlefx = Partícula FX…
+command.edit.add-embedded-component.variant.particlefx = Añadir emisor
+command.edit.add-embedded-component.variant.particlefx.option.circle = Círculo
+command.edit.add-embedded-component.variant.particlefx.option.sphere = Esfera
+command.edit.add-embedded-component.variant.particlefx.option.cone = Cono
+command.edit.add-embedded-component.variant.particlefx.option.2d-cone = Cono 2D
+command.edit.add-embedded-component.variant.particlefx.option.box = Caja
+command.edit.add-embedded-component.variant.tile-map = Añadir Capa
+command.edit.add-embedded-component.variant.tile-source = Añadir
+command.edit.add-embedded-component.variant.tile-source.option.animation = Animación
+command.edit.add-embedded-component.variant.tile-source.option.collision-group = Grupo de colisión
+command.edit.add-referenced-component = Añadir desde archivo
+command.edit.add-referenced-component.variant.atlas = Añadir imágenes…
+command.edit.add-referenced-component.variant.collection = Añadir archivo de objeto del juego
+command.edit.add-referenced-component.variant.game-object = Añadir archivo de componente
+command.edit.add-secondary-embedded-component = Añadir secundario
+command.edit.add-secondary-embedded-component.variant.collection-game-object = Añadir objeto del juego
+command.edit.add-secondary-embedded-component.variant.particlefx = Añadir modificador
+command.edit.add-secondary-embedded-component.variant.particlefx.option.acceleration = Aceleración
+command.edit.add-secondary-embedded-component.variant.particlefx.option.drag = Arrastrar
+command.edit.add-secondary-embedded-component.variant.particlefx.option.radial = Radial
+command.edit.add-secondary-embedded-component.variant.particlefx.option.vortex = Vórtice
+command.edit.add-secondary-referenced-component = Añadir secundario desde archivo
+command.edit.add-secondary-referenced-component.variant.collection = Añadir archivo de colección
+command.edit.add-secondary-referenced-component.variant.collection-game-object = Añadir archivo de objeto del juego
+command.edit.cut = Cortar
+command.edit.copy = Copiar
+command.edit.copy-absolute-path = Copiar ruta completa
+command.edit.copy-require-path = Copiar ruta requerida
+command.edit.copy-resource-path = Copiar ruta de recurso
+command.edit.find = Encontrar…
+command.edit.paste = Pegar
+command.code.select-all = Seleccionar todo
+command.edit.delete = Eliminar
+command.edit.reorder-up = Mover arriba
+command.edit.reorder-down = Mover abajo
+command.edit.rename = Renombrar
+command.edit.pull-up-overrides = Elevar sobrescrituras
+command.edit.pull-up-overrides.variant.property = Elevar sobrescritura {property}
+command.edit.pull-up-overrides.option = Elevar {property_count, select, 1 {"{property}" sobrescritura} other {{property_count} sobrescrituras}} a {target_count, select, 1 {{target, select, undefined {antecesor} other {"{target}"}}} other {{target_count} antecesores}} {aspect_count, select, 0 {} 1 {en {aspect} } other {entre {aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {en "{resource}"} other {de "{resource}"}}} other {a través de {resource_count} recursos}}
+command.edit.push-down-overrides = Propagar sobrescrituras
+command.edit.push-down-overrides.variant.property = Propagar sobrescritura {property}
+command.edit.push-down-overrides.option = Propagar {property_count, select, 1 {"{property}" sobrescritura} other {{property_count} obrescrituras}} a {target_count, select, 1 {{target, select, undefined {descendiente} other {"{target}"}}} other {{target_count} descendientes}} {aspect_count, select, 0 {} 1 {en {aspect} } other {entre {aspect} }}{resource_count, select, 1 {{aspect_count, select, 0 {en "{resource}"} other {de "{resource}"}}} other {a través de {resource_count} recursos}}
+command.edit.show-overrides = Mostrar sobreescritos…
+command.code.find-next = Encuentra siguiente
+command.code.find-previous = Encuentra anterior
+command.code.replace = Reemplazar…
+command.code.replace-next = Remplazar siguiente
+command.code.toggle-comment = Alternar visibilidad comentario
+command.code.reindent-lines = Volver a sangrar líneas
+command.code.format = Formatear documento/selección
+command.code.convert-indentation = Convertir sangría
+command.code.convert-indentation.to-tabs = A tabuladores
+command.code.convert-indentation.to-two-spaces = A dos espacios
+command.code.convert-indentation.to-four-spaces = A cuatro espacios
+command.code.sort-lines = Ordenar líneas
+command.code.sort-lines.case-sensitive = Ordenar líneas (distinguiendo mayúsculas y minúsculas)
+command.code.sort-lines.option.case-insensitive = No distinguir mayúsculas/minúsculas
+command.code.sort-lines.option.case-sensitive = Distinguir mayúsculas y minúsculas
+command.code.select-next-occurrence = Seleccionar siguiente aparición
+command.code.duplicate-selection = Duplicar selección
+command.code.split-selection-into-lines = Dividir selección en líneas
+command.code.goto-definition = Ir a definición
+command.code.goto-line = Ir a línea…
+command.code.jump-to-symbol = Ir al símbolo…
+command.code.show-references = Encontrar referencias
+command.code.toggle-minimap = Mini mapa
+command.code.toggle-indentation-guides = Guías de sangría
+command.code.toggle-visible-whitespace = Espacio en blanco visible
+command.code.zoom.increase = Aumentar el tamaño de la fuente
+command.code.zoom.decrease = Disminuir tamaño de fuente
+command.code.zoom.reset = Restablecer tamaño de fuente
+command.debugger.start = Iniciar/Acoplar
+command.debugger.continue = Continuar
+command.debugger.break = Interrumpir
+command.debugger.step-over = Saltar
+command.debugger.step-into = Entrar en la función
+command.debugger.step-out = Salir de la función
+command.debugger.detach = Desacoplar depurador
+command.debugger.stop = Detener depurador
+command.debugger.toggle-breakpoint = Alternar punto de interrupción
+command.debugger.toggle-breakpoint-enabled = Alternar punto de interrupción activado
+command.debugger.edit-breakpoint = Editar punto de interrupción
+command.scene.set-manipulator-space = Establecer espacio del manipulador
+command.scene.set-manipulator-space.option.world = Espacio del mundo
+command.scene.set-manipulator-space.option.local = Espacio local
+command.scene.set-camera-type = Definir tipo de cámara
+command.scene.set-camera-type.option.orthographic = Cámara ortográfica
+command.scene.set-camera-type.option.perspective = Cámara perspectiva
+command.scene.set-gui-layout = Definir disposición del GUI
+command.scene.toggle-move-whole-pixels = Mover píxeles completos
+command.scene.visibility.toggle-filters = Alternar filtros de visibilidad
+command.scene.visibility.toggle-component-guides = Alternar guías de componentes
+command.scene.visibility.toggle-grid = Alternar cuadrícula
+command.scene.visibility.toggle-selection = Mostrar/Ocultar objetos seleccionados
+command.scene.visibility.hide-unselected = Ocultar objetos no seleccionados
+command.scene.visibility.show-last-hidden = Mostrar últimos objetos ocultos
+command.scene.visibility.show-all = Mostrar todos los objetos ocultos
+command.scene.play = Reproducir
+command.scene.stop = Parar
+command.scene.realign-camera = Realinear cámara
+command.scene.toggle-tile-palette = Seleccionar celda (tile)…
+command.scene.select-erase-tool = Seleccionar borrador
+command.scene.flip-brush-horizontally = Voltear pincel horizontalmente
+command.scene.flip-brush-vertically = Voltear pincel verticalmente
+command.scene.rotate-brush-90-degrees = Girar pincel 90 grados
+command.window.toggle-left-pane = Alternar panel de recursos
+command.window.toggle-changed-files-pane = Alternar archivos modificados
+command.window.toggle-bottom-pane = Alternar panel de herramientas
+command.window.toggle-right-pane = Alternar panel de propiedades
+command.window.show-console = Mostrar consola
+command.window.show-curve-editor = Mostrar editor de curvas
+command.window.show-build-errors = Mostrar errores de compilación
+command.window.show-search-results = Mostrar resultados de búsqueda
+command.dev.reload-css = Recargar hoja de estilo
+command.help.open-logs = Mostrar registros
+command.file.create-desktop-entry = Crear acceso directo en el escritorio
+command.help.open-documentation = Documentación
+command.help.open-forum = Foro de soporte
+command.help.open-editor-server = Abrir servidor del editor
+command.help.open-asset-portal = Encontrar recursos
+command.help.report-issue = Reportar problema
+command.help.report-suggestion = Reportar sugerencia
+command.help.open-issues = Buscar problemas
+command.help.open-donations = Apoyo al desarrollo
+command.help.open-release-notes = Notas de lanzamiento
+command.help.check-for-updates = Chequear actualizaciones
+command.app.about = Acerca de
+command.vcs.diff = Diff (ver diferencias)
+command.vcs.revert = Revertir
+
+# Code editor – find bar
+
+code.find.word = Palabra
+code.find.case = Mayúscula/minúscula
+code.find.prev = Anterior
+code.find.next = Siguiente
+code.replace.next = Reemplazar
+code.replace.all = Reemplazar todo
+
+# About dialog
+
+dialog.about.label.version = Versión\:
+dialog.about.label.channel = Canal\:
+dialog.about.label.build-time = Tiempo de compilación\:
+dialog.about.label.editor-sha1 = Editor SHA1\:
+dialog.about.label.engine-sha1 = Motor SHA1\:
+dialog.about.value.unavailable = No disponible
+dialog.about.footer.copyright = Copyright © 2009-2025
+dialog.about.footer.foundation = Fundación Defold
+dialog.about.sponsor = Fondo de apoyo al desarrollo Fundación Defold
+
+# Overrides
+
+override.aspect.layout = Disposición {layout}
+override.aspect.layout.kind = {count, plural, one {\# Disposición} other {\# Disposiciones}}
+override.aspect.generic.kind = {count, plural, one {\# Aspecto} other {\# Aspectos}}
+
+# GUI
+
+gui.layout.default = Predeterminada
+
+# UI
+
+ui.combo-box.filter-prompt = Escribe para filtrar
+ui.combo-box.no-items = No hay elementos disponibles
+ui.combo-box.not-found = No se encontraron elementos
+
+# Editing operations
+
+operation.atlas.add-animation = Añadir animación
+operation.atlas.add-images = Añadir imágenes
+operation.atlas.move-pivot-point = Mover punto de pivote
+operation.collision-object.add-shape = Añadir forma
+operation.collection.add-collection = Añadir colección
+operation.collection.add-game-object = Añadir objeto del juego
+operation.game-object.add-component = Añadir componente
+operation.gui.add-gui-node = Añadir nodo GUI
+operation.gui.add-layer = Agregar capa
+operation.gui.add-layout = Añadir disposición
+operation.gui.add-resources = Añadir {type}
+operation.particlefx.add-emitter = Añadir emisor
+operation.particlefx.add-modifier = Añadir modificador
+operation.property.clear = Borrar {property}
+operation.property.set = Establecer {property}
+operation.scene.move = Mover
+operation.scene.rotate = Rotar
+operation.scene.scale = Escalar
+operation.cut = Cortar
+operation.delete = Eliminar
+operation.drop = Soltar
+operation.paste = Pegar
+operation.select = Seleccionar
+operation.tile-map.add-layer = Agregar capa
+
+# Font Styles
+
+
+# Scene View Popups
+
+scene-popup.reset-defaults-button = Restablecer a predeterminados
+scene-popup.grid.plane = Plano
+scene-popup.grid.color = Color
+scene-popup.grid.opacity = Opacidad
+scene-popup.camera.move-speed = Velocidad de movimiento
+scene-popup.camera.look-sensitivity = Velocidad de mirada
+scene-popup.camera.fov = Campo de visión
+scene-popup.camera.invert-y = Invertir Y
+scene-popup.camera.walking-mode = Modo caminar
+scene-popup.scene-visibility.visibility-filters = Filtros de visibilidad
+scene-popup.scene-visibility.collision-shapes = Formas de colisión
+scene-popup.scene-visibility.camera = Cámara
+scene-popup.scene-visibility.gui-bounds = Límites de GUI
+scene-popup.scene-visibility.gui-shapes = Formas de GUI
+scene-popup.scene-visibility.gui-particle-effects = Efectos de partículas GUI
+scene-popup.scene-visibility.gui-spine-scenes = Escenas Spine de GUI
+scene-popup.scene-visibility.gui-text = Texto de GUI
+scene-popup.scene-visibility.lights = Luces
+scene-popup.scene-visibility.models = Modelos
+scene-popup.scene-visibility.particle-effects = Efectos de Partícula
+scene-popup.scene-visibility.skeletons = Esqueletos
+scene-popup.scene-visibility.spine-scenes = Escenas Spine
+scene-popup.scene-visibility.sprites = Sprites
+scene-popup.scene-visibility.text = Texto
+scene-popup.scene-visibility.tile-maps = Tile Maps (mapas de celdas)
+scene-popup.scene-visibility.component-guides = Guía de componentes
+scene-popup.scene-visibility.scene-visibility-bounds = Límites de visibilidad de escena
+
+# Properties
+
+property.tooltip = {help, select, none {} other {{help}\n\n}}Disponible como `{id}` en scripts del editor.
+
+# Properties: universal
+
+property.blend-mode = Modo de fusión
+property.id = Id
+property.id.tooltip = El identificador utilizado para dirigirse a esta instancia de colección, objeto del juego, o componente en tiempo de ejecución. Debe ser único entre sus hermanos; junto con la jerarquía, forma la URL del elemento.
+property.image = Imagen
+property.image.tooltip = El origen del archivo de imagen utilizado para construir este recurso. En un atlas es una imagen para ser empaquetada; en una fuente de celdas (tile source) contiene la cuadrícula de las celdas.
+property.material = Material
+property.material.tooltip = El material utilizado para renderizar este elemento. Define los shaders y sus entradas, así que elige uno compatible con la geometría y texturas del elemento.
+property.name = Nombre
+property.name.tooltip = El nombre utilizado para identificar esta entrada o recurso. Utilice un nombre único y descriptivo cuando otras entradas o APIs en tiempo de ejecución necesitan referirse a él.
+property.path = Ruta
+property.path.tooltip = El recurso del proyecto utilizado como prototipo para esta colección, objeto del juego o componente. Los cambios en el prototipo se reflejan en todos los casos, mientras que las sobrescrituras de propiedades específicas de las instancias siguen siendo locales.
+property.position = Posición
+property.position.tooltip = La translación a lo largo de los ejes X, Y, y Z, relativos a su padre. Moviendo un padre también mueve sus hijos.
+property.rotation = Rotación
+property.rotation.tooltip = La orientación alrededor de los ejes X, Y, y Z en grados, relativos a su padre. Rotar un padre también rota sus hijos.
+property.scale = Escala
+property.scale.tooltip = Multiplica el tamaño del elemento a lo largo de los ejes X, Y, y Z relativos a su padre. Un valor de `1` mantiene la escala original.
+property.size = Tamaño
+property.size.tooltip = El ancho, alto, y si es aplicable, la profundidad del elemento. Cuando es solo de lectura, el tamaño es calculado automáticamente por el contenido del elemento o recursos de renderizado. Para nodos GUI, el tamaño también define los límites usados por interacción de usuario.
+property.url = URL
+property.url.tooltip = La dirección de solo lectura en tiempo de ejecución derivada de la jerarquía y el **Id**. Apunta a un objeto del juego o componente, o sirve como prefijo de dirección para los contenidos de una instancia de colección.
+
+# Properties: appmanifest
+
+property.appmanifest.physics-2d = Física 2D
+property.appmanifest.physics-2d.tooltip = Selecciona la implementación de Box2D para incluir, o **nunca** para eliminar la física 2D y reducir el tamaño del motor. Box2D 3 puede comportarse de manera diferente a la implementación antigua, por lo que los proyectos existentes pueden necesitar ajustes de la física.
+property.appmanifest.physics-3d = Física 3D
+property.appmanifest.physics-3d.tooltip = Incluye el motor de física 3D de bala. Deshabilita esto cuando el proyecto no utiliza físicas 3D para reducir el tamaño del motor.
+property.appmanifest.rig+model = Rig + Modelo
+property.appmanifest.rig+model.tooltip = Elige si incluir tanto el renderizado de modelos como la animación de rig, solo la funcionalidad de rig o ninguno de los dos. Excluir la funcionalidad no usada reduce el tamaño del motor.
+property.appmanifest.exclude-record = Excluir registro
+property.appmanifest.exclude-record.tooltip = Elimina el soporte de grabación de vídeo de escritorio usado por el mensaje del sistema `start_record`. Actívalo cuando el proyecto no graba el juego para reducir el tamaño del motor.
+property.appmanifest.profiler = Perfilador
+property.appmanifest.profiler.tooltip = Elige qué compilaciones incluyen la funcionalidad del perfilador. **Sólo para depuración** lo excluye de las versiones de lanzamiento, **nunca** lo excluye totalmente, y **Siempre** también lo incluye en las versiones de lanzamiento.
+property.appmanifest.exclude-sound = Excluir sonido
+property.appmanifest.exclude-sound.tooltip = Elimina toda la funcionalidad de reproducción de sonido del motor. Activa esto solo cuando el proyecto no reproduzca audio.
+property.appmanifest.exclude-gui = Excluir GUI
+property.appmanifest.exclude-gui.tooltip = Eliminar recursos GUI, componentes y soporte Lua del motor. Actívalo solo cuando el proyecto no use escenas GUI o scripts.
+property.appmanifest.exclude-particle-fx = Excluir partícula FX
+property.appmanifest.exclude-particle-fx.tooltip = Elimina recursos de efectos de partículas, componentes y soporte de Lua, incluyendo nodos de partículas en escenas GUI. Las escenas GUI sin nodos de partículas permanecen soportadas.
+property.appmanifest.exclude-tilemap = Excluir Tilemaps (mapas de celdas)
+property.appmanifest.exclude-tilemap.tooltip = Elimina los recursos de mapas de celdas, los componentes y el soporte Lua del motor. Actívalo solo cuando el proyecto no use los mapas de celdas.
+property.appmanifest.exclude-sound-decoder-wav = Excluir decodificador de sonido\: WAV
+property.appmanifest.exclude-sound-decoder-wav.tooltip = Elimina el soporte para los recursos de sonido `.wav`. Activa esto solo cuando el proyecto no reproduzca el audio WAV.
+property.appmanifest.exclude-sound-decoder-ogg = Excluir decodificador de sonido\: OGG
+property.appmanifest.exclude-sound-decoder-ogg.tooltip = Elimina soporte para recursos de sonido Ogg Vorbis. Activa esto solo cuando el proyecto no reproduce audio `.ogg`.
+property.appmanifest.include-sound-decoder-opus = Incluir decodificador de sonido\: Opus
+property.appmanifest.include-sound-decoder-opus.tooltip = Incluye soporte para recursos de sonido Ogg Opus. El decodificador Opus está excluido por defecto y es necesario para reproducir audio `.opus`.
+property.appmanifest.exclude-input = Excluir interacción de usuario
+property.appmanifest.exclude-input.tooltip = Elimina toda la interacción de usuario del motor. Activa esto solo cuando el proyecto no utiliza el teclado, el ratón, toques de pantalla, el gamepad u otra interacción.
+property.appmanifest.exclude-liveupdate = Excluir Live Update
+property.appmanifest.exclude-liveupdate.tooltip = Elimina la funcionalidad Live Update usada para montar recursos excluidos del paquete inicial. Habilita esto solo cuando el proyecto no descarga y monta contenido de Live Update.
+property.appmanifest.exclude-image = Excluir imagen
+property.appmanifest.exclude-image.tooltip = Elimina el módulo Lua `image` del motor. Activa esto solo cuando los scripts del proyecto no utilizan sus funciones de carga de imagen y datos de imagen.
+property.appmanifest.exclude-types = Excluir tipos de datos
+property.appmanifest.exclude-types.tooltip = Elimina el módulo Lua `types` del motor. Activa esto solo cuando los scripts del proyecto no usen sus funciones de comprobación de tipos de datos.
+property.appmanifest.exclude-basis-transcoder = Excluir Transcodificador Basis
+property.appmanifest.exclude-basis-transcoder.tooltip = Elimina el transcodificador de textura Basis Universal. Activa esto solo cuando ningún perfil de textura utiliza compresión Basis Universal.
+property.appmanifest.use-android-support-lib = Usar biblioteca de soporte para Android
+property.appmanifest.use-android-support-lib.tooltip = Utiliza la biblioteca de soporte de Android obsoleta en lugar de AndroidX. Habilita esto solo para dependencias antiguas que no hayan migrado a AndroidX.
+property.appmanifest.graphics = Gráficos
+property.appmanifest.graphics.tooltip = Selecciona el backend gráfico incluido en las compilaciones de Windows y Linux. Incluyendo tanto OpenGL como Vulkan permiten un respaldo cuando el backend preferido no está disponible, pero aumenta el tamaño del motor.
+property.appmanifest.graphics-osx = Gráficos (macOS)
+property.appmanifest.graphics-osx.tooltip = Selecciona el backend gráfico incluido en las compilaciones de macOS. Vulkan es el predeterminado; una opción combinada incluye un backend de respaldo pero aumenta el tamaño del motor.
+property.appmanifest.graphics-ios = Gráficos (iOS)
+property.appmanifest.graphics-ios.tooltip = Selecciona el backend gráfico incluido en las compilaciones de iOS. OpenGL es el valor predeterminado; una opción combinada incluye un backend de respaldo pero aumenta el tamaño del motor.
+property.appmanifest.graphics-android = Gráficos (Android)
+property.appmanifest.graphics-android.tooltip = Selecciona el backend gráfico incluido en las compilaciones de Android. Por defecto incluye ambos, prefiriendo Vulkan cuando está disponible y OpenGL ES como respaldo.
+property.appmanifest.graphics-web = Gráficos (HTML5)
+property.appmanifest.graphics-web.tooltip = Selecciona el backend de gráficos incluido en las compilaciones HTML5. WebGL es el predeterminado; incluyendo ambos WebGL y WebGPU permite un respaldo, pero aumenta el tamaño del motor.
+property.appmanifest.use-font-layout = Usar sistema de disposición de texto completo
+property.appmanifest.use-font-layout.tooltip = Incluye el sistema completo de disposición de texto requerido para la generación de fuentes SDF en tiempo de ejecución a partir de fuentes TrueType. Rasterización de glifos en tiempo de ejecución también requiere `font.runtime_generation` en `game.project`; soporta características como texto de derecha a izquierda.
+property.appmanifest.use-rich-text = Usar texto enriquecido
+property.appmanifest.use-rich-text.tooltip = Incluye análisis de texto enriquecido y efectos de estilo para etiquetas y texto GUI. Deshabilita esto para reducir el tamaño del motor; entonces el texto etiquetado se mostrará como texto plano.
+
+# Properties: atlas
+
+
+# Properties: camera
+
+
+# Properties: collection proxy
+
+
+# Properties: collision object
+
+
+# Properties: compute
+
+
+# Properties: cubemap
+
+
+# Properties: factory
+
+
+# Properties: font
+
+
+# Properties: gui
+
+
+# Properties: label
+
+
+# Properties: light
+
+
+# Properties: mesh
+
+
+# Properties: model
+
+
+# Properties: particlefx
+
+
+
+
+# Properties: sound
+
+
+# Properties: sprite
+
+
+# Properties: tile map
+
+
+# Properties: tile source
+
+
+# Outline
+
+
+# Resources
+
+
+
+
+
+# Forms
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Quick Help
+
+
+# Error Messages
