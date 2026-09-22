@@ -30,7 +30,8 @@
             [internal.graph.types :as gt]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
-            [util.digest :as digest]))
+            [util.digest :as digest]
+            [util.fn :as fn]))
 
 (set! *warn-on-reflection* true)
 
@@ -172,7 +173,7 @@
 (defn loaded?
   "Returns true if the specified node-id corresponds to a resource that has been
   loaded. The node-id must refer to an existing resource node. A resource node
-  can exist in the project graph in an unloaded state, for example if its
+  can exist in the graph in an unloaded state, for example if its
   proj-path matches a pattern listed in the .defunload file."
   ([resource-node-id]
    (loaded? (g/now) resource-node-id))
@@ -213,15 +214,42 @@
   ([resource-node-id evaluation-context]
    (g/valid-node-value resource-node-id :dirty evaluation-context)))
 
-(defn- make-ddf-dependencies-fn-raw [^Class pb-class]
-  (fn ddf-dependencies-fn [source-value]
-    (coll/into->
-      (protobuf/resource-field-value-paths pb-class source-value) []
-      (map second) ; => proj-paths
-      (remove coll/empty?)
-      (distinct))))
+(defn- make-pb-class-dependencies-fn-raw [^Class pb-class]
+  {:pre [(protobuf/pb-class? pb-class)]}
+  (fn pb-class-dependencies-fn [read-opts owner-resource pb-map]
+    (let [resource-field-value-paths (protobuf/resource-field-value-paths pb-class pb-map)
+          resolve-proj-path-fn (:resolve-proj-path-fn read-opts)]
+      (coll/into-> resource-field-value-paths []
+        (map second) ; => seq of proj-path-or-relative-path
+        (remove coll/empty?)
+        (map #(resolve-proj-path-fn owner-resource %))
+        (distinct)))))
 
-(def make-ddf-dependencies-fn (memoize make-ddf-dependencies-fn-raw))
+(def make-pb-class-dependencies-fn (fn/memoize make-pb-class-dependencies-fn-raw))
+
+(defn make-ddf-dependencies-fn
+  ([^Class pb-class]
+   (make-ddf-dependencies-fn pb-class []))
+  ([^Class pb-class editor-dependencies]
+   {:pre [(vector? editor-dependencies)
+          (coll/every? resource/proj-path? editor-dependencies)]}
+   (let [has-editor-dependencies (not (coll/empty? editor-dependencies))
+         pb-class-dependencies-fn (make-pb-class-dependencies-fn pb-class)]
+     (fn ddf-dependencies-fn [read-opts owner-resource pb-map]
+       {:pre [(map? pb-map)]} ; pb-class instance in map format.
+       (let [pb-class-dependencies (pb-class-dependencies-fn read-opts owner-resource pb-map)]
+         (cond
+           (or (not has-editor-dependencies)
+               (not (:include-editor-dependencies read-opts)))
+           pb-class-dependencies
+
+           (coll/empty? pb-class-dependencies)
+           editor-dependencies
+
+           :else
+           (coll/into-> [pb-class-dependencies editor-dependencies] []
+             cat
+             (distinct))))))))
 
 (defn owner-resource-node-id
   ([node-id]
@@ -288,42 +316,58 @@
                :path (path-fn pb-map path)))
            (coll/search-with-path pb-map init-path match-fn)))))
 
-(defn register-ddf-resource-type [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn sanitize-fn search-fn pb-encode-fn icon view-types tags tag-opts label built-pb-class] :as args}]
+(defn register-ddf-resource-type
+  "Registers a protobuf resource type. The optional :sanitize-fn receives
+  [read-opts owner-resource source-value] and returns the sanitized source-value.
+  The owner-resource is the containing resource, or nil for a template without
+  an owner. The same read-opts map is passed to :read-fn and :sanitize-fn. See
+  workspace/make-read-opts for details."
+  [workspace & {:keys [editable ext node-type ddf-type read-defaults load-fn dependencies-fn editor-dependencies sanitize-fn search-fn pb-encode-fn icon view-types tags tag-opts label built-pb-class] :as args}]
   {:pre [(protobuf/pb-class? ddf-type)
          (or (nil? built-pb-class) (protobuf/pb-class? built-pb-class))]}
   (let [read-defaults (boolean read-defaults)
         read-raw-fn (if read-defaults
-                      (partial protobuf/read-map-with-defaults ddf-type)
-                      (partial protobuf/read-map-without-defaults ddf-type))
-        read-fn (cond->> read-raw-fn
-                         (some? sanitize-fn) (comp sanitize-fn))
+                      (fn read-with-defaults [_read-opts _owner-resource readable]
+                        (protobuf/read-map-with-defaults ddf-type readable))
+                      (fn read-without-defaults [_read-opts _owner-resource readable]
+                        (protobuf/read-map-without-defaults ddf-type readable)))
+        read-fn (if-not sanitize-fn
+                  read-raw-fn
+                  (fn read-fn [read-opts owner-resource readable]
+                    (let [source-value (read-raw-fn read-opts owner-resource readable)]
+                      (sanitize-fn read-opts owner-resource source-value))))
         write-fn (cond-> (partial protobuf/map->str ddf-type)
-                         (some? pb-encode-fn) (comp pb-encode-fn))
+                   (some? pb-encode-fn) (comp pb-encode-fn))
         search-fn (or search-fn default-ddf-resource-search-fn)
+        editor-dependencies (or editor-dependencies [])
+        dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type editor-dependencies))
+        built-pb-class (or built-pb-class ddf-type)
         args (-> args
-                 (dissoc :read-defaults :pb-encode-fn)
+                 (dissoc :editor-dependencies :read-defaults :pb-encode-fn)
                  (assoc :textual? true
-                        :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
+                        :dependencies-fn dependencies-fn
                         :read-fn read-fn
                         :write-fn write-fn
                         :search-fn search-fn
                         :test-info {:type :ddf
                                     :ddf-type ddf-type
                                     :read-defaults read-defaults
-                                    :built-pb-class (or built-pb-class ddf-type)}))]
+                                    :built-pb-class built-pb-class}))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
+
+(defn- read-settings [_read-opts _owner-resource readable]
+  (with-open [setting-reader (io/reader readable)]
+    (settings-core/parse-settings setting-reader)))
 
 (defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn meta-settings icon view-types tags tag-opts label] :as args}]
   {:pre [(seqable? meta-settings)]}
-  (let [read-fn (fn [resource]
-                  (with-open [setting-reader (io/reader resource)]
-                    (settings-core/parse-settings setting-reader)))
-        write-fn (comp #(settings-core/settings->str % meta-settings :multi-line-list)
+  (let [write-fn (comp #(settings-core/settings->str % meta-settings :multi-line-list)
                        settings-core/settings-with-value)
         args (assoc args
                :textual? true
-               :read-fn read-fn
+               :read-fn read-settings
                :write-fn write-fn
+               :dependencies-fn (settings-core/make-settings-dependencies-fn meta-settings)
                :search-fn settings-core/raw-settings-search-fn
                :test-info {:type :settings
                            :meta-settings meta-settings})]

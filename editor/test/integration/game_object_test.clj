@@ -21,7 +21,8 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt])
   (:import [java.io StringReader]))
 
 (set! *warn-on-reflection* true)
@@ -56,10 +57,12 @@
 
 (deftest embedded-components
   (test-util/with-loaded-project
-    (let [resource-types (game-object/embeddable-component-resource-types workspace)
+    (let [basis (g/now)
+          read-opts (workspace/make-read-opts basis workspace)
+          resource-types (game-object/embeddable-component-resource-types workspace)
           go-id (project/get-resource-node project "/game_object/test.go")
           go-resource (g/node-value go-id :resource)
-          go-read-fn (:read-fn (resource/resource-type go-resource))]
+          go-resource-type (resource/resource-type go-resource)]
       (doseq [resource-type resource-types]
         (testing (:ext resource-type)
           (with-open [_ (test-util/make-system-reverter)]
@@ -67,7 +70,7 @@
             (let [save-data (g/node-value go-id :save-data)
                   save-value (:save-value save-data)
                   load-value (with-open [reader (StringReader. (resource-node/save-data-content save-data))]
-                               (go-read-fn reader))
+                               ((:read-fn go-resource-type) read-opts go-resource reader))
                   saved-embedded-components (:embedded-components save-value)
                   loaded-embedded-components (:embedded-components load-value)
                   [only-in-saved only-in-loaded] (data/diff saved-embedded-components loaded-embedded-components)]
@@ -83,7 +86,7 @@
   (test-util/with-loaded-project
     (let [game-object-path "/game_object/embedded_components.go"
           game-object (project/get-resource-node project game-object-path)
-          embedded-component (ffirst (g/sources-of game-object :child-scenes))]
+          embedded-component (some-> (first (g/inputs (g/now) game-object :child-scenes)) gt/source-id)]
       (doseq [original-scale
               (mapv #(with-meta % {:version "original"})
                     [[(float 1.0) (float 1.0) (float 1.0)]

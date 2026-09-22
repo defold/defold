@@ -177,6 +177,7 @@ if(FONT_RENDERER_IS_DESKTOP)
   set(FONT_RENDERER_JAVA_ROOT "${FONT_SRC_DIR}/java")
   set(FONT_RENDERER_GENERATED_JAVA_ROOT "${FONT_RENDERER_JAVA_ROOT}")
   set(FONT_RENDERER_GENERATED_JAVA_PACKAGE "${FONT_RENDERER_GENERATED_JAVA_ROOT}/com/dynamo/bob/font/generated")
+  set(FONT_RENDERER_BINDINGS_MANIFEST "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/bindings.json")
   set(FONT_RENDERER_BINDING_GENERATOR "${FONT_ROOT}/scripts/generate_font_renderer_bindings.py")
   set(DEFOLD_JEXTRACT_EXECUTABLE "jextract" CACHE FILEPATH "Java 25 jextract executable")
   set(FONT_RENDERER_GENERATED_JAVA
@@ -193,6 +194,9 @@ if(FONT_RENDERER_IS_DESKTOP)
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcMarkupNode.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcMarkupSpan.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcMarkupString.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcStyle.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcStyleData.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcStyleEffect.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcParams.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcProperties.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcTexture.java")
@@ -208,8 +212,8 @@ if(FONT_RENDERER_IS_DESKTOP)
             --output "${FONT_RENDERER_GENERATED_JAVA_ROOT}"
     DEPENDS "${FONTC_SRC_DIR}/fontc.h" "${FONT_RENDERER_BINDING_GENERATOR}"
     COMMENT "Generating Java 25 FFM bindings for fontc.h")
-  # Generated bindings are committed. Normal builds only verify their embedded
-  # header hash so jextract is needed solely when regenerating them explicitly.
+  # Generated bindings are committed. Normal builds only verify their manifest
+  # hashes so jextract is needed solely when regenerating them explicitly.
   set(FONT_RENDERER_BINDINGS_STAMP "${CMAKE_CURRENT_BINARY_DIR}/font-renderer-bindings.stamp")
   add_custom_command(
     OUTPUT "${FONT_RENDERER_BINDINGS_STAMP}"
@@ -219,7 +223,8 @@ if(FONT_RENDERER_IS_DESKTOP)
             --include-dir "${FONT_ROOT}/../dlib/src"
             --output "${FONT_RENDERER_GENERATED_JAVA_ROOT}"
     COMMAND "${CMAKE_COMMAND}" -E touch "${FONT_RENDERER_BINDINGS_STAMP}"
-    DEPENDS "${FONTC_SRC_DIR}/fontc.h" "${FONT_RENDERER_BINDING_GENERATOR}" ${FONT_RENDERER_GENERATED_JAVA}
+    DEPENDS "${FONTC_SRC_DIR}/fontc.h" "${FONT_RENDERER_BINDING_GENERATOR}"
+            "${FONT_RENDERER_BINDINGS_MANIFEST}" ${FONT_RENDERER_GENERATED_JAVA}
     COMMENT "Verifying Java 25 FFM bindings for fontc.h")
   add_custom_target(verify_font_renderer_ffm DEPENDS "${FONT_RENDERER_BINDINGS_STAMP}")
   add_custom_command(

@@ -121,8 +121,14 @@ updater.dialog.button.not-now = 稍后​​​​​
 updater.dialog.button.download = 下载更新
 updater.dialog.button.install-and-restart = 安装并重启
 updater.dialog.button.download-newer-version = 下载新版本
+updater.release-notes-dialog.title = 有可用更新
+updater.release-notes-dialog.button.update-now = 立即更新
+updater.up-to-date-dialog.title = 已是最新版本
+updater.up-to-date-dialog.header = 您当前使用的是最新版本的 Defold
+updater.download-in-progress-dialog.title = 正在更新
 
 # Bundled release notes shown on first launch of a version and via Help > Release Notes
+release-notes-tab.title = 更新日志
 
 # Time
 time.vague.unknown = 未知
@@ -168,12 +174,6 @@ dialog.build-error.cycle.detail.generic = 这是由两个或多个资源因循�
 dialog.clean-build.title = 执行纯净构建？
 dialog.clean-build.header = 确定要执行纯净构建吗？
 dialog.clean-build.button.clean = 纯净构建
-
-# Debugging Not Supported Dialog
-
-dialog.debugging-not-supported.title = 不支持调试
-dialog.debugging-not-supported.header = 此项目无法与调试器一起使用
-dialog.debugging-not-supported.content = 配置为禁用共享脚本状态。\n\n除非特别需要不同的脚本状态，否则建议修改 game.project 中的 script.shared_state 属性。
 
 # Defunload Issues Dialog
 
@@ -273,6 +273,7 @@ dialog.quit-defold.button.quit = 不保存退出
 
 # Restart Defold dialog
 
+dialog.restart-defold.button.cancel = 取消
 
 # Save and upgrade file formats dialogs
 
@@ -522,18 +523,14 @@ dialog.bundle.label.platform = 平台
 dialog.bundle.option.platform.x86_64-linux = X64
 dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-bit
-dialog.bundle.option.platform.x86-win32 = 32-bit
 dialog.bundle.option.identity.none = None
 dialog.bundle.label.architectures = 架构
-dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
-dialog.bundle.option.architecture.x86_64-ios = 模拟器 (x86_64)
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
 dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + 线程支持
 dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
 dialog.bundle.option.architecture.arm64-android = 64-bit (arm64)
-dialog.bundle.option.architecture.x86_64-android = 64-bit (x86_64)
 dialog.bundle.label.sign-application = 签名应用程序
 dialog.bundle.label.code-signing-identity = 代码签名标识
 dialog.bundle.label.provisioning-profile = 授权配置文件
@@ -754,6 +751,7 @@ progress.cleaning = 正在清理…
 progress.generating-report = 正在生成报告…
 progress.working = 正在处理…
 progress.reading-classes = 正在读取类…
+progress.downloading-archives = 正在下载 {count} 个压缩包…
 progress.launching-engine = 正在启动引擎…
 progress.launched-engine = 已启动 {engine}
 progress.engine-launch-failed = 启动失败
@@ -1064,6 +1062,9 @@ operation.drop = 拖放
 operation.paste = 粘贴
 operation.select = 选择
 operation.tile-map.add-layer = 添加图层
+
+# Font Styles
+
 
 # Scene View Popups
 
@@ -1651,10 +1652,6 @@ form.label.project.particle_fx.max_particle_count = 最大粒子数量
 form.label.project.particle_fx.max_particle_buffer_count = 最大粒子缓冲区数量
 form.label.project.particle_fx.max_count = 最大数量
 form.label.project.particle_fx.max_emitter_count = 最大发射数量
-
-form.label.project.script = 脚本
-form.help.project.script = 脚本系统设置
-form.label.project.script.shared_state = 共享状态
 
 form.label.project.sound = 音效
 form.help.project.sound = 音效相关设置

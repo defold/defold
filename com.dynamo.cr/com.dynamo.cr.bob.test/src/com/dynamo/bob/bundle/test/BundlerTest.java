@@ -39,6 +39,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
@@ -85,34 +86,6 @@ public class BundlerTest {
     private File buildReportHtmlFile;
     private Platform platform;
 
-    // Only the keys that identify the Apple platform, since those are the ones the simulator bundle rewrites
-    private final String IOS_INFO_PLIST = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        + "<plist version=\"1.0\">\n"
-        + "<dict>\n"
-        + "        <key>CFBundleSupportedPlatforms</key>\n"
-        + "        <array>\n"
-        + "                <string>iPhoneOS</string>\n"
-        + "        </array>\n"
-        + "        <key>DTPlatformName</key>\n"
-        + "        <string>iphoneos</string>\n"
-        + "        <key>DTSDKName</key>\n"
-        + "        <string>iphoneos18.0</string>\n"
-        + "</dict>\n"
-        + "</plist>\n";
-
-    private final String ANDROID_MANIFEST = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-        + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\" android:versionCode=\"1\">"
-        + "  <application android:label=\"Minimal Android Application\">"
-        + "    <activity android:name=\".MainActivity\" android:label=\"Hello World\">"
-        + "      <intent-filter>"
-        + "        <action android:name=\"android.intent.action.MAIN\" />"
-        + "        <category android:name=\"android.intent.category.DEFAULT\" />"
-        + "        <category android:name=\"android.intent.category.LAUNCHER\" />"
-        + "      </intent-filter>"
-        + "    </activity>"
-        + "  </application>"
-        + "</manifest>";
-
     @Parameters
     public static Collection<Platform[]> data() {
         List<Platform[]> data = new ArrayList<>();
@@ -125,7 +98,6 @@ public class BundlerTest {
             data.add(new Platform[]{Platform.getHostPlatform()});
         }
         else {
-            data.add(new Platform[]{Platform.X86Win32});
             data.add(new Platform[]{Platform.X86_64Win32});
             data.add(new Platform[]{Platform.X86_64MacOS});
             data.add(new Platform[]{Platform.Arm64MacOS});
@@ -178,7 +150,7 @@ public class BundlerTest {
         if (!file.exists())
         {
             System.out.printf("A missing file %s\n", file);
-            System.out.printf("Directory contents:\n");
+            System.out.print("Directory contents:\n");
             listDir(bundleDir);
         }
         assertTrue(file.exists());
@@ -209,7 +181,7 @@ public class BundlerTest {
         File outputDirFile = getOutputDirFile(outputDir, projectName);
         assertTrue(outputDirFile.exists());
 
-        if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32)
+        if (platform == Platform.X86_64Win32)
         {
             File outputBinary = new File(outputDirFile, projectName + ".exe");
             checkFileExist(outputDirFile, outputBinary);
@@ -298,8 +270,8 @@ public class BundlerTest {
             assertTrue(outputApk.exists());
             ZipFile apkZip = new ZipFile(outputApk.getAbsolutePath());
             ZipEntry zipEntry = apkZip.getEntry("assets/game.arcd");
-            assertFalse(zipEntry == null);
-            assertEquals(zipEntry.getMethod(), ZipEntry.STORED);
+            assertNotNull(zipEntry);
+            assertEquals(ZipEntry.STORED, zipEntry.getMethod());
         }
     }
 
@@ -408,7 +380,7 @@ public class BundlerTest {
             project.scan(scanner, "com.dynamo.bob.pipeline");
 
             setProjectProperties(project);
-            project.setOption("archive", archive ? "true" : "false");
+            project.setOption("archive", Boolean.toString(archive));
 
             List<TaskResult> result = project.build(Progress.discarding(), "clean", "build");
             for (TaskResult taskResult : result) {
@@ -502,8 +474,36 @@ public class BundlerTest {
         createFile(outputContentRoot, "builtins/manifests/web/light_theme.css", "");
         createFile(outputContentRoot, "builtins/manifests/web/dark_theme.css", "");
         createFile(outputContentRoot, "builtins/manifests/osx/Info.plist", "");
+        // Platform keys rewritten by simulator bundling and the required scene manifest.
+        String IOS_INFO_PLIST = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<plist version=\"1.0\">\n"
+                + "<dict>\n"
+                + "        <key>UIApplicationSceneManifest</key>\n"
+                + "        <dict><key>UIApplicationSupportsMultipleScenes</key><false/></dict>\n"
+                + "        <key>CFBundleSupportedPlatforms</key>\n"
+                + "        <array>\n"
+                + "                <string>iPhoneOS</string>\n"
+                + "        </array>\n"
+                + "        <key>DTPlatformName</key>\n"
+                + "        <string>iphoneos</string>\n"
+                + "        <key>DTSDKName</key>\n"
+                + "        <string>iphoneos18.0</string>\n"
+                + "</dict>\n"
+                + "</plist>\n";
         createFile(outputContentRoot, "builtins/manifests/ios/Info.plist", IOS_INFO_PLIST);
         createFile(outputContentRoot, "builtins/manifests/ios/LaunchScreen.storyboardc/Info.plist", "");
+        String ANDROID_MANIFEST = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+                + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\" android:versionCode=\"1\">"
+                + "  <application android:label=\"Minimal Android Application\">"
+                + "    <activity android:name=\".MainActivity\" android:label=\"Hello World\">"
+                + "      <intent-filter>"
+                + "        <action android:name=\"android.intent.action.MAIN\" />"
+                + "        <category android:name=\"android.intent.category.DEFAULT\" />"
+                + "        <category android:name=\"android.intent.category.LAUNCHER\" />"
+                + "      </intent-filter>"
+                + "    </activity>"
+                + "  </application>"
+                + "</manifest>";
         createFile(outputContentRoot, "builtins/manifests/android/AndroidManifest.xml", ANDROID_MANIFEST);
         createFile(outputContentRoot, "builtins/manifests/web/engine_template.html", "{{{DEFOLD_CUSTOM_CSS_INLINE}}} {{DEFOLD_APP_TITLE}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_DISPLAY_WIDTH}} {{DEFOLD_ARCHIVE_LOCATION_PREFIX}} {{#HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_ENGINE_ARGUMENTS}} {{/HAS_DEFOLD_ENGINE_ARGUMENTS}} {{DEFOLD_SPLASH_IMAGE}} {{DEFOLD_HEAP_SIZE}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_BINARY_PREFIX}} {{DEFOLD_HAS_FACEBOOK_APP_ID}}");
         return count;
@@ -678,7 +678,7 @@ public class BundlerTest {
     static HashSet<String> getExpectedFilesForPlatform(Platform platform, HashSet<String> actualFiles)
     {
         HashSet<String> expectedFiles = new HashSet<String>();
-        if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32)
+        if (platform == Platform.X86_64Win32)
         {
                 expectedFiles.add("unnamed.exe");
                 expectedFiles.add("game.dmanifest");
@@ -981,7 +981,7 @@ public class BundlerTest {
     private String getExpectedDynamicLibraryPath(String libName) {
         if (platform == Platform.X86_64Linux || platform == Platform.Arm64Linux) {
             return libName;
-        } else if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32) {
+        } else if (platform == Platform.X86_64Win32) {
             return libName;
         } else if (platform == Platform.X86_64MacOS || platform == Platform.Arm64MacOS) {
             return "Contents/MacOS/" + libName;

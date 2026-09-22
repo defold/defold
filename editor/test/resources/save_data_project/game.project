@@ -2,9 +2,6 @@
 main_collection = /checked.collectionc
 render = /checked.renderc
 
-[script]
-shared_state = 1
-
 [display]
 width = 800
 height = 600
@@ -300,3 +297,4 @@ glsl_es_default_precision_int = mediump
 
 [font]
 runtime_generation = 1
+

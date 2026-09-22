@@ -57,7 +57,7 @@ def static_libs(conf, uselib, libs, exact_windows_libs = None):
     # may need their exact .lib filename instead, while keeping the usual STLIB path elsewhere.
     libs = Utils.to_list(libs)
     exact_windows_libs = set(Utils.to_list(exact_windows_libs or libs))
-    if conf.env.PLATFORM in ['win32', 'x86_64-win32']:
+    if conf.env.PLATFORM == 'x86_64-win32':
         conf.env['STLIB_%s' % uselib] = [lib for lib in libs if lib not in exact_windows_libs]
         conf.env.append_unique('LINKFLAGS_%s' % uselib, ['%s.lib' % lib for lib in libs if lib in exact_windows_libs])
     else:
@@ -84,7 +84,7 @@ def platform_supports_feature(platform, feature, data):
     if feature == 'opengles':
         return platform in ['arm64-linux', 'armv7-android', 'arm64-android', 'x86_64-android', 'arm64-ios', 'arm64_sim-ios']
     if feature == 'webgpu':
-        return platform in ['wasm-web', 'wasm_pthread-web']
+        return platform in ['wasm-web', 'wasm_pthread-web', 'arm64-macos', 'x86_64-macos']
     if feature == 'metal':
         return platform in ['x86_64-macos', 'arm64-macos', 'arm64-ios', 'arm64_sim-ios']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
@@ -223,7 +223,7 @@ def prepend_private_task_paths(task_gen, platform):
                 setattr(task_gen, name, private_paths + current_paths)
 
 def platform_glfw_version(platform):
-    if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win32', 'win32', 'x86_64-linux', 'arm64-linux']:
+    if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win32', 'x86_64-linux', 'arm64-linux']:
         return 3
     return 2
 
@@ -259,6 +259,8 @@ def platform_graphics_libs_and_symbols(platform):
     elif platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
         use_opengl = Options.options.with_opengl
         use_vulkan = True
+        if platform in ('arm64-macos', 'x86_64-macos') and Options.options.with_webgpu:
+            use_vulkan = Options.options.with_vulkan
     elif platform in ('arm64-linux'):
         use_opengles = True
         use_vulkan = Options.options.with_vulkan
@@ -290,6 +292,8 @@ def platform_graphics_libs_and_symbols(platform):
 
     if Options.options.with_webgpu and platform_supports_feature(platform, 'webgpu', {}):
         graphics_libs += ['GRAPHICS_WEBGPU']
+        if platform in ['arm64-macos', 'x86_64-macos']:
+            graphics_libs += ['DAWN', 'DMGLFW']
         graphics_lib_symbols.append('GraphicsAdapterWebGPU')
 
     if use_metal:
@@ -535,17 +539,6 @@ def default_flags(self):
     self.env.append_value('INCLUDES', build_util.get_dynamo_ext('include'))
     self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', build_util.get_target_platform()))
 
-    # For 32-bit Windows, search both legacy 'win32' and tuple 'x86-win32' folders
-    # TODO: Remove the redundant lib folders ("win32") once we've moved fully to CMake
-    if build_util.get_target_platform() == 'win32':
-        alias = 'x86-win32' # used by the new/CMake code path
-        # Includes under DYNAMO_HOME and DYNAMO_HOME/ext
-        self.env.append_value('INCLUDES', build_util.get_dynamo_home('include', alias))
-        self.env.append_value('INCLUDES', build_util.get_dynamo_ext('include', alias))
-        # Lib paths under DYNAMO_HOME and DYNAMO_HOME/ext
-        self.env.append_value('LIBPATH', build_util.get_dynamo_home('lib', alias))
-        self.env.append_value('LIBPATH', build_util.get_dynamo_ext('lib', alias))
-
     # Platform specific paths etc comes after the project specific stuff
 
     if target_os in (TargetOS.MACOS, TargetOS.IOS):
@@ -769,7 +762,7 @@ def default_flags(self):
         self.env.append_value('LINKFLAGS', emflags_link)
         self.env.append_value('LINKFLAGS', linkflags)
 
-    elif target_platform in ['win32', 'x86_64-win32']:
+    elif target_platform == 'x86_64-win32':
         for f in ['CFLAGS', 'CXXFLAGS']:
             # /Oy- = Disable frame pointer omission. Omitting frame pointers breaks crash report stack trace. /O2 implies /Oy.
             # 0x0600 = _WIN32_WINNT_VISTA
@@ -1979,9 +1972,6 @@ def detect(conf):
             # there's no lib prefix anymore so we need to set our our lib dir first so we don't
             # pick up the wrong hid.lib from the windows sdk
             libdirs.insert(0, build_util.get_dynamo_home('lib', build_util.get_target_platform()))
-            if build_util.get_target_platform() == 'win32':
-                libdirs.insert(1, build_util.get_dynamo_home('lib', 'x86-win32'))
-
             bindirs_env = os.pathsep.join(bindirs)
             os.environ['PATH'] = bindirs_env + os.pathsep + os.environ['PATH']
             conf.environ['PATH'] = bindirs_env + os.pathsep + conf.environ['PATH']
@@ -2178,6 +2168,12 @@ def detect(conf):
         else:
             Logs.info("record disabled")
             conf.env['STLIB_RECORD'] = 'record_null'
+
+    conf.env['STLIB_DAWN'] = ['webgpu_dawn']
+    conf.env['DEFINES_DAWN'] = ['DM_GRAPHICS_WEBGPU2', 'DM_GRAPHICS_DAWN']
+    if platform in ['x86_64-macos', 'arm64-macos']:
+        conf.env['FRAMEWORK_DAWN'] = ['Metal', 'IOSurface', 'QuartzCore', 'IOKit']
+
     conf.env['STLIB_RECORD_NULL'] = 'record_null'
 
     static_libs(conf, 'GRAPHICS',          ['graphics', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
@@ -2252,7 +2248,7 @@ def detect(conf):
         conf.env['LINKFLAGS_DX12']      = ['D3D12.lib', 'DXGI.lib', 'D3Dcompiler.lib']
 
 
-    if conf.env.PLATFORM in ['win32', 'x86_64-win32']:
+    if conf.env.PLATFORM == 'x86_64-win32':
         static_libs(conf, 'HID', ['hid'])
         static_libs(conf, 'HID_NULL', ['hid_null'])
         static_libs(conf, 'INPUT', ['input'])

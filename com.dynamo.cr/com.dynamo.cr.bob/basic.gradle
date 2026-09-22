@@ -47,7 +47,7 @@ ext {
     ]
 }
 
-gradle.taskGraph.whenReady { taskGraph ->
+def configureBuildTools = {
     // Determine Python executable
     def pythonExec = null
     def pythonCandidates = []
@@ -59,7 +59,7 @@ gradle.taskGraph.whenReady { taskGraph ->
 
     for (def pythonCandidate : pythonCandidates.unique()) {
         try {
-            def process = new ProcessBuilder(pythonCandidate, "--version")
+            def process = new ProcessBuilder(pythonCandidate as String, "--version")
                 .redirectErrorStream(true)
                 .start()
             process.waitFor()
@@ -110,7 +110,9 @@ gradle.taskGraph.whenReady { taskGraph ->
     }
 }
 
-task getGitRevision {
+configureBuildTools()
+
+tasks.register('getGitRevision') {
     ext.gitRevision = ""
     doLast {
         gitRevision = "git log --pretty=%H -n1".execute().text.trim()

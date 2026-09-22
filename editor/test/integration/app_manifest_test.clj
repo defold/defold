@@ -29,7 +29,7 @@
                 manifest (g/node-value manifest-node :manifest)
                 save-data (g/node-value manifest-node :save-data)
                 original-manifest (yaml/load (slurp (:resource save-data)) keyword)]
-            (doseq [platform [:x86-win32 :x86_64-win32]]
+            (doseq [platform app-manifest/windows]
               (is (= ["script_box2d_defold" "gamesys_model" "gamesys_rig"]
                      (get-in manifest [:platforms platform :context :excludeLibs])))
               (is (= ["script_box2d" "gamesys_model_null" "gamesys_rig_null"]

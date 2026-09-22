@@ -143,67 +143,8 @@
                     collection-instance-descs)]
           [(collection-common/collection-build-target build-resource _node-id name game-object-instance-build-targets collection-instance-build-targets)]))))
 
-(defn component-property-desc-overrides-properties? [component-property-desc]
-  (not (empty? (:properties component-property-desc))))
-
-(defn- maybe-instance-property-desc [game-object-instance-id component-property-descs]
-  (when-some [component-property-descs (not-empty (filterv component-property-desc-overrides-properties? component-property-descs))]
-    {:id game-object-instance-id
-     :properties component-property-descs}))
-
-(defn- component-property-descs->component-id->property-descs [component-property-descs]
-  (into {}
-        (keep (fn [component-property-desc]
-                (let [component-id (:id component-property-desc)
-                      property-descs (:properties component-property-desc)]
-                  (when (seq property-descs)
-                    (pair component-id property-descs)))))
-        component-property-descs))
-
-(defn override-component-property-descs [original-component-property-descs override-component-property-descs]
-  ;; Takes two sequences of GameObject$ComponentPropertyDescs in map format, and
-  ;; returns a sequence of GameObject$ComponentPropertyDescs in map format.
-  (map (fn [[component-id property-descs]]
-         {:id component-id
-          :properties property-descs})
-       (merge-with collection-common/override-property-descs
-                   (component-property-descs->component-id->property-descs original-component-property-descs)
-                   (component-property-descs->component-id->property-descs override-component-property-descs))))
-
-(defn- embedded-instance-desc->instance-property-desc [embedded-instance-desc]
-  ;; GameObject$EmbeddedInstanceDesc in map format.
-  (let [game-object-instance-id (:id embedded-instance-desc)
-        component-property-descs (override-component-property-descs
-                                   (game-object-non-editable/prototype-desc->component-property-descs (:data embedded-instance-desc))
-                                   (:component-properties embedded-instance-desc))]
-    (maybe-instance-property-desc game-object-instance-id component-property-descs)))
-
-(defn- instance-desc->instance-property-desc [instance-desc]
-  ;; GameObject$InstanceDesc in map format.
-  (maybe-instance-property-desc (:id instance-desc) (:component-properties instance-desc)))
-
-(defn- collection-instance-desc->instance-property-descs [collection-instance-desc]
-  ;; GameObject$CollectionInstanceDesc in map format.
-  (keep (fn [instance-property-desc]
-          (maybe-instance-property-desc (:id instance-property-desc) (:properties instance-property-desc)))
-        (:instance-properties collection-instance-desc)))
-
-(defn- collection-desc->instance-property-descs [collection-desc]
-  (vec
-    (concat
-      (keep instance-desc->instance-property-desc (:instances collection-desc))
-      (keep embedded-instance-desc->instance-property-desc (:embedded-instances collection-desc))
-      (mapcat collection-instance-desc->instance-property-descs (:collection-instances collection-desc)))))
-
 (g/defnk produce-ddf-properties [collection-desc]
-  (collection-desc->instance-property-descs collection-desc))
-
-(defn- instance-property-descs->resources [instance-property-descs proj-path->resource]
-  (eduction
-    (map :properties)
-    (mapcat #(game-object-non-editable/component-property-descs->resources % proj-path->resource))
-    (distinct)
-    instance-property-descs))
+  (collection-common/collection-desc->instance-property-descs collection-desc))
 
 (defn- collection-desc->referenced-collection-resources [collection-desc proj-path->resource]
   (eduction
@@ -239,25 +180,6 @@
         (map-indexed (fn [index embedded-component-resource-data]
                        (pair embedded-component-resource-data index)))
         (collection-desc->embedded-component-resource-datas collection-desc)))
-
-(defn- collection-desc->referenced-property-resources [collection-desc proj-path->resource]
-  ;; This returns a sequence of all distinct resources referenced by
-  ;; ComponentPropertyDesc property overrides in the CollectionDescs contained
-  ;; InstanceDescs, EmbeddedInstanceDescs, and CollectionInstanceDescs.
-  ;;
-  ;; The resulting resources build targets will be connected to the
-  ;; own-resource-property-build-targets input of our NonEditableCollectionNode.
-  ;;
-  ;; Elsewhere, any referenced collection, game object, and component will have
-  ;; their resource-property-build-targets output connected to our
-  ;; other-resource-property-build-targets input to ensure we have access to the
-  ;; non-overridden resource property dependencies. As a result, our
-  ;; resource-property-build-targets output will include not only our own
-  ;; overrides, but the set union of all original and overridden resource
-  ;; property dependencies. This is also how it works for mutable collections.
-  (-> collection-desc
-      collection-desc->instance-property-descs
-      (instance-property-descs->resources proj-path->resource)))
 
 (g/defnk produce-node-outline [_node-id]
   {:node-id _node-id
@@ -365,7 +287,7 @@
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project basis self)
+                         project (project/get-project basis)
                          workspace (project/workspace project evaluation-context)
                          proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)]
                      (letfn [(connect-resource [proj-path-or-resource connections]
@@ -377,7 +299,7 @@
                            (into (connect-referenced-collections-tx-data evaluation-context self (collection-desc->referenced-collection-resources new-value proj-path->resource)))
                            (into (game-object-non-editable/disconnect-connected-nodes-tx-data basis self :own-resource-property-build-targets resource-property-connections))
                            (into (mapcat #(connect-resource % resource-property-connections))
-                                 (collection-desc->referenced-property-resources new-value proj-path->resource))))))))
+                                 (collection-common/collection-desc->referenced-property-resources new-value proj-path->resource))))))))
 
   (input referenced-collection-build-targets g/Any :array)
   (input referenced-collection-resources g/Any :array)
@@ -400,23 +322,19 @@
   (output node-outline outline/OutlineData produce-node-outline)
   (output scene g/Any produce-scene))
 
-(defn- sanitize-non-editable-collection [workspace collection-desc]
-  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
-    (collection-common/sanitize-collection-desc collection-desc ext->embedded-component-resource-type)))
-
 (defn- string-encode-non-editable-collection [workspace collection-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (collection-string-data/string-encode-collection-desc ext->embedded-component-resource-type collection-desc)))
 
-(defn- load-non-editable-collection [_project self resource collection-desc]
+(defn- load-non-editable-collection [_load-opts {:keys [owner-resource] self :node-id collection-desc :source-value}]
   ;; Validate the collection-desc.
   ;; We want to throw an exception if we encounter corrupt data to ensure our
   ;; node gets marked defective at load-time.
   (doseq [embedded-instance-desc (:embedded-instances collection-desc)]
-    (collection-string-data/verify-string-decoded-embedded-instance-desc! embedded-instance-desc resource)
+    (collection-string-data/verify-string-decoded-embedded-instance-desc! embedded-instance-desc owner-resource)
     (let [prototype-desc (:data embedded-instance-desc)]
       (doseq [embedded-component-desc (:embedded-components prototype-desc)]
-        (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc resource))))
+        (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc owner-resource))))
 
   (g/set-property self :collection-desc collection-desc))
 
@@ -429,8 +347,8 @@
       :label (localization/message "resource.type.collection.non-editable")
       :node-type NonEditableCollectionNode
       :ddf-type GameObject$CollectionDesc
-      :dependencies-fn (collection-common/make-collection-dependencies-fn #(workspace/get-resource-type workspace :non-editable "go"))
-      :sanitize-fn (partial sanitize-non-editable-collection workspace)
+      :dependencies-fn collection-common/collection-dependencies-fn
+      :sanitize-fn collection-common/collection-sanitize-fn
       :pb-encode-fn (partial string-encode-non-editable-collection workspace)
       :load-fn load-non-editable-collection
       :allow-unloaded-use true

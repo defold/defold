@@ -278,8 +278,9 @@ static void CreateDecorations(TextLayout* layout, TextLayoutSettings* settings)
         for (uint32_t span_index = 0; span_index < layout->m_ResolvedSpans.Size(); ++span_index)
         {
             const TextResolvedSpan& span = layout->m_ResolvedSpans[span_index];
+            const uint8_t flags = span.m_DecorationFlags | (span.m_HasObjectStyle ? TEXT_RESOLVED_DECORATION_UNDERLINE | TEXT_RESOLVED_DECORATION_STRIKE : 0);
 
-            if (span.m_DecorationFlags == 0)
+            if (flags == 0)
             {
                 continue;
             }
@@ -303,12 +304,14 @@ static void CreateDecorations(TextLayout* layout, TextLayoutSettings* settings)
 
             for (uint32_t flag = TEXT_RESOLVED_DECORATION_UNDERLINE; flag <= TEXT_RESOLVED_DECORATION_STRIKE; flag <<= 1)
             {
-                if ((span.m_DecorationFlags & flag) == 0)
+                if ((flags & flag) == 0)
                 {
                     continue;
                 }
 
-                TextDecoration decoration = {};
+                TextDecorationSource source = {};
+                source.m_Flag = (uint8_t)flag;
+                TextDecoration& decoration = source.m_Decoration;
                 decoration.m_X = first.m_X + decoration_inset;
                 decoration.m_Y = flag == TEXT_RESOLVED_DECORATION_UNDERLINE ? -font_size * 0.1f : font_size * 0.3f;
                 decoration.m_Length = length;
@@ -319,12 +322,12 @@ static void CreateDecorations(TextLayout* layout, TextLayoutSettings* settings)
                 decoration.m_LineIndex = (uint16_t)line_index;
                 decoration.m_Pattern = flag == TEXT_RESOLVED_DECORATION_UNDERLINE ? span.m_UnderlinePattern : span.m_StrikePattern;
 
-                if (layout->m_Decorations.Full())
+                if (layout->m_DecorationSources.Full())
                 {
-                    layout->m_Decorations.OffsetCapacity(8);
+                    layout->m_DecorationSources.OffsetCapacity(8);
                 }
 
-                layout->m_Decorations.Push(decoration);
+                layout->m_DecorationSources.Push(source);
             }
         }
     }
@@ -351,14 +354,15 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
     layout->m_BaseSpanEffectCount = 0;
     layout->m_BaseResolvedSpanCount = 0;
     layout->m_NumValidGlyphs = 0;
-    layout->m_UseRichText = resolved != 0;
+    layout->m_UseRichText = resolved != 0 || settings->m_UseBaseStyle;
+    layout->m_BaseStyleName = settings->m_UseBaseStyle ? settings->m_BaseStyle : 0;
     layout->m_ElapsedTime = 0.0;
     layout->m_ReleaseObject = 0;
     layout->m_ObjectContext = 0;
 
-    if (resolved)
+    if (resolved || settings->m_UseBaseStyle)
     {
-        TextLayoutAdoptResolvedMarkup(layout, resolved, settings);
+        TextLayoutAdoptResolvedMarkup(layout, resolved, settings, num_codepoints);
     }
 
     HFont font = FontCollectionGetFont(collection, 0);

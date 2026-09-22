@@ -327,16 +327,16 @@ public class ExtenderUtil {
 
         @Override
         public byte[] getContent() throws IOException {
-            String prefix = "";
+            StringBuilder prefix = new StringBuilder();
             if (options != null) {
-                prefix += "context:" + System.getProperty("line.separator");
+                prefix.append("context:").append(System.lineSeparator());
                 for (String key : options.keySet()) {
                     String value = options.get(key);
-                    prefix += String.format("    %s: %s", key, value) + System.getProperty("line.separator");
+                    prefix.append(String.format("    %s: %s", key, value)).append(System.lineSeparator());
                 }
             }
 
-            byte[] prefixBytes = prefix.getBytes(StandardCharsets.UTF_8);
+            byte[] prefixBytes = prefix.toString().getBytes(StandardCharsets.UTF_8);
             byte[] content = migrateAppManifest(getResource().getContent());
             byte[] c = new byte[prefixBytes.length + content.length];
             System.arraycopy(prefixBytes, 0, c, 0, prefixBytes.length);
@@ -514,7 +514,7 @@ public class ExtenderUtil {
 
         Iterator<Map.Entry<String, IResource>> it = from.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
+            Map.Entry<String, IResource> entry = it.next();
             String outputPath = entry.getKey();
             if (!allowOverrides) {
                 if (into.containsKey(outputPath)) {
@@ -591,9 +591,7 @@ public class ExtenderUtil {
         String path = projectProperties.getStringValue(section, key, "");
         if (!path.isEmpty()) {
             IResource resource = project.getResource(path);
-            if (resource.exists()) {
-                return true;
-            }
+            return resource.exists();
         }
         return false;
     }
@@ -670,8 +668,7 @@ public class ExtenderUtil {
     public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, Map<String, String> appmanifestOptions) throws CompileExceptionError, IOException {
         List<ExtenderResource> sources = new ArrayList<>();
 
-        List<String> platformFolderAlternatives = new ArrayList<String>();
-        platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths()));
+        List<String> platformFolderAlternatives = new ArrayList<String>(Arrays.asList(platform.getExtenderPaths()));
         platformFolderAlternatives.add("common");
 
         // Find app manifest if there is one
@@ -732,33 +729,33 @@ public class ExtenderUtil {
     }
 
     static private String createExtensionManifest(String name, Platform platform, Map<String, Object> options) {
-        String ln = System.getProperty("line.separator");
-        String s = String.format("name: %s", name) + ln;
-        s += "platforms:" + ln;
-        s += String.format("  %s:", platform.getExtenderPair()) + ln;
-        s += String.format("    context:" + ln);
+        String ln = System.lineSeparator();
+        StringBuilder s = new StringBuilder(String.format("name: %s", name) + ln);
+        s.append("platforms:").append(ln);
+        s.append(String.format("  %s:", platform.getExtenderPair())).append(ln);
+        s.append(String.format("    context:" + ln));
 
         for (String key : options.keySet()) {
             Object value = options.get(key);
-            String svalue = null;
+            StringBuilder svalue = null;
             if (value instanceof String) {
-                svalue = (String)value;
+                svalue = new StringBuilder((String) value);
             } else if (value instanceof List) {
-                svalue = "[";
+                svalue = new StringBuilder("[");
                 List<Object> l = (List<Object>)value;
                 int length = l.size();
                 for (int i = 0; i < length; ++i) {
                     String vv = (String)l.get(i);
-                    svalue += "'" + vv + "'";
+                    svalue.append("'").append(vv).append("'");
                     if (i < length-1) {
-                        svalue += ", ";
+                        svalue.append(", ");
                     }
                 }
-                svalue += "]" + ln;
+                svalue.append("]").append(ln);
             }
-            s += String.format("      %s: %s", key, svalue) + ln;
+            s.append(String.format("      %s: %s", key, svalue.toString())).append(ln);
         }
-        return s;
+        return s.toString();
     }
 
     public static List<ExtenderResource> getLibrarySources(Project project, Platform platform,
@@ -843,8 +840,7 @@ public class ExtenderUtil {
     public static List<IResource> getExtensionPlatformManifests(Project project, Platform platform) throws CompileExceptionError {
         List<IResource> out = new ArrayList<>();
 
-        List<String> platformFolderAlternatives = new ArrayList<String>();
-        platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths())); // we skip "common" here since it makes little sense
+        List<String> platformFolderAlternatives = new ArrayList<String>(Arrays.asList(platform.getExtenderPaths())); // we skip "common" here since it makes little sense
 
         // Find extension folders
         List<String> extensionFolders = getExtensionFolders(project);
@@ -1187,7 +1183,7 @@ public class ExtenderUtil {
     public static void writeResourcesToDirectory(Map<String, IResource> resources, File directory) throws IOException {
         Iterator<Map.Entry<String, IResource>> it = resources.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
+            Map.Entry<String, IResource> entry = it.next();
             File outputFile = new File(directory, entry.getKey());
             writeResourceToFile(entry.getValue(), outputFile);
         }
@@ -1202,7 +1198,7 @@ public class ExtenderUtil {
     public static void writeResourcesToZip(Map<String, IResource> resources, ZipOutputStream zipOutputStream) throws IOException {
         Iterator<Map.Entry<String, IResource>> it = resources.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
+            Map.Entry<String, IResource> entry = it.next();
             ZipEntry ze = new ZipEntry(normalize(entry.getKey(), true));
             zipOutputStream.putNextEntry(ze);
             zipOutputStream.write(entry.getValue().getContent());
@@ -1254,7 +1250,7 @@ public class ExtenderUtil {
         try {
             return new Yaml().load(yaml);
         } catch(YAMLException e) {
-            throw new IOException(String.format("%s:1: error: %s", resource.getAbsPath(), e.toString()));
+            throw new IOException(String.format("%s:1: error: %s", resource.getAbsPath(), e));
         }
     }
 
@@ -1374,7 +1370,7 @@ public class ExtenderUtil {
             ctx = mergeManifestContext(ctx, platform_ctx);
         } catch (RuntimeException e) {
             e.printStackTrace(System.out);
-            throw new CompileExceptionError(resource, -1, String.format("Extension manifest '%s' contains invalid values: %s", resource.getAbsPath(), e.toString()));
+            throw new CompileExceptionError(resource, -1, String.format("Extension manifest '%s' contains invalid values: %s", resource.getAbsPath(), e));
         }
         return ctx;
     }

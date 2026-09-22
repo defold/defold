@@ -164,7 +164,7 @@ if(BUILD_TESTS)
     elseif (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
         target_link_libraries(test_app_hid PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo" "-framework GameController")
 
-    elseif (TARGET_PLATFORM MATCHES "x86_64-win32|win32")
+    elseif (TARGET_PLATFORM STREQUAL "x86_64-win32")
         target_link_libraries(test_app_hid PRIVATE user32 gdi32 shell32)
 
     elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")

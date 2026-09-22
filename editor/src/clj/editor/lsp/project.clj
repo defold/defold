@@ -22,6 +22,7 @@
             [editor.resource :as resource]
             [editor.util :as util]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [util.coll :as coll]
             [util.defonce :as defonce]
             [util.eduction :as e])
@@ -49,11 +50,11 @@
 (defn- owning-game-object-node-ids [basis script-node-ids]
   (coll/into-> script-node-ids #{}
     (mapcat #(e/cons % (g/overrides basis %)))
-    (mapcat #(g/targets-of basis % :_node-id))
-    (keep (fn [[node-id input-label]]
-            (when (and (= :source-id input-label)
-                       (g/node-kw-instance? basis :editor.game-object/ReferencedComponent node-id))
-              (some->> node-id
+    (mapcat #(g/outputs basis % :_node-id))
+    (keep (fn [arc]
+            (when (and (= :source-id (gt/target-label arc))
+                       (g/node-kw-instance? basis :editor.game-object/ReferencedComponent (gt/target-id arc)))
+              (some->> (gt/target-id arc)
                        (core/owner-node-id basis)
                        (g/override-root basis)))))))
 
@@ -79,16 +80,17 @@
       (->> (g/node-value project :nodes-by-resource-path evaluation-context)
            (e/mapcat (fn [[_ node-id]]
                        (when (g/node-kw-instance? basis :editor.collection/CollectionNode node-id)
-                         (let [go-inst-ids (g/node-value node-id :go-inst-ids evaluation-context)
-                               go-instance-ids (coll/vals go-inst-ids)]
-                           (when (coll/any?
-                                   (fn [go-instance-id]
-                                     (owner-root-ids
-                                       (g/override-root
-                                         basis
-                                         (g/node-value go-instance-id :source-id evaluation-context))))
-                                   go-instance-ids)
-                             go-instance-ids)))))
+                         (let [go-inst-ids (g/node-value node-id :go-inst-ids evaluation-context)]
+                           (when-not (g/error? go-inst-ids)
+                             (let [go-instance-ids (coll/vals go-inst-ids)]
+                               (when (coll/any?
+                                       (fn [go-instance-id]
+                                         (owner-root-ids
+                                           (g/override-root
+                                             basis
+                                             (g/node-value go-instance-id :source-id evaluation-context))))
+                                       go-instance-ids)
+                                 go-instance-ids)))))))
            (e/mapcat (fn [go-instance-id]
                        (let [source-id (g/node-value go-instance-id :source-id evaluation-context)
                              url (g/node-value go-instance-id :url evaluation-context)

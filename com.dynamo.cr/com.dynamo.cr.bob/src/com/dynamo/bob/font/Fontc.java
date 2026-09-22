@@ -117,7 +117,7 @@ public class Fontc {
     }
 
     public static long FontDescToHash(FontDesc desc) {
-        String result = "" + desc.getFont() + desc.getSize() + desc.getAntialias() + desc.getOutlineWidth() +
+        String result = desc.getFont() + desc.getSize() + desc.getAntialias() + desc.getOutlineWidth() +
             desc.getShadowBlur() + desc.getCharacters() + desc.getOutputFormat() + desc.getAllChars() +
             desc.getCacheWidth() + desc.getCacheHeight() + desc.getRenderMode();
         return MurmurHash.hash64(result);
@@ -137,7 +137,11 @@ public class Fontc {
     public static int GetFontMapPadding(FontDesc fontDesc) {
         if (isBitmapFont(fontDesc))
             return 0;
-        return Math.round(getNativeSdfPadding(fontDesc));
+        // Preserve the layout padding used by compiled fonts. The native SDF
+        // sampling border is separate and must not add space between text nodes.
+        if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD)
+            return fontDesc.getShadowBlur() + (int)fontDesc.getOutlineWidth() + 1;
+        return Math.min(4, fontDesc.getShadowBlur()) + (int)fontDesc.getOutlineWidth();
     }
 
     public static float GetFontMapSdfSpread(FontDesc fontDesc) {
@@ -163,8 +167,7 @@ public class Fontc {
     }
 
     private static float calculateNativeSdfLimit(float padding, float width) {
-        float baseEdge = sdfEdge * 255.0f;
-        return (baseEdge - (FontRenderer.DEFAULT_SDF_EDGE_VALUE / padding) * width) / 255.0f;
+        return sdfEdge - 0.25f * width / padding;
     }
 
     private ArrayList<Integer> getRequestedCharacters() {
@@ -457,7 +460,7 @@ public class Fontc {
             .setCacheCellHeight(cellHeight).setGlyphChannels(channels).setCacheCellMaxAscent(cellMaxAscent);
         boolean monospaced = includeCount > 1;
         float advance = includeCount == 0 ? 0.0f : glyphs.get(0).advance;
-        int padding = bmfont == null ? Math.round(getNativeSdfPadding(fontDesc)) : 0;
+        int padding = GetFontMapPadding(fontDesc);
         for (int i = 0; i < includeCount; ++i) {
             Glyph glyph = glyphs.get(i);
             GlyphBank.Glyph.Builder output = GlyphBank.Glyph.newBuilder().setCharacter(glyph.character)
@@ -550,6 +553,7 @@ public class Fontc {
             .setShadowX(fontDesc.getShadowX()).setShadowY(fontDesc.getShadowY()).setShadowBlur(fontDesc.getShadowBlur())
             .setShadowAlpha(fontDesc.getShadowAlpha()).setAlpha(fontDesc.getAlpha())
             .setOutlineAlpha(fontDesc.getOutlineAlpha()).setOutlineWidth(fontDesc.getOutlineWidth())
+            .addAllStyles(FontStyles.compileStyles(fontDesc))
             .setLayerMask(GetFontMapLayerMask(fontDesc)).setOutputFormat(fontDesc.getOutputFormat())
             .setRenderMode(fontDesc.getRenderMode()).setAllChars(fontDesc.getAllChars()).setCharacters(fontDesc.getCharacters())
             .setCacheWidth(glyphBank.getCacheWidth()).setCacheHeight(glyphBank.getCacheHeight())
@@ -657,7 +661,7 @@ public class Fontc {
                 .setShadowX(fontDesc.getShadowX()).setShadowY(fontDesc.getShadowY())
                 .setShadowBlur(fontDesc.getShadowBlur()).setShadowAlpha(fontDesc.getShadowAlpha())
                 .setAlpha(fontDesc.getAlpha()).setOutlineAlpha(fontDesc.getOutlineAlpha())
-                .setOutlineWidth(fontDesc.getOutlineWidth()).setLayerMask(GetFontMapLayerMask(fontDesc))
+                .setOutlineWidth(fontDesc.getOutlineWidth()).addAllStyles(FontStyles.compileStyles(fontDesc)).setLayerMask(GetFontMapLayerMask(fontDesc))
                 .setOutputFormat(fontDesc.getOutputFormat()).setRenderMode(fontDesc.getRenderMode());
             try (FileOutputStream output = new FileOutputStream(outfile)) {
                 fontMap.build().writeTo(output);

@@ -33,6 +33,7 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.font.FontStyles;
 import com.dynamo.bob.util.BobNLS;
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.MurmurHash;
@@ -63,6 +64,13 @@ import org.apache.commons.io.FilenameUtils;
 @ProtoParams(srcClass = SceneDesc.class, messageClass = SceneDesc.class)
 @BuilderParams(name="Gui", inExts=".gui", outExt=".guic")
 public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
+    private final Map<String, Set<String>> fontStyleNames = new HashMap<>();
+
+    private void validateStyleSelection(String input, NodeDesc node, Map<String, Set<String>> styles) throws CompileExceptionError {
+        if (node.getType() == Type.TYPE_TEXT && styles.containsKey(node.getFont()) && !styles.get(node.getFont()).contains(node.getStyle()))
+            throw new CompileExceptionError(project.getResource(input), 0, "Node '" + node.getId() + "': font style '" + node.getStyle() + "' does not exist");
+    }
+
 
     private static void quatToEuler(Quat4d quat, Tuple3d euler) {
         double heading;
@@ -290,7 +298,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         for (int fieldNumber : overrideNode.getOverriddenFieldsList()) {
             if (fieldNumber == NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER) {
-                continue;
             } else {
                 FieldDescriptor fieldDesc = typeDesc.findFieldByNumber(fieldNumber);
                 assert fieldDesc != null;
@@ -462,7 +469,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 default -> null;
             };
             if (fieldNumber == NodeDesc.CUSTOM_PROPERTIES_FIELD_NUMBER) {
-                continue;
             } else if (customPropertyName == null || !legacyPropertyNames.contains(customPropertyName)) {
                 overriddenFields.add(fieldNumber);
             }
@@ -634,6 +640,8 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             f.getName()));
                 }
                 fontNames.add(f.getName());
+                String compiledPath = ResourceUtil.minifyPathAndReplaceExt(f.getFont(), ".font", ".fontc");
+                builder.fontStyleNames.put(compiledPath, FontStyles.readStyleNames(builder.project.getResource(f.getFont())));
                 newFontList.add(FontDesc.newBuilder().mergeFrom(f).setFont(ResourceUtil.minifyPathAndReplaceExt(f.getFont(), ".font", ".fontc")).build());
             }
 
@@ -878,6 +886,16 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
 
         clearEditorOnlyCustomNodeFields(sceneBuilder);
 
+        if (builder != null) {
+            Map<String, Set<String>> styles = new HashMap<>();
+            for (FontDesc font : sceneBuilder.getFontsList()) {
+                Set<String> names = builder.fontStyleNames.get(font.getFont());
+                if (names != null) styles.put(font.getName(), names);
+            }
+            for (NodeDesc node : sceneBuilder.getNodesList()) builder.validateStyleSelection(input, node, styles);
+            for (LayoutDesc layout : sceneBuilder.getLayoutsList())
+                for (NodeDesc node : layout.getNodesList()) builder.validateStyleSelection(input, node, styles);
+        }
         return sceneBuilder;
     }
 
@@ -904,7 +922,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
-    private class SceneBuilderIO implements ISceneBuilderIO {
+    private static class SceneBuilderIO implements ISceneBuilderIO {
         com.dynamo.bob.Project project;
         SceneBuilderIO(com.dynamo.bob.Project project) {
             this.project = project;

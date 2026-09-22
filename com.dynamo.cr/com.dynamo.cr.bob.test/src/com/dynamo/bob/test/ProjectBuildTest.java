@@ -121,7 +121,6 @@ public class ProjectBuildTest {
                 project.setOption("liveupdate", "true");
             }
 
-            // project.setOption("platform", Platform.X86Win32.getPair());
             List<TaskResult> result = project.build(Progress.discarding(), "clean", "build");
             for (TaskResult taskResult : result) {
                 assertTrue(taskResult.toString(), taskResult.isOk());
@@ -171,8 +170,7 @@ public class ProjectBuildTest {
     @Test
     public void testBuildInputFileGamepadsWithoutGameProject() throws Exception {
         Files.delete(new File(contentRoot, "game.project").toPath());
-        createFile(contentRoot, "input/valid.gamepads", ""
-                + "driver {\n"
+        createFile(contentRoot, "input/valid.gamepads", "driver {\n"
                 + "  device: \"Direct Pad\"\n"
                 + "  platform: \"macos\"\n"
                 + "  dead_zone: 0.2\n"
@@ -205,16 +203,14 @@ public class ProjectBuildTest {
     @Test
     public void testGamepadProjectPropertiesCreateCombinedGamepadTask() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         createDefaultFiles();
-        createFile(contentRoot, "game.project", ""
-                + "[display]\n"
+        createFile(contentRoot, "game.project", "[display]\n"
                 + "width=640\n"
                 + "height=480\n"
                 + "[input]\n"
                 + "gamepads=/input/custom.gamepadsc\n"
                 + "gamepad_database=/input/gamecontrollerdb.txt\n"
                 + "gamepad_deadzone=0.35\n");
-        createFile(contentRoot, "input/custom.gamepads", ""
-                + "driver {\n"
+        createFile(contentRoot, "input/custom.gamepads", "driver {\n"
                 + "  device: \"Manual Project Pad\"\n"
                 + "  platform: \"macos\"\n"
                 + "  dead_zone: 0.2\n"
@@ -232,8 +228,7 @@ public class ProjectBuildTest {
                 + "  dead_zone: 0.2\n"
                 + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
                 + "}\n");
-        createFile(contentRoot, "input/gamecontrollerdb.txt", ""
-                + "03000000000000000000000000000001,SDL Project Pad,a:b1,platform:Mac OS X,\n"
+        createFile(contentRoot, "input/gamecontrollerdb.txt", "03000000000000000000000000000001,SDL Project Pad,a:b1,platform:Mac OS X,\n"
                 + "03000000000000000000000000000002,SDL Project Pad,a:b1,platform:Linux,\n"
                 + "03000000000000000000000000000003,SDL Project Pad,a:b1,platform:Windows,\n"
                 + "03000000000000000000000000000004,SDL Project Pad,a:b1,platform:iOS,\n"
@@ -257,8 +252,7 @@ public class ProjectBuildTest {
     @Test
     public void testDefaultGamepadDatabaseCreatesCombinedGamepadTask() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         createDefaultFiles();
-        createFile(contentRoot, "builtins/input/default.gamepads", ""
-                + "driver {\n"
+        createFile(contentRoot, "builtins/input/default.gamepads", "driver {\n"
                 + "  device: \"Default Manual Pad\"\n"
                 + "  platform: \"macos\"\n"
                 + "  dead_zone: 0.2\n"
@@ -276,8 +270,7 @@ public class ProjectBuildTest {
                 + "  dead_zone: 0.2\n"
                 + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
                 + "}\n");
-        createFile(contentRoot, "builtins/input/gamecontrollerdb.txt", ""
-                + "030000005e0400008e02000014010000,Xbox 360 Controller,a:b1,platform:Mac OS X,\n"
+        createFile(contentRoot, "builtins/input/gamecontrollerdb.txt", "030000005e0400008e02000014010000,Xbox 360 Controller,a:b1,platform:Mac OS X,\n"
                 + "030000005e0400008e02000014010001,Xbox 360 Controller,a:b1,platform:Linux,\n"
                 + "030000005e0400008e02000014010002,Xbox 360 Controller,a:b1,platform:Windows,\n");
 
@@ -298,14 +291,12 @@ public class ProjectBuildTest {
     @Test
     public void testEmptyGamepadDatabaseDisablesDefaultDatabase() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         createDefaultFiles();
-        createFile(contentRoot, "game.project", ""
-                + "[display]\n"
+        createFile(contentRoot, "game.project", "[display]\n"
                 + "width=640\n"
                 + "height=480\n"
                 + "[input]\n"
                 + "gamepad_database=\n");
-        createFile(contentRoot, "builtins/input/default.gamepads", ""
-                + "driver {\n"
+        createFile(contentRoot, "builtins/input/default.gamepads", "driver {\n"
                 + "  device: \"Default Manual Pad\"\n"
                 + "  platform: \"macos\"\n"
                 + "  dead_zone: 0.2\n"
@@ -323,8 +314,7 @@ public class ProjectBuildTest {
                 + "  dead_zone: 0.2\n"
                 + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
                 + "}\n");
-        createFile(contentRoot, "builtins/input/gamecontrollerdb.txt", ""
-                + "030000005e0400008e02000014010000,Xbox 360 Controller,a:b1,platform:Mac OS X,\n"
+        createFile(contentRoot, "builtins/input/gamecontrollerdb.txt", "030000005e0400008e02000014010000,Xbox 360 Controller,a:b1,platform:Mac OS X,\n"
                 + "030000005e0400008e02000014010001,Xbox 360 Controller,a:b1,platform:Linux,\n"
                 + "030000005e0400008e02000014010002,Xbox 360 Controller,a:b1,platform:Windows,\n");
 
@@ -342,8 +332,7 @@ public class ProjectBuildTest {
     @Test
     public void testGamepadSourceFieldCombinations() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
         createDefaultFiles();
-        createFile(contentRoot, "input/custom.gamepads", ""
-                + "driver {\n"
+        createFile(contentRoot, "input/custom.gamepads", "driver {\n"
                 + "  device: \"Manual Project Pad\"\n"
                 + "  platform: \"macos\"\n"
                 + "  dead_zone: 0.2\n"
@@ -361,8 +350,7 @@ public class ProjectBuildTest {
                 + "  dead_zone: 0.2\n"
                 + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
                 + "}\n");
-        createFile(contentRoot, "input/gamecontrollerdb.txt", ""
-                + "03000000000000000000000000000001,SDL Only Pad,a:b1,platform:Mac OS X,\n"
+        createFile(contentRoot, "input/gamecontrollerdb.txt", "03000000000000000000000000000001,SDL Only Pad,a:b1,platform:Mac OS X,\n"
                 + "03000000000000000000000000000002,SDL Only Pad,a:b1,platform:Linux,\n"
                 + "03000000000000000000000000000003,SDL Only Pad,a:b1,platform:Windows,\n");
 
@@ -386,8 +374,7 @@ public class ProjectBuildTest {
                                                     String expectedProjectGamepads,
                                                     String expectedBuildPath,
                                                     String[] expectedDevices) throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
-        createFile(contentRoot, "game.project", ""
-                + "[display]\n"
+        createFile(contentRoot, "game.project", "[display]\n"
                 + "width=640\n"
                 + "height=480\n"
                 + "[input]\n"
@@ -397,7 +384,7 @@ public class ProjectBuildTest {
         build();
 
         BobProjectProperties outputProps = new BobProjectProperties();
-        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+        outputProps.load(new FileInputStream(contentRoot + "/build/game.projectc"));
         checkProjectSetting(outputProps, "input", "gamepads", expectedProjectGamepads);
         checkProjectSetting(outputProps, "input", "gamepad_database", null);
 
@@ -442,7 +429,7 @@ public class ProjectBuildTest {
         createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[display]" + "\nvariable_dt = 1\n" + "vsync = 1\n" + "update_frequency = 30\n");
         build();
         BobProjectProperties outputProps = new BobProjectProperties();
-        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+        outputProps.load(new FileInputStream(contentRoot + "/build/game.projectc"));
 
         checkProjectSetting(outputProps, "display", "vsync", "0");
         checkProjectSetting(outputProps, "display", "update_frequency", "0");
@@ -455,7 +442,7 @@ public class ProjectBuildTest {
         createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[custom]\nlove = defold\nshould_be_empty =\nempty_list =\nempty_list2 =,,,\nlist1 = a\nlist2 = a,b,c\n");
         build();
         BobProjectProperties outputProps = new BobProjectProperties();
-        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+        outputProps.load(new FileInputStream(contentRoot + "/build/game.projectc"));
 
         checkProjectSetting(outputProps, "project", "title", projectName);
 
@@ -463,7 +450,6 @@ public class ProjectBuildTest {
         checkProjectSetting(outputProps, "project", "doesn't_exist", null);
 
         // Default boolean value
-        checkProjectSetting(outputProps, "script", "shared_state", "0");
         checkProjectSetting(outputProps, "display", "vsync", "1");
         checkProjectSetting(outputProps, "display", "update_frequency", "0");
 
@@ -506,7 +492,7 @@ public class ProjectBuildTest {
             "\ncustom_string_list#0 = http://test.com/test.zip\ncustom_string_list#2 = http://test.com/test2.zip\ncustom_string_list#1 = http://test.com/test1.zip\n");
         build();
         BobProjectProperties outputProps = new BobProjectProperties();
-        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+        outputProps.load(new FileInputStream(contentRoot + "/build/game.projectc"));
 
         checkProjectSettingArray(outputProps, "project", "custom_string_list", new String[]{"http://test.com/test.zip", "http://test.com/test1.zip", "http://test.com/test2.zip"});
     }
@@ -616,7 +602,7 @@ public class ProjectBuildTest {
         createFile(contentRoot, BobProjectProperties.PROPERTIES_PROJECT_FILE, "[project]\ncustom_property.private = 1\n");
         build();
         BobProjectProperties outputProps = new BobProjectProperties();
-        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+        outputProps.load(new FileInputStream(contentRoot + "/build/game.projectc"));
 
         checkProjectSetting(outputProps, "project", "custom_property", null);
     }
@@ -716,7 +702,7 @@ public class ProjectBuildTest {
         Manifest.ManifestData bundledManifestData = readManifestData(getBundledManifestFile());
         Manifest.ManifestData publishedManifestData = readManifestData(getPublishedManifestFile());
         BobProjectProperties outputProps = new BobProjectProperties();
-        outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+        outputProps.load(new FileInputStream(contentRoot + "/build/game.projectc"));
 
         assertEquals(0, countExcludedEntries(bundledManifestData));
         assertTrue(bundledManifestData.getHasExcludedResources());

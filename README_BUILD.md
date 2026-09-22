@@ -37,7 +37,7 @@ Once per platform to be built
 ```
 $ ./scripts/build.py install_ext    # extracts packages
 $ ./scripts/build.py check_sdk      # checks that it finds the platform SDK
-$ ./scripts/build.py build_ext      # builds and installs source dependencies, including Bullet
+$ ./scripts/build.py build_ext      # builds and installs some external libs like Bullet etc
 ```
 
 Repeat these steps after `distclean`. Re-run `build_ext` when the external
@@ -77,7 +77,6 @@ The following platforms are supported:
 * `x86_64-linux`
 * `x86_64-macos`
 * `arm64-macos`
-* `win32`
 * `x86_64-win32`
 * `arm64-ios`
 * `arm64_sim-ios`
@@ -119,7 +118,7 @@ When the `install_ext` command has finished you will find the external packages 
 You need to rerun the `install_ext` command for each target platform, as different packages and SDKs are installed.
 
 #### Installing packages
-The `install_ext` command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages include Box2D and Protocol Buffers (a.k.a. protobuf). Bullet is built from source by `build_ext` instead.
+The `install_ext` command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages include Box2D and Protocol Buffers (a.k.a. protobuf). Some libs like Bullet are built from source by `build_ext` instead.
 
 This step also installs some Python dependencies:
 
@@ -167,7 +166,7 @@ Once the packages and platform SDK are installed, build the source dependencies:
 $ ./scripts/build.py build_ext --platform=...
 ```
 
-This uses the Defold CMake toolchain to build Bullet and install it into
+This uses the Defold CMake toolchain to build Bullet plus other external libs and install them into
 `${DYNAMO_HOME}/ext`. Run it for each target platform before building the engine
 or packaging a local platform SDK. Repeat it after `distclean` or changes to
 the external sources or toolchain. Subsequent calls reuse the CMake build cache.

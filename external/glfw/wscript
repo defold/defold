@@ -78,7 +78,7 @@ def build(bld):
     bld.install_files('${PREFIX}/%s/include/glfw' % name, 'include/GL/glfw.h')
     bld.install_files('${PREFIX}/%s/include/glfw' % name, 'include/GL/glfw_native.h')
 
-    if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
+    if bld.env.PLATFORM == 'x86_64-win32':
         bld.env.cxxstlib_PATTERN = 'lib%s.lib'
 
     lib_name = bld.env.cxxstlib_PATTERN % 'dmglfw'

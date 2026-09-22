@@ -53,7 +53,7 @@ local function test_v2_fixture_shapes(body)
     assert(b2d.fixture ~= nil)
     assert(b2d.shape.SHAPE_TYPE_CHAIN ~= nil)
 
-    local target = vmath.vector3(100000, 100000, 0)
+    local target = vmath.vector3(100, 100, 0)
     local fixture = b2d.body.create_fixture(body, {
         density = 0.5,
         friction = 0.2,
@@ -137,7 +137,7 @@ local function test_v3_body_and_shapes(body)
     b2d.body.enable_hit_events(body, true)
     assert(type(b2d.body.get_contact_data(body)) == "table")
 
-    local target = vmath.vector3(100000, 100000, 0)
+    local target = vmath.vector3(100, 100, 0)
     local material_shape = b2d.body.create_shape(body, {
         type = b2d.shape.SHAPE_TYPE_CIRCLE,
         center = target,
@@ -189,7 +189,12 @@ local function test_v3_body_and_shapes(body)
     assert_error(function() b2d.shape.get_type(material_shape.shape_id) end)
 end
 
-function init(self)
+-- Collision objects are enabled when added to update, after init().
+function update(self, dt)
+    if tests_done then
+        return
+    end
+
     if b2d ~= nil then
         local body = b2d.get_body("#collisionobject")
         assert(body ~= nil)

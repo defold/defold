@@ -130,5 +130,24 @@
 
         <key>UIRequiresFullScreen</key>
         <true/>
+        <key>UIApplicationSceneManifest</key>
+        <dict>
+                <key>UIApplicationSupportsMultipleScenes</key>
+                <false/>
+                <key>UISceneConfigurations</key>
+                <dict>
+                        <key>UIWindowSceneSessionRoleApplication</key>
+                        <array>
+                                <dict>
+                                        <key>UISceneConfigurationName</key>
+                                        <string>Defold</string>
+                                        <key>UISceneClassName</key>
+                                        <string>UIWindowScene</string>
+                                        <key>UISceneDelegateClassName</key>
+                                        <string>DefoldSceneDelegate</string>
+                                </dict>
+                        </array>
+                </dict>
+        </dict>
 </dict>
 </plist>

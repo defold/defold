@@ -28,10 +28,8 @@ function usage() {
     echo " * armv7-android"
     echo " * arm64-android"
     echo " * x86_64-android"
-    echo " * i586-mingw32msvc"
     echo " * wasm-web"
     echo " * wasm_pthread-web"
-    echo " * win32 (luajit)"
     echo " * x86_64-win32 (luajit)"
     echo " * arm64-nx64"
     exit $1
