@@ -453,9 +453,6 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics font particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
-HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
-
 EXTERNAL_LIBS = "glfw opus box2d box2d_v2 vkquality harfbuzz sheenbidi libunibreak skribidi dawn".split()
 EXTERNAL_PACKAGE_VERSIONS = {
     "glfw": "2.7.1",
@@ -587,7 +584,6 @@ class Configuration(object):
                  keep_bob_uncompressed = False,
                  codesign = False,
                  skip_docs = False,
-                 incremental = False,
                  skip_builtins = False,
                  skip_bob_light = False,
                  disable_ccache = False,
@@ -599,7 +595,7 @@ class Configuration(object):
                  set_version = None,
                  channel = None,
                  engine_artifacts = None,
-                 waf_options = [],
+                 build_options = [],
                  save_env_path = None,
                  private_repo = None,
                  private_platform = None,
@@ -646,7 +642,6 @@ class Configuration(object):
         self.keep_bob_uncompressed = keep_bob_uncompressed
         self.codesign = codesign
         self.skip_docs = skip_docs
-        self.incremental = incremental
         self.skip_builtins = skip_builtins
         self.skip_bob_light = skip_bob_light
         self.disable_ccache = disable_ccache
@@ -659,7 +654,7 @@ class Configuration(object):
         self.set_version = set_version
         self.channel = channel
         self.engine_artifacts = engine_artifacts
-        self.waf_options = waf_options
+        self.build_options = build_options
         self.save_env_path = save_env_path
         self.private_repo = private_repo
         self.private_platform = private_platform
@@ -711,8 +706,8 @@ class Configuration(object):
             if not private_root:
                 raise RuntimeError('make_solution: x86_64-xbone requires a configured private Xbox repo. Run add_private_repo with --platform=x86_64-xbone first.')
 
-        build_type = self._find_cmake_build_type(self.waf_options)
-        build_tests = 'OFF' if '--skip-build-tests' in self.waf_options else 'ON'
+        build_type = self._find_cmake_build_type(self.build_options)
+        build_tests = 'OFF' if '--skip-build-tests' in self.build_options else 'ON'
         build_home = self._platform_build_home(tp)
 
         # Android guidance
@@ -1030,14 +1025,6 @@ class Configuration(object):
             print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
             sys.exit(1)
 
-    def install_waf(self):
-        def make_package_path(root, platform, package):
-            return join(root, 'packages', package) + '-%s.tar.gz' % platform
-        print("Installing waf")
-        waf_package = "waf-2.1.9"
-        waf_path = make_package_path(self.defold_root, 'common', waf_package)
-        self._extract_tgz(waf_path, self.ext)
-
     def _install_python_packages(self, packages):
         target = join(self.ext, 'lib', 'python')
         wheelhouse = join(self.defold_root, 'packages', 'python')
@@ -1082,9 +1069,6 @@ class Configuration(object):
 
         def make_private_package_paths(platform, packages):
             return [make_private_package_path(platform, package) for package in packages]
-
-        if self._build_engine_with_waf():
-            self.install_waf()
 
         print("Installing common packages")
         for p in PACKAGES_ALL:
@@ -1289,21 +1273,6 @@ class Configuration(object):
 
         output = run.command(args)
         self._log(output)
-
-    def verify_sdk(self):
-        was_verbose = self.verbose
-        self.verbose = True
-        self.check_sdk()
-
-        def _test_compiler_cmd(self, prefix, verbose):
-            return '%s %s/ext/bin/waf --prefix=%s distclean configure build --skip-tests --skip-build-tests %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, verbose and '-v' or '')
-
-        args = _test_compiler_cmd(self, self.dynamo_home, was_verbose)
-        args = args.split()
-        self._log('Testing compiler for platform %s' % (target_platform))
-        cwd = join(self.defold_root, 'engine/sdk/test/toolchain')
-        plf_args = ['--platform=%s' % target_platform]
-        run.env_command(self._form_env(), args + plf_args + self._waf_forward_options(), cwd = cwd)
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
@@ -1703,51 +1672,14 @@ class Configuration(object):
             print ("Wrote %s, %s" % (path, sig_path))
 
     def generate_global_compile_commands_json(self):
-        # Generates a "global" compile_commands.json file in the root directory that can be
-        # used for example by EasyClangComplete in Sublime Text to get better code completion.
-        #
-        # Since the engine is built up using sub projects/libs, we generate compile_commands.json
-        # files for each of these libraries during a regular build, and collect them and concat
-        # them into one big "general"/project wide file here instead.
-        #
-        # Format of the compile_commands.json file is:
-        # >  [
-        # >     {
-        # >       "file": <file that would be compiled>
-        # >       "command": <compile command would be used on the file>,
-        # >       "directory": <build directory>,
-        # >     },
-        # >  ]
-        #
-        # The method to concat them all is quite simple but seems to work just fine;
-        #   - loop over engine library directories and find the compile_commands.json
-        #     file in the build subdir, that should have been generated during build_engine
-        #   - take all the contents of the file except the starting and ending square brackets
-        #     and copy it over into the output json
-        #
-
         self._log("Generating global compile_commands.json")
-
-        # Put the output json in the defold root since its where EasyClangComplete would look for it
-        output_path = os.path.join(self.defold_root, 'compile_commands.json')
-
-        result_config = []
-        # We loop over engine/<subdirs> and look for engine/<subdir>/build/compile_commands.json
-        engine_path = os.path.join(self.defold_root, 'engine')
-        for engine_subpath in os.listdir(engine_path):
-            potential_json_path = os.path.join(engine_path, engine_subpath, "build", "compile_commands.json")
-
-            if os.path.exists(potential_json_path):
-                self._log("Adding %s" % potential_json_path)
-
-                with open(potential_json_path, 'r') as input_file:
-                    sub_config = json.load(input_file)
-                    for elem in sub_config:
-                        result_config.append(elem)
-                    input_file.close()
-        with open(output_path, 'w') as output_file:
-            json.dump(result_config, output_file)
-            output_file.close()
+        commands = []
+        for platform in dict.fromkeys((self.host, self.target_platform)):
+            path = join(self._cmake_top_build_dir(platform), 'compile_commands.json')
+            with open(path) as input_file:
+                commands.extend(json.load(input_file))
+        with open(join(self.defold_root, 'compile_commands.json'), 'w') as output_file:
+            json.dump(commands, output_file)
 
     def build_builtins(self):
         with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
@@ -1891,7 +1823,7 @@ class Configuration(object):
                 supported_tests['x86_64-win32'].append(self.target_platform)
 
         if build_ios.is_ios_test_platform(self.target_platform):
-            strict_ios_tests = not self.skip_tests and '--skip-build-tests' not in self.waf_options
+            strict_ios_tests = not self.skip_tests and '--skip-build-tests' not in self.build_options
             try:
                 can_run_ios_tests = build_ios.can_run_tests_for_platform(
                     self.target_platform,
@@ -1935,14 +1867,6 @@ class Configuration(object):
 
         return True
 
-    def _get_build_flags(self):
-        supports_tests = self._can_run_tests()
-        skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
-        codesign = '--codesign' if self.codesign else ''
-        disable_ccache = '--disable-ccache' if self.disable_ccache else ''
-        generate_compile_commands = '--generate-compile-commands' if self.generate_compile_commands else ''
-        return {'skip_tests':skip_tests, 'codesign':codesign, 'disable_ccache':disable_ccache, 'generate_compile_commands':generate_compile_commands, 'prefix':None}
-
     def get_base_platforms(self):
         # Base platforms is the platforms to build the base libs for.
         # The base libs are the libs needed to build bob, i.e. contains compiler code.
@@ -1979,40 +1903,6 @@ class Configuration(object):
 # <- Gen source files
 # ------------------------------------------------------------
 
-    def _build_engine_with_waf(self):
-        return '--with-waf' in self.waf_options
-
-    def _waf_forward_options(self):
-        return [option for option in self.waf_options if option != '--with-waf']
-
-    def _build_engine_cmd_waf(self, skip_tests, codesign, disable_ccache, generate_compile_commands, prefix, incremental = None):
-        prefix = prefix and prefix or self.dynamo_home
-        incremental = self.incremental if incremental is None else incremental
-        commands = "build install"
-        if not incremental:
-            commands = "distclean configure " + commands
-        return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, codesign, disable_ccache, generate_compile_commands, commands)
-
-    def _has_waf_configure_state(self, cwd):
-        return os.path.exists(join(cwd, 'build', 'c4che', '_cache.py'))
-
-    def _build_engine_lib_waf(self, args, lib, platform, skip_tests, directory):
-        skip_build_tests = []
-        if skip_tests and '--skip-build-tests' not in self.waf_options:
-            skip_build_tests.append('--skip-tests')
-            skip_build_tests.append('--skip-build-tests')
-        cwd = join(self.defold_root, '%s/%s' % (directory, lib))
-        waf_args = list(args)
-        # Propagate the ``--with-waf`` flag so that waf sees it and can
-        # skip the CMake check.  The flag is added only when the build
-        # configuration requested a pure‑Waf build.
-        if self._build_engine_with_waf():
-            waf_args.append('--with-waf')
-        if not self._has_waf_configure_state(cwd) and 'configure' not in waf_args and 'build' in waf_args:
-            waf_args.insert(waf_args.index('build'), 'configure')
-        plf_args = ['--platform=%s' % platform]
-        run.env_command(self._form_env(), waf_args + plf_args + self._waf_forward_options() + skip_build_tests, cwd = cwd)
-
     def _find_cmake_build_type(self, options):
         for x in options:
             if '--opt-level=' in x:
@@ -2028,15 +1918,15 @@ class Configuration(object):
         feature_flags = dict((feature, 'OFF') for feature in _CMAKE_FEATURE_FLAG_MAP.values())
         feature_lists = {}
         index = 0
-        while index < len(self.waf_options):
-            option = self.waf_options[index]
+        while index < len(self.build_options):
+            option = self.build_options[index]
             if not option.startswith('--with-'):
                 feature_option = None
                 feature_name = None
                 for prefix in _CMAKE_FEATURE_LIST_OPTIONS:
-                    if option == prefix and index + 1 < len(self.waf_options):
+                    if option == prefix and index + 1 < len(self.build_options):
                         feature_option = prefix
-                        feature_name = self.waf_options[index + 1]
+                        feature_name = self.build_options[index + 1]
                         index += 1
                         break
                     if option.startswith(prefix + '='):
@@ -2204,6 +2094,7 @@ class Configuration(object):
 
         defines = configure_state.get('defines', {})
         for key in ('CMAKE_BUILD_TYPE',
+                    'CMAKE_EXPORT_COMPILE_COMMANDS',
                     'CMAKE_INSTALL_PREFIX',
                     'CMAKE_GENERATOR_INSTANCE',
                     'CMAKE_SYSTEM_VERSION',
@@ -2362,8 +2253,8 @@ class Configuration(object):
         build_home = self._platform_build_home(platform)
         builddir = self._cmake_top_build_dir(platform)
 
-        build_type = self._find_cmake_build_type(self.waf_options)
-        build_tests = (not skip_tests) and '--skip-build-tests' not in self.waf_options and self._can_run_tests()
+        build_type = self._find_cmake_build_type(self.build_options)
+        build_tests = (not skip_tests) and '--skip-build-tests' not in self.build_options and self._can_run_tests()
         supports_tests = build_tests
 
         # Keep CMake build directories persistent so repeated builds can be
@@ -2372,7 +2263,7 @@ class Configuration(object):
         if not os.path.exists(builddir):
             os.makedirs(builddir)
 
-        is_verbose = self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
+        is_verbose = self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options)
         test = '' if (self.skip_tests or not supports_tests) else 'run_tests'
         build_test = 'build_tests' if build_tests else ''
         cmake_build_tests = 'ON' if build_tests else 'OFF'
@@ -2394,6 +2285,7 @@ class Configuration(object):
             f'-DCMAKE_BUILD_TYPE={build_type}',
             f'-DTARGET_PLATFORM={platform}',
             f'-DBUILD_TESTS={cmake_build_tests}',
+            f'-DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL={"ON" if self.generate_compile_commands else "OFF"}',
             f'-DDEFOLD_ENGINE_LIB_SET={lib_set}',
             f'-DDEFOLD_BUILD_HOME:PATH={build_home}',
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
@@ -2508,13 +2400,6 @@ class Configuration(object):
 
             self.build_tracker.end_command(log_cmd_tests)
 
-    def _build_engine_lib(self, args, lib, platform, skip_tests = False, directory = 'engine'):
-        self.build_tracker.start_component(lib, platform)
-
-        self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
-
-        self.build_tracker.end_component(lib, platform)
-
 # For now gradle right in
 # - 'com.dynamo.cr/com.dynamo.cr.bob'
 # - 'com.dynamo.cr/com.dynamo.cr.test'
@@ -2586,63 +2471,35 @@ class Configuration(object):
 
         host = self.host
         target_platform = self.target_platform
-        with_waf = self._build_engine_with_waf()
-        if with_waf:
-            cmd = self._build_engine_cmd_waf(**self._get_build_flags(), incremental = self.incremental)
-            args = cmd.split()
-            self._log('Building engine libs with Waf fallback (--with-waf)')
-        else:
-            args = []
-            self._log('Building engine libs with top-level CMake (incremental by default)')
+        self._log('Building engine libs with top-level CMake (incremental by default)')
 
         # Make sure we build these for the host platform for the toolchain (bob light)
-        if with_waf:
-            host_lib_skip_tests = host != target_platform
-            for lib in HOST_LIBS:
-                self._build_engine_lib(args, lib, host, skip_tests = host_lib_skip_tests)
-        else:
-            self.build_tracker.start_component('cmake_host_libs', host)
-            self._build_engine_libs_cmake('host_libs', 'host', host, skip_tests = True, allow_compatible_configure = host == target_platform)
-            self.build_tracker.end_component('cmake_host_libs', host)
+        self.build_tracker.start_component('cmake_host_libs', host)
+        self._build_engine_libs_cmake('host_libs', 'host', host, skip_tests = True, allow_compatible_configure = host == target_platform)
+        self.build_tracker.end_component('cmake_host_libs', host)
 
         if not self.skip_bob_light:
             # We must build bob-light, which builds content during the engine build
             self.build_bob_light()
 
-        if with_waf:
-            for lib in ENGINE_LIBS:
-                if host == target_platform and lib in HOST_LIBS:
-                    continue
-                if not build_private.is_library_supported(target_platform, lib):
-                    continue
-                self._build_engine_lib(args, lib, target_platform)
-        else:
-            reuse_builddir = host == target_platform
-            target_lib_set = 'all' if reuse_builddir else 'target'
-            self.build_tracker.start_component('cmake_engine_libs', target_platform)
-            self._build_engine_libs_cmake(
-                'engine_libs',
-                target_lib_set,
-                target_platform,
-                skip_tests = self.skip_tests,
-                reuse_builddir = reuse_builddir,
-                use_existing_bob_light = True)
-            self.build_tracker.end_component('cmake_engine_libs', target_platform)
+        reuse_builddir = host == target_platform
+        target_lib_set = 'all' if reuse_builddir else 'target'
+        self.build_tracker.start_component('cmake_engine_libs', target_platform)
+        self._build_engine_libs_cmake(
+            'engine_libs',
+            target_lib_set,
+            target_platform,
+            skip_tests = self.skip_tests,
+            reuse_builddir = reuse_builddir,
+            use_existing_bob_light = True)
+        self.build_tracker.end_component('cmake_engine_libs', target_platform)
 
-        if with_waf:
-            self._build_engine_lib(args, 'extender', target_platform, directory = 'share')
         if not self.skip_docs:
             self.build_docs(incremental = True)
         if not self.skip_builtins:
             self.build_builtins()
         if self.generate_compile_commands:
             self.generate_global_compile_commands_json()
-        if '--static-analyze' in self.waf_options:
-            scan_output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
-            report_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'report'))
-            run.command(self.get_python() + ['./scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
-            print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
-            shutil.rmtree(scan_output_dir)
 
         self._log("Write platform.sdks.json")
         write_merged_platform_sdks(self.defold_root, self.target_platform, join(self.dynamo_home, "platform.sdks.json"))
@@ -2662,7 +2519,7 @@ class Configuration(object):
     def _build_ext_platform(self, platform):
         source_dir = join(self.defold_root, 'external')
         build_dir = join(source_dir, 'build', platform)
-        build_type = self._find_cmake_build_type(self.waf_options)
+        build_type = self._find_cmake_build_type(self.build_options)
         configure_args = [
             'cmake', '-S', source_dir, '-B', build_dir, '-GNinja',
             '-DCMAKE_BUILD_TYPE=%s' % build_type,
@@ -2672,7 +2529,7 @@ class Configuration(object):
             '-DCMAKE_INSTALL_MESSAGE=LAZY',
         ]
         build_args = ['cmake', '--build', build_dir]
-        if self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options):
+        if self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options):
             build_args.append('--verbose')
         install_args = ['cmake', '--install', build_dir, '--config', build_type]
 
@@ -2739,7 +2596,7 @@ class Configuration(object):
         os.makedirs(build_dir, exist_ok=True)
         os.makedirs(package_dir, exist_ok=True)
 
-        build_type = self._find_cmake_build_type(self.waf_options)
+        build_type = self._find_cmake_build_type(self.build_options)
         configure_args = [
             'cmake',
             '-S', source_dir,
@@ -2753,7 +2610,7 @@ class Configuration(object):
             '-DBUILD_TESTS=OFF',
         ]
         build_args = ['cmake', '--build', build_dir, '--target', 'install']
-        if self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options):
+        if self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options):
             build_args.append('--verbose')
 
         self.build_tracker.start_component(lib, platform)
@@ -2946,9 +2803,9 @@ class Configuration(object):
         docs_dir = join(self.defold_root, 'engine/docs')
         builddir = join(docs_dir, 'build')
         platform = self.target_platform
-        build_type = self._find_cmake_build_type(self.waf_options)
+        build_type = self._find_cmake_build_type(self.build_options)
         docs_run_tests = 'OFF' if self.skip_tests or self.target_platform != self.host else 'ON'
-        is_verbose = self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
+        is_verbose = self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options)
 
         if incremental is None:
             incremental = True
@@ -3933,7 +3790,6 @@ install_ext      - Install prepackaged dependencies, then build and install sour
 build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk
-install_waf      - Install waf
 sync_archive     - Download engine artifacts needed by Bob from S3
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
@@ -3959,9 +3815,8 @@ Multiple commands can be specified
 
 CMake shorthand defaults from build.py shell: CMAKE_GENERATOR=Ninja, omitted --platform uses the host platform, CMAKE_BUILD_TYPE=RelWithDebInfo, and BUILD_TESTS=ON.
 Use -- --opt-level=0 for Debug, -- --skip-build-tests to skip building tests, or --skip-tests to skip running tests.
-Use --with-waf to build engine libs through the Waf fallback path and include Waf in install_ext during the CMake transition.
 
-To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
+To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
 '''
     parser = optparse.OptionParser(usage)
 
@@ -4012,11 +3867,6 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       action = 'store_true',
                       default = False,
                       help = 'skip building docs when building the engine. Default is false')
-
-    parser.add_option('--incremental', dest='incremental',
-                      action = 'store_true',
-                      default = False,
-                      help = 'skip reconfigure/distclean when building with Waf. Top-level CMake build_engine is incremental by default')
 
     parser.add_option('--skip-builtins', dest='skip_builtins',
                       action = 'store_true',
@@ -4144,19 +3994,12 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       default = False,
                       help = 'Emit extra wasm-web analysis artifacts such as source maps and separate DWARF')
 
-    parser.add_option('--with-waf', dest='with_waf',
-                      action = 'store_true',
-                      default = False,
-                      help = 'Build engine libs with the Waf fallback path instead of the top-level CMake path')
-
     options, all_args = parser.parse_args()
 
     args = list(filter(lambda x: x[:2] != '--', all_args))
-    waf_options = list(filter(lambda x: x[:2] == '--', all_args))
+    build_options = list(filter(lambda x: x[:2] == '--', all_args))
     if options.size_analyze:
-        waf_options.append('--size-analyze')
-    if options.with_waf:
-        waf_options.append('--with-waf')
+        build_options.append('--size-analyze')
 
     if len(args) == 0:
         parser.error('No command specified')
@@ -4206,7 +4049,6 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       keep_bob_uncompressed = options.keep_bob_uncompressed,
                       codesign = options.codesign,
                       skip_docs = options.skip_docs,
-                      incremental = options.incremental,
                       skip_builtins = options.skip_builtins,
                       skip_bob_light = options.skip_bob_light,
                       disable_ccache = options.disable_ccache,
@@ -4218,7 +4060,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       set_version = options.set_version,
                       channel = options.channel,
                       engine_artifacts = options.engine_artifacts,
-                      waf_options = waf_options,
+                      build_options = build_options,
                       save_env_path = options.save_env_path,
                       private_repo = options.private_repo,
                       private_platform = private_platform,

@@ -25,7 +25,7 @@ class ExternalPackageTests(unittest.TestCase):
         self.configuration.dynamo_home = str(self.root / 'sdk')
         self.configuration.ext = str(self.root / 'sdk/ext')
         self.configuration.host = build.get_host_platform()
-        self.configuration.waf_options = []
+        self.configuration.build_options = []
         self.configuration.verbose = False
         self.configuration.build_tracker = BuildTimeTracker(logger=lambda message: None)
         self.configuration._form_env = os.environ.copy
