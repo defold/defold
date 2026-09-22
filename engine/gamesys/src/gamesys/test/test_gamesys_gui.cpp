@@ -13,8 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
-#include "../../../../render/src/render/font/font_renderer_api.h"
-#include "../../../../render/src/render/font/default/font_default_vertex.h"
 
 using namespace dmVMath;
 
@@ -1019,37 +1017,6 @@ TEST_F(FontTest, PrewarmTextRejectsCallbackAfterScriptInstanceReuse)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-TEST_F(FontTest, VectorFontPrewarmPreservesOutline)
-{
-    const char path_font[] = "/font/dyn_glyph_bank_test_1.fontc";
-    dmGameSystem::FontResource* font = 0;
-    DynamicFontJobCallbackState callback_state = {0, -1, {0}};
-
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font, (void**) &font));
-    ASSERT_NE((void*)0, font);
-
-    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
-    font_map->m_IsVector = 1;
-    font_map->m_Size = 32.0f;
-
-    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, "Lorem ipsum", DynamicFontJobCallback, &callback_state));
-    ASSERT_EQ(32.0f, dmRender::GetFontMapSize(font_map));
-    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, "dolor", DynamicFontJobCallback, &callback_state));
-    ASSERT_EQ(32.0f, dmRender::GetFontMapSize(font_map));
-    ASSERT_TRUE(WaitForDynamicFontJobCallbacks(m_JobContext, &callback_state, 2));
-    ASSERT_EQ(1, callback_state.m_Result);
-
-    HFontCollection font_collection = dmRender::GetFontCollection(font_map);
-    HFont hfont = FontCollectionGetFont(font_collection, 0);
-    FontGlyph* glyph = 0;
-    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, 'L', &glyph));
-    ASSERT_NE((FontGlyph*)0, glyph);
-    ASSERT_GT(glyph->m_Outline.m_CommandCount, 0u);
-    ASSERT_EQ((const uint8_t*)0, glyph->m_Bitmap.m_Data);
-
-    dmResource::Release(m_Factory, font);
-}
-
 TEST_F(FontTest, VectorFontPrewarmWithoutEffectsUsesCurveReferenceSize)
 {
     const char path_font[] = "/font/dynamic_vector.fontc";
@@ -1098,7 +1065,6 @@ TEST_F(FontTest, VectorFontBitmapPrewarmUsesFontResourceSize)
     ASSERT_TRUE(dmRender::GetFontMapIsVector(font_map));
     ASSERT_EQ(32.0f, dmRender::GetFontMapSize(font_map));
     ASSERT_TRUE(font->m_PrewarmDone);
-    ASSERT_EQ((dmGameSystem::MaterialResource*)0, font->m_SdfMaterialResource);
     ASSERT_TRUE(font_map->m_VectorBitmapEffects);
 
     ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, "Bitmap outline", DynamicFontJobCallback, &callback_state));
@@ -1132,10 +1098,7 @@ TEST_F(FontTest, StaticVectorEffectsUseBakedBitmapsWithoutSourceFont)
         ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, paths[i], (void**)&font));
         ASSERT_FALSE(font->m_IsDynamic);
         ASSERT_EQ((dmGameSystem::TTFResource*)0, font->m_TTFResource);
-        ASSERT_EQ((dmGameSystem::MaterialResource*)0, font->m_SdfMaterialResource);
-        ASSERT_EQ((dmRender::HMaterial)0, dmGameSystem::ResFontGetShadowMaterial(font));
         dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
-        ASSERT_FALSE(font_map->m_ShadowSdf);
         ASSERT_TRUE(font_map->m_VectorBitmapEffects);
         ASSERT_TRUE(dmRender::GetFontMapIsVector(font_map));
 
@@ -1169,33 +1132,6 @@ TEST_F(FontTest, StaticVectorEffectsUseBakedBitmapsWithoutSourceFont)
         if (i == 1)
             ASSERT_GT(shadow_pixels, 0u);
 
-        dmRender::TextEntry entry = {};
-        entry.m_Transform = Matrix4::identity();
-        entry.m_FaceColor = 0xffffffff;
-        entry.m_OutlineColor = 0xffffffff;
-        entry.m_ShadowColor = 0xffffffff;
-        entry.m_Width = 512.0f;
-        entry.m_Leading = 1.0f;
-        entry.m_Align = dmRender::TEXT_ALIGN_LEFT;
-        entry.m_VAlign = dmRender::TEXT_VALIGN_TOP;
-        dmRender::FontDefaultVertex vertices[18];
-        dmRender::HFontRenderBackend backend = m_RenderContext->m_TextContext.m_FontRenderBackend;
-        const uint32_t count = i == 0 ? 12 : 18;
-        ASSERT_EQ(count, dmRender::CreateFontVertexData(backend, font_map, 1, "A", entry,
-            1.0f, 1.0f, 1.0f, (uint8_t*)vertices, DM_ARRAY_SIZE(vertices)));
-        for (uint32_t v = 0; v < count; ++v)
-        {
-            const float mode = v < count - 12 ? 2.0f : v < count - 6 ? 1.0f : 0.0f;
-            ASSERT_EQ(mode, vertices[v].m_VectorTexcoord[3]);
-            ASSERT_EQ(255u, vertices[v].m_VectorColor[3]);
-            if (mode > 0.0f)
-            {
-                ASSERT_GE(vertices[v].m_VectorTexcoord[0], 0.0f);
-                ASSERT_LE(vertices[v].m_VectorTexcoord[0], 1.0f);
-                ASSERT_GE(vertices[v].m_VectorTexcoord[1], 0.0f);
-                ASSERT_LE(vertices[v].m_VectorTexcoord[1], 1.0f);
-            }
-        }
         ASSERT_EQ(cached, dmRender::GetFromCache(font_map, key, 2));
         dmResource::Release(m_Factory, font);
     }
@@ -1244,7 +1180,6 @@ TEST_F(FontTest, ScriptPrewarmVectorEffectsBeforeRendering)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dynamic_vector_outline.fontc", (void**)&font));
     dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
     ASSERT_TRUE(dmRender::GetFontMapIsVector(font_map));
-    ASSERT_EQ((dmGameSystem::MaterialResource*)0, font->m_SdfMaterialResource);
     ASSERT_TRUE(font_map->m_VectorBitmapEffects);
 
     lua_State* L = scriptlibcontext.m_LuaState;

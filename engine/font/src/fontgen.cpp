@@ -159,7 +159,6 @@ static int JobGenerateGlyph(HJobContext job_thread, HJob hjob, void* context, vo
     {
         FontGlyphOptions options;
         options.m_Scale = item->m_Scale;
-        options.m_GenerateImage = jobdata->m_Params.m_GenerateImage != 0;
         options.m_GenerateOutline = true;
         options.m_StbttSDFPadding = item->m_StbttSdfPadding;
         options.m_StbttSDFOnEdgeValue = item->m_StbttEdgeValue;

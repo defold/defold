@@ -43,9 +43,6 @@ namespace dmRender
             if (m_VectorBandTexture)
                 dmGraphics::DeleteTexture(m_GraphicsContext, m_VectorBandTexture);
 
-            free(m_VectorCurveData);
-            m_VectorCurveData = 0;
-
             if (m_Texture)
                 dmGraphics::DeleteTexture(m_GraphicsContext, m_Texture);
 
@@ -67,19 +64,15 @@ namespace dmRender
         HFontCollection         m_FontCollection;
         void*                   m_UserData; // The font map resources (see res_font.cpp)
         dmGraphics::HContext    m_GraphicsContext; // Used to recreate textures
-        HFontRenderBackend      m_FontRenderBackend;
         dmGraphics::HTexture    m_Texture;       // Legacy glyph cache texture, or curve texture for vector fonts
         dmGraphics::HTexture    m_VectorSdfTexture;
         dmGraphics::HTexture    m_VectorBandTexture;
         FontVectorSlugData*     m_SlugData;
-        bool                    m_VectorSlug;
         bool                    m_VectorBitmapEffects;
         bool                    m_SlugResetPending;
         uint32_t                m_SlugOverflowFrame;
         HMaterial               m_Material;
         dmhash_t                m_NameHash;
-        void*                   m_VectorCurveData;
-        dmGraphics::TextureFormat m_VectorCurveFormat;
 
         dmHashTable64<FontGlyph*>   m_Glyphs;       // Ache with generated glyphs (with bitmap data!)
         dmHashTable64<CacheGlyph*>  m_GlyphCache;   // Quick check what glyphs are in the cache texture
@@ -124,10 +117,6 @@ namespace dmRender
         uint16_t                m_CacheCellCount;       // Number of cells in total
         uint16_t                m_MaxGlyphWidth;        // Maximum width of any of the used glyphs
         uint16_t                m_MaxGlyphHeight;       // Maximum height of any of the used glyphs
-        uint32_t                m_VectorCurveCapacity;  // Number of texels in the vector curve texture
-        uint32_t                m_VectorCurveCursor;    // Next free texel in the vector curve texture
-        uint8_t                 m_VectorCurveComponentSize;
-        uint8_t                 m_VectorCurveTexelsPerCurve;
         uint8_t                 m_CacheCellPadding;
         uint8_t                 m_LayerMask;
         uint8_t                 m_Padding;              // The padding of the cell
@@ -139,9 +128,7 @@ namespace dmRender
         uint8_t                 m_CacheChannels:3;      // Number of channels (1-4)
         uint8_t                 m_IsSdf:1;
         uint8_t                 m_IsVector:1;
-        uint8_t                 m_VectorCurvePacked:1;
-        uint8_t                 m_ShadowSdf:1;
-        uint8_t                 :4;
+        uint8_t                 :3;
     };
 }
 

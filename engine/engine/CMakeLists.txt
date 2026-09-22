@@ -30,7 +30,6 @@ set(ENGINE_EXECUTABLE_PREFIX_DEPENDENCIES
   resource)
 set(ENGINE_EXECUTABLE_SUFFIX_DEPENDENCIES
   render
-  render_font_default
   script
   extension
   input

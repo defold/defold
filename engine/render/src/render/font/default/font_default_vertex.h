@@ -21,15 +21,13 @@
 
 namespace dmRender
 {
-    // Interleaved default-backend vertex format. The renderer treats these
-    // records as opaque and obtains their stride from GetFontVertexSize().
+    // Interleaved vertex format shared by vector and bitmap font materials.
     struct DM_ALIGNED(16) FontDefaultVertex
     {
         // The first streams carry vector-font path metadata.
         float   m_Position[4];
         float   m_VectorTexcoord[4];
         float   m_VectorEffectParams[4];
-        float   m_VectorBanding[4];
         uint8_t m_VectorColor[4];
         float   m_UV[2];
         float   m_FaceColor[4];

@@ -11,14 +11,11 @@ def configure(cont):
 
 def build(bld):
     sources = bld.path.ant_glob('render/*.cpp') + bld.path.ant_glob('render/font/*.cpp') + bld.path.parent.ant_glob('proto/render/*.proto')
+    sources += ['render/font/default/font_default_vertex.cpp']
     if 'web' in bld.env.PLATFORM:
         sources += ['platform/renderer_web.cpp']
     else:
         sources += ['platform/renderer_common.cpp']
-
-    # remove the font render plugins
-    sources = [x for x in sources if not str(x).endswith('font_renderer_default.cpp')]
-    #sources = [x for x in sources if not str(x).endswith('font_renderer_raqm.cpp')]
 
     bld.stlib(features        = 'cxx ddf',
               includes        = ['.', '../build/proto'],
@@ -27,13 +24,6 @@ def build(bld):
               uselib          = 'LUA',
               source          = sources,
               target          = 'render')
-
-    bld.stlib(features        = 'cxx ddf',
-              includes        = ['.', '../build/proto'],
-              proto_gen_py    = True,
-              protoc_includes = '../proto',
-              source          = ['render/font/default/font_default_vertex.cpp'],
-              target          = 'render_font_default')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 

@@ -76,6 +76,9 @@ namespace dmRender
         }
     }
 
+    dmGraphics::HVertexDeclaration CreateFontVertexDeclaration(dmGraphics::HContext context);
+    uint32_t CreateFontVertexData(HFontMap font_map, uint32_t frame, const char* text, const TextEntry& text_entry, float sdf_scale, float recip_w, float recip_h, uint8_t* vertices, uint32_t num_vertices);
+
     uint32_t CreateFontVertexData(HFontMap         font_map,
                                   uint32_t         frame,
                                   const char*      text,

@@ -137,7 +137,7 @@ def configure(conf):
 
     waf_dynamo.static_libs(conf, 'EXTENSION', ['extension'])
     waf_dynamo.static_libs(conf, 'RESOURCE', ['resource'])
-    waf_dynamo.static_libs(conf, 'RENDER', 'render render_font_default'.split())
+    waf_dynamo.static_libs(conf, 'RENDER', ['render'])
     if 'box2dv3' in waflib.Options.options.enable_features:
         gamesys_libs = 'gamesys gamesys_model gamesys_rig script_box2d'.split()
     else:

@@ -45,8 +45,6 @@ namespace dmGameSystem
     const static dmhash_t EXT_HASH_OTF = dmHashString64("otf");
     const static dmhash_t EXT_HASH_FONTC = dmHashString64("fontc");
     const static dmhash_t SAMPLER_HASH_CURVE_TEXTURE = dmHashString64("curve_texture");
-    const static dmhash_t SAMPLER_HASH_CURVE_TEXTURE_PACKED = dmHashString64("curve_texture_packed");
-    const static char* SDF_MATERIAL = "/builtins/fonts/font-df.materialc";
 
     struct FontResourceContext
     {
@@ -156,7 +154,6 @@ namespace dmGameSystem
         SwapVar(m_FontMap, src->m_FontMap);
         SwapVar(m_PathHash, src->m_PathHash);
         SwapVar(m_MaterialResource, src->m_MaterialResource);
-        SwapVar(m_SdfMaterialResource, src->m_SdfMaterialResource);
         SwapVar(m_GlyphBankResource, src->m_GlyphBankResource);
         SwapVar(m_TTFResource, src->m_TTFResource);
         SwapVar(m_Jobs, src->m_Jobs);
@@ -246,9 +243,6 @@ namespace dmGameSystem
         if (resource->m_MaterialResource)
             dmResource::Release(factory, (void*) resource->m_MaterialResource);
         resource->m_MaterialResource = 0;
-        if (resource->m_SdfMaterialResource)
-            dmResource::Release(factory, (void*) resource->m_SdfMaterialResource);
-        resource->m_SdfMaterialResource = 0;
         if (resource->m_GlyphBankResource)
             dmResource::Release(factory, (void*) resource->m_GlyphBankResource);
         resource->m_GlyphBankResource = 0;
@@ -309,7 +303,6 @@ namespace dmGameSystem
         font_gen_params.m_ShadowBlur    = font_info.m_ShadowBlur;
         font_gen_params.m_IsSdf         = font_info.m_OutputFormat == dmRenderDDF::TYPE_DISTANCE_FIELD;
         font_gen_params.m_IsVector      = dmRender::GetFontMapIsVector(resource->m_FontMap);
-        font_gen_params.m_GenerateImage = font_gen_params.m_IsVector && (resource->m_SdfMaterialResource != 0 || resource->m_DDF->m_VectorBitmapEffects);
         font_gen_params.m_BitmapEffects = resource->m_DDF->m_VectorBitmapEffects;
         font_gen_params.m_HasOutline = resource->m_DDF->m_OutlineWidth > 0.0f && resource->m_DDF->m_OutlineAlpha > 0.0f;
         font_gen_params.m_HasShadow = resource->m_DDF->m_ShadowAlpha > 0.0f &&
@@ -446,31 +439,7 @@ namespace dmGameSystem
     {
         return material_resource &&
                material_resource->m_Material &&
-               (dmRender::GetMaterialSamplerUnit(material_resource->m_Material, SAMPLER_HASH_CURVE_TEXTURE) != dmRender::INVALID_SAMPLER_UNIT ||
-                dmRender::GetMaterialSamplerUnit(material_resource->m_Material, SAMPLER_HASH_CURVE_TEXTURE_PACKED) != dmRender::INVALID_SAMPLER_UNIT);
-    }
-
-    static bool UseSdfShadow(const dmRenderDDF::FontMap* ddf)
-    {
-        if (ddf->m_VectorBitmapEffects)
-            return false;
-        // Vector outlines and shadows share the same unblurred distance
-        // field. Shadow blur changes the required spread and shader threshold;
-        // it does not blur or move the encoded glyph edge.
-        bool supports_sdf_outline = ddf->m_OutlineWidth > 0.0f &&
-                                    ddf->m_OutlineAlpha > 0.0f;
-        bool supports_sdf_shadow = ddf->m_ShadowAlpha > 0.0f &&
-                                   (ddf->m_ShadowBlur > 0 ||
-                                    ddf->m_ShadowX != 0.0f ||
-                                    ddf->m_ShadowY != 0.0f);
-        return supports_sdf_outline || supports_sdf_shadow;
-    }
-
-    static const char* GetShadowMaterial(const dmRenderDDF::FontMap* ddf)
-    {
-        return ddf->m_SdfMaterial && ddf->m_SdfMaterial[0]
-            ? ddf->m_SdfMaterial
-            : SDF_MATERIAL;
+               dmRender::GetMaterialSamplerUnit(material_resource->m_Material, SAMPLER_HASH_CURVE_TEXTURE) != dmRender::INVALID_SAMPLER_UNIT;
     }
 
     static dmResource::Result AcquireResources(FontResourceContext* context, dmResource::HFactory factory, dmRenderDDF::FontMap* ddf,
@@ -483,17 +452,6 @@ namespace dmGameSystem
         if (result != dmResource::RESULT_OK)
         {
             return result;
-        }
-
-        bool use_sdf_shadow = UseSdfShadow(ddf) && IsVectorMaterial(font_map->m_MaterialResource);
-        if (use_sdf_shadow)
-        {
-            const char* shadow_material_path = GetShadowMaterial(ddf);
-            result = dmResource::Get(factory, shadow_material_path, (void**) &font_map->m_SdfMaterialResource);
-            if (result != dmResource::RESULT_OK)
-            {
-                return result;
-            }
         }
 
         if (IsDynamic(ddf))
@@ -596,8 +554,8 @@ namespace dmGameSystem
     static void SetupParamsForDynamicFont(dmRenderDDF::FontMap* ddf, const char* filename, HFont hfont, dmRender::FontMapParams* params)
     {
         // font-df.fp reads blurred shadow data from the blue channel. Keep the
-        // legacy three-channel cache contract for both the SDF renderer and
-        // vector faces using SDF outline/shadow effects.
+        // legacy three-channel cache contract for SDF fonts. Vector effect
+        // atlases also use three channels: coverage, distance, and blurred shadow.
         params->m_GlyphChannels = ddf->m_VectorBitmapEffects || ddf->m_ShadowBlur > 0.0f ? 3 : 1;
 
         float outline_padding;
@@ -765,9 +723,7 @@ namespace dmGameSystem
 
         FontGlyphOptions options;
         options.m_Scale = FontGetScaleFromSize(font, dmRender::GetFontMapSize(font_map));
-        options.m_GenerateImage = resource->m_SdfMaterialResource != 0;
         options.m_GenerateOutline = true;
-        options.m_StbttSDFPadding = dmRender::GetFontMapSdfSpread(font_map);
 
         FontGlyph temp;
         memset(&temp, 0, sizeof(temp));
@@ -803,7 +759,6 @@ namespace dmGameSystem
         }
         dmRender::FontMapParams params;
         SetupParamsBase(ddf, resource->m_PathHash, &params);
-        params.m_ShadowSdf = resource->m_SdfMaterialResource ? 1 : 0;
         params.m_VectorBitmapEffects = ddf->m_VectorBitmapEffects;
 
         HFont hfont;
@@ -917,8 +872,6 @@ namespace dmGameSystem
         }
 
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_Material);
-        if (UseSdfShadow(ddf))
-            dmResource::PreloadHint(params->m_HintInfo, GetShadowMaterial(ddf));
         if (IsDynamic(ddf))
             dmResource::PreloadHint(params->m_HintInfo, ddf->m_Font);
 
@@ -1054,13 +1007,6 @@ namespace dmGameSystem
     dmRender::HFontMap ResFontGetHandle(FontResource* resource)
     {
         return resource->m_FontMap;
-    }
-
-    dmRender::HMaterial ResFontGetShadowMaterial(FontResource* resource)
-    {
-        return resource->m_SdfMaterialResource
-            ? resource->m_SdfMaterialResource->m_Material
-            : 0;
     }
 
     uint32_t ResFontGetVersion(FontResource* resource)

@@ -73,7 +73,6 @@ typedef void (*FFontGenComplete)(void* context, int result, const char* error_me
  * @member m_ShadowBlur [type: float] Shadow blur spread in pixels.
  * @member m_IsSdf [type: uint8_t] Non-zero when SDF output is requested.
  * @member m_IsVector [type: uint8_t] Non-zero when Vector glyph output is requested.
- * @member m_GenerateImage [type: uint8_t] Non-zero when vector glyphs need an auxiliary effect image.
  * @member m_BitmapEffects [type: uint8_t] Generate RGB vector effect bitmaps on the CPU.
  * @member m_HasOutline [type: uint8_t] Include the authored outline in the effect bitmaps.
  * @member m_HasShadow [type: uint8_t] Generate the authored shadow bitmap.
@@ -90,7 +89,6 @@ struct FontGenParams
     float                   m_ShadowBlur;
     uint8_t                 m_IsSdf;
     uint8_t                 m_IsVector;
-    uint8_t                 m_GenerateImage;
     uint8_t                 m_BitmapEffects;
     uint8_t                 m_HasOutline;
     uint8_t                 m_HasShadow;

@@ -665,7 +665,6 @@ namespace dmGameSystem
             dmRender::DrawText(render_context,
                                dmGameSystem::ResFontGetHandle(font_resource),
                                GetMaterial(component, resource),
-                               dmGameSystem::ResFontGetShadowMaterial(font_resource),
                                component->m_MixedHash,
                                text_params);
         }

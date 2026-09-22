@@ -24,7 +24,7 @@
 #include <font/text_layout.h>
 #include <script/script.h>
 #include "render/font/fontmap_private.h"
-#include "render/font/font_renderer_api.h"
+#include "render/font/font_renderer_private.h"
 #include "render/font/default/font_default_vertex.h"
 #include "fontc.h"
 #include "test_font_bitmap_gen.h"
@@ -287,8 +287,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     dmArray<dmRender::FontDefaultVertex> vertices;
     vertices.SetCapacity(TextLayoutGetGlyphCount(layout) * 18);
     vertices.SetSize(vertices.Capacity());
-    dmRender::HFontRenderBackend backend = render->m_TextContext.m_FontRenderBackend;
-    const uint32_t               count = dmRender::CreateFontVertexData(backend, map, 1, "", entry, 1, 1, 1, (uint8_t*)vertices.Begin(), vertices.Size());
+    const uint32_t count = dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)vertices.Begin(), vertices.Size());
     ASSERT_GT(count, 0u);
     ASSERT_LE(count, vertices.Size());
     bool face = false, outline = false, shadow = false;
@@ -309,7 +308,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     rt.m_SampleCount = 1;
     dmGraphics::HRenderTarget      target = resources.m_Target = dmGraphics::NewRenderTarget(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, rt);
     dmGraphics::HVertexBuffer      buffer = resources.m_Buffer = dmGraphics::NewVertexBuffer(context, count * sizeof(vertices[0]), vertices.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-    dmGraphics::HVertexDeclaration declaration = resources.m_Declaration = dmRender::CreateVertexDeclaration(backend, context);
+    dmGraphics::HVertexDeclaration declaration = resources.m_Declaration = dmRender::CreateFontVertexDeclaration(context);
     dmGraphics::HTexture           textures[] = { map->m_Texture, map->m_VectorBandTexture, map->m_VectorSdfTexture ? map->m_VectorSdfTexture : map->m_Texture };
     dmGraphics::BeginFrame(context);
     dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());

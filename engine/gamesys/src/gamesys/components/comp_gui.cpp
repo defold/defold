@@ -1849,7 +1849,6 @@ namespace dmGameSystem
             dmRender::DrawText(gui_context->m_RenderContext,
                                font_map,
                                material,
-                               dmGameSystem::ResFontGetShadowMaterial(font_resource),
                                0,
                                params);
         }

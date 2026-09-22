@@ -14,8 +14,7 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include <dlib/array.h>
-#include <dlib/sys.h>
+#include <dlib/testutil.h>
 #include <math.h>
 #include <dmsdk/font/font.h>
 #include "../font.h"
@@ -24,12 +23,8 @@
 
 TEST(FontVector, CpuEffectsPreserveFaceCurvesAndOutlineDistanceField)
 {
-    uint32_t size = 0;
-    ASSERT_EQ(dmSys::RESULT_OK, dmSys::ResourceSize("src/test/data/NotoSans-Regular.ttf", &size));
-    dmArray<uint8_t> bytes;
-    bytes.SetCapacity(size); bytes.SetSize(size);
-    ASSERT_EQ(dmSys::RESULT_OK, dmSys::LoadResource("src/test/data/NotoSans-Regular.ttf", bytes.Begin(), size, &size));
-    HFont font = FontLoadFromMemory("NotoSans-Regular.ttf", bytes.Begin(), size, false);
+    char path[512];
+    HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/NotoSans-Regular.ttf"));
     ASSERT_NE((HFont)0, font);
     const uint32_t glyph_index = FontGetGlyphIndex(font, 'A');
     uint32_t curve_count = 0;
@@ -84,13 +79,8 @@ TEST(FontVector, CubicOpenTypeOutlinesGenerateSizeIndependentVectorCurves)
     const char* paths[] = { "src/test/data/SourceCodePro-Regular.otf", "src/test/data/SourceSerif4Variable-Roman_cff2.otf" };
     for (uint32_t f = 0; f < DM_ARRAY_SIZE(paths); ++f)
     {
-        uint32_t size = 0;
-        ASSERT_EQ(dmSys::RESULT_OK, dmSys::ResourceSize(paths[f], &size));
-        dmArray<uint8_t> bytes;
-        bytes.SetCapacity(size);
-        bytes.SetSize(size);
-        ASSERT_EQ(dmSys::RESULT_OK, dmSys::LoadResource(paths[f], bytes.Begin(), size, &size));
-        HFont font = FontLoadFromMemory(paths[f], bytes.Begin(), size, false);
+        char path[512];
+        HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), paths[f]));
         ASSERT_NE((HFont)0, font);
         const char* text = "Example";
         for (const char* c = text; *c; ++c)
@@ -127,14 +117,8 @@ TEST(FontVector, CubicOpenTypeOutlinesGenerateSizeIndependentVectorCurves)
 
 TEST(FontVector, EffectsPreserveEncodedFaceCurves)
 {
-    uint32_t size = 0;
-    const char* path = "src/test/data/NotoSans-Regular.ttf";
-    ASSERT_EQ(dmSys::RESULT_OK, dmSys::ResourceSize(path, &size));
-    dmArray<uint8_t> bytes;
-    bytes.SetCapacity(size);
-    bytes.SetSize(size);
-    ASSERT_EQ(dmSys::RESULT_OK, dmSys::LoadResource(path, bytes.Begin(), size, &size));
-    HFont font = FontLoadFromMemory(path, bytes.Begin(), size, false);
+    char path[512];
+    HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/NotoSans-Regular.ttf"));
     ASSERT_NE((HFont)0, font);
     FontVectorSlugData face;
     FontVectorSlugData effects;

@@ -103,7 +103,6 @@ namespace dmRender
 
         uint8_t m_IsMonospaced:1;
         uint8_t m_IsDynamic:1;
-        uint8_t m_ShadowSdf:1;
         uint8_t m_Padding:6;        // Note: Not C struct padding, but actual glyph padding.
 
         dmRenderDDF::FontTextureFormat m_ImageFormat;
@@ -118,12 +117,9 @@ namespace dmRender
         uint32_t    m_Frame;                 // Age
         int16_t     m_X;                     // The top left texel in the cache texture
         int16_t     m_Y;                     // The top left texel in the cache texture
-        float       m_VectorBanding[4];     // Slug band transform; unused by Sweep.
-        uint16_t    m_VectorCurveTexel;      // First curve texel for vector glyphs
-        uint16_t    m_VectorCurveTexelCount; // Number of curve texels used by the glyph
+        float       m_VectorBanding[4];     // Slug band transform.
+        uint16_t    m_VectorCurveTexel;      // Band header texel for vector glyphs
         uint16_t    m_VectorCurveCount;      // Number of encoded quadratic segments
-        uint16_t    m_VectorStripeTexel;     // First scanline stripe metadata texel
-        uint8_t     m_VectorStripeCount;     // Number of horizontal scanline stripes, or zero
         uint8_t     m_VectorSdfCached:1;      // Runtime SDF bitmap is present in the vector SDF atlas
         uint8_t     :7;
         // TODO: add page here as well
@@ -202,13 +198,6 @@ namespace dmRender
      * @return true if the font map uses the vector path
      */
     bool GetFontMapIsVector(HFontMap font_map);
-
-    /**
-     * Get the SDF spread used for this font map.
-     * @param font_map Font map handle
-     * @return SDF spread in pixels
-     */
-    float GetFontMapSdfSpread(HFontMap font_map);
 
     struct TextMetrics
     {

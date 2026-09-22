@@ -51,7 +51,6 @@ namespace dmGameSystem
         dmRenderDDF::FontMap*   m_DDF;
         dmRender::HFontMap      m_FontMap;
         MaterialResource*       m_MaterialResource;
-        MaterialResource*       m_SdfMaterialResource;
         GlyphBankResource*      m_GlyphBankResource;
         TTFResource*            m_TTFResource;          // the default ttf resource (if it's a dynamic font)
         HJobContext             m_Jobs;

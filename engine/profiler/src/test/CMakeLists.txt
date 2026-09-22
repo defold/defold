@@ -46,7 +46,6 @@ defold_target_link_libraries(test_profilerext_render "${TARGET_PLATFORM}"
   graphics_proto
   font
   render
-  render_font_default
   profilerext)
 defold_target_link_socket(test_profilerext_render "${TARGET_PLATFORM}" PRIVATE)
 defold_target_link_app(test_profilerext_render "${TARGET_PLATFORM}" SCOPE PRIVATE)

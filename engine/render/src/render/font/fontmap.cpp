@@ -33,7 +33,6 @@
 namespace dmRender
 {
     static const dmhash_t CURVE_TEXTURE_HASH = dmHashString64("curve_texture");
-    static const dmhash_t CURVE_TEXTURE_PACKED_HASH = dmHashString64("curve_texture_packed");
     static const uint32_t VECTOR_SLUG_TEXTURE_HEIGHT = 8;
     static const uint32_t VECTOR_SLUG_BANDS = 8;
 
@@ -68,7 +67,6 @@ namespace dmRender
     , m_VectorBitmapEffects(false)
     , m_IsMonospaced(false)
     , m_IsDynamic(false)
-    , m_ShadowSdf(false)
     , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
     {
     }
@@ -223,24 +221,18 @@ namespace dmRender
         dmGraphics::SetTexture(graphics_context, *texture, tex_params);
     }
 
-    static bool UsesVectorSdfShadow(HFontMap font_map)
+    static bool HasVectorEffects(HFontMap font_map)
     {
-        if (font_map->m_VectorBitmapEffects)
-            return (font_map->m_LayerMask & (FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW)) != 0;
-        return font_map->m_ShadowSdf &&
-               (font_map->m_ShadowBlur >= 1.0f ||
-                font_map->m_ShadowAlpha > 0.0f ||
-                font_map->m_OutlineWidth > 0.0f);
+        return font_map->m_VectorBitmapEffects &&
+               (font_map->m_LayerMask & (FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW)) != 0;
     }
 
     static void RecreateVectorSdfTexture(HFontMap font_map)
     {
-        uint32_t width = UsesVectorSdfShadow(font_map) ? font_map->m_CacheWidth : 1;
-        uint32_t height = UsesVectorSdfShadow(font_map) ? font_map->m_CacheHeight : 1;
-        uint32_t channels = font_map->m_VectorBitmapEffects || font_map->m_ShadowBlur > 0.0f ? 3 : 1;
-        dmGraphics::TextureFormat format = channels == 3
-            ? dmGraphics::TEXTURE_FORMAT_RGB
-            : dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+        uint32_t width = HasVectorEffects(font_map) ? font_map->m_CacheWidth : 1;
+        uint32_t height = HasVectorEffects(font_map) ? font_map->m_CacheHeight : 1;
+        uint32_t channels = 3;
+        dmGraphics::TextureFormat format = dmGraphics::TEXTURE_FORMAT_RGB;
         uint32_t data_size = width * height * channels;
         uint8_t* data = (uint8_t*)calloc(data_size, 1);
 
@@ -277,11 +269,6 @@ namespace dmRender
         memset(data->m_Curves.Begin(), 0, data->m_Curves.Capacity() * sizeof(uint16_t));
         memset(data->m_Bands.Begin(), 0, data->m_Bands.Capacity() * sizeof(uint32_t));
         font_map->m_SlugData = data;
-        font_map->m_VectorCurveFormat = dmGraphics::TEXTURE_FORMAT_RGBA16F;
-        font_map->m_VectorCurveComponentSize = 2;
-        font_map->m_VectorCurveTexelsPerCurve = 2;
-        font_map->m_VectorCurveCapacity = data->m_MaxTexels;
-        font_map->m_VectorCurveCursor = 0;
         RecreateTextureWithData(font_map->m_GraphicsContext, &font_map->m_Texture,
             FONT_VECTOR_SLUG_WIDTH, VECTOR_SLUG_TEXTURE_HEIGHT, dmGraphics::TEXTURE_FORMAT_RGBA16F,
             dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST,
@@ -303,12 +290,6 @@ namespace dmRender
     static void RestoreLegacyTexture(HFontMap font_map)
     {
         DestroySlugData(font_map);
-        free(font_map->m_VectorCurveData);
-        font_map->m_VectorCurveData = 0;
-        font_map->m_VectorCurveCapacity = 0;
-        font_map->m_VectorCurveCursor = 0;
-        font_map->m_VectorCurveComponentSize = 0;
-        font_map->m_VectorCurveTexelsPerCurve = 0;
 
         if (font_map->m_VectorSdfTexture)
         {
@@ -345,7 +326,6 @@ namespace dmRender
         font_map->m_LayerMask = params.m_LayerMask;
         font_map->m_IsMonospaced = params.m_IsMonospaced;
         font_map->m_IsDynamic = params.m_IsDynamic;
-        font_map->m_ShadowSdf = params.m_ShadowSdf;
         font_map->m_VectorBitmapEffects = params.m_VectorBitmapEffects;
         font_map->m_Padding = params.m_Padding;
 
@@ -466,27 +446,15 @@ namespace dmRender
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
         bool vector = false;
-        bool packed_curves = false;
         bool slug = false;
         if (material)
         {
             slug = GetMaterialSamplerUnit(material, dmHashString64("band_texture")) != INVALID_SAMPLER_UNIT;
-            bool has_float_curves = GetMaterialSamplerUnit(material, CURVE_TEXTURE_HASH) != INVALID_SAMPLER_UNIT;
-            bool has_packed_curves = GetMaterialSamplerUnit(material, CURVE_TEXTURE_PACKED_HASH) != INVALID_SAMPLER_UNIT;
-            if ((slug || has_float_curves || has_packed_curves) && (!slug || !has_float_curves || has_packed_curves))
+            vector = GetMaterialSamplerUnit(material, CURVE_TEXTURE_HASH) != INVALID_SAMPLER_UNIT;
+            if (slug != vector)
             {
                 dmLogError("Vector fonts require curve_texture and band_texture");
                 return false;
-            }
-            if (has_float_curves && has_packed_curves)
-            {
-                dmLogError("Vector font material cannot declare both curve_texture and curve_texture_packed");
-                return false;
-            }
-            if (has_float_curves || has_packed_curves)
-            {
-                vector = true;
-                packed_curves = has_packed_curves;
             }
         }
 
@@ -497,10 +465,8 @@ namespace dmRender
             return false;
         }
         font_map->m_Material = material;
-        font_map->m_VectorSlug = slug;
         if (vector)
         {
-            font_map->m_VectorCurvePacked = packed_curves ? 1 : 0;
             if (!CreateVectorTextures(font_map))
             {
                 return false;
@@ -514,7 +480,6 @@ namespace dmRender
         if (font_map->m_IsVector || vector)
             ResetVectorCache(font_map);
         font_map->m_IsVector = vector ? 1 : 0;
-        font_map->m_VectorCurvePacked = packed_curves ? 1 : 0;
         return true;
     }
 
@@ -528,12 +493,6 @@ namespace dmRender
     {
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
         return font_map->m_IsVector != 0;
-    }
-
-    float GetFontMapSdfSpread(HFontMap font_map)
-    {
-        DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
-        return font_map->m_SdfSpread;
     }
 
     float GetFontMapSize(dmRender::HFontMap font_map)
@@ -638,12 +597,10 @@ namespace dmRender
             if (font_map->m_IsVector)
             {
                 FontGlyphOptions glyph_options;
-                // Generate the shadow SDF at the authored .font size. Screen
+                // Generate effects at the authored .font size. Screen
                 // transforms only affect sampling; they never resize the atlas.
                 glyph_options.m_Scale = FontGetScaleFromSize(font, font_map->m_Size);
-                glyph_options.m_GenerateImage = UsesVectorSdfShadow(font_map);
                 glyph_options.m_GenerateOutline = true;
-                glyph_options.m_StbttSDFPadding = font_map->m_SdfSpread;
 
                 FontGlyph temp;
                 if (font_map->m_VectorBitmapEffects)
@@ -670,7 +627,7 @@ namespace dmRender
                 temp.m_Outline.m_Commands = 0;
                 temp.m_Outline.m_CommandCount = 0;
                 temp.m_Outline.m_Flags = 0;
-                if (UsesVectorSdfShadow(font_map))
+                if (HasVectorEffects(font_map))
                 {
                     temp.m_Bitmap.m_Data = 0;
                     temp.m_Bitmap.m_DataSize = 0;
@@ -679,7 +636,7 @@ namespace dmRender
                 }
                 FontFreeGlyph(font, &temp);
 
-                if (!UsesVectorSdfShadow(font_map))
+                if (!HasVectorEffects(font_map))
                 {
                     out->m_Bitmap.m_Data = 0;
                     out->m_Bitmap.m_DataSize = 0;
@@ -1060,54 +1017,11 @@ namespace dmRender
             source = unpacked;
         }
 
-        uint32_t output_channels = font_map->m_VectorBitmapEffects || font_map->m_ShadowBlur > 0.0f ? 3 : 1;
-        if (font_map->m_VectorBitmapEffects)
+        const uint32_t output_channels = 3;
+        if (channels != output_channels)
         {
-            if (channels != 3)
-            {
-                dmLogError("Vector bitmap effects require RGB glyph data; rebuild the font");
-                return false;
-            }
-        }
-        else
-        {
-            if (channels != 1)
-            {
-                for (uint32_t i = 0; i < width * height; ++i)
-                {
-                    unpacked[i] = source[i * channels];
-                }
-                source = unpacked;
-            }
-
-            if (output_channels == 3)
-            {
-                uint32_t pixel_count = width * height;
-                if (source == unpacked)
-                {
-                    // Expand backwards so the source and destination may share the
-                    // temporary cell buffer.
-                    for (uint32_t i = pixel_count; i-- > 0; )
-                    {
-                        uint8_t value = unpacked[i];
-                        unpacked[i * 3 + 0] = value;
-                        unpacked[i * 3 + 1] = value;
-                        unpacked[i * 3 + 2] = value;
-                    }
-                }
-                else
-                {
-                    for (uint32_t i = 0; i < pixel_count; ++i)
-                    {
-                        uint8_t value = source[i];
-                        unpacked[i * 3 + 0] = value;
-                        unpacked[i * 3 + 1] = value;
-                        unpacked[i * 3 + 2] = value;
-                    }
-                }
-                source = unpacked;
-            }
-
+            dmLogError("Vector bitmap effects require RGB glyph data; rebuild the font");
+            return false;
         }
 
         dmGraphics::TextureParams tex_params;
@@ -1155,7 +1069,6 @@ namespace dmRender
     {
         font_map->m_GlyphCache.Clear();
         font_map->m_CacheCursor = 0;
-        font_map->m_VectorCurveCursor = 0;
 
         for (uint32_t i = 0; i < font_map->m_CacheCellCount; ++i)
         {
@@ -1164,10 +1077,7 @@ namespace dmRender
             glyph->m_Frame = 0;
             glyph->m_GlyphKey = 0;
             glyph->m_VectorCurveTexel = 0;
-            glyph->m_VectorCurveTexelCount = 0;
             glyph->m_VectorCurveCount = 0;
-            glyph->m_VectorStripeTexel = 0;
-            glyph->m_VectorStripeCount = 0;
             glyph->m_VectorSdfCached = 0;
             memset(glyph->m_VectorBanding, 0, sizeof(glyph->m_VectorBanding));
         }
@@ -1196,11 +1106,7 @@ namespace dmRender
         if (!glyph.m_CurveCount) return false;
         cache_glyph->m_VectorCurveTexel = glyph.m_BandTexel;
         cache_glyph->m_VectorCurveCount = glyph.m_CurveCount;
-        cache_glyph->m_VectorCurveTexelCount = 0; // Curves may share endpoints; no contiguous per-glyph range.
-        cache_glyph->m_VectorStripeTexel = 0;
-        cache_glyph->m_VectorStripeCount = VECTOR_SLUG_BANDS;
         memcpy(cache_glyph->m_VectorBanding, glyph.m_BandTransform, sizeof(glyph.m_BandTransform));
-        font_map->m_VectorCurveCursor = data->m_Curves.Size() / 4;
         UpdateVectorTexture(font_map, font_map->m_Texture, dmGraphics::TEXTURE_FORMAT_RGBA16F,
             FONT_VECTOR_SLUG_WIDTH, VECTOR_SLUG_TEXTURE_HEIGHT, data->m_Curves.Begin(), data->m_Curves.Capacity() * sizeof(uint16_t));
         UpdateVectorTexture(font_map, font_map->m_VectorBandTexture, dmGraphics::TEXTURE_FORMAT_R32UI,
@@ -1363,7 +1269,7 @@ namespace dmRender
                 return 0;
             }
 
-            if (UsesVectorSdfShadow(font_map))
+            if (HasVectorEffects(font_map))
             {
                 if ((cache_glyph->m_X + glyph_image_width) > font_map->m_CacheWidth ||
                     (cache_glyph->m_Y + glyph_image_height) > font_map->m_CacheHeight)

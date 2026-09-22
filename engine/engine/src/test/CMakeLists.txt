@@ -33,7 +33,6 @@ defold_target_link_libraries(test_profilerext_lua "${TARGET_PLATFORM}"
   graphics_transcoder_null
   platform_null
   render
-  render_font_default
   script
   extension
   dlib

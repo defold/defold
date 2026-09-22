@@ -32,8 +32,7 @@ function(render_configure_test target)
     extension
     resource
     script
-    render
-    render_font_default)
+    render)
   defold_target_link_socket(${target} "${TARGET_PLATFORM}" PRIVATE)
   defold_target_link_app(${target} "${TARGET_PLATFORM}" SCOPE PRIVATE)
   defold_target_link_glfw(${target} "${TARGET_PLATFORM}" PRIVATE)
@@ -79,7 +78,7 @@ foreach(target IN ITEMS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_
     target_sources(${target} PRIVATE "${RENDER_TEST_ROOT}/font_vector_images.cpp")
     target_include_directories(${target} PRIVATE "${RENDER_SRC_DIR}"
       "${DEFOLD_HOME}/engine/font/src/test" "${DEFOLD_HOME}/engine/font/src/fontc")
-    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" render render_font_default)
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" render)
     if(target MATCHES "_skribidi")
       target_sources(${target} PRIVATE "${DEFOLD_HOME}/engine/font/src/fontc/fontc.cpp")
     else()
