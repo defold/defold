@@ -20,7 +20,8 @@
             [editor.code.data :as data]
             [editor.resource-node :as resource-node]
             [editor.yaml :as yaml]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [util.coll :as coll]))
 
 (deftest windows-library-name-load-migration-test
   (let [migrated-content
@@ -361,27 +362,27 @@
       (let [manifest (-> {}
                          (app-manifest/set-setting-value app-manifest/graphics-setting-osx selection)
                          (app-manifest/set-setting-value app-manifest/graphics-setting-osx :metal))]
-        (doseq [platform [:arm64-osx :x86_64-osx]
-                values (vals (get-in manifest [:platforms platform :context]))]
-          (is (empty? values))))))
+        (doseq [platform [:arm64-osx :x86_64-osx]]
+          (run! #(is (coll/empty? %))
+                (coll/vals (get-in manifest [:platforms platform :context])))))))
   (testing "Metal-only OSX uses engine defaults"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-osx :metal)]
       (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-osx)))
       (doseq [platform [:arm64-osx :x86_64-osx]]
         (let [context (get-in manifest [:platforms platform :context])]
-          (is (not-any? #{"graphics_metal"} (:libs context)))
-          (is (not-any? #{"platform"} (:engineLibs context)))
-          (is (not-any? #{"GraphicsAdapterMetal"} (:symbols context)))
-          (is (not-any? #{"Metal"} (:frameworks context)))
-          (is (not-any? #{"IOSurface"} (:frameworks context)))
-          (is (not-any? #{"QuartzCore"} (:frameworks context)))
-          (is (not-any? #{"graphics"} (:excludeLibs context)))
+          (is (coll/not-any? #{"graphics_metal"} (:libs context)))
+          (is (coll/not-any? #{"platform"} (:engineLibs context)))
+          (is (coll/not-any? #{"GraphicsAdapterMetal"} (:symbols context)))
+          (is (coll/not-any? #{"Metal"} (:frameworks context)))
+          (is (coll/not-any? #{"IOSurface"} (:frameworks context)))
+          (is (coll/not-any? #{"QuartzCore"} (:frameworks context)))
+          (is (coll/not-any? #{"graphics"} (:excludeLibs context)))
           (is (not-any? #{"platform"} (:excludeLibs context)))
-          (is (not-any? #{"graphics_vulkan"} (:excludeLibs context)))
-          (is (not-any? #{"platform_vulkan"} (:excludeLibs context)))
-          (is (not-any? #{"MoltenVK"} (:excludeLibs context)))
-          (is (not-any? #{"GraphicsAdapterOpenGL"} (:excludeSymbols context)))
-          (is (not-any? #{"GraphicsAdapterVulkan"} (:excludeSymbols context)))))))
+          (is (coll/not-any? #{"graphics_vulkan"} (:excludeLibs context)))
+          (is (coll/not-any? #{"platform_vulkan"} (:excludeLibs context)))
+          (is (coll/not-any? #{"MoltenVK"} (:excludeLibs context)))
+          (is (coll/not-any? #{"GraphicsAdapterOpenGL"} (:excludeSymbols context)))
+          (is (coll/not-any? #{"GraphicsAdapterVulkan"} (:excludeSymbols context)))))))
   (testing "Metal-only OSX removes stale explicit Vulkan link inputs"
     (let [explicit-vulkan-manifest {:platforms {:arm64-osx {:context {:excludeLibs ["graphics" "platform"]
                                                                       :excludeSymbols ["GraphicsAdapterOpenGL"]
@@ -397,12 +398,12 @@
       (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-osx)))
       (doseq [platform [:arm64-osx :x86_64-osx]]
         (let [context (get-in manifest [:platforms platform :context])]
-          (is (not-any? #{"graphics_metal"} (:libs context)))
-          (is (not-any? #{"platform"} (:engineLibs context)))
+          (is (coll/not-any? #{"graphics_metal"} (:libs context)))
+          (is (coll/not-any? #{"platform"} (:engineLibs context)))
           (is (not-any? #{"graphics_vulkan"} (:libs context)))
           (is (not-any? #{"platform_vulkan"} (:libs context)))
           (is (not-any? #{"MoltenVK"} (:libs context)))
-          (is (not-any? #{"GraphicsAdapterMetal"} (:symbols context)))
+          (is (coll/not-any? #{"GraphicsAdapterMetal"} (:symbols context)))
           (is (not-any? #{"GraphicsAdapterVulkan"} (:symbols context)))))))
   (testing "OSX selections without Metal do not keep Metal leftovers"
     (doseq [selection [:open-gl :open-gl-vulkan :vulkan]]
