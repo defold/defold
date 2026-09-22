@@ -144,6 +144,7 @@
 (deftest tile-map-cell-order-deterministic
   (test-util/with-loaded-project
     (let [tilemap-id (test-util/resource-node project "/tilegrid/with_layers.tilemap")
+          _ (g/node-value tilemap-id :node-outline)
           layer-ids (map gt/source-id (g/inputs (g/now) tilemap-id :layer-msgs))
           layer-id (some #(when (= "layer1" (g/node-value % :id)) %) layer-ids)]
       (when (is (some? layer-id))

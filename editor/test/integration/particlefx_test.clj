@@ -130,6 +130,7 @@
   (test-util/with-loaded-project
     (let [particlefx-path "/particlefx/fireworks_big.particlefx"
           particlefx (project/get-resource-node project particlefx-path)
+          _ (g/node-value particlefx :node-outline)
           child-scene-arcs (g/inputs (g/now) particlefx :child-scenes)
           emitter (gt/source-id (nth child-scene-arcs 0))
           modifier (gt/source-id (nth child-scene-arcs 2))

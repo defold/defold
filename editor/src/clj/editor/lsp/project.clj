@@ -20,6 +20,7 @@
             [editor.lsp.async :as lsp.async]
             [editor.lsp.server :as lsp.server]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.util :as util]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
@@ -113,6 +114,7 @@
                                :newText url}}))))))
 
 (defn- completion-owner-root-ids [project resource-node-id resource evaluation-context]
+  (resource-node/materialize-resource-types! #{"collection" "go"} evaluation-context)
   (let [basis (:basis evaluation-context)]
     (owning-game-object-node-ids
       basis

@@ -43,6 +43,7 @@
 (defn check-disposes-nodes
   [resource-type-name inline-resource]
   (test-util/with-loaded-project
+    (test-util/materialize-project! project)
     (let [old-count (node-count (g/now))
           old-node-ids (set (ig/node-ids (g/now)))
           old-basis (g/now)

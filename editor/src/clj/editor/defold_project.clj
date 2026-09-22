@@ -113,10 +113,9 @@
   (g/with-auto-evaluation-context evaluation-context
     (make-load-opts-in-evaluation-context project evaluation-context)))
 
-(defn- load-resource-node [{:keys [project] :as load-opts} {:keys [node-id resource resource-type] :as node-load-info} transpiler-tx-data-fn]
+(defn- load-resource-node [{:keys [project] :as load-opts} {:keys [node-id resource resource-type] :as node-load-info}]
   (try
-    (let [load-fn (:load-fn resource-type)
-          transpiler-tx-data (transpiler-tx-data-fn node-id resource)]
+    (let [load-fn (:load-fn resource-type)]
       (cond-> []
 
         load-fn
@@ -126,9 +125,6 @@
         (and (:auto-connect-save-data? resource-type)
              (resource/save-tracked? resource))
         (into (g/connect node-id :save-data project :save-data))
-
-        transpiler-tx-data
-        (into transpiler-tx-data)
 
         :always
         not-empty))
@@ -321,7 +317,7 @@
 (defn- sort-node-ids-for-loading [node-ids node-id->dependency-node-ids]
   (first (sort-node-ids-for-loading-impl node-ids #{} [] #{} (set node-ids) node-id->dependency-node-ids)))
 
-(defn ^{:dynamic (system/defold-dev?)} node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} load-opts transpiler-tx-data-fn]
+(defn ^{:dynamic (system/defold-dev?)} node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} load-opts _transpiler-tx-data-fn]
   ;; At this point, the node-id refers to a created node in the graph.
   (e/concat
     (g/materialize-shell node-id)
@@ -329,7 +325,7 @@
     (if read-error
       (let [node-type (resource-node-type resource)]
         (g/mark-defective node-id node-type read-error))
-      (load-resource-node load-opts node-load-info transpiler-tx-data-fn))))
+      (load-resource-node load-opts node-load-info))))
 
 (defn- sort-node-load-infos-for-loading
   "Sorts the node-load-infos so that referenced nodes are loaded before the
@@ -372,7 +368,7 @@
           ;; We want to return nil if the node-id is not known to us, and an
           ;; empty vector otherwise.
           (when-let [node-load-info (node-load-infos-by-node-id node-id)]
-            (or (:prerequisite-proj-paths node-load-info) [])))
+            (or (:dependency-proj-paths node-load-info) [])))
 
         node-id->dependency-node-ids
         (fn/memoize
@@ -844,7 +840,7 @@
 
                 principal-dependency-proj-paths
                 (coll/into-> principal-node-load-infos #{}
-                  (mapcat :prerequisite-proj-paths))
+                  (mapcat :dependency-proj-paths))
 
                 [loaded-proj-paths loaded-node-load-infos]
                 (loop [loaded-proj-paths principal-proj-paths
@@ -893,7 +889,7 @@
 
                             required-dependency-proj-paths
                             (coll/into-> supplemental-node-load-infos #{}
-                              (mapcat :prerequisite-proj-paths))]
+                              (mapcat :dependency-proj-paths))]
 
                         (recur loaded-proj-paths
                                loaded-node-load-infos
@@ -922,7 +918,7 @@
                                   (desired-node-load-infos-by-proj-path referencing-proj-path)
 
                                   unsafe-dependency-proj-paths
-                                  (coll/into-> (:prerequisite-proj-paths node-load-info) #{}
+                                  (coll/into-> (:dependency-proj-paths node-load-info) #{}
                                     (remove safe-dependency-proj-path?))]
 
                               (when-not (coll/empty? unsafe-dependency-proj-paths)
@@ -938,14 +934,20 @@
     (loop [node-load-infos (vec node-load-infos)
            read-node-ids (into #{} (map :node-id) node-load-infos)
            pending-node-load-infos node-load-infos]
-      (let [prerequisite-node-id+resource-pairs
+      (let [read-proj-paths (into #{} (map (comp resource/proj-path :resource)) node-load-infos)
+            prerequisite-node-id+resource-pairs
             (coll/into-> pending-node-load-infos []
               (mapcat :prerequisite-proj-paths)
+              (remove read-proj-paths)
               (keep old-node-ids-by-proj-path)
               (remove read-node-ids)
               (distinct)
+              (filter #(g/node-by-id basis %))
               (remove #(resource-node/loaded? basis %))
-              (map #(pair % (resource-node/resource basis %))))]
+              (map #(pair % (resource-node/resource basis %)))
+              (filter (fn [[_node-id resource]]
+                        (or (resource/loaded? resource)
+                            (not (:allow-unloaded-use (resource/resource-type resource)))))))]
         (if (coll/empty? prerequisite-node-id+resource-pairs)
           (sort-node-load-infos-for-loading node-load-infos old-node-ids-by-proj-path old-node-id->dependency-proj-paths)
           (let [prerequisite-node-load-infos (read-node-load-infos read-opts prerequisite-node-id+resource-pairs 0 render-progress!)]
@@ -1074,10 +1076,14 @@
   (e/concat
     (g/add-node
       (g/construct-shell node-type
-        (partial materialize-resource-node project)
+        (when (resource/loaded? resource)
+          (partial materialize-resource-node project))
         {:_node-id node-id
          :resource resource}))
     (g/connect node-id :node-id+resource project :node-id+resources)
+    (g/expand-ec
+      (fn [evaluation-context]
+        ((get-transpiler-tx-data-fn! evaluation-context) node-id resource)))
     (when-let [connect-fn (:connect-fn (resource/resource-type resource))]
       (connect-fn project node-id resource))))
 
@@ -1811,7 +1817,7 @@
             tx-data-context-map' (assoc tx-data-context-map :created-resource-nodes created-resource-nodes')]
         [tx-data-context-map' created-resource-node-id creation-tx-data]))))
 
-(defn- ensure-resource-node-loaded [tx-data-context-map basis project node-id resource transpiler-tx-data-fn]
+(defn- ensure-resource-node-loaded [tx-data-context-map basis node-id resource transpiler-tx-data-fn load-opts]
   {:pre [(resource/resource? resource)]}
   (let [loaded-resources (:loaded-resources tx-data-context-map)]
     (if (contains? loaded-resources resource)
@@ -1825,7 +1831,6 @@
                     tx-data-context-map' (assoc tx-data-context-map :read-opts read-opts)]
                 (pair tx-data-context-map' read-opts)))
 
-            load-opts (or (:load-opts tx-data-context-map') (make-load-opts project))
             tx-data-context-map' (assoc tx-data-context-map' :load-opts load-opts)
 
             node-load-info (read-node-load-info read-opts node-id resource)
@@ -1867,7 +1872,7 @@
             ;; during resource-sync. Mark it as loaded and defective.
             creation-tx-data
             (let [node-load-info (make-file-not-found-node-load-info node-id resource)]
-              (node-load-info-tx-data node-load-info (make-load-opts project) nil))
+              (node-load-info-tx-data node-load-info (make-load-opts-in-evaluation-context project evaluation-context) nil))
 
             ;; If we're about to connect a defunloaded resource that does not
             ;; :allow-unloaded-use, ensure it is loaded as part of this
@@ -1877,7 +1882,9 @@
                  (not (:allow-unloaded-use resource-type))
                  (not (resource-node/loaded? basis existing-resource-node-id)))
             (let [transpiler-tx-data-fn (get-transpiler-tx-data-fn! evaluation-context)
-                  [node-id+source-value-pairs load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded basis project node-id resource transpiler-tx-data-fn)]
+                  load-opts (g/tx-cached-value! evaluation-context [:load-opts]
+                              (make-load-opts-in-evaluation-context project evaluation-context))
+                  [node-id+source-value-pairs load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded (:basis evaluation-context) node-id resource transpiler-tx-data-fn load-opts)]
               (g/merge-evaluation-user-data! evaluation-context
                 (into {} (map (fn [[node-id source-value]] (pair node-id {:source-value source-value}))) node-id+source-value-pairs))
               load-tx-data))]

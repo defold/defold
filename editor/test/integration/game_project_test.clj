@@ -112,7 +112,7 @@
     (let [[workspace project] (log/without-logging (load-test-project))
           game-project (project/get-resource-node project "/game.project")]
       (testing "Defaults if can't load"
-        (let [settings (g/node-value project :settings)]
+        (let [settings (log/without-logging (g/node-value project :settings))]
           (is (= "unnamed" (title settings)))))
       (testing "Game project node is defective"
         (let [gpn-settings-map (g/node-value game-project :settings-map)]

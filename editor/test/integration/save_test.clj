@@ -46,7 +46,7 @@
 (defn- setup-scratch
   []
   (let [workspace (test-util/setup-scratch-workspace! test-util/project-path)
-        project (test-util/setup-project! workspace)]
+        project (test-util/materialize-project! (test-util/setup-project! workspace))]
     [workspace project]))
 
 (deftest save-after-delete
@@ -109,7 +109,7 @@
       (clean-checkout! git)
       (with-clean-system
         (let [workspace (test-util/setup-workspace! project-path)
-              project (test-util/setup-project! workspace)
+              project (test-util/materialize-project! (test-util/setup-project! workspace))
               line-endings-before (line-endings-by-resource project)
               {:keys [lf crlf] :or {lf 0 crlf 0}} (frequencies (map second line-endings-before))]
           (is (< 100 lf))
@@ -122,7 +122,7 @@
       (clean-checkout! git)
       (with-clean-system
         (let [workspace (test-util/setup-workspace! project-path)
-              project (test-util/setup-project! workspace)
+              project (test-util/materialize-project! (test-util/setup-project! workspace))
               line-endings-before (line-endings-by-resource project)
               {:keys [lf crlf] :or {lf 0 crlf 0}} (frequencies (map second line-endings-before))]
           (is (> 100 lf))
@@ -379,7 +379,7 @@
     (with-clean-system {:cache-size cache-size
                         :cache-retain? project/cache-retain?}
       (let [workspace (test-util/setup-workspace!)
-            project (test-util/setup-project! workspace)
+            project (test-util/materialize-project! (test-util/setup-project! workspace))
             basis (g/now)
             invalidated-save-data-endpoints-atom (atom #{})
             cacheable-save-data-endpoints (into (sorted-set)

@@ -22,7 +22,8 @@
             [editor.resource-node :as resource-node]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
-            [support.test-support :refer [with-clean-system]]))
+            [support.test-support :refer [with-clean-system]]
+            [util.coll :as coll]))
 
 (defn- all-file-resources
   ([workspace]
@@ -44,7 +45,7 @@
          (sort-by resource/proj-path)
          (vec))))
 
-(deftest lazy-loaded-resources-tracked-by-save-system
+(deftest lazy-loaded-resources-tracked-after-materialization
   (test-util/with-loaded-project "test/resources/reload_unchanged_project"
     (let [editable-lazy-loaded-file-proj-paths
           (into (sorted-set)
@@ -53,13 +54,18 @@
                       (map resource/proj-path))
                 (all-file-resources workspace))
 
-          save-tracked-proj-paths
-          (into (sorted-set)
-                (map resource/proj-path)
-                (save-tracked-resources project))]
-
+          tracked-proj-paths (fn tracked-proj-paths []
+                              (into #{} (map resource/proj-path) (save-tracked-resources project)))]
+      (g/node-value project :save-data)
+      (is (coll/empty? (set/intersection editable-lazy-loaded-file-proj-paths (tracked-proj-paths))))
+      (doseq [proj-path editable-lazy-loaded-file-proj-paths]
+        (let [node-id (test-util/resource-node project proj-path)]
+          (is (not (resource-node/loaded? (g/now) node-id)))
+          (g/with-auto-evaluation-context evaluation-context
+            (g/materialize-node! node-id evaluation-context))
+          (is (contains? (tracked-proj-paths) proj-path))))
       (is (= editable-lazy-loaded-file-proj-paths
-             (set/intersection editable-lazy-loaded-file-proj-paths save-tracked-proj-paths))))))
+             (set/intersection editable-lazy-loaded-file-proj-paths (tracked-proj-paths)))))))
 
 (defn- set-code-resource-node-lines! [lines-by-code-resource-node-id]
   (g/transact

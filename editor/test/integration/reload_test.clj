@@ -93,7 +93,7 @@
   ([] (setup-scratch reload-project-path))
   ([project-path]
    (let [workspace (test-util/setup-scratch-workspace! project-path)
-         project (test-util/setup-project! workspace)]
+         project (test-util/materialize-project! (test-util/setup-project! workspace))]
      [workspace project])))
 
 (defn- template [workspace name]

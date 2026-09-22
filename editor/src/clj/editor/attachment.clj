@@ -164,8 +164,10 @@
     workspace             the workspace that defines node alternatives
     node-id               initial node id
     evaluation-context    the evaluation context"
-  [workspace node-id {:keys [basis] :as evaluation-context}]
-  (let [current-state (workspace/node-attachments basis workspace)]
+  [workspace node-id evaluation-context]
+  (g/materialize-node! node-id evaluation-context)
+  (let [basis (:basis evaluation-context)
+        current-state (workspace/node-attachments basis workspace)]
     (reify IReduceInit
       (reduce [_ rf init]
         (loop [node-id node-id
@@ -173,7 +175,7 @@
           (let [acc (rf acc node-id)]
             (if (reduced? acc)
               @acc
-              (if-let [alternative-fn (:alternative (clojure.core/get current-state (g/node-type* basis node-id)))]
+              (if-let [alternative-fn (:alternative (clojure.core/get current-state (g/node-type* (:basis evaluation-context) node-id)))]
                 (some-> (alternative-fn node-id evaluation-context) (recur acc))
                 acc))))))))
 
@@ -183,7 +185,7 @@
   [workspace node-id list-kw {:keys [basis] :as evaluation-context}]
   (let [current-state (workspace/node-attachments basis workspace)]
     (coll/some
-      #(some->> (list-kw (:lists (clojure.core/get current-state (g/node-type* basis %)))) (coll/pair %))
+      #(some->> (list-kw (:lists (clojure.core/get current-state (g/node-type* (:basis evaluation-context) %)))) (coll/pair %))
       (alternatives workspace node-id evaluation-context))))
 
 (defn- require-list-definition

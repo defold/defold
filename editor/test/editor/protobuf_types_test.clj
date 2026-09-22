@@ -276,6 +276,7 @@
                   resource-path (resource/resource->proj-path resource)
                   resource-type (resource/resource-type resource)
                   dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
+                  _ (g/node-value node-id :save-value)
                   source-value (g/node-value node-id :source-value)]
               (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
               (is (= (sort (non-broken-dependencies resource-path))

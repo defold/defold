@@ -121,6 +121,7 @@
       (is (resource/file-resource? referencing-directory-resource))
       (is (= :file (resource/source-type referencing-directory-resource)))
       (is (resource/placeholder-resource-type? (resource/resource-type referencing-directory-resource)))
+      (g/node-value referencing-directory-resource-node :save-value)
       (is (g/defective? referencing-directory-resource-node))))
   (testing "Nodes produce errors."
     (let [main-collection (project/get-resource-node project "/main/main.collection")
@@ -212,6 +213,7 @@
       (is (resource/file-resource? referencing-directory-resource))
       (is (= :file (resource/source-type referencing-directory-resource)))
       (is (resource/placeholder-resource-type? (resource/resource-type referencing-directory-resource)))
+      (g/node-value referencing-directory-resource-node :save-value)
       (is (g/defective? referencing-directory-resource-node))))
   (testing "Nodes produce errors."
     (let [main-collection (project/get-resource-node project "/main/main.collection")
@@ -436,6 +438,7 @@
           (is (resource/file-resource? referencing-file-resource))
           (is (= :file (resource/source-type referencing-file-resource)))
           (is (= resource-type (resource/resource-type referencing-file-resource)))
+          (g/node-value referencing-file-resource-node :save-value)
           (is (g/defective? referencing-file-resource-node))))))
   (testing "Nodes produce errors."
     (let [main-collection (project/get-resource-node project "/main/main.collection")

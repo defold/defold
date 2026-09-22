@@ -415,10 +415,19 @@
       (if (->clj runtime coerce/boolean (.arg1 lua-success+rest-varargs))
         (if (= lua-str-dead (vm/invoke-1 vm (.-status runtime) co))
           (future/completed (.subargs lua-success+rest-varargs 2))
-          (let [^Suspend suspend (->clj runtime coerce/userdata (.arg lua-success+rest-varargs 2))]
-            (-> (try
-                  (future/wrap (apply (.-f suspend) execution-context (.-args suspend)))
-                  (catch Throwable e (future/failed e)))
+          (let [^Suspend suspend (->clj runtime coerce/userdata (.arg lua-success+rest-varargs 2))
+                materializations-committed (future/make)]
+            ;; Suspended functions can transact using node ids discovered by
+            ;; the script. Those nodes must exist in the system first.
+            (fx/on-fx-thread
+              (try
+                (g/update-system-from-evaluation-context! (:evaluation-context execution-context))
+                (future/complete! materializations-committed nil)
+                (catch Throwable error
+                  (future/fail! materializations-committed error))))
+            (-> (future/then-async materializations-committed
+                  (fn [_]
+                    (future/wrap (apply (.-f suspend) execution-context (.-args suspend)))))
                 ;; treat thrown Exceptions as error signals to the scripts
                 (future/catch (fn [e]
                                 (if (instance? OrphanedThread e)

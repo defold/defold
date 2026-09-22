@@ -429,7 +429,7 @@
   (get-property [this _basis property]
     (when (and _materialize-fn
                (not (unjammable? (get (all-properties _node-type) property))))
-      (throw (ex-info "Cannot read a property of an unmaterialized shell node without an evaluation context."
+      (throw (ex-info "Cannot read a property of an unmaterialized shell node without an evaluation-context."
                       {:node-id _node-id :property property})))
     (get this property (get (defaults _node-type) property)))
 
@@ -728,7 +728,7 @@
     args))
 
 (defn construct-shell [node-type-ref materialize-fn args]
-  {:pre [(ifn? materialize-fn)]}
+  {:pre [(or (nil? materialize-fn) (ifn? materialize-fn))]}
   (validate-property-labels node-type-ref args)
   (validate-property-values node-type-ref (:_node-id args) args)
   (coll/merge (->ShellNode nil node-type-ref materialize-fn) args))

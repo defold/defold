@@ -42,7 +42,8 @@
 
 (g/defnode BNode
   (inherits resource-node/ResourceNode)
-  (property value g/Str))
+  (property value g/Str)
+  (output save-value g/Str (g/fnk [value] value)))
 
 (defn- register-resource-types [workspace types]
   (for [type types]
@@ -258,15 +259,23 @@
                   b (project/get-resource-node project "/b.type_b")
                   evaluation-context (g/make-evaluation-context)]
               (is (coll/empty? @loaded))
+              (is (= [] (g/node-value project :save-data evaluation-context)))
+              (is (= [] (g/node-value project :dirty-save-data evaluation-context)))
+              (is (coll/empty? @loaded))
               (is (nil? (g/node-value a1 :source-value evaluation-context)))
               (is (= "a" (g/node-value a1 :value evaluation-context)))
+              (is (= (if follow-prerequisites #{"/b.type_b" "/a1.type_a"} #{"/a1.type_a"})
+                     (into #{} (map (comp resource/proj-path :resource))
+                           (g/node-value project :save-data evaluation-context))))
               (is (= (if follow-prerequisites ["/b.type_b" "/a1.type_a"] ["/a1.type_a"]) @loaded))
               (is (= follow-prerequisites (resource-node/loaded? (:basis evaluation-context) b)))
               (is (not (resource-node/loaded? (:basis evaluation-context) a2)))
               (is (not (resource-node/loaded? (g/now) a1)))
               (is (nil? (g/user-data a1 :source-value)))
               (is (= {:b "/b.type_b"} (g/node-value a1 :source-value evaluation-context)))
+              (is (= [] (g/node-value project :save-data)))
               (g/update-system-from-evaluation-context! evaluation-context)
+              (is (= (count @loaded) (count (g/node-value project :save-data))))
               (is (resource-node/loaded? (g/now) a1))
               (is (= {:b "/b.type_b"} (g/user-data a1 :source-value)))
               (is (string? (get (g/node-value workspace :disk-sha256s-by-node-id) a1))))))))))

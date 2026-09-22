@@ -210,6 +210,16 @@
                 (g/node-instance*? resource/ResourceNode node))
        (resource/node-resource basis node)))))
 
+(defn materialize-resource-types!
+  "Loads containers needed by queries that follow references in reverse."
+  [type-exts evaluation-context]
+  (coll/run!-> (g/node-ids (:basis evaluation-context))
+    (fn [node-id]
+      (when-let [resource (as-resource-original (:basis evaluation-context) node-id)]
+        (when (and (contains? type-exts (resource/type-ext resource))
+                   (resource/loaded? resource))
+          (g/materialize-node! node-id evaluation-context))))))
+
 (defn dirty?
   ([resource-node-id]
    (g/valid-node-value resource-node-id :dirty))

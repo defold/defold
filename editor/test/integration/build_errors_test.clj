@@ -64,7 +64,8 @@
             (with-open [_ (make-restore-point!)]
               (add-component-from-file! workspace game-object component-resource-path)
               (let [old-artifact-map (workspace/artifact-map workspace)
-                    build-results (build/build-project! project main-collection old-artifact-map nil (g/make-evaluation-context))
+                    build-results (g/with-auto-evaluation-context evaluation-context
+                                    (build/build-project! project main-collection old-artifact-map nil evaluation-context))
                     error-value (:error build-results)]
                 (if (is (some? error-value) component-resource-path)
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
@@ -103,7 +104,8 @@
             (with-open [_ (make-restore-point!)]
               (add-fn resource-path)
               (let [old-artifact-map (workspace/artifact-map workspace)
-                    build-results (build/build-project! project main-collection old-artifact-map nil (g/make-evaluation-context))
+                    build-results (g/with-auto-evaluation-context evaluation-context
+                                    (build/build-project! project main-collection old-artifact-map nil evaluation-context))
                     error-value (:error build-results)]
                 (if (is (some? error-value) resource-path)
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
@@ -131,7 +133,8 @@
                 embedded-resource-node (test-util/to-component-resource-node-id embedded-component)]
             (test-util/prop! embedded-resource-node :collection (resource "/errors/missing.collection"))
             (let [old-artifact-map (workspace/artifact-map workspace)
-                  build-results (build/build-project! project main-collection old-artifact-map nil (g/make-evaluation-context))
+                  build-results (g/with-auto-evaluation-context evaluation-context
+                                  (build/build-project! project main-collection old-artifact-map nil evaluation-context))
                   error-value (:error build-results)]
               (if (is (some? error-value))
                 (let [error-tree (build-errors-view/build-resource-tree error-value)
@@ -149,7 +152,8 @@
                         "/errors/window_using_panel_break_button.gui"]]
             (add-component-from-file! workspace game-object path))
           (let [old-artifact-map (workspace/artifact-map workspace)
-                build-results (build/build-project! project main-collection old-artifact-map nil (g/make-evaluation-context))
+                build-results (g/with-auto-evaluation-context evaluation-context
+                                (build/build-project! project main-collection old-artifact-map nil evaluation-context))
                 error-value (:error build-results)]
             (if (is (some? error-value))
               (let [error-tree (build-errors-view/build-resource-tree error-value)]

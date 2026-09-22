@@ -165,7 +165,7 @@
 
           (workspace/resource-sync! workspace)
 
-          (let [project (test-util/setup-project! workspace)
+          (let [project (test-util/materialize-project! (test-util/setup-project! workspace))
                 loaded-proj-path? #(loaded-proj-path? project %)
 
                 call-logged-resource-sync!
@@ -401,7 +401,7 @@
 
           (workspace/resource-sync! workspace)
 
-          (let [project (test-util/setup-project! workspace)
+          (let [project (test-util/materialize-project! (test-util/setup-project! workspace))
                 loaded-proj-path? #(loaded-proj-path? project %)
 
                 call-logged-transact!
@@ -531,7 +531,7 @@
 
           (workspace/resource-sync! workspace)
 
-          (let [project (test-util/setup-project! workspace)
+          (let [project (test-util/materialize-project! (test-util/setup-project! workspace))
                 loaded-proj-path? #(loaded-proj-path? project %)
                 script-intelligence (project/script-intelligence project)
                 unloaded-lua-node (project/get-resource-node project "/unloaded/unloaded.lua")

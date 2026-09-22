@@ -462,6 +462,19 @@
      (-> (project/make-project workspace extensions)
          (project/load-project! progress/null-render-progress! resources)))))
 
+(defn materialize-project! [project]
+  ;; Structural tests need a populated graph before taking basis snapshots.
+  (g/with-auto-evaluation-context evaluation-context
+    (let [node-ids (into []
+                        (keep (fn [[node-id resource]]
+                                (when (resource/loaded? resource) node-id)))
+                        (g/node-value project :node-id+resources evaluation-context))]
+      (doseq [node-id node-ids]
+        (g/materialize-node! node-id evaluation-context))
+      (doseq [node-id node-ids]
+        (g/node-value node-id :save-data evaluation-context))))
+  project)
+
 (defn project-node-resources [project]
   (->> (g/node-value project :node-id+resources)
        (map second)
@@ -684,31 +697,28 @@
         project-path (if custom-path? first-form project-path)
         forms (if custom-path? (next forms) forms)
         [options forms] (split-keyword-options forms)]
-    `(let [options# ~options
-           [system# ~'workspace ~'project] (if (:logging-suppressed options#)
-                                             (log/without-logging
-                                               (load-system-and-project ~project-path))
-                                             (load-system-and-project ~project-path))
-           system-clone# (is/clone-system system#)
-           ~'cache (:cache system-clone#)]
-       (binding [g/*the-system* (atom system-clone#)]
-         (let [~'app-view (setup-app-view! ~'project)]
-           ~@forms)))))
+    `(let [options# ~options]
+       ;; Initial resource reads now happen during evaluation in the test body.
+       (binding [log/*logging-suppressed* (or log/*logging-suppressed* (:logging-suppressed options#))]
+         (let [[system# ~'workspace ~'project] (load-system-and-project ~project-path)
+               system-clone# (is/clone-system system#)
+               ~'cache (:cache system-clone#)]
+           (binding [g/*the-system* (atom system-clone#)]
+             (let [~'app-view (setup-app-view! ~'project)]
+               ~@forms)))))))
 
 (defmacro with-scratch-project
   [project-path & forms]
   (let [[options forms] (split-keyword-options forms)]
     `(let [options# ~options]
-       (test-support/with-clean-system {:cache-size ~system-cache-size
-                                        :cache-retain? project/cache-retain?}
-         (let [~'workspace (setup-scratch-workspace! ~project-path)]
-           (fetch-libraries! ~'workspace)
-           (let [~'project (if (:logging-suppressed options#)
-                             (log/without-logging
-                               (setup-project! ~'workspace))
-                             (setup-project! ~'workspace))
-                 ~'app-view (setup-app-view! ~'project)]
-             ~@forms))))))
+       (binding [log/*logging-suppressed* (or log/*logging-suppressed* (:logging-suppressed options#))]
+         (test-support/with-clean-system {:cache-size ~system-cache-size
+                                         :cache-retain? project/cache-retain?}
+           (let [~'workspace (setup-scratch-workspace! ~project-path)]
+             (fetch-libraries! ~'workspace)
+             (let [~'project (setup-project! ~'workspace)
+                   ~'app-view (setup-app-view! ~'project)]
+               ~@forms)))))))
 
 (defmacro with-temp-project-content
   [save-values-by-proj-path & body]
@@ -1597,16 +1607,16 @@
   ([resource-node-id subnode-type]
    (g/with-auto-evaluation-context evaluation-context
      (first-subnode-of-type resource-node-id subnode-type evaluation-context)))
-  ([resource-node-id subnode-type {:keys [basis] :as evaluation-context}]
+  ([resource-node-id subnode-type evaluation-context]
    (or (some (fn [{:keys [node-id]}]
-               (when (g/node-instance? basis subnode-type node-id)
+               (when (g/node-instance? (:basis evaluation-context) subnode-type node-id)
                  node-id))
              (tree-seq :children :children
                        (g/valid-node-value resource-node-id :node-outline evaluation-context)))
        (throw (ex-info "No subnode matches the specified node type."
                        {:subnode-type (:k subnode-type)
-                        :node-type (g/node-type-kw basis resource-node-id)
-                        :proj-path (resource/resource->proj-path (resource-node/as-resource-original basis resource-node-id))})))))
+                        :node-type (g/node-type-kw (:basis evaluation-context) resource-node-id)
+                        :proj-path (resource/resource->proj-path (resource-node/as-resource-original (:basis evaluation-context) resource-node-id))})))))
 
 (defn- get-setting-impl [form-data setting-path evaluation-context]
   (let [user-data (:user-data (:form-ops form-data))
@@ -1720,7 +1730,11 @@
 
 (defmethod can-edit-resource-node? "tpinfo" [_resource-node-id] false)
 
-(defmulti edit-resource-node edit-multimethod-dispatch-fn)
+(defmulti edit-resource-node
+  (fn [resource-node-id]
+    (g/with-auto-evaluation-context evaluation-context
+      (g/materialize-node! resource-node-id evaluation-context))
+    (edit-multimethod-dispatch-fn resource-node-id)))
 
 (defmethod edit-resource-node :code [resource-node-id]
   (update-code-editor-lines resource-node-id conj ""))

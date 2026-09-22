@@ -28,6 +28,8 @@
 
 (defn- additional-load-fn [{:keys [project]} {:keys [node-id resource]}]
   (when (and (resource/save-tracked? resource)
+             (resource/exists? resource)
+             (not (resource/folder? resource))
              (not (text-util/binary? resource)))
     (g/connect node-id :save-data project :save-data)))
 

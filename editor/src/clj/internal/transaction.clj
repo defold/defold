@@ -92,8 +92,10 @@
 ;; Executing transactions
 ;; ---------------------------------------------------------------------------
 
-(defn realize-tx
-  [ctx undoable-changes tx-data]
+(declare apply-evaluation-context)
+
+(defn- realize-tx-impl
+  [ctx undoable-changes tx-data evaluation-context]
   (let [is-non-undoable (non-undoable? tx-data)
         tx-data (cond-> tx-data is-non-undoable non-undoable-tx-data)
         mutated-undoable-changes (if is-non-undoable nil undoable-changes)
@@ -102,30 +104,42 @@
         (coll/reduce->
           tx-data
           (pair ctx mutated-undoable-changes)
-          (fn [[ctx mutated-undoable-changes :as acc] ^TransactionStep tx-step]
-            (cond
-              (nil? tx-step)
-              acc
+          (fn [[ctx mutated-undoable-changes] ^TransactionStep tx-step]
+            ;; Producing a lazy step can materialize nodes. Merge those changes
+            ;; before executing the step, without realizing later producers early.
+            (let [ctx (if-not evaluation-context
+                        ctx
+                        (apply-evaluation-context ctx evaluation-context))]
+              (cond
+                (nil? tx-step)
+                (pair ctx mutated-undoable-changes)
 
-              (non-undoable? tx-step)
-              (let [[ctx] (realize-tx ctx nil tx-step)]
-                (pair ctx mutated-undoable-changes))
+                (non-undoable? tx-step)
+                (let [[ctx] (realize-tx-impl ctx nil tx-step evaluation-context)]
+                  (pair ctx mutated-undoable-changes))
 
-              (sequential? tx-step)
-              (realize-tx ctx mutated-undoable-changes tx-step)
+                (sequential? tx-step)
+                (realize-tx-impl ctx mutated-undoable-changes tx-step evaluation-context)
 
-              :else
-              (let [[ctx mutated-undoable-changes]
-                    (try
-                      (du/measuring (:metrics ctx) (.step-type tx-step) (.metrics-key tx-step)
-                        (.realize tx-step ctx mutated-undoable-changes))
-                      (catch Exception e
-                        (when *tx-debug*
-                          (println (txerrstr ctx "Transaction failed on " tx-step)))
-                        (throw e)))]
-                (pair (update ctx :completed-action-count inc)
-                      mutated-undoable-changes)))))]
-    (pair ctx (or mutated-undoable-changes undoable-changes))))
+                :else
+                (let [[ctx mutated-undoable-changes]
+                      (try
+                        (du/measuring (:metrics ctx) (.step-type tx-step) (.metrics-key tx-step)
+                          (.realize tx-step ctx mutated-undoable-changes))
+                        (catch Exception e
+                          (when *tx-debug*
+                            (println (txerrstr ctx "Transaction failed on " tx-step)))
+                          (throw e)))]
+                  (pair (update ctx :completed-action-count inc)
+                        mutated-undoable-changes))))))]
+    (pair (if-not evaluation-context
+            ctx
+            (apply-evaluation-context ctx evaluation-context))
+          (or mutated-undoable-changes undoable-changes))))
+
+(defn realize-tx
+  [ctx undoable-changes tx-data]
+  (realize-tx-impl ctx undoable-changes tx-data nil))
 
 (defn- make-evaluation-context [ctx]
   (let [evaluation-context
@@ -135,30 +149,25 @@
            :node-id-generator (:node-id-generator ctx)
            :override-id-generator (:override-id-generator ctx)
            :materialize-node! materialize-node!})]
-    (swap! (ec/state evaluation-context) assoc :user-data (:evaluation-user-data ctx))
+    (swap! (ec/state evaluation-context) assoc
+           :user-data (:evaluation-user-data ctx)
+           :applied-user-data (:evaluation-user-data ctx))
     evaluation-context))
 
 (defn- apply-evaluation-context [ctx evaluation-context]
-  (let [{:keys [changes user-data]} @(ec/state evaluation-context)]
-    (-> (reduce (fn [ctx change]
-                  (cond-> (-> (perform-change ctx change)
-                              (update :completed-action-count inc))
-                    (:realized-changes ctx) (update :realized-changes conj change)))
-                ctx
-                changes)
-        (update :evaluation-user-data #(merge-with merge % user-data)))))
-
-(defn- realize-evaluation-tx-data [tx-data]
-  ;; Transaction producers can defer evaluation until their steps are consumed.
-  ;; Realize them before merging the evaluation's materializations into ctx.
-  (cond
-    (non-undoable? tx-data)
-    (non-undoable (realize-evaluation-tx-data (non-undoable-tx-data tx-data)))
-
-    (sequential? tx-data)
-    (mapv realize-evaluation-tx-data tx-data)
-
-    :else tx-data))
+  (let [{:keys [changes user-data applied-user-data]} @(ec/state evaluation-context)
+        user-data-changed (not (identical? user-data applied-user-data))
+        ctx (cond-> (reduce (fn [ctx change]
+                             (cond-> (-> (perform-change ctx change)
+                                         (update :completed-action-count inc))
+                               (:realized-changes ctx) (update :realized-changes conj change)))
+                           ctx
+                           changes)
+              user-data-changed
+              (update :evaluation-user-data #(merge-with merge % user-data)))]
+    (when (or (coll/not-empty changes) user-data-changed)
+      (swap! (ec/state evaluation-context) assoc :changes [] :applied-user-data user-data))
+    ctx))
 
 (defn- mark-input-activated
   [ctx node-id input-label]
@@ -412,7 +421,10 @@
 
 (defn- realize-override
   [ctx undoable-changes root-id traverse-fn init-props-fn init-fn properties-by-node-id]
-  (let [basis (:basis ctx)
+  (let [evaluation-context (make-evaluation-context ctx)
+        _ (materialize-node! evaluation-context root-id)
+        ctx (apply-evaluation-context ctx evaluation-context)
+        basis (:basis ctx)
         node-ids (ig/pre-traverse basis [root-id] traverse-fn)
         override-id (next-override-id ctx)
         override-nodes (mapv (fn [original-node-id]
@@ -431,8 +443,8 @@
         [ctx undoable-changes] (realize-add-nodes ctx undoable-changes override-nodes)
         [ctx undoable-changes] (realize-add-override ctx undoable-changes override-id root-id traverse-fn init-props-fn)
         evaluation-context (make-evaluation-context ctx)
-        tx-data (realize-evaluation-tx-data (init-fn evaluation-context original-node-id->override-node-id))]
-    (realize-tx (apply-evaluation-context ctx evaluation-context) undoable-changes tx-data)))
+        tx-data (init-fn evaluation-context original-node-id->override-node-id)]
+    (realize-tx-impl (apply-evaluation-context ctx evaluation-context) undoable-changes tx-data evaluation-context)))
 
 (defn- node-id->override-id [basis node-id]
   (->> node-id
@@ -722,10 +734,10 @@
 (defn- call-setter-fn [ctx property setter-fn basis node-id old-value new-value]
   (try
     (let [evaluation-context (make-evaluation-context ctx)
-          setter-actions (realize-evaluation-tx-data (setter-fn evaluation-context node-id old-value new-value))]
+          setter-actions (setter-fn evaluation-context node-id old-value new-value)]
       (when *tx-debug*
         (println (txerrstr ctx "setter actions" (seq setter-actions))))
-      (pair (apply-evaluation-context ctx evaluation-context) setter-actions))
+      (pair evaluation-context setter-actions))
     (catch ArityException ae
       (when *tx-debug*
         (println "ArityException while inside " setter-fn " on node " node-id " with " old-value new-value (gt/node-type (ig/node-by-id-at basis node-id))))
@@ -758,7 +770,10 @@
   [ctx undoable-changes node property-label old-value new-value]
   (let [node-id (gt/node-id node)
         node-type (gt/node-type node)
-        assigned-properties (gt/assigned-properties node)
+        property-assigned (contains? (if (in/shell-node? node)
+                                       node
+                                       (gt/assigned-properties node))
+                                     property-label)
 
         ctx+undoable-changes
         (if-let [{:keys [node-id
@@ -772,14 +787,14 @@
           (pair ctx undoable-changes))
 
         realize-setter-actions
-        (or (not (contains? assigned-properties property-label))
+        (or (not property-assigned)
             (not= old-value new-value))]
 
     (if realize-setter-actions
       (if-let [setter-fn (in/property-setter node-type property-label)]
         (let [[ctx undoable-changes] ctx+undoable-changes
-              [ctx setter-actions] (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value new-value)]
-          (realize-tx ctx undoable-changes setter-actions))
+              [evaluation-context setter-actions] (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value new-value)]
+          (realize-tx-impl (apply-evaluation-context ctx evaluation-context) undoable-changes setter-actions evaluation-context))
         ctx+undoable-changes)
       ctx+undoable-changes)))
 
@@ -829,8 +844,8 @@
                   old-value (in/node-property-value node property-label evaluation-context)
                   ctx (apply-evaluation-context ctx evaluation-context)
                   [ctx undoable-changes] (perform-and-conj-change ctx undoable-changes change)
-                  [ctx setter-actions] (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value nil)]
-              (realize-tx ctx undoable-changes setter-actions))))
+                  [evaluation-context setter-actions] (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id old-value nil)]
+              (realize-tx-impl (apply-evaluation-context ctx evaluation-context) undoable-changes setter-actions evaluation-context))))
         (pair ctx undoable-changes)))))
 
 (defn- realize-defaults
@@ -851,8 +866,8 @@
             (if-some [property-value (value-fn property-label default-value)]
               (let [[ctx undoable-changes] ctx+undoable-changes
                     setter-fn (in/property-setter node-type property-label)
-                    [ctx setter-actions] (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value)]
-                (realize-tx ctx undoable-changes setter-actions))
+                    [evaluation-context setter-actions] (call-setter-fn ctx property-label setter-fn (:basis ctx) node-id nil property-value)]
+                (realize-tx-impl (apply-evaluation-context ctx evaluation-context) undoable-changes setter-actions evaluation-context))
               ctx+undoable-changes)))))))
 
 (defn- ctx-perform-add-nodes [ctx added-nodes introduced-node-id->pkid->override-node-id]
@@ -1506,8 +1521,8 @@
   (if-not (:inject-evaluation-context opts)
     (realize-tx ctx undoable-changes (apply tx-steps-fn args))
     (let [evaluation-context (make-evaluation-context ctx)
-          tx-data (realize-evaluation-tx-data (apply tx-steps-fn evaluation-context args))]
-      (realize-tx (apply-evaluation-context ctx evaluation-context) undoable-changes tx-data))))
+          tx-data (apply tx-steps-fn evaluation-context args)]
+      (realize-tx-impl (apply-evaluation-context ctx evaluation-context) undoable-changes tx-data evaluation-context))))
 
 (defonce/type ExpandTXS [tx-steps-fn args opts]
   TransactionStep
@@ -1795,7 +1810,17 @@
         result))))
 
 (defn materialize-node! [evaluation-context node-id]
-  (let [state (ec/state evaluation-context)]
+  ;; Dependency tracing skips output functions and caches placeholder values.
+  ;; Loading needs actual values even when triggered by such a traversal.
+  (let [evaluation-context (cond-> evaluation-context
+                             (:dry-run evaluation-context)
+                             (assoc :dry-run false
+                                    :tracer nil
+                                    :in-production #{}
+                                    :local (atom {})
+                                    :local-temp (atom {})
+                                    :hits (atom #{})))
+        state (ec/state evaluation-context)]
     (locking state
       (when-let [materialize-fn (:_materialize-fn (ig/node-by-id-at (:basis evaluation-context) node-id))]
         (let [context-atoms (into [state]
@@ -1803,9 +1828,9 @@
                                   [:local :local-temp :hits :tx-data-context])
               previous-values (mapv deref context-atoms)]
           (try
-            (let [tx-data (materialize-fn node-id evaluation-context)]
-              (transact-in-evaluation-context! evaluation-context
-                [(materialize-shell node-id) tx-data]))
+            (let [tx-data [(materialize-shell node-id)
+                           (materialize-fn node-id evaluation-context)]]
+              (transact-in-evaluation-context! evaluation-context tx-data))
             (catch Throwable error
               ;; Failed loads must not leave staged disk state, node lookups or
               ;; values from nested materializations in a reusable context.

@@ -215,6 +215,7 @@
 
 (deftest label-migration-test
   (test-util/with-loaded-project "test/resources/label_migration_project"
+    (test-util/materialize-project! project)
     (let [resources-with-dirty-save-data (into #{}
                                                (map :resource)
                                                (project/dirty-save-data project))]
