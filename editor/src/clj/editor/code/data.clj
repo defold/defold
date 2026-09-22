@@ -22,7 +22,8 @@
             [util.diff :as diff])
   (:import [java.io IOException InputStream Reader Writer]
            [java.nio CharBuffer]
-           [java.util Collections]
+           [java.text BreakIterator]
+           [java.util Collections Locale]
            [java.util.regex MatchResult Pattern]
            [org.apache.commons.io.input ReaderInputStream]))
 
@@ -41,6 +42,67 @@
   (ascent [this] "A rounded double representing the distance from the baseline to the top.")
   (line-height [this] "A rounded double representing the line height.")
   (char-width [this character] "A rounded double representing the width of the specified character."))
+
+(defonce/protocol ComplexTextMetrics
+  (complex-text-width [this text] "Returns the shaped width of text.")
+  (complex-text-col->x [this text col] "Returns the visual x position of a logical offset.")
+  (complex-text-x->col [this text x] "Returns the logical offset nearest x.")
+  (complex-text-x->character-col [this text x] "Returns the logical offset of the character at x.")
+  (complex-text-selection-spans [this text start-offset end-offset] "Returns selection spans relative to the run's left edge."))
+
+(defn- combining-character? [character]
+  (let [character-type (Character/getType (unchecked-char character))]
+    (or (= Character/NON_SPACING_MARK character-type)
+        (= Character/COMBINING_SPACING_MARK character-type)
+        (= Character/ENCLOSING_MARK character-type))))
+
+(defn- neutral-character?
+  "True for ASCII characters that may join complex text on both sides.
+  Tabs need editor tab stops, and quotes must keep adjacent literals separate."
+  [character]
+  (case character
+    (\tab \" \' \`) false
+    (or (Character/isDigit (unchecked-char character))
+        (not (Character/isLetterOrDigit (unchecked-char character))))))
+
+(defn complex-text-ranges
+  "Returns [start end] spans that must be shaped together.
+  Neutral text stays with surrounding complex text so bidi can reorder the phrase."
+  [^String line]
+  (let [line-length (count line)]
+    (loop [index 0
+           start -1
+           end -1
+           ranges []]
+      (if (>= index line-length)
+        (if (neg? start)
+          ranges
+          (conj ranges [start end]))
+        (let [character (.charAt line index)
+              next-index (inc index)]
+          (cond
+            (<= 0x80 (int character))
+            (recur next-index
+                   (if (neg? start)
+                     ;; Include the base of a combining mark, but never a tab.
+                     (if (and (pos? index)
+                              (combining-character? character)
+                              (not (Character/isWhitespace (.charAt line (dec index)))))
+                       (dec index)
+                       index)
+                     start)
+                   next-index
+                   ranges)
+
+            (and (not (neg? start))
+                 (neutral-character? character))
+            (recur next-index start end ranges)
+
+            (not (neg? start))
+            (recur next-index -1 -1 (conj ranges [start end]))
+
+            :else
+            (recur next-index start end ranges)))))))
 
 (defmacro clamp [value minimum maximum]
   `(max ~minimum (min ~value ~maximum)))
@@ -562,10 +624,128 @@
   [^LayoutInfo layout ^String text start-index end-index start-x]
   (advance-text-impl (.glyph layout) (.tab-stops layout) text start-index end-index start-x))
 
+(defn- line-col->x
+  [glyph-metrics tab-stops ^String line col ranges]
+  (let [col (long col)]
+    (loop [range-index 0
+           index 0
+           x 0.0]
+      (if-let [[start end] (get ranges range-index)]
+        (let [start (long start)
+              end (long end)]
+          (cond
+            (< col start)
+            (advance-text-impl glyph-metrics tab-stops line index col x)
+
+            ;; Range boundaries also need bidi-aware caret positions.
+            (<= col end)
+            (+ ^double (advance-text-impl glyph-metrics tab-stops line index start x)
+               ^double (complex-text-col->x glyph-metrics (.substring line start end) (- col start)))
+
+            :else
+            (recur (inc range-index)
+                   end
+                   (+ ^double (advance-text-impl glyph-metrics tab-stops line index start x)
+                      ^double (complex-text-width glyph-metrics (.substring line start end))))))
+        (advance-text-impl glyph-metrics tab-stops line index col x)))))
+
+(defn- line-x->col
+  [glyph-metrics tab-stops ^String line x round complex-hit past-end ranges]
+  (let [x (double x)
+        round (double round)]
+    (loop [range-index 0
+           index 0
+           start-x 0.0]
+      (if-let [[start end] (get ranges range-index)]
+        (let [start (long start)
+              end (long end)
+              complex-start-x (double (advance-text-impl glyph-metrics tab-stops line index start start-x))
+              complex-end-x (+ complex-start-x ^double (complex-text-width glyph-metrics (.substring line start end)))]
+          (cond
+            (< x complex-start-x)
+            (loop [col index
+                   col-x start-x]
+              (let [next-col (inc col)
+                    next-x (double (advance-text-impl glyph-metrics tab-stops line col next-col col-x))]
+                (if (or (<= x next-x) (= next-col start))
+                  (max 0 (+ col (long (+ round (/ (- x col-x) (- next-x col-x))))))
+                  (recur next-col next-x))))
+
+            (< x complex-end-x)
+            (+ start ^long (complex-hit glyph-metrics (.substring line start end) (- x complex-start-x)))
+
+            :else
+            (recur (inc range-index) end complex-end-x)))
+        (loop [col index
+               col-x start-x]
+          (if (>= col (count line))
+            (when past-end col)
+            (let [next-col (inc col)
+                  next-x (double (advance-text-impl glyph-metrics tab-stops line col next-col col-x))]
+              (if (<= x next-x)
+                (max 0 (+ col (long (+ round (/ (- x col-x) (- next-x col-x))))))
+                (recur next-col next-x)))))))))
+
 (defn line-width
   "Returns an accurate line width measurement, taking tab stops into account."
-  ^double [glyph-metrics tab-stops line]
-  (advance-text-impl glyph-metrics tab-stops line 0 (count line) 0.0))
+  ^double [glyph-metrics tab-stops ^String line]
+  (let [ranges (complex-text-ranges line)]
+    (if (zero? (count ranges))
+      (advance-text-impl glyph-metrics tab-stops line 0 (count line) 0.0)
+      (loop [range-index 0
+             index 0
+             x 0.0]
+        (if-let [[start end] (get ranges range-index)]
+          (let [start (long start)
+                end (long end)]
+            (recur (inc range-index)
+                   end
+                   (+ ^double (advance-text-impl glyph-metrics tab-stops line index start x)
+                      ^double (complex-text-width glyph-metrics (.substring line start end)))))
+          (advance-text-impl glyph-metrics tab-stops line index (count line) x))))))
+
+(defn- line-selection-spans
+  "Returns the visual spans covering [start-col end-col)."
+  [glyph-metrics tab-stops ^String line start-col end-col]
+  (let [start-col (long start-col)
+        end-col (long end-col)
+        ranges (complex-text-ranges line)
+
+        ordinary-spans (fn [spans ^long from ^long to ^double from-x]
+                         (let [a (max start-col from)
+                               b (min end-col to)]
+                           (if (< a b)
+                             (let [x0 (advance-text-impl glyph-metrics tab-stops line from a from-x)
+                                   x1 (advance-text-impl glyph-metrics tab-stops line a b x0)]
+                               (conj spans [x0 x1]))
+                             spans)))
+
+        ;; Use the run's origin; an RTL caret at its start sits at the far edge.
+        range-spans (fn [spans ^long rs ^long re ^double base-x]
+                      (let [a (max start-col rs)
+                            b (min end-col re)]
+                        (if (< a b)
+                          (into spans
+                                (map (fn [[^double x0 ^double x1]]
+                                       [(+ base-x x0) (+ base-x x1)]))
+                                (complex-text-selection-spans glyph-metrics (subs line rs re) (- a rs) (- b rs)))
+                          spans)))]
+    (loop [range-index 0
+           index 0
+           x 0.0
+           spans []]
+      (if-let [[start end] (get ranges range-index)]
+        (let [start (long start)
+              end (long end)
+              complex-start-x (double (advance-text-impl glyph-metrics tab-stops line index start x))
+              complex-end-x (+ complex-start-x ^double (complex-text-width glyph-metrics (subs line start end)))]
+          (recur (inc range-index)
+                 end
+                 complex-end-x
+                 (-> spans
+                     (ordinary-spans index start x)
+                     (range-spans start end complex-start-x))))
+        (ordinary-spans spans index (count line) x)))))
 
 (defn text-width
   "Simple text width measurement. Does not take tab stops into account, so don't feed it strings with tabs.
@@ -756,36 +936,45 @@
 
 (defn col->x
   ^double [^LayoutInfo layout ^long col ^String line]
-  (+ (.x ^Rect (.canvas layout))
-     (.scroll-x layout)
-     ^double (advance-text layout line 0 col 0.0)))
+  (let [ranges (complex-text-ranges line)]
+    (+ (.x ^Rect (.canvas layout))
+       (.scroll-x layout)
+       (double (if (pos? (count ranges))
+                 (line-col->x (.glyph layout) (.tab-stops layout) line col ranges)
+                 (advance-text layout line 0 col 0.0))))))
 
 (defn x->col
   ^long [^LayoutInfo layout ^double x ^String line]
-  (let [line-x (x->doc-x layout x)
-        line-length (count line)]
-    (loop [col 0
-           start-x 0.0]
-      (if (<= line-length col)
-        col
-        (let [next-col (inc col)
-              end-x (double (advance-text layout line col next-col start-x))]
-          (if (<= end-x line-x)
-            (recur next-col end-x)
-            (max 0 (+ col (long (+ 0.5 (/ (- line-x start-x) (- end-x start-x))))))))))))
+  (let [ranges (complex-text-ranges line)]
+    (if (pos? (count ranges))
+      (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x) 0.5 complex-text-x->col true ranges)
+      (let [line-x (x->doc-x layout x)
+            line-length (count line)]
+        (loop [col 0
+               start-x 0.0]
+          (if (<= line-length col)
+            col
+            (let [next-col (inc col)
+                  end-x (double (advance-text layout line col next-col start-x))]
+              (if (<= end-x line-x)
+                (recur next-col end-x)
+                (max 0 (+ col (long (+ 0.5 (/ (- line-x start-x) (- end-x start-x))))))))))))))
 
 (defn x->character-col [^LayoutInfo layout ^double x ^String line]
-  (let [line-x (x->doc-x layout x)
-        line-length (count line)]
-    (loop [col 0
-           start-x 0.0]
-      (if (<= line-length col)
-        nil
-        (let [next-col (inc col)
-              end-x (double (advance-text layout line col next-col start-x))]
-          (if (<= end-x line-x)
-            (recur next-col end-x)
-            (max 0 (+ col (long (/ (- line-x start-x) (- end-x start-x)))))))))))
+  (let [ranges (complex-text-ranges line)]
+    (if (pos? (count ranges))
+      (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x) 0.0 complex-text-x->character-col false ranges)
+      (let [line-x (x->doc-x layout x)
+            line-length (count line)]
+        (loop [col 0
+               start-x 0.0]
+          (if (<= line-length col)
+            nil
+            (let [next-col (inc col)
+                  end-x (double (advance-text layout line col next-col start-x))]
+              (if (<= end-x line-x)
+                (recur next-col end-x)
+                (max 0 (+ col (long (/ (- line-x start-x) (- end-x start-x)))))))))))))
 
 (defn adjust-row
   ^long [lines ^long row]
@@ -1114,45 +1303,77 @@
         top (- (row->y layout (.row adjusted-cursor)) 0.5)]
     (->Rect left top 1.0 (inc ^double (line-height (.glyph layout))))))
 
+(defn- merge-rects
+  "Merges overlapping or adjacent rects."
+  [rects]
+  (reduce (fn [merged ^Rect rect]
+            (let [^Rect previous (peek merged)]
+              (if (and previous
+                       (<= (.x rect) (+ (.x previous) (.w previous) 0.5)))
+                (conj (pop merged)
+                      (->Rect (.x previous)
+                              (.y previous)
+                              (- (max (+ (.x previous) (.w previous))
+                                      (+ (.x rect) (.w rect)))
+                                 (.x previous))
+                              (.h previous)))
+                (conj merged rect))))
+          []
+          (sort-by (fn [^Rect rect] (.x rect)) rects)))
+
 (defn cursor-range-rects
   [^LayoutInfo layout lines ^CursorRange adjusted-cursor-range]
   (let [canvas ^Rect (.canvas layout)
         ^double line-height (line-height (.glyph layout))
-        col-to-col-rect (fn [^long row ^long start-col ^long end-col]
-                          (let [line (lines row)
-                                top (row->y layout row)
-                                left (col->x layout start-col line)
-                                right (col->x layout end-col line)
-                                width (- right left)]
-                            (->Rect left top width line-height)))
-        col-to-edge-rect (fn [^long row ^long col]
-                           (let [line (lines row)
-                                 top (row->y layout row)
-                                 left (col->x layout col line)
-                                 width (- (+ (.x canvas) (.w canvas)) left)]
-                             (->Rect left top width line-height)))
-        edge-to-col-rect (fn [^long row ^long col]
-                           (let [line (lines row)
-                                 top (row->y layout row)
-                                 left (col->x layout 0 line)
-                                 right (col->x layout col line)
-                                 width (- right left)]
-                             (->Rect left top width line-height)))
+
+        ;; Bidi selections may have several visual spans on one line.
+        line-rects (fn [^long row ^long start-col ^long end-col]
+                     (let [line (lines row)
+                           top (row->y layout row)
+                           ;; Touching shaped text counts, since bidi caret
+                           ;; positions differ at range boundaries.
+                           spans (when (coll/any? (fn [[^long start ^long end]]
+                                                    (and (<= start end-col) (>= end start-col)))
+                                                  (complex-text-ranges line))
+                                   (line-selection-spans (.glyph layout) (.tab-stops layout) line start-col end-col))]
+                       (if (coll/empty? spans)
+                         ;; Zero-width marks may produce no spans. RTL positions
+                         ;; can be reversed, so build the fallback from both ends.
+                         (let [start-x (col->x layout start-col line)
+                               end-x (col->x layout end-col line)]
+                           [(->Rect (min start-x end-x) top (Math/abs (- end-x start-x)) line-height)])
+                         (mapv (fn [[^double x0 ^double x1]]
+                                 (->Rect (doc-x->x layout x0) top (- x1 x0) line-height))
+                               spans))))
+
+        edge-to-col-rects (fn [^long row ^long col]
+                            (merge-rects (line-rects row 0 col)))
+
+        col-to-edge-rects (fn [^long row ^long col]
+                            (let [line (lines row)
+                                  top (row->y layout row)
+                                  ;; An RTL end caret is not the visual end of the line.
+                                  line-end-x (doc-x->x layout (line-width (.glyph layout) (.tab-stops layout) line))
+                                  width (- (+ (.x canvas) (.w canvas)) ^double line-end-x)]
+                              (merge-rects (conj (line-rects row col (count line))
+                                                 (->Rect line-end-x top width line-height)))))
+
         edge-to-edge-rect (fn [^long start-row ^long end-row]
                             (let [top (row->y layout start-row)
                                   left (col->x layout 0 "")
                                   width (- (+ (.x canvas) (.w canvas)) left)
                                   height (* line-height (inc (- end-row start-row)))]
                               (->Rect left top width height)))
+
         {start-row :row start-col :col} (cursor-range-start adjusted-cursor-range)
         {end-row :row end-col :col} (cursor-range-end adjusted-cursor-range)]
     (case (- ^long end-row ^long start-row)
-      0 [(col-to-col-rect start-row start-col end-col)]
-      1 [(col-to-edge-rect start-row start-col)
-         (edge-to-col-rect end-row end-col)]
-      [(col-to-edge-rect start-row start-col)
-       (edge-to-edge-rect (inc ^long start-row) (dec ^long end-row))
-       (edge-to-col-rect end-row end-col)])))
+      0 (merge-rects (line-rects start-row start-col end-col))
+      1 (into (col-to-edge-rects start-row start-col)
+              (edge-to-col-rects end-row end-col))
+      (-> (col-to-edge-rects start-row start-col)
+          (conj (edge-to-edge-rect (inc ^long start-row) (dec ^long end-row)))
+          (into (edge-to-col-rects end-row end-col))))))
 
 (defn- scroll-x-limit
   ^double [^LayoutInfo layout]
@@ -1407,39 +1628,104 @@
   (let [adjusted (adjust-cursor lines cursor)
         row (.row adjusted)
         col (.col adjusted)
+        ^String line (lines row)
         new-col (dec col)]
     (if (neg? new-col)
       (let [new-row (max 0 (dec row))
             new-col (if (zero? row) 0 (count (lines new-row)))]
         (->Cursor new-row new-col))
-      (->Cursor row new-col))))
+      ;; Keep the cursor outside UTF-16 surrogate pairs.
+      (let [new-col (if (and (pos? new-col)
+                             (Character/isLowSurrogate (.charAt line new-col))
+                             (Character/isHighSurrogate (.charAt line (dec new-col))))
+                      (dec new-col)
+                      new-col)]
+        (->Cursor row new-col)))))
 
 (defn- cursor-right
   ^Cursor [lines ^Cursor cursor]
   (let [adjusted (adjust-cursor lines cursor)
         row (.row adjusted)
         col (.col adjusted)
+        ^String line (lines row)
         new-col (inc col)]
-    (if (> new-col (count (lines row)))
+    (if (> new-col (count line))
       (let [last-row (dec (count lines))
             new-row (min (inc row) last-row)
             new-col (if (= last-row row) (count (lines last-row)) 0)]
         (->Cursor new-row new-col))
-      (->Cursor row new-col))))
+      ;; Keep the cursor outside UTF-16 surrogate pairs.
+      (let [new-col (if (and (< new-col (count line))
+                             (Character/isHighSurrogate (.charAt line col))
+                             (Character/isLowSurrogate (.charAt line new-col)))
+                      (inc new-col)
+                      new-col)]
+        (->Cursor row new-col)))))
+
+(defn- previous-grapheme-boundary
+  ^long [^String line ^long col]
+  (let [iterator (BreakIterator/getCharacterInstance Locale/ROOT)]
+    (.setText iterator line)
+    (let [boundary (.preceding iterator col)]
+      (if (= BreakIterator/DONE boundary) 0 boundary))))
+
+(defn- next-grapheme-boundary
+  ^long [^String line ^long col]
+  (let [iterator (BreakIterator/getCharacterInstance Locale/ROOT)]
+    (.setText iterator line)
+    (let [boundary (.following iterator col)]
+      (if (= BreakIterator/DONE boundary) (count line) boundary))))
+
+(defn- cursor-left-grapheme
+  ^Cursor [lines ^Cursor cursor]
+  (let [adjusted (adjust-cursor lines cursor)
+        row (.row adjusted)
+        col (.col adjusted)]
+    (if (zero? col)
+      (let [new-row (max 0 (dec row))]
+        (->Cursor new-row (if (zero? row) 0 (count (lines new-row)))))
+      (->Cursor row (previous-grapheme-boundary (lines row) col)))))
+
+(defn- cursor-right-grapheme
+  ^Cursor [lines ^Cursor cursor]
+  (let [adjusted (adjust-cursor lines cursor)
+        row (.row adjusted)
+        col (.col adjusted)
+        line (lines row)]
+    (if (= col (count line))
+      (let [last-row (dec (count lines))
+            new-row (min (inc row) last-row)]
+        (->Cursor new-row (if (= last-row row) (count (lines last-row)) 0)))
+      (->Cursor row (next-grapheme-boundary line col)))))
+
+(defn- grapheme-boundary?
+  [^String line ^long col]
+  (let [iterator (BreakIterator/getCharacterInstance Locale/ROOT)]
+    (.setText iterator line)
+    (.isBoundary iterator col)))
 
 (defn- cursor-prev-word
   ^Cursor [lines ^Cursor cursor]
   (let [left-adjusted (cursor-left lines cursor)]
     (if (not= (.row cursor) (.row left-adjusted))
       left-adjusted
-      (cursor-range-start (word-cursor-range-at-cursor lines left-adjusted)))))
+      ;; The word scan may stop inside a grapheme.
+      (let [^Cursor target (cursor-range-start (word-cursor-range-at-cursor lines left-adjusted))
+            ^String line (lines (.row target))]
+        (if (grapheme-boundary? line (.col target))
+          target
+          (->Cursor (.row target) (previous-grapheme-boundary line (.col target))))))))
 
 (defn- cursor-next-word
   ^Cursor [lines ^Cursor cursor]
   (let [right-adjusted (cursor-right lines cursor)]
     (if (not= (.row cursor) (.row right-adjusted))
       right-adjusted
-      (cursor-range-end (word-cursor-range-at-cursor lines right-adjusted)))))
+      (let [^Cursor target (cursor-range-end (word-cursor-range-at-cursor lines right-adjusted))
+            ^String line (lines (.row target))]
+        (if (grapheme-boundary? line (.col target))
+          target
+          (->Cursor (.row target) (next-grapheme-boundary line (.col target))))))))
 
 (defn move-cursors [cursor-ranges move-fn lines]
   (into []
@@ -2488,8 +2774,9 @@
     [(->CursorRange from to) [""]]))
 
 (defn delete-character-after-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
+  ;; Avoid leaving combining marks attached to the preceding character.
   (let [from (CursorRange->Cursor cursor-range)
-        to (cursor-right lines from)]
+        to (cursor-right-grapheme lines from)]
     [(->CursorRange from to) [""]]))
 
 (defn delete-word-after-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
@@ -3030,7 +3317,9 @@
         (when (not= cursor-ranges new-cursor-ranges)
           (merge {:cursor-ranges new-cursor-ranges
                   :hovered-element nil}
-                 (scroll-to-any-cursor layout lines new-cursor-ranges))))
+                 ;; A bidi caret can be far from the pointer driving the scroll.
+                 (scroll-to-rect scroll-shortest scroll-shortest layout lines
+                                 (->Rect (double x) (double y) 1.0 1.0)))))
       nil)))
 
 (defn- element-at-position [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout x y]
@@ -3157,8 +3446,8 @@
                       :end cursor-line-end
                       :up cursor-up
                       :down cursor-down
-                      :left cursor-left
-                      :right cursor-right
+                      :left cursor-left-grapheme
+                      :right cursor-right-grapheme
                       :prev-word cursor-prev-word
                       :next-word cursor-next-word
                       :line-start cursor-line-start
