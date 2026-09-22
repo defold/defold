@@ -1273,7 +1273,7 @@
                               ;; This potentially saves us from having to
                               ;; re-calculate native extension file hashes the
                               ;; next time we build the project.
-                              (g/update-cache-from-evaluation-context! evaluation-context))
+                              (g/update-system-from-evaluation-context! evaluation-context))
                             engine)
                           (catch Throwable error
                             error))))
@@ -1650,7 +1650,7 @@
             render-save-progress! (make-render-task-progress :save-all)
             [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
             _ (ui/run-now
-                (g/update-cache-from-evaluation-context! evaluation-context)
+                (g/update-system-from-evaluation-context! evaluation-context)
                 (build-errors-view/clear-build-errors build-errors-view))
             build-results (with-open [out (start-new-log-pipe!)]
                             (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!

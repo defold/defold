@@ -105,5 +105,5 @@
   [ec & body]
   `(let [~ec (g/make-evaluation-context)
          ret# (g/do-strict-evaluation-context-scope-body ~@body)]
-     (fx/on-fx-thread (g/update-cache-from-evaluation-context! ~ec))
+     (fx/on-fx-thread (g/update-system-from-evaluation-context! ~ec))
      ret#))

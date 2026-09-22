@@ -815,7 +815,7 @@
                           (when has-specific-properties
                             display-order)]
                       (ui/run-later
-                        (g/update-cache-from-evaluation-context! evaluation-context))
+                        (g/update-system-from-evaluation-context! evaluation-context))
                       (swap! state-atom assoc
                              :queried-properties queried-properties
                              :progress :done

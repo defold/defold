@@ -89,14 +89,16 @@
         dirty (dirty-save-value? save-value source-value resource-type)]
     (make-save-data _node-id resource save-value dirty)))
 
-(g/defnk produce-source-value [_node-id resource]
+(g/defnk produce-source-value [_node-id resource ^:unsafe _evaluation-context]
   ;; The source-value is managed by the save system. When a file is loaded, we
   ;; store the value returned by the :read-fn (or an ErrorValue in case of an
   ;; error) as user-data for the node, and then subsequently update it whenever
   ;; the file is saved. We make sure to invalidate anything downstream of the
-  ;; source-value output when doing so.
+  ;; source-value output when doing so. During materialization the same value
+  ;; lives in the evaluation context until it is committed. This unsafe access
+  ;; is covered by the same explicit source-value invalidation.
   (if (resource/exists? resource)
-    (g/user-data _node-id :source-value)
+    (g/evaluation-user-data _evaluation-context _node-id :source-value)
     (resource-io/file-not-found-error _node-id :source-value :fatal resource)))
 
 (defn set-source-value! [node-id source-value]

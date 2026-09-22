@@ -14,6 +14,7 @@
 
 (ns internal.system
   (:require [internal.cache :as c]
+            [internal.evaluation-context :as ec]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
@@ -289,9 +290,12 @@
             (update :invalidate-counters update full-invalidation-endpoint util/safe-inc)))))
 
 (defn default-evaluation-context [system]
-  (in/default-evaluation-context (basis system)
-                                 (system-cache system)
-                                 (:invalidate-counters system)))
+  (-> (in/default-evaluation-context (basis system)
+                                  (system-cache system)
+                                  (:invalidate-counters system))
+      (assoc :node-id-generator (node-id-generator system)
+             :override-id-generator (override-id-generator system)
+             :materialize-node! it/materialize-node!)))
 
 (defn custom-evaluation-context
   ;; Basis & cache options:
@@ -305,19 +309,23 @@
   ;; when the evaluation context was created, and those are only merged if
   ;; we're using the system basis & cache.
   [system {options-basis :basis options-cache :cache :as options}]
-  (in/custom-evaluation-context
-    (if (some? options-cache)
-      (do
-        (assert (some? options-basis))
-        options)
-      (let [system-basis (basis system)]
-        (if (or (nil? options-basis)
-                (identical? options-basis system-basis))
-          (assoc options
-            :basis system-basis
-            :cache (system-cache system)
-            :initial-invalidate-counters (:invalidate-counters system))
-          options)))))
+  (let [options (assoc options
+                 :node-id-generator (node-id-generator system)
+                 :override-id-generator (override-id-generator system)
+                 :materialize-node! it/materialize-node!)]
+    (in/custom-evaluation-context
+      (if (some? options-cache)
+        (do
+          (assert (some? options-basis))
+          options)
+        (let [system-basis (basis system)]
+          (if (or (nil? options-basis)
+                  (identical? options-basis system-basis))
+            (assoc options
+              :basis system-basis
+              :cache (system-cache system)
+              :initial-invalidate-counters (:invalidate-counters system))
+            options))))))
 
 (defn evaluation-context-invalidate-counters [evaluation-context]
   (if-let [invalidate-counters (:initial-invalidate-counters evaluation-context)]
@@ -379,6 +387,36 @@
                 (coll/not-empty safe-cache-misses)
                 (update :cache c/cache-encache safe-cache-misses (:basis evaluation-context))))))))
     system))
+
+(defn evaluation-context-compatible? [system evaluation-context]
+  (let [{:keys [initial-basis changes invalidated]} @(ec/state evaluation-context)
+        initial-invalidate-counters (:initial-invalidate-counters evaluation-context)
+        invalidate-counters (:invalidate-counters system)
+        current-basis (basis system)]
+    (and initial-invalidate-counters
+         (not (full-invalidation-since? initial-invalidate-counters invalidate-counters))
+         (or (coll/empty? changes)
+             (and (coll/not-any? #(endpoint-invalidated-since? % initial-invalidate-counters invalidate-counters) invalidated)
+                  (coll/not-any? (fn [node-id]
+                                   (when-let [original-node (ig/node-by-id-at initial-basis node-id)]
+                                     (not (identical? original-node (ig/node-by-id-at current-basis node-id)))))
+                                 (it/materialized-node-ids changes)))))))
+
+(defn update-system-from-evaluation-context [system evaluation-context]
+  (if-not (evaluation-context-compatible? system evaluation-context)
+    system
+    (let [{:keys [changes user-data]} @(ec/state evaluation-context)
+          original-invalidate-counters (:invalidate-counters system)
+          system (cond-> system
+                   (coll/not-empty changes) (replay-changes changes it/perform-change))
+          invalidate-counters (:invalidate-counters system)]
+      ;; Our own materialization invalidations have already been applied to
+      ;; the context's caches. Only concurrent changes should reject entries.
+      (-> system
+          (update :user-data #(merge-with merge % user-data))
+          (assoc :invalidate-counters original-invalidate-counters)
+          (update-cache-from-evaluation-context evaluation-context)
+          (assoc :invalidate-counters invalidate-counters)))))
 
 (defn user-data [system node-id key]
   (get-in system [:user-data node-id key]))

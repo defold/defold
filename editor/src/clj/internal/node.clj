@@ -17,6 +17,7 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [internal.cache :as c]
+            [internal.evaluation-context :as ec]
             [internal.graph :as ig]
             [internal.graph.error-values :as ie]
             [internal.graph.types :as gt]
@@ -417,6 +418,55 @@
   (override-id [this]
     nil))
 
+(defn shell-node? [node]
+  (some? (:_materialize-fn node)))
+
+(defonce/record ShellNode [_node-id _node-type _materialize-fn]
+  gt/Node
+  (node-id [_] _node-id)
+  (node-type [_] _node-type)
+
+  (get-property [this _basis property]
+    (when (and _materialize-fn
+               (not (unjammable? (get (all-properties _node-type) property))))
+      (throw (ex-info "Cannot read a property of an unmaterialized shell node without an evaluation context."
+                      {:node-id _node-id :property property})))
+    (get this property (get (defaults _node-type) property)))
+
+  (set-property [this _basis property value]
+    (assert (contains? (all-properties _node-type) property)
+            (str "No such property " property " on " (:name @_node-type)))
+    (assoc this property value))
+
+  (assigned-properties [this]
+    (when _materialize-fn
+      (throw (ex-info "Cannot enumerate properties of an unmaterialized shell node."
+                      {:node-id _node-id})))
+    (.__extmap this))
+
+  (overridden-properties [_] {})
+  (property-overridden? [_ _property] false)
+
+  gt/Evaluation
+  (produce-value [this label evaluation-context]
+    (let [node (ig/node-by-id-at (:basis evaluation-context) _node-id)]
+      (if (and (shell-node? node)
+               (not (unjammable? (get-in @_node-type [:output label]))))
+        (do
+          ((:materialize-node! evaluation-context) evaluation-context _node-id)
+          (gt/produce-value (ig/node-by-id-at (:basis evaluation-context) _node-id) label evaluation-context))
+        (let [beh (behavior _node-type label)]
+          (assert beh (str "No such output, input, or property " label " on " (:name @_node-type)))
+          ((:fn beh) (or node this) label evaluation-context)))))
+
+  gt/OverrideNode
+  (clear-property [_ _basis property]
+    (throw-clear-property-disallowed-exception! _node-type property))
+  (original [_] nil)
+  (set-original [_ _original-id]
+    (throw (ex-info "Originals can't be changed for original nodes" {})))
+  (override-id [_] nil))
+
 ;;; ----------------------------------------
 ;;; Evaluating outputs
 
@@ -443,7 +493,7 @@
 (defn- validate-evaluation-context-options [options]
   ;; :dry-run means no production functions will be called, useful speedup when tracing dependencies
   ;; :no-local-temp disables the non deterministic local caching of non :cached outputs, useful for stable results when debugging dependencies
-  (assert (every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context} (keys options)) (str (keys options)))
+  (assert (coll/every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context :materialize-node! :node-id-generator :override-id-generator} (coll/keys options)) (str (coll/keys options)))
   (assert (not (and (some? (:cache options)) (nil? (:basis options))))))
 
 (defn default-evaluation-context
@@ -451,19 +501,21 @@
   (assert (ig/graph? basis))
   (assert (c/cache? cache))
   (assert (map? initial-invalidate-counters))
-  {:basis basis
-   :cache cache ; cache from the system
-   :initial-invalidate-counters initial-invalidate-counters
-   :local (atom {}) ; local cache for :cached outputs produced during node-value, will likely populate system cache later on
-   :local-temp (atom {}) ; local (weak) cache for non-:cached outputs produced during node-value, never used to populate system cache
-   :hits (atom [])
-   :in-production #{}
-   :tx-data-context (atom {})})
+  (ec/make-context
+    {:basis basis
+     :cache cache ; cache from the system
+     :initial-invalidate-counters initial-invalidate-counters
+     :local (atom {}) ; local cache for :cached outputs produced during node-value, will likely populate system cache later on
+     :local-temp (atom {}) ; local (weak) cache for non-:cached outputs produced during node-value, never used to populate system cache
+     :hits (atom [])
+     :in-production #{}
+     :tx-data-context (atom {})}))
 
 (defn custom-evaluation-context
   [options]
   (validate-evaluation-context-options options)
-  (cond-> (assoc options
+  (ec/make-context
+    (cond-> (assoc options
                  :local (atom {})
                  :hits (atom [])
                  :in-production #{})
@@ -472,7 +524,7 @@
           (assoc :local-temp (atom {}))
 
           (not (contains? options :tx-data-context))
-          (assoc :tx-data-context (atom {}))))
+          (assoc :tx-data-context (atom {})))))
 
 (defn pruned-evaluation-context
   "Selectively filters out cache entries from the supplied evaluation context.
@@ -526,9 +578,14 @@
 
 (defn node-property-value [node label evaluation-context]
   (validate-evaluation-context evaluation-context)
-  (let [node-type (gt/node-type node)]
-    (when-let [behavior (property-behavior node-type label)]
-      ((:fn behavior) node label evaluation-context))))
+  (let [node-id (gt/node-id node)]
+    (when (and (shell-node? node)
+               (not (unjammable? (get (all-properties (gt/node-type node)) label))))
+      ((:materialize-node! evaluation-context) evaluation-context node-id))
+    (let [node (ig/node-by-id-at (:basis evaluation-context) node-id)
+          node-type (gt/node-type node)]
+      (when-let [behavior (property-behavior node-type label)]
+        ((:fn behavior) node label evaluation-context)))))
 
 (def ^:dynamic *suppress-schema-warnings* false)
 
@@ -669,6 +726,12 @@
   (coll/merge
     (->NodeImpl nil node-type-ref)
     args))
+
+(defn construct-shell [node-type-ref materialize-fn args]
+  {:pre [(ifn? materialize-fn)]}
+  (validate-property-labels node-type-ref args)
+  (validate-property-values node-type-ref (:_node-id args) args)
+  (coll/merge (->ShellNode nil node-type-ref materialize-fn) args))
 
 ;;; ----------------------------------------
 ;;; Node type implementation
@@ -1602,7 +1665,9 @@
         local-cache-value (get local-cache cache-key ::not-found)]
     (if (identical? ::not-found local-cache-value)
       (let [global-cache (:cache evaluation-context)
-            global-cache-value (get global-cache cache-key ::not-found)]
+            global-cache-value (if (contains? (:invalidated @(ec/state evaluation-context)) cache-key)
+                                 ::not-found
+                                 (get global-cache cache-key ::not-found))]
         (if (identical? ::not-found global-cache-value)
           ::not-found
           (do

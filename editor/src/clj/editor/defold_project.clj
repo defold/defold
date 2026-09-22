@@ -83,32 +83,35 @@
 
 (def resource-node-type (comp resource-type->node-type resource/resource-type))
 
+(defn- make-load-opts-in-evaluation-context [project evaluation-context]
+  (let [basis (:basis evaluation-context)
+        workspace (g/raw-property-value basis project :workspace)
+        code-preprocessor (workspace/code-preprocessors workspace evaluation-context)
+        script-intelligence (g/node-value project :script-intelligence evaluation-context)
+        project-directory (workspace/project-directory basis workspace)
+        proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)
+
+        resolve-resource-fn
+        (fn resolve-resource-fn [owner-resource path]
+          (when-not (coll/empty? path)
+            (let [owner-proj-path (some-> owner-resource resource/proj-path)
+                  proj-path (workspace/resolve-proj-path project-directory owner-proj-path path)]
+              (proj-path->resource proj-path))))
+
+        editable->type-ext->resource-type
+        {true (resource/resource-types-by-type-ext basis workspace true)
+         false (resource/resource-types-by-type-ext basis workspace false)}]
+
+    {:code-preprocessor code-preprocessor
+     :editable->type-ext->resource-type editable->type-ext->resource-type
+     :project project
+     :resolve-resource-fn resolve-resource-fn
+     :script-intelligence script-intelligence
+     :workspace workspace}))
+
 (defn make-load-opts [project]
   (g/with-auto-evaluation-context evaluation-context
-    (let [basis (:basis evaluation-context)
-          workspace (g/raw-property-value basis project :workspace)
-          code-preprocessor (workspace/code-preprocessors workspace evaluation-context)
-          script-intelligence (g/node-value project :script-intelligence evaluation-context)
-          project-directory (workspace/project-directory basis workspace)
-          proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)
-
-          resolve-resource-fn
-          (fn resolve-resource-fn [owner-resource path]
-            (when-not (coll/empty? path)
-              (let [owner-proj-path (some-> owner-resource resource/proj-path)
-                    proj-path (workspace/resolve-proj-path project-directory owner-proj-path path)]
-                (proj-path->resource proj-path))))
-
-          editable->type-ext->resource-type
-          {true (resource/resource-types-by-type-ext basis workspace true)
-           false (resource/resource-types-by-type-ext basis workspace false)}]
-
-      {:code-preprocessor code-preprocessor
-       :editable->type-ext->resource-type editable->type-ext->resource-type
-       :project project
-       :resolve-resource-fn resolve-resource-fn
-       :script-intelligence script-intelligence
-       :workspace workspace})))
+    (make-load-opts-in-evaluation-context project evaluation-context)))
 
 (defn- load-resource-node [{:keys [project] :as load-opts} {:keys [node-id resource resource-type] :as node-load-info} transpiler-tx-data-fn]
   (try
@@ -320,7 +323,8 @@
 
 (defn ^{:dynamic (system/defold-dev?)} node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} load-opts transpiler-tx-data-fn]
   ;; At this point, the node-id refers to a created node in the graph.
-  (e/cons
+  (e/concat
+    (g/materialize-shell node-id)
     (g/set-property node-id :loaded true)
     (if read-error
       (let [node-type (resource-node-type resource)]
@@ -368,7 +372,7 @@
           ;; We want to return nil if the node-id is not known to us, and an
           ;; empty vector otherwise.
           (when-let [node-load-info (node-load-infos-by-node-id node-id)]
-            (or (:dependency-proj-paths node-load-info) [])))
+            (or (:prerequisite-proj-paths node-load-info) [])))
 
         node-id->dependency-node-ids
         (fn/memoize
@@ -394,11 +398,10 @@
       (code.transpilers/make-resource-load-tx-data-fn code-transpilers evaluation-context))))
 
 (defn load-nodes-tx-data
-  [project node-load-infos render-generate-tx-data-progress! render-apply-tx-data-progress! resource-metrics]
+  [load-opts transpiler-tx-data-fn node-load-infos render-generate-tx-data-progress! render-apply-tx-data-progress! resource-metrics]
   {:pre [(ifn? render-generate-tx-data-progress!)
          (ifn? render-apply-tx-data-progress!)]}
-  (let [load-opts (make-load-opts project)
-        node-count (count node-load-infos)
+  (let [node-count (count node-load-infos)
 
         resource-metrics-load-timer
         (du/when-metrics
@@ -415,10 +418,6 @@
             (let [end-time (System/nanoTime)
                   ^long start-time @resource-metrics-load-timer]
               (du/update-metrics resource-metrics resource-path :process-load-tx-data (- end-time start-time)))))
-
-        transpiler-tx-data-fn
-        (g/with-auto-evaluation-context evaluation-context
-          (get-transpiler-tx-data-fn! evaluation-context))
 
         node-load-info-tx-data-fn
         (if (identical? progress/null-render-progress! render-generate-tx-data-progress!)
@@ -642,17 +641,26 @@
   list if they are unsafely referenced from a loaded resource. Resource types
   can opt in to :allow-unloaded-use to declare themselves safe to reference in
   an unloaded state. Any other references are deemed unsafe and will be loaded,
-  along with its recursive dependencies, regardless of if they match a
+  along with its recursive prerequisites, regardless of if they match a
   defunload pattern or not. Note that these forcibly loaded defunloaded nodes
   may not fully participate in all systems that a regularly loaded node would.
 
   Args:
     new-node-id+resource-pairs
       A sequence of pairs of [node-id, resource] to return node-load-infos for.
-      The node-ids do not need to exist in the graph, but they must be unique
-      and not already taken by an existing node.
+      The node-ids can refer to existing unmaterialized resource nodes or newly
+      allocated ids. Recursively includes their unloaded prerequisites.
 
   Kv-args:
+    :evaluation-context
+      Optional. Supplies the basis used to find existing prerequisite nodes.
+
+    :read-opts
+      Optional. Reuses a read-options snapshot across materializations.
+
+    :force-read
+      Optional. Reads explicitly requested resources even if defunloaded.
+
     :render-progress!
       Optional. A function that will be called to report progress as resources
       are read from disk.
@@ -696,7 +704,10 @@
       the node-id provided to it is unknown, or was deleted at earlier stage of
       the resource-sync, it should return an empty sequence."
   [new-node-id+resource-pairs
-   & {:keys [old-node-id->dependency-proj-paths
+   & {:keys [evaluation-context
+             read-opts
+             force-read
+             old-node-id->dependency-proj-paths
              old-node-id->old-node-state
              old-node-ids-by-proj-path
              render-progress!
@@ -705,13 +716,16 @@
            old-node-ids-by-proj-path {}
            render-progress! progress/null-render-progress!}
       :as read-nodes-opts}]
-  {:pre [(every? #{:old-node-id->dependency-proj-paths
-                   :old-node-id->old-node-state
-                   :old-node-ids-by-proj-path
-                   :render-progress!
-                   :resource-metrics}
-                 (keys read-nodes-opts))]}
-  (let [basis (g/now)
+  {:pre [(coll/every? #{:evaluation-context
+                       :force-read
+                       :old-node-id->dependency-proj-paths
+                       :old-node-id->old-node-state
+                       :old-node-ids-by-proj-path
+                       :read-opts
+                       :render-progress!
+                       :resource-metrics}
+                     (coll/keys read-nodes-opts))]}
+  (let [basis (if evaluation-context (:basis evaluation-context) (g/now))
 
         workspace
         (some-> new-node-id+resource-pairs
@@ -720,16 +734,17 @@
                 resource/workspace)
 
         unloaded-proj-path?
-        (if workspace
+        (if (and workspace (not force-read))
           (g/raw-property-value basis workspace :unloaded-proj-path?) ; Returns fn/constantly-false if there is no .defunload file in the project.
           fn/constantly-false)
 
         {:keys [proj-path->resource-type] :as read-opts}
-        (when workspace
-          (workspace/make-read-opts
-            basis workspace
-            :include-editor-dependencies true
-            :resource-metrics resource-metrics))
+        (or read-opts
+            (when workspace
+              (workspace/make-read-opts
+                basis workspace
+                :include-editor-dependencies true
+                :resource-metrics resource-metrics)))
 
         node-load-infos
         (if (identical? fn/constantly-false unloaded-proj-path?)
@@ -829,7 +844,7 @@
 
                 principal-dependency-proj-paths
                 (coll/into-> principal-node-load-infos #{}
-                  (mapcat :dependency-proj-paths))
+                  (mapcat :prerequisite-proj-paths))
 
                 [loaded-proj-paths loaded-node-load-infos]
                 (loop [loaded-proj-paths principal-proj-paths
@@ -878,7 +893,7 @@
 
                             required-dependency-proj-paths
                             (coll/into-> supplemental-node-load-infos #{}
-                              (mapcat :dependency-proj-paths))]
+                              (mapcat :prerequisite-proj-paths))]
 
                         (recur loaded-proj-paths
                                loaded-node-load-infos
@@ -907,7 +922,7 @@
                                   (desired-node-load-infos-by-proj-path referencing-proj-path)
 
                                   unsafe-dependency-proj-paths
-                                  (coll/into-> (:dependency-proj-paths node-load-info) #{}
+                                  (coll/into-> (:prerequisite-proj-paths node-load-info) #{}
                                     (remove safe-dependency-proj-path?))]
 
                               (when-not (coll/empty? unsafe-dependency-proj-paths)
@@ -920,7 +935,23 @@
 
             loaded-node-load-infos))]
 
-    (sort-node-load-infos-for-loading node-load-infos old-node-ids-by-proj-path old-node-id->dependency-proj-paths)))
+    (loop [node-load-infos (vec node-load-infos)
+           read-node-ids (into #{} (map :node-id) node-load-infos)
+           pending-node-load-infos node-load-infos]
+      (let [prerequisite-node-id+resource-pairs
+            (coll/into-> pending-node-load-infos []
+              (mapcat :prerequisite-proj-paths)
+              (keep old-node-ids-by-proj-path)
+              (remove read-node-ids)
+              (distinct)
+              (remove #(resource-node/loaded? basis %))
+              (map #(pair % (resource-node/resource basis %))))]
+        (if (coll/empty? prerequisite-node-id+resource-pairs)
+          (sort-node-load-infos-for-loading node-load-infos old-node-ids-by-proj-path old-node-id->dependency-proj-paths)
+          (let [prerequisite-node-load-infos (read-node-load-infos read-opts prerequisite-node-id+resource-pairs 0 render-progress!)]
+            (recur (into node-load-infos prerequisite-node-load-infos)
+                   (into read-node-ids (map :node-id) prerequisite-node-load-infos)
+                   prerequisite-node-load-infos)))))))
 
 (declare workspace)
 
@@ -933,7 +964,12 @@
             (e/concat
               prelude-tx-data
               (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
-              (load-nodes-tx-data project node-load-infos progress/null-render-progress! render-progress! resource-metrics)
+              (g/expand-ec
+                (fn [evaluation-context]
+                  (load-nodes-tx-data
+                    (make-load-opts-in-evaluation-context project evaluation-context)
+                    (get-transpiler-tx-data-fn! evaluation-context)
+                    node-load-infos progress/null-render-progress! render-progress! resource-metrics)))
               (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing")))))
 
           migrated-resource-node-ids
@@ -1009,15 +1045,38 @@
           node-ids
           resources)))
 
+(defn- materialize-resource-node [project node-id evaluation-context]
+  (let [basis (:basis evaluation-context)
+        resource (resource-node/resource basis node-id)
+        workspace (resource/workspace resource)
+        read-opts (g/tx-cached-value! evaluation-context [:read-opts]
+                    (workspace/make-read-opts basis workspace :include-editor-dependencies true))
+        load-opts (g/tx-cached-value! evaluation-context [:load-opts]
+                    (make-load-opts-in-evaluation-context project evaluation-context))
+        node-load-infos (read-nodes [(pair node-id resource)]
+                          :evaluation-context evaluation-context
+                          :read-opts read-opts
+                          :force-read true
+                          :old-node-ids-by-proj-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context))
+        {:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state node-load-infos)]
+    (g/merge-evaluation-user-data! evaluation-context
+      (into {} (map (fn [[node-id source-value]] (pair node-id {:source-value source-value}))) node-id+source-value-pairs))
+    (e/concat
+      (e/mapcat (fn [[node-id _source-value]] (g/invalidate-output node-id :source-value)) node-id+source-value-pairs)
+      (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
+      (load-nodes-tx-data load-opts (get-transpiler-tx-data-fn! evaluation-context)
+                         node-load-infos progress/null-render-progress! progress/null-render-progress! nil))))
+
 (defn make-resource-node-tx-data [project node-type node-id resource]
   {:pre [(g/node-id? project)
          (g/node-id? node-id)
          (resource/resource? resource)]}
   (e/concat
     (g/add-node
-      (g/construct node-type
-        :_node-id node-id
-        :resource resource))
+      (g/construct-shell node-type
+        (partial materialize-resource-node project)
+        {:_node-id node-id
+         :resource resource}))
     (g/connect node-id :node-id+resource project :node-id+resources)
     (when-let [connect-fn (:connect-fn (resource/resource-type resource))]
       (connect-fn project node-id resource))))
@@ -1047,57 +1106,20 @@
    (load-project! project render-progress! (g/node-value project :resources)))
   ([project render-progress! resources]
    (assert (empty? (g/node-value project :node-id+resources)) "load-project should only be used when loading an empty project")
-   ;; Create nodes for all resources in the workspace.
    (let [process-metrics (du/make-metrics-collector)
-         resource-metrics (du/make-metrics-collector)
          transaction-metrics (du/make-metrics-collector)
-         node-id+resource-pairs (make-node-id+resource-pairs resources)
-         read-progress-span 1
-         load-progress-span 3
-         total-progress-span (+ read-progress-span load-progress-span)
-         total-progress (progress/make localization/empty-message total-progress-span 0)
-
-         node-load-infos
-         (let [render-progress! (progress/nest-render-progress render-progress! total-progress read-progress-span)]
-           (du/measuring process-metrics :read-new-nodes
-             (read-nodes node-id+resource-pairs
-               :render-progress! render-progress!)))
-
-         total-progress (progress/advance total-progress read-progress-span)
-
-         ;; We can use full invalidation on the initial load since we have
-         ;; nothing in the cache.
-         full-invalidation-transact true
-
-         transact-opts {:full-invalidation full-invalidation-transact
-                        :metrics transaction-metrics
-                        :undoable false}
-
-         prelude-tx-data
-         (make-resource-nodes-tx-data project node-id+resource-pairs)
-
-         ;; Load the resource nodes. Referenced nodes will be loaded prior to
-         ;; nodes that refer to them, provided the :dependencies-fn reports the
-         ;; referenced proj-paths correctly.
-         ;;
-         ;; TODO(save-value-cleanup): There are implicit dependencies between
-         ;; texture profiles and image resources. We probably want to ensure
-         ;; the texture profiles are loaded before anything that makes
-         ;; implicit use of them to avoid potentially costly cache
-         ;; invalidation.
-         migrated-resource-node-ids
-         (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
-           (du/measuring process-metrics :load-new-nodes
-             (load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))]
-
-     (cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
+         node-id+resource-pairs (make-node-id+resource-pairs resources)]
+     (du/measuring process-metrics :make-new-nodes
+       (g/transact {:full-invalidation true
+                    :metrics transaction-metrics
+                    :undoable false}
+         (make-resource-nodes-tx-data project node-id+resource-pairs)))
      (render-progress! progress/done)
-
      (du/when-metrics
        (reset! load-metrics-atom
                {:new-nodes-by-path (g/node-value project :nodes-by-resource-path)
                 :process-metrics @process-metrics
-                :resource-metrics @resource-metrics
+                :resource-metrics {}
                 :transaction-metrics @transaction-metrics}))
      project)))
 
@@ -1418,7 +1440,7 @@
       (du/measuring process-metrics :update-cache-with-dependencies
         ;; Write any cached values created for old non-replaced resource node
         ;; outputs during the process of querying their dependencies.
-        (g/update-cache-from-evaluation-context! old-evaluation-context))
+        (g/update-system-from-evaluation-context! old-evaluation-context))
       (du/measuring process-metrics :update-cache-with-save-data
         (cache-loaded-save-data! node-load-infos project migrated-node-ids))
       (render-progress! progress/done))
@@ -1809,6 +1831,7 @@
             node-load-info (read-node-load-info read-opts node-id resource)
             {:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state [node-load-info])
             load-tx-data (e/concat
+                           (e/mapcat (fn [[node-id _source-value]] (g/invalidate-output node-id :source-value)) node-id+source-value-pairs)
                            (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
                            (node-load-info-tx-data node-load-info load-opts transpiler-tx-data-fn))
             loaded-resources' (conj (or loaded-resources #{}) resource)
@@ -1855,7 +1878,8 @@
                  (not (resource-node/loaded? basis existing-resource-node-id)))
             (let [transpiler-tx-data-fn (get-transpiler-tx-data-fn! evaluation-context)
                   [node-id+source-value-pairs load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded basis project node-id resource transpiler-tx-data-fn)]
-              (resource-node/merge-source-values! node-id+source-value-pairs)
+              (g/merge-evaluation-user-data! evaluation-context
+                (into {} (map (fn [[node-id source-value]] (pair node-id {:source-value source-value}))) node-id+source-value-pairs))
               load-tx-data))]
 
       {:node-id node-id
@@ -1966,7 +1990,7 @@
 (defn- update-system-cache-from-pruned-evaluation-context! [cache-entry-pred evaluation-context]
   ;; To avoid cache churn, we only transfer the most important entries to the system cache.
   (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cache-entry-pred)]
-    (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
+    (g/update-system-from-evaluation-context! pruned-evaluation-context)))
 
 (defn update-system-cache-build-targets! [evaluation-context]
   (update-system-cache-from-pruned-evaluation-context! cached-build-target-output? evaluation-context))

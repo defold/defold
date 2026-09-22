@@ -172,7 +172,7 @@
       (let [evaluation-context (g/make-evaluation-context)
             old-artifact-map (workspace/artifact-map workspace)
             build-results (build/build-project! project game-project old-artifact-map nil evaluation-context)]
-        (g/update-cache-from-evaluation-context! evaluation-context)
+        (g/update-system-from-evaluation-context! evaluation-context)
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
         (workspace/artifact-map! workspace (:artifact-map build-results)))

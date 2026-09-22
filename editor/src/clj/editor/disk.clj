@@ -347,7 +347,7 @@
                             :else {}))
                         (finally
                           (ui/run-now
-                            (g/update-cache-from-evaluation-context! evaluation-context))))))))]
+                            (g/update-system-from-evaluation-context! evaluation-context))))))))]
           (when invoke-bundle-hooks
             @(extensions/execute-hook!
                project

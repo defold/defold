@@ -427,10 +427,17 @@
                 (future/then-async
                   (fn [result]
                     (if (refresh-context? result)
-                      (let [update-cache! (bound-fn* g/update-cache-from-evaluation-context!)
-                            new-context (assoc execution-context :evaluation-context (g/make-evaluation-context))]
-                        (fx/on-fx-thread (update-cache! (:evaluation-context execution-context)))
-                        (invoke-suspending-impl new-context runtime co (vm/wrap-userdata result)))
+                      (let [refreshed-context (future/make)]
+                        (fx/on-fx-thread
+                          (try
+                            (g/update-system-from-evaluation-context! (:evaluation-context execution-context))
+                            (future/complete! refreshed-context
+                              (assoc execution-context :evaluation-context (g/make-evaluation-context)))
+                            (catch Throwable error
+                              (future/fail! refreshed-context error))))
+                        (future/then-async refreshed-context
+                          (fn [new-context]
+                            (invoke-suspending-impl new-context runtime co (vm/wrap-userdata result)))))
                       (invoke-suspending-impl execution-context runtime co (vm/wrap-userdata result))))))))
         (future/failed (LuaError. ^String (->clj runtime coerce/to-string (.arg lua-success+rest-varargs 2))))))))
 
@@ -498,7 +505,7 @@
         result (binding [*execution-context* execution-context]
                  (apply vm-invoke-fn (.-lua-vm runtime) lua-fn lua-args))]
     (when-not context-provided
-      (g/update-cache-from-evaluation-context! (:evaluation-context execution-context)))
+      (g/update-system-from-evaluation-context! (:evaluation-context execution-context)))
     result))
 
 (defn invoke-immediate-1

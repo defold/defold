@@ -183,5 +183,5 @@
                                         f (get special-filter-fns command fuzzy-resource-filter-fn)]
                                     (f arg items)))}
                     (merge options))]
-    (g/update-cache-from-evaluation-context! evaluation-context)
+    (g/update-system-from-evaluation-context! evaluation-context)
     (dialogs/make-select-list-dialog items localization options)))

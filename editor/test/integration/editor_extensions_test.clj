@@ -268,6 +268,31 @@
               2]
              (rt/->clj rt @(rt/invoke-suspending-1 rt lua-fn)))))))
 
+(deftest refreshing-context-commits-materializations
+  (test-support/with-clean-system
+    (let [node-id (first (g/take-node-ids 1))
+          loads (atom 0)
+          _ (g/transact
+              (g/add-node (g/construct-shell TestNode
+                            (fn [self _evaluation-context]
+                              (swap! loads inc)
+                              (g/set-property self :value 17))
+                            {:_node-id node-id})))
+          rt (rt/make :env {"get_value" (rt/lua-fn [{:keys [evaluation-context]}]
+                                         (rt/->lua (g/node-value node-id :value evaluation-context)))
+                           "refresh" (rt/suspendable-lua-fn [_]
+                                       (rt/and-refresh-context true))})
+          lua-fn (->> (rt/read "return function()
+                                  local before = get_value()
+                                  refresh()
+                                  return {before, get_value()}
+                                end")
+                      (rt/bind rt)
+                      (rt/invoke-immediate-1 rt))]
+      (is (= [17 17] (rt/->clj rt @(rt/invoke-suspending-1 rt lua-fn))))
+      (is (= 1 @loads))
+      (is (= 17 (g/raw-property-value (g/now) node-id :value))))))
+
 (deftest output-overrides-route-to-the-current-suspending-execution
   (test-support/with-clean-system
     (let [default-out (StringWriter.)

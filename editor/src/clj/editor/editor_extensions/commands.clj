@@ -82,7 +82,7 @@
                                                        (resource/proj-path resource))))))
                                           (ensure-selection-cardinality q)))]
                  (when-not (:evaluation-context env)
-                   (g/update-cache-from-evaluation-context! evaluation-context))
+                   (g/update-system-from-evaluation-context! evaluation-context))
                  (cont assoc :selection res)))))
 
 (defmethod gen-selection-query :outline [q acc _]
@@ -102,7 +102,7 @@
                                         (handler/adapt-every Long evaluation-context)
                                         (node-ids->lua-selection q)))]
                  (when-not (:evaluation-context env)
-                   (g/update-cache-from-evaluation-context! evaluation-context))
+                   (g/update-system-from-evaluation-context! evaluation-context))
                  (cont assoc :selection res)))))
 
 (defmethod gen-selection-query :scene [q acc _]
@@ -112,7 +112,7 @@
                                       (handler/adapt-every scene/SceneNode evaluation-context)
                                       (node-ids->lua-selection q))]
                  (when-not (:evaluation-context env)
-                   (g/update-cache-from-evaluation-context! evaluation-context))
+                   (g/update-system-from-evaluation-context! evaluation-context))
                  (cont assoc :selection res)))))
 
 (defn- gen-active-view-query [q acc]
@@ -131,7 +131,7 @@
                 (cont assoc :active_view (editor-lookup-userdata view))))
             (finally
               (when-not (:evaluation-context env)
-                (g/update-cache-from-evaluation-context! evaluation-context)))))))))
+                (g/update-system-from-evaluation-context! evaluation-context)))))))))
 
 (defn- compile-query [q project]
   (reduce-kv
