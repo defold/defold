@@ -1,0 +1,53 @@
+-- Copyright 2020-2026 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+-- Leave an upload for the C++ test to complete or finalize, retaining only a
+-- weak buffer reference so the test can detect leaked upload references.
+function init(self)
+    async_texture_callback_count = 0
+    async_texture_done = false
+    async_texture_buffers = setmetatable({}, { __mode = "v" })
+    local params = {
+        width = 16,
+        height = 16,
+        type = graphics.TEXTURE_TYPE_2D,
+        format = graphics.TEXTURE_FORMAT_RGBA,
+    }
+    local pixels
+    if not async_texture_without_buffer then
+        pixels = buffer.create(params.width * params.height, {
+            { name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }
+        })
+        async_texture_buffers[1] = pixels
+    end
+
+    local callback = function(self, request_id, result)
+        local info = resource.get_texture_info(result.path)
+        assert(info.width == params.width and info.height == params.height)
+        async_texture_callback_count = async_texture_callback_count + 1
+        async_texture_done = true
+    end
+
+    local path = "/async_texture_lifetime.texturec"
+    if async_texture_invalid_data then
+        params.compression_type = graphics.COMPRESSION_TYPE_BASIS_UASTC
+        local ok = pcall(resource.create_texture_async, path, params, pixels, callback)
+        assert(not ok, "Invalid compressed texture data must fail")
+    else
+        resource.create_texture_async(path, params, pixels, callback)
+        if async_texture_release then
+            resource.release(path)
+        end
+    end
+end

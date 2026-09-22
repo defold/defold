@@ -17,7 +17,9 @@
 #include <dlib/buffer.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/jobsystem.h>
 #include <dlib/log.h>
+#include <dlib/time.h>
 #include <font/text_layout.h>
 #include <gameobject/gameobject.h>
 #include <gamesys/mesh_ddf.h>
@@ -497,6 +499,7 @@ struct ResourceModule
     dmResource::HFactory                            m_Factory;
     dmGraphics::HContext                            m_GraphicsContext;
     dmOpaqueHandleContainer<SetTextureAsyncRequest> m_LoadRequests;
+    bool                                           m_Finalizing;
 } g_ResourceModule;
 
 static dmhash_t GetCanonicalPathHash(const char* path)
@@ -876,6 +879,29 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     return 0;
 }
 
+static void DeleteTextureAsyncRequest(SetTextureAsyncRequest* request)
+{
+    // The request owns the upload until normal completion transfers it to the
+    // resource. Only call this after the graphics callback has returned, or
+    // before an upload has been submitted.
+    if (request->m_Texture)
+    {
+        dmGraphics::DeleteTexture(g_ResourceModule.m_GraphicsContext, request->m_Texture);
+    }
+    if (request->m_CallbackInfo)
+    {
+        dmScript::DestroyCallback(request->m_CallbackInfo);
+    }
+    delete[] request->m_RawData;
+    if (request->m_Buffer)
+    {
+        dmScript::Unref(request->m_LuaState, LUA_REGISTRYINDEX, request->m_BufferRef);
+    }
+    dmResource::Release(g_ResourceModule.m_Factory, request->m_TextureResource);
+    g_ResourceModule.m_LoadRequests.Release(request->m_Handle);
+    delete request;
+}
+
 static void DispatchCompletedRequest(SetTextureAsyncRequest* request)
 {
     // Swap out the texture when the resource callback is dispatched so that
@@ -890,6 +916,7 @@ static void DispatchCompletedRequest(SetTextureAsyncRequest* request)
     {
         dmResource::SetResourceSize(rd, dmGraphics::GetTextureResourceSize(g_ResourceModule.m_GraphicsContext, request->m_Texture));
     }
+    request->m_Texture = 0; // Now owned by the resource.
 
     if (dmScript::IsCallbackValid(request->m_CallbackInfo))
     {
@@ -913,21 +940,9 @@ static void DispatchCompletedRequest(SetTextureAsyncRequest* request)
         {
             dmLogError("Failed to setup resource.create_texture_async callback (has the calling script been destroyed?)");
         }
-
-        dmScript::DestroyCallback(request->m_CallbackInfo);
     }
 
-    if (request->m_RawData)
-    {
-        delete[] request->m_RawData;
-    }
-    if (request->m_Buffer)
-    {
-        dmScript::Unref(request->m_LuaState, LUA_REGISTRYINDEX, request->m_BufferRef);
-    }
-
-    g_ResourceModule.m_LoadRequests.Release(request->m_Handle);
-    delete request;
+    DeleteTextureAsyncRequest(request);
 }
 
 static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data)
@@ -1200,6 +1215,11 @@ static int CreateTextureAsync(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 2);
 
+    if (g_ResourceModule.m_Finalizing)
+    {
+        return luaL_error(L, "Cannot create an async texture while the resource module is finalizing");
+    }
+
     // Unpack all lua arguments
     CreateTextureResourceParams create_params = {};
     CheckCreateTextureResourceParams(L, &create_params);
@@ -1266,10 +1286,17 @@ static int CreateTextureAsync(lua_State* L)
     if (res != dmResource::RESULT_OK)
     {
         delete[] blank_data; // No request owns it yet
+        if (callback_info)
+        {
+            dmScript::DestroyCallback(callback_info);
+        }
         return ReportPathError(L, res, create_params.m_PathHash);
     }
 
     dmGameObject::AddDynamicResourceHash(create_params.m_Collection, create_params.m_PathHash);
+    // Keep the destination alive if its collection is unloaded or the script
+    // releases it before the upload completes.
+    dmResource::IncRef(g_ResourceModule.m_Factory, resource);
 
     if (g_ResourceModule.m_LoadRequests.Full())
     {
@@ -1290,7 +1317,7 @@ static int CreateTextureAsync(lua_State* L)
     request->m_Handle            = request_handle;
     request->m_CallbackInfo      = callback_info;
     request->m_Buffer            = create_params.m_Buffer;
-    request->m_Texture           = 0;
+    request->m_Texture           = texture_dst;
     request->m_PathHash          = create_params.m_PathHash;
     request->m_RawData           = blank_data; // Replaced by the decompressed data in the transcoded path below
     request->m_Completed         = 0;
@@ -1343,6 +1370,9 @@ static int CreateTextureAsync(lua_State* L)
 
         if (!dmGraphics::Transcode(create_params.m_Path, &compressed_image, 1, (uint8_t*) texture_params.m_Data, texture_params.m_Format, &decompressed_data, &decompressed_data_size, &num_mips))
         {
+            dmGameObject::RemoveDynamicResourceHash(create_params.m_Collection, create_params.m_PathHash);
+            dmResource::Release(g_ResourceModule.m_Factory, resource);
+            DeleteTextureAsyncRequest(request);
             return DM_LUA_ERROR("Unable to transcode texture data");
         }
 
@@ -3477,11 +3507,17 @@ void ScriptResourceRegister(const ScriptLibContext& context)
     LuaInit(context.m_LuaState, context.m_GraphicsContext);
     g_ResourceModule.m_Factory         = context.m_Factory;
     g_ResourceModule.m_GraphicsContext = context.m_GraphicsContext;
+    g_ResourceModule.m_Finalizing      = false;
 }
 
 void ScriptResourceUpdate(const ScriptLibContext& context)
 {
     (void)context;
+
+    if (g_ResourceModule.m_Finalizing)
+    {
+        return;
+    }
 
     uint32_t request_count = g_ResourceModule.m_LoadRequests.Capacity();
     for (uint32_t i = 0; i < request_count; ++i)
@@ -3496,6 +3532,40 @@ void ScriptResourceUpdate(const ScriptLibContext& context)
 
 void ScriptResourceFinalize(const ScriptLibContext& context)
 {
+    (void)context;
+    g_ResourceModule.m_Finalizing = true;
+
+    // The graphics jobs and their completion callbacks still reference these
+    // requests and upload buffers. Drain them while the old graphics context,
+    // resource factory and Lua state are alive, without dispatching into Lua.
+    bool pending;
+    do
+    {
+        pending = false;
+        for (uint32_t i = 0; i < g_ResourceModule.m_LoadRequests.Capacity(); ++i)
+        {
+            SetTextureAsyncRequest* request = g_ResourceModule.m_LoadRequests.GetByIndex(i);
+            if (request)
+            {
+                if (request->m_Completed)
+                {
+                    DeleteTextureAsyncRequest(request);
+                }
+                else
+                {
+                    pending = true;
+                }
+            }
+        }
+        if (pending)
+        {
+            JobSystemUpdate(dmResource::GetJobThread(g_ResourceModule.m_Factory), 1000);
+            dmTime::Sleep(100);
+        }
+    } while (pending);
+
+    g_ResourceModule.m_Factory         = 0;
+    g_ResourceModule.m_GraphicsContext = 0;
 }
 
 } // namespace dmGameSystem

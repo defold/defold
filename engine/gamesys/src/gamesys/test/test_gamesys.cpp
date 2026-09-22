@@ -821,6 +821,153 @@ TEST_F(ResourceFolderTest, TestCreateTextureAsyncFromCoroutine)
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
+class AsyncTextureLifetimeTest : public ResourceFolderTest
+{
+public:
+    void SetUp() override
+    {
+        ResourceFolderTest::SetUp();
+        m_ScriptLibContext.m_Factory         = m_Factory;
+        m_ScriptLibContext.m_Register        = m_Register;
+        m_ScriptLibContext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+        m_ScriptLibContext.m_GraphicsContext = m_GraphicsContext;
+        m_ScriptLibContext.m_ScriptContext   = m_ScriptContext;
+        m_ScriptLibContext.m_JobContext      = m_JobContext;
+        dmGameSystem::InitializeScriptLibs(m_ScriptLibContext);
+        m_Finalized = false;
+        ASSERT_TRUE(dmGameObject::Init(m_Collection));
+        ((dmGraphics::NullContext*)m_GraphicsContext)->m_UseAsyncTextureLoad = 1;
+    }
+
+    void Finalize()
+    {
+        dmGameSystem::FinalizeScriptLibs(m_ScriptLibContext);
+        m_Finalized = true;
+    }
+
+    void TearDown() override
+    {
+        if (!m_Finalized)
+        {
+            Finalize();
+        }
+        ResourceFolderTest::TearDown();
+    }
+
+    dmGameObject::HInstance SpawnRequest()
+    {
+        return Spawn(m_Factory, m_Collection, "/resource/create_texture_async_lifetime.goc", dmHashString64("/async_texture_lifetime"));
+    }
+
+    void DeleteCollection()
+    {
+        dmGameObject::DeleteCollections(m_Register);
+        m_Collection = 0;
+    }
+
+    uint32_t CountGraphicsAssets()
+    {
+        dmGraphics::GraphicsContext* context = (dmGraphics::GraphicsContext*)m_GraphicsContext;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_AssetHandleContainerMutex);
+        uint32_t count = 0;
+        for (uint32_t i = 0; i < context->m_AssetHandleContainer.Capacity(); ++i)
+        {
+            if (context->m_AssetHandleContainer.GetByIndex(i))
+                ++count;
+        }
+        return count;
+    }
+
+    uint32_t WaitForGraphicsAssets(uint32_t expected)
+    {
+        // The null backend also queues texture deletion on the job system.
+        uint64_t stop_time = dmTime::GetMonotonicTime() + 1000000;
+        while (CountGraphicsAssets() != expected && dmTime::GetMonotonicTime() < stop_time)
+        {
+            JobSystemUpdate(m_JobContext, 1000);
+            dmTime::Sleep(100);
+        }
+        return CountGraphicsAssets();
+    }
+
+    dmGameSystem::ScriptLibContext m_ScriptLibContext;
+    bool m_Finalized;
+};
+
+// Pending graphics callbacks must be drained before Lua/context teardown, even
+// after collection deletion, without calling Lua or leaking textures/buffers.
+TEST_F(AsyncTextureLifetimeTest, FinalizePendingUploadAfterCollectionDeletion)
+{
+    ASSERT_NE((dmGameObject::HInstance)0, SpawnRequest());
+    DeleteCollection();
+    Finalize();
+    JobSystemUpdate(m_JobContext, 0);
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState,
+        "collectgarbage('collect'); assert(async_texture_callback_count == 0); assert(async_texture_buffers[1] == nil)"));
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64("/async_texture_lifetime.texturec")));
+    ASSERT_EQ(0, WaitForGraphicsAssets(0));
+}
+
+// A synchronous graphics completion still awaits script dispatch; finalization
+// must discard it without installing the upload or invoking its Lua callback.
+TEST_F(AsyncTextureLifetimeTest, FinalizeCompletedUndispatchedUpload)
+{
+    ((dmGraphics::NullContext*)m_GraphicsContext)->m_UseAsyncTextureLoad = 0;
+    uint32_t assets = CountGraphicsAssets();
+    ASSERT_NE((dmGameObject::HInstance)0, SpawnRequest());
+    Finalize();
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState,
+        "collectgarbage('collect'); assert(async_texture_callback_count == 0); assert(async_texture_buffers[1] == nil)"));
+    HResourceDescriptor rd = dmResource::FindByHash(m_Factory, dmHashString64("/async_texture_lifetime.texturec"));
+    ASSERT_NE((HResourceDescriptor)0, rd);
+    dmGameSystem::TextureResource* resource = (dmGameSystem::TextureResource*)dmResource::GetResource(rd);
+    ASSERT_EQ(1, dmGraphics::GetTextureWidth(m_GraphicsContext, resource->m_Texture));
+    ASSERT_EQ(assets + 1, WaitForGraphicsAssets(assets + 1));
+    DeleteCollection();
+    ASSERT_EQ(0, WaitForGraphicsAssets(0));
+}
+
+// Uploads without a supplied buffer own their generated pixel data until the
+// graphics callback returns; shutdown must clean up this allocation as well.
+TEST_F(AsyncTextureLifetimeTest, FinalizeUploadWithoutBuffer)
+{
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState,
+        "async_texture_without_buffer = true"));
+    ASSERT_NE((dmGameObject::HInstance)0, SpawnRequest());
+    DeleteCollection();
+    Finalize();
+    ASSERT_EQ(0, WaitForGraphicsAssets(0));
+}
+
+// Releasing the dynamic resource before completion must leave it alive for the
+// pending request, then release the last reference after the callback returns.
+TEST_F(AsyncTextureLifetimeTest, CompleteUploadAfterResourceRelease)
+{
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "async_texture_release = true"));
+    uint32_t assets = CountGraphicsAssets();
+    ASSERT_NE((dmGameObject::HInstance)0, SpawnRequest());
+    ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64("/async_texture_lifetime.texturec")));
+    ASSERT_TRUE(UpdateAndWaitUntilDone(m_ScriptLibContext, m_Collection, &m_UpdateContext, false, "async_texture_done"));
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState,
+        "collectgarbage('collect'); assert(async_texture_callback_count == 1); assert(async_texture_buffers[1] == nil)"));
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64("/async_texture_lifetime.texturec")));
+    ASSERT_EQ(assets, WaitForGraphicsAssets(assets));
+}
+
+// A transcode failure never submits an upload, so it must release the request
+// immediately instead of leaving shutdown waiting for an impossible callback.
+TEST_F(AsyncTextureLifetimeTest, FinalizeAfterTranscodeFailure)
+{
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "async_texture_invalid_data = true"));
+    uint32_t assets = CountGraphicsAssets();
+    ASSERT_NE((dmGameObject::HInstance)0, SpawnRequest());
+    ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64("/async_texture_lifetime.texturec")));
+    Finalize();
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState,
+        "collectgarbage('collect'); assert(async_texture_callback_count == 0); assert(async_texture_buffers[1] == nil)"));
+    ASSERT_EQ(assets, WaitForGraphicsAssets(assets));
+}
+
 TEST_F(ResourceFolderTest, TestCreateSoundDataFromScript)
 {
     dmGameSystem::ScriptLibContext scriptlibcontext;
