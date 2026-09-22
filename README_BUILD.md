@@ -1,6 +1,6 @@
 # Build Engine
 
-Defold uses the Python based build system [Waf](https://waf.io/). Most of the interaction is done through the `build.py` script but it is also possible to use Waf directly.
+Defold uses CMake and Ninja. The `scripts/build.py` script handles dependency installation and full engine builds; you can use CMake directly for incremental builds and individual tests.
 
 ## IMPORTANT PREREQUISITE - SETUP
 
@@ -54,9 +54,9 @@ Build full engine, but without: docs, bob light, tests, skipping the tests (for 
 
     $ ./scripts/build.py build_engine --skip-docs --skip-bob-light --skip-tests -- --skip-build-tests
 
-Rebuild a single library, and then relink the dmengine executable. No tests are run. The fastest option while iterating on a feature.
+Rebuild changed dependencies and relink the dmengine executable. No tests are run.
 
-    $ ./scripts/submodule.sh x86_64-win32 gamesys
+    $ cmake --build engine/build/x86_64-win32 --target dmengine
 
 
 You can also specify the platform explicitly:
@@ -175,52 +175,45 @@ $ ./scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-te
 
 When running Android tests, you can target a specific connected device either with `--test-device <serial>` or by setting `ANDROID_SERIAL` in the environment.
 
-Anything after `--` is passed directly as arguments to Waf. The built engine ends up in `./tmp/dynamo_home/bin/%platform%`.
+Options after `--`, such as `--opt-level=0` and `--with-asan`, are translated into CMake settings. The built engine ends up in `./tmp/dynamo_home/bin/%platform%`.
 
 ---
 
 ## Rebuilding the engine
 
-When you are working on a specific part of the engine there is no need to rebuild the whole thing to test your changes. You can use Waf directly to build and test your changes (see Unit tests below for more information about running tests):
+After the first `build_engine`, run CMake from the repository root to rebuild individual targets. These examples use `arm64-macos`; replace it with your configured platform.
 
 ```sh
-$ cd engine/dlib
-$ waf
+# Rebuild only dlib
+$ cmake --build engine/build/arm64-macos --target dlib
+
+# Rebuild changed dependencies and relink the engine
+$ cmake --build engine/build/arm64-macos --target dmengine
+
+# Install the updated artifacts into DYNAMO_HOME
+$ cmake --install engine/build/arm64-macos
 ```
 
-And you have the commands `clean`,  `build`, `install`.
-ALso some common options `--opt-level=<opt_level>`, `--skip-tests` or `--target=<artifact>`
-
-You can also use rebuild a specific part of the engine and create a new executable:
+To change build options, run `build.py` again. For example, to enable AddressSanitizer:
 
 ```sh
-# Rebuild dlib and sound modules and create a new executable
-$ ./scripts/submodule.sh arm64-macos dlib sound
-```
-
-You can also add extra arguments
-```sh
-# Rebuild dlib and sound modules and create a new executable
-$ ./scripts/submodule.sh arm64-macos dlib sound --with-asan
+$ ./scripts/build.py build_engine --platform=arm64-macos -- --with-asan
 ```
 
 ---
 
 ## Unit tests
 
-Unit tests are run automatically when invoking waf if `--skip-tests` isn't specified. A typically workflow when working on a single test is to run:
+`build_engine` runs unit tests unless `--skip-tests` is specified. After configuring with tests enabled, you can build and run a single test through CMake:
 
 ```sh
-$ waf --skip-tests && ./build/default/.../test_xxx
+$ cmake --build engine/build/arm64-macos --target run_test_dlib
 ```
 
-You can build a single target:
-```sh
-$ waf --skip-tests --target=test_foo && ./build/default/.../test_foo
-```
-
-With the flag `--test-filter` it's possible to run a single test in the suite, see [jctest documentation](https://jcash.github.io/jctest/api/03-runtime/#command-line-options)
+To build the test without running it, use the `test_dlib` target. You can then run the executable from its module directory and use `--test-filter` to select tests (see the [jctest documentation](https://jcash.github.io/jctest/api/03-runtime/#command-line-options)):
 
 ```sh
-$ waf --skip-tests --target=test_foo && ./build/default/.../test_foo --test-filter SomeTestPattern
+$ cmake --build engine/build/arm64-macos --target test_dlib
+$ cd engine/dlib
+$ ./build/arm64-macos/src/test/test_dlib --test-filter SomeTestPattern
 ```

@@ -30,7 +30,10 @@ You can build each platform individually:
 An important part of the sdk is the *defold/share/extender/build.yml* which controls the compiler settings for the server.
 As we include this file in every sdk, we make it simple to update. You can update it simply by running:
 
-    $ waf install
+    $ cmake --build engine/build/arm64-macos --target extender
+    $ cmake --install share/extender/build/arm64-macos
+
+Run these commands from the repository root, replacing `arm64-macos` with your configured platform.
 
 ### During development
 
