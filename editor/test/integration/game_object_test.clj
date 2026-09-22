@@ -86,6 +86,7 @@
   (test-util/with-loaded-project
     (let [game-object-path "/game_object/embedded_components.go"
           game-object (project/get-resource-node project game-object-path)
+          _ (g/node-value game-object :node-outline)
           embedded-component (some-> (first (g/inputs (g/now) game-object :child-scenes)) gt/source-id)]
       (doseq [original-scale
               (mapv #(with-meta % {:version "original"})

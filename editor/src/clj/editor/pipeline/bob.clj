@@ -210,7 +210,7 @@
         (LogHelper/setVerboseLogging false)
         (.flush log-stream-writer)
         (when-not provided-evaluation-context
-          (ui/run-later (g/update-cache-from-evaluation-context! evaluation-context)))))))
+          (ui/run-later (g/update-system-from-evaluation-context! evaluation-context)))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Build HTML5

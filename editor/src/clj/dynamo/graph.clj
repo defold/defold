@@ -18,6 +18,7 @@
   (:require [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
             [internal.cache :as c]
+            [internal.evaluation-context :as ec]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.low-memory :as low-memory]
@@ -317,7 +318,11 @@
              (= :ok (:status tx-result)))
     (let [undo-key (or (:undo-key transact-opts) :undo/global)
           {:keys [basis label nodes-deleted outputs-modified sequence-label undoable-changes]} tx-result]
-      (swap! *the-system* is/merge-basis pre-tx-basis basis outputs-modified nodes-deleted undo-key label sequence-label undoable-changes (:full-invalidation transact-opts))))
+      (swap! *the-system*
+             (fn [system]
+               (-> system
+                   (is/merge-basis pre-tx-basis basis outputs-modified nodes-deleted undo-key label sequence-label undoable-changes (:full-invalidation transact-opts))
+                   (is/merge-user-data (:evaluation-user-data tx-result)))))))
   nil)
 
 (defn transact
@@ -411,6 +416,25 @@
 ;; ---------------------------------------------------------------------------
 ;; Using transaction data
 ;; ---------------------------------------------------------------------------
+
+(defn construct-shell
+  "Constructs a node whose non-unjammable outputs materialize it on demand.
+  materialize-fn receives the node-id and evaluation-context and returns the
+  transaction steps that populate it. Default setters run on materialization."
+  [node-type materialize-fn properties]
+  (in/construct-shell node-type materialize-fn properties))
+
+(defn materialize-shell
+  "Transaction step that marks a shell as materialized and runs its default
+  setters. Used before applying load steps that have already been generated."
+  [node-id]
+  (it/materialize-shell node-id))
+
+(defn transact-in-evaluation-context!
+  "Applies transaction steps to an evaluation context, retaining all realized
+  changes for update-system-from-evaluation-context! without adding undo."
+  [evaluation-context tx-data]
+  (it/transact-in-evaluation-context! evaluation-context tx-data))
 
 (defn non-undoable
   "Marks a sequence of transaction steps so its effects are applied, but its
@@ -1029,6 +1053,15 @@
 (defn user-data [node-id key]
   (is/user-data @*the-system* node-id key))
 
+(defn evaluation-user-data [evaluation-context node-id key]
+  (get-in (:user-data @(ec/state evaluation-context)) [node-id key]
+          (user-data node-id key)))
+
+(defn merge-evaluation-user-data! [evaluation-context values-by-key-by-node-id]
+  (swap! (ec/state evaluation-context) update :user-data
+         #(merge-with merge % values-by-key-by-node-id))
+  nil)
+
 (defn user-data! [node-id key value]
   (swap! *the-system* is/assoc-user-data node-id key value)
   value)
@@ -1186,15 +1219,27 @@
   [evaluation-context cache-entry-pred]
   (in/pruned-evaluation-context evaluation-context cache-entry-pred))
 
-(defn update-cache-from-evaluation-context!
+(defn update-system-from-evaluation-context!
+  "Commits materializations and cache entries that remain valid in the system.
+  Replays realized changes without rerunning load functions or property setters."
   [evaluation-context]
-  (swap! *the-system* is/update-cache-from-evaluation-context evaluation-context)
+  (let [state (ec/state evaluation-context)]
+    (locking state
+      (let [[previous-system updated-system] (swap-vals! *the-system* is/update-system-from-evaluation-context evaluation-context)]
+        (when (is/evaluation-context-compatible? previous-system evaluation-context)
+          (swap! state
+                 (fn [{:keys [basis changes invalidated] :as state}]
+                   (cond-> (assoc state :initial-basis basis :changes [] :user-data {})
+                     (coll/not-empty changes)
+                     (assoc :initial-invalidate-counters
+                            (merge (:initial-invalidate-counters evaluation-context)
+                                   (select-keys (:invalidate-counters updated-system) invalidated))))))))))
   nil)
 
 (defmacro with-auto-evaluation-context [ec & body]
   `(let [~ec (make-evaluation-context)
          result# (do-strict-evaluation-context-scope-body ~@body)]
-     (update-cache-from-evaluation-context! ~ec)
+     (update-system-from-evaluation-context! ~ec)
      result#))
 
 (defn- let-ec-strict-form
@@ -1247,7 +1292,7 @@
                         `(let [~'evaluation-context ~evaluation-context-sym]
                            ~init-expr)
                         init-expr)))))
-    `(update-cache-from-evaluation-context! ~evaluation-context-sym)
+    `(update-system-from-evaluation-context! ~evaluation-context-sym)
     body))
 
 (defmacro let-ec
@@ -1283,7 +1328,7 @@
          ~ec (is/default-evaluation-context (or real-system# fake-system))
          result# (do-strict-evaluation-context-scope-body ~@body)]
      (when (some? real-system#)
-       (update-cache-from-evaluation-context! ~ec))
+       (update-system-from-evaluation-context! ~ec))
      result#))
 
 (defn node-value
@@ -1297,9 +1342,9 @@
   and the caller will receive a value consistent with the most
   recently committed transaction.
 
-  The system cache is only updated automatically if the context was left
-  out. If passed explicitly, you will need to update the cache
-  manually by calling update-cache-from-evaluation-context!.
+  Materialized nodes and cache entries are committed to the system automatically
+  if the context was left out. If passed explicitly, commit them manually by
+  calling update-system-from-evaluation-context!.
 
   Example:
 

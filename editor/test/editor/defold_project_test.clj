@@ -126,6 +126,13 @@
         (workspace/resource-sync! workspace)
         (let [project (test-util/setup-project! workspace)
               a1 (project/get-resource-node project "/a1.type_a")]
+          (is (zero? @load-counter))
+          (is (coll/empty? @seen-read-opts))
+          (g/with-auto-evaluation-context evaluation-context
+            (is (= "t" (g/node-value a1 :value-piece evaluation-context)))
+            (is (= 2 @load-counter))
+            (is (not (resource-node/loaded? (:basis evaluation-context) (project/get-resource-node project "/a2.type_a" evaluation-context))))
+            (is (= "t" (g/node-value (project/get-resource-node project "/a2.type_a" evaluation-context) :value-piece evaluation-context))))
           (is (= 3 @load-counter))
           (is (= 2 (count @seen-read-opts)))
           (is (= #{"/a1.type_a" "/a2.type_a"}
@@ -207,8 +214,59 @@
                    :embedded-instances [{:id "embedded" :data prototype-desc}]})
                 (workspace/resource-sync! workspace)
                 (let [project (test-util/setup-project! workspace)]
+                  (is (coll/empty? @loaded))
+                  (g/with-auto-evaluation-context evaluation-context
+                    (doseq [proj-path ["/nested/standalone.go" "/nested/container.collection"]]
+                      (g/node-value (project/get-resource-node project proj-path evaluation-context) :save-value evaluation-context)))
                   (is (= 2 (count @loaded)))
                   (is (= #{"/nested/standalone.go" "/nested/container.collection"}
                          (into #{} (map (comp resource/proj-path :owner-resource second)) @loaded)))
                   (is (coll/every? #(= project (:project (first %))) @loaded))
                   (is (coll/every? #(identical? (ffirst @loaded) (first %)) @loaded)))))))))))
+
+(deftest materialization-follows-only-prerequisites
+  (doseq [follow-prerequisites [false true]]
+    (testing (str "follow prerequisites: " follow-prerequisites)
+      (with-clean-system
+        (test-util/with-ui-run-later-rebound
+          (let [workspace (workspace/make-workspace (.getAbsolutePath (io/file "test/resources/load_project")) {} {} test-util/localization)
+                loaded (atom [])
+                dependencies-fn (fn [_read-opts _resource source-value] [(:b source-value)])
+                load-fn (fn [_load-opts {:keys [node-id resource source-value]}]
+                          (swap! loaded conj (resource/proj-path resource))
+                          (g/set-property node-id :value (or (:value source-value) "a")))]
+            (g/transact
+              [(placeholder-resource/register-resource-types workspace)
+               (workspace/register-resource-type workspace
+                 :ext "type_a"
+                 :node-type BNode
+                 :read-fn (fn [_read-opts _resource readable] (read-string (slurp readable)))
+                 :write-fn pr-str
+                 :dependencies-fn dependencies-fn
+                 :prerequisites-fn (if follow-prerequisites dependencies-fn (constantly []))
+                 :load-fn load-fn)
+               (workspace/register-resource-type workspace
+                 :ext "type_b"
+                 :node-type BNode
+                 :read-fn (fn [_read-opts _resource readable] (read-string (slurp readable)))
+                 :write-fn pr-str
+                 :load-fn load-fn)])
+            (workspace/resource-sync! workspace)
+            (let [project (test-util/setup-project! workspace)
+                  a1 (project/get-resource-node project "/a1.type_a")
+                  a2 (project/get-resource-node project "/a2.type_a")
+                  b (project/get-resource-node project "/b.type_b")
+                  evaluation-context (g/make-evaluation-context)]
+              (is (coll/empty? @loaded))
+              (is (nil? (g/node-value a1 :source-value evaluation-context)))
+              (is (= "a" (g/node-value a1 :value evaluation-context)))
+              (is (= (if follow-prerequisites ["/b.type_b" "/a1.type_a"] ["/a1.type_a"]) @loaded))
+              (is (= follow-prerequisites (resource-node/loaded? (:basis evaluation-context) b)))
+              (is (not (resource-node/loaded? (:basis evaluation-context) a2)))
+              (is (not (resource-node/loaded? (g/now) a1)))
+              (is (nil? (g/user-data a1 :source-value)))
+              (is (= {:b "/b.type_b"} (g/node-value a1 :source-value evaluation-context)))
+              (g/update-system-from-evaluation-context! evaluation-context)
+              (is (resource-node/loaded? (g/now) a1))
+              (is (= {:b "/b.type_b"} (g/user-data a1 :source-value)))
+              (is (string? (get (g/node-value workspace :disk-sha256s-by-node-id) a1))))))))))

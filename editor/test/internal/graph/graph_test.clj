@@ -205,7 +205,7 @@
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
         (g/node-value n2 :str-out init-ec)
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss)))
-        (g/update-cache-from-evaluation-context! init-ec)
+        (g/update-system-from-evaluation-context! init-ec)
         (is (= "initial" (cc/lookup (g/cache) (gt/endpoint n2 :str-out)))))))
 
   (testing "Updating cache does not change entries for invalidated outputs"
@@ -219,7 +219,7 @@
 
         (g/transact (g/set-property n :val "change that invalidates n2 :str-out"))
 
-        (g/update-cache-from-evaluation-context! init-ec)
+        (g/update-system-from-evaluation-context! init-ec)
 
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss))))))
 
@@ -231,7 +231,7 @@
         (g/node-value n :val-val init-ec)
 
         (g/transact (g/set-property other :val "changed"))
-        (g/update-cache-from-evaluation-context! init-ec)
+        (g/update-system-from-evaluation-context! init-ec)
 
         (is (= "initialinitial" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss))))))
 
@@ -246,7 +246,7 @@
 
         (g/transact (g/delete-node n2))
 
-        (g/update-cache-from-evaluation-context! init-ec)
+        (g/update-system-from-evaluation-context! init-ec)
 
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n2 :str-out) ::miss))))))
 
@@ -261,7 +261,7 @@
         (g/transact {:full-invalidation true}
           (g/delete-node n))
 
-        (g/update-cache-from-evaluation-context! init-ec)
+        (g/update-system-from-evaluation-context! init-ec)
 
         (is (= ::miss (cc/lookup (g/cache) endpoint ::miss))))))
 
@@ -287,7 +287,7 @@
                         (g/endpoint-invalidated-pred
                           (g/evaluation-context-invalidate-counters init-ec))))
 
-        (g/update-cache-from-evaluation-context! init-ec)
+        (g/update-system-from-evaluation-context! init-ec)
 
         (is (= ::miss (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))
         (is (= "changedchanged" (g/node-value n :val-val))))))
@@ -302,7 +302,7 @@
         (is (= :empty (:status (g/transact {:full-invalidation true} []))))
         (is (identical? system-before @g/*the-system*))
 
-        (g/update-cache-from-evaluation-context! init-ec)
+        (g/update-system-from-evaluation-context! init-ec)
 
         (is (= "initialinitial" (cc/lookup (g/cache) (gt/endpoint n :val-val) ::miss)))))))
 
@@ -1015,7 +1015,7 @@
                       ~'save-value (let [~'evaluation-context ~evaluation-context-sym]
                                      (g/node-value ~'node-id :save-value ~'evaluation-context))
                       ~'dirty (g/raw-property-value ~'basis ~'node-id :dirty)]
-                  (g/update-cache-from-evaluation-context! ~evaluation-context-sym)
+                  (g/update-system-from-evaluation-context! ~evaluation-context-sym)
                   (make-save-data ~'node-id ~'resource ~'save-value ~'dirty)))
              (macro/conform-gensyms
                (#'g/let-ec-relaxed-form

@@ -97,6 +97,9 @@
                     "missing_go.collection"]]       ; references "/non-existent.go"
         (copy-file path (str "duplicate_" path)))
       (let [project (second (log/without-logging (load-test-project)))
+            _ (doseq [path ["missing_collection.collection" "missing_component.go" "missing_go.collection"]
+                      prefix ["" "duplicate_"]]
+                (g/node-value (project/get-resource-node project (str "/" prefix path)) :node-outline))
             num-nodes-by-proj-path (frequencies (map resource/proj-path (test-util/project-node-resources project)))]
         (is (= 1 (num-nodes-by-proj-path "/non-existent.collection")))
         (is (= 1 (num-nodes-by-proj-path "/non-existent.script")))
