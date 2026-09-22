@@ -14,15 +14,17 @@
 
 (ns editor.sprite
   (:require [dynamo.graph :as g]
+            [editor.buffers :as buffers]
             [editor.colors :as colors]
             [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
+            [editor.gl.attribute :as attribute]
             [editor.gl.light :as light]
             [editor.gl.pass :as pass]
+            [editor.gl.scratch :as scratch]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
-            [editor.gl.vertex2 :as vtx]
             [editor.graph-util :as gu]
             [editor.graphics :as graphics]
             [editor.graphics.types :as graphics.types]
@@ -45,7 +47,6 @@
   (:import [com.dynamo.gamesys.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode Sprite$SpriteDesc$SizeMode]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
-           [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB]
            [java.nio ByteBuffer]
            [javax.vecmath Matrix4d Point3d]))
@@ -61,15 +62,6 @@
   (subvec v4 0 3))
 
 ; Render assets
-(vtx/defvertex texture-vtx
-  (vec4 position)
-  (vec2 texcoord0)
-  (vec1 page_index))
-
-(vtx/defvertex color-vtx
-  (vec3 position)
-  (vec4 color))
-
 (def outline-shader shaders/basic-color-straight-alpha-world-space)
 
 (defn- renderable-data [renderable]
@@ -96,16 +88,28 @@
   (vector-of :float (.x pt) (.y pt) (.z pt) cr cg cb 1.0))
 
 (defn- conj-outline-slice9-quad! [buf line-data ^Matrix4d world-transform tmp-point cr cg cb]
-  (let [outline-points (map (fn [[x y]]
-                              (gen-outline-vertex world-transform tmp-point x y cr cg cb))
-                            line-data)]
-    (doseq [outline-point outline-points]
-      (vtx/buf-push-floats! buf outline-point))))
+  (doseq [[x y] line-data]
+    (buffers/push-floats! buf (gen-outline-vertex world-transform tmp-point x y cr cg cb))))
 
-(defn- gen-outline-vertex-buffer [renderables count]
-  (let [tmp-point (Point3d.)
-        ^VertexBuffer vbuf (->color-vtx (* count 8))
-        ^ByteBuffer buf (.buf vbuf)]
+(defn- prepare-vertex-buffer!
+  ^ByteBuffer [^ByteBuffer buf vertex-description vertex-count]
+  (let [byte-size (* (long (:size vertex-description)) (long vertex-count))]
+    (if (< (.capacity buf) byte-size)
+      (buffers/new-byte-buffer byte-size :byte-order/native)
+      (doto buf
+        (.clear)
+        (.limit byte-size)))))
+
+(defn- put-vertex-buffer!
+  ^ByteBuffer [buf vertex-description vertex-count renderable-datas]
+  (doto (prepare-vertex-buffer! buf vertex-description vertex-count)
+    (graphics/put-attribute-data! vertex-description renderable-datas)
+    (.flip)))
+
+(defn- put-outline-vertex-buffer!
+  ^ByteBuffer [buf vertex-description vertex-count renderables]
+  (let [buf (prepare-vertex-buffer! buf vertex-description vertex-count)
+        tmp-point (Point3d.)]
     (doseq [renderable renderables]
       (let [[cr cg cb] (colors/renderable-outline-color renderable)
             world-transform (:world-transform renderable)
@@ -115,7 +119,13 @@
             vertex-data (texture-set/vertex-data animation-frame size-mode size slice9 :pivot-center)
             line-data (:line-data vertex-data)]
         (conj-outline-slice9-quad! buf line-data world-transform tmp-point cr cg cb)))
-    (vtx/flip! vbuf)))
+    (.flip buf)))
+
+(defn- make-attribute-bindings [attribute-buffer vertex-description]
+  (coll/into-> (:attributes vertex-description) []
+    (map-indexed
+      (fn [attribute-index {:keys [location]}]
+        (attribute/make-attribute-buffer-binding attribute-buffer attribute-index location)))))
 
 ; Rendering
 
@@ -159,9 +169,10 @@
     (condp = pass
       pass/transparent
       (let [vertex-description (graphics.types/make-vertex-description combined-attribute-infos)
-            vbuf (graphics/put-attributes! (vtx/make-vertex-buffer vertex-description :dynamic num-vertices) renderable-datas)
-            vertex-binding (vtx/use-with ::sprite-trans vbuf shader)]
-        (gl/with-gl-bindings gl render-args [shader vertex-binding]
+            element-types (graphics.types/vertex-description-element-types vertex-description)
+            attribute-buffer (scratch/attribute-buffer element-types :stream put-vertex-buffer! vertex-description num-vertices renderable-datas)
+            attribute-bindings (make-attribute-bindings attribute-buffer vertex-description)]
+        (gl/with-gl-bindings gl render-args [shader attribute-bindings]
           (doseq [{:keys [gpu-texture sampler]} scene-infos]
             (gl/bind gl gpu-texture render-args)
             (shader/set-samplers-by-name shader gl sampler (:texture-units gpu-texture)))
@@ -173,19 +184,24 @@
             (gl/unbind gl gpu-texture render-args))))
 
       pass/selection
-      (let [vbuf (graphics/put-attributes! (->texture-vtx num-vertices) renderable-datas)
-            vertex-binding (vtx/use-with ::sprite-selection vbuf id-shader)
+      (let [vertex-description (shaders/vertex-description id-shader)
+            element-types (graphics.types/vertex-description-element-types vertex-description)
+            attribute-buffer (scratch/attribute-buffer element-types :stream put-vertex-buffer! vertex-description num-vertices renderable-datas)
+            attribute-bindings (make-attribute-bindings attribute-buffer vertex-description)
             gpu-texture (:gpu-texture (first scene-infos))]
-        (gl/with-gl-bindings gl (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader vertex-binding gpu-texture]
+        (gl/with-gl-bindings gl (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform (first renderables))) [id-shader attribute-bindings gpu-texture]
           (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 num-vertices))))))
 
 (defn- render-sprite-outlines [^GL2 gl render-args renderables _count]
   (assert (= pass/outline (:pass render-args)))
-  (let [num-quads (count-quads renderables)
-        outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables num-quads) outline-shader)]
-    (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
-      (gl/gl-draw-arrays gl GL/GL_LINES 0 (* num-quads 8)))))
+  (let [num-vertices (* (count-quads renderables) 8)
+        vertex-description (shaders/vertex-description outline-shader)
+        element-types (graphics.types/vertex-description-element-types vertex-description)
+        attribute-buffer (scratch/attribute-buffer element-types :stream put-outline-vertex-buffer! vertex-description num-vertices renderables)
+        attribute-bindings (make-attribute-bindings attribute-buffer vertex-description)]
+    (gl/with-gl-bindings gl render-args [outline-shader attribute-bindings]
+      (gl/gl-draw-arrays gl GL/GL_LINES 0 num-vertices))))
 
 ; Node defs
 

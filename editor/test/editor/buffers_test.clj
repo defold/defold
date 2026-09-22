@@ -290,6 +290,24 @@
   (is (every? false? (map b/buffer-data-type? [nil 1 "string" :keyword (Object.) #{}])))
   (is (every? true? (map b/buffer-data-type? b/buffer-data-types))))
 
+(deftest update-buffer-data-in-place-test
+  (doseq [[initial-size updated-size] [[24 12] [12 24] [24 0] [0 24] [24 24]]]
+    (testing (str "Resizing from " initial-size " to " updated-size " bytes")
+      (let [buffer (doto (b/new-byte-buffer 24 :byte-order/native)
+                     (.limit (int initial-size)))
+            original (b/make-buffer-data buffer 41)
+            updated (b/update-buffer-data original
+                      (fn [^ByteBuffer buffer byte-size]
+                        (.limit buffer (int byte-size)))
+                      updated-size)
+            expected (b/make-buffer-data (b/new-byte-buffer updated-size :byte-order/native) 42)]
+        (is (identical? buffer (.-data updated)))
+        (is (= updated-size (count updated)))
+        (is (not= original updated))
+        (is (= expected updated))
+        (is (= (hash expected) (hash updated)))
+        (is (zero? (compare expected updated)))))))
+
 ;; -----------------------------------------------------------------------------
 ;; Buffer push! and put! tests
 ;; -----------------------------------------------------------------------------

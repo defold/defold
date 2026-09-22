@@ -429,13 +429,10 @@
 
 (defn update-buffer-data
   ^BufferData [^BufferData buffer-data update-data-fn & args]
-  (let [old-data (.-data buffer-data)
-        new-data (apply update-data-fn old-data args)]
+  (let [new-data (apply update-data-fn (.-data buffer-data) args)]
     (assert (instance? Buffer new-data) "update-data-fn must return the input Buffer or a new Buffer")
     (assert (flipped? new-data) "update-data-fn must flip the returned buffer")
-    (if (identical? old-data new-data)
-      (invalidate-buffer-data buffer-data)
-      (make-buffer-data new-data (unchecked-inc-int (.-data-version buffer-data))))))
+    (make-buffer-data new-data (unchecked-inc-int (.-data-version buffer-data)))))
 
 (defn blit!
   ^ByteBuffer [^ByteBuffer buffer ^long byte-offset ^bytes bytes]

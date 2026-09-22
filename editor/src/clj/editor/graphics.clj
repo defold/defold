@@ -16,7 +16,6 @@
   (:require [dynamo.graph :as g]
             [editor.buffers :as buffers]
             [editor.geom :as geom]
-            [editor.gl.vertex2 :as vtx]
             [editor.graphics.types :as graphics.types]
             [editor.localization :as localization]
             [editor.properties :as properties]
@@ -31,7 +30,6 @@
             [util.num :as num])
   (:import [com.dynamo.graphics.proto Graphics$VertexAttribute]
            [com.google.protobuf ByteString]
-           [editor.gl.vertex2 VertexBuffer]
            [java.nio ByteBuffer]
            [javax.vecmath Matrix4d]))
 
@@ -380,9 +378,9 @@
   ^bytes [attribute-data-type normalize attribute-values]
   (let [attribute-value-byte-count (attribute-values+data-type->byte-size attribute-values attribute-data-type)
         attribute-bytes (byte-array attribute-value-byte-count)
-        byte-buffer (vtx/wrap-buf attribute-bytes)
+        byte-buffer (buffers/wrap-byte-array attribute-bytes :byte-order/native)
         buffer-data-type (graphics.types/data-type-buffer-data-type attribute-data-type)]
-    (vtx/buf-push! byte-buffer buffer-data-type normalize attribute-values)
+    (buffers/push! byte-buffer buffer-data-type normalize attribute-values)
     attribute-bytes))
 
 (defn- default-attribute-bytes-raw [semantic-type attribute-data-type vector-type normalize]
@@ -766,39 +764,36 @@
       (geom/as-array)
       (convert-double-values :semantic-type-none :vector-type-mat4 vector-type))) ; Semantic type does not matter for this.
 
-(defn put-attributes!
-  ^VertexBuffer [^VertexBuffer vbuf renderable-datas]
-  (let [vertex-description (.vertex-description vbuf)
-        ^long vertex-byte-stride (:size vertex-description)
-        ^ByteBuffer buf (.buf vbuf)
+(defn put-attribute-data!
+  "Writes interleaved attributes into buf using vertex-description. The buffer's
+  limit must match the byte size of the renderable-datas. Returns buf with its
+  position at the limit, ready to be flipped."
+  ^ByteBuffer [^ByteBuffer buf vertex-description renderable-datas]
+  (let [^long vertex-byte-stride (:size vertex-description)
 
         put-bytes!
         (fn put-bytes!
           ^long [^long vertex-byte-offset vertices]
-          (reduce (fn [^long vertex-byte-offset attribute-bytes]
-                    (vtx/buf-blit! buf vertex-byte-offset attribute-bytes)
-                    (+ vertex-byte-offset vertex-byte-stride))
-                  vertex-byte-offset
-                  vertices))
+          (coll/reduce-> vertices vertex-byte-offset
+            (fn [^long vertex-byte-offset attribute-bytes]
+              (buffers/blit! buf vertex-byte-offset attribute-bytes)
+              (+ vertex-byte-offset vertex-byte-stride))))
 
         put-doubles!
         (fn put-doubles!
           [vertex-byte-offset semantic-type buffer-data-type vector-type normalize vertices]
-          (reduce (fn [^long vertex-byte-offset attribute-doubles]
-                    (let [attribute-doubles (convert-double-values attribute-doubles semantic-type nil vector-type)]
-                      (vtx/buf-put! buf vertex-byte-offset buffer-data-type normalize attribute-doubles))
-                    (+ vertex-byte-offset vertex-byte-stride))
-                  (long vertex-byte-offset)
-                  vertices))
+          (coll/reduce-> vertices (long vertex-byte-offset)
+            (fn [^long vertex-byte-offset attribute-doubles]
+              (let [attribute-doubles (convert-double-values attribute-doubles semantic-type nil vector-type)]
+                (buffers/put! buf vertex-byte-offset buffer-data-type normalize attribute-doubles))
+              (+ vertex-byte-offset vertex-byte-stride))))
 
         put-renderables!
         (fn put-renderables!
           ^long [^long attribute-byte-offset put-vertices! renderable-data->vertices]
-          (reduce (fn [^long vertex-byte-offset renderable-data]
-                    (let [vertices (renderable-data->vertices renderable-data)]
-                      (put-vertices! vertex-byte-offset vertices)))
-                  attribute-byte-offset
-                  renderable-datas))
+          (coll/reduce-> renderable-datas attribute-byte-offset
+            (map renderable-data->vertices)
+            put-vertices!))
 
         mesh-data-exists?
         (let [renderable-data (first renderable-datas)
@@ -874,122 +869,122 @@
 
                 false))))]
 
-    (reduce (fn [reduce-info attribute]
-              (let [semantic-type (:semantic-type attribute)
-                    data-type (:data-type attribute)
-                    vector-type (:vector-type attribute)
-                    buffer-data-type (graphics.types/data-type-buffer-data-type data-type)
-                    element-count (graphics.types/vector-type-component-count vector-type)
-                    normalize (:normalize attribute)
-                    name-key (:name-key attribute)
-                    attribute-byte-offset (long (:attribute-byte-offset reduce-info))
-                    channel (get reduce-info semantic-type)
+    (coll/reduce-> (:attributes vertex-description)
+      ;; The reduce-info is a map of how many times we've encountered an
+      ;; attribute of a particular semantic-type. We also include a special key,
+      ;; :attribute-byte-offset, to keep track of where the next encountered
+      ;; attribute will start writing its data to the vertex buffer.
+      (coll/into-> graphics.types/semantic-types {:attribute-byte-offset 0}
+        (map (fn [semantic-type]
+               (pair semantic-type 0))))
+      (fn [reduce-info attribute]
+        (let [semantic-type (:semantic-type attribute)
+              data-type (:data-type attribute)
+              vector-type (:vector-type attribute)
+              buffer-data-type (graphics.types/data-type-buffer-data-type data-type)
+              element-count (graphics.types/vector-type-component-count vector-type)
+              normalize (:normalize attribute)
+              name-key (:name-key attribute)
+              attribute-byte-offset (long (:attribute-byte-offset reduce-info))
+              channel (get reduce-info semantic-type)
 
-                    put-attribute-bytes!
-                    (fn put-attribute-bytes!
-                      ^long [^long vertex-byte-offset vertices]
-                      (try
-                        (put-bytes! vertex-byte-offset vertices)
-                        (catch Exception e
-                          (throw (decorate-attribute-exception e attribute (first vertices))))))
+              put-attribute-bytes!
+              (fn put-attribute-bytes!
+                ^long [^long vertex-byte-offset vertices]
+                (try
+                  (put-bytes! vertex-byte-offset vertices)
+                  (catch Exception e
+                    (throw (decorate-attribute-exception e attribute (first vertices))))))
 
-                    put-attribute-doubles!
-                    (fn put-attribute-doubles!
-                      ^long [^long vertex-byte-offset vertices]
-                      (try
-                        (put-doubles! vertex-byte-offset semantic-type buffer-data-type vector-type normalize vertices)
-                        (catch Exception e
-                          (throw (decorate-attribute-exception e attribute (first vertices))))))]
+              put-attribute-doubles!
+              (fn put-attribute-doubles!
+                ^long [^long vertex-byte-offset vertices]
+                (try
+                  (put-doubles! vertex-byte-offset semantic-type buffer-data-type vector-type normalize vertices)
+                  (catch Exception e
+                    (throw (decorate-attribute-exception e attribute (first vertices))))))]
 
-                (if (mesh-data-exists? semantic-type channel)
+          (if (mesh-data-exists? semantic-type channel)
 
-                  ;; Mesh data exists for this attribute. It takes precedence
-                  ;; over any attribute values specified on the material or
-                  ;; overrides.
-                  (case semantic-type
-                    :semantic-type-position
-                    (case (:coordinate-space attribute)
-                      :coordinate-space-world
-                      (put-renderables! attribute-byte-offset put-attribute-doubles! renderable-data->world-positions-v3)
-                      (put-renderables! attribute-byte-offset put-attribute-doubles! :position-data))
+            ;; Mesh data exists for this attribute. It takes precedence over any
+            ;; attribute values specified on the material or overrides.
+            (case semantic-type
+              :semantic-type-position
+              (case (:coordinate-space attribute)
+                :coordinate-space-world
+                (put-renderables! attribute-byte-offset put-attribute-doubles! renderable-data->world-positions-v3)
+                (put-renderables! attribute-byte-offset put-attribute-doubles! :position-data))
 
-                    :semantic-type-texcoord
-                    (put-renderables! attribute-byte-offset put-attribute-doubles! #(get-in % [:texcoord-datas channel :uv-data]))
+              :semantic-type-texcoord
+              (put-renderables! attribute-byte-offset put-attribute-doubles! #(get-in % [:texcoord-datas channel :uv-data]))
 
-                    :semantic-type-page-index
-                    (put-renderables! attribute-byte-offset put-attribute-doubles!
-                                      (fn renderable-data->page-indices [renderable-data]
-                                        (let [vertex-count (count (:position-data renderable-data))
-                                              page-index (get-in renderable-data [:texcoord-datas channel :page-index])]
-                                          (repeat vertex-count [(double page-index)]))))
+              :semantic-type-page-index
+              (put-renderables!
+                attribute-byte-offset put-attribute-doubles!
+                (fn renderable-data->page-indices [renderable-data]
+                  (let [vertex-count (count (:position-data renderable-data))
+                        page-index (get-in renderable-data [:texcoord-datas channel :page-index])]
+                    (repeat vertex-count [(double page-index)]))))
 
-                    :semantic-type-color
-                    (put-renderables! attribute-byte-offset put-attribute-doubles! :color-data)
+              :semantic-type-color
+              (put-renderables! attribute-byte-offset put-attribute-doubles! :color-data)
 
-                    :semantic-type-normal
-                    (case (:coordinate-space attribute)
-                      :coordinate-space-world
-                      (put-renderables! attribute-byte-offset put-attribute-doubles! renderable-data->world-normals-v3)
-                      (put-renderables! attribute-byte-offset put-attribute-doubles! :normal-data))
+              :semantic-type-normal
+              (case (:coordinate-space attribute)
+                :coordinate-space-world
+                (put-renderables! attribute-byte-offset put-attribute-doubles! renderable-data->world-normals-v3)
+                (put-renderables! attribute-byte-offset put-attribute-doubles! :normal-data))
 
-                    :semantic-type-tangent
-                    (case (:coordinate-space attribute)
-                      :coordinate-space-world
-                      (put-renderables! attribute-byte-offset put-attribute-doubles! renderable-data->world-tangents-v4)
-                      (put-renderables! attribute-byte-offset put-attribute-doubles! :tangent-data))
+              :semantic-type-tangent
+              (case (:coordinate-space attribute)
+                :coordinate-space-world
+                (put-renderables! attribute-byte-offset put-attribute-doubles! renderable-data->world-tangents-v4)
+                (put-renderables! attribute-byte-offset put-attribute-doubles! :tangent-data))
 
-                    :semantic-type-world-matrix
-                    (put-renderables! attribute-byte-offset put-attribute-doubles!
-                                      (fn renderable-data->world-matrices [renderable-data]
-                                        (let [vertex-count (count (:position-data renderable-data))
-                                              matrix-values (mat4-double-values (:world-transform renderable-data) vector-type)]
-                                          (repeat vertex-count matrix-values))))
+              :semantic-type-world-matrix
+              (put-renderables!
+                attribute-byte-offset put-attribute-doubles!
+                (fn renderable-data->world-matrices [renderable-data]
+                  (let [vertex-count (count (:position-data renderable-data))
+                        matrix-values (mat4-double-values (:world-transform renderable-data) vector-type)]
+                    (repeat vertex-count matrix-values))))
 
-                    :semantic-type-normal-matrix
-                    (put-renderables! attribute-byte-offset put-attribute-doubles!
-                                      (fn renderable-data->normal-matrices [renderable-data]
-                                        (let [vertex-count (count (:position-data renderable-data))
-                                              matrix-values (mat4-double-values (:normal-transform renderable-data) vector-type)]
-                                          (repeat vertex-count matrix-values))))
+              :semantic-type-normal-matrix
+              (put-renderables!
+                attribute-byte-offset put-attribute-doubles!
+                (fn renderable-data->normal-matrices [renderable-data]
+                  (let [vertex-count (count (:position-data renderable-data))
+                        matrix-values (mat4-double-values (:normal-transform renderable-data) vector-type)]
+                    (repeat vertex-count matrix-values))))
 
-                    :semantic-type-texture-transform-2d
-                    (put-renderables! attribute-byte-offset put-attribute-doubles!
-                                      (fn renderable-data->texture-transforms [renderable-data]
-                                        (let [vertex-count (count (:position-data renderable-data))
-                                              texture-transform (get-in renderable-data [:texcoord-datas channel :texture-transform])]
-                                          (repeat vertex-count texture-transform)))))
+              :semantic-type-texture-transform-2d
+              (put-renderables!
+                attribute-byte-offset put-attribute-doubles!
+                (fn renderable-data->texture-transforms [renderable-data]
+                  (let [vertex-count (count (:position-data renderable-data))
+                        texture-transform (get-in renderable-data [:texcoord-datas channel :texture-transform])]
+                    (repeat vertex-count texture-transform)))))
 
-                  ;; Mesh data doesn't exist. Use the attribute data from the
-                  ;; material or overrides. If the material does not declare an
-                  ;; attribute bound by the shader, use a default that makes
-                  ;; sense for the attribute.
-                  (let [attribute-byte-count-max (* element-count (buffers/type-size buffer-data-type))
-                        attribute-data-type (graphics.types/buffer-data-type-data-type buffer-data-type)
-                        default-attribute-bytes (default-attribute-bytes semantic-type attribute-data-type vector-type normalize)]
-                    (put-renderables!
-                      attribute-byte-offset put-attribute-bytes!
-                      (fn renderable-data->attribute-bytes [renderable-data]
-                        (let [vertex-count (count (:position-data renderable-data))
-                              attribute-bytes (get (:vertex-attribute-bytes renderable-data) name-key default-attribute-bytes)]
-                          ;; Clamp the buffer if the container format is smaller than specified in the material
-                          (if (> (count attribute-bytes) attribute-byte-count-max)
-                            (let [attribute-bytes-clamped (byte-array attribute-byte-count-max)]
-                              (System/arraycopy attribute-bytes 0 attribute-bytes-clamped 0 attribute-byte-count-max)
-                              (repeat vertex-count attribute-bytes-clamped))
-                            (repeat vertex-count attribute-bytes)))))))
-                (-> reduce-info
-                    (update semantic-type inc)
-                    (assoc :attribute-byte-offset (+ attribute-byte-offset
-                                                     (graphics.types/attribute-info-byte-size attribute))))))
-            ;; The reduce-info is a map of how many times we've encountered an
-            ;; attribute of a particular semantic-type. We also include a
-            ;; special key, :attribute-byte-offset, to keep track of where the
-            ;; next encountered attribute will start writing its data to the
-            ;; vertex buffer.
-            (into {:attribute-byte-offset 0}
-                  (map (fn [semantic-type]
-                         (pair semantic-type 0)))
-                  graphics.types/semantic-types)
-            (:attributes vertex-description))
-    (.position buf (.limit buf))
-    (vtx/flip! vbuf)))
+            ;; Mesh data doesn't exist. Use the attribute data from the material
+            ;; or overrides. If the material does not declare an attribute bound
+            ;; by the shader, use a default that makes sense for the attribute.
+            (let [attribute-byte-count-max (* element-count (buffers/type-size buffer-data-type))
+                  attribute-data-type (graphics.types/buffer-data-type-data-type buffer-data-type)
+                  default-attribute-bytes (default-attribute-bytes semantic-type attribute-data-type vector-type normalize)]
+              (put-renderables!
+                attribute-byte-offset put-attribute-bytes!
+                (fn renderable-data->attribute-bytes [renderable-data]
+                  (let [vertex-count (count (:position-data renderable-data))
+                        attribute-bytes (get (:vertex-attribute-bytes renderable-data) name-key default-attribute-bytes)]
+                    ;; Clamp the buffer if the container format is smaller than
+                    ;; specified in the material
+                    (if (> (count attribute-bytes) attribute-byte-count-max)
+                      (let [attribute-bytes-clamped (byte-array attribute-byte-count-max)]
+                        (System/arraycopy attribute-bytes 0 attribute-bytes-clamped 0 attribute-byte-count-max)
+                        (repeat vertex-count attribute-bytes-clamped))
+                      (repeat vertex-count attribute-bytes)))))))
+          (-> reduce-info
+              (update semantic-type inc)
+              (assoc :attribute-byte-offset (+ attribute-byte-offset
+                                               (graphics.types/attribute-info-byte-size attribute)))))))
+    (.position buf (.limit buf))))
