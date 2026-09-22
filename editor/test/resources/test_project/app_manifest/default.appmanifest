@@ -36,14 +36,6 @@ platforms:
             libs: []
             linkFlags: []
 
-    x86-win32:
-        context:
-            excludeLibs: []
-            excludeSymbols: []
-            symbols: []
-            libs: []
-            linkFlags: []
-
     x86_64-win32:
         context:
             excludeLibs: []
@@ -72,6 +64,16 @@ platforms:
             linkFlags: []
             jetifier: true
 
+    x86_64-android:
+        context:
+            excludeLibs: []
+            excludeJars: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            linkFlags: []
+            jetifier: true
+
     armv7-ios:
         context:
             excludeLibs: []
@@ -90,7 +92,7 @@ platforms:
             frameworks: []
             linkFlags: []
 
-    x86_64-ios:
+    arm64_sim-ios:
         context:
             excludeLibs: []
             excludeSymbols: []
@@ -98,4 +100,3 @@ platforms:
             libs: []
             frameworks: []
             linkFlags: []
-

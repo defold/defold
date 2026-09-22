@@ -21,9 +21,10 @@
             [editor.code.script-intelligence :as si]
             [editor.defold-project :as project]
             [editor.localization :as localization]
-            [editor.lua :as lua]
             [editor.resource :as resource]
-            [editor.yaml :as yaml]))
+            [editor.yaml :as yaml]
+            [util.coll :as coll]
+            [util.eduction :as e]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -73,6 +74,34 @@
             string/join)
        "</dl>"))
 
+(defn- make-completion-map [ns-path+completions]
+  (letfn [(ensure-modules [acc ns-path]
+            (loop [acc acc
+                   index 0]
+              (if (= index (count ns-path))
+                acc
+                (let [parent-path (subvec ns-path 0 index)
+                      module-name (ns-path index)
+                      k [:module module-name]]
+                  (recur (update acc (coll/join-to-string "." parent-path)
+                                 (fn [m]
+                                   (if (contains? m k)
+                                     m
+                                     (assoc m k (code-completion/make module-name :type :module)))))
+                         (inc index))))))]
+    (let [context->key->completion
+          (reduce
+            (fn [acc [ns-path completion]]
+              (-> acc
+                  (ensure-modules ns-path)
+                  (update (coll/join-to-string "." ns-path) assoc [(:type completion) (:display-string completion)] completion)))
+            {}
+            ns-path+completions)]
+      (into {}
+            (map (fn [[context key->completion]]
+                   [context (vec (sort-by :display-string (vals key->completion)))]))
+            context->key->completion))))
+
 (defn lines->completion-info [lines]
   (letfn [(make-completions [ns-path {:keys [type name desc] :as el}]
             (case type
@@ -102,7 +131,7 @@
                 [[ns-path (code-completion/make name :type :variable :doc desc)]])))]
     (->> (yaml/load (data/lines-reader lines) keyword)
          (eduction (mapcat #(make-completions [] %)))
-         lua/make-completion-map)))
+         make-completion-map)))
 
 (g/defnk produce-completions
   [parse-result]
@@ -126,17 +155,17 @@
   (output build-errors g/Any produce-build-errors)
   (output completions si/ScriptCompletions produce-completions))
 
-(defn- additional-load-fn
+(defn- connect-fn
   [project self resource]
   (let [si (project/script-intelligence project)]
-    (concat (g/connect self :completions si :lua-completions)
-            (when (resource/file-resource? resource)
-              ;; Only connect to the script-intelligence build errors if this is
-              ;; a file resource. The assumption is that if it is a file
-              ;; resource then it is being actively worked on. Otherwise, it
-              ;; belongs to an external dependency and should not stop the build
-              ;; on errors.
-              (g/connect self :build-errors si :build-errors)))))
+    (e/concat
+      (g/connect self :completions si :lua-completions)
+      (when (resource/file-resource? resource)
+        ;; Only connect to the script-intelligence build errors if this is a
+        ;; file resource. The assumption is that if it is a file resource then
+        ;; it is being actively worked on. Otherwise, it belongs to an external
+        ;; dependency and should not stop the build on errors.
+        (g/connect self :build-errors si :build-errors)))))
 
 (defn register-resource-types
   [workspace]
@@ -147,7 +176,7 @@
     :view-types [:code :default]
     :view-opts nil
     :node-type ScriptApiNode
-    :additional-load-fn additional-load-fn
+    :connect-fn connect-fn
     :textual? true
     :lazy-loaded true
     :language "yaml"))

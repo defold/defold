@@ -18,7 +18,6 @@
             [dynamo.graph :as g]
             [editor.attachment :as attachment]
             [editor.code.util :as code.util]
-            [editor.collision-groups :as collision-groups]
             [editor.defold-project :as project]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.node-types :as node-types]
@@ -91,7 +90,7 @@
     (.-ancestors ^NodeIdWithAncestors editor-lookup)))
 
 (def resource-path-coercer
-  (coerce/wrap-with-pred coerce/string #(and (string? %) (string/starts-with? % "/")) "is not a resource path"))
+  (coerce/wrap-with-pred coerce/string resource/proj-path? "is not a resource path"))
 
 (def unresolved-editor-lookup-coercer
   (coerce/one-of
@@ -815,13 +814,12 @@
         "end_tile" default-end-tile-lua-value)
       (attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
-(defmethod init-attachment :editor.tile-source/CollisionGroupNode [evaluation-context rt project _ _ child-node-id attachment]
+(defmethod init-attachment :editor.tile-source/CollisionGroupNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
   (-> attachment
       (util/provide-defaults
         "id" (rt/->lua
                (id/gen "collision_group"
-                       (collision-groups/collision-groups
-                         (g/node-value project :collision-groups-data evaluation-context)))))
+                       (g/node-value parent-node-id :collision-groups evaluation-context))))
       (attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
 (defmethod init-attachment :editor.tile-map/LayerNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
@@ -1015,14 +1013,14 @@
       attachment)))
 
 (defmulti create-extra-nodes
-  (fn create-extra-nodes-dispatch-fn [evaluation-context _rt _project _workspace _attachment node-id]
+  (fn create-extra-nodes-dispatch-fn [evaluation-context _rt _project _workspace _attachment _parent-node-id node-id]
     (g/node-type-kw (:basis evaluation-context) node-id)))
 
-(defmethod create-extra-nodes :default [_evaluation-context _rt _project _workspace _attachment _node-id])
+(defmethod create-extra-nodes :default [_evaluation-context _rt _project _workspace _attachment _parent-node-id _node-id])
 
 (defn- construct-and-init-attachment [rt project workspace attachment parent-node-id child-node-id]
   (concat
-    (g/expand-ec create-extra-nodes rt project workspace attachment child-node-id)
+    (g/expand-ec create-extra-nodes rt project workspace attachment parent-node-id child-node-id)
     (g/expand-ec init-attachment-without-list-properties rt project workspace attachment parent-node-id child-node-id)))
 
 (defn- add-child-attachments [evaluation-context rt project workspace attachment node-id]
@@ -1079,7 +1077,9 @@
           list-kw (property->prop-kw property)
           workspace (project/workspace project evaluation-context)]
       (and (not (resource/resource? editor-lookup))
-           (attachment/editable? workspace (editor-lookup->node-id editor-lookup) list-kw evaluation-context)))))
+           (let [node-id (editor-lookup->node-id editor-lookup)]
+             (and (attachment/defined? workspace node-id list-kw evaluation-context)
+                  (attachment/editable? workspace node-id list-kw evaluation-context)))))))
 
 (def ^:private clear-args-coercer
   (coerce/regex :node unresolved-editor-lookup-coercer :property coerce/string))
@@ -1128,8 +1128,10 @@
           workspace (project/workspace project evaluation-context)
           list-kw (property->prop-kw property)]
       (and (not (resource/resource? editor-lookup))
-           (attachment/editable? workspace (editor-lookup->node-id editor-lookup) list-kw evaluation-context)
-           (attachment/reorderable? workspace (editor-lookup->node-id editor-lookup) list-kw evaluation-context)))))
+           (let [node-id (editor-lookup->node-id editor-lookup)]
+             (and (attachment/defined? workspace node-id list-kw evaluation-context)
+                  (attachment/editable? workspace node-id list-kw evaluation-context)
+                  (attachment/reorderable? workspace node-id list-kw evaluation-context)))))))
 
 (def ^:private reorder-args-coercer
   (coerce/regex :node unresolved-editor-lookup-coercer

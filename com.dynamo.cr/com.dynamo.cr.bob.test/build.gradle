@@ -1,14 +1,19 @@
 apply from: '../com.dynamo.cr.bob/build.gradle'
 
+def bobJar = file("${project.bobDir}/dist/bob.jar")
+def testClass = project.findProperty('testClass')?.toString()
+
 def testClassesDir = file("$testDir/build")
 def testTmpDir = file("$testDir/tmp")
 def DM_BOB_BUNDLERTEST_ONLY_HOST = project.hasProperty('DM_BOB_BUNDLERTEST_ONLY_HOST') ? project.property('DM_BOB_BUNDLERTEST_ONLY_HOST') : ''
 
-task cleanTestDirs(type: Delete) {
+tasks.register('cleanTestDirs', Delete) {
     delete testClassesDir, testTmpDir
 }
 
-clean.dependsOn cleanTestDirs
+tasks.named('clean') {
+    dependsOn 'cleanTestDirs'
+}
 
 configurations {
     testClasspath
@@ -17,12 +22,12 @@ configurations {
 dependencies {
     testClasspath files("$testDir/lib/junit-4.12.jar")
     testClasspath files("$testDir/lib/hamcrest-all-1.3.jar")
-    testClasspath files("$testDir/lib/aspectjtools-1.9.5.jar")
     testClasspath files("$testDir/lib/jetty-all-7.0.2.v20100331.jar")
     testClasspath files("$testDir/lib/servlet-api-2.5.jar")
 }
 
-task compileTest(type: JavaCompile, dependsOn: distBob) {
+tasks.register('compileTest', JavaCompile) {
+    dependsOn 'distBob'
     source = fileTree(dir: 'src', include: '**/com/dynamo/**')
     destinationDirectory = testClassesDir
     classpath = files("$project.bobDir/dist/bob.jar", configurations.testClasspath)
@@ -30,14 +35,15 @@ task compileTest(type: JavaCompile, dependsOn: distBob) {
     options.compilerArgs << '-g'
 
     doFirst {
-        if (!file("$project.bobDir/dist/bob.jar").exists()) {
+        if (!bobJar.exists()) {
             throw new RuntimeException("bob.jar is missing")
         }
         mkdir testClassesDir
     }
 }
 
-task createTestJar(type: Jar, dependsOn: compileTest) {
+tasks.register('createTestJar', Jar) {
+    dependsOn 'compileTest'
     archiveFileName = 'bob-tests.jar'
     destinationDirectory = testTmpDir
     includeEmptyDirs = false
@@ -45,7 +51,7 @@ task createTestJar(type: Jar, dependsOn: compileTest) {
         exclude 'default/**/*.*'
     }
     from("$project.testDir/src") {
-        include 'com/dynamo/bob/**/*.txt', 'com/dynamo/bob/**/*.yml', 'com/dynamo/bob/**/*.png',
+        include 'com/dynamo/bob/**/*.txt', 'com/dynamo/bob/**/*.yml', 'com/dynamo/bob/**/*.png', 'com/dynamo/bob/**/*.hdr',
                 'com/dynamo/bob/**/*.gltf', 'com/dynamo/bob/**/*.glb',
                 'com/dynamo/bob/**/*.lua', 'com/dynamo/bob/**/*.fnt', 'com/dynamo/bob/**/*.ttf',
                 'com/dynamo/bob/**/*.json', 'com/dynamo/bob/**/*.texc_json', 'builtins/**/*.*'
@@ -56,7 +62,8 @@ task createTestJar(type: Jar, dependsOn: compileTest) {
     }
 }
 
-task testJar(type: Test, dependsOn: createTestJar) {
+tasks.register('testJar', Test) {
+    dependsOn 'createTestJar'
     useJUnit()
 
     // Check if running from IntelliJ IDEA - then test bundler only for the host platform
@@ -70,10 +77,10 @@ task testJar(type: Test, dependsOn: createTestJar) {
 
     testLogging {
         events 'passed', 'skipped', 'failed', 'standardOut'
-        exceptionFormat 'short'
-        showExceptions true
-        showCauses true
-        showStackTraces true
+        exceptionFormat = 'short'
+        showExceptions = true
+        showCauses = true
+        showStackTraces = true
     }
 
     classpath = files(configurations.testClasspath, "${project.bobDir}/dist/bob.jar", "${testTmpDir}/bob-tests.jar")
@@ -84,22 +91,23 @@ task testJar(type: Test, dependsOn: createTestJar) {
 }
 
 // old-fashioned way to run a single test in jar
-task runSingleTest(type: Test, dependsOn: createTestJar) {
+tasks.register('runSingleTest', Test) {
+    dependsOn 'createTestJar'
     useJUnit()
 
     testLogging {
         events 'passed', 'skipped', 'failed', 'standardOut'
-        exceptionFormat 'short'
-        showExceptions true
-        showCauses true
-        showStackTraces true
+        exceptionFormat = 'short'
+        showExceptions = true
+        showCauses = true
+        showStackTraces = true
     }
 
     classpath = files(configurations.testClasspath, "${project.bobDir}/dist/bob.jar", "${testTmpDir}/bob-tests.jar")
     testClassesDirs = files(testClassesDir).asFileTree.matching {
         //provide a test class name with -PtestClass=com.example.MyTestClass to ./gradlew if run from terminal
-        if (project.hasProperty('testClass')) {
-            include "**/${project.testClass.replaceAll('\\.', '/')}.class"
+        if (testClass != null) {
+            include "**/${testClass.replaceAll('\\.', '/')}.class"
         } else if (System.getProperty('idea.active') != null) {
             // Specify needed class here if run from idea
             def test_class = "com.dynamo.bob.pipeline.ShaderProgramBuilderTest"

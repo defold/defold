@@ -50,6 +50,7 @@ namespace dmGraphics
         TextureFilter m_MagFilter;
         TextureWrap   m_AddressModeU;
         TextureWrap   m_AddressModeV;
+        TextureWrap   m_AddressModeW;
         float         m_MaxAnisotropy;
     };
 
@@ -83,6 +84,11 @@ namespace dmGraphics
         OpenGLRenderTargetAttachment m_StencilAttachment;
         OpenGLRenderTargetAttachment m_DepthStencilAttachment;
         HOpenglID                    m_Id;
+        HOpenglID                    m_ResolveId;
+        HOpenglID                    m_MultisampleColorBuffers[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HOpenglID                    m_MultisampleDepthBuffer;
+        HOpenglID                    m_MultisampleStencilBuffer;
+        HOpenglID                    m_MultisampleDepthStencilBuffer;
         uint32_t                     m_BufferTypeFlags;
     };
 
@@ -139,6 +145,7 @@ namespace dmGraphics
         ShaderDesc::Language                m_Language;
         dmArray<OpenGLVertexAttribute>      m_Attributes;
         dmArray<OpenGLScratchUniformBuffer> m_UniformBuffers;
+        Type                                m_TextureUnitTypes[DM_MAX_TEXTURE_UNITS];
     };
 
     /*
@@ -170,6 +177,7 @@ namespace dmGraphics
         OpenGLProgram*          m_CurrentProgram;
         OpenGLUniformBuffer*    m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         OpenGLTextureBinding    m_CurrentTextures[DM_MAX_TEXTURE_UNITS];
+        HRenderTarget           m_CurrentRenderTarget;
 
         OpenGLHandlesData                  m_GLHandlesData;
 
@@ -206,6 +214,12 @@ namespace dmGraphics
         // allows us to disable ASTC only for array textures without disabling
         // ASTC entirely.
         uint32_t                m_ASTCArrayTextureSupport          : 1;
+        // ETC1 payloads are bit-exact subsets of ETC2 (RGB8). When set, ETC1
+        // textures are uploaded as GL_COMPRESSED_RGB8_ETC2, which is required
+        // on WebGL2 contexts that expose WEBGL_compressed_texture_etc but not
+        // WEBGL_compressed_texture_etc1 (Safari), and is the only legal
+        // internalformat for ETC1 data in array textures.
+        uint32_t                m_RGB8ETC2Support                  : 1;
         uint32_t                m_3DTextureSupport                 : 1;
         uint32_t                m_BlendEquationMinMaxSupport       : 1;
     };

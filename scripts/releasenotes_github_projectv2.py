@@ -99,6 +99,20 @@ QUERY_PULLREQUEST = r"""
         author {
           login
         }
+        commits(first: 100) {
+          nodes {
+            commit {
+              authors(first: 20) {
+                nodes {
+                  name
+                  user {
+                    login
+                  }
+                }
+              }
+            }
+          }
+        }
         repository {
           name
         }
@@ -179,7 +193,11 @@ QUERY_PROJECT_ISSUES_AND_PRS = r"""
     projectV2(number: %s) {
       id
       title
-      items(first: 100) {
+      items(first: 100, after: %s) {
+        pageInfo {
+          endCursor
+          hasNextPage
+        }
         nodes {
           type
           content {
@@ -269,8 +287,15 @@ def get_pullrequest(number, repository = "defold"):
     return pr
 
 def get_issues_and_prs(project):
-    data = github_query(QUERY_PROJECT_ISSUES_AND_PRS % project.get("number"))
-    return data["organization"]["projectV2"]["items"]["nodes"]
+    items = []
+    cursor = None
+    while True:
+        data = github_query(QUERY_PROJECT_ISSUES_AND_PRS % (project.get("number"), json.dumps(cursor)))
+        page = data["organization"]["projectV2"]["items"]
+        items.extend(page["nodes"])
+        if not page["pageInfo"]["hasNextPage"]:
+            return items
+        cursor = page["pageInfo"]["endCursor"]
 
 def get_labels(*args):
     labels = []
@@ -279,6 +304,24 @@ def get_labels(*args):
             if not label["name"] in labels:
                 labels.append(label["name"])
     return labels
+
+def get_pr_authors(pr):
+    authors = []
+    for commit_node in pr.get("commits", {}).get("nodes", []):
+        commit = (commit_node or {}).get("commit") or {}
+        for author_node in commit.get("authors", {}).get("nodes", []):
+            author_node = author_node or {}
+            login = (author_node.get("user") or {}).get("login")
+            author = login or author_node.get("name")
+            if author and (author not in authors) and (author != "defold-services"):
+                authors.append(author)
+
+    if not authors:
+        author = (pr.get("author") or {}).get("login")
+        if author:
+            authors.append(author)
+
+    return authors
 
 def get_issue_type_from_labels(labels):
     if "breaking change" in labels:
@@ -477,7 +520,7 @@ def parse_github_project(version):
             "issue_number": issue.get("number"),
             "pr_number": pr.get("number"),
             "closed_issues": [ issue.get("number") ],
-            "author": pr.get("author").get("login"),
+            "author": ", ".join(get_pr_authors(pr)),
             "labels": labels,
             "type": get_issue_type_from_labels(labels),
             "mergecommit": find_merge_commit(pr),
@@ -498,24 +541,24 @@ def parse_github_project(version):
 
         # Remove closing keywords
         flags = re.IGNORECASE
-        entry["body"] = re.sub(r"Resolves https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Resolves #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Resolved https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Resolved #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Resolve https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Resolve #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Closes https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Closes #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Closed https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Closed #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Close https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Close #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fixes https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fixes #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fixed https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fixed #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fix https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fix #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolves:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolves:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolved:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolved:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolve:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Resolve:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closes:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closes:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closed:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Closed:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Close:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Close:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixes:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixes:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixed:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fixed:? #\d*.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fix:? https.*", "", entry["body"], flags=flags).strip()
+        entry["body"] = re.sub(r"Fix:? #\d*.*", "", entry["body"], flags=flags).strip()
 
         # Remove other common ways to reference issues
         flags = re.IGNORECASE

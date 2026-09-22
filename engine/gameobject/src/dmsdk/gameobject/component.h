@@ -501,7 +501,7 @@ namespace dmGameObject
      * @member m_Instance [type: HInstance] Game object instance
      * @member m_PropertyId [type: dmhash_t] Id of the property
      * @member m_UserData [type: uintptr_t*] User data storage pointer
-     * @member m_Value [type: PropertyVar] New value of the property
+     * @member m_Value [type: PropertyVar] New value of the property. Text values are borrowed and must be copied if retained after the callback returns.
      * @member m_Options [type: HPropertyOptions] Options for setting the property
      */
     struct ComponentSetPropertyParams

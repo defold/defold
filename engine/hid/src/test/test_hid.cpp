@@ -446,6 +446,7 @@ TEST(HIDGuidTest, CreateGUID)
         { "name_only_driver", 0x0000, 0x0000, 0x0000, 0x0000, 0,           "PSP builtin joypad",            'v', 2, "000086bb505350206275696c74007602" },
         { "android",          0x0005, 0x045e, 0x02fd, 0x0000, 0,           "Xbox Wireless Controller",      0,   0, "050018dc5e040000fd02000000000000" },
         { "apple",            0x0005, 0x054c, 0x0ce6, 0x1234, 0,           "DualSense Wireless Controller", 'm', 3, "050057564c050000e60c000034126d03" },
+        { "8bitdo_2c",        0x0003, 0x2dc8, 0x301b, 0x0001, 0,           "8BitDo Ultimate 2C Wireless",   0,   0, "0300a769c82d00001b30000001000000" },
     };
 
     for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
@@ -504,6 +505,15 @@ TEST(HIDGuidTest, CreateGUID)
     dmHID::FormatGamepadGuid(&bluetooth_guid, bluetooth_guid_string);
     ASSERT_STREQ("030018dc5e040000fd02000000000000", usb_guid_string);
     ASSERT_STREQ("050018dc5e040000fd02000000000000", bluetooth_guid_string);
+}
+
+TEST(HIDGuidTest, GetGamepadIdentityNameFallback)
+{
+    dmHID::GamepadIdentity identity = {};
+    identity.m_Vendor  = 0x0e6f;
+    identity.m_Product = 0x0113;
+    ASSERT_STREQ("Afterglow Gamepad for Xbox 360", dmHID::GetGamepadIdentityName(identity, "Afterglow Gamepad for Xbox 360"));
+    ASSERT_STREQ("Game Controller", dmHID::GetGamepadIdentityName(identity, 0));
 }
 
 int main(int argc, char **argv)

@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.net.URL;
 import java.net.ConnectException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -88,10 +89,8 @@ public class BundleHelper {
     private Platform platform;
     private BobProjectProperties projectProperties;
     private IBundler platformBundler;
-    private String title;
     private File buildDir;
     private File appDir;
-    private String variant;
     private Map<String, Map<String, Object>> propertiesMap;
 
     private Map<String, Object> templateProperties = new HashMap<>();
@@ -131,17 +130,16 @@ public class BundleHelper {
 
         this.project = project;
         this.platform = platform;
-        this.title = this.projectProperties.getStringValue("project", "title", "Unnamed");
+        String title = this.projectProperties.getStringValue("project", "title", "Unnamed");
 
         String appDirSuffix = "";
-        if (platform == Platform.X86_64MacOS || platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
+        if (platform == Platform.X86_64MacOS || platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim) {
             appDirSuffix = ".app";
         }
 
         this.buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         this.appDir = new File(bundleDir, title + appDirSuffix);
 
-        this.variant = variant;
     }
 
     public static String[] getArchiveFilenames(File buildDir) {
@@ -157,7 +155,7 @@ public class BundleHelper {
     public static String projectNameToBinaryName(String projectName) {
         String projectNameNoAccents = StringUtils.stripAccents(projectName);
         String output = projectNameNoAccents.replaceAll("[^a-zA-Z0-9_]", "");
-        if (output.equals("")) {
+        if (output.isEmpty()) {
             return "dmengine";
         }
         return output;
@@ -183,7 +181,7 @@ public class BundleHelper {
         if (data == null) {
             return "";
         }
-        String s = new String(data);
+        String s = new String(data, StandardCharsets.UTF_8);
         Template template = Mustache.compiler().emptyStringIsFalse(true).compile(s);
         StringWriter sw = new StringWriter();
         try {
@@ -208,7 +206,7 @@ public class BundleHelper {
     }
 
     public void formatResourceToFile(byte[] content, final String sourceLocation, File toFile) throws IOException {
-        FileUtils.write(toFile, formatResource(content, sourceLocation));
+        FileUtils.write(toFile, formatResource(content, sourceLocation), StandardCharsets.UTF_8);
     }
 
     public File getTargetManifestDir(Platform platform){
@@ -317,7 +315,7 @@ public class BundleHelper {
     public File copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
         File targetManifest = getAppManifestFile(platform, appDir);
 
-        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
+        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project, platform);
 
         File manifestFile;
         if (!hasExtensions) {
@@ -354,7 +352,7 @@ public class BundleHelper {
     public List<ExtenderResource> writeExtensionResources(Platform platform) throws IOException, CompileExceptionError {
         List<ExtenderResource> resources = new ArrayList<>();
 
-        if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
+        if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android) || platform.equals(Platform.X86_64Android)) {
             File platformDir = new File(buildDir, platform.toString());
             if (!platformDir.exists()) {
                 platformDir.mkdirs();
@@ -557,9 +555,9 @@ public class BundleHelper {
             this.severity = severity == null ? "error" : severity;
             this.resource = resource;
             this.message = message;
-            this.lineNumber = Integer.parseInt(lineNumber.equals("") ? "1" : lineNumber);
+            this.lineNumber = Integer.parseInt(lineNumber.isEmpty() ? "1" : lineNumber);
         }
-    };
+    }
 
     // These regexp's works for both cpp and javac errors, warnings and note entries associated with a resource.
     private static Pattern resourceIssueGCCRe = Pattern.compile("^(?:(?:(?:\\/tmp\\/job[0-9]*\\/)?(?:upload\\/packages|upload|build)\\/)|(?:.*\\/drive_c\\/))?([^:]+):([0-9]+):([0-9]*)?:?\\s*(error|warning|note|):?\\s*(.+)"); // GCC + Clang + Java
@@ -610,7 +608,7 @@ public class BundleHelper {
             if (m.matches()) {
                 // Groups: resource, line, column, "error", message
                 String severity = m.group(4);
-                if (severity == null || severity.equals(""))
+                if (severity == null || severity.isEmpty())
                     severity = "error";
                 BundleHelper.ResourceInfo info = new BundleHelper.ResourceInfo(severity, m.group(1), m.group(2), m.group(5));
                 issues.add(info);
@@ -632,7 +630,7 @@ public class BundleHelper {
                 if (count+1 < lines.length) {
                     String lineAfter = lines[count+1];
                     m = BundleHelper.resourceIssueLineBeforeRe.matcher(lineAfter);
-                    if (!line.equals("") && !m.matches()) {
+                    if (!line.isEmpty() && !m.matches()) {
                         info.message = info.message + "\n" + lineAfter;
                         count++;
                     }
@@ -644,7 +642,6 @@ public class BundleHelper {
             if (m.matches()) {
                 // Groups: severity, resource, message
                 issues.add(new BundleHelper.ResourceInfo(m.group(1), m.group(2), "", m.group(3)));
-                continue;
             }
         }
     }
@@ -659,27 +656,27 @@ public class BundleHelper {
 
         for (int count = 0; count < lines.length; ++count) {
             Matcher m;
-            String line = lines[count];
+            StringBuilder line = new StringBuilder(lines[count]);
 
-            m = resourceIssueLinkerUnresolvedSymbol.matcher(line);
+            m = resourceIssueLinkerUnresolvedSymbol.matcher(line.toString());
             if (m.matches()) {
                 issues.add(new BundleHelper.ResourceInfo(m.group(3), m.group(1), m.group(2), m.group(4)));
             }
 
             // Compare with some lookahead if it matches
             for (int i = 1; i <= 2 && (count+i) < lines.length; ++i) {
-                line += "\n" + lines[count+i];
+                line.append("\n").append(lines[count + i]);
             }
-            m = linkerPattern.matcher(line);
+            m = linkerPattern.matcher(line.toString());
             if (m.matches()) {
                 // Groups: message
                 issues.add(new BundleHelper.ResourceInfo("error", null, "", m.group(1)));
             }
-            m = linkerMissingSDKFolderPattern.matcher(line);
+            m = linkerMissingSDKFolderPattern.matcher(line.toString());
             if (m.matches()) {
                 issues.add(new BundleHelper.ResourceInfo("error", null, "", "Invalid Defold SDK: '" + m.group(1) + "'"));
             }
-            m = linkerMissingLibraryLinkerCLANGRe.matcher(line);
+            m = linkerMissingLibraryLinkerCLANGRe.matcher(line.toString());
             if (m.matches()) {
                 issues.add(new BundleHelper.ResourceInfo("error", null, "", "Missing library '" + m.group(1) + "'"));
             }
@@ -778,7 +775,6 @@ public class BundleHelper {
 
             if (m.matches()) {
                 allIssues.add( new BundleHelper.ResourceInfo(m.group(1), null, "0", m.group(2)) );
-                continue;
             }
         }
 

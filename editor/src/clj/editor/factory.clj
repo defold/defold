@@ -24,8 +24,7 @@
             [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.validation :as validation]
-            [editor.workspace :as workspace])
+            [editor.validation :as validation])
   (:import [com.dynamo.gamesys.proto GameSystem$CollectionFactoryDesc GameSystem$FactoryDesc]))
 
 (set! *warn-on-reflection* true)
@@ -87,12 +86,11 @@
          [(resource/proj-path prototype)])]))
 
 (defn load-factory
-  [factory-type _project self resource any-factory-desc]
+  [factory-type {:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id any-factory-desc :source-value}]
   {:pre [(contains? factory-types factory-type)
          (map? any-factory-desc)]} ; GameSystem$FactoryDesc or GameSystem$CollectionFactoryDesc in map format.
   (let [pb-class (:pb-type (get factory-types factory-type))
-        basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+        resolve-resource #(resolve-resource-fn owner-resource %)]
     (into [(g/set-property self :factory-type factory-type)]
           (gu/set-properties-from-pb-map self pb-class any-factory-desc
             prototype (resolve-resource :prototype)
@@ -121,8 +119,8 @@
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :prototype-resource])))
             (dynamic error (g/fnk [_node-id prototype-resource]
-                                  (or (validation/prop-error :info _node-id :prototype validation/prop-nil? prototype-resource prototype-message)
-                                      (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? prototype-resource prototype-message))))
+                             (or (validation/prop-error :info _node-id :prototype validation/prop-nil? prototype-resource prototype-message)
+                                 (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? prototype-resource prototype-message))))
             (dynamic edit-type (g/fnk [factory-type]
                                  {:type resource/Resource :ext (get-in factory-types [factory-type :ext])}))
             (dynamic label (properties/label-dynamic :factory :prototype))
@@ -142,12 +140,11 @@
                                                               :label (get-in factory-types [factory-type :message])
                                                               :icon (get-in factory-types [factory-type :icon])}
 
-                                                             (resource/resource? prototype)
-                                                             (assoc :link prototype :outline-reference? false))))
+                                                       (resource/resource? prototype)
+                                                       (assoc :link prototype :outline-reference? false))))
 
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
-
 
 (defn register-resource-types
   [workspace]
@@ -161,7 +158,7 @@
       :icon (get-in factory-types [:game-object :icon])
       :icon-class :property
       :category (localization/message "resource.category.components")
-      :view-types [:cljfx-form-view :text]
+      :view-types [:form :text]
       :view-opts {}
       :tags #{:component}
       :tag-opts {:component {:transform-properties #{}}}
@@ -175,7 +172,7 @@
       :icon (get-in factory-types [:collection :icon])
       :icon-class :property
       :category (localization/message "resource.category.components")
-      :view-types [:cljfx-form-view :text]
+      :view-types [:form :text]
       :view-opts {}
       :tags #{:component}
       :tag-opts {:component {:transform-properties #{}}}

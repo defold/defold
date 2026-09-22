@@ -22,7 +22,8 @@
             [editor.particle-lib :as plib]
             [editor.properties :as properties]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt])
   (:import [javax.vecmath Matrix4d]))
 
 (defn- dump-outline [outline]
@@ -127,17 +128,18 @@
 
 (deftest manip-scale-preserves-types
   (test-util/with-loaded-project
-    (let [project-graph (g/node-id->graph-id project)
-          particlefx-path "/particlefx/fireworks_big.particlefx"
+    (let [particlefx-path "/particlefx/fireworks_big.particlefx"
           particlefx (project/get-resource-node project particlefx-path)
-          [[emitter] _ [modifier]] (g/sources-of particlefx :child-scenes)
+          child-scene-arcs (g/inputs (g/now) particlefx :child-scenes)
+          emitter (gt/source-id (nth child-scene-arcs 0))
+          modifier (gt/source-id (nth child-scene-arcs 2))
           check! (fn check! [node-id prop-kw]
                    (doseq [original-curve-spread
                            [(properties/->curve-spread [[(float 0.0) (float 1.0) (float 1.0) (float 0.0)]] (float 0.0))
                             (properties/->curve-spread [[(double 0.0) (double 1.0) (double 1.0) (double 0.0)]] (double 0.0))
                             (properties/->curve-spread [(vector-of :float 0.0 1.0 1.0 0.0)] (float 0.0))
                             (properties/->curve-spread [(vector-of :double 0.0 1.0 1.0 0.0)] (double 0.0))]]
-                     (with-open [_ (test-util/make-graph-reverter project-graph)]
+                     (with-open [_ (test-util/make-system-reverter)]
                        (g/set-property! node-id prop-kw original-curve-spread)
                        (test-util/manip-scale! node-id [2.0 2.0 2.0])
                        (let [modified-curve-spread (g/node-value node-id prop-kw)]

@@ -11,7 +11,7 @@ def build(bld):
     if bld.env.PLATFORM in ('arm64-linux'):
         graphics_lib = 'GRAPHICS_OPENGLES OPENGLES'
         graphics_adapter = 'GraphicsAdapterOpenGLES'
-    elif bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
+    elif bld.env.PLATFORM in ('armv7-android', 'arm64-android', 'x86_64-android'):
         graphics_lib = 'GRAPHICS_VULKAN VULKAN'
         graphics_adapter = 'GraphicsAdapterVulkan'
     elif waflib.Options.options.with_vulkan:

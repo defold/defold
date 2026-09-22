@@ -42,11 +42,11 @@
 
 (defn- component [go-id id]
   (let [comps (->> (g/node-value go-id :node-outline)
-                :children
-                (map (fn [v] [(-> (:label v)
-                                (string/split #" ")
-                                first) (:node-id v)]))
-                (into {}))]
+                   :children
+                   (map (fn [v] [(-> (:label v)
+                                     (string/split #" ")
+                                     first) (:node-id v)]))
+                   (into {}))]
     (comps id)))
 
 (defmacro with-source [script-id source & body]
@@ -91,11 +91,11 @@
   (tu/with-loaded-project
     (let [script-id (tu/resource-node project "/script/props.script")]
       (testing "reading values"
-               (is (= 1.0 (prop script-id "number")))
-               (is (read-only? script-id "number")))
+        (is (= 1.0 (prop script-id "number")))
+        (is (read-only? script-id "number")))
       (testing "string prop defs"
-               (with-source script-id "go.property(\"number\", \"my_string\")\n"
-                 (is (= "my_string" (prop script-id "number"))))))))
+        (with-source script-id "go.property(\"number\", \"my_string\")\n"
+          (is (= "my_string" (prop script-id "number"))))))))
 
 (deftest script-properties-component
   (tu/with-loaded-project
@@ -108,7 +108,18 @@
       (is (overridden? script-c "number"))
       (clear! script-c "number")
       (is (= 1.0 (prop script-c "number")))
-      (is (not (overridden? script-c "number"))))))
+      (is (not (overridden? script-c "number")))
+
+      (is (= "game object text å\nsecond line" (prop script-c "text")))
+      (is (= :multi-line-text
+             (get-in (g/node-value script-c :_properties)
+                     [:properties :__text :edit-type :type])))
+      (prop! script-c "text" "edited text å\nsecond line")
+      (is (= "edited text å\nsecond line" (prop script-c "text")))
+      (is (overridden? script-c "text"))
+      (clear! script-c "text")
+      (is (= "script text å\nsecond line" (prop script-c "text")))
+      (is (not (overridden? script-c "text"))))))
 
 (deftest script-properties-broken-component
   (tu/with-loaded-project
@@ -141,6 +152,7 @@
                                           "material" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_game_object.material")
                                           "number" 2.0
                                           "quat" [180.0 0.0 0.0]
+                                          "text" "game object text å\nsecond line"
                                           "texture" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_game_object.png")
                                           "url" "/url"
                                           "vec3" [1.0 2.0 3.0]
@@ -159,7 +171,12 @@
               script-c (:node-id outline)]
           (is (:outline-overridden? outline))
           (is (= val (prop script-c "number")))
-          (is (overridden? script-c "number")))))))
+          (is (overridden? script-c "number")))))
+    (doseq [[path value] [[[0 0] "collection text å\nsecond line"]
+                          [[1 0] "embedded text å\nsecond line"]]]
+      (let [script-c (:node-id (tu/outline (tu/resource-node project "/collection/props.collection") path))]
+        (is (= value (prop script-c "text")))
+        (is (overridden? script-c "text"))))))
 
 (deftest script-properties-broken-collection
   (tu/with-loaded-project
@@ -207,6 +224,7 @@
                                             "material" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_game_object.material")
                                             "number" 3.0
                                             "quat" [180.0 0.0 0.0]
+                                            "text" "collection text å\nsecond line"
                                             "texture" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_collection.png")
                                             "url" "/url2"
                                             "vec3" [1.0 2.0 3.0]
@@ -333,11 +351,63 @@
                 item)))
           items)))
 
+(deftest edit-text-script-property-test
+  (with-clean-system
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
+          project (tu/setup-project! workspace)
+          build-output (partial tu/build-output project)
+          props-script (doto (tu/make-resource-node! project "/props.script")
+                         (edit-script! ["go.property('text', 'script text å\\nsecond line')"]))
+          props-game-object (tu/make-resource-node! project "/props.go")
+          props-script-component (tu/add-referenced-component! props-game-object (resource-node/resource props-script))
+          default-value "script text å\nsecond line"
+          override-value "game object text ö\nsecond line"]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
+        (testing "Script default"
+          (let [text-property (:__text (properties props-script))]
+            (is (= default-value (:value text-property)))
+            (is (= g/Str (:type text-property)))
+            (is (= :multi-line-text (get-in text-property [:edit-type :type]))))
+          (with-open [_ (tu/build! props-script)]
+            (let [built-script (protobuf/bytes->map-with-defaults Lua$LuaModule (build-output "/props.script"))]
+              (is (= default-value
+                     (get (tu/unpack-property-declarations (:properties built-script)) "text"))))))
+
+        (testing "Game object override"
+          (edit-property! props-script-component :__text override-value)
+          (is (= override-value (prop props-script-component "text")))
+          (is (tu/prop-overridden? props-script-component :__text))
+
+          (let [saved-game-object (save-value props-game-object)
+                saved-script-component (find-corresponding (:components saved-game-object) props-script-component)]
+            (is (= [{:id "text"
+                     :value override-value
+                     :type :property-type-text}]
+                   (:properties saved-script-component))))
+
+          (with-open [_ (tu/build! props-game-object)]
+            (let [built-game-object (protobuf/bytes->map-with-defaults GameObject$PrototypeDesc (build-output "/props.go"))
+                  built-script-component (find-corresponding (:components built-game-object) props-script-component)]
+              (is (= override-value
+                     (get (tu/unpack-property-declarations (:property-decls built-script-component)) "text")))))
+
+          (reset-property! props-script-component :__text)
+          (is (= default-value (prop props-script-component "text")))
+          (is (not (tu/prop-overridden? props-script-component :__text))))
+
+        (testing "Embedded NUL validation"
+          (edit-property! props-script-component :__text "invalid\u0000text")
+          (let [property-error (tu/prop-error props-script-component :__text)]
+            (is (g/error? property-error))
+            (is (= (localization/message "error.property-cannot-contain-nul" {"property" "Text"})
+                   (:message property-error))))
+          (is (g/error? (tu/build-error! props-game-object))))))))
+
 (def ^:private error-item-open-info-without-opts (comp pop :args build-errors-view/error-item-open-info))
 
 (deftest go-property-rejected-outside-script-files-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           bad-source "go.property('number', 1)\n"
           bad-invalid-args-source "go.property()\n"
@@ -363,7 +433,7 @@
                     (doseq [error-item-of-faulty-node error-items-of-faulty-node]
                       (is (= [(tu/resource workspace proj-path) node-id]
                              (error-item-open-info-without-opts error-item-of-faulty-node)))))))))]
-      (with-open [_ (tu/make-graph-reverter (g/node-id->graph-id project))]
+      (with-open [_ (tu/make-system-reverter)]
         (testing "Script files allow go.property and keep regular validation"
           (write-file! workspace "ok.script" bad-source)
           (let [script-node (tu/resource-node project "/ok.script")]
@@ -402,9 +472,8 @@
 
 (deftest edit-script-resource-properties-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)
@@ -449,7 +518,7 @@
                                 (build-resource-path "/from-props-script.png")]))))))
 
             (testing "Editing the script code affects exposed properties"
-              (with-open [_ (tu/make-graph-reverter project-graph)]
+              (with-open [_ (tu/make-system-reverter)]
                 (edit-script! props-script ["go.property('other', resource.texture('/from-props-script.png'))"])
                 (let [properties (properties props-script)]
                   (is (not (contains? properties :__atlas)))
@@ -467,7 +536,7 @@
                            [(build-resource-path "/from-props-script.png")]))))))
 
             (testing "Missing resource error"
-              (with-open [_ (tu/make-graph-reverter project-graph)]
+              (with-open [_ (tu/make-system-reverter)]
                 (edit-script! props-script ["go.property('texture', resource.texture('/missing-resource.png'))"])
                 (let [properties (properties props-script)
                       error-value (tu/prop-error props-script :__texture)]
@@ -486,7 +555,7 @@
                              (error-item-open-info-without-opts error-item-of-faulty-node))))))))
 
             (testing "Unsupported resource error"
-              (with-open [_ (tu/make-graph-reverter project-graph)]
+              (with-open [_ (tu/make-system-reverter)]
                 (edit-script! props-script ["go.property('texture', resource.texture('/from-props-script.material'))"])
                 (let [properties (properties props-script)
                       error-value (tu/prop-error props-script :__texture)]
@@ -503,13 +572,12 @@
                              (error-item-open-info-without-opts error-item-of-parent-resource)))
                       (is (= [(resource "/props.script") props-script]
                              (error-item-open-info-without-opts error-item-of-faulty-node))))))))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest edit-component-instance-resource-properties-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)
@@ -569,7 +637,7 @@
                   (is (empty? (:property-resources built-props-game-object)))))))
 
           (testing "Overrides do not affect props script"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (edit-property! props-script-component :__atlas    (resource "/from-props-game-object.atlas"))
               (edit-property! props-script-component :__material (resource "/from-props-game-object.material"))
               (edit-property! props-script-component :__texture  (resource "/from-props-game-object.png"))
@@ -597,7 +665,7 @@
                                   (build-resource-path "/from-props-script.png")]))))))))
 
           (testing "Overrides"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (doseq [[resource-kind prop-kw resource build-resource]
                       [["atlas"    :__atlas    (resource "/from-props-game-object.atlas")    (build-resource "/from-props-game-object.atlas")]
                        ["material" :__material (resource "/from-props-game-object.material") (build-resource "/from-props-game-object.material")]
@@ -643,7 +711,7 @@
                     (is (empty? (:property-resources built-props-game-object))))))))
 
           (testing "Missing resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (edit-property! props-script-component :__texture (resource "/missing-resource.png"))
               (let [properties (properties props-script-component)
                     error-value (tu/prop-error props-script-component :__texture)]
@@ -667,7 +735,7 @@
                 (is (not (g/error? (tu/build-error! props-game-object)))))))
 
           (testing "Unsupported resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (edit-property! props-script-component :__texture (resource "/from-props-game-object.material"))
               (let [properties (properties props-script-component)
                     error-value (tu/prop-error props-script-component :__texture)]
@@ -692,7 +760,7 @@
 
           (testing "Downstream error breaks build"
             (are [lines message]
-              (with-open [_ (tu/make-graph-reverter project-graph)]
+              (with-open [_ (tu/make-system-reverter)]
                 (edit-script! props-script lines)
                 (let [error-value (tu/build-error! props-game-object)]
                   (when (is (g/error? error-value))
@@ -710,11 +778,11 @@
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
               (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest rename-resource-referenced-from-component-instance-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
@@ -751,13 +819,12 @@
                      {"atlas" (murmur/hash64 renamed-build-resource-path)}))
               (is (= (:property-resources built-props-game-object)
                      [renamed-build-resource-path])))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest edit-game-object-instance-resource-properties-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)
@@ -830,7 +897,7 @@
                   (is (empty? (:property-resources built-props-collection)))))))
 
           (testing "Overrides do not affect props script or game object"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (edit-property! ov-props-script-component :__atlas    (resource "/from-props-collection.atlas"))
               (edit-property! ov-props-script-component :__material (resource "/from-props-collection.material"))
               (edit-property! ov-props-script-component :__texture  (resource "/from-props-collection.png"))
@@ -862,7 +929,7 @@
                     (is (empty? (:property-resources built-props-game-object))))))))
 
           (testing "Overrides"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (doseq [[resource-kind prop-kw resource build-resource]
                       [["atlas"    :__atlas    (resource "/from-props-collection.atlas")    (build-resource "/from-props-collection.atlas")]
                        ["material" :__material (resource "/from-props-collection.material") (build-resource "/from-props-collection.material")]
@@ -910,7 +977,7 @@
                     (is (empty? (:property-resources built-props-collection))))))))
 
           (testing "Missing resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (edit-property! ov-props-script-component :__texture (resource "/missing-resource.png"))
               (let [properties (properties ov-props-script-component)
                     error-value (tu/prop-error ov-props-script-component :__texture)]
@@ -934,7 +1001,7 @@
                 (is (not (g/error? (tu/build-error! props-collection)))))))
 
           (testing "Unsupported resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (edit-property! ov-props-script-component :__texture (resource "/from-props-collection.material"))
               (let [properties (properties ov-props-script-component)
                     error-value (tu/prop-error ov-props-script-component :__texture)]
@@ -959,7 +1026,7 @@
 
           (testing "Downstream error breaks build"
             (are [lines message]
-              (with-open [_ (tu/make-graph-reverter project-graph)]
+              (with-open [_ (tu/make-system-reverter)]
                 (edit-script! props-script lines)
                 (let [error-value (tu/build-error! props-collection)]
                   (when (is (g/error? error-value))
@@ -977,11 +1044,11 @@
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
               (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest rename-resource-referenced-from-game-object-instance-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
@@ -1024,20 +1091,19 @@
                      {"atlas" (murmur/hash64 renamed-build-resource-path)}))
               (is (= (:property-resources built-props-collection)
                      [renamed-build-resource-path])))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest edit-collection-instance-resource-properties-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)
           build-resource-path-hash (comp murmur/hash64 build-resource-path)
           build-output (partial tu/build-output project)
           texture-build-resource (partial tu/texture-build-resource project)
-          shader-program-build-resource(partial tu/shader-program-build-resource project)
+          shader-program-build-resource (partial tu/shader-program-build-resource project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
@@ -1117,7 +1183,7 @@
                   (is (empty? (:property-resources built-sub-props-collection)))))))
 
           (testing "Overrides do not affect props script or game object"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (edit-property! ov-props-script-component :__atlas    (resource "/from-sub-props-collection.atlas"))
               (edit-property! ov-props-script-component :__material (resource "/from-sub-props-collection.material"))
               (edit-property! ov-props-script-component :__texture  (resource "/from-sub-props-collection.png"))
@@ -1149,7 +1215,7 @@
                     (is (empty? (:property-resources built-props-game-object))))))))
 
           (testing "Overrides"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (doseq [[resource-kind prop-kw resource build-resource]
                       [["atlas"    :__atlas    (resource "/from-sub-props-collection.atlas")    (build-resource "/from-sub-props-collection.atlas")]
                        ["material" :__material (resource "/from-sub-props-collection.material") (build-resource "/from-sub-props-collection.material")]
@@ -1200,7 +1266,7 @@
                     (is (empty? (:property-resources built-sub-props-collection))))))))
 
           (testing "Missing resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (edit-property! ov-props-script-component :__texture (resource "/missing-resource.png"))
               (let [properties (properties ov-props-script-component)
                     error-value (tu/prop-error ov-props-script-component :__texture)]
@@ -1224,7 +1290,7 @@
               (is (not (g/error? (tu/build-error! sub-props-collection))))))
 
           (testing "Unsupported resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (edit-property! ov-props-script-component :__texture (resource "/from-sub-props-collection.material"))
               (let [properties (properties ov-props-script-component)
                     error-value (tu/prop-error ov-props-script-component :__texture)]
@@ -1249,7 +1315,7 @@
 
           (testing "Downstream error breaks build"
             (are [lines message]
-              (with-open [_ (tu/make-graph-reverter project-graph)]
+              (with-open [_ (tu/make-system-reverter)]
                 (edit-script! props-script lines)
                 (let [error-value (tu/build-error! sub-props-collection)]
                   (when (is (g/error? error-value))
@@ -1267,13 +1333,12 @@
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
               (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest edit-collection-instance-embedded-game-object-resource-properties-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
           build-resource-path (comp resource/proj-path build-resource)
@@ -1281,7 +1346,7 @@
           build-output (partial tu/build-output project)
           node-build-resource tu/node-build-resource
           texture-build-resource (partial tu/texture-build-resource project)
-          shader-program-build-resource(partial tu/shader-program-build-resource project)
+          shader-program-build-resource (partial tu/shader-program-build-resource project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-material! (partial make-material! project)
           make-resource-node! (partial tu/make-resource-node! project)]
@@ -1300,7 +1365,7 @@
                                             "go.property('texture',  resource.texture('/from-props-script.png'))"]))
               props-collection (doto (make-resource-node! "/props.collection"))
               embedded-game-object-instance (tu/add-embedded-game-object! props-collection)
-              embedded-game-object(tu/to-game-object-node-id embedded-game-object-instance)
+              embedded-game-object (tu/to-game-object-node-id embedded-game-object-instance)
               props-script-component (tu/add-referenced-component! embedded-game-object (resource-node/resource props-script))
               sub-props-collection (make-resource-node! "/sub-props.collection")
               props-collection-instance (tu/add-referenced-collection! sub-props-collection (resource-node/resource props-collection))
@@ -1363,7 +1428,7 @@
                   (is (empty? (:property-resources built-sub-props-collection)))))))
 
           (testing "Overrides do not affect props script or game object"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (edit-property! ov-props-script-component :__atlas    (resource "/from-sub-props-collection.atlas"))
               (edit-property! ov-props-script-component :__material (resource "/from-sub-props-collection.material"))
               (edit-property! ov-props-script-component :__texture  (resource "/from-sub-props-collection.png"))
@@ -1395,7 +1460,7 @@
                     (is (empty? (:property-resources built-embedded-game-object))))))))
 
           (testing "Overrides"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (doseq [[resource-kind prop-kw resource build-resource]
                       [["atlas"    :__atlas    (resource "/from-sub-props-collection.atlas")    (build-resource "/from-sub-props-collection.atlas")]
                        ["material" :__material (resource "/from-sub-props-collection.material") (build-resource "/from-sub-props-collection.material")]
@@ -1446,7 +1511,7 @@
                     (is (empty? (:property-resources built-sub-props-collection))))))))
 
           (testing "Missing resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (edit-property! ov-props-script-component :__texture (resource "/missing-resource.png"))
               (let [properties (properties ov-props-script-component)
                     error-value (tu/prop-error ov-props-script-component :__texture)]
@@ -1470,7 +1535,7 @@
               (is (not (g/error? (tu/build-error! sub-props-collection))))))
 
           (testing "Unsupported resource error"
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (edit-property! ov-props-script-component :__texture (resource "/from-sub-props-collection.material"))
               (let [properties (properties ov-props-script-component)
                     error-value (tu/prop-error ov-props-script-component :__texture)]
@@ -1495,7 +1560,7 @@
 
           (testing "Downstream error breaks build"
             (are [lines message]
-              (with-open [_ (tu/make-graph-reverter project-graph)]
+              (with-open [_ (tu/make-system-reverter)]
                 (edit-script! props-script lines)
                 (let [error-value (tu/build-error! sub-props-collection)]
                   (when (is (g/error? error-value))
@@ -1513,11 +1578,11 @@
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
               (resource-not-of-type-message "Texture" "/from-props-script.material" texture-resource-exts))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest rename-resource-referenced-from-collection-instance-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           resource (partial tu/resource workspace)
           build-resource (partial tu/build-resource project)
@@ -1565,13 +1630,12 @@
                      {"atlas" (murmur/hash64 renamed-build-resource-path)}))
               (is (= (:property-resources built-sub-props-collection)
                      [renamed-build-resource-path])))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest layered-resource-property-override-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)
           edit-property! (fn [node-id proj-path] (edit-property! node-id :__atlas (tu/resource workspace proj-path)))
@@ -1603,7 +1667,7 @@
           (is (= props-script-component (g/override-original ov-props-script-component)))
           (is (= ov-props-script-component (g/override-original ov-ov-props-script-component)))
 
-          (with-open [_ (tu/make-graph-reverter project-graph)]
+          (with-open [_ (tu/make-system-reverter)]
             (edit-property! props-script-component               "/from-props-game-object.atlas")
             (is (assigned-property? props-script-component       "/from-props-game-object.atlas"))
             (is (assigned-property? ov-props-script-component    "/from-props-game-object.atlas"))
@@ -1618,7 +1682,7 @@
                      "/from-props-script.atlas"}
                    (tu/node-built-source-paths sub-props-collection))))
 
-          (with-open [_ (tu/make-graph-reverter project-graph)]
+          (with-open [_ (tu/make-system-reverter)]
             (edit-property! ov-props-script-component            "/from-props-collection.atlas")
             (is (assigned-property? props-script-component       "/from-props-script.atlas"))
             (is (assigned-property? ov-props-script-component    "/from-props-collection.atlas"))
@@ -1633,7 +1697,7 @@
                      "/from-props-script.atlas"}
                    (tu/node-built-source-paths sub-props-collection))))
 
-          (with-open [_ (tu/make-graph-reverter project-graph)]
+          (with-open [_ (tu/make-system-reverter)]
             (edit-property! ov-ov-props-script-component         "/from-sub-props-collection.atlas")
             (is (assigned-property? props-script-component       "/from-props-script.atlas"))
             (is (assigned-property? ov-props-script-component    "/from-props-script.atlas"))
@@ -1648,7 +1712,7 @@
                      "/from-props-script.atlas"}
                    (tu/node-built-source-paths sub-props-collection))))
 
-          (with-open [_ (tu/make-graph-reverter project-graph)]
+          (with-open [_ (tu/make-system-reverter)]
             (edit-property! props-script-component               "/from-props-game-object.atlas")
             (edit-property! ov-props-script-component            "/from-props-collection.atlas")
             (is (assigned-property? props-script-component       "/from-props-game-object.atlas"))
@@ -1665,7 +1729,7 @@
                      "/from-props-script.atlas"}
                    (tu/node-built-source-paths sub-props-collection))))
 
-          (with-open [_ (tu/make-graph-reverter project-graph)]
+          (with-open [_ (tu/make-system-reverter)]
             (edit-property! props-script-component               "/from-props-game-object.atlas")
             (edit-property! ov-ov-props-script-component         "/from-sub-props-collection.atlas")
             (is (assigned-property? props-script-component       "/from-props-game-object.atlas"))
@@ -1682,7 +1746,7 @@
                      "/from-props-script.atlas"}
                    (tu/node-built-source-paths sub-props-collection))))
 
-          (with-open [_ (tu/make-graph-reverter project-graph)]
+          (with-open [_ (tu/make-system-reverter)]
             (edit-property! ov-props-script-component            "/from-props-collection.atlas")
             (edit-property! ov-ov-props-script-component         "/from-sub-props-collection.atlas")
             (is (assigned-property? props-script-component       "/from-props-script.atlas"))
@@ -1699,7 +1763,7 @@
                      "/from-props-script.atlas"}
                    (tu/node-built-source-paths sub-props-collection))))
 
-          (with-open [_ (tu/make-graph-reverter project-graph)]
+          (with-open [_ (tu/make-system-reverter)]
             (edit-property! props-script-component               "/from-props-game-object.atlas")
             (edit-property! ov-props-script-component            "/from-props-collection.atlas")
             (edit-property! ov-ov-props-script-component         "/from-sub-props-collection.atlas")
@@ -1717,13 +1781,12 @@
                      "/from-props-game-object.atlas"
                      "/from-props-script.atlas"}
                    (tu/node-built-source-paths sub-props-collection)))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest overrides-remain-after-script-edit-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
-          project-graph (g/node-id->graph-id project)
           resource (partial tu/resource workspace)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)]
@@ -1738,19 +1801,19 @@
           (atlas-resource-property? (:__atlas (properties props-script-component)) (resource "/from-props-game-object.atlas"))
 
           (testing "Rename property in script."
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (edit-script! props-script ["go.property('renamed', resource.atlas('/from-props-script.atlas'))"])
               (is (atlas-resource-property? (:__renamed (properties props-script)) (resource "/from-props-script.atlas")))
               (is (atlas-resource-property? (:__renamed (properties props-script-component)) (resource "/from-props-game-object.atlas")))))
 
           (testing "Change property default in script."
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (edit-script! props-script ["go.property('atlas', resource.atlas('/renamed-from-props-script.atlas'))"])
               (is (atlas-resource-property? (:__atlas (properties props-script)) (resource "/renamed-from-props-script.atlas")))
               (is (atlas-resource-property? (:__atlas (properties props-script-component)) (resource "/from-props-game-object.atlas")))))
 
           (testing "Change property type in script."
-            (with-open [_ (tu/make-graph-reverter project-graph)]
+            (with-open [_ (tu/make-system-reverter)]
               (edit-script! props-script ["go.property('atlas', resource.texture('/from-props-script.png'))"])
               (is (texture-resource-property? (:__atlas (properties props-script)) (resource "/from-props-script.png")))
               (is (texture-resource-property? (:__atlas (properties props-script-component)) (resource "/from-props-game-object.atlas")))
@@ -1769,11 +1832,11 @@
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.go") props-script-component]
                            (error-item-open-info-without-opts error-item-of-faulty-node)))))))))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest overrides-remain-after-script-reload-test
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)
           make-atlas! (partial tu/make-atlas-resource-node! project)
           make-resource-node! (partial tu/make-resource-node! project)
@@ -1832,7 +1895,7 @@
           (is (overridden-property? props-script-component))
           (is (overridden-property? ov-props-script-component))
           (is (overridden-property? ov-ov-props-script-component)))
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))
 
 (deftest zip-resource-reference-remains-valid-after-script-reload-test
   ;; It seems currently all ZipResources are recreated during resource sync.
@@ -1844,7 +1907,7 @@
   ;; resource sync had occurred.
   ;; Reported as #4370 "ZipResource equality issues" in the GitHub tracker.
   (with-clean-system
-    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+    (let [workspace (tu/setup-scratch-workspace! "test/resources/empty_project")
           project (tu/setup-project! workspace)]
       (with-open [_ (tu/make-directory-deleter (workspace/project-directory workspace))]
         (doto (tu/make-resource-node! project "/props.script")
@@ -1868,4 +1931,4 @@
                    "/builtins/graphics/particle_blob.tilesource"}
                  (tu/node-built-source-paths props-script))))
 
-        (lsp/await (lsp/get-node-lsp project))))))
+        (lsp/await (lsp/get-lsp))))))

@@ -24,7 +24,7 @@ from os.path import join, normpath, relpath
 
 
 def is_visual_studio_platform(platform):
-    return platform == 'win32' or platform.endswith('-win32')
+    return platform.endswith('-win32')
 
 
 def is_visual_studio_generator(generator):
@@ -32,8 +32,6 @@ def is_visual_studio_generator(generator):
 
 
 def arch_args(platform):
-    if platform == 'win32' or platform.startswith('x86-'):
-        return ['-A', 'Win32']
     if platform.startswith('x86_64-'):
         return ['-A', 'x64']
     if platform.startswith('arm64-'):
@@ -510,5 +508,4 @@ def latest_windows_sdk_version():
         return versions[0]
 
     return None
-
 

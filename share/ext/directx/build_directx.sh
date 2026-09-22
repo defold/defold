@@ -40,8 +40,8 @@ if [ -z "$PLATFORM" ]; then
     exit 1
 fi
 
-if ! [[ $PLATFORM == "x86_64-win32" || $PLATFORM == "win32" ]]; then
-   echo "Only x86_64-win32 and win32 platforms are supported!"
+if [[ $PLATFORM != "x86_64-win32" ]]; then
+   echo "Only x86_64-win32 is supported!"
    exit 1
 fi
 

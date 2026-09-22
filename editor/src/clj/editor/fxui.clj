@@ -36,6 +36,7 @@
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.svg-path :as fx.svg-path]
+            [cljfx.fx.tab-pane :as fx.tab-pane]
             [cljfx.fx.text-area :as fx.text-area]
             [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.toggle-button :as fx.toggle-button]
@@ -140,6 +141,13 @@
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created focus-when-on-scene!
    :desc desc})
+
+(defn tab-pane
+  "TabPane initialized with the Defold tab command context and key handling."
+  [props]
+  {:fx/type fx/ext-on-instance-lifecycle
+   :on-created ui/init-tab-pane!
+   :desc (assoc props :fx/type fx.tab-pane/lifecycle)})
 
 (def ^{:arglists '([props])} slider
   "Slider component with a guard for JavaFX SliderSkin drag events that did not start on the thumb."
@@ -301,9 +309,9 @@
     (fx.mutator/setter #(.setCellFactory ^ListView %1 %2))
     (fx.lifecycle/detached-prop-map fx.list-cell/props)
     :coerce
-    #(let [props-vol (volatile! {})]
-       (reify Callback
-         (call [_ _]
+    #(reify Callback
+       (call [_ _]
+         (let [props-vol (volatile! {})]
            (proxy [ListCell] []
              (updateItem [item empty]
                (let [^ListCell this this

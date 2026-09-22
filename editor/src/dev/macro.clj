@@ -71,7 +71,7 @@
       (simplify-namespace-name alias-names-by-namespace-name)
       (keyword (name expression))))
 
-(defn- simplify-expression-impl [expression alias-names-by-namespace-name simple-symbols-by-canonical-symbol simple-names-by-gensym-name-atom]
+(defn- simplify-form-impl [expression alias-names-by-namespace-name simple-symbols-by-canonical-symbol simple-names-by-gensym-name-atom]
   (cond
     (record? expression)
     expression
@@ -79,19 +79,19 @@
     (map? expression)
     (into (coll/empty-with-meta expression)
           (map (fn [[key value]]
-                 (pair (simplify-expression-impl key alias-names-by-namespace-name simple-symbols-by-canonical-symbol simple-names-by-gensym-name-atom)
-                       (simplify-expression-impl value alias-names-by-namespace-name simple-symbols-by-canonical-symbol simple-names-by-gensym-name-atom))))
+                 (pair (simplify-form-impl key alias-names-by-namespace-name simple-symbols-by-canonical-symbol simple-names-by-gensym-name-atom)
+                       (simplify-form-impl value alias-names-by-namespace-name simple-symbols-by-canonical-symbol simple-names-by-gensym-name-atom))))
           expression)
 
     (or (vector? expression)
         (set? expression))
     (into (coll/empty-with-meta expression)
-          (map #(simplify-expression-impl % alias-names-by-namespace-name simple-symbols-by-canonical-symbol simple-names-by-gensym-name-atom))
+          (map #(simplify-form-impl % alias-names-by-namespace-name simple-symbols-by-canonical-symbol simple-names-by-gensym-name-atom))
           expression)
 
     (coll/list-or-cons? expression)
     (into (coll/empty-with-meta expression)
-          (map #(simplify-expression-impl % alias-names-by-namespace-name simple-symbols-by-canonical-symbol simple-names-by-gensym-name-atom))
+          (map #(simplify-form-impl % alias-names-by-namespace-name simple-symbols-by-canonical-symbol simple-names-by-gensym-name-atom))
           (reverse expression))
 
     (symbol? expression)
@@ -104,16 +104,21 @@
     :else
     expression))
 
+(defn simplify-form
+  ([form]
+   (simplify-form *ns* form))
+  ([ns form]
+   (simplify-form-impl
+     form
+     (make-alias-names-by-namespace-name ns)
+     (make-simple-symbols-by-canonical-symbol ns)
+     (atom {}))))
+
 (defmacro simplify-expression
   ([expression]
-   `(simplify-expression *ns* ~expression))
+   `(simplify-form *ns* ~expression))
   ([ns expression]
-   `(let [ns# ~ns]
-      (#'simplify-expression-impl
-        ~expression
-        (#'make-alias-names-by-namespace-name ns#)
-        (#'make-simple-symbols-by-canonical-symbol ns#)
-        (atom {})))))
+   `(simplify-form ~ns ~expression)))
 
 (defn- pprint-code-impl [expression]
   (binding [pprint/*print-suppress-namespaces* false

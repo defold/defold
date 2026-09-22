@@ -335,6 +335,18 @@ namespace dmGui
         return context;
     }
 
+    void SetContextCallbacks(HContext context,
+                             GetURLCallback get_url_callback,
+                             GetUserDataCallback get_user_data_callback,
+                             ResolvePathCallback resolve_path_callback,
+                             GetTextMetricsCallback get_text_metrics_callback)
+    {
+        context->m_GetURLCallback = get_url_callback;
+        context->m_GetUserDataCallback = get_user_data_callback;
+        context->m_ResolvePathCallback = resolve_path_callback;
+        context->m_GetTextMetricsCallback = get_text_metrics_callback;
+    }
+
     void DeleteContext(HContext context, dmScript::HContext script_context)
     {
         FinalizeScript(context->m_LuaState, script_context);
@@ -715,6 +727,7 @@ namespace dmGui
         scene->m_CloneCustomNodeCallback = params->m_CloneCustomNodeCallback;
         scene->m_UpdateCustomNodeCallback = params->m_UpdateCustomNodeCallback;
         scene->m_CreateCustomNodeCallbackContext = params->m_CreateCustomNodeCallbackContext;
+        scene->m_PrepareNodeTextLayoutCallback = params->m_PrepareNodeTextLayoutCallback;
         scene->m_GetResourceCallback = params->m_GetResourceCallback;
         scene->m_GetResourceCallbackContext = params->m_GetResourceCallbackContext;
         scene->m_GetMaterialPropertyCallback = params->m_GetMaterialPropertyCallback;
@@ -2572,6 +2585,10 @@ namespace dmGui
             else if (node->m_Index != INVALID_INDEX)
             {
                 ++total_nodes;
+                if (node->m_Node.m_TextLayout.m_Handle)
+                {
+                    TextLayoutUpdate(node->m_Node.m_TextLayout.m_Handle, dt);
+                }
                 if (node->m_Node.m_CustomType != 0)
                 {
                     scene->m_UpdateCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(node),
@@ -2803,6 +2820,7 @@ namespace dmGui
         node->m_Node.m_FlipbookAnimHash = 0;
         node->m_Node.m_FlipbookAnimPosition = 0.0f;
         node->m_Node.m_FontHash = 0;
+        node->m_Node.m_TextStyle = dmHashString64("default");
         node->m_Node.m_Font = 0;
         node->m_Node.m_HasHeadlessPfx = 0;
         node->m_Node.m_LayerHash = DEFAULT_LAYER;
@@ -3488,6 +3506,17 @@ namespace dmGui
         return n->m_Node.m_LineBreak;
     }
 
+    void SetNodeTextStyle(HScene scene, HNode node, dmhash_t style)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_TextStyle = style;
+    }
+
+    dmhash_t GetNodeTextStyle(HScene scene, HNode node)
+    {
+        return GetNode(scene, node)->m_Node.m_TextStyle;
+    }
+
     void SetNodeTextLeading(HScene scene, HNode node, float leading)
     {
         InternalNode* n = GetNode(scene, node);
@@ -3720,6 +3749,11 @@ namespace dmGui
         return n->m_Node.m_LayerHash;
     }
 
+    uint16_t GetNodeLayerIndex(HScene scene, HNode node)
+    {
+        return GetLayerIndex(scene, GetNode(scene, node));
+    }
+
     Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id)
     {
         uint16_t* layer_index = scene->m_Layers.Get(layer_id);
@@ -3947,6 +3981,14 @@ namespace dmGui
 
         scene->m_Context->m_GetTextMetricsCallback(*font, text, width, line_break, leading, tracking, metrics);
         return RESULT_OK;
+    }
+
+    void PrepareNodeTextLayout(HScene scene, HNode node)
+    {
+        if (scene->m_PrepareNodeTextLayoutCallback)
+        {
+            scene->m_PrepareNodeTextLayoutCallback(scene, node);
+        }
     }
 
     void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout)
@@ -4317,6 +4359,7 @@ namespace dmGui
         uint64_t anim_frames = (anim_desc.m_State.m_End - anim_desc.m_State.m_Start);
         dmGui::Playback playback = (dmGui::Playback)anim_desc.m_State.m_Playback;
         bool pingpong = playback == dmGui::PLAYBACK_ONCE_PINGPONG || playback == dmGui::PLAYBACK_LOOP_PINGPONG;
+        bool backwards = playback == dmGui::PLAYBACK_ONCE_BACKWARD || playback == dmGui::PLAYBACK_LOOP_BACKWARD;
 
         // Ping pong for flipbook animations should result in double the
         // animation duration.
@@ -4355,7 +4398,8 @@ namespace dmGui
         anim->m_From = 0.0f,
         anim->m_FirstUpdate = 0.0f;
         anim->m_Elapsed = elapsed;
-        n->m_Node.m_FlipbookAnimPosition = offset;
+        // As for sprites, offset is playback progress while the cursor is the visible position.
+        n->m_Node.m_FlipbookAnimPosition = backwards ? 1.0f - offset : offset;
     }
 
     static inline FetchTextureSetAnimResult FetchTextureSetAnim(HScene scene, InternalNode* n, dmhash_t anim)
@@ -4444,6 +4488,8 @@ namespace dmGui
         if(n->m_Node.m_TextureSetAnimDesc.m_State.m_Playback == PLAYBACK_NONE)
         {
             CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            // As for sprites, PLAYBACK_NONE still uses the offset to select a static frame.
+            n->m_Node.m_FlipbookAnimPosition = dmMath::Clamp(offset, 0.0f, 1.0f);
             if (anim_complete_callback != 0x0)
             {
                 anim_complete_callback(scene, node, true, callback_userdata1, callback_userdata2);
@@ -4511,6 +4557,35 @@ namespace dmGui
                 && node_pos.getX() <= 1.0f
                 && node_pos.getY() >= 0.0f
                 && node_pos.getY() <= 1.0f;
+    }
+
+    bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, Point3* position)
+    {
+        Vector4 scale((float)scene->m_Context->m_PhysicalWidth / (float)scene->m_Context->m_DefaultProjectWidth,
+                      (float)scene->m_Context->m_PhysicalHeight / (float)scene->m_Context->m_DefaultProjectHeight, 1.0f, 1.0f);
+        InternalNode* n = GetNode(scene, node);
+        CalculateNodeSize(n);
+
+        Matrix4 transform;
+        CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform);
+        // Preserve a sound inverse for flat GUI nodes, matching PickNode().
+        transform.setElem(2, 2, 1.0f);
+        transform = inverse(transform);
+
+        Vector4     node_pos = transform * Vector4(x * scale.getX(), y * scale.getY(), 0.0f, 1.0f);
+        const float epsilon = 0.0001f;
+        if (dmMath::Abs(node_pos.getZ()) > epsilon)
+        {
+            Vector4 ray_dir = transform.getCol2();
+            if (dmMath::Abs(ray_dir.getZ()) < epsilon)
+            {
+                return false;
+            }
+            node_pos -= ray_dir * (node_pos.getZ() / ray_dir.getZ());
+        }
+
+        *position = Point3(node_pos.getXYZ());
+        return true;
     }
 
     bool IsNodeEnabled(HScene scene, HNode node, bool recursive)
@@ -4871,8 +4946,32 @@ namespace dmGui
         if (n->m_Node.m_FlipbookAnimHash != 0)
         {
             float playback_rate = GetNodeFlipbookPlaybackRate(scene, node);
+            // The visible cursor is ambiguous at a loop wrap, so preserve the active animation phase separately.
+            Animation* source_animation = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            bool copy_animation_phase = source_animation != 0 && source_animation->m_Cancelled == 0;
+            float animation_elapsed = copy_animation_phase ? source_animation->m_Elapsed : 0.0f;
+            uint16_t animation_backwards = copy_animation_phase ? source_animation->m_Backwards : 0;
+
+            // Convert the visible cursor back to playback progress before starting the clone.
             float cursor = GetNodeFlipbookCursor(scene, node);
-            PlayNodeFlipbookAnim(scene, *out_node, n->m_Node.m_FlipbookAnimHash, cursor, playback_rate, 0, 0, 0);
+            float offset = cursor;
+            Playback playback = (Playback)n->m_Node.m_TextureSetAnimDesc.m_State.m_Playback;
+            if (playback == PLAYBACK_ONCE_BACKWARD || playback == PLAYBACK_LOOP_BACKWARD)
+            {
+                offset = 1.0f - offset;
+            }
+            PlayNodeFlipbookAnim(scene, *out_node, n->m_Node.m_FlipbookAnimHash, offset, playback_rate, 0, 0, 0);
+
+            if (copy_animation_phase)
+            {
+                Animation* clone_animation = GetComponentAnimation(scene, *out_node, &out_n->m_Node.m_FlipbookAnimPosition);
+                if (clone_animation != 0)
+                {
+                    clone_animation->m_Elapsed = animation_elapsed;
+                    clone_animation->m_Backwards = animation_backwards;
+                    out_n->m_Node.m_FlipbookAnimPosition = cursor;
+                }
+            }
         }
 
         if (n->m_Node.m_ParticleInstance != 0x0)

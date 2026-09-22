@@ -18,6 +18,7 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.cljfx-form-view :as cljfx-form-view]
+            [editor.code.data :as data]
             [editor.code.view :as code-view]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
@@ -40,6 +41,7 @@
             [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.resource :as resource]
+            [editor.resource-types :as resource-types]
             [editor.scene :as scene]
             [editor.ui :as ui]
             [editor.view :as view]
@@ -67,6 +69,33 @@
     (let [rt (rt/make)
           p (rt/read "return 1")]
       (is (= 1 (rt/->clj rt (rt/invoke-immediate-1 rt (rt/bind rt p))))))))
+
+(deftest bundle-editor-script-android-device-pattern-test
+  (let [[_ pattern-literal] (->> (io/resource "bundle.editor_script")
+                                 (slurp)
+                                 (re-find #"devices_output:match\((\"(?:\\.|[^\"])*\")\)"))]
+    (when (is pattern-literal "Expected to find the Android device pattern in bundle.editor_script")
+      (test-support/with-clean-system
+        (let [rt (rt/make)
+              parse-device (->> (format "local pattern = %s
+                                         return function(input)
+                                             local id, kvs = input:match(pattern)
+                                             return {id, kvs}
+                                         end"
+                                        pattern-literal)
+                                (rt/read)
+                                (rt/bind rt)
+                                (rt/invoke-immediate-1 rt))]
+          (doseq [[devices-output expected]
+                  [["List of devices attached\nA                     device product:p model:m device:d transport_id:1\n"
+                    ["A" "product:p model:m device:d transport_id:1"]]
+                   ["List of devices attached\n0123456789            device usb:1-1 product:p model:m device:d transport_id:1\n"
+                    ["0123456789" "usb:1-1 product:p model:m device:d transport_id:1"]]
+                   ["List of devices attached\nadb-SERIAL (2)._adb-tls-connect._tcp device product:p model:m device:d transport_id:2\n"
+                    ["adb-SERIAL (2)._adb-tls-connect._tcp" "product:p model:m device:d transport_id:2"]]
+                   ["List of devices attached\nMy device Phone._adb-tls-connect._tcp device product:p model:m device:d transport_id:3\n"
+                    ["My device Phone._adb-tls-connect._tcp" "product:p model:m device:d transport_id:3"]]]]
+            (is (= expected (rt/->clj rt (coerce/vector-of coerce/string) (rt/invoke-immediate-1 rt parse-device (rt/->lua devices-output)))))))))))
 
 (deftest thread-safe-access-test
   (test-support/with-clean-system
@@ -212,7 +241,7 @@
 
 (deftest suspendable-functions-can-refresh-contexts
   (test-support/with-clean-system
-    (let [node-id (g/make-node! world TestNode :value 1)
+    (let [node-id (g/make-node! TestNode :value 1)
           rt (rt/make :env {"get_value" (rt/lua-fn [{:keys [evaluation-context]}]
                                           (rt/->lua (g/node-value node-id :value evaluation-context)))
                             "set_value" (rt/suspendable-lua-fn [{:keys [rt]} n]
@@ -245,34 +274,33 @@
           default-err (StringWriter.)
           override-out (StringWriter.)
           override-err (StringWriter.)
-            rt (rt/make
-                 :out default-out
-                 :err default-err
-                 :env {"suspend" (rt/suspendable-lua-fn [_]
-                                    (future/io (Thread/sleep 10)))
-                       "with_output_override" (rt/suspendable-lua-fn [{:keys [rt]} f]
-                                                (rt/invoke-suspending-1 rt {:override-out override-out
-                                                                            :override-err override-err}
-                                                                        f))})]
-        (->> (rt/read "print('default before')
-	                     io.stderr:write('default err before\\n')
-	                     with_output_override(function()
-	                       print('override')
-	                       io.stderr:write('override err\\n')
-	                       suspend()
-	                       print('override after')
-	                       io.stderr:write('override err after\\n')
-	                     end)
-	                     print('default after')
-	                     io.stderr:write('default err after\\n')")
-             (rt/bind rt)
-             (rt/invoke-suspending-1 rt)
-             (deref))
-        (is (= "default before\ndefault after\n" (.toString default-out)))
-        (is (= "default err before\ndefault err after\n" (.toString default-err)))
-        (is (= "override\noverride after\n" (.toString override-out)))
-        (is (= "override err\noverride err after\n" (.toString override-err))))))
-
+          rt (rt/make
+               :out default-out
+               :err default-err
+               :env {"suspend" (rt/suspendable-lua-fn [_]
+                                 (future/io (Thread/sleep 10)))
+                     "with_output_override" (rt/suspendable-lua-fn [{:keys [rt]} f]
+                                              (rt/invoke-suspending-1 rt {:override-out override-out
+                                                                          :override-err override-err}
+                                                                      f))})]
+      (->> (rt/read "print('default before')
+	                   io.stderr:write('default err before\\n')
+	                   with_output_override(function()
+	                     print('override')
+	                     io.stderr:write('override err\\n')
+	                     suspend()
+	                     print('override after')
+	                     io.stderr:write('override err after\\n')
+	                   end)
+	                   print('default after')
+	                   io.stderr:write('default err after\\n')")
+           (rt/bind rt)
+           (rt/invoke-suspending-1 rt)
+           (deref))
+      (is (= "default before\ndefault after\n" (.toString default-out)))
+      (is (= "default err before\ndefault err after\n" (.toString default-err)))
+      (is (= "override\noverride after\n" (.toString override-out)))
+      (is (= "override err\noverride err after\n" (.toString override-err))))))
 
 (deftest suspending-lua-failure-test
   (test-support/with-clean-system
@@ -324,14 +352,14 @@
       (save-project! project)
       (future/completed nil))))
 
-(defn- open-resource-noop! [_]
+(defn- open-resource-noop! [_resource _opts]
   (future/completed nil))
 
 (defn- fetch-libraries-noop! []
   (future/completed [[] true]))
 
 (defn- make-invoke-bob-fn [project]
-  (fn invoke-bob! [options commands _]
+  (fn invoke-bob! [options commands]
     (future/io
       (let [ret (bob/invoke! project options commands)]
         (when (or (:error ret) (:exception ret))
@@ -361,8 +389,8 @@
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
     (let [script-node (test-util/resource-node project "/test.editor_script")
           reload-needed? (fn []
-                            (g/with-auto-evaluation-context evaluation-context
-                              (extensions/reload-needed? project evaluation-context)))]
+                           (g/with-auto-evaluation-context evaluation-context
+                             (extensions/reload-needed? project evaluation-context)))]
       (reload-editor-scripts! project)
       (is (not (reload-needed?)))
 
@@ -416,7 +444,7 @@
                 (catch Throwable e e))))
         (is (= [1.5 1.5 1.5] (test-util/prop sprite-node-id :position)))
         (is (= 2.5 (test-util/prop sprite-node-id :playback-rate))))
-      
+
       ;; Reuse the same outline command from the Edit menu to verify that an
       ;; outline selection query still works outside the Outline view:
       (let [handler+context (handler/active
@@ -432,7 +460,7 @@
                 (catch Throwable e e))))
         (is (= [3 3 3] (test-util/prop sprite-node-id :position)))
         (is (= 4 (test-util/prop sprite-node-id :playback-rate))))
-      
+
       ;; Run the separate scene command from the Scene context menu.
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.scene-selection/context-menu-end)))
@@ -511,7 +539,7 @@
                           [:out (re-find #"\w+" line)]))
                    (string/split-lines
                      (process/exec! "git" "log" "--oneline" "--max-count=10")))
-            @output)))))
+             @output)))))
 
 (deftest transact-test
   (test-util/with-loaded-project "test/resources/editor_extensions/transact_test"
@@ -549,7 +577,7 @@
       (is (= [1 2 3 4] (test-util/prop node :__vec4)))
 
       ;; single undo
-      (g/undo! (g/node-id->graph-id project))
+      (g/undo! :undo/global)
 
       ;; all the changes should be reverted — a single transaction!
       (test-initial-state!))))
@@ -583,17 +611,31 @@
 
 (deftest open-resource-test
   (test-util/with-loaded-project "test/resources/editor_extensions/open_resource_project"
+    (g/transact
+      (concat
+        (cljfx-form-view/register-view-types workspace)
+        (code-view/register-view-types workspace)))
+    (resource-types/register-resource-types! workspace)
     (let [output (atom [])]
       (reload-editor-scripts! project
                               :display-output! #(swap! output conj [%1 %2])
-                              :open-resource! #(swap! output conj [:open-resource (resource/proj-path %)]))
+                              :open-resource! (fn [resource opts]
+                                                (swap! output conj [:open-resource
+                                                                    (resource/proj-path resource)
+                                                                    (some-> opts :selected-view-type :id)
+                                                                    (:cursor-range opts)])))
       (run-edit-menu-test-command!)
       ;; see test.editor script: it uses editor.open_resource with different resource
       ;; paths and prints results
-      (is (= [[:open-resource "/game.project"]
+      (is (= [[:open-resource "/game.project" nil nil]
               [:out "Open '/game.project': ok"]
-              [:out "Open '/does_not_exist.txt': ok"]
-              [:out "Open 'not_a_resource_path.go': error"]]
+              [:out "Open '/does_not_exist.txt': error"]
+              [:out "Open 'not_a_resource_path.go': error"]
+              [:open-resource "/game.project" :form nil]
+              [:out "Open form view: ok"]
+              [:open-resource "/test.editor_script" :code (data/->CursorRange (data/->Cursor 2 1) (data/->Cursor 2 1))]
+              [:out "Open code position: ok"]
+              [:out "Open args without view: error"]]
              @output)))))
 
 (deftest coercer-test
@@ -1786,10 +1828,10 @@ After transaction (clear):
 Collision object initial state:
   collision_type: collision-object-type-dynamic
   shapes: 0
-Transaction: add 3 shapes
-After transaction (add 3 shapes):
+Transaction: add 5 shapes
+After transaction (add 5 shapes):
   collision_type: collision-object-type-static
-  shapes: 3
+  shapes: 5
   - id: box
     type: shape-type-box
     dimensions: 20 20 20
@@ -1800,13 +1842,17 @@ After transaction (add 3 shapes):
     type: shape-type-capsule
     diameter: 20
     height: 40
+  - id: hull
+    type: shape-type-hull
+  - id: mesh
+    type: shape-type-mesh
 Transaction: clear
 After transaction (clear):
   collision_type: collision-object-type-dynamic
   shapes: 0
 Expected errors:
   missing type => type is required
-  wrong type => box is not shape-type-box, shape-type-capsule or shape-type-sphere
+  wrong type => box is not shape-type-box, shape-type-capsule, shape-type-hull, shape-type-mesh or shape-type-sphere
 GUI initial state:
   layers: 0
   materials: 0
@@ -1816,6 +1862,8 @@ GUI initial state:
   spine scenes: 0
   fonts: 0
   nodes: 0
+  can add undefined list: false
+  can reorder undefined list: false
 Transaction: edit GUI
 After transaction (edit):
   layers: 2
@@ -1895,7 +1943,7 @@ Transaction: set override node property
   text: custom text
   can reset: true
 Transaction: reset override node property
-  text: <text>
+  text: -text-
   can reset: false
 Transaction: set override position and layout position properties
   position = {10, 10, 10}, can reset = true
@@ -2343,6 +2391,43 @@ Expected collection errors:
 Transaction: clear collection
 After transaction (clear collection)
   children: 0 (editable)
+Font initial state:
+  styles: 1
+    id: style1
+    markup: [<color=#00ff00>]
+  can get styles: true
+  can add styles: true
+  can set styles: false
+Transaction: add and edit font styles
+After transaction (add and edit font styles):
+  styles: 4
+    id: notice
+    markup: [<color=#aa3300>\\n<ul>]
+    id: style
+    markup: []
+    id: style2
+    markup: []
+    id: accent
+    markup: [<color=#ff6600>]
+Transaction: remove font style
+After transaction (remove font style):
+  styles: 3
+    id: notice
+    markup: [<color=#aa3300>\\n<ul>]
+    id: style2
+    markup: []
+    id: accent
+    markup: [<color=#ff6600>]
+Transaction: clear font styles
+After transaction (clear font styles):
+  styles: 0
+Transaction: add font styles after clear
+After transaction (add font styles after clear):
+  styles: 2
+    id: notice
+    markup: [<color=#aa3300>\\n<ul>]
+    id: accent
+    markup: [<color=#ff6600>]
 ")
 
 (deftest attachment-properties-test
@@ -2610,9 +2695,9 @@ localization.message('progress.loading-resource', {resource = message}) => Loadi
       (run!
         (fn [[proj-path view-node-type view-node-args label]]
           (let [resource-node (test-util/resource-node project proj-path)
-                view-graph (test-util/make-view-graph!)
-                view-node (first (g/take-node-ids view-graph 1))]
+                view-node (first (g/take-node-ids 1))]
             (g/transact
+              {:undoable false}
               (concat
                 (g/add-node (apply g/construct view-node-type :_node-id view-node view-node-args))
                 (view/connect-resource-node view-node resource-node)

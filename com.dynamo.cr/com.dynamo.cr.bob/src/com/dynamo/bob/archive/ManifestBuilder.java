@@ -15,7 +15,6 @@
 package com.dynamo.bob.archive;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -120,24 +119,9 @@ public class ManifestBuilder {
     private HashMap<String, ResourceEntry> urlToResource = new HashMap<>();
     private Set<String> supportedEngineVersions = new HashSet<String>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
-        // We need to make sure the entries are sorted properly in order to do the binary search.
-        private int compare(byte[] left, byte[] right) {
-            for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
-                int a = (left[i] & 0xff);
-                int b = (right[j] & 0xff);
-                if (a != b) {
-                    return a - b;
-                }
-            }
-            return left.length - right.length;
-        }
-
         public int compare(ResourceEntry s1, ResourceEntry s2) {
             // We want a set sorted on hashes, so we can do binary search at runtime.
-            // Compare on bytes here because Java does not have unsigned integral types.
-            byte[] s1Bytes = ByteBuffer.allocate(Long.SIZE / Byte.SIZE).putLong(s1.getUrlHash()).array();
-            byte[] s2Bytes = ByteBuffer.allocate(Long.SIZE / Byte.SIZE).putLong(s2.getUrlHash()).array();
-            return compare(s1Bytes, s2Bytes);
+            return Long.compareUnsigned(s1.getUrlHash(), s2.getUrlHash());
         }
     });
 

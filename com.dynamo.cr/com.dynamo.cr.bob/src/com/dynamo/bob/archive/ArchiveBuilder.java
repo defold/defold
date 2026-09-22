@@ -51,10 +51,8 @@ import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.archive.publisher.Publisher;
+import com.dynamo.bob.util.LZ4;
 import com.dynamo.bob.util.TimeProfiler;
-
-import net.jpountz.lz4.LZ4Compressor;
-import net.jpountz.lz4.LZ4Factory;
 
 public class ArchiveBuilder {
 
@@ -76,7 +74,6 @@ public class ArchiveBuilder {
     private Map<String, String> hexDigestCache = new ConcurrentHashMap<>();
     private String root;
     private ManifestBuilder manifestBuilder = null;
-    private LZ4Compressor lz4Compressor;
     private byte[] archiveIndexMD5 = new byte[MD5_HASH_DIGEST_BYTE_LENGTH];
     private int resourcePadding = 4;
     private boolean forceCompression = false; // for building unit tests to create test content
@@ -90,7 +87,6 @@ public class ArchiveBuilder {
     public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, int resourcePadding, Project project) {
         this.root = new File(root).getAbsolutePath();
         this.manifestBuilder = manifestBuilder;
-        this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
         this.resourcePadding = resourcePadding;
         this.project = project;
         this.publisher = project.getPublisher();
@@ -116,24 +112,13 @@ public class ArchiveBuilder {
         add(fileName, false, false, false);
     }
 
-    public ArchiveEntry getArchiveEntry(int index) {
-        return this.entries.get(index);
-    }
-
-    public int getArchiveEntrySize() {
-        return this.entries.size();
-    }
-
     public byte[] loadResourceData(String filepath) throws IOException {
         File fhandle = new File(filepath);
         return FileUtils.readFileToByteArray(fhandle);
     }
 
     public byte[] compressResourceData(byte[] buffer) {
-        int maximumCompressedSize = lz4Compressor.maxCompressedLength(buffer.length);
-        byte[] compressedContent = new byte[maximumCompressedSize];
-        int compressedSize = lz4Compressor.compress(buffer, compressedContent);
-        return Arrays.copyOfRange(compressedContent, 0, compressedSize);
+        return LZ4.compress(buffer);
     }
 
     public void setForceCompression(boolean forceCompression) {
@@ -335,7 +320,7 @@ public class ArchiveBuilder {
     //                                            ↓
     //                    → Final in-memory resource ready for use
     //
-    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Set<String> excludedResources) throws IOException, CompileExceptionError {
+    public ArrayList<ArchiveEntry> write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Set<String> excludedResources) throws IOException, CompileExceptionError {
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
         logger.info("Creating archive entries with a fixed thread pool executor using %d threads", nThreads);
@@ -355,7 +340,6 @@ public class ArchiveBuilder {
             boolean excluded = excludedResources.contains(normalisedPath);
             if (excluded) {
                 entry.setFlag(ArchiveEntry.FLAG_LIVEUPDATE);
-                entries.remove(i);
                 excludedEntries.add(entry);
             }
             else {
@@ -382,8 +366,9 @@ public class ArchiveBuilder {
             archiveData.close();
         }
 
-        entries = new ArrayList<ArchiveEntry>(writtenIntoArcd.values());
-        writeArchiveIndex(archiveIndex, entries);
+        ArrayList<ArchiveEntry> archiveEntries = new ArrayList<ArchiveEntry>(writtenIntoArcd.values());
+        writeArchiveIndex(archiveIndex, archiveEntries);
+        return archiveEntries;
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {

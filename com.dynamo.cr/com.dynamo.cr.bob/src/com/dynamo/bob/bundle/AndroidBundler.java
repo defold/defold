@@ -19,18 +19,13 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
-import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
-import java.lang.StringBuilder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
@@ -50,30 +45,23 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.TimeProfiler;
 
 import com.dynamo.bob.tools.AndroidTools;
 import com.dynamo.bob.tools.ToolsHelper;
 
-@BundlerParams(platforms = {"armv7-android", "arm64-android"})
+@BundlerParams(platforms = {"armv7-android", "arm64-android", "x86_64-android"})
 public class AndroidBundler implements IBundler {
     private static Logger logger = Logger.getLogger(AndroidBundler.class.getName());
 
-    private static String stripToolName = "strip_android";
     private static final String VKQUALITY_DATA_FILE = "vkqualitydata.vkq";
-
-    private static Hashtable<Platform, String> platformToStripToolMap = new Hashtable<Platform, String>();
-    static {
-        platformToStripToolMap.put(Platform.Armv7Android, stripToolName);
-        platformToStripToolMap.put(Platform.Arm64Android, "strip_android_aarch64");
-    }
 
     private static Hashtable<Platform, String> platformToLibMap = new Hashtable<Platform, String>();
     static {
         platformToLibMap.put(Platform.Armv7Android, "armeabi-v7a");
         platformToLibMap.put(Platform.Arm64Android, "arm64-v8a");
+        platformToLibMap.put(Platform.X86_64Android, "x86_64");
     }
 
     private void logResourceMap(Map<String, IResource> map) {
@@ -164,7 +152,7 @@ public class AndroidBundler implements IBundler {
         String keystorePassword = getKeystorePassword(project);
         String alias = project.option("keystore-alias", "");
         if (alias.length() == 0) {
-            try (FileInputStream is = new FileInputStream(new File(keystorePath))) {
+            try (FileInputStream is = new FileInputStream(keystorePath)) {
                 KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
                 keystore.load(is, keystorePassword.toCharArray());
                 Enumeration<String> enumeration = keystore.aliases();
@@ -216,15 +204,13 @@ public class AndroidBundler implements IBundler {
         return getArchitectures(project).get(0);
     }
 
-    private void stripBinary(Project project, Platform architecture, File binary, ICanceled canceled) throws IOException, CompileExceptionError
+    private void stripBinary(Project project, File binary, ICanceled canceled) throws IOException, CompileExceptionError
     {
         final boolean strip_executable = project.hasOption("strip-executable");
         if (strip_executable) {
-            String stripToolExe = platformToStripToolMap.get(architecture);
-            if (Platform.getHostPlatform() == Platform.X86_64MacOS || Platform.getHostPlatform() == Platform.Arm64MacOS) {
-                stripToolExe = stripToolName;
-            }
-            String stripTool = Bob.getExe(Platform.getHostPlatform(), stripToolExe);
+            // llvm-strip reads every Android ABI, so a single tool covers armv7/arm64/x86_64
+            String stripToolName = "strip_android";
+            String stripTool = Bob.getExe(Platform.getHostPlatform(), stripToolName);
             AndroidTools.exec(stripTool, binary.getAbsolutePath());
             BundleHelper.throwIfCanceled(canceled);
         }
@@ -270,7 +256,7 @@ public class AndroidBundler implements IBundler {
     */
     private ArrayList<File> getClassesDex(Project project) throws IOException {
         ArrayList<File> classesDex = new ArrayList<>();
-        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
+        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project, getFirstPlatform(project));
 
         final String extenderExeDir = project.getBinaryOutputDirectory();
         for (Platform architecture : getArchitectures(project)) {
@@ -319,6 +305,7 @@ public class AndroidBundler implements IBundler {
         Set<String> set = new HashSet<>();
         set.addAll(Arrays.asList(Platform.Armv7Android.getExtenderPaths()));
         set.addAll(Arrays.asList(Platform.Arm64Android.getExtenderPaths()));
+        set.addAll(Arrays.asList(Platform.X86_64Android.getExtenderPaths()));
         List<String> platformFolders = new ArrayList<String>(set);
 
         for (String bundleResourcesPath : bundleResourcesPaths) {
@@ -348,16 +335,16 @@ public class AndroidBundler implements IBundler {
             return true;
         }
         boolean hasVulkanAdapter = false;
-        boolean hasFallbackAdapter = false;
+        boolean hasOpenGlesAdapter = false;
         for (String shaderAdapter : shaderAdapters.split(",")) {
             String adapter = shaderAdapter.trim();
             if (ShaderCompilers.SHADER_ADAPTER_VULKAN.equals(adapter)) {
                 hasVulkanAdapter = true;
-            } else if (!adapter.isEmpty()) {
-                hasFallbackAdapter = true;
+            } else if (ShaderCompilers.SHADER_ADAPTER_OPENGLES.equals(adapter)) {
+                hasOpenGlesAdapter = true;
             }
         }
-        return hasVulkanAdapter && hasFallbackAdapter;
+        return hasVulkanAdapter && hasOpenGlesAdapter;
     }
 
     private void copyVkQualityDataFile(File assetsDir, ICanceled canceled) throws IOException, CompileExceptionError {
@@ -453,7 +440,7 @@ public class AndroidBundler implements IBundler {
             for (File resDir : compiledResourcesDir.listFiles(File::isDirectory)) {
                 for (File file : resDir.listFiles()) {
                     if (file.getAbsolutePath().endsWith(".flat")) {
-                        sb.append(file.getAbsolutePath() + " ");
+                        sb.append(file.getAbsolutePath()).append(" ");
                     }
                 }
             }
@@ -584,12 +571,12 @@ public class AndroidBundler implements IBundler {
                 File dest = new File(architectureDir, "lib" + exeName + ".so");
                 logger.info("Copying engine to " + dest);
                 copyEngineBinary(project, architecture, dest, canceled);
-                stripBinary(project, architecture, dest, canceled);
+                stripBinary(project, dest, canceled);
                 
                 if (vkQualityEnabled)
                 {
                     File libdest = copyVkQualityLibrary(project, architecture, libDir, canceled);
-                    stripBinary(project, architecture, libdest, canceled);
+                    stripBinary(project, libdest, canceled);
                 }
                 else
                 {
@@ -598,7 +585,7 @@ public class AndroidBundler implements IBundler {
             }
 
             // copy shared libraries (from dependency.aar/jni/<arch>/<name>.so)
-            if (ExtenderUtil.hasNativeExtensions(project)) {
+            if (ExtenderUtil.hasNativeExtensions(project, getFirstPlatform(project))) {
                 final Platform platform = getFirstPlatform(project);
                 File jniDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/jni");
                 if (jniDir.exists()) {
@@ -734,6 +721,14 @@ public class AndroidBundler implements IBundler {
     /**
     * Copy debug symbols
     */
+    static void copyR8Mapping(File extenderExeDir, Platform architecture, File symbolsDir) throws IOException {
+        File r8Mapping = Path.of(extenderExeDir.getPath(), architecture.getExtenderPair(), "mapping.txt").toFile();
+        if (r8Mapping.exists()) {
+            File symbolMapping = new File(symbolsDir, r8Mapping.getName());
+            FileUtils.copyFile(r8Mapping, symbolMapping);
+        }
+    }
+
     private void copySymbols(Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         final boolean hasSymbols = project.hasOption("with-symbols");
         if (!hasSymbols) {
@@ -758,11 +753,7 @@ public class AndroidBundler implements IBundler {
             }
         }
 
-        File proguardMapping = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architectures.get(0).getExtenderPair(), "mapping.txt")));
-        if (proguardMapping.exists()) {
-            File symbolMapping = new File(symbolsDir, proguardMapping.getName());
-            FileUtils.copyFile(proguardMapping, symbolMapping);
-        }
+        copyR8Mapping(new File(extenderExeDir), architectures.get(0), symbolsDir);
     }
 
     /**
@@ -787,7 +778,7 @@ public class AndroidBundler implements IBundler {
         final Platform platform = getFirstPlatform(project);
 
         File apk;
-        if (ExtenderUtil.hasNativeExtensions(project)) {
+        if (ExtenderUtil.hasNativeExtensions(project, platform)) {
             apk = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/compiledresources.apk");
         }
         else {
@@ -925,14 +916,6 @@ public class AndroidBundler implements IBundler {
         // We copy and resize the default icon in builtins if no other icons are set.
         // This means that the app will always have icons from now on.
         properties.put("has-icons?", true);
-        boolean vkQualityEnabled = usesVkQuality(project);
-        properties.put("defold.vkquality.enabled", vkQualityEnabled ? "true" : "false");
-
-        Map<String, Object> defoldProperties = propertiesMap.computeIfAbsent("defold", k -> new HashMap<String, Object>());
-        Map<String, Object> vkQualityProperties = new HashMap<String, Object>();
-        vkQualityProperties.put("enabled", vkQualityEnabled);
-        defoldProperties.put("vkquality", vkQualityProperties);
-
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false) == false) {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
             Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
@@ -952,7 +935,7 @@ public class AndroidBundler implements IBundler {
             Map<String, Object> propGroup = propertiesMap.get("android");
             if (propGroup != null && propGroup.containsKey("debuggable")) {
                 boolean debuggable = project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG);
-                propGroup.put("debuggable", debuggable ? "true":"false");
+                propGroup.put("debuggable", Boolean.toString(debuggable));
             }
         }
     }

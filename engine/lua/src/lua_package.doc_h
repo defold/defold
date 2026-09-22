@@ -182,6 +182,5 @@
  * 
  * 
  * @name package.seeall
- * @param module [type:table]
+ * @param module [type:table<any, any>]
  */
-

@@ -17,7 +17,9 @@
             [dynamo.graph :as g]
             [editor.fs :as fs]
             [editor.library :as library]
-            [internal.system :as is])
+            [internal.graph :as ig]
+            [internal.system :as is]
+            [util.coll :as coll])
   (:import [java.io File]
            [java.net URI]
            [java.util Base64]
@@ -34,8 +36,7 @@
   (let [configuration (if (map? (first forms)) (first forms) {:cache-size 1000})
         forms (if (map? (first forms)) (next forms)  forms)]
     `(let [system# (is/make-system ~configuration)
-           ~'cache (is/system-cache system#)
-           ~'world (first (keys (is/graphs system#)))]
+           ~'cache (is/system-cache system#)]
        (binding [g/*the-system* (atom system#)]
          ~@forms))))
 
@@ -46,7 +47,7 @@
   (and
     (= (class a) (class b))
     (= (count a) (count b))
-    (every? true? (map = a b))))
+    (coll/every? true? (map = a b))))
 
 (defn yield
   "Give up the thread just long enough for a context switch"
@@ -54,12 +55,16 @@
   (Thread/sleep 1))
 
 (defn undo-stack
-  [graph]
-  (is/undo-stack (is/graph-history @g/*the-system* graph)))
+  [undo-key]
+  (is/undo-stack (is/maybe-undo @g/*the-system* undo-key)))
 
 (defn redo-stack
-  [graph]
-  (is/redo-stack (is/graph-history @g/*the-system* graph)))
+  [undo-key]
+  (is/redo-stack (is/maybe-undo @g/*the-system* undo-key)))
+
+(defn undoable-changes
+  [& tx-steps]
+  (:undoable-changes (g/transact {:dry-run true} tx-steps)))
 
 ;; These *-until-new-mtime fns are hacks to support the resource-watch sync, which checks mtime
 
@@ -82,7 +87,8 @@
 (defn write-until-new-mtime [f content]
   (do-until-new-mtime (fn [f] (fs/create-file! f content)) f))
 
-(defn library-directory ^File [project-directory]
+(defn library-directory
+  ^File [project-directory]
   (.toFile (library/directory project-directory)))
 
 (defn library-files [project-directory]
@@ -100,6 +106,15 @@
    (graph-dependencies (g/now) tgts))
   ([basis tgts]
    (g/dependencies basis tgts)))
+
+(defn graph-remove-node
+  [graph node-id]
+  (let [{:keys [deleted-nodes
+                removed-arc->source+target-pkids
+                removed-node-id->pkid->override-node-id
+                removed-overrides-by-id]}
+        (ig/basis-plan-delete-nodes graph [node-id])]
+    (ig/basis-perform-delete-nodes graph deleted-nodes removed-arc->source+target-pkids removed-overrides-by-id removed-node-id->pkid->override-node-id)))
 
 (defmacro with-post-ec
   "Given a symbol that resolves to a function, returns a fn that executes that
@@ -119,8 +134,8 @@
 
 (defmacro with-cleared-system-properties! [property-names & body-exprs]
   {:pre [(vector? property-names)
-         (every? string? property-names)
-         (every? not-empty property-names)]}
+         (coll/every? string? property-names)
+         (coll/every? not-empty property-names)]}
   (let [sym+property-name-pairs
         (into []
               (map (fn [^String property-name]
@@ -147,3 +162,21 @@
                 (map (fn [[sym ^String property-name]]
                        `(set-system-property! ~property-name ~sym))
                      (rseq sym+property-name-pairs)))]))]))))
+
+(defn cacheable-endpoints
+  "Returns a sorted set of Endpoints that are cacheable on the node-id."
+  ([node-id]
+   (cacheable-endpoints (g/now) node-id))
+  ([basis node-id]
+   (if-let [node-type (g/node-type* basis node-id)]
+     (coll/into-> (g/cached-outputs node-type) (sorted-set)
+       (map #(g/endpoint node-id %)))
+     coll/empty-sorted-set)))
+
+(defn cached-endpoints
+  "Returns a sorted set of Endpoints that currently reside in the cache."
+  ([] (cached-endpoints (g/cache)))
+  ([cache]
+   (into (sorted-set)
+         (map key)
+         cache)))

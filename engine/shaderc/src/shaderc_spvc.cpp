@@ -485,6 +485,30 @@ namespace dmShaderc
         }
     }
 
+    static void SetCombinedSamplerNamesGLSL(HShaderContext context, ShaderCompilerSPVC* compiler)
+    {
+        dmArray<CombinedSampler> combined_samplers;
+        GetCombinedSamplerMapSPIRV(context, compiler, combined_samplers);
+
+        dmArray<char> combined_name;
+        const char* prefix = "SPIRV_Cross_Combined";
+        for (uint32_t i = 0; i < combined_samplers.Size(); ++i)
+        {
+            const CombinedSampler& sampler = combined_samplers[i];
+            const char* image_name         = sampler.m_ImageName;
+            const char* sampler_name       = sampler.m_SamplerName;
+            if (!image_name || !image_name[0] || !sampler_name || !sampler_name[0])
+                continue;
+
+            const size_t combined_name_size = strlen(prefix) + strlen(image_name) + strlen(sampler_name) + 1;
+            if (combined_name.Capacity() < combined_name_size)
+                combined_name.SetCapacity(combined_name_size);
+            combined_name.SetSize(combined_name_size);
+            dmSnPrintf(combined_name.Begin(), combined_name_size, "%s%s%s", prefix, image_name, sampler_name);
+            spvc_compiler_set_name(compiler->m_SPVCCompiler, sampler.m_CombinedId, combined_name.Begin());
+        }
+    }
+
     #define MAX_BINDINGS 128
     bool GetFirstFreeBindingIndex(HShaderContext context, uint32_t* binding)
     {
@@ -564,15 +588,6 @@ namespace dmShaderc
         }
     }
 
-    template <typename T>
-    static void EnsureSize(dmArray<T>& array, uint32_t size)
-    {
-        if (array.Capacity() < size) {
-            array.OffsetCapacity(size - array.Capacity());
-        }
-        array.SetSize(size);
-    }
-
     static bool ReplaceString(const char *src, const char* search_str, const char *replacement, dmArray<char>* result_buf)
     {
         const char* found = strstr(src, search_str);
@@ -592,7 +607,7 @@ namespace dmShaderc
         uint32_t suffix_len      = strlen(line_end);
         uint32_t total           = prefix_len + replacement_len + suffix_len + 1;
 
-        EnsureSize(*result_buf, total);
+        result_buf->EnsureSize(total);
 
         char* dst = result_buf->Begin();
         memcpy(dst, src, prefix_len);
@@ -664,6 +679,13 @@ namespace dmShaderc
 
         spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, context->m_ExecutionModel);
         spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
+
+        // SPIRV-Cross may leave synthetic combined samplers with an ID-based
+        // name (for example, `_194`) after texture/sampler splitting. Give the
+        // generated resource its canonical SPIRV-Cross name so Bob can map it
+        // back to the reflected texture name in GLSL variants.
+        if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_GLSL)
+            SetCombinedSamplerNamesGLSL(context, compiler);
 
         if (compiler->m_BaseCompiler.m_Language == SHADER_LANGUAGE_GLSL)
         {
@@ -792,7 +814,7 @@ namespace dmShaderc
         // highp qualifier might not be supported on ES2, so we need to apply a workaround.
         if (compile_result && options.m_GlslEs && options.m_Version == 100 && context->m_Stage == SHADER_STAGE_FRAGMENT)
         {
-            EnsureSize(transform_buffer, compile_result_size + 1);
+            transform_buffer.EnsureSize(compile_result_size + 1);
             memcpy(transform_buffer.Begin(), compile_result, compile_result_size);
             transform_buffer.Begin()[compile_result_size] = '\0';
 
@@ -804,7 +826,7 @@ namespace dmShaderc
                  (options.m_GlslEsDefaultFloatPrecision == SHADER_PRECISION_MEDIUMP &&
                   ApplyMediumpPrecisionOverride(transform_buffer.Begin(), &tmp_buffer, true))))
             {
-                EnsureSize(transform_buffer, tmp_buffer.Size());
+                transform_buffer.EnsureSize(tmp_buffer.Size());
                 memcpy(transform_buffer.Begin(), tmp_buffer.Begin(), tmp_buffer.Size());
                 transform_content_size = tmp_buffer.Size() - 1;
             }
@@ -813,7 +835,7 @@ namespace dmShaderc
                  (options.m_GlslEsDefaultIntPrecision == SHADER_PRECISION_MEDIUMP &&
                   ApplyMediumpPrecisionOverride(transform_buffer.Begin(), &tmp_buffer, false))))
             {
-                EnsureSize(transform_buffer, tmp_buffer.Size());
+                transform_buffer.EnsureSize(tmp_buffer.Size());
                 memcpy(transform_buffer.Begin(), tmp_buffer.Begin(), tmp_buffer.Size());
                 transform_content_size = tmp_buffer.Size() - 1;
             }

@@ -28,7 +28,7 @@ namespace dmGameSystem
 {
     struct FontResource;
 
-    // Used by the engine to setup the dmGui::HContext
+    // Callbacks used to integrate dmGui scenes with game objects
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene);
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path);

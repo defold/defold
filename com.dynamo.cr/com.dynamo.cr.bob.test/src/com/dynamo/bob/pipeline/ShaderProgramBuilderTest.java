@@ -19,6 +19,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
@@ -52,29 +53,10 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "gl_Position = position; \n" +
             "}\n";
 
-    private final String vpEs3 =
-            "#version 310 es \n" +
-            "in vec4 position; \n" +
-            "out vec4 fragColor; \n" +
-            "uniform NonOpaqueBlock { vec4 color; }; \n" +
-            "void main(){ \n" +
-            "   fragColor   = color;\n" +
-            "   gl_Position = position; \n" +
-            "}\n";
-
     public static final String fp =
             "varying vec4 fragColor; \n" +
             "void main(){ \n" +
             "gl_FragColor = fragColor; \n" +
-            "}\n";
-
-    private final String fpEs3 =
-            "#version 310 es \n" +
-            "precision mediump float; \n" +
-            "in vec4 fragColor; \n" +
-            "out vec4 FragColorOut; \n" +
-            "void main(){ \n" +
-            "   FragColorOut = fragColor; \n" +
             "}\n";
 
     private static ShaderDesc.Language getPlatformGLSLLanguage() {
@@ -111,10 +93,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private void checkOnlyExpectedLanguages(ShaderDesc shader, ShaderDesc.Language... expectedLanguages) {
-        Set<ShaderDesc.Language> expected = new HashSet<>();
-        for (ShaderDesc.Language language : expectedLanguages) {
-            expected.add(language);
-        }
+        Set<ShaderDesc.Language> expected = new HashSet<>(Arrays.asList(expectedLanguages));
 
         Set<ShaderDesc.Language> actual = new HashSet<>();
         for (ShaderDesc.Shader shaderDesc : shader.getShadersList()) {
@@ -176,11 +155,99 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private void doTestEs3(ShaderDesc.Language[] expectedLanguagesES3, String outputResource) throws Exception {
+        String vpEs3 = "#version 310 es \n" +
+                "in vec4 position; \n" +
+                "out vec4 fragColor; \n" +
+                "uniform NonOpaqueBlock { vec4 color; }; \n" +
+                "void main(){ \n" +
+                "   fragColor   = color;\n" +
+                "   gl_Position = position; \n" +
+                "}\n";
         ShaderDesc shader = addAndBuildShaderDesc("/test_shader.vp", vpEs3, outputResource);
         checkExpectedLanguages(shader, expectedLanguagesES3);
 
+        String fpEs3 = "#version 310 es \n" +
+                "precision mediump float; \n" +
+                "in vec4 fragColor; \n" +
+                "out vec4 FragColorOut; \n" +
+                "void main(){ \n" +
+                "   FragColorOut = fragColor; \n" +
+                "}\n";
         shader = addAndBuildShaderDesc("/test_shader.fp", fpEs3, outputResource);
         checkExpectedLanguages(shader, expectedLanguagesES3);
+    }
+
+    /**
+     * Verifies that Bob stores the original project-relative vertex, fragment,
+     * and compute source paths in ShaderDesc. Runtime diagnostics need these
+     * fields to identify the source shader instead of reporting only the .spc.
+     */
+    @Test
+    public void testShaderSourcePathsAreStoredInShaderDesc() throws Exception {
+        ShaderDesc graphicsShader = addAndBuildShaderDescs(
+            new String[] {"/materials/source_paths.vp", "/materials/source_paths.fp"},
+            new String[] {vp, fp},
+            "/materials/source_paths.shbundle");
+
+        assertEquals("/materials/source_paths.vp", graphicsShader.getVertexProgram());
+        assertEquals("/materials/source_paths.fp", graphicsShader.getFragmentProgram());
+        assertFalse(graphicsShader.hasComputeProgram());
+
+        String computeSource =
+            "layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;\n" +
+            "void main() {}";
+        ShaderDesc computeShader = addAndBuildShaderDesc(
+            "/materials/source_paths.cp", computeSource, "/materials/source_paths_compute.shbundle");
+
+        assertEquals("/materials/source_paths.cp", computeShader.getComputeProgram());
+        assertFalse(computeShader.hasVertexProgram());
+        assertFalse(computeShader.hasFragmentProgram());
+    }
+
+    /**
+     * Verifies that converting a mixed legacy/new shader pipeline retains both
+     * original source paths. The legacy transformation creates replacement
+     * module descriptors and must not discard the diagnostic identity metadata.
+     */
+    @Test
+    public void testMixedLegacyShaderSourcePathsArePreserved() throws Exception {
+        String newVertexShader =
+            "#version 140\n" +
+            "in vec4 position;\n" +
+            "out vec4 fragColor;\n" +
+            "void main() {\n" +
+            "    fragColor = vec4(1.0);\n" +
+            "    gl_Position = position;\n" +
+            "}\n";
+
+        ShaderDesc shader = addAndBuildShaderDescs(
+            new String[] {"/materials/mixed_pipeline.vp", "/materials/mixed_pipeline.fp"},
+            new String[] {newVertexShader, fp},
+            "/materials/mixed_pipeline.shbundle");
+
+        assertEquals("/materials/mixed_pipeline.vp", shader.getVertexProgram());
+        assertEquals("/materials/mixed_pipeline.fp", shader.getFragmentProgram());
+    }
+
+    /**
+     * Verifies that ShaderDesc data created before source-path metadata was
+     * introduced still deserializes normally. The new optional fields must keep
+     * existing .spc resources backward compatible.
+     */
+    @Test
+    public void testShaderDescWithoutSourcePathsStillLoads() throws Exception {
+        ShaderDesc original = ShaderDesc.newBuilder()
+            .addShaders(ShaderDesc.Shader.newBuilder()
+                .setShaderType(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT)
+                .setLanguage(ShaderDesc.Language.LANGUAGE_GLSL_SM330)
+                .setSource(com.google.protobuf.ByteString.copyFromUtf8(fp)))
+            .build();
+
+        ShaderDesc loaded = ShaderDesc.parseFrom(original.toByteArray());
+        assertEquals(1, loaded.getShadersCount());
+        assertFalse(loaded.hasVertexProgram());
+        assertFalse(loaded.hasFragmentProgram());
+        assertFalse(loaded.hasComputeProgram());
     }
 
     private static void debugPrintResourceList(String label, List<ShaderDesc.ResourceBinding> lst) {
@@ -451,12 +518,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         Object[][] platformLanguages = new Object[][] {
             { Platform.X86_64MacOS,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.Arm64MacOS,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_SPIRV } },
-            { Platform.X86Win32,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
             { Platform.X86_64Win32,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
             { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
             { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
             { Platform.Arm64Ios,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
-            { Platform.X86_64Ios,      new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.Arm64IosSim,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
             { Platform.Armv7Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.Arm64Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.WasmWeb,        new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
@@ -508,11 +574,23 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "{\n" +
             "   color_out = texture(texture_sampler, var_texcoord0.xy);\n" +
             "}\n";
+        ShaderDesc webShaderDesc = compileShaderWithCompiler(
+            getProject().getShaderCompiler(Platform.WasmWeb), shaderAdapters, "manifest_webgpu_sampler", samplerSource);
         checkOnlyExpectedLanguages(
-            compileShaderWithCompiler(getProject().getShaderCompiler(Platform.WasmWeb), shaderAdapters, "manifest_webgpu_sampler", samplerSource),
+            webShaderDesc,
             ShaderDesc.Language.LANGUAGE_GLES_SM300,
             ShaderDesc.Language.LANGUAGE_GLES_SM100,
             ShaderDesc.Language.LANGUAGE_WGSL);
+
+        // WGSL requires separate texture/sampler resources, but including that
+        // variant must not rename the combined sampler used by WebGL fallback.
+        for (ShaderDesc.Language language : List.of(
+                ShaderDesc.Language.LANGUAGE_GLES_SM300,
+                ShaderDesc.Language.LANGUAGE_GLES_SM100)) {
+            String glslSource = getShaderByLanguage(webShaderDesc, language).getSource().toStringUtf8();
+            assertTrue("WebGL sampler name must match shared reflection for " + language,
+                glslSource.contains("sampler2D texture_sampler"));
+        }
 
         shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
             platformSettings("excludeSymbols", List.of("GraphicsAdapterVulkan"))));

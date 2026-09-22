@@ -254,7 +254,8 @@
      "font"
      {:font "/builtins/fonts/vera_mo_bd.ttf"
       :material "/builtins/fonts/font.material"
-      :size 10}
+      :size 10
+      :styles {:name "style_name"}}
 
      "go"
      {:components {:id "component_id"
@@ -700,7 +701,7 @@
       (test-util/set-non-editable-directories! project-path [(str "/" (name :non-editable))])
 
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-workspace! world project-path)]
+        (let [workspace (test-util/setup-workspace! project-path)]
 
           ;; Add dependencies to all sanctioned extensions to game.project.
           (test-util/set-libraries! workspace test-util/sanctioned-extension-urls)
@@ -728,6 +729,8 @@
             (workspace/resource-sync! workspace)
 
             (let [project (test-util/setup-project! workspace)
+                  basis (g/now)
+                  read-opts (workspace/make-read-opts basis workspace)
                   proj-paths (sort-by (fn [^String proj-path]
                                         (pair (resource/filename->type-ext proj-path)
                                               proj-path))
@@ -736,11 +739,11 @@
               (doseq [proj-path proj-paths]
                 (let [resource (workspace/find-resource workspace proj-path)
                       resource-node (project/get-resource-node project resource)
-                      {:keys [read-fn write-fn view-types]} (resource/resource-type resource)
+                      {:keys [write-fn view-types] :as resource-type} (resource/resource-type resource)
                       openable-in-view-type? (into #{} (map :id) view-types)]
                   (testing proj-path
                     (is (not (g/error? (g/node-value resource-node :_properties))))
-                    (when (openable-in-view-type? :cljfx-form-view)
+                    (when (openable-in-view-type? :form)
                       (is (not (g/error? (g/node-value resource-node :form-data)))))
                     (when (openable-in-view-type? :scene)
                       (is (not (g/error? (g/node-value resource-node :scene)))))
@@ -750,9 +753,9 @@
                           (when (:dirty save-data)
                             (let [save-value (:save-value save-data)
                                   save-text (resource-node/save-data-content save-data)
-                                  read-value (read-fn resource)
+                                  read-value ((:read-fn resource-type) read-opts resource resource)
                                   read-text (slurp resource)
                                   written-read-text (write-fn read-value)]
                               (test-util/check-value-equivalence! read-value save-value read-text)
                               (test-util/check-text-equivalence! written-read-text save-text read-text)))))))))
-              (lsp/await (lsp/get-node-lsp project)))))))))
+              (lsp/await (lsp/get-lsp)))))))))

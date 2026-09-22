@@ -54,8 +54,6 @@ if(NOT TARGET_PLATFORM STREQUAL HOST_PLATFORM)
   if(CMAKE_GENERATOR MATCHES "Visual Studio" AND CMAKE_HOST_WIN32)
     if(HOST_PLATFORM STREQUAL "x86_64-win32")
       list(APPEND _DEFOLD_HOST_TOOLS_CONFIGURE_ARGS -A x64)
-    elseif(HOST_PLATFORM STREQUAL "x86-win32")
-      list(APPEND _DEFOLD_HOST_TOOLS_CONFIGURE_ARGS -A Win32)
     elseif(HOST_PLATFORM STREQUAL "arm64-win32")
       list(APPEND _DEFOLD_HOST_TOOLS_CONFIGURE_ARGS -A ARM64)
     endif()
@@ -102,19 +100,30 @@ if(NOT TARGET_PLATFORM STREQUAL HOST_PLATFORM)
   endif()
   set(_DEFOLD_HOST_TOOLS_SCRIPT "${CMAKE_BINARY_DIR}/run_host_tools.cmake")
   configure_file("${CMAKE_CURRENT_LIST_DIR}/scripts/cmake/host_tools.cmake.in" "${_DEFOLD_HOST_TOOLS_SCRIPT}" @ONLY)
-  file(GLOB_RECURSE _DEFOLD_HOST_TOOLS_INPUTS CONFIGURE_DEPENDS
-    "${DEFOLD_HOME}/CMakeLists.txt"
+  # Restrict the globs themselves to source inputs: filtering afterwards still
+  # lets CONFIGURE_DEPENDS detect generated Python bytecode as a glob change.
+  set(_DEFOLD_HOST_TOOLS_INPUT_PATTERNS
     "${DEFOLD_HOME}/scripts/cmake/*.cmake"
+    "${DEFOLD_HOME}/scripts/cmake/*.in"
+    "${DEFOLD_HOME}/scripts/cmake/*.py")
+  foreach(_host_lib IN ITEMS dlib jni texc modelc font shaderc)
+    foreach(_source_pattern IN ITEMS
+        *.c *.cc *.cpp *.cxx *.h *.hh *.hpp *.hxx *.inc *.inl
+        *.m *.mm *.s *.S *.java *.py *.cs *.csproj *.js *.cmake CMakeLists.txt)
+      list(APPEND _DEFOLD_HOST_TOOLS_INPUT_PATTERNS
+        "${DEFOLD_HOME}/engine/${_host_lib}/src/${_source_pattern}")
+    endforeach()
+  endforeach()
+  file(GLOB_RECURSE _DEFOLD_HOST_TOOLS_INPUTS CONFIGURE_DEPENDS
+    ${_DEFOLD_HOST_TOOLS_INPUT_PATTERNS})
+  list(APPEND _DEFOLD_HOST_TOOLS_INPUTS
+    "${DEFOLD_HOME}/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/dlib/CMakeLists.txt"
-    "${DEFOLD_HOME}/engine/dlib/src/*"
     "${DEFOLD_HOME}/engine/jni/CMakeLists.txt"
-    "${DEFOLD_HOME}/engine/jni/src/*"
     "${DEFOLD_HOME}/engine/texc/CMakeLists.txt"
-    "${DEFOLD_HOME}/engine/texc/src/*"
     "${DEFOLD_HOME}/engine/modelc/CMakeLists.txt"
-    "${DEFOLD_HOME}/engine/modelc/src/*"
-    "${DEFOLD_HOME}/engine/shaderc/CMakeLists.txt"
-    "${DEFOLD_HOME}/engine/shaderc/src/*")
+    "${DEFOLD_HOME}/engine/font/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/shaderc/CMakeLists.txt")
   set(_DEFOLD_HOST_TOOLS_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/host_tools-$<CONFIG>.stamp")
 
   add_custom_command(
@@ -128,6 +137,9 @@ if(NOT TARGET_PLATFORM STREQUAL HOST_PLATFORM)
   unset(_DEFOLD_HOST_TOOLS_CONFIGURE_ARGS)
   unset(_DEFOLD_HOST_TOOLS_BUILD_ARGS)
   unset(_DEFOLD_HOST_TOOLS_INPUTS)
+  unset(_DEFOLD_HOST_TOOLS_INPUT_PATTERNS)
+  unset(_host_lib)
+  unset(_source_pattern)
   unset(_DEFOLD_HOST_TOOLS_SCRIPT)
   unset(_DEFOLD_HOST_TOOLS_STAMP)
   unset(_DEFOLD_HOST_TOOLS_PATH)
@@ -147,8 +159,8 @@ set(DEFOLD_ENGINE_LIBS
   shaderc
   ddf
   platform
-  font
   graphics
+  font
   particle
   lua
   hid
@@ -176,6 +188,7 @@ set(DEFOLD_HOST_LIBS
   jni
   texc
   modelc
+  font
   shaderc)
 set(DEFOLD_TARGET_LIBS ${DEFOLD_ENGINE_LIBS})
 # Bob archives ship compiler JNI libraries for these desktop targets, even when
@@ -212,14 +225,23 @@ if(DEFOLD_ENGINE_LIB_SET STREQUAL "all" OR DEFOLD_ENGINE_LIB_SET STREQUAL "targe
   add_subdirectory("share/extender" "${DEFOLD_BUILD_HOME}/share/extender/build/${TARGET_PLATFORM}")
 endif()
 
+# Subprojects call project(), which can reinitialize an unset install prefix.
+# Reassert the SDK destination after configuring all subprojects so direct
+# CMake configurations cannot generate absolute /sdk, /lib, or /share paths.
+set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}" CACHE PATH "Install prefix" FORCE)
+
 set(_DEFOLD_BOB_LIGHT_DEPENDS
   "${DEFOLD_BOB_DIR}/build.gradle"
+  "${DEFOLD_BOB_DIR}/artifacts.gradle"
+  "${DEFOLD_BOB_DIR}/archive-artifacts.json"
+  "${DEFOLD_BOB_DIR}/tools.json"
+  "${DEFOLD_BOB_DIR}/bob-light-tools.json"
   "${DEFOLD_GRADLEW}")
 if(EXISTS "${DEFOLD_HOME}/.defold-platforms")
   list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS "${DEFOLD_HOME}/.defold-platforms")
 endif()
 set(_DEFOLD_BOB_LIGHT_COPY_COMMANDS)
-foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS texc_shared modelc_shared shaderc_shared)
+foreach(_DEFOLD_BOB_LIGHT_LIB IN ITEMS texc_shared modelc_shared shaderc_shared fontc_shared)
   if(TARGET ${_DEFOLD_BOB_LIGHT_LIB})
     list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS ${_DEFOLD_BOB_LIGHT_LIB})
     list(APPEND _DEFOLD_BOB_LIGHT_COPY_COMMANDS
@@ -247,6 +269,15 @@ if(TARGET modelimporter_jar)
       "${DEFOLD_MODELC_BINARY_DIR}/modelimporter.jar"
       "${DEFOLD_SDK_ROOT}/share/java/modelimporter.jar")
 endif()
+if(TARGET font_renderer_jar)
+  list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS
+    font_renderer_jar
+    "${DEFOLD_FONT_BINARY_DIR}/fontrenderer.jar")
+  list(APPEND _DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+      "${DEFOLD_FONT_BINARY_DIR}/fontrenderer.jar"
+      "${DEFOLD_SDK_ROOT}/share/java/fontrenderer.jar")
+endif()
 if(TARGET texturecompiler_jar)
   list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS
     texturecompiler_jar
@@ -269,13 +300,18 @@ if(DEFOLD_HOST_TOOLS_TARGET)
   list(APPEND _DEFOLD_BOB_LIGHT_DEPENDS "${DEFOLD_HOST_TOOLS_TARGET}")
 endif()
 
+add_custom_target(stage_bob_light_dependencies
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_LIB_DIR}"
+  ${_DEFOLD_BOB_LIGHT_COPY_COMMANDS}
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_SDK_ROOT}/share/java"
+  ${_DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS}
+  DEPENDS ${_DEFOLD_BOB_LIGHT_DEPENDS}
+  COMMENT "Staging Bob Light dependencies"
+  VERBATIM)
+
 if(NOT DEFOLD_SKIP_BOB_LIGHT)
   add_custom_command(
     OUTPUT "${DEFOLD_BOB_LIGHT_JAR}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_LIB_DIR}"
-    ${_DEFOLD_BOB_LIGHT_COPY_COMMANDS}
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${DEFOLD_SDK_ROOT}/share/java"
-    ${_DEFOLD_BOB_LIGHT_JAR_COPY_COMMANDS}
     COMMAND "${CMAKE_COMMAND}" -E env
       "DEFOLD_HOME=${DEFOLD_HOME}"
       "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
@@ -283,7 +319,7 @@ if(NOT DEFOLD_SKIP_BOB_LIGHT)
       "GRADLE_OPTS=-Dorg.gradle.parallel=true --sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED"
       "${DEFOLD_GRADLEW}" -Pkeep-bob-uncompressed "-Ptarget-platform=${TARGET_PLATFORM}" "-Ppython=${Python3_EXECUTABLE}" installBobLight
     WORKING_DIRECTORY "${DEFOLD_BOB_DIR}"
-    DEPENDS ${_DEFOLD_BOB_LIGHT_DEPENDS}
+    DEPENDS stage_bob_light_dependencies ${_DEFOLD_BOB_LIGHT_DEPENDS}
     COMMENT "Building bob-light.jar"
     VERBATIM)
 endif()

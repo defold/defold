@@ -18,16 +18,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
@@ -66,8 +64,6 @@ import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
 import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.rig.proto.Rig.AnimationSet;
-
-import static com.dynamo.bob.util.ComponentsCounter.isCompCounterStorage;
 
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", paramsForSignature = {"liveupdate", "variant", "archive", "archive-resource-padding",
                 "platform", "build-report-json", "build-report-html"})
@@ -322,6 +318,8 @@ public class GameProjectBuilder extends Builder {
     static public void transformGameProjectFile(BobProjectProperties properties) {
         String gamepadsPath = properties.getStringValue("input", "gamepads", DEFAULT_GAMEPADS);
         String gamepadDbPath = properties.getStringValue("input", "gamepad_database", DEFAULT_GAMEPAD_DATABASE);
+        String[] projectCustomResources = properties.getStringArrayValue("project", "custom_resources", new String[0]);
+        String[] customResources = properties.getStringArrayValueMerged("project", "custom_resources", new String[0]);
 
         properties.removePrivateFields();
 
@@ -340,6 +338,9 @@ public class GameProjectBuilder extends Builder {
 
         properties.putStringValue("input", "gamepads", getGamepadsOutputPath(gamepadsPath, gamepadDbPath));
         properties.putStringValue("input", "gamepad_database", null);
+        if (!Arrays.equals(projectCustomResources, customResources)) {
+            properties.putStringValue("project", "custom_resources", String.join(", ", customResources));
+        }
     }
 
     private static void setOutputContentFromFile(IResource output, File sourceFile) throws IOException {
@@ -463,7 +464,7 @@ public class GameProjectBuilder extends Builder {
         }
 
         transformGameProjectFile(properties);
-        task.getOutputs().get(0).setContent(properties.serialize().getBytes());
+        task.getOutputs().get(0).setContent(properties.serialize().getBytes(StandardCharsets.UTF_8));
     }
 
     @Override

@@ -53,6 +53,8 @@ message LabelDesc
     optional string         text        = 11;
     required string         font        = 12 [(resource)=true];
     required string         material    = 13 [(resource)=true];
+    optional string         style       = 14 [default = "default"];
+    optional uint64         style_hash  = 15; // Compiled from style; zero means no base style.
 }
 
 
@@ -61,4 +63,47 @@ message SetText
     required string text  = 1;
 }
 
+/*# Sent to the owning game object when the pointer enters an interactive rich-text object.
+ *
+ * @message
+ * @name text_object_hovered
+ * @param id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @param type [type:hash] the layout object type, currently `link`
+ * @param src [type:string] the application-defined target from the object's `src` attribute
+ */
+message TextObjectHovered
+{
+    required uint64 id = 1;
+    required uint64 type = 2;
+    optional string src = 3;
+}
 
+/*# Sent to the owning game object when the pointer leaves an interactive rich-text object.
+ *
+ * @message
+ * @name text_object_unhovered
+ * @param id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @param type [type:hash] the layout object type, currently `link`
+ * @param src [type:string] the application-defined target from the object's `src` attribute
+ */
+message TextObjectUnhovered
+{
+    required uint64 id = 1;
+    required uint64 type = 2;
+    optional string src = 3;
+}
+
+/*# Sent to the owning game object when an interactive rich-text object is clicked.
+ *
+ * @message
+ * @name text_object_clicked
+ * @param id [type:hash] the object's `id` attribute, or its generated layout object id
+ * @param type [type:hash] the layout object type, currently `link`
+ * @param src [type:string] the application-defined target from the object's `src` attribute
+ */
+message TextObjectClicked
+{
+    required uint64 id = 1;
+    required uint64 type = 2;
+    optional string src = 3;
+}

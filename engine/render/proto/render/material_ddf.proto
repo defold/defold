@@ -29,6 +29,7 @@ message MaterialDesc
         CONSTANT_TYPE_VIEWPROJ_INVERSE = 14;
         CONSTANT_TYPE_WORLDVIEW_INVERSE = 15;
         CONSTANT_TYPE_WORLDVIEWPROJ_INVERSE = 16;
+        CONSTANT_TYPE_USER_COLOR = 17;
     }
 
     message Constant
@@ -95,6 +96,7 @@ message MaterialDesc
         repeated uint64 name_indirections = 7 [(runtime_only)=true]; // sampler name -> list of shader uniform hashes
         optional string texture           = 8 [(resource)=true];
         optional uint64 name_hash         = 9 [(runtime_only)=true]; // Internal, for faster lookups
+        optional WrapMode wrap_w          = 10;
     }
 
     required string name                           = 1;

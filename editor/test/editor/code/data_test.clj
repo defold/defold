@@ -15,8 +15,13 @@
 (ns editor.code.data-test
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
+            [clojure.test.check.clojure-test :refer [defspec]]
+            [clojure.test.check.generators :as gen]
+            [clojure.test.check.properties :as prop]
             [editor.code.data :as data :refer [->Cursor ->CursorRange ->Rect]]
-            [editor.code.script :as script])
+            [editor.code.lang.json :as json]
+            [editor.code.script :as script]
+            [util.defonce :as defonce])
   (:import (java.io IOException)
            (java.nio CharBuffer)))
 
@@ -45,7 +50,40 @@
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
-  (char-width [_this _character] char-width))
+  (char-width [_this _character] char-width)
+  ;; Shape nothing: complex runs measure like any other text.
+  data/ComplexTextMetrics
+  (complex-text-width [_this text] (* char-width (count text)))
+  (complex-text-col->x [_this _text col] (* char-width (long col)))
+  (complex-text-x->col [_this _text x] (long (/ (double x) char-width)))
+  (complex-text-x->character-col [_this _text x] (long (/ (double x) char-width)))
+  (complex-text-selection-spans [_this _text start-offset end-offset]
+    [[(* char-width (long start-offset)) (* char-width (long end-offset))]]))
+
+(defonce/record ComplexGlyphMetrics [^double line-height ^double char-width ^double ascent]
+  data/GlyphMetrics
+  (ascent [_this] ascent)
+  (line-height [_this] line-height)
+  (char-width [_this _character] char-width)
+  data/ComplexTextMetrics
+  (complex-text-width [_this _text] 100.0)
+  (complex-text-col->x [_this _text _col] 0.0)
+  (complex-text-x->col [_this _text _x] 3)
+  (complex-text-x->character-col [_this _text _x] 2)
+  (complex-text-selection-spans [_this _text _start-offset _end-offset] [[10.0 20.0] [30.0 40.0]]))
+
+(defonce/record EmptySpansGlyphMetrics [^double line-height ^double char-width ^double ascent]
+  data/GlyphMetrics
+  (ascent [_this] ascent)
+  (line-height [_this] line-height)
+  (char-width [_this _character] char-width)
+  data/ComplexTextMetrics
+  (complex-text-width [_this _text] 100.0)
+  (complex-text-col->x [_this _text col] (* col 5.0))
+  (complex-text-x->col [_this _text _x] 3)
+  (complex-text-x->character-col [_this _text _x] 2)
+  ;; Combining marks can produce no selection spans.
+  (complex-text-selection-spans [_this _text _start-offset _end-offset] []))
 
 (defn layout-info
   ([] (layout-info nil))
@@ -53,8 +91,174 @@
   ([lines glyph-metrics]
    (data/layout-info 800.0 600.0 800.0 0.0 0.0 lines 30.0 5.0 glyph-metrics 4 false)))
 
+(deftest complex-text-ranges-test
+  (doseq [text ["العربية" "ไทย"]]
+    (is (= [[1 (inc (count text))]]
+           (data/complex-text-ranges (str "x" text "y")))))
+
+  ;; Keep neutrals inside a directional run so bidi can reorder the phrase.
+  (let [phrase "مرحبا بك"]
+    (is (= [[1 (inc (count phrase))]]
+           (data/complex-text-ranges (str "\"" phrase "\"")))))
+  (is (= [[0 7]] (data/complex-text-ranges "ไทย ไทย")))
+
+  ;; Tabs and ASCII letters bound shaped ranges.
+  (is (= [[2 5]] (data/complex-text-ranges "a ไทย b")))
+  (is (= [[0 3] [4 7]] (data/complex-text-ranges "ไทย\tไทย")))
+
+  ;; Embedded digits stay in a run; leading and trailing digits do not.
+  (is (= [[0 10]] (data/complex-text-ranges "ไทย 12 ไทย")))
+  (is (= [[0 3]] (data/complex-text-ranges "ไทย 12")))
+  (is (= [[3 6]] (data/complex-text-ranges "12 ไทย")))
+
+  ;; Quotes keep adjacent literals separate.
+  (is (= [[1 4] [9 12]] (data/complex-text-ranges "\"ไทย\" : \"ไทย\"")))
+
+  ;; Combining marks include their ASCII base.
+  (is (= [[0 2]] (data/complex-text-ranges "e\u0301")))
+  (is (= [[1 3]] (data/complex-text-ranges "xe\u0301x")))
+
+  ;; Whitespace is never treated as that base.
+  (is (= [[1 2]] (data/complex-text-ranges "\t\u0301")))
+  (is (= [[1 2]] (data/complex-text-ranges " \u0301")))
+
+  ;; Shape surrogate pairs together.
+  (is (= [[1 3]] (data/complex-text-ranges "a\uD83D\uDE00b")))
+
+  (is (= [] (data/complex-text-ranges "plain Latin text"))))
+
 (defn- word-boundary-before-index? [line index]
   (#'data/word-boundary-before-index? line index))
+
+(deftest complex-text-character-hover-test
+  (let [line "\"ไทย\""
+        layout (layout-info [line] (->ComplexGlyphMetrics 14.0 9.0 6.0))
+        x (+ (.x (.canvas layout)) 50.0)]
+    (is (= [[1 4]] (data/complex-text-ranges line)))
+    (is (= 4 (data/x->col layout x line)))
+    (is (= 3 (data/x->character-col layout x line)))))
+
+(defonce/record FarCaretGlyphMetrics [^double line-height ^double char-width ^double ascent]
+  data/GlyphMetrics
+  (ascent [_this] ascent)
+  (line-height [_this] line-height)
+  (char-width [_this _character] char-width)
+  data/ComplexTextMetrics
+  (complex-text-width [_this _text] 100.0)
+  ;; Simulate a bidi caret far from the pointer.
+  (complex-text-col->x [_this _text _col] 5000.0)
+  (complex-text-x->col [_this _text _x] 3)
+  (complex-text-x->character-col [_this _text _x] 2)
+  (complex-text-selection-spans [_this _text _start-offset _end-offset] [[10.0 20.0]]))
+
+(deftest drag-selection-scroll-follows-mouse-test
+  (let [lines ["ab\"\u0e44\u0e17\u0e22\"cd"]
+        cursor-ranges [(c 0 0)]
+        layout (data/layout-info 800.0 600.0 6000.0 0.0 0.0 lines 30.0 5.0 (->FarCaretGlyphMetrics 14.0 9.0 6.0) 4 false)
+        canvas-rect (.canvas layout)
+        gesture-start (#'data/gesture-info :cursor-range-selection :primary 1 40.0 7.0
+                                           :reference-cursor-range (c 0 0))
+        drag-to (fn [x y]
+                  (data/mouse-moved lines cursor-ranges nil layout nil gesture-start nil x y))]
+
+    (testing "The pointer inside the canvas does not scroll"
+      (let [props (drag-to (+ (.x canvas-rect) 100.0) 7.0)]
+        (is (contains? props :cursor-ranges))
+        (is (not (contains? props :scroll-x)))
+        (is (not (contains? props :scroll-y)))))
+
+    (testing "The pointer dragged past an edge scrolls towards it"
+      (let [props (drag-to (+ (.x canvas-rect) (.w canvas-rect) 10.0) 7.0)]
+        (is (contains? props :cursor-ranges))
+        (is (neg? ^double (:scroll-x props)))))))
+
+(deftest line-width-complex-test
+  (let [layout (layout-info ["x"] (->ComplexGlyphMetrics 14.0 9.0 6.0))
+        width (fn [line] (data/line-width (.glyph layout) (.tab-stops layout) line))]
+    ;; A shaped run replaces its characters' advances in the document width.
+    (is (= 54.0 (width "abcdef")))
+    (is (= 154.0 (width "ab\"ไทย\"cd")))))
+
+(deftest merge-rects-test
+  ;; RTL runs hand back spans out of order, and touching spans must join.
+  (is (= [(->Rect 10.0 0.0 15.0 14.0)
+          (->Rect 30.0 0.0 10.0 14.0)]
+         (#'data/merge-rects [(->Rect 30.0 0.0 10.0 14.0)
+                              (->Rect 10.0 0.0 10.0 14.0)
+                              (->Rect 20.0 0.0 5.0 14.0)]))))
+
+(deftest cursor-range-rects-test
+  (let [glyph-metrics (->ComplexGlyphMetrics 14.0 9.0 6.0)
+        line "ab\"\u0e44\u0e17\u0e22\"cd"
+        lines [line ""]
+        layout (layout-info lines glyph-metrics)
+        canvas (.canvas layout)
+        left (.x canvas)
+        right (+ (.x canvas) (.w canvas))
+        rects (fn [cursor-range] (data/cursor-range-rects layout lines cursor-range))]
+    (is (= [[3 6]] (data/complex-text-ranges line)))
+
+    (let [ascii-lines ["abcdef"]
+          ascii-layout (layout-info ascii-lines glyph-metrics)]
+      (is (= [(->Rect (+ (.x (.canvas ascii-layout)) 9.0) 0.0 18.0 14.0)]
+             (data/cursor-range-rects ascii-layout ascii-lines (cr [0 1] [0 3])))))
+
+    ;; Shaped spans are relative to the run's origin.
+    (is (= [(->Rect (+ left 9.0) 0.0 18.0 14.0)
+            (->Rect (+ left 37.0) 0.0 10.0 14.0)
+            (->Rect (+ left 57.0) 0.0 10.0 14.0)]
+           (rects (cr [0 1] [0 5]))))
+
+    (is (= [(->Rect (+ left 37.0) 0.0 10.0 14.0)
+            (->Rect (+ left 57.0) 0.0 10.0 14.0)]
+           (rects (cr [0 4] [0 5]))))
+
+    ;; Boundary carets cannot stand in for the run's visual edges.
+    (is (= [(->Rect left 0.0 27.0 14.0)]
+           (rects (cr [0 0] [0 3]))))
+    (is (= [(->Rect (+ left 127.0) 0.0 18.0 14.0)]
+           (rects (cr [0 6] [0 8]))))
+
+    ;; Merge the final span with the strip past the line.
+    (is (= [(->Rect (+ left 9.0) 0.0 18.0 14.0)
+            (->Rect (+ left 37.0) 0.0 10.0 14.0)
+            (->Rect (+ left 57.0) 0.0 10.0 14.0)
+            (->Rect (+ left 127.0) 0.0 (- right (+ left 127.0)) 14.0)
+            (->Rect left 14.0 0.0 14.0)]
+           (rects (cr [0 1] [1 0])))))
+
+  ;; The caret at the end of an RTL run is not the line's visual end.
+  (let [glyph-metrics (->ComplexGlyphMetrics 14.0 9.0 6.0)
+        line "ab\"\u0e44\u0e17\u0e22"
+        lines [line ""]
+        layout (layout-info lines glyph-metrics)
+        canvas (.canvas layout)
+        left (.x canvas)
+        right (+ (.x canvas) (.w canvas))]
+    (is (= [[3 6]] (data/complex-text-ranges line)))
+    (is (= [(->Rect (+ left 37.0) 0.0 10.0 14.0)
+            (->Rect (+ left 57.0) 0.0 10.0 14.0)
+            (->Rect (+ left 127.0) 0.0 (- right (+ left 127.0)) 14.0)
+            (->Rect left 14.0 0.0 14.0)]
+           (data/cursor-range-rects layout lines (cr [0 4] [1 0])))))
+
+  (let [glyph-metrics (->ComplexGlyphMetrics 14.0 9.0 6.0)
+        line "ab\"\u0e44\u0e17\u0e22\"cd"
+        lines ["" line]
+        layout (layout-info lines glyph-metrics)
+        left (.x (.canvas layout))]
+    (is (= [(->Rect left 14.0 27.0 14.0)
+            (->Rect (+ left 37.0) 14.0 10.0 14.0)
+            (->Rect (+ left 57.0) 14.0 10.0 14.0)]
+           (subvec (data/cursor-range-rects layout lines (cr [0 0] [1 5])) 1))))
+
+  ;; Zero-width selections still need a fallback rect.
+  (let [glyph-metrics (->EmptySpansGlyphMetrics 14.0 9.0 6.0)
+        line "ab\"ไทย\"cd"
+        lines [line]
+        layout (layout-info lines glyph-metrics)]
+    (is (= [[3 6]] (data/complex-text-ranges line)))
+    (is (= 1 (count (data/cursor-range-rects layout lines (cr [0 4] [0 5])))))))
 
 (deftest word-boundary-before-index-test
   (is (true? (word-boundary-before-index? "word" 0)))
@@ -407,12 +611,69 @@
           :indent-type :tabs}
          (convert-indentation :four-spaces :tabs ["      {"]))))
 
+(deftest reindent-without-counts-test
+  ;; Grammars with no :indent :counts fall back to their :begin and :end
+  ;; regexes, coerced into the same shape as up to one open and one close.
+  (letfn [(reindent [lines]
+            (let [last-row (dec (count lines))
+                  cursor-range (->CursorRange (->Cursor 0 0)
+                                              (->Cursor last-row (count (lines last-row))))]
+              (:lines (data/reindent (data/indent-level-pattern 4) "    " json/grammar []
+                                     lines [cursor-range] nil (layout-info lines)))))]
+    (is (= ["{"
+            "    \"a\": ["
+            "        1"
+            "    ],"
+            "    \"b\": 2"
+            "}"]
+           (reindent ["{"
+                      "\"a\": ["
+                      "1"
+                      "],"
+                      "\"b\": 2"
+                      "}"])))
+
+    (is (= ["{"
+            "    \"a\": {"
+            "        \"b\": ["
+            "            1,"
+            "            2"
+            "        ]"
+            "    }"
+            "}"]
+           (reindent ["{"
+                      "        \"a\": {"
+                      "\"b\": ["
+                      "1,"
+                      "2"
+                      "]"
+                      "}"
+                      "}"])))))
+
 (deftest move-cursors-test
   (testing "Basic movement"
     (is (= [(c 0 0)] (data/move-cursors [(c 1 0)] #'data/cursor-up ["a" "b" "c"])))
     (is (= [(c 2 0)] (data/move-cursors [(c 1 0)] #'data/cursor-down ["a" "b" "c"])))
     (is (= [(c 0 0)] (data/move-cursors [(c 0 1)] #'data/cursor-left ["ab"])))
     (is (= [(c 0 2)] (data/move-cursors [(c 0 1)] #'data/cursor-right ["ab"]))))
+
+  (testing "Steps over a surrogate pair as one code point"
+    (is (= [(c 0 1)] (data/move-cursors [(c 0 3)] #'data/cursor-left ["a💜"])))
+    (is (= [(c 0 3)] (data/move-cursors [(c 0 1)] #'data/cursor-right ["a💜"]))))
+
+  ;; The arrow keys are bound to the grapheme variants, not cursor-left/right.
+  (testing "Arrow keys step over a whole grapheme cluster"
+    (is (= [(c 0 0)] (data/move-cursors [(c 0 2)] #'data/cursor-left-grapheme ["รี"])))
+    (is (= [(c 0 2)] (data/move-cursors [(c 0 0)] #'data/cursor-right-grapheme ["รี"])))
+    (is (= [(c 0 1)] (data/move-cursors [(c 0 3)] #'data/cursor-left-grapheme ["a💜b"])))
+    (is (= [(c 0 3)] (data/move-cursors [(c 0 1)] #'data/cursor-right-grapheme ["a💜b"])))
+    (is (= [(c 0 2)] (data/move-cursors [(c 1 0)] #'data/cursor-left-grapheme ["ab" "cd"])))
+    (is (= [(c 1 0)] (data/move-cursors [(c 0 2)] #'data/cursor-right-grapheme ["ab" "cd"]))))
+
+  ;; The word scan can stop inside a cluster; these inputs make it do so.
+  (testing "Word movement snaps off a mid-cluster stop"
+    (is (= [(c 0 3)] (data/move-cursors [(c 0 7)] #'data/cursor-prev-word ["ab 💜💜"])))
+    (is (= [(c 0 2)] (data/move-cursors [(c 0 5)] #'data/cursor-prev-word ["💜💜 ab"]))))
 
   (testing "Out-of-bounds movement"
     (is (= [(c 0 0)] (data/move-cursors [(c 0 0)] #'data/cursor-up ["a" "b" "c"])))
@@ -651,7 +912,7 @@
         (is (= :to-cursor-metadata-value (:to-cursor-metadata-prop (meta (.to cursor-range')))))))))
 
 (defn- insert-text [lines cursor-ranges text]
-  (#'data/insert-text #"\t" "\t" nil lines cursor-ranges nil (layout-info lines) text))
+  (#'data/insert-text #"\t" "\t" nil [] lines cursor-ranges nil (layout-info lines) text))
 
 (deftest insert-text-test
   (testing "Single cursor"
@@ -867,7 +1128,29 @@
               :lines ["onetwo"]}
              (delete ["one"
                       "two"]
-                     [(c 0 3)]))))
+                     [(c 0 3)])))
+      (is (= {:cursor-ranges [(c 0 1)]
+              :invalidated-row 0
+              :lines ["a"]}
+             (backspace ["a💜"]
+                        [(c 0 3)])))
+
+      ;; Backspace peels one combining mark; forward delete takes the cluster.
+      (is (= {:cursor-ranges [(c 0 1)]
+              :invalidated-row 0
+              :lines ["ร"]}
+             (backspace ["รี"]
+                        [(c 0 2)])))
+      (is (= {:cursor-ranges [(c 0 0)]
+              :invalidated-row 0
+              :lines [""]}
+             (delete ["รี"]
+                     [(c 0 0)])))
+      (is (= {:cursor-ranges [(c 0 1)]
+              :invalidated-row 0
+              :lines ["a"]}
+             (delete ["a💜"]
+                     [(c 0 1)]))))
 
     (testing "Multiple cursors"
       (is (= {:cursor-ranges [(c 0 1) (c 0 2)]
@@ -1170,7 +1453,7 @@
         grammar nil
         clipboard (make-test-clipboard {})
         cut! (fn [lines cursor-ranges] (data/cut! lines cursor-ranges nil (layout-info lines) clipboard))
-        paste! (fn [lines cursor-ranges] (data/paste indent-level-pattern indent-string grammar lines cursor-ranges nil (layout-info lines) clipboard))
+        paste! (fn [lines cursor-ranges] (data/paste indent-level-pattern indent-string grammar [] lines cursor-ranges nil (layout-info lines) clipboard))
         mime-type (var-get #'data/clipboard-mime-type-multi-selection)
         clipboard-content (fn [] (data/get-content clipboard mime-type))]
     (is (= {:cursor-ranges [(cr [0 0] [0 0])
@@ -1732,6 +2015,221 @@
         (is (= {:lines ["''''"]
                 :cursor-ranges [#code/range [[0 4] [0 4]]]}
                (key-typed ["''''"] [(c 0 3)] "'")))))))
+
+(defn- apply-lines
+  "The lines that result from applying edits, or the lines as they were if there are none"
+  [lines edits]
+  (if (seq edits)
+    (:lines (data/apply-edits lines [] [] edits))
+    lines))
+
+(deftest format-document-edits-test
+  (letfn [(format-lines [lines replacement-lines]
+            (apply-lines lines (data/format-document-edits lines [[(cr [0 0] [(count lines) 0]) replacement-lines]])))]
+    (testing "preserves additions and removals of the final newline"
+      (are [lines replacement-lines]
+        (= replacement-lines (format-lines lines replacement-lines))
+        ["a"] ["a" ""]
+        ["a" ""] ["a"]
+        [""] ["" ""]
+        ["" ""] [""]))
+    (testing "preserves final-newline changes alongside line changes"
+      (are [lines replacement-lines]
+        (= replacement-lines (format-lines lines replacement-lines))
+        ["a"] ["b" ""]
+        ["a" ""] ["b"]))
+    (testing "adds the final newline once when the last row is stripped of whitespace"
+      (are [lines replacement-lines]
+        (= replacement-lines (format-lines lines replacement-lines))
+        ["a" "   "] ["a" ""]
+        ["a" "\t"] ["a" ""]
+        ["a" "b" "   "] ["a" "b" ""]
+        ["a" "   " "   "] ["a" "" ""]))
+    (testing "deleting a blank row is preserved"
+      (are [lines edits]
+        (= (apply-lines lines edits)
+           (apply-lines lines (data/format-document-edits lines edits)))
+        ["" "b" "c"] [[(cr [0 0] [1 0]) [""]]]
+        ["a" "" "b"] [[(cr [1 0] [2 0]) [""]]]
+        ["a" "" ""] [[(cr [1 0] [2 0]) [""]]]))
+    (testing "an edit without a trailing newline joins rows rather than replacing them"
+      (are [lines edits]
+        (= (apply-lines lines edits)
+           (apply-lines lines (data/format-document-edits lines edits)))
+        ["a" "" "b"] [[(cr [0 0] [1 0]) ["a"]]]
+        ["a" "" ""] [[(cr [0 0] [1 0]) ["a"]]]
+        ;; The join must not claim the blank row the next edit deletes.
+        ["a" "" ""] [[(cr [0 0] [1 0]) ["a"]]
+                     [(cr [1 0] [2 0]) [""]]]))))
+
+(def ^:private format-line-gen
+  (gen/elements ["" " " "  " "\t" "a" "b" "a b" "  a" "a  "]))
+
+(defn- whole-row-edit [lines begin-row end-row replacement-rows join?]
+  (let [replacement-rows (if (seq replacement-rows) replacement-rows [""])]
+    (if (< end-row (count lines))
+      [(cr [begin-row 0] [end-row 0])
+       (if join? replacement-rows (conj replacement-rows ""))]
+      (let [last-row (dec end-row)]
+        [(cr [begin-row 0] [last-row (count (lines last-row))])
+         replacement-rows]))))
+
+(defn- whole-row-edits
+  [lines runs]
+  (let [row-count (count lines)]
+    (loop [row 0
+           [[gap span-rows replacement-rows join?] & more] runs
+           edits []]
+      (if (nil? gap)
+        edits
+        (let [begin-row (+ row (long gap))
+              end-row (+ begin-row (long span-rows))]
+          (if (< row-count end-row)
+            edits
+            ;; The next edit may start where this one ends, but not before.
+            (recur end-row
+                   more
+                   (conj edits (whole-row-edit lines begin-row end-row replacement-rows join?)))))))))
+
+(defspec format-document-edits-preserves-applied-lines 300
+  ;; format-document-edits splits edits into finer-grained ones so cursors stay
+  ;; put, which must never change the lines the edits produce.
+  (prop/for-all
+    [[lines edits] (gen/let [lines (gen/vector format-line-gen 1 10)
+                             runs (gen/vector (gen/tuple (gen/choose 0 2)
+                                                         (gen/choose 1 3)
+                                                         (gen/vector format-line-gen 0 4)
+                                                         gen/boolean)
+                                              1 3)]
+                     [lines (whole-row-edits lines runs)])]
+    (= (apply-lines lines edits)
+       (apply-lines lines (data/format-document-edits lines edits)))))
+
+(deftest format-document-edits-minimality-test
+  (letfn [(document-edits [lines replacement-lines]
+            (data/format-document-edits lines [[(cr [0 0] [(count lines) 0]) replacement-lines]]))]
+    (testing "only rewrites the part of a row that changed"
+      (is (= [[(cr [1 0] [1 8]) ["    "]]]
+             (document-edits ["local function f()" "        return 1" "end" ""]
+                             ["local function f()" "    return 1" "end" ""])))
+      (testing "respacing edits the gaps, leaving the words between them alone"
+        (is (= [[(cr [0 7] [0 7]) [" "]]
+                [(cr [0 8] [0 8]) [" "]]]
+               (document-edits ["local x=1" ""]
+                               ["local x = 1" ""]))))
+      (testing "rewrites the whole row when it changed in more than spacing"
+        (is (= [[(cr [0 0] [0 11]) ["local y = 1"]]]
+               (document-edits ["local x = 1" ""]
+                               ["local y = 1" ""])))))
+    (testing "rewrites a hunk in one go when it changes the row count"
+      (is (= [[(cr [1 0] [1 5]) ["  b1()" "  b2()"]]]
+             (document-edits ["a()" "  b()" "c()" ""]
+                             ["a()" "  b1()" "  b2()" "c()" ""]))))
+    (testing "an already formatted document yields no edits"
+      (is (= [] (document-edits ["local function f()" "    return 1" "end" ""]
+                                ["local function f()" "    return 1" "end" ""]))))
+    (testing "edits that do not span the whole document pass through untouched"
+      (are [lines edits]
+        (= edits (data/format-document-edits lines edits))
+        ;; more than one edit, so the server already sent minimal edits
+        ["ab" "cd" ""] [[(cr [0 0] [0 1]) ["x"]] [(cr [1 0] [1 1]) ["y"]]]
+        ;; a single edit that stops short of the document end
+        ["ab" "cd" ""] [[(cr [0 0] [0 1]) ["x"]]]
+        ;; a single edit that does not start at the document start
+        ["ab" "cd" ""] [[(cr [0 1] [2 0]) ["x"]]]))))
+
+(deftest format-document-edits-preservation-test
+  (letfn [(format-document [lines regions cursor-ranges replacement-lines]
+            (data/apply-edits
+              lines
+              regions
+              cursor-ranges
+              (data/format-document-edits lines [[(cr [0 0] [(count lines) 0]) replacement-lines]])))]
+    (let [lines ["local function f()" "        return 1" "end" ""]
+          replacement-lines ["local function f()" "    return 1" "end" ""]]
+      (testing "cursors outside the reindented row keep their position"
+        (is (= [(c 0 5) (c 2 1)]
+               (:cursor-ranges (format-document lines [] [(c 0 5) (c 2 1)] replacement-lines)))))
+      (testing "a cursor on the reindented row stays on the same character"
+        ;; col 10 and col 6 are both two characters into "return"
+        (is (= [(c 1 6)]
+               (:cursor-ranges (format-document lines [] [(c 1 10)] replacement-lines)))))
+      (testing "a selection on the reindented row still covers the same text"
+        (is (= [(cr [1 4] [1 10])]
+               (:cursor-ranges (format-document lines [] [(cr [1 8] [1 14])] replacement-lines))))))
+    (let [lines ["    self.rotation=0" ""]
+          replacement-lines ["    self.rotation = 0" ""]]
+      (testing "a cursor beside a respaced operator stays beside it"
+        (is (= [(c 0 18)]
+               (:cursor-ranges (format-document lines [] [(c 0 17)] replacement-lines))))))
+    (let [lines ["local function f()" "        return 1" "end" ""]
+          replacement-lines ["local function f()" "    return 1" "end" ""]]
+      (testing "breakpoints outside the reindented row survive"
+        (is (= [#code/range [[2 0] [2 3] :type :breakpoint]]
+               (:regions (format-document lines
+                                          [#code/range [[2 0] [2 3] :type :breakpoint]]
+                                          []
+                                          replacement-lines))))))
+    (testing "cursors after an inserted row move down with it"
+      (is (= [(c 2 1)]
+             (:cursor-ranges (format-document ["a()" "c()" ""] [] [(c 1 1)]
+                                              ["a()" "b()" "c()" ""])))))
+    (testing "cursors after a removed row move up with it"
+      (is (= [(c 1 1)]
+             (:cursor-ranges (format-document ["a()" "b()" "c()" ""] [] [(c 2 1)]
+                                              ["a()" "c()" ""])))))))
+
+(deftest format-row-spans-test
+  (let [lines ["local a=1" "" "local b=2" "" "local c=3" ""]]
+    (testing "expands a selection to whole rows"
+      (is (= [(cr [0 0] [0 9])]
+             (data/format-row-spans lines [(cr [0 3] [0 6])]))))
+    (testing "trims the blank rows a selection drags in"
+      (are [cursor-range]
+        (= [(cr [2 0] [2 9])] (data/format-row-spans lines [cursor-range]))
+        (cr [2 0] [2 9]) ; no blank rows to trim
+        (cr [3 0] [2 0]) ; dragged up from the blank row below
+        (cr [1 0] [3 0]))) ; blank rows at both ends
+    (testing "merges runs less than two rows apart"
+      (is (= [(cr [0 0] [2 9])]
+             (data/format-row-spans lines [(cr [0 0] [0 9]) (cr [2 0] [2 9])]))))
+    (testing "keeps runs further apart separate"
+      (is (= [(cr [0 0] [0 9]) (cr [4 0] [4 9])]
+             (data/format-row-spans lines [(cr [0 0] [0 9]) (cr [4 0] [4 9])]))))
+    (testing "a selection of only blank rows has nothing to format"
+      (is (= [] (data/format-row-spans lines [(cr [3 0] [3 0])]))))))
+
+(deftest format-range-edits-test
+  (let [lines ["local a=1" "" "local b=2" "" "local c=3" ""]
+        ;; servers answer a row range with an edit ending where the next row starts
+        edits [[(cr [2 0] [3 0]) ["local b = 2" ""]]]]
+    (testing "an edit covering rows in the middle is diffed like a whole document"
+      (is (= [[(cr [2 7] [2 7]) [" "]]
+              [(cr [2 8] [2 8]) [" "]]]
+             (data/format-document-edits lines edits))))
+    (testing "an edit ending where its own row ends means the same thing"
+      (is (= (data/format-document-edits lines edits)
+             (data/format-document-edits lines [[(cr [2 0] [2 9]) ["local b = 2"]]]))))
+    (testing "the rows outside the edit are left alone"
+      (is (= ["local a=1" "" "local b = 2" "" "local c=3" ""]
+             (:lines (data/apply-edits lines [] [] (data/format-document-edits lines edits))))))
+    (testing "a cursor in the formatted rows keeps its place"
+      (is (= [(c 2 8)]
+             (:cursor-ranges (data/apply-edits lines [] [(c 2 7)]
+                                               (data/format-document-edits lines edits))))))
+    (testing "a range that runs past the document end is clamped to it"
+      (is (= ["local a=1" "" "local b=2" "" "local c = 3"]
+             (:lines (data/apply-edits
+                       lines [] []
+                       (data/format-document-edits
+                         lines [[(cr [4 0] [9 0]) ["local c = 3"]]]))))))
+    (testing "edits that do not cover whole rows pass through untouched"
+      (are [edits]
+        (= edits (data/format-document-edits lines edits))
+        ;; an insertion in the middle of a row
+        [[(cr [2 0] [2 0]) ["x"]]]
+        ;; a range starting past the last row, which a server should never send
+        [[(cr [6 0] [6 0]) ["x"]]]))))
 
 (deftest apply-edits-test
   (is (= {:lines ["ab=1"]

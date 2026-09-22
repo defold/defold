@@ -46,4 +46,8 @@ function(defold_target_link_app target platform)
   else()
     # iOS/Android/Web: no additional app libs beyond platform defaults
   endif()
+
+  if(DEFOLD_PLATFORM_APP_LIBS)
+    target_link_libraries(${target} ${DAPP_SCOPE} ${DEFOLD_PLATFORM_APP_LIBS})
+  endif()
 endfunction()

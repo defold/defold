@@ -36,6 +36,8 @@ message ModelDesc
     optional string name               = 10; // Deprecated
     repeated Material materials        = 11;
     optional bool create_go_bones      = 12 [default=true];
+    optional string mesh_name          = 13;
+    optional uint32 mesh_index         = 14;
 }
 
 // The engine format (.modelc)
@@ -45,6 +47,7 @@ message Model
     optional string default_animation = 2;
     repeated Material materials       = 3;
     optional bool create_go_bones     = 4;
+    optional uint32 mesh_index        = 5 [default=0xffffffff];
 }
 
 message ResetConstant
@@ -87,7 +90,7 @@ message ModelCancelAnimation
  * @message
  * @name model_animation_done
  * @param animation_id [type:hash] the id of the completed animation
- * @param playback [type:constant] the playback mode of the completed animation
+ * @param playback [type:go.PLAYBACK] the playback mode of the completed animation
  * @examples
  *
  * ```lua

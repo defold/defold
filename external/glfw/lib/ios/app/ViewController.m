@@ -53,11 +53,17 @@ static int g_view_type = GLFW_NO_API;
         return;
     }
 
-    [oldBaseView removeFromSuperview];
+    if (oldBaseView != newBaseView)
+    {
+        // A scheduled CADisplayLink retains its target, so removing the old view is not enough.
+        [oldBaseView invalidateDisplayLink];
+        [oldBaseView removeFromSuperview];
+    }
     self.baseView = newBaseView;
 
     [[self view] insertSubview:baseView atIndex:0];
     [baseView setCurrentContext];
+    [baseView startDisplayLink];
 }
 
 - (void)viewDidLoad
@@ -169,11 +175,6 @@ static int g_view_type = GLFW_NO_API;
     [baseView setCurrentContext];
 
     [super viewDidAppear: animated];
-}
-
-- (void)viewDidUnload
-{
-    [super viewDidUnload];
 }
 
 - (UIRectEdge)preferredScreenEdgesDeferringSystemGestures {

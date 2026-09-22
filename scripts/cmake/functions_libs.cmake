@@ -9,7 +9,6 @@ endif()
 
 set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   basis_encoder
-  basis_encoder_noasan
   basis_transcoder
   crashext
   crashext_null
@@ -26,9 +25,14 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   engine_service_null
   extension
   font
+  font_richtext
+  font_richtext_null
+  font_render
   font_skribidi
   gameobject
   gamesys
+  gamesys_gui
+  gamesys_particle
   gamesys_model
   gamesys_model_null
   gamesys_rig
@@ -64,6 +68,7 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   mbedtls_noasan
   model
   particle
+  particle_null
   physics
   physics_2d
   physics_2d_defold
@@ -83,13 +88,13 @@ set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   record
   record_null
   render
-  render_font_default
   resource
   rig
   rig_null
   script
   script_box2d
   script_box2d_defold
+  script_bullet3d
   shaderc
   sound
   sound_nosimd
@@ -136,6 +141,9 @@ function(defold_target_link_libraries target platform)
   set(_SDK_LIBS ${DLIB_UNPARSED_ARGUMENTS})
   set(_LIBS)
   foreach(_lib IN LISTS DLIB_UNPARSED_ARGUMENTS)
+    if(_lib MATCHES "^(basis_encoder|basis_transcoder)$")
+      defold_import_basisu("${_lib}" "${platform}")
+    endif()
     set(_vendor_libs)
     set(_vendor_libs_found OFF)
     if(COMMAND defold_xbox_resolve_library)
@@ -183,7 +191,20 @@ function(defold_target_link_libraries target platform)
     set(_MAPPED_LIBS ${_LIBS})
   endif()
 
+  # Private platforms may require additional libraries for testmain consumers.
+  list(FIND _LIBS "testmain" _testmain_idx)
+  if(NOT _testmain_idx EQUAL -1 AND DEFOLD_PLATFORM_TESTMAIN_LIBS)
+    list(APPEND _MAPPED_LIBS ${DEFOLD_PLATFORM_TESTMAIN_LIBS})
+  endif()
+
+  # Private platforms may require additional libraries for HID consumers.
+  list(FIND _LIBS "hid" _hid_idx)
+  if(NOT _hid_idx EQUAL -1 AND DEFOLD_PLATFORM_HID_LIBS)
+    list(APPEND _MAPPED_LIBS ${DEFOLD_PLATFORM_HID_LIBS})
+  endif()
+
   if(_MAPPED_LIBS)
+    list(REMOVE_DUPLICATES _MAPPED_LIBS)
     target_link_libraries(${target} ${DLIB_SCOPE} ${_MAPPED_LIBS})
   endif()
 
@@ -362,10 +383,16 @@ endfunction()
 
 function(defold_get_font_libraries out_var)
   defold_feature_enabled(font_layout _with_font_layout)
+  defold_feature_disabled(font_richtext _without_font_richtext)
   if(_with_font_layout)
     set(_font_libs font_skribidi harfbuzz sheenbidi unibreak skribidi)
   else()
     set(_font_libs font)
+  endif()
+  if(_without_font_richtext)
+    list(APPEND _font_libs font_richtext_null)
+  else()
+    list(APPEND _font_libs font_richtext)
   endif()
   set(${out_var} ${_font_libs} PARENT_SCOPE)
 endfunction()
@@ -373,9 +400,9 @@ endfunction()
 function(defold_get_gamesys_libraries out_var)
   defold_feature_enabled(box2dv3 _with_box2dv3)
   if(_with_box2dv3)
-    set(_gamesys_libs gamesys gamesys_model gamesys_rig script_box2d)
+    set(_gamesys_libs gamesys gamesys_gui gamesys_particle gamesys_model gamesys_rig script_box2d script_bullet3d)
   else()
-    set(_gamesys_libs gamesys gamesys_model gamesys_rig script_box2d_defold)
+    set(_gamesys_libs gamesys gamesys_gui gamesys_particle gamesys_model gamesys_rig script_box2d_defold script_bullet3d)
   endif()
   set(${out_var} ${_gamesys_libs} PARENT_SCOPE)
 endfunction()
@@ -411,11 +438,15 @@ function(defold_attach_local_include target)
   # Add include directory for compilation
   target_include_directories(${target} PRIVATE "${_inc_dir}")
 
-  # Add headers to the target's sources so IDEs show them.
-  file(GLOB_RECURSE _headers CONFIGURE_DEPENDS
-       "${_inc_dir}/*.h" "${_inc_dir}/*.hpp" "${_inc_dir}/*.hh" "${_inc_dir}/*.hxx" "${_inc_dir}/*.inl" "${_inc_dir}/*.inc")
-  if(_headers)
-    target_sources(${target} PRIVATE ${_headers})
+  # IDE projects need headers in their source tree. Command-line generators
+  # track included headers through compiler dependencies, without regenerating
+  # the build graph when installation adds SDK headers to this directory.
+  if(CMAKE_GENERATOR MATCHES "Xcode|Visual Studio")
+    file(GLOB_RECURSE _headers CONFIGURE_DEPENDS
+         "${_inc_dir}/*.h" "${_inc_dir}/*.hpp" "${_inc_dir}/*.hh" "${_inc_dir}/*.hxx" "${_inc_dir}/*.inl" "${_inc_dir}/*.inc")
+    if(_headers)
+      target_sources(${target} PRIVATE ${_headers})
+    endif()
   endif()
 endfunction()
 
@@ -463,6 +494,11 @@ function(defold_add_executable target)
 
   # Forward all remaining args directly to add_executable
   add_executable(${target} ${_sources})
+  defold_validate_android_elf(${target})
+
+  if(DEFINED DEFOLD_PLATFORM_EXECUTABLE_SUFFIX)
+    set_target_properties(${target} PROPERTIES SUFFIX "${DEFOLD_PLATFORM_EXECUTABLE_SUFFIX}")
+  endif()
 
   if(TARGET defold_sdk)
     target_link_libraries(${target} PRIVATE defold_sdk)
@@ -552,6 +588,7 @@ function(defold_add_library target)
 
   # Forward all remaining args directly to add_library
   add_library(${target} ${_sources})
+  defold_validate_android_elf(${target})
 
   if(TARGET defold_sdk)
     get_target_property(_defold_target_type ${target} TYPE)

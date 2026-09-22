@@ -116,7 +116,7 @@
 (deftest game-project-builds-gamepadsc-from-gamepads-and-gamecontrollerdb
   (with-clean-system
     (let [platform-case (host-platform-case)
-          workspace (test-util/setup-scratch-workspace! world "test/resources/build_project/SideScroller")
+          workspace (test-util/setup-scratch-workspace! "test/resources/build_project/SideScroller")
           project-directory (workspace/project-directory workspace)]
       (write-default-gamepads! project-directory)
       (write-gamepad-db! project-directory platform-case)
@@ -130,9 +130,9 @@
                 gamepad-db-mapping (mapping-by-device maps (:gamepad-db-device platform-case))]
             (is (not (.exists (io/file (workspace/build-path workspace) "input/gamecontrollerdb.txt"))))
             (is (some? default-mapping))
-            (is (not (.hasGuid default-mapping)))
+            (is (not (.hasRawMapping default-mapping)))
             (is (some? gamepad-db-mapping))
-            (is (.hasGuid gamepad-db-mapping))
+            (is (.hasRawMapping gamepad-db-mapping))
             (is (nil? (mapping-by-device maps (:ignored-default-gamepads-device platform-case))))
             (is (nil? (mapping-by-device maps (:ignored-gamepad-db-device platform-case))))
             (is (not-any? (fn [^Input$GamepadMapRuntime mapping]
@@ -143,7 +143,7 @@
   (with-clean-system
     (let [platform-case (host-platform-case)
           updated-platform-case (assoc platform-case :gamepad-db-device "Editor SDL Updated Pad")
-          workspace (test-util/setup-scratch-workspace! world "test/resources/build_project/SideScroller")
+          workspace (test-util/setup-scratch-workspace! "test/resources/build_project/SideScroller")
           project-directory (workspace/project-directory workspace)
           original-device (:gamepad-db-device platform-case)
           updated-device (:gamepad-db-device updated-platform-case)]
@@ -165,7 +165,7 @@
 (deftest game-project-builds-gamepadsc-from-gamecontrollerdb-when-gamepads-is-empty
   (with-clean-system
     (let [platform-case (host-platform-case)
-          workspace (test-util/setup-scratch-workspace! world "test/resources/build_project/SideScroller")
+          workspace (test-util/setup-scratch-workspace! "test/resources/build_project/SideScroller")
           project-directory (workspace/project-directory workspace)]
       (write-gamepad-db! project-directory platform-case)
       (add-gamepad-settings! project-directory "/input/gamecontrollerdb.txt")
@@ -183,7 +183,7 @@
 
 (deftest game-project-keeps-gamepads-empty-when-gamepads-and-gamecontrollerdb-are-empty
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/build_project/SideScroller")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/build_project/SideScroller")
           project-directory (workspace/project-directory workspace)]
       (add-gamepad-settings! project-directory "")
       (clear-gamepads-setting! project-directory)
@@ -200,7 +200,7 @@
 (deftest game-project-requires-gamepad-database-txt-extension
   (with-clean-system
     (let [platform-case (host-platform-case)
-          workspace (test-util/setup-scratch-workspace! world "test/resources/build_project/SideScroller")
+          workspace (test-util/setup-scratch-workspace! "test/resources/build_project/SideScroller")
           project-directory (workspace/project-directory workspace)
           input-directory (io/file project-directory "input")]
       (write-default-gamepads! project-directory)

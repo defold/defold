@@ -58,6 +58,14 @@
     x
     (completed x)))
 
+(defn unwrap [x]
+  (if-not (instance? CompletableFuture x)
+    x
+    (try
+      (.join ^CompletableFuture x)
+      (catch CompletionException ex
+        (throw (.getCause ex))))))
+
 (defn failed
   ^CompletableFuture [ex]
   (CompletableFuture/failedFuture ex))

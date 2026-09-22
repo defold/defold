@@ -21,6 +21,7 @@
             [editor.localization :as localization]
             [editor.math :as math]
             [editor.menu-items :as menu-items]
+            [editor.render-util :as render-util]
             [editor.scene-picking :as scene-picking]
             [editor.system :as system]
             [editor.types :as types]
@@ -57,36 +58,26 @@
     :command :scene.visibility.show-all}
    (menu-items/separator-with-id ::context-menu-end)])
 
-(defn render-selection-box [^GL2 gl _render-args renderables _count]
+(defn render-selection-box [^GL2 gl render-args renderables _count]
   (let [user-data (:user-data (first renderables))
         start (:start user-data)
         current (:current user-data)]
     (when (and start current)
-     (let [min-fn (fn [v1 v2] (map #(Math/min ^Double %1 ^Double %2) v1 v2))
-           max-fn (fn [v1 v2] (map #(Math/max ^Double %1 ^Double %2) v1 v2))
-           min-p (reduce min-fn [start current])
-           min-x (nth min-p 0)
-           min-y (nth min-p 1)
-           max-p (reduce max-fn [start current])
-           max-x (nth max-p 0)
-           max-y (nth max-p 1)
-           z 0.0
-           c (double-array (map #(/ % 255.0) [131 188 212]))]
-       (.glColor3d gl (nth c 0) (nth c 1) (nth c 2))
-       (.glBegin gl GL2/GL_LINE_LOOP)
-       (.glVertex3d gl min-x min-y z)
-       (.glVertex3d gl min-x max-y z)
-       (.glVertex3d gl max-x max-y z)
-       (.glVertex3d gl max-x min-y z)
-       (.glEnd gl)
-
-       (.glBegin gl GL2/GL_QUADS)
-       (.glColor4d gl (nth c 0) (nth c 1) (nth c 2) 0.2)
-       (.glVertex3d gl min-x, min-y, z);
-       (.glVertex3d gl min-x, max-y, z);
-       (.glVertex3d gl max-x, max-y, z);
-       (.glVertex3d gl max-x, min-y, z);
-       (.glEnd gl)))))
+      (let [min-fn (fn [v1 v2] (map #(Math/min ^Double %1 ^Double %2) v1 v2))
+            max-fn (fn [v1 v2] (map #(Math/max ^Double %1 ^Double %2) v1 v2))
+            min-p (reduce min-fn [start current])
+            min-x (nth min-p 0)
+            min-y (nth min-p 1)
+            max-p (reduce max-fn [start current])
+            max-x (nth max-p 0)
+            max-y (nth max-p 1)
+            color (mapv #(/ % 255.0) [131 188 212])
+            positions [[min-x min-y]
+                       [min-x max-y]
+                       [max-x max-y]
+                       [max-x min-y]]]
+        (render-util/render-color-line-loop! gl render-args ::selection-box-outline color positions)
+        (render-util/render-color-quad! gl render-args ::selection-box-fill (conj color 0.2) positions)))))
 
 (defn- select [controller op-seq mode toggle?]
   (let [select-fn (g/node-value controller :select-fn)
@@ -182,6 +173,7 @@
                            toggle? (boolean (some (:modifiers action) toggle-modifiers))
                            mode :single]
                        (g/transact
+                         {:undoable false}
                          (concat
                            (g/set-property self :op-seq op-seq)
                            (g/set-property self :start cursor-pos)
@@ -194,6 +186,7 @@
       :mouse-released (do
                         (when start (select self op-seq mode toggle?))
                         (g/transact
+                          {:undoable false}
                           (concat
                             (g/set-property self :start nil)
                             (g/set-property self :current nil)
@@ -204,9 +197,12 @@
                             (g/set-property self :prev-selection nil)))
                         (when contextual?
                           (let [node ^Node (:target action)
-                                scene ^Scene (.getScene node)
-                                context-menu (init-scene-context-menu! scene node)]
-                            (.show context-menu node ^double (:screen-x action) ^double (:screen-y action))))
+                                screen-x (:screen-x action)
+                                screen-y (:screen-y action)]
+                            (ui/request-context-menu!
+                              #(when-let [scene (.getScene node)]
+                                 (-> (init-scene-context-menu! scene node)
+                                     (.show node ^double screen-x ^double screen-y))))))
                         nil)
       :mouse-moved (if start
                      (let [new-mode (if (and (= :single mode) (< min-pick-size (distance start cursor-pos)))
@@ -214,6 +210,7 @@
                                       mode)]
                        (when-not (g/node-value self :contextual?)
                          (g/transact
+                           {:undoable false}
                            (concat
                              (when (not= new-mode mode) (g/set-property self :mode new-mode))
                              (g/set-property self :current cursor-pos)))

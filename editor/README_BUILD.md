@@ -45,6 +45,9 @@ cd defold
 # Extracts packages - you only need to do this once
 ./scripts/build.py install_ext
 
+# Build source dependencies (also needed after distclean)
+./scripts/build.py build_ext
+
 # Build the engine
 ./scripts/build.py build_engine --skip-tests -- --skip-build-tests
 
@@ -103,6 +106,7 @@ Please note that Lein will introduce a nREPL dependency automagically, but its a
 
 As a temporary solution, we use Bob (from Editor1) as the content pipeline for bundling and running in the browser. In order to setup Bob locally, you need to:
 
+- Install and build dependencies for the platform, e.g. `python scripts/build.py install_ext build_ext --platform=wasm-web`
 - Build the engine for the specific platform, e.g. `python scripts/build.py build_engine --platform=wasm-web --skip-tests -- --skip-build-tests`
 - Build Bob with local artifacts, `python scripts/build.py build_bob`
 - `lein init`, which will install `bob.jar` as a local maven package

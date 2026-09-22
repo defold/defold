@@ -32,6 +32,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types]
+            [internal.graph.types :as gt]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.node :as in]
@@ -41,6 +42,157 @@
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc]
            [java.io StringReader]))
+
+(defn- gui-scene-dependencies [workspace read-opts scene-desc]
+  (let [resource (workspace/make-memory-resource workspace :editable "gui" scene-desc)]
+    (vec
+      (sort
+        (gui/gui-scene-dependencies
+          read-opts
+          resource
+          scene-desc)))))
+
+(deftest gui-scene-editor-dependencies-test
+  (test-util/with-loaded-project "test/resources/empty_project"
+    (let [basis (g/now)
+          read-opts (workspace/make-read-opts basis workspace :include-editor-dependencies true)
+          gui-scene-dependencies (partial gui-scene-dependencies workspace read-opts)]
+      (testing "Empty scene depends on default resources needed by the editor."
+        (is (= ["/builtins/fonts/default.font"
+                "/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {})))))))
+
+(deftest gui-scene-dependencies-test
+  (test-util/with-loaded-project "test/resources/empty_project"
+    (let [basis (g/now)
+          read-opts (workspace/make-read-opts basis workspace :include-editor-dependencies false)
+          gui-scene-dependencies (partial gui-scene-dependencies workspace read-opts)]
+      (testing "Empty scene."
+        (is (= ["/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {}))))
+
+      (testing "Script specified."
+        (is (= ["/builtins/materials/gui.material"
+                "/specified.gui_script"]
+               (gui-scene-dependencies
+                 {:script "/specified.gui_script"}))))
+
+      (testing "Default material specified."
+        (is (= ["/specified.material"]
+               (gui-scene-dependencies
+                 {:material "/specified.material"}))))
+
+      (testing "Declared font."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.font"]
+               (gui-scene-dependencies
+                 {:fonts [{:name "declared"
+                           :font "/declared.font"}]}))))
+
+      (testing "Declared material."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.material"]
+               (gui-scene-dependencies
+                 {:materials [{:name "declared"
+                               :material "/declared.material"}]}))))
+
+      (testing "Declared particlefx."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.particlefx"]
+               (gui-scene-dependencies
+                 {:particlefxs [{:name "declared"
+                                 :particlefx "/declared.particlefx"}]}))))
+
+      (testing "Declared resource."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.resource"]
+               (gui-scene-dependencies
+                 {:resources [{:name "declared"
+                               :path "/declared.resource"}]}))))
+
+      (testing "Declared spine scene (legacy)."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.spinescene"]
+               (gui-scene-dependencies
+                 {:spine-scenes [{:name "declared"
+                                  :spine-scene "/declared.spinescene"}]}))))
+
+      (testing "Declared texture."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.atlas"]
+               (gui-scene-dependencies
+                 {:textures [{:name "declared"
+                              :texture "/declared.atlas"}]}))))
+
+      (testing "Shape node without dependencies."
+        (is (= ["/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-pie}]}))))
+
+      (testing "Template node."
+        (is (= ["/builtins/materials/gui.material"
+                "/template.gui"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-template
+                           :template "/template.gui"}]}))))
+
+      (testing "Text node brings in the default font when font is unspecified."
+        (is (= ["/builtins/fonts/default.font"
+                "/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-text}]}))))
+
+      (testing "Text node does not bring in the default font when font is specified."
+        (is (= ["/builtins/materials/gui.material"
+                "/declared.font"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-text
+                           :font "declared"}]
+                  :fonts [{:name "declared"
+                           :font "/declared.font"}]}))))
+
+      (testing "Template-overridden text node does not bring in the default font when font is not overridden."
+        (is (= ["/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-text
+                           :template-node-child true
+                           :overridden-fields [(gui/prop-key->pb-field-index :text)]}]}))))
+
+      (testing "Template-overridden text node brings in the default font when font is overridden."
+        (is (= ["/builtins/fonts/default.font"
+                "/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:nodes [{:type :type-text
+                           :template-node-child true
+                           :overridden-fields [(gui/prop-key->pb-field-index :font)]}]}))))
+
+      (testing "Layout-overridden text node does not bring in the default font when font is not overridden."
+        (is (= ["/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:layouts [{:nodes [{:type :type-text
+                                      :overridden-fields [(gui/prop-key->pb-field-index :text)]}]}]}))))
+
+      (testing "Layout-overridden text node brings in the default font when font is overridden."
+        (is (= ["/builtins/fonts/default.font"
+                "/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:layouts [{:nodes [{:type :type-text
+                                      :overridden-fields [(gui/prop-key->pb-field-index :font)]}]}]}))))
+
+      (testing "Default font is not reported multiple times."
+        (is (= ["/builtins/fonts/default.font"
+                "/builtins/materials/gui.material"]
+               (gui-scene-dependencies
+                 {:fonts [{:name "default"
+                           :font "/builtins/fonts/default.font"}]
+                  :nodes [{:type :type-text}
+                          {:type :type-text
+                           :template-node-child true
+                           :overridden-fields [(gui/prop-key->pb-field-index :font)]}]
+                  :layouts [{:nodes [{:type :type-text
+                                      :overridden-fields [(gui/prop-key->pb-field-index :font)]}]}]})))))))
 
 (defn- prop [node-id label]
   (test-util/prop node-id label))
@@ -55,6 +207,17 @@
                       (map (fn [node-id] [(g/valid-node-value node-id :id) node-id]))
                       (into {}))]
     (id->node id)))
+
+(deftest invalid-markup-is-gui-text-property-warning-test
+  (test-util/with-loaded-project
+    (let [scene (project/get-resource-node project "/editor1/test.gui")
+          text-node (gui-node scene "text")]
+      (test-util/with-prop [text-node :text "valid\n<color>bad</size>"]
+        (let [property-error (test-util/prop-error text-node :text)]
+          (is (g/error-warning? property-error))
+          (is (g/error-warning? (g/node-value text-node :markup-error)))
+          (is (not (g/error? (g/node-value text-node :text-layout))))
+          (is (not (g/error? (g/node-value text-node :own-build-errors)))))))))
 
 (defn- gui-resources-node [resources-node-outline-key scene]
   (->> (g/node-value scene :node-outline)
@@ -221,6 +384,8 @@
     (g/connect resources-node :name-counts entry-node :name-counts)))
 
 (defn- register-test-gui-extensions [workspace]
+  ;; We're deliberately not supplying {:undoable false} to g/transact because we
+  ;; want to test that the transaction steps are all wrapped in g/non-undoable.
   (g/transact
     (concat
       (gui/register-custom-node-type-info
@@ -268,7 +433,7 @@
 (deftest load-gui
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/logic/main.gui")
-          _gui-node (ffirst (g/sources-of node-id :child-outlines))]
+          _gui-node (some-> (first (g/inputs (g/now) node-id :child-outlines)) gt/source-id)]
       (is (some? _gui-node)))))
 
 (deftest custom-gui-extension-registration
@@ -279,8 +444,10 @@
           test-vector4 (vector-of :float 4.0 5.0 6.0 7.0)
           test-hash "hash_value"
           source-resources [{:name "beta" :path "/beta.testguiresource"}
-                            {:name "alpha" :path "/alpha.testguiresource"}]]
+                            {:name "alpha" :path "/alpha.testguiresource"}]
+          undo-stack-count-before (g/undo-stack-count :undo/global)]
       (register-test-gui-extensions workspace)
+      (is (= undo-stack-count-before (g/undo-stack-count :undo/global)))
       (doseq [editability [:editable :non-editable]
               :let [gui-resource-type (get (workspace/get-resource-type-map workspace editability) "gui")
                     node-type-info (get-in gui-resource-type [:gui-node-type-registry :custom-type-name->type-info "TestCustom"])
@@ -455,7 +622,9 @@
         (is (not (contains? saved-node :custom-type)))
         (is (str/includes? source "custom_type_name: \"TestCustom\""))
         (is (not (str/includes? source "custom_type:")))))
-    (let [gui-resource-type (get (workspace/get-resource-type-map workspace :editable) "gui")
+    (let [basis (g/now)
+          read-opts (workspace/make-read-opts basis workspace)
+          gui-resource-type (get (workspace/get-resource-type-map workspace :editable) "gui")
           mismatched-node {:type :type-custom
                            :custom-type-name "TestCustom"
                            :custom-type (inc (murmur/hash32 "TestCustom"))
@@ -470,15 +639,16 @@
              (-> (with-open [reader (StringReader.
                                       (format "nodes { type: TYPE_CUSTOM custom_type: %d id: \"custom\" }"
                                               (murmur/hash32 "TestCustom")))]
-                   ((:read-fn gui-resource-type) reader))
+                   ((:read-fn gui-resource-type) read-opts nil reader))
                  (get-in [:nodes 0])
                  (select-keys [:type :custom-type-name :custom-type :id]))))
       (is (thrown-with-msg?
             IllegalStateException
             #"custom_type_name 'TestCustom' resolves to custom_type"
-            (#'gui/sanitize-scene workspace {:nodes [mismatched-node]})))
-      (let [sanitized-node (-> (#'gui/sanitize-scene
-                                 workspace
+            (#'gui/sanitize-gui-scene read-opts nil {:nodes [mismatched-node]})))
+      (let [sanitized-node (-> (#'gui/sanitize-gui-scene
+                                 read-opts
+                                 nil
                                  {:nodes [{:type :type-custom
                                            :custom-type-name "TestCustom"
                                            :id "custom"
@@ -488,7 +658,7 @@
                                :nodes
                                first)]
         (is (not (contains? sanitized-node :custom-properties))))
-      (let [sanitized-node (-> (#'gui/sanitize-scene workspace {:nodes [boxed-node-with-stale-custom-type-name]})
+      (let [sanitized-node (-> (#'gui/sanitize-gui-scene read-opts nil {:nodes [boxed-node-with-stale-custom-type-name]})
                                :nodes
                                first)]
         (is (= {:type :type-box
@@ -985,7 +1155,7 @@
 
 (deftest paste-gui-resource-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+    (let [make-restore-point! #(test-util/make-system-reverter)
           scene (test-util/resource-node project "/gui/resources/button.gui")
 
           check!
@@ -1035,7 +1205,7 @@
 
 (deftest rename-referenced-gui-resource
   (test-util/with-loaded-project
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+    (let [make-restore-point! #(test-util/make-system-reverter)
           scene (test-util/resource-node project "/gui_resources/gui_resources.gui")]
       (are [resource-id res-fn shape-id res-label new-name expected-name expected-choices]
         (testing (format "Renaming %s resource updates references" resource-id)
@@ -1058,7 +1228,7 @@
 
 (deftest rename-referenced-gui-resource-ignores-visible-layout
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+    (let [make-restore-point! #(test-util/make-system-reverter)
           scene (project/get-resource-node project "/gui/resources/button.gui")
           font-node (gui-font scene "button_font")
           text-node (gui-node scene "text")]
@@ -1073,7 +1243,7 @@
   ;; that refer to resources in the template scene are updated after the rename.
   ;; This is covered by template-layout-resource-rename-test below.
   (test-util/with-loaded-project
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+    (let [make-restore-point! #(test-util/make-system-reverter)
           template-scene (test-util/resource-node project "/gui_resources/gui_resources.gui")
           scene (test-util/resource-node project "/gui_resources/uses_gui_resources.gui")]
       (are [resource-id res-fn shape-id res-label new-name expected-name expected-choices expected-tmpl-choices]
@@ -1098,7 +1268,7 @@
 
 (deftest rename-referenced-gui-resource-in-outer-scene
   (test-util/with-loaded-project
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+    (let [make-restore-point! #(test-util/make-system-reverter)
           template-scene (test-util/resource-node project "/gui_resources/gui_resources.gui")
           scene (test-util/resource-node project "/gui_resources/replaces_gui_resources.gui")]
       (are [resource-id res-fn shape-id res-label new-name expected-name expected-tmpl-name expected-choices]
@@ -1152,8 +1322,8 @@
 
 (deftest introduce-missing-referenced-gui-resource
   (test-util/with-loaded-project
-    (let [[workspace project _app-view] (test-util/setup! world)
-          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+    (let [[workspace project _app-view] (test-util/setup!)
+          make-restore-point! #(test-util/make-system-reverter)
           scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
           shapes {:box (gui-node scene "box")
                   :pie (gui-node scene "pie")
@@ -1202,8 +1372,8 @@
 
 (deftest introduce-missing-referenced-gui-resource-in-template
   (test-util/with-loaded-project
-    (let [[workspace project _app-view] (test-util/setup! world)
-          make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+    (let [[workspace project _app-view] (test-util/setup!)
+          make-restore-point! #(test-util/make-system-reverter)
           template-scene (test-util/resource-node project "/gui_resources/broken_gui_resources.gui")
           template-shapes {:box (gui-node template-scene "box")
                            :pie (gui-node template-scene "pie")
@@ -1306,7 +1476,7 @@
   ;; │   └── text2
   ;; └── box2
   (test-util/with-loaded-project
-    (let [[workspace project _] (test-util/setup! world)
+    (let [[workspace project _] (test-util/setup!)
           scene (project/get-resource-node project "/gui/reorder.gui")
           id-map (scene-gui-node-map scene)]
 
@@ -1321,8 +1491,6 @@
       (move-child-node! (id-map "box1") -1)
       (check-order scene < "box1" "box2")
 
-
-
       ;; move up text2
       (move-child-node! (id-map "text2") -1)
       (check-order scene < "text2" "text1")
@@ -1331,8 +1499,6 @@
       (move-child-node! (id-map "text1") -1)
       (check-order scene < "text1" "text2")
 
-
-
       ;; move down box1
       (move-child-node! (id-map "box1") 1)
       (check-order scene < "box2" "box1")
@@ -1340,7 +1506,6 @@
       ;; move down box2 (restore order)
       (move-child-node! (id-map "box2") 1)
       (check-order scene < "box1" "box2")
-
 
       ;; move down text1
       (move-child-node! (id-map "text1") 1)
@@ -1352,11 +1517,11 @@
 
 (deftest reordering-does-not-wipe-layout-overrides
   (test-util/with-loaded-project
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
+    (let [make-restore-point! #(test-util/make-system-reverter)
           scene (project/get-resource-node project "/gui/reorder.gui")
           id-map (scene-gui-node-map scene)
           layouts (g/node-feeding-into scene :layout-names)
-          [landscape portrait] (map first (g/sources-of layouts :names))]
+          [landscape portrait] (map gt/source-id (g/inputs (g/now) layouts :names))]
 
       ;; sanity
       (is (= "Landscape" (g/node-value landscape :name)))
@@ -1789,7 +1954,7 @@
 
 (deftest template-layout-data-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+    (let [make-restore-point! #(test-util/make-system-reverter)]
 
       (let [proj-path "/gui/template_layout/button.gui"]
         (testing proj-path
@@ -2497,7 +2662,7 @@
 
 (deftest template-layout-add-referenced-layout-to-referencing-scene-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+    (let [make-restore-point! #(test-util/make-system-reverter)]
       (with-open [_ (make-restore-point!)]
         (let [referencing-scene (project/get-resource-node project "/gui/template_layout/panel_button.gui")
               referenced-scene (project/get-resource-node project "/gui/template_layout/button.gui")
@@ -2628,7 +2793,7 @@
 
 (deftest template-layout-add-referencing-layout-to-referenced-scene-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+    (let [make-restore-point! #(test-util/make-system-reverter)]
       (with-open [_ (make-restore-point!)]
         (let [referencing-scene (project/get-resource-node project "/gui/template_layout/panel_button.gui")
               referenced-scene (project/get-resource-node project "/gui/template_layout/button.gui")
@@ -3043,7 +3208,7 @@
 
 (deftest template-layout-resource-rename-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+    (let [make-restore-point! #(test-util/make-system-reverter)]
       (let [referencing-scene (project/get-resource-node project "/gui/resources/panel.gui")
             referenced-scene (project/get-resource-node project "/gui/resources/button.gui")
 
@@ -3391,7 +3556,7 @@
 
 (deftest template-layout-shadowing-resource-rename-test
   (test-util/with-loaded-project "test/resources/gui_project"
-    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+    (let [make-restore-point! #(test-util/make-system-reverter)]
       (let [referencing-scene (project/get-resource-node project "/gui/resources/shadowing_panel.gui")
             referenced-scene (project/get-resource-node project "/gui/resources/shadowing_button.gui")
 
@@ -4164,3 +4329,50 @@
              (-> (project/get-resource-node project "/importing.gui")
                  (make-built-layout->node->field->value)
                  (round-layout->node->field->value)))))))
+
+(deftest selected-font-style-layout-and-template-overrides
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [scene (test-util/resource-node project "/gui/resources/button.gui")
+          node (gui-node scene "text")]
+      (is (= "default" (g/node-value node :style)))
+      (test-util/prop! node :style "link")
+      (is (= "link" (:style (g/node-value node :text-layout))))
+      (with-visible-layout! scene "Landscape"
+        (test-util/prop! node :style "")
+        (is (= "" (:style (g/node-value node :text-layout)))))
+      (is (= "link" (g/node-value node :style)))
+      (is (= "" (get-in (g/node-value node :layout->prop->override) ["Landscape" :style])))
+      (test-util/with-prop [node :style "missing"]
+        (is (g/error-fatal? (test-util/prop-error node :style))))
+      (let [saved (g/node-value scene :save-value)
+            text (coll/first-where #(= "text" (:id %)) (:nodes saved))
+            landscape (coll/first-where #(= "Landscape" (:name %)) (:layouts saved))
+            override (coll/first-where #(= "text" (:id %)) (:nodes landscape))]
+        (is (= "link" (:style text)))
+        (is (= "" (:style override)))
+        (is (contains? (set (:overridden-fields override)) 51))))))
+
+(deftest selected-font-style-template-override
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [button (test-util/resource-node project "/gui/template_layout/button.gui")
+          panel (test-util/resource-node project "/gui/template_layout/panel_button.gui")
+          text (gui-node button "text")
+          template-text (gui-node panel "button/text")]
+      (test-util/prop! text :style "link")
+      (is (= "link" (g/node-value template-text :style)))
+      (test-util/prop! template-text :style "")
+      (is (= "" (g/node-value template-text :style)))
+      (let [saved (coll/first-where #(= "button/text" (:id %)) (:nodes (g/node-value panel :save-value)))]
+        (is (= "" (:style saved)))
+        (is (contains? (set (:overridden-fields saved)) 51)))
+      (test-util/prop! text :style "default")
+      (is (= "" (g/node-value template-text :style))))))
+
+(deftest missing-style-in-hidden-layout-is-build-error
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [scene (test-util/resource-node project "/gui/resources/button.gui")
+          node (gui-node scene "text")]
+      (with-visible-layout! scene "Landscape"
+        (test-util/prop! node :style "missing"))
+      (is (= "default" (g/node-value node :style)))
+      (is (g/error-fatal? (g/node-value scene :build-targets))))))

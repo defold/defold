@@ -44,15 +44,20 @@ namespace dmTexc
     void PreMultiplyAlpha(uint8_t* data, uint32_t width, uint32_t height);
     void FlipImageX_RGBA8888(uint32_t* data, uint32_t width, uint32_t height);
     void FlipImageY_RGBA8888(uint32_t* data, uint32_t width, uint32_t height);
+    void FlipImageX_RGBA32F(float* data, uint32_t width, uint32_t height);
+    void FlipImageY_RGBA32F(float* data, uint32_t width, uint32_t height);
+    Image* ResizeRGBA32F(Image* image, uint32_t width, uint32_t height);
 
     uint32_t GetDataSize(PixelFormat pf, uint32_t width, uint32_t height);
     bool ConvertToRGBA8888(const uint8_t* data, uint32_t width, uint32_t height, PixelFormat pf, uint8_t* out);
     void ConvertRGBA8888ToPf(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, void* out_data);
+    bool ConvertRGBA32FToPf(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, void* out_data);
     void ConvertPremultiplyAndFlip_ABGR8888ToRGBA8888(const uint8_t* input_data, uint8_t* output_data, uint32_t width, uint32_t height);
 
     uint32_t    GetDataSize(PixelFormat pf, uint32_t width, uint32_t height);
     bool        ConvertToRGBA8888(const uint8_t* data, uint32_t width, uint32_t height, PixelFormat pf, uint8_t* out);
     void        ConvertRGBA8888ToPf(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, void* out_data);
+    bool        ConvertRGBA32FToPf(const uint8_t* input, uint32_t width, uint32_t height, PixelFormat pf, void* out_data);
     void        ConvertPremultiplyAndFlip_ABGR8888ToRGBA8888(const uint8_t* input_data, uint8_t* output_data, uint32_t width, uint32_t height);
 
     // Dithers an image where the target format is RGBA4444

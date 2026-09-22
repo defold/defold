@@ -35,7 +35,7 @@ class AndroidTestHarness(TestHarness):
         return runner.run_test(program)
 
 
-register_test_harness(['armv7-android', 'arm64-android'], AndroidTestHarness())
+register_test_harness(['armv7-android', 'arm64-android', 'x86_64-android'], AndroidTestHarness())
 
 
 def options(opt):

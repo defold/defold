@@ -13,11 +13,12 @@ set(TEXC_DEPENDENCIES dlib zip mbedtls basis_encoder astcenc)
 set(TEXC_BINDINGS_DEPENDENCIES jni_noasan)
 set(TEXC_SHARED_DEPENDENCIES
   dlib_noasan
+  image_noasan
   zip_noasan
   mbedtls_noasan
   profile_null_noasan
   jni_noasan
-  basis_encoder_noasan
+  basis_encoder
   astcenc)
 
 set(TEXC_IS_DESKTOP OFF)

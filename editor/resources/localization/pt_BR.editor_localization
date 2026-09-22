@@ -77,6 +77,8 @@ welcome.new-project.colorslide-tutorial.title = Tutorial de Colorslide
 welcome.new-project.colorslide-tutorial.description = Neste tutorial de dificuldade média, você cria uma interface dentro do jogo, uma tela de GUI para seleção de nível e uma tela inicial para um jogo móvel com vários níveis.
 
 # Welcome -> New Project -> From Sample
+welcome.new-project.sample-3d-platformer.title = Kit Inicial de Plataforma 3D
+welcome.new-project.sample-3d-platformer.description = Esta é uma amostra de plataforma 3D pronta para o jogo com movimento de personagens responsivos, pulos, câmera orbital, colecionáveis, personagens animados, iluminação e sombras.
 welcome.new-project.sample-3d-third-person-playground.title = Playground 3D de Terceira-Pessoa
 welcome.new-project.sample-3d-third-person-playground.description = Este é um exemplo de jogo de terceira pessoa 3D onde você pode mover um personagem 3D com teclado ou mouse/toque. Ele mostra como fazer uma configuração 3D básica com sombras.
 welcome.new-project.linker-sample-game.title = Jogo de Exemplo Linker
@@ -124,8 +126,22 @@ updater.dialog.button.not-now = Agora Não
 updater.dialog.button.download = Baixar Atualização
 updater.dialog.button.install-and-restart = Instalar e Reiniciar
 updater.dialog.button.download-newer-version = Baixar Versão Mais Recente
+updater.dialog.button.skip-version = Ignorar Esta Versão
+updater.dialog.button.skip-newer-version = Ignorar Versão Mais Recente
+updater.release-notes-dialog.title = Atualização Disponível
+updater.release-notes-dialog.header = Resumo de Atualizações Defold - O que há de novo{count, plural, \=1{ em {version}} other{}}
+updater.release-notes-dialog.button.later = Talvez Depois
+updater.release-notes-dialog.button.update-now = Atualizar Agora
+updater.up-to-date-dialog.title = Nenhuma Atualização Disponível
+updater.up-to-date-dialog.header = Você está executando a versão mais recente do Defold
+updater.check-failed-dialog.title = Falha na Verificação
+updater.check-failed-dialog.header = Não foi possível buscar atualizações. Tente novamente mais tarde.
+updater.download-in-progress-dialog.title = Atualização em Andamento
+updater.download-in-progress-dialog.header = Defold já está baixando uma atualização
 
 # Bundled release notes shown on first launch of a version and via Help > Release Notes
+release-notes-tab.title = Notas da Versão
+release-notes-tab.tooltip = Resumo de Lançamento Defold - O que há de novo em {version}
 
 # Time
 time.vague.unknown = Desconhecido
@@ -172,12 +188,6 @@ dialog.build-error.cycle.detail.generic = Isso é causado por dois ou mais recur
 dialog.clean-build.title = Executar Construção Limpa de Projeto?
 dialog.clean-build.header = Tem certeza que deseja executar uma construção de projeto limpa?
 dialog.clean-build.button.clean = Compilação Limpa
-
-# Debugging Not Supported Dialog
-
-dialog.debugging-not-supported.title = Depuração Não Suportada
-dialog.debugging-not-supported.header = Este projeto não pode ser usado com o depurador
-dialog.debugging-not-supported.content = Está configurado para desabilitar o compartilhamento de estado de scripts.\n\nSe você não precisa de estados de script diferentes, considere mudar a propriedade script.share_state no game.project.
 
 # Defunload Issues Dialog
 
@@ -274,6 +284,9 @@ dialog.quit-defold.button.quit = Sair Sem Salvar
 
 # Project directory unavailable dialog
 
+dialog.project-directory-unavailable.title = Pasta do Projeto Indisponível
+dialog.project-directory-unavailable.header = A pasta do projeto não pode mais ser encontrada
+dialog.project-directory-unavailable.content = A pasta do projeto foi movida, renomeada ou excluída fora do Defold. Defold irá encerrar. Qualquer alteração não salva será perdida.
 
 # Restart Defold dialog
 
@@ -352,6 +365,7 @@ dialog.fetch-libraries.host-unreachable.content = Servidor inacessível\: {host}
 
 # Notification view
 
+notification.more = +{count} mais
 
 # Fetch libraries notification
 
@@ -381,6 +395,9 @@ notification.reload-plugins-failed.action.restart = Reiniciar Defold
 
 # Disabled functionality notification
 
+notification.disabled-functionality = Um erro fez com que algumas funcionalidades do editor fossem desativadas. Você pode reativá-las agora ou reiniciar o editor.
+notification.disabled-functionality.action.enable = Reativar
+notification.disabled-functionality.action.restart = Reiniciar
 
 # Open custom editor notifications
 
@@ -399,6 +416,7 @@ notification.ensure-exists.reason.folder = o caminho configurado aponta para uma
 
 notification.lsp.language-server-missing.prompt = Não é possível executar esta ação porque não há nenhum Servidor de Linguagem em execução para {language}.
 notification.lsp.language-server-missing.action.about = Sobre LSP em Defold
+notification.lsp.formatting-failed.prompt = Não é possível formatar {path} porque nenhum Servidor de Linguagem respondeu.
 
 # Asset browser notifications
 
@@ -547,17 +565,15 @@ dialog.bundle.label.platform = Plataforma
 dialog.bundle.option.platform.x86_64-linux = X64
 dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-bit
-dialog.bundle.option.platform.x86-win32 = 32-bit
 dialog.bundle.option.identity.none = Nenhum
 dialog.bundle.label.architectures = Arquiteturas
-dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
-dialog.bundle.option.architecture.x86_64-ios = Simulador (x86_64)
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
 dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + Suporte a threads
 dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
 dialog.bundle.option.architecture.arm64-android = 64-bit (arm64)
+dialog.bundle.option.architecture.x86_64-android = 64-bit (x86_64)
 dialog.bundle.label.sign-application = Assinar Aplicação
 dialog.bundle.label.code-signing-identity = Identidade de Assinatura de Código
 dialog.bundle.label.provisioning-profile = Perfil de Provisão
@@ -701,6 +717,8 @@ prefs.label.code.zoom-on-scroll = Zoom ao Rolar
 prefs.label.code.hover = Popup ao passar o mouse
 prefs.help.code.hover = Mostrar popup com documentação do código ao passar o mouse
 prefs.label.code.auto-closing-parens = Auto-inserir fecha parentese
+prefs.label.code.format-on-save = Formatar ao salvar
+prefs.help.code.format-on-save = Executar o formatador do servidor de linguagem em arquivos abertos ao salvar
 
 # Extensions tab
 prefs.label.extensions.build-server = Servidor de Compilação
@@ -965,6 +983,7 @@ command.code.replace = Substituir…
 command.code.replace-next = Substituir Próximo
 command.code.toggle-comment = Alternar Comentário
 command.code.reindent-lines = Reindentar Linhas
+command.code.format = Formatar Documento/Seleção
 command.code.convert-indentation = Converter Indentação
 command.code.convert-indentation.to-tabs = Para Tabs
 command.code.convert-indentation.to-two-spaces = Para Dois Espaços
@@ -1040,6 +1059,8 @@ command.help.report-issue = Reportar Problema
 command.help.report-suggestion = Reportar Sugestão
 command.help.open-issues = Buscar Problemas
 command.help.open-donations = Fundo de Desenvolvimento
+command.help.open-release-notes = Notas de Versão
+command.help.check-for-updates = Buscar Atualizações
 command.app.about = Sobre
 command.vcs.diff = Ver Diff
 command.vcs.revert = Desfazer
@@ -1109,6 +1130,9 @@ operation.paste = Colar
 operation.select = Selecionar
 operation.tile-map.add-layer = Adicionar Camada
 
+# Font Styles
+
+
 # Scene View Popups
 
 scene-popup.reset-defaults-button = Restaurar Padrão
@@ -1128,6 +1152,7 @@ scene-popup.scene-visibility.gui-shapes = Formas de GUI
 scene-popup.scene-visibility.gui-particle-effects = Efeitos de Partículas GUI
 scene-popup.scene-visibility.gui-spine-scenes = Cenas Spine de GUI
 scene-popup.scene-visibility.gui-text = Texto de GUI
+scene-popup.scene-visibility.lights = Luzes
 scene-popup.scene-visibility.models = Modelos
 scene-popup.scene-visibility.particle-effects = Efeitos de Partículas
 scene-popup.scene-visibility.skeletons = Esqueletos
@@ -1140,95 +1165,163 @@ scene-popup.scene-visibility.scene-visibility-bounds = Limites de Visibilidade
 
 # Properties
 
+property.tooltip = {help, select, none {} other {{help}\n\n}}Disponível como `{id}` nos scripts de editor.
 
 # Properties: universal
 
 property.blend-mode = Modo de Mesclagem
 property.id = Id
+property.id.tooltip = O identificador usado para abordar esta instância de coleção, objeto do jogo ou componente no tempo de execução. Ele deve ser único entre seus irmãos; juntamente com a hierarquia, ele forma a URL do item.
 property.image = Imagem
 property.material = Material
+property.material.tooltip = O material usado para renderizar este item. Ele define os shaders e suas entradas, então escolha um compatível com a geometria e texturas do item.
 property.name = Nome
+property.name.tooltip = O nome usado para identificar esta entrada ou recurso. Use um nome único e descritivo quando outras entradas ou APIs de tempo de execução precisarem se referir a ela.
 property.path = Caminho
+property.path.tooltip = O recurso de projeto usado como protótipo para esta coleção referenciada, objeto do jogo ou componente. As alterações para o protótipo são refletidas em cada instância, enquanto as substituições de propriedade específica da instância permanecem locais.
 property.position = Posição
+property.position.tooltip = A tradução do item ao longo dos eixos X, Y e Z, relativa ao pai. Mover um pai também move seus filhos.
 property.rotation = Rotação
+property.rotation.tooltip = A orientação do item em torno dos eixos X, Y e Z em graus, em relação a seu pai. Girar um pai também gira seus filhos.
 property.scale = Escala
+property.scale.tooltip = Multiplica o tamanho do item ao longo dos eixos X, Y e Z em relação ao seu pai. Um valor de `1` mantém a escala original.
 property.size = Tamanho
+property.size.tooltip = A largura, altura e, quando aplicável, profundidade. Quando em modo de somente leitura, o tamanho é calculado automaticamente a partir do conteúdo do item ou de recursos de renderização. Para nós de GUI, o tamanho também define os limites usados para seleção de entrada.
 property.url = URL
+property.url.tooltip = O endereço de execução somente leitura derivado da hierarquia e **Id**. Destina-se a um objeto ou componente do jogo, ou serve como o prefixo do endereço para o conteúdo de uma instância da coleção.
 
 # Properties: appmanifest
 
 property.appmanifest.physics-2d = Física 2D
+property.appmanifest.physics-2d.tooltip = Selecione a implementação Box2D para incluir, ou **Nenhum** para remover a física 2D e reduzir o tamanho do motor. Box2D 3 pode se comportar de forma diferente da implementação legada, então os projetos existentes podem precisar de ajustes de física.
 property.appmanifest.physics-3d = Física 3D
+property.appmanifest.physics-3d.tooltip = Incluir o motor de física Bullet 3D. Desative isso quando o projeto não usa física 3D para reduzir o tamanho do motor.
 property.appmanifest.rig+model = Rig + Modelo
 property.appmanifest.exclude-record = Excluir Registro
+property.appmanifest.exclude-record.tooltip = Remova o suporte de gravação de vídeo na área de trabalho usado pela mensagem do sistema `start_record`. Ative esta opção quando o projeto não grava vídeos para reduzir o tamanho do motor.
 property.appmanifest.profiler = Perfilador
+property.appmanifest.profiler.tooltip = Escolha quais compilações incluem a funcionalidade do perfilador. **Somente Depurar** exclui isso das compilações de lançamento, **Nenhum** exclui completamente e **Sempre** também o inclui nas compilações de lançamento.
 property.appmanifest.exclude-sound = Excluir Som
+property.appmanifest.exclude-sound.tooltip = Remove toda a funcionalidade de reprodução de som do motor. Ative isso apenas quando o projeto não reproduz áudio.
+property.appmanifest.exclude-gui = Excluir GUI
+property.appmanifest.exclude-gui.tooltip = Remove recursos, componentes, e suporte a Lua para GUI do motor. Ative somente se o projeto não usa cenas ou scripts GUI.
+property.appmanifest.exclude-particle-fx = Excluir Partículas
+property.appmanifest.exclude-particle-fx.tooltip = Remove recursos, componentes e suporte Lua para efeitos de partícula do motor, incluindo partículas em cenas GUI. Cenas GUI sem partículas continuam a funcionar.
+property.appmanifest.exclude-tilemap = Excluir Tilemaps
+property.appmanifest.exclude-tilemap.tooltip = Remove recursos, componentes, e suporte a Lua para tilemaps do motor. Ative somente se o projeto não usa tilemaps.
 property.appmanifest.exclude-sound-decoder-wav = Excluir decodificador de som\: WAV
+property.appmanifest.exclude-sound-decoder-wav.tooltip = Remove o suporte para recursos sonoros `.wav`. Ative somente se o projeto não utilizar áudio WAV.
 property.appmanifest.exclude-sound-decoder-ogg = Excluir decodificador de som\: OGG
+property.appmanifest.exclude-sound-decoder-ogg.tooltip = Remove o suporte para recursos sonoros Ogg Vorbis. Ative somente se o projeto não utilizar áudio `.ogg`.
 property.appmanifest.include-sound-decoder-opus = Incluir Decodificador de Som\: Opus
+property.appmanifest.include-sound-decoder-opus.tooltip = Incluir suporte a recursos de som Ogg Opus. O decodificador Opus é excluido por padrão e é necessário para utilizar áudio `.opus`.
 property.appmanifest.exclude-input = Excluir Entrada
+property.appmanifest.exclude-input.tooltip = Remove toda a gestão de entrada do motor. Ative isso somente se o projeto não usa teclado, mouse, toque, controle, ou outras entradas.
 property.appmanifest.exclude-liveupdate = Excluir Atualização ao Vivo
+property.appmanifest.exclude-liveupdate.tooltip = Remove a funcionalidade de Atualização ao Vivo usada para montar recursos excluídos do pacote inicial. Ative esta opção apenas quando o projeto não baixar e montar conteúdo da Atualização Ao Vivo.
 property.appmanifest.exclude-image = Excluir Imagem
+property.appmanifest.exclude-image.tooltip = Remove o módulo Lua `image` do motor. Ative somente se os scripts do projeto não usarem suas funções de carregamento ou dados de imagem.
 property.appmanifest.exclude-types = Excluir Tipos
+property.appmanifest.exclude-types.tooltip = Remove o módulo Lua `types` do motor. Ative somente se os scripts do projeto não usarem suas funções de checagem de tipos.
 property.appmanifest.exclude-basis-transcoder = Excluir o Transcodificador de Base
+property.appmanifest.exclude-basis-transcoder.tooltip = Remova o transcodificador de textura Basis Universal. Ative somente se nenhum perfil de textura usar a compressão Basis Universal.
 property.appmanifest.use-android-support-lib = Usar Biblioteca de Suporte Android
+property.appmanifest.use-android-support-lib.tooltip = Usar a biblioteca de suporte do Android obsoleta em vez de AndroidX. Ative somente para dependências legadas que não migraram para AndroidX.
 property.appmanifest.graphics = Gráficos
+property.appmanifest.graphics.tooltip = Selecione o backend gráfico incluído nas compilações Windows e Linux. Incluir OpenGL e Vulkan permite uma reserva de segurança quando o backend preferido está indisponível, mas aumenta o tamanho do motor.
 property.appmanifest.graphics-osx = Gráficos (macOS)
+property.appmanifest.graphics-osx.tooltip = Selecione o backend gráfico incluído nas compilações macOS. Vulkan é o padrão; incluir OpenGL e Vulkan permite uma reserva de segurança quando o backend preferido está indisponível, mas aumenta o tamanho do motor.
 property.appmanifest.graphics-ios = Gráficos (iOS)
+property.appmanifest.graphics-ios.tooltip = Selecione o backend gráfico incluído nas compilações iOS. OpenGL é o padrão; incluir vários permite uma reserva de segurança quando o backend preferido está indisponível, mas aumenta o tamanho do motor.
 property.appmanifest.graphics-android = Gráficos (Android)
+property.appmanifest.graphics-android.tooltip = Selecione o backend gráfico incluído nas compilações do Android. O padrão inclui ambos, preferindo Vulkan quando disponível e usando o OpenGL ES como reserva.
 property.appmanifest.graphics-web = Gráficos (HTML5)
+property.appmanifest.graphics-web.tooltip = Selecione o backend gráfico incluído nas compilações HTML5. WebGL é o padrão; incluir WebGL e WebGPU permite uma reserva mas aumenta o tamanho do motor.
 property.appmanifest.use-font-layout = Usar sistema de layout de texto completo
+property.appmanifest.use-font-layout.tooltip = Inclui o sistema de layout de texto completo necessário para geração de fonte SDF de fontes do TrueType. Rasterização glyph de execução também requer `font.runtime_generation` em `game.project`; ele suporta recursos como texto da direita para a esquerda.
+property.appmanifest.use-rich-text = Usar Rich Text
+property.appmanifest.use-rich-text.tooltip = Incluir texto rico e efeitos de estilo para rótulos e texto GUI. Desative isso para reduzir o tamanho do motor; a marcação irá então renderizar como texto sem formatação.
 
 # Properties: atlas
 
+property.atlas.animation.id.tooltip = O identificador usado para selecionar esta animação de flip-book em componentes e APIs de animação de tempo de execução. Deve ser único dentro do atlas.
 property.atlas.animation.fps = FPS
+property.atlas.animation.fps.tooltip = A velocidade de reprodução de animação em quadros por segundo. Valores maiores exibem os quadros mais rapidamente.
 property.atlas.animation.flip-horizontal = Inverter Horizontal
+property.atlas.animation.flip-horizontal.tooltip = Espelhar cada quadro de animação horizontalmente durante a reprodução.
 property.atlas.animation.flip-vertical = Inverter Vertical
+property.atlas.animation.flip-vertical.tooltip = Espelhar cada quadro de animação verticalmente durante a reprodução.
 property.atlas.animation.playback = Reprodução
+property.atlas.animation.playback.tooltip = Escolha se a animação permanece no seu primeiro quadro, reproduz uma única vez, ou faz loop, e se os quadros são executados para frente, para trás ou ping-pong. **Ping Pong Único** para após retornar ao segundo quadro, para evitar repetir o primeiro quadro quando as animações são encadeadas.
+property.atlas.image.id.tooltip = O identificador somente leitura derivado do nome da base da imagem de origem após a aplicação do **Renomear Padrões**. É usado para selecionar a imagem e coincidir com os quadros correspondentes entre atlas diferentes.
 property.atlas.image.pivot = Pivô
 property.atlas.image.sprite-trim-mode = Modo Aparar Sprite
+property.atlas.image.sprite-trim-mode.tooltip = Aproxima a área não transparente da imagem com o número de vértices selecionado ao invés de renderizar seu retângulo completo. Isso pode reduzir overdraw de transparências, mas não pode ser usado com sprites com fatia-9.
 property.atlas.margin = Margem
+property.atlas.margin.tooltip = O número de pixels inseridos entre imagens empacotada no atlas.
 property.atlas.inner-padding = Estofamento Interno
+property.atlas.inner-padding.tooltip = O número de pixels vazios adicionados em torno de cada imagem antes de ser empacotada no atlas.
 property.atlas.extrude-borders = Extrudar Bordas
+property.atlas.extrude-borders.tooltip = O número de vezes que os pixels da borda de cada imagem são copiados pra fora. Isto impede que imagens vizinhas invadam a imagem quando um shader trabalha próximo da imagem.
 property.atlas.max-page-width = Largura Máx. da Página
 property.atlas.max-page-height = Altura Máx. da Página
 property.atlas.max-page-size = Tamanho Máximo da Página
+property.atlas.max-page-size.tooltip = A largura e altura máxima de cada página em um atlas de várias páginas. Defina os dois valores acima de zero para permitir a paginação; componentes que usam o atlas devem usar um material de atlas de várias páginas.
 property.atlas.rename-patterns = Renomear Padrões
+property.atlas.rename-patterns.tooltip = Padrões `search\=replace` separados por vírgula aplicados ao nome da base de cada imagem. Por exemplo, `hat\=cat,_normal\=` modifica `hat_normal` para `cat`; padrões de nomes são úteis quando os quadros correspondentes vêm de múltiplos atlas.
 
 # Properties: camera
 
 property.camera.aspect-ratio = Taxa de Proporção
+property.camera.aspect-ratio.tooltip = **Apenas Perspectiva.** Proporção da largura do frustum à sua altura. Use `1.0` para quadrado, cerca de`1.33` para 4\:3, ou cerca de `1.78` para 16\:9; ignorado quando **Proporção Automática** está habilitada.
 property.camera.fov = FOV
 property.camera.near-z = Z Próximo
 property.camera.far-z = Z Distante
 property.camera.auto-aspect-ratio = Taxa de Proporção Automática
+property.camera.auto-aspect-ratio.tooltip = **Apenas Perspectiva.** Calcula a proporção de aspecto da largura e altura da janela atual, em vez de usar **Proporção de Tela**.
 property.camera.orthographic-projection = Projeção Ortográfica
+property.camera.orthographic-projection.tooltip = Usa uma projeção ortográfica, onde os objetos permanecem no mesmo tamanho aparente independentemente da distância da câmera. Comumente usado para cenas 2D.
 property.camera.orthographic-zoom = Zoom Ortográfico
 property.camera.orthographic-mode = Modo de Zoom Ortográfico
+property.camera.orthographic-mode.tooltip = **Somente ortográfico.** **Fixo** usa **Zoom Ortográfico** diretamente. **Auto Fit** mantém a área de design completa visivel e pode mostrar conteúdo extra; **Auto Cover** preenche a janela e pode cortar conteúdo. Modos automáticos usam a altura e largura da tela de `game.project` como tamanho de design.
 
 # Properties: collection proxy
 
 property.collection-proxy.collection = Coleção
+property.collection-proxy.collection.tooltip = Coleção carregada como um mundo de jogo separado. Depois de carregar, a `enable` inicializa primeiro quando necessário. Ao descarregar, `unload` finaliza primeiro quando necessário; mensagens explícitas do ciclo de vida permanecem disponíveis para controle manual.
 property.collection-proxy.exclude = Excluir
+property.collection-proxy.exclude.tooltip = Exclui o conteúdo deste proxy do pacote principal ao publicar conteúdo da Atualização Ao Vivo, incluindo recursos não exclusivos para um proxy excluído. Monte o conteúdo necessário antes de carregar. **Compilar e Executar** não o exclui.
 
 # Properties: collision object
 
 property.collision-object.collision-shape = Forma de Colisão
+property.collision-object.collision-shape.tooltip = Um mapa de tilemap externo ou forma convexa que define o objeto. Deixe este parâmetro não definido ao usar formas primitivas adicionadas sob o objeto de colisão.
 property.collision-object.type = Tipo
+property.collision-object.type.tooltip = Objetos **Dynamic** são simulados, objetos **Kinematic** são movidos e resolvidos pelo seu código, objetos **Static** não se movem, e objetos **Trigger** detectam apenas sobreposições. Disponível como `collision_type` em scripts do editor; prefira ele ao invés de `type`, que pode ser confundido pelo tipo de componente incorporado.
 property.collision-object.mass = Massa
 property.collision-object.friction = Atrito
 property.collision-object.restitution = Restituição
 property.collision-object.linear-damping = Amortecimento Linear
+property.collision-object.linear-damping.tooltip = Reduz gradualmente a velocidade linear mesmo quando o objeto não está em contato com nada. Use valores de `0` a `1` para simular resistências de movimento.
 property.collision-object.angular-damping = Amortecimento Angular
+property.collision-object.angular-damping.tooltip = Reduz gradualmente a velocidade angular, atrasando a rotação do objeto mesmo quando ele não está em contato com nada.
 property.collision-object.locked-rotation = Rotação Travada
+property.collision-object.locked-rotation.tooltip = Impede a simulação da física de girar o objeto de colisão em resposta a forças ou colisões.
 property.collision-object.bullet = Projétil
+property.collision-object.bullet.tooltip = **Apenas física 2D.** Permite a detecção contínua de colisão para impedir que objetos em movimento rápido passem por outros objetos dinâmicos. Só se aplica quando o **Type** é **Dynamic**.
 property.collision-object.event-collision = Gerar Eventos de Colisão
 property.collision-object.event-contact = Gerar Eventos de Contato
 property.collision-object.event-trigger = Gerar Eventos de Gatilho
 property.collision-object.group = Grupo
+property.collision-object.group.tooltip = O grupo de colisão que este objeto pertence. Dois objetos interagem somente quando a **Máscara** de cada objeto inclui o grupo do outro objeto.
+property.collision-object.group.tilemap.tooltip = Não usado quando **Forma de Colisão** é um tilemap; grupos de colisões são definidos pelo tile source do tile map.
 property.collision-object.mask = Máscara
+property.collision-object.mask.tooltip = Grupos de colisões separados por vírgula que este objeto pode interagir com. Ambos os objetos devem incluir o grupo do outro em suas máscaras; uma máscara vazia não faz colisões.
+property.collision-object.shape.id.tooltip = O identificador desta forma incorporada dentro de seu objeto de colisão. Use em APIs como `physics.get_shape()` e `physics.set_shape()` para inspecionar ou redimensionar a forma em tempo de execução.
 property.collision-object.shape.diameter = Diâmetro
+property.collision-object.shape.diameter.tooltip = O diâmetro completo de uma esfera ou a seção arredondada de uma cápsula. Deve ser maior que zero.
 property.collision-object.shape.dimensions = Dimensões
+property.collision-object.shape.dimensions.tooltip = A **Largura**, **Altura** e **Profundidade** da forma completa da caixa. **Profundidade** afeta apenas a física 3D, mas todas as dimensões devem ser maiores que zero.
 property.collision-object.shape.height = Altura
 
 # Properties: compute
@@ -1238,81 +1331,143 @@ property.compute.compute-program = Programa de Computação
 # Properties: cubemap
 
 property.cubemap.back = Parte Traseira
+property.cubemap.back.tooltip = A imagem mapeada para o lado traseiro do cubemap (`-Z`). Cubmaps são amostrados por direção para efeitos como skybox, reflexos, e luz; as seis imagens da face devem ter dimensões idênticas.
 property.cubemap.bottom = Inferior
+property.cubemap.bottom.tooltip = A imagem mapeada para o lado de baixo do cubemap (`-Y`). Cubmaps são amostrados por direção para efeitos como skybox, reflexos, e luz; as seis imagens da face devem ter dimensões idênticas.
 property.cubemap.front = Frente
+property.cubemap.front.tooltip = A imagem mapeada para o lado da frente do cubemap (`+Z`). Cubmaps são amostrados por direção para efeitos como skybox, reflexos, e luz; as seis imagens da face devem ter dimensões idênticas.
 property.cubemap.left = Esquerda
+property.cubemap.left.tooltip = A imagem mapeada para o lado esquerdo do cubemap (`-X`). Cubmaps são amostrados por direção para efeitos como skybox, reflexos, e luz; as seis imagens da face devem ter dimensões idênticas.
 property.cubemap.right = Direita
 property.cubemap.top = Topo
 
 # Properties: factory
 
 property.factory.prototype = Protótipo
+property.factory.prototype.tooltip = Recurso instanciado por este componente\: um objeto de jogo para uma Fábrica ou uma coleção de uma Fábrica de Coleção. Use com `factory.create()` ou `collectionfactory.create()`.
 property.factory.load-dynamically = Carregar Dinamicamente
 property.factory.dynamic-prototype = Protótipo Dinâmico
 
 # Properties: font
 
 property.font.font = Fonte
+property.font.font.tooltip = Selecione a fonte\: um arquivo TrueType (`.ttf`), OpenType (`.otf`), ou BMFont (`.fnt`).
+property.font.texture = Textura
+property.font.texture.tooltip = A folha de glifos PNG referenciada por este arquivo BMFont (`.fnt`). A textura deve estar na mesma pasta e corresponder ao nome declarado pela fonte BMFont.
 property.font.output-format = Formato de Saída
+property.font.output-format.tooltip = **Bitmap** rasteriza os glifos TTF/OTF e é necessário para fontes BMFont (`.fnt`). **Distance Field** armazena dados de distância para dimensionamento mais limpo e requer um material de campo distanciado compatível.
 property.font.render-mode = Modo de Renderização
 property.font.size = Tamanho
+property.font.size.tooltip = Tamanho do glifo alvo em pixels ao gerar a fonte. As fontes de Bitmap parecem melhor perto deste tamanho; fontes de distance field precisam de tamanho suficiente para preservar detalhes da forma quando escalonadas.
 property.font.antialias = Suavização
+property.font.antialias.tooltip = Suavisa as bordas do glifo quando a fonte é rasterizada. Desative para renderização pixel-perfect.
 property.font.alpha = Alfa
+property.font.alpha.tooltip = Controla a opacidade do glifo gerado de `0` (transparente) para `1` (opaco).
 property.font.outline-alpha = Alfa do Contorno
+property.font.outline-alpha.tooltip = Controla a opacidade de contorno gerada de `0` (transparente) para `1` (opaco). Use `0` para desabilitar o contorno.
 property.font.outline-width = Largura do Contorno
+property.font.outline-width.tooltip = Largura do contorno de glifo gerado em pixels. Use `0` para nenhum contorno.
 property.font.shadow-alpha = Alfa da Sombra
+property.font.shadow-alpha.tooltip = Controla a opacidade das sombras geradas de `0` (transparente) para `1` (opaco). Use `0` para desabilitar a sombra.
 property.font.shadow-blur = Desfoque da Sombra
+property.font.shadow-blur.tooltip = Suaviza a sombra gerada. Para a saída do bitmap, este é o número de passagens de desfoque; para a saída de distance-field, ele é a largura de desfoque em pixels.
 property.font.shadow-x = Sombra X
+property.font.shadow-x.tooltip = Deslocamento horizontal da sombra gerada em pixels. Isso afeta a renderização do glifo apenas no modo **Multi Layer**.
 property.font.shadow-y = Sombra Y
+property.font.shadow-y.tooltip = Deslocamento vertical da sombra gerada em pixels. Isso afeta a renderização do glifo apenas no modo **Multi Layer**.
 property.font.cache-width = Largura de Cache
+property.font.cache-width.tooltip = Largura em pixels da textura do cache de glifos usada para renderização. Aumente o tamanho se o cache ficar sem células; '0' usa tamanho automático.
 property.font.cache-height = Altura de Cache
+property.font.cache-height.tooltip = Altura em pixels da textura do cache de glifos usada para renderização. Aumente o tamanho se o cache ficar sem células; '0' usa tamanho automático.
 property.font.characters = Caracteres
+property.font.characters.tooltip = Caracteres incluídos ao construir uma fonte offline; limitar este conjunto reduz o tamanho da fonte. Para fontes em tempo de execução, esses caracteres são gerados antes para pré-aquecer o cache de glifos. Limpar o campo restaura ASCII imprimível.
 property.font.all-chars = Todos Caracteres
 
 # Properties: gui
 
+property.gui.id.tooltip = O identificador usado para encontrar este nó com `gui.get_node()`. Ele deve ser único dentro da cena GUI; nós de uma instância de template são prefixados com o **Id** do nó de template e uma barra.
 property.gui.adjust-mode = Ajustar Modo
+property.gui.adjust-mode.tooltip = Controla como o conteúdo do nó se adapta quando seus limites são ajustados para um tamanho de tela diferente. **Preencher** preserva a proporção de aspecto dentro dos limites, **Zoom** o preserva enquanto cobre os limites, e **Esticar** preenche os limites. Ignorado quando **Ajustar Referência** estiver **Desativado**; Nós de Partículas não suportam **Esticar**.
 property.gui.adjust-reference = Ajustar Referência
+property.gui.adjust-reference.tooltip = Escolha o tamanho usado no ajuste de nós. **Por Nó** usa o tamanho ajustado do pai, ou a cena para nós raiz. **Desativado** desativa o ajustamento. **Raíz(Descontinuado)** usa o tamanho da cena para cada nó.
 property.gui.alpha = Alfa
+property.gui.alpha.tooltip = Controla a opacidade do nó de `0` (transparente) para `1` (opaco). Se **Herdar Alpha** estiver habilitado, este valor é multiplicado pelo alfa do pai.
 property.gui.clipping-inverted = Recorte Invertido
+property.gui.clipping-inverted.tooltip = Inverte a máscara de estêncil deste nó, então seus filhos são renderizados fora da forma do nó em vez de dentro dela.
 property.gui.clipping-mode = Modo de Recorte
+property.gui.clipping-mode.tooltip = **Nenhum** renderiza normalmente. **Stencil** usa a geometria do nó como uma máscara que corta seus nós filhos; a transparência da textura não molda a máscara.
 property.gui.clipping-visible = Recorte Visível
 property.gui.color = Cor
+property.gui.color.tooltip = Define a cor do nó. Na caixa texturada e nos nós de torta, ela é multiplicada pela textura, então o branco deixa a textura inalterada.
 property.gui.current-nodes = Nós Atuais
+property.gui.current-nodes.tooltip = O número de nós atualmente definidos por esta cena de GUI. Use-o como base ao escolher **Máximo de Nós**, deixando espaço para nós criados ou clonados em tempo de execução.
 property.gui.enabled = Ativado
+property.gui.enabled.tooltip = Nós desativados não são renderizados ou animados e não podem ser selecionados por `gui.pick_node()`. Use **Visível** quando um nó invisível deve permanecer ativo e clicável.
 property.gui.font = Fonte
+property.gui.font.tooltip = Seleciona a fonte usada para renderizar este nó de texto. A fonte deve ser adicionada primeiro na seção **Fontes** da cena GUI.
+property.gui.resource.font = Fonte
+property.gui.resource.font.tooltip = Seleciona o recurso de fonte exposto por esta entrada na seção **Fontes** da cena da GUI. Os nós de texto selecionam a entrada pelo seu **nome**.
 property.gui.inherit-alpha = Herdar Alfa
+property.gui.inherit-alpha.tooltip = Multiplica a alfa deste nó pelo alfa de seu pai. Habilite quando alterar a transparência de um pai também deve desvanecer este nó.
 property.gui.inner-radius = Raio Interno
+property.gui.inner-radius.tooltip = Define o raio do centro vazio de um nó de torta, medido ao longo do eixo X. Use `0` para uma torta sólida e aumente para criar um anel.
 property.gui.layer = Camada
+property.gui.layer.tooltip = Atribui o nó a uma camada de interface, cuja ordem substitui nó normal e ordem de desenho de hierarquia. Uma camada não definida herda do pai, ou usa a camada padrão desenhada antes de camadas nomeadas.
 property.gui.line-break = Quebra de Linha
+property.gui.line-break.tooltip = Envolve texto através de várias linhas na largura do nó. O texto só pode quebrar onde contém espaços em branco adequados.
 property.gui.max-dynamic-textures = Máximo de Texturas Dinâmicas
+property.gui.max-dynamic-textures.tooltip = Número máximo de texturas em tempo de execução rastreadas por este GUI. Isso inclui texturas criadas com `gui.new_texture()` e texturas externas atribuídas ao componente; aumente ao substituir muitas dessas texturas.
 property.gui.max-nodes = Máximo de Nós
 property.gui.outline = Contorno
+property.gui.outline.tooltip = Define a cor de contorno do texto renderizado por este nó. O recurso de fonte controla a forma e largura geradas do contorno.
 property.gui.outline-alpha = Alfa do Contorno
+property.gui.outline-alpha.tooltip = Controla a opacidade do contorno do texto de `0` (transparente) para `1` (opaco).
 property.gui.outer-bounds = Limite Externo
+property.gui.outer-bounds.tooltip = Escolhe o formato exterior de um nó de torta. **Elipse** segue o raio externo; **Retângulo** estende a torta até a caixa delimitadora do nó.
 property.gui.perimeter-vertices = Vértices do Perímetro
+property.gui.perimeter-vertices.tooltip = Número de vértices usados para o perímetro de 360 graus de um nó de torta. Valores maiores tornam as arestas curvas mais suaves mas adicionam geometria; valores válidos são `4`–`1000`.
 property.gui.particlefx = Partículas
+property.gui.particlefx.tooltip = Seleciona o efeito de partículas usado por este nó GUI no espaço da tela. O efeito deve ser adicionado primeiro sob a seção **Partículas** da cena GUI.
+property.gui.resource.particlefx = Partículas
+property.gui.resource.particlefx.tooltip = Seleciona o efeito de partículas exposto por esta entrada na seção **Partículas** da cena da interface. Nós de Partículas selecionam a entrada pelo seu **Nome**.
 property.gui.pie-fill-angle = Ângulo de Preenchimento
+property.gui.pie-fill-angle.tooltip = Define quanto de um nó torta está preenchido, em graus no sentido anti-horário pelo lado direito do nó.
 property.gui.pivot = Pivô
 property.gui.script = Script
+property.gui.script.tooltip = Atribui o script GUI que controla a lógica, entrada, mensagens e manipulação de nó desta cena em tempo de execução. Uma cena GUI pode ter apenas um script.
 property.gui.shadow = Sombra
+property.gui.shadow.tooltip = Define a cor da sombra do texto renderizado por este nó. O recurso de fonte e material de fonte determinam como a sombra é gerada e renderizada.
 property.gui.shadow-alpha = Alfa da Sombra
+property.gui.shadow-alpha.tooltip = Controla a opacidade da sombra de texto de `0` (transparente) para `1` (opaco).
 property.gui.size-mode = Modo Tamanho
+property.gui.size-mode.tooltip = **Automático** usa o tamanho da imagem ou animação atribuída. Sem uma textura, o **Tamanho** editável é usado. **Manual** sempre usa **Tamanho** para renderização e seleção de entrada.
 property.gui.slice9 = Fatia 9
+property.gui.slice9.tooltip = Reserva bordas de textura quando um nó caixa é redimensionado. Defina as margens não dimensionadas em pixels como **Esquerda**, **Superior**, **Direita** e **Baixo**; os cantos permanecem fixos enquanto as bordas e o centro se alongam.
 property.gui.texture = Textura
+property.gui.texture.tooltip = Seleciona a imagem ou a animação de flip-book desenhada em um nó de caixa ou torta. A fonte do atlas ou tile deve primeiro ser adicionada sob a seção **Texturas** da cena GUI.
+property.gui.resource.texture = Textura
 property.gui.template = Modelo
+property.gui.template.tooltip = Seleciona uma cena de GUI para instanciar como uma hierarquia de nó reutilizável. As propriedades da instância podem substituir os valores de template; a entrada de template em si não existe como um nó em tempo de execução.
 property.gui.text = Texto
+property.gui.text.tooltip = O texto exibido por este nó de texto. Altere-o em tempo de execução com `gui.set_text()`.
 property.gui.text-leading = Espaçamento do Texto
+property.gui.text-leading.tooltip = Dimensiona o espaçamento entre as linhas de texto. `1` é o espaçamento normal da linha e `0` remove o espaçamento.
 property.gui.text-tracking = Espaçamento Entre Letras
+property.gui.text-tracking.tooltip = Escala o espaçamento entre os caracteres. O padrão `0` não aplica espaço adicional entre letras.
 property.gui.visible = Visível
+property.gui.visible.tooltip = Nós invisíveis não são renderizados, mas permanecem animados e ainda podem ser selecionados por `gui.pick_node()`. Desabilite **Ativado** também quando o nó deve estar inativo.
 property.gui.x-anchor = Âncora X
+property.gui.x-anchor.tooltip = Controla o posicionamento horizontal quando o pai ou a cena são redimensionados. **Esquerda** e **Direita** mantêm o pivô na mesma distância proporcional daquela aresta; **Nenhum** o mantém relativo ao centro ajustado.
 property.gui.y-anchor = Âncora Y
 
 # Properties: label
 
 property.label.color = Cor
+property.label.color.tooltip = Define a cor RGBA do texto. Use o canal alfa para controlar a opacidade.
 property.label.font = Fonte
+property.label.font.tooltip = Seleciona o recurso de fonte usado para renderizar o rótulo. O material do rótulo deve ser compatível com o tipo de fonte\: bitmap, distance field, ou BMFont.
 property.label.leading = Espaçamento
+property.label.leading.tooltip = Define o espaçamento entre as linhas de texto. `1` é o espaçamento normal da linha e `0` remove o espaçamento.
 property.label.line-break = Quebra de Linha
 property.label.outline = Contorno
 property.label.pivot = Pivô
@@ -1324,6 +1479,7 @@ property.label.tracking = Espaçamento Entre Letras
 # Properties: light
 
 property.light.color = Cor
+property.light.color.tooltip = Define a cor RGB da luz. O canal alfa é ignorado.
 property.light.intensity = Intensidade
 property.light.range = Alcance
 property.light.inner-cone-angle = Ângulo do Cone Interno
@@ -1407,17 +1563,21 @@ property.sprite.default-animation = Animação Padrão
 property.sprite.offset = Deslocamento
 property.sprite.playback-rate = Velocidade
 property.sprite.size-mode = Modo de Tamanho
+property.sprite.size-mode.tooltip = **Automático** usa as dimensões da imagem ou da animação selecionada. **Manual** permite um **Tamanho** personalizado e permite o redimensionamento Fatia-9.
 property.sprite.slice9 = Fatia 9
 
 # Properties: tile map
 
 property.tile-map.layer.visible = Visível
+property.tile-map.layer.visible.tooltip = Controla se esta camada é renderizada. Se o tilemap fornece formas para um objeto de colisão, as camadas ocultas também serão desabilitadas para colisão.
 property.tile-map.layer.z = Z
 property.tile-map.tile-source = Tile Source
+property.tile-map.tile-source.tooltip = Tile source que dá imagens de tiles e formas de colisão opcionais para este tile map.
 
 # Properties: tile source
 
 property.tile-source.collision = Colisão
+property.tile-source.collision.tooltip = Uma imagem opcional cujos pixels não transparentes geram uma forma de colisão convexa para cada bloco. Deve corresponder às dimensões da imagem de fonte visual; atribua formas geradas aos grupos de colisão na Estrutura.
 property.tile-source.end-tile = Tile Final
 property.tile-source.extrude-borders = Extrudar bordas
 property.tile-source.flip-horizontal = Inverter Horizontalmente
@@ -1425,7 +1585,9 @@ property.tile-source.flip-vertical = Inverter Verticalmente
 property.tile-source.fps = FPS
 property.tile-source.inner-padding = Estofamento Interno
 property.tile-source.playback = Reprodução
+property.tile-source.playback.tooltip = Escolha se a animação permanece no primeiro tile, reproduz uma única vez, ou faz loop, e se os quadros são executados para frente, para trás ou ping-pong. **Ping Pong Único** para após retornar ao segundo quadro, para evitar repetir o primeiro quadro quando as animações são encadeadas.
 property.tile-source.sprite-trim-mode = Modo Aparar Sprite
+property.tile-source.sprite-trim-mode.tooltip = Aproxima a área não transparente de cada bloco com um polígono usando até o número selecionado de vértices em vez de renderizar seu retângulo completo. Isso pode reduzir overdraw de transparâncias, mas não pode ser usado com sprites com fatia-9.
 property.tile-source.start-tile = Tile Inicial
 property.tile-source.tile-height = Altura do Tile
 property.tile-source.tile-margin = Margem do Tile
@@ -1585,6 +1747,7 @@ form.help.project.bootstrap = Configurações iniciais para o motor
 form.label.project.bootstrap.main_collection = Coleção Principal
 form.label.project.bootstrap.render = Renderização
 form.label.project.bootstrap.debug_init_script = Script de Depuração Inicial
+form.help.project.bootstrap.debug_init_script = Módulo opcional de Lua carregado antes da coleção principal ser inicializada. É destinado para depurador de ferramentas e é executado apenas em compilações de não-lançamento; versões de lançamento o ignoram.
 
 form.label.project.project = Projeto
 form.help.project.project = Configurações gerais do projeto
@@ -1594,12 +1757,14 @@ form.label.project.project.publisher = Editora
 form.label.project.project.developer = Desenvolvedor
 form.label.project.project.write_log = Gravar Log
 form.label.project.project.write_log_file = Gravar arquivo de log
+form.help.project.project.write_log_file = Controla quando aplicativos empacotados escrevem logs para o disco\: **Nunca**, apenas **Debug**, ou **Sempre** para compilações de Depuração e Lançamento. Executa o lançamento do editor ainda escreve logs de depuração com **Nunca**. O arquivo é chamado `log.txt`, ou `instance_N_log.txt` para instâncias adicionais de editor.
 form.label.project.project.minimum_log_level = Nível Mínimo de Log
 form.label.project.project.compress_archive = Compactar Arquivo
 form.label.project.project.dependencies = Dependências
 form.label.project.project.dependencies_metadata = Metadados de Dependências
 form.label.project.project.custom_resources = Recursos Personalizados
 form.label.project.project.bundle_resources = Empacotar Recursos
+form.help.project.project.bundle_resources = Caminhos de diretório absolutos separados por vírgula, começando com `/`, copiados como estão no pacote de aplicação fora do arquivo do jogo. Cada diretório deve conter plataforma, plataforma arquitetura, ou subpastas `comuns`.
 form.label.project.project.bundle_exclude_resources = Excluir Recursos do Pacote
 
 form.label.project.android = Android
@@ -1638,7 +1803,6 @@ form.label.project.android.input_method = Método de Entrada
 form.label.project.android.immersive_mode = Modo Imersivo
 form.label.project.android.display_cutout = Exibir recorte da tela
 form.label.project.android.debuggable = Depurável
-form.label.project.android.proguard = Configuração ProGuard
 form.label.project.android.extract_native_libs = Extrair Bibliotecas Nativas
 
 form.label.project.html5 = HTML5
@@ -1649,6 +1813,7 @@ form.label.project.html5.heap_size = Tamanho de Heap
 form.label.project.html5.htmlfile = Casca .html
 form.label.project.html5.cssfile = .css Personalizado
 form.label.project.html5.splash_image = Imagem Splash
+form.help.project.html5.splash_image = Imagem copiada no pacote para ser exibida enquanto o jogo carrega. Extensões aceitas são `.gif`, `.jpg`, `.jpeg`, `.png`, `.svg`, `.webp`, and `.avif`. CSS personalizado deve usar o token `DEFOLD_SPLASH_IMAGE` para mostrá-la.
 form.label.project.html5.archive_location_prefix = Prefixo de Local do Arquivo
 form.label.project.html5.archive_location_suffix = Sufixo de Local do Arquivo
 form.label.project.html5.engine_arguments = Argumentos do Motor
@@ -1669,6 +1834,7 @@ form.label.project.ios.app_icon_152x152 = Ícone do Aplicativo 152x152
 form.label.project.ios.app_icon_167x167 = Ícone do Aplicativo 167x167
 form.label.project.ios.app_icon_180x180 = Ícone do Aplicativo 180x180
 form.label.project.ios.icons_asset = Ícones
+form.help.project.ios.icons_asset = Catálogo de ícones Xcode compilado (`Assets.car`) que contém o conjunto completo de ícones do iOS, incluindo o ícone da App Store. Construa para um dispositivo iOS genérico; Defenda as cópias no pacote do aplicativo.
 form.label.project.ios.launch_screen = Tela Inicial
 form.label.project.ios.pre_renderered_icons = Ícones Prerenderizados
 form.label.project.ios.bundle_identifier = Identificador do Pacote
@@ -1683,6 +1849,7 @@ form.label.project.ios.localizations = Traduções
 form.label.project.osx = OSX
 form.help.project.osx = Configurações de Mac OSX
 form.label.project.osx.app_icon = Ícone
+form.help.project.osx.app_icon = Ícone da aplicação macOS no formato `.icns`. Durante o empacotamento, ele é copiado para o aplicativo como `Contents/Resources/icon.icns`.
 form.label.project.osx.bundle_identifier = Identificador do Pacote
 form.label.project.osx.bundle_name = Nome do Pacote
 form.label.project.osx.bundle_version = Versão do Pacote
@@ -1703,6 +1870,7 @@ form.label.project.collection.max_input_stack_entries = Pilha de Entradas
 form.label.project.collectionfactory = Fábrica de Coleções
 form.help.project.collectionfactory = Configurações da fábrica de coleções
 form.label.project.collectionfactory.max_count = Contagem Máxima
+form.help.project.collectionfactory.max_count = Número máximo de componentes da coleção em uma coleção carregada. A capacidade de tempo de execução é limitada tanto por este número máximo e exato de tempo de construção; os protótipos dinâmicos tornam o máximo configurado especialmente importante. A capacidade alcançada impede a criação de componentes adicionais; valores desnecessariamente altos podem reservar mais memória.
 
 form.label.project.collection_proxy = Proxy de Coleção
 form.help.project.collection_proxy = Configurações de proxy de coleção
@@ -1743,10 +1911,6 @@ form.label.project.particle_fx.max_particle_count = Máximo de Partículas
 form.label.project.particle_fx.max_particle_buffer_count = Máximo de Partículas do Buffer
 form.label.project.particle_fx.max_count = Contagem Máxima
 form.label.project.particle_fx.max_emitter_count = Máximo de Emissores
-
-form.label.project.script = Script
-form.help.project.script = Configurações de script
-form.label.project.script.shared_state = Estado Compartilhado
 
 form.label.project.sound = Som
 form.help.project.sound = Configurações de Som
@@ -1804,6 +1968,7 @@ form.label.project.engine.max_time_step = Passo de Tempo Máximo
 form.label.project.font = Fonte
 form.help.project.font = Configurações de Fonte
 form.label.project.font.runtime_generation = Geraçao em Tempo de Execução
+form.help.project.font.runtime_generation = Gera glifos TrueType sob demanda em vez de transformar eles em texturas. Aplica-se às fontes de **Distance Field** com um material compatível; coleções de fonte de tempo de execução podem adicionar mais fontes de TTF. As compilações dos alvos requerem **usar Sistema Completo de Layout de Texto** no Manifesto do Aplicativo. Coloque texto em forma representativa em **Caracteres** para pré-aquecer glifos comuns. Isso pode reduzir o tamanho do pacote e a memória em tempo de execução.
 
 form.label.project.graphics = Gráficos
 form.help.project.graphics = Configurações de Gráficos
@@ -1844,6 +2009,7 @@ form.label.project.physics.max_collision_object_count = Limite de Objetos de Col
 form.label.project.physics.type = Tipo
 form.label.project.physics.use_fixed_timestep = Usar Timestep Fixo
 form.label.project.physics.debug = Depuração
+form.help.project.physics.debug = Desenha formas disponíveis de colisão, articulações e diagnósticos de contato em compilações de depuração. Compilações de lançamento as ignora e os diagnósticos fornecidos dependem da física selecionada.
 form.label.project.physics.debug_alpha = Alfa da Depuração
 form.label.project.physics.debug_scale = Escala de Depuração
 form.label.project.physics.world_count = Contagem de Mundos
@@ -1910,10 +2076,15 @@ form.label.camera = Câmera
 form.label.camera.aspect-ratio = Taxa de Proporção
 form.label.camera.fov = FOV
 form.label.camera.near-z = Z Próximo
+form.help.camera.near-z = Profundidade de visualização do espaço próximo ao plano de recorte. Geometria fora do intervalo entre **Z Próximo** e **Z Distante** é cortada.
 form.label.camera.far-z = Z Distante
+form.help.camera.far-z = Profundidade de visualização do espaço distante no plano de recorte. Um intervalo menor entre **Z Próximo** e **Z Distante** melhora a precisão do buffer de profundidade, mas pode cortar a geometria.
 form.label.camera.auto-aspect-ratio = Proporção de Tela Automática
+form.help.camera.auto-aspect-ratio = **Apenas Perspectiva.** Usa a largura e altura da janela atual para calcular a proporção de tela. Isso impede que a visão da perspectiva se estique quando a forma da janela mudar e sobrescrever a **Proporção de Tela**.
 form.label.camera.orthographic-projection = Projeção Ortográfica
+form.help.camera.orthographic-projection = Muda de perspectiva para projeção ortográfica. Objetos não encolhem com distância em uma visão ortográfica, que normalmente é útil para 2D. **Campo de Visão** e **Proporção de Tela** não afetam mais a visualização; **Z Próximo** e ** Z Distante** ainda cortam conteúdo por profundidade.
 form.label.camera.orthographic-mode = Modo de Zoom Ortográfico
+form.help.camera.orthographic-mode = **Apenas ortográfico.** Controla como **Zoom Ortográfico** se adapta à janela em relação a `display.width` e `display.height`. **Fixo** usa o zoom diretamente. **Auto Fit** mostra a área completa do design e pode revelar espaço extra. **Auto Cover** preenche o janela e pode cortar o conteúdo.
 form.label.camera.orthographic-zoom = Zoom Ortográfico
 
 form.label.collectionproxy = Proxy de Coleção
@@ -2160,6 +2331,7 @@ error.animation-not-found = "{animation}" não pôde ser encontrado em "{propert
 error.buffer-syntax-error = Erro de sintaxe no arquivo de buffer.
 error.editor-extension-compilation-failed = Não foi possível compilar extensão do editor.
 error.font-bitmap-generation-failed = Falha ao gerar o bitmap a partir da Fonte. {error}
+error.font.no-reserved-distance-field-data-for-rich-text-shadow-blur = Esta fonte não tem dados de distance-field para o sombreado borrado em rich-text; a sombra renderiza sem borrado.
 error.at-line = Linha {line}\: {error}
 error.render.title = ERRO DE RENDERIZAÇÃO\:
 error.render.unknown-resource = desconhecido

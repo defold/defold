@@ -156,6 +156,10 @@ TEST(AndroidPlatform, LinkPlatformWindowAndroidSymbols)
     ReferenceAndroidSymbol(&dmPlatform::GetAndroidJavaVM);
     ReferenceAndroidSymbol(&dmPlatform::GetAndroidActivity);
     ReferenceAndroidSymbol(&dmPlatform::GetAndroidApp);
+    ReferenceAndroidSymbol(&dmPlatform::AcquireAndroidWindow);
+    ReferenceAndroidSymbol(&dmPlatform::WaitForAndroidWindow);
+    ReferenceAndroidSymbol(&dmPlatform::IsAndroidWindowCurrent);
+    ReferenceAndroidSymbol(&dmPlatform::ReleaseAndroidWindow);
     ReferenceAndroidSymbol(&dmPlatform::GetSafeAreaAndroid);
     ReferenceAndroidSymbol(&dmPlatform::SetAndroidInputMethod);
     ReferenceAndroidSymbol(&dmPlatform::SetAndroidFullscreenParameters);

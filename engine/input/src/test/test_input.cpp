@@ -140,6 +140,11 @@ TEST_F(InputTest, GuidGamepadMapsAreNotRegisteredAsLegacyNames)
         0x03, 0x00, 0x00, 0x00, 0x5e, 0x04, 0x00, 0x00,
         0x8e, 0x02, 0x00, 0x00, 0x14, 0x01, 0x00, 0x00
     };
+    const char* raw_mappings[3] = {
+        "01000000020000000300000000000000,First Controller,a:b0,platform:Mac OS X,",
+        "02000000030000000400000000000000,Second Controller,a:b0,platform:Mac OS X,",
+        "030000005e0400008e02000014010000,Xbox 360 Controller,a:b0,platform:Mac OS X,"
+    };
     memset(&gamepad_maps, 0, sizeof(gamepad_maps));
     memset(drivers, 0, sizeof(drivers));
 
@@ -159,14 +164,20 @@ TEST_F(InputTest, GuidGamepadMapsAreNotRegisteredAsLegacyNames)
             guid_data[i][4] = (uint8_t)(i + 2);
             guid_data[i][8] = (uint8_t)(i + 3);
         }
-        drivers[i].m_Guid.m_Data = guid_data[i];
-        drivers[i].m_Guid.m_Count = sizeof(guid_data[i]);
+        drivers[i].m_RawMapping = raw_mappings[i];
     }
 
     dmInput::RegisterGamepads(context, &gamepad_maps);
 
-    ASSERT_EQ(4U, context->m_GamepadConfigs.Size());
-    ASSERT_EQ(5U, context->m_GamepadMaps.Size());
+    ASSERT_EQ(5U, context->m_GamepadConfigs.Size());
+    ASSERT_EQ(6U, context->m_GamepadMaps.Size());
+    dmInput::GamepadConfig* automatic_config = GetGamepadConfigForLookup(context, dmHashString32("AUTOMATIC_GAMEPAD_CONFIG_ID"));
+    ASSERT_NE((void*)0x0, (void*)automatic_config);
+    ASSERT_EQ(dmHID::GAMEPAD_MAPPED_AXIS_LEFT_X, automatic_config->m_Inputs[dmInputDDF::GAMEPAD_LSTICK_LEFT].m_Index);
+    ASSERT_EQ(1U, automatic_config->m_Inputs[dmInputDDF::GAMEPAD_LSTICK_LEFT].m_Negate);
+    ASSERT_EQ(dmHID::GAMEPAD_MAPPED_BUTTON_A, automatic_config->m_Inputs[dmInputDDF::GAMEPAD_RPAD_DOWN].m_Index);
+    ASSERT_EQ(dmInputDDF::GAMEPAD_TYPE_HAT, automatic_config->m_Inputs[dmInputDDF::GAMEPAD_LPAD_UP].m_Type);
+    ASSERT_EQ(1U, automatic_config->m_Inputs[dmInputDDF::GAMEPAD_LPAD_UP].m_HatMask);
     ASSERT_EQ((void*)0x0, (void*)context->m_GamepadMaps.Get(dmHashString32("duplicate_guid_device")));
     for (uint32_t i = 0; i < gamepad_maps.m_Mappings.m_Count; ++i)
     {
@@ -174,6 +185,11 @@ TEST_F(InputTest, GuidGamepadMapsAreNotRegisteredAsLegacyNames)
         dmInput::GamepadConfig* config = GetGamepadConfigForLookup(context, guid_hash);
         ASSERT_NE((void*)0x0, (void*)config);
         ASSERT_EQ(guid_hash, config->m_DeviceId);
+        if (i == 2)
+        {
+            ASSERT_STREQ(raw_mappings[i], config->m_RawMapping);
+            ASSERT_NE((void*)raw_mappings[i], (void*)config->m_RawMapping);
+        }
     }
 
     dmInput::DeleteContext(context);
@@ -209,18 +225,15 @@ TEST_F(InputTest, GuidGamepadMapsRegisterSDLStyleFallbacks)
 
     drivers[0].m_Device = "Xbox One Controller";
     drivers[1].m_Device = "Xbox Series Controller";
-    for (uint32_t i = 0; i < 2; ++i)
-    {
-        drivers[i].m_Guid.m_Data = mapping_guid_data[i];
-        drivers[i].m_Guid.m_Count = sizeof(mapping_guid_data[i]);
-    }
+    drivers[0].m_RawMapping = "030000005e040000fd02000003090000,Xbox One Controller,a:b0,platform:Mac OS X,";
+    drivers[1].m_RawMapping = "050000005e040000130b000001050000,Xbox Series Controller,a:b0,platform:Mac OS X,";
     gamepad_maps.m_Mappings.m_Data = drivers;
     gamepad_maps.m_Mappings.m_Count = 2;
 
     dmInput::RegisterGamepads(context, &gamepad_maps);
 
-    ASSERT_EQ(3U, context->m_GamepadConfigs.Size());
-    ASSERT_EQ(5U, context->m_GamepadMaps.Size());
+    ASSERT_EQ(4U, context->m_GamepadConfigs.Size());
+    ASSERT_EQ(6U, context->m_GamepadMaps.Size());
 
     for (uint32_t i = 0; i < 2; ++i)
     {

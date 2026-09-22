@@ -7,4 +7,7 @@ on:
 
 jobs:
   update-score:
+    permissions:
+      contents: read
+      issues: write
     uses: defold/github-actions-common/.github/workflows/issue-score.yml@master

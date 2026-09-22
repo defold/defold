@@ -55,14 +55,6 @@ platforms:
             libs: []
             linkFlags: []
 
-    x86-win32:
-        context:
-            excludeLibs: ["graphics", "platform"]
-            excludeSymbols: ["GraphicsAdapterOpenGL"]
-            symbols: ["GraphicsAdapterVulkan"]
-            libs: ["graphics_vulkan.lib", "platform_vulkan.lib", "vulkan-1.lib"]
-            linkFlags: []
-
     x86_64-win32:
         context:
             excludeLibs: ["graphics", "platform"]
@@ -93,6 +85,17 @@ platforms:
             linkFlags: []
             jetifier: true
 
+    x86_64-android:
+        context:
+            excludeLibs: ["graphics_opengles", "dmglfw"]
+            excludeJars: []
+            excludeDynamicLibs: ["vulkan", "EGL", "GLESv1_CM", "GLESv2"]
+            excludeSymbols: ["GraphicsAdapterOpenGLES"]
+            symbols: ["GraphicsAdapterVulkan"]
+            libs: ["graphics_vulkan", "dmglfw_vulkan"]
+            linkFlags: []
+            jetifier: true
+
     armv7-ios:
         context:
             excludeLibs: []
@@ -111,7 +114,7 @@ platforms:
             frameworks: ["Metal","IOSurface","QuartzCore"]
             linkFlags: []
 
-    x86_64-ios:
+    arm64_sim-ios:
         context:
             excludeLibs: ["graphics_metal"]
             excludeSymbols: ["GraphicsAdapterMetal"]

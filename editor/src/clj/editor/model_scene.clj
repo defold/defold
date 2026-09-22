@@ -15,6 +15,7 @@
 (ns editor.model-scene
   (:require [dynamo.graph :as g]
             [editor.buffers :as buffers]
+            [editor.defold-project :as project]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.attribute :as attribute]
@@ -289,7 +290,7 @@
 (g/defnk produce-mesh-set-build-target [_node-id resource content]
   (rig/make-mesh-set-build-target (resource/workspace resource)
                                   _node-id
-                                  (:mesh-set content)
+                                  (assoc (:mesh-set content) :raw-models [])
                                   (:morph-target-textures content)))
 
 (g/defnk produce-skeleton [content]
@@ -301,14 +302,33 @@
 (g/defnk produce-bones [content]
   (:bones content))
 
-(g/defnk produce-content [_node-id resource project-settings]
-  (model-loader/load-scene _node-id resource project-settings))
+(g/defnk produce-content [_node-id resource project-settings external-buffer-sha256s]
+  (g/precluding-errors external-buffer-sha256s
+    (model-loader/load-scene _node-id resource project-settings)))
 
 (g/defnk produce-animation-info [resource]
   [{:path (resource/proj-path resource) :parent-id "" :resource resource}])
 
 (g/defnk produce-animation-ids [content]
   (:animation-ids content))
+
+(g/defnk produce-collision-meshes [content]
+  (:collision-meshes content))
+
+(g/defnk produce-collision-mesh-set [content]
+  (:mesh-set content))
+
+(g/defnk produce-collision-mesh-renderables [renderable-mesh-set]
+  (mapv (fn [{:keys [aabb mesh-index renderable-meshes]}]
+          {:aabb aabb
+           :index mesh-index
+           :primitives
+           (mapv (fn [{:keys [aabb renderable-buffers]}]
+                   {:aabb aabb
+                    :index-buffer (:index-buffer renderable-buffers)
+                    :position-buffer (nth (get-in renderable-buffers [:attribute-buffers :semantic-type-position]) 0)})
+                 renderable-meshes)})
+        (:renderable-raw-models renderable-mesh-set)))
 
 (def ^:private default-material-ids ["default"])
 
@@ -511,26 +531,46 @@
                          renderable-meshes)]
         {:pose-with-skeleton pose-with-skeleton
          :pose-without-skeleton pose-without-skeleton
+         :mesh-index (:mesh-index model)
          :aabb model-aabb
          :renderable-meshes renderable-meshes}))))
+
+(defn- make-renderable-models
+  [models request-id-key model-key mesh-set-request-id mesh-set mesh-material-index->material-name bone-id->world-transform]
+  (mapv (fn [model]
+          (let [model-request-id (assoc mesh-set-request-id request-id-key (model-key model))]
+            (make-renderable-model model model-request-id mesh-set mesh-material-index->material-name bone-id->world-transform)))
+        models))
 
 (defn- make-renderable-mesh-set [mesh-set skeleton mesh-set-request-id mesh-material-index->material-name]
   (let [bone-id->world-transform (make-bone-id->world-transform skeleton)
         renderable-models
-        (mapv (fn [model]
-                (let [model-request-id (assoc mesh-set-request-id :model-id (:id model))]
-                  (make-renderable-model model model-request-id mesh-set mesh-material-index->material-name bone-id->world-transform)))
-              (:models mesh-set))]
+        (make-renderable-models (:models mesh-set) :model-id :id mesh-set-request-id mesh-set mesh-material-index->material-name bone-id->world-transform)
 
-    (g/precluding-errors renderable-models
-      (let [mesh-set-aabb (transduce
+        initial-renderable-raw-models
+        (make-renderable-models (:raw-models mesh-set) :raw-mesh-index :mesh-index mesh-set-request-id mesh-set mesh-material-index->material-name bone-id->world-transform)]
+
+    (g/precluding-errors (into renderable-models initial-renderable-raw-models)
+      (let [renderable-model-by-mesh-index (coll/pair-map-by :mesh-index renderable-models)
+            renderable-raw-models
+            (mapv (fn [renderable-raw-model]
+                    (if (coll/not-empty (:renderable-meshes renderable-raw-model))
+                      renderable-raw-model
+                      (if-let [renderable-model (renderable-model-by-mesh-index (:mesh-index renderable-raw-model))]
+                        (assoc renderable-raw-model
+                          :aabb (:aabb renderable-model)
+                          :renderable-meshes (:renderable-meshes renderable-model))
+                        renderable-raw-model)))
+                  initial-renderable-raw-models)
+            mesh-set-aabb (transduce
                             (map (fn [{:keys [aabb pose-with-skeleton]}]
                                    (geom/aabb-transform aabb (pose/matrix pose-with-skeleton))))
                             geom/aabb-union
                             geom/null-aabb
                             renderable-models)]
         {:aabb mesh-set-aabb
-         :renderable-models renderable-models}))))
+         :renderable-models renderable-models
+         :renderable-raw-models renderable-raw-models}))))
 
 (g/defnk produce-renderable-mesh-set [_node-id content]
   (let [mesh-set-request-id
@@ -553,10 +593,10 @@
   (let [{:keys [aabb material-data material-name renderable-buffers]} renderable-mesh
         index-buffer (:index-buffer renderable-buffers)
         semantic-type->attribute-buffers (:attribute-buffers renderable-buffers)
-        attribute-reflection-infos (shader/attribute-reflection-infos shaders/mesh-preview-local-space nil)
+        attribute-reflection-infos (shader/attribute-reflection-infos shaders/mesh-preview-local-space)
         coordinate-space-info (graphics/coordinate-space-info attribute-reflection-infos)
         attribute-bindings (model-util/make-attribute-bindings scene-node-id attribute-reflection-infos semantic-type->attribute-buffers {})
-        selection-attribute-reflection-infos (shader/attribute-reflection-infos shaders/selection-instance-local-space nil)
+        selection-attribute-reflection-infos (shader/attribute-reflection-infos shaders/selection-instance-local-space)
         selection-attribute-bindings (model-util/make-attribute-bindings scene-node-id selection-attribute-reflection-infos semantic-type->attribute-buffers {})
 
         user-data
@@ -581,17 +621,18 @@
      :renderable renderable}))
 
 (defn- make-model-scene [scene-node-id renderable-model]
-  (let [{:keys [pose-with-skeleton pose-without-skeleton aabb renderable-meshes]} renderable-model
+  (let [{:keys [pose-with-skeleton pose-without-skeleton mesh-index aabb renderable-meshes]} renderable-model
         mesh-scenes (mapv #(make-mesh-scene scene-node-id %)
                           renderable-meshes)]
     {:pose pose-with-skeleton
      :pose-with-skeleton pose-with-skeleton
      :pose-without-skeleton pose-without-skeleton
+     :mesh-index mesh-index
      :aabb aabb
      :children mesh-scenes}))
 
 (defn- make-scene [scene-node-id renderable-mesh-set]
-  (let [{:keys [aabb renderable-models]} renderable-mesh-set
+  (let [{:keys [aabb renderable-models renderable-raw-models]} renderable-mesh-set
 
         child-scenes
         (into [{:node-id scene-node-id
@@ -602,6 +643,8 @@
 
     {:node-id scene-node-id
      :aabb aabb
+     :raw-model-scenes (mapv #(make-model-scene scene-node-id %)
+                             renderable-raw-models)
      :renderable {:tags #{:model}
                   :batch-key nil ; Batching is disabled in the editor for simplicity.
                   :passes [pass/opaque-selection]} ; A selection pass to ensure it can be selected and manipulated.
@@ -625,7 +668,7 @@
     (if (nil? material-scene-info)
       claimed-scene
       (let [{:keys [gpu-textures material-attribute-infos shader vertex-attribute-bytes vertex-space]} material-scene-info
-            shader-attribute-reflection-infos (shader/attribute-reflection-infos shader nil)
+            shader-attribute-reflection-infos (shader/attribute-reflection-infos shader)
             default-coordinate-space (case vertex-space
                                        :vertex-space-local :coordinate-space-local
                                        :vertex-space-world :coordinate-space-world)]
@@ -672,14 +715,25 @@
     geom/null-aabb
     model-scenes))
 
-(defn augment-scene [scene new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms]
+(defn augment-scene [scene new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms selected-mesh-index]
   (if (g/error-value? scene)
     scene
     (let [old-node-id (:node-id scene)
-          model-scenes (:children scene)
+          model-scenes (cond
+                         (= -1 selected-mesh-index)
+                         (:children scene)
+
+                         selected-mesh-index
+                         (into [(nth (:children scene) 0)]
+                               (filter #(= selected-mesh-index (:mesh-index %)))
+                               (:raw-model-scenes scene))
+
+                         :else
+                         [(nth (:children scene) 0)])
           augmented-model-scenes (mapv #(augment-model-scene % old-node-id new-node-id new-node-outline-key material-name->material-scene-info use-skeleton-transforms)
                                        model-scenes)
-          scene-aabb (when-not use-skeleton-transforms
+          scene-aabb (when (or (not use-skeleton-transforms)
+                               (not= -1 selected-mesh-index))
                        (model-scenes-aabb augmented-model-scenes))
           augmented-model-scenes (cond-> augmented-model-scenes
                                    (and scene-aabb (seq augmented-model-scenes))
@@ -718,22 +772,42 @@
     (fn material-name->material-scene-info [^String material-name]
       (get usable-material-scene-infos-by-material-name material-name fallback-material-scene-info))))
 
-(defn load-model-scene-node [project self resource]
-  (let [workspace-node (resource/workspace resource)
-        disk-sha256 (resource/resource->sha256-hex resource)]
-    (concat
-      (g/connect project :settings self :project-settings)
-      (workspace/set-disk-sha256 workspace-node self disk-sha256))))
+(defn- set-external-buffer-resources [evaluation-context self old-value new-value]
+  (let [disconnect-tx-data
+        (into []
+              (mapcat #(project/resource-setter evaluation-context self % nil
+                                                [:sha256 :external-buffer-sha256s]))
+              old-value)]
+    (into disconnect-tx-data
+          (mapcat #(project/resource-setter evaluation-context self nil %
+                                            [:sha256 :external-buffer-sha256s]))
+          new-value)))
+
+(defn- load-model-scene [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id external-buffer-uris :source-value}]
+  (let [external-buffer-resources
+        (mapv #(resolve-resource-fn owner-resource %)
+              external-buffer-uris)]
+    (into (g/connect project :settings self :project-settings)
+          (g/set-property self :external-buffer-resources external-buffer-resources))))
 
 (g/defnode ModelSceneNode
   (inherits resource-node/ResourceNode)
 
+  (property external-buffer-resources g/Any
+            (default [])
+            (set set-external-buffer-resources)
+            (dynamic visible (g/constantly false)))
+
+  (input external-buffer-sha256s g/Str :array)
   (input project-settings g/Any)
 
   (output content g/Any :cached produce-content)
   (output bones g/Any produce-bones)
   (output animation-info g/Any produce-animation-info)
   (output animation-ids g/Any produce-animation-ids)
+  (output collision-mesh-renderables g/Any produce-collision-mesh-renderables)
+  (output collision-mesh-set g/Any produce-collision-mesh-set)
+  (output collision-meshes g/Any produce-collision-meshes)
   (output material-ids g/Any produce-material-ids)
   (output mesh-set-build-target g/Any :cached produce-mesh-set-build-target)
   (output skeleton g/Any produce-skeleton)
@@ -741,12 +815,16 @@
   (output renderable-mesh-set g/Any :cached produce-renderable-mesh-set)
   (output scene g/Any :cached produce-scene))
 
+(defn- read-model-scene [_read-opts _owner-resource readable]
+  (model-loader/read-external-buffer-uris readable))
+
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
     :ext model-file-types
     :label (localization/message "resource.type.model-scene")
     :node-type ModelSceneNode
-    :load-fn load-model-scene-node
+    :load-fn load-model-scene
+    :read-fn read-model-scene
     :icon mesh-icon
     :icon-class :design
     :view-types [:scene :text]))

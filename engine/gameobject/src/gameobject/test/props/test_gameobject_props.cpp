@@ -256,6 +256,9 @@ TEST_F(PropsTest, PropsSpawn)
     dmScript::PushQuat(L, Quat(1, 2, 3, 4));
     lua_setfield(L, -2, "quat");
 
+    lua_pushliteral(L, "spawned text");
+    lua_setfield(L, -2, "text");
+
     dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
     lua_pop(L, 1);
 
@@ -273,6 +276,27 @@ TEST_F(PropsTest, PropsSpawnNoProperties)
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_go.goc", dmHashString64("test_id"), 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
     ASSERT_NE((void*)0u, instance);
+}
+
+TEST_F(PropsTest, PropsFromLuaRejectsEmbeddedNullText)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+    int top = lua_gettop(L);
+
+    lua_pushlstring(L, "embedded\0null", 13);
+    dmGameObject::PropertyVar var;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE, dmGameObject::LuaToVar(L, -1, var));
+    lua_pop(L, 1);
+
+    lua_newtable(L);
+    lua_pushlstring(L, "embedded\0null", 13);
+    lua_setfield(L, -2, "text");
+
+    dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
+    lua_pop(L, 1);
+
+    ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_EQ((dmGameObject::HPropertyContainer)0, properties);
 }
 
 TEST_F(PropsTest, PropsRelativeURL)
@@ -678,6 +702,26 @@ TEST_F(PropsTest, PropsGetSetAs)
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
     r = dmGameObject::SetPropertyFromURL(instance, 0, hash("position"), seturl);
     ASSERT_NE(dmGameObject::PROPERTY_RESULT_OK, r);
+
+    const char* gettext;
+    char settext[] = "runtime text with a longer value";
+    r = dmGameObject::GetPropertyAsText(instance, hash("script"), hash("text"), &gettext);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_STREQ("override text", gettext);
+    r = dmGameObject::SetPropertyFromText(instance, hash("script"), hash("text"), settext);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    settext[0] = 'X';
+    r = dmGameObject::GetPropertyAsText(instance, hash("script"), hash("text"), &gettext);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, r);
+    ASSERT_STREQ("runtime text with a longer value", gettext);
+    r = dmGameObject::GetPropertyAsText(instance, hash("script"), hash("number"), &gettext);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
+    r = dmGameObject::SetPropertyFromText(instance, hash("script"), hash("number"), "invalid");
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
+    r = dmGameObject::SetPropertyFromFloat(instance, hash("script"), hash("text"), 1.0f);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
+    r = dmGameObject::SetPropertyFromText(instance, 0, hash("position"), "invalid");
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH, r);
 
     dmGameObject::Delete(m_Collection, instance, false);
 }

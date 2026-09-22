@@ -12,6 +12,12 @@ endif()
 
 get_filename_component(DEFOLD_HOME "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 
+# Keep source extensions in object names. This prevents collisions when a
+# target contains C and C++ sources with the same basename.
+set(CMAKE_USER_MAKE_RULES_OVERRIDE
+  "${CMAKE_CURRENT_LIST_DIR}/object_naming_rules.cmake"
+  CACHE FILEPATH "Defold CMake object naming rules" FORCE)
+
 if(TARGET_PLATFORM STREQUAL "x86_64-xbox")
   message(STATUS "TARGET_PLATFORM=x86_64-xbox is an alias for x86_64-xbone")
   set(TARGET_PLATFORM "x86_64-xbone" CACHE STRING "Defold platform tuple" FORCE)
@@ -161,10 +167,12 @@ endforeach()
 # optimised configuration flags after CMake has enabled the language
 # toolchains. This keeps asserts enabled in Release/RelWithDebInfo/MinSizeRel
 # builds.
-if(NOT DEFINED CMAKE_PROJECT_TOP_LEVEL_INCLUDES)
-  set(CMAKE_PROJECT_TOP_LEVEL_INCLUDES "")
+if(NOT DEFINED CMAKE_PROJECT_INCLUDE)
+  set(CMAKE_PROJECT_INCLUDE "")
 endif()
-list(APPEND CMAKE_PROJECT_TOP_LEVEL_INCLUDES "${DEFOLD_CMAKE_DIR}/defold_post_project.cmake")
+# TOP_LEVEL_INCLUDES runs before language initialization, when the default
+# compiler flags do not exist yet. Use the hook at the end of project().
+list(APPEND CMAKE_PROJECT_INCLUDE "${DEFOLD_CMAKE_DIR}/defold_post_project.cmake")
 
 defold_log("DEFOLD_HOME: ${DEFOLD_HOME}")
 defold_log("DEFOLD_SDK_ROOT: ${DEFOLD_SDK_ROOT}")
@@ -196,11 +204,11 @@ if(NOT TARGET defold_sdk)
   add_library(defold_sdk INTERFACE)
 endif()
 
+# Resolve test selection before checking test-only tool dependencies.
+include(features)
+
 # verify our list of tools (e.g. java, ninja etc)
 include(tools)
-
-# list of toggleable features
-include(features)
 
 # platform specific includes, lib paths, defines etc...
 include(platform)
@@ -278,8 +286,8 @@ set(_DEFOLD_ENGINE_LIBS
   shaderc
   ddf
   platform
-  font
   graphics
+  font
   particle
   lua
   hid
@@ -309,15 +317,10 @@ unset(_DEFOLD_ENGINE_LIB)
 unset(_DEFOLD_ENGINE_LIB_UPPER)
 unset(_DEFOLD_ENGINE_LIBS)
 
-# For 32-bit Windows, search both legacy 'win32' and tuple 'x86-win32' folders
 set(_DEFOLD_PLATFORM_INCLUDE_DIRS)
 set(_DEFOLD_PLATFORM_LIB_DIRS)
 list(APPEND _DEFOLD_PLATFORM_INCLUDE_DIRS "${DEFOLD_EXT_PLATFORM_INCLUDE_DIR}")
 list(APPEND _DEFOLD_PLATFORM_LIB_DIRS "${DEFOLD_LIB_DIR}" "${DEFOLD_EXT_LIB_DIR}")
-if(TARGET_PLATFORM STREQUAL "x86-win32")
-  list(APPEND _DEFOLD_PLATFORM_INCLUDE_DIRS "${DEFOLD_SDK_ROOT}/ext/include/win32")
-  list(APPEND _DEFOLD_PLATFORM_LIB_DIRS "${DEFOLD_SDK_ROOT}/lib/win32" "${DEFOLD_SDK_ROOT}/ext/lib/win32")
-endif()
 list(REMOVE_DUPLICATES _DEFOLD_PLATFORM_INCLUDE_DIRS)
 list(REMOVE_DUPLICATES _DEFOLD_PLATFORM_LIB_DIRS)
 
@@ -336,20 +339,17 @@ target_include_directories(defold_sdk INTERFACE
   "$<BUILD_INTERFACE:${DEFOLD_DMSDK_INCLUDE_DIR}>"
   "$<INSTALL_INTERFACE:include>"
   "$<INSTALL_INTERFACE:sdk/include>")
-# External/platform include dirs as SYSTEM to reduce warnings
-target_include_directories(defold_sdk SYSTEM INTERFACE
-  "$<BUILD_INTERFACE:${DEFOLD_EXT_INCLUDE_DIR}>"
-  "$<INSTALL_INTERFACE:ext/include>")
+# External/platform include dirs as SYSTEM to reduce warnings. Keep the
+# platform-specific directories first so target overrides take precedence over
+# common package headers (the same order used by the legacy build setup).
 foreach(_DEFOLD_PLATFORM_INCLUDE_DIR IN LISTS _DEFOLD_PLATFORM_INCLUDE_DIRS)
   target_include_directories(defold_sdk SYSTEM INTERFACE
     "$<BUILD_INTERFACE:${_DEFOLD_PLATFORM_INCLUDE_DIR}>")
 endforeach()
 target_include_directories(defold_sdk SYSTEM INTERFACE
-  "$<INSTALL_INTERFACE:ext/include/${TARGET_PLATFORM}>")
-if(TARGET_PLATFORM STREQUAL "x86-win32")
-  target_include_directories(defold_sdk SYSTEM INTERFACE
-    "$<INSTALL_INTERFACE:ext/include/win32>")
-endif()
+  "$<INSTALL_INTERFACE:ext/include/${TARGET_PLATFORM}>"
+  "$<BUILD_INTERFACE:${DEFOLD_EXT_INCLUDE_DIR}>"
+  "$<INSTALL_INTERFACE:ext/include>")
 # Library search directories
 foreach(_DEFOLD_PLATFORM_LIB_DIR IN LISTS _DEFOLD_PLATFORM_LIB_DIRS)
   target_link_directories(defold_sdk INTERFACE
@@ -358,11 +358,6 @@ endforeach()
 target_link_directories(defold_sdk INTERFACE
   "$<INSTALL_INTERFACE:lib/${TARGET_PLATFORM}>"
   "$<INSTALL_INTERFACE:ext/lib/${TARGET_PLATFORM}>")
-if(TARGET_PLATFORM STREQUAL "x86-win32")
-  target_link_directories(defold_sdk INTERFACE
-    "$<INSTALL_INTERFACE:lib/win32>"
-    "$<INSTALL_INTERFACE:ext/lib/win32>")
-endif()
 
 # Enable IPO/LTO when supported
 include(CheckIPOSupported)

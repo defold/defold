@@ -30,6 +30,7 @@ namespace dmGraphics
         TextureFilter m_MagFilter;
         TextureWrap   m_UWrap;
         TextureWrap   m_VWrap;
+        TextureWrap   m_WWrap;
         float         m_Anisotropy;
     };
 
@@ -84,6 +85,7 @@ namespace dmGraphics
     {
         RenderTarget m_Base;
         FrameBuffer  m_FrameBuffer;
+        FrameBuffer  m_CubeMapFrameBuffers[CUBEMAP_FACE_COUNT];
     };
 
     struct NullShaderModule

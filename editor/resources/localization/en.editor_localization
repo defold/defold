@@ -77,6 +77,8 @@ welcome.new-project.colorslide-tutorial.title = Colorslide Tutorial
 welcome.new-project.colorslide-tutorial.description = In this medium difficulty tutorial you build an in-game GUI, a GUI screen for level selection and a start screen for a simple multi level mobile game.
 
 # Welcome -> New Project -> From Sample
+welcome.new-project.sample-3d-platformer.title = 3D Platformer Starter Kit
+welcome.new-project.sample-3d-platformer.description = This is a ready-to-play 3D platformer sample with responsive character movement, jumping, an orbit camera, collectibles, animated characters, lighting, and shadows.
 welcome.new-project.sample-3d-third-person-playground.title = 3D Third-Person Playground
 welcome.new-project.sample-3d-third-person-playground.description = This is a sample 3D third-person game where you can move a 3D character around with keyboard or mouse/touch input. It shows how to make a basic 3D setup with shadows.
 welcome.new-project.linker-sample-game.title = Linker Sample Game
@@ -124,15 +126,22 @@ updater.dialog.button.not-now = Not Now
 updater.dialog.button.download = Download Update
 updater.dialog.button.install-and-restart = Install and Restart
 updater.dialog.button.download-newer-version = Download Newer Version
+updater.dialog.button.skip-version = Skip This Version
+updater.dialog.button.skip-newer-version = Skip Newer Version
 updater.release-notes-dialog.title = Update Available
 updater.release-notes-dialog.header = Defold Release Summary - What''s New{count, plural, =1{ in {version}} other{}}
 updater.release-notes-dialog.button.later = Maybe Later
 updater.release-notes-dialog.button.update-now = Update Now
+updater.up-to-date-dialog.title = No Updates Available
+updater.up-to-date-dialog.header = You''re running the latest version of Defold
+updater.check-failed-dialog.title = Check Failed
+updater.check-failed-dialog.header = Could not check for updates. Please try again later.
+updater.download-in-progress-dialog.title = Update in Progress
+updater.download-in-progress-dialog.header = Defold is already downloading an update
 
 # Bundled release notes shown on first launch of a version and via Help > Release Notes
-release-notes-dialog.title = Release Notes
-release-notes-dialog.header = Defold Release Summary - What''s New in {version}
-release-notes-dialog.button.close = Close
+release-notes-tab.title = Release Notes
+release-notes-tab.tooltip = Defold Release Summary - What''s New in {version}
 
 # Time
 time.vague.unknown = Unknown
@@ -179,12 +188,6 @@ dialog.build-error.cycle.detail.generic = This is caused by two or more resource
 dialog.clean-build.title = Perform Clean Project Build?
 dialog.clean-build.header = Are you sure you want to perform a clean project build?
 dialog.clean-build.button.clean = Clean Build
-
-# Debugging Not Supported Dialog
-
-dialog.debugging-not-supported.title = Debugging Not Supported
-dialog.debugging-not-supported.header = This project cannot be used with the debugger
-dialog.debugging-not-supported.content = It is configured to disable shared script state.\n\nIf you do not specifically require different script states, consider changing the script.shared_state property in game.project.
 
 # Defunload Issues Dialog
 
@@ -413,6 +416,7 @@ notification.ensure-exists.reason.folder = the configured path points to a folde
 
 notification.lsp.language-server-missing.prompt = Cannot perform this action because there is no Language Server running for the {language} language.
 notification.lsp.language-server-missing.action.about = About LSP in Defold
+notification.lsp.formatting-failed.prompt = Cannot format {path} because no Language Server responded.
 
 # Asset browser notifications
 
@@ -561,17 +565,16 @@ dialog.bundle.label.platform = Platform
 dialog.bundle.option.platform.x86_64-linux = X64
 dialog.bundle.option.platform.arm64-linux = Arm64
 dialog.bundle.option.platform.x86_64-win32 = 64-bit
-dialog.bundle.option.platform.x86-win32 = 32-bit
 dialog.bundle.option.identity.none = None
 dialog.bundle.label.architectures = Architectures
-dialog.bundle.option.architecture.arm64-ios = 64-bit (arm64)
-dialog.bundle.option.architecture.x86_64-ios = Simulator (x86_64)
+dialog.bundle.label.ios-simulator = Simulator
 dialog.bundle.option.architecture.x86_64-macos = x86_64
 dialog.bundle.option.architecture.arm64-macos = arm64
 dialog.bundle.option.architecture.wasm-web = WebAssembly (wasm)
 dialog.bundle.option.architecture.wasm_pthread-web = WebAssembly (wasm) + Thread support
 dialog.bundle.option.architecture.armv7-android = 32-bit (armv7)
 dialog.bundle.option.architecture.arm64-android = 64-bit (arm64)
+dialog.bundle.option.architecture.x86_64-android = 64-bit (x86_64)
 dialog.bundle.label.sign-application = Sign Application
 dialog.bundle.label.code-signing-identity = Code Signing Identity
 dialog.bundle.label.provisioning-profile = Provisioning Profile
@@ -715,6 +718,8 @@ prefs.label.code.zoom-on-scroll = Zoom on Scroll
 prefs.label.code.hover = Hover popup
 prefs.help.code.hover = Show code documentation popup on hover
 prefs.label.code.auto-closing-parens = Auto-insert closing parens
+prefs.label.code.format-on-save = Format on save
+prefs.help.code.format-on-save = Run the language server formatter on open files when saving
 
 # Extensions tab
 prefs.label.extensions.build-server = Build Server
@@ -841,6 +846,7 @@ menu.edit = Edit
 menu.debug = Debug
 menu.view = View
 menu.help = Help
+menu.dock.new-window = New Window
 
 # Commands
 
@@ -924,7 +930,12 @@ command.edit.add-embedded-component.variant.collection = Add Game Object
 command.edit.add-embedded-component.variant.collision-object = Add Shape
 command.edit.add-embedded-component.variant.collision-object.option.box = Box
 command.edit.add-embedded-component.variant.collision-object.option.capsule = Capsule
+command.edit.add-embedded-component.variant.collision-object.option.circle = Circle
+command.edit.add-embedded-component.variant.collision-object.option.hull = Hull
+command.edit.add-embedded-component.variant.collision-object.option.mesh = Mesh
+command.edit.add-embedded-component.variant.collision-object.option.rectangle = Rectangle
 command.edit.add-embedded-component.variant.collision-object.option.sphere = Sphere
+command.edit.add-embedded-component.variant.font = Add Style
 command.edit.add-embedded-component.variant.game-object = Add Component
 command.edit.add-embedded-component.variant.gui.option.textures = Textures…
 command.edit.add-embedded-component.variant.gui.option.materials = Materials…
@@ -980,6 +991,7 @@ command.code.replace = Replace…
 command.code.replace-next = Replace Next
 command.code.toggle-comment = Toggle Comment
 command.code.reindent-lines = Reindent Lines
+command.code.format = Format Document/Selection
 command.code.convert-indentation = Convert Indentation
 command.code.convert-indentation.to-tabs = To Tabs
 command.code.convert-indentation.to-two-spaces = To Two Spaces
@@ -1056,6 +1068,7 @@ command.help.report-suggestion = Report Suggestion
 command.help.open-issues = Search Issues
 command.help.open-donations = Development Fund
 command.help.open-release-notes = Release Notes
+command.help.check-for-updates = Check for Updates
 command.app.about = About
 command.vcs.diff = View Diff
 command.vcs.revert = Revert
@@ -1106,6 +1119,7 @@ operation.atlas.move-pivot-point = Move Pivot Point
 operation.collision-object.add-shape = Add Shape
 operation.collection.add-collection = Add Collection
 operation.collection.add-game-object = Add Game Object
+operation.font.add-style = Add Font Style
 operation.game-object.add-component = Add Component
 operation.gui.add-gui-node = Add GUI Node
 operation.gui.add-layer = Add Layer
@@ -1124,6 +1138,11 @@ operation.drop = Drop
 operation.paste = Paste
 operation.select = Select
 operation.tile-map.add-layer = Add Layer
+
+# Font Styles
+
+font.style.default = (default)
+scene.font.style = Style: {style}
 
 # Scene View Popups
 
@@ -1144,6 +1163,7 @@ scene-popup.scene-visibility.gui-shapes = GUI Shapes
 scene-popup.scene-visibility.gui-particle-effects = GUI Particle Effects
 scene-popup.scene-visibility.gui-spine-scenes = GUI Spine Scenes
 scene-popup.scene-visibility.gui-text = GUI Text
+scene-popup.scene-visibility.lights = Lights
 scene-popup.scene-visibility.models = Models
 scene-popup.scene-visibility.particle-effects = Particle Effects
 scene-popup.scene-visibility.skeletons = Skeletons
@@ -1197,6 +1217,12 @@ property.appmanifest.profiler = Profiler
 property.appmanifest.profiler.tooltip = Choose which builds include profiler functionality. **Debug Only** excludes it from release builds, **None** excludes it entirely, and **Always** also includes it in release builds.
 property.appmanifest.exclude-sound = Exclude Sound
 property.appmanifest.exclude-sound.tooltip = Remove all sound playback functionality from the engine. Enable this only when the project does not play audio.
+property.appmanifest.exclude-gui = Exclude GUI
+property.appmanifest.exclude-gui.tooltip = Remove GUI resources, components, and Lua support from the engine. Enable this only when the project does not use GUI scenes or scripts.
+property.appmanifest.exclude-particle-fx = Exclude Particle FX
+property.appmanifest.exclude-particle-fx.tooltip = Remove particle effect resources, components, and Lua support, including particle nodes in GUI scenes. GUI scenes without particle nodes remain supported.
+property.appmanifest.exclude-tilemap = Exclude Tilemaps
+property.appmanifest.exclude-tilemap.tooltip = Remove tilemap resources, components, and Lua support from the engine. Enable this only when the project does not use tilemaps.
 property.appmanifest.exclude-sound-decoder-wav = Exclude Sound Decoder: WAV
 property.appmanifest.exclude-sound-decoder-wav.tooltip = Remove support for `.wav` sound resources. Enable this only when the project does not play WAV audio.
 property.appmanifest.exclude-sound-decoder-ogg = Exclude Sound Decoder: OGG
@@ -1227,6 +1253,8 @@ property.appmanifest.graphics-web = Graphics (HTML5)
 property.appmanifest.graphics-web.tooltip = Select the graphics backend included in HTML5 builds. WebGL is the default; including both WebGL and WebGPU permits fallback but increases engine size.
 property.appmanifest.use-font-layout = Use full text layout system
 property.appmanifest.use-font-layout.tooltip = Include the full text layout system required for runtime SDF font generation from TrueType fonts. Runtime glyph rasterization also requires `font.runtime_generation` in `game.project`; it supports features such as right-to-left text.
+property.appmanifest.use-rich-text = Use Rich Text
+property.appmanifest.use-rich-text.tooltip = Include rich text parsing and style effects for labels and GUI text. Disable this to reduce engine size; markup will then render as plain text.
 
 # Properties: atlas
 
@@ -1321,6 +1349,10 @@ property.collision-object.shape.dimensions = Dimensions
 property.collision-object.shape.dimensions.tooltip = The box shape's full **Width**, **Height**, and **Depth**. **Depth** affects only 3D physics, but every dimension must be greater than zero.
 property.collision-object.shape.height = Height
 property.collision-object.shape.height.tooltip = **3D physics only.** The length of a capsule's straight section between its rounded ends. Its total end-to-end length is **Height + Diameter**.
+property.collision-object.shape.mesh-scene = Scene
+property.collision-object.shape.mesh-scene.tooltip = The glTF or GLB scene containing the collision mesh.
+property.collision-object.shape.mesh = Mesh
+property.collision-object.shape.mesh.tooltip = A named raw mesh from the selected scene.
 
 # Properties: compute
 
@@ -1386,6 +1418,10 @@ property.font.characters = Characters
 property.font.characters.tooltip = Characters included when building an offline font; limiting this set reduces font size. For runtime fonts, these characters are generated up front to prewarm the glyph cache. Clearing the field restores printable ASCII.
 property.font.all-chars = All Chars
 property.font.all-chars.tooltip = For offline fonts, includes every glyph from the source instead of only **Characters**, which can greatly increase font size. For runtime fonts, glyphs are generated on demand and enabling this skips **Characters** prewarming.
+property.font.style = Style
+property.font.style.tooltip = The base style from the selected font. Leave empty for no base style. Inline markup overrides the selected style.
+property.font.markup = Markup
+property.font.markup.tooltip = Opening rich-text tags that define this style. Supports all rich-text tags, including size, links, and sprites.
 
 # Properties: gui
 
@@ -1524,10 +1560,14 @@ property.model.create-go-bones = Create GO Bones
 property.model.create-go-bones.tooltip = Creates a runtime game object for every skeleton bone, allowing attachments such as a weapon parented to a hand bone. Bone objects can be found with `model.get_go()` and count toward the collection's game-object capacity.
 property.model.default-animation = Default Animation
 property.model.default-animation.tooltip = Animation from **Animations** that starts automatically with the model. Leave empty when animation should be started explicitly with `model.play_anim()`.
+property.model.scene = Scene
+property.model.scene.tooltip = glTF or GLB resource containing the model's visible geometry. Morph targets are imported together with the scene.
 property.model.mesh = Mesh
 property.model.mesh.tooltip = glTF or GLB resource containing the model's visible geometry. Morph targets are imported together with the mesh.
+property.model.mesh-name = Mesh
+property.model.mesh-name.tooltip = Optional named raw mesh from the selected scene. Leave empty to render the whole scene. A selected mesh is rendered once in mesh-local coordinates without glTF node transforms.
 property.model.skeleton = Skeleton
-property.model.skeleton.tooltip = glTF or GLB resource containing the bone hierarchy used for skeletal animation. Defold imports the first skin in the file; this is often the same resource used for **Mesh**.
+property.model.skeleton.tooltip = glTF or GLB resource containing the bone hierarchy used for skeletal animation. Defold imports the first skin in the file; this is often the same resource used for **Scene**.
 
 # Properties: particlefx
 
@@ -1699,6 +1739,7 @@ outline.camera = Camera
 outline.collection = Collection
 outline.collection-proxy = Collection Proxy
 outline.collision-object = Collision Object
+outline.font.styles = Styles
 outline.game-object = Game Object
 outline.gui.box = Box
 outline.gui.fonts = Fonts
@@ -1947,8 +1988,8 @@ form.label.project.android.display_cutout = Display Cutout
 form.help.project.android.display_cutout = Allows fullscreen content to extend into display-cutout areas such as notches and camera holes. Android 15/API 35 and later may enforce this behavior. Use `window.get_safe_area()` to keep important UI inside safe-area insets.
 form.label.project.android.debuggable = Debuggable
 form.help.project.android.debuggable = Sets `android:debuggable` in the manifest, allowing tools such as Android Studio profilers and debuggers to inspect the application and its files. Leave disabled for release builds unless explicitly needed.
-form.label.project.android.proguard = ProGuard Config
-form.help.project.android.proguard = Custom `.pro` rules used when shrinking and obfuscating Java code in the Android build. Add keep rules for code accessed through reflection or JNI so it is not removed or renamed. Leave empty when no project-specific rules are needed.
+form.label.project.android.r8_keep_rules = R8 Keep Rules
+form.help.project.android.r8_keep_rules = A `.keep` file that enables R8 shrinking, optimization, and obfuscation for the Android build. The selected file is the complete project rule set; copy the built-in `dmengine.keep` before customizing it. Leave empty to get final build without shrinking.
 form.label.project.android.extract_native_libs = Extract Native Libs
 form.help.project.android.extract_native_libs = Controls whether Android extracts native libraries from the package at installation. When disabled, libraries remain uncompressed and load directly from the package; this is required for compatibility with devices using 16 KB memory pages.
 
@@ -1974,6 +2015,8 @@ form.label.project.html5.engine_arguments = Engine Arguments
 form.help.project.html5.engine_arguments = Comma-separated engine arguments passed at startup. Use `--config=section.key=value` to override a configuration value.
 form.label.project.html5.wasm_streaming = Wasm Streaming
 form.help.project.html5.wasm_streaming = Compiles WebAssembly while it downloads for faster startup and lower peak memory use. The server must send `.wasm` files as `application/wasm`. The loader falls back to ordinary loading if streaming fails.
+form.label.project.html5.verify_downloaded_file_size = Verify Downloaded File Size
+form.help.project.html5.verify_downloaded_file_size = Checks that each downloaded bundle file is the size it was when bundled, and refuses to start the game if it is not. Turn this off only if a server, proxy or CDN rewrites the files it serves, which changes their size. Files are always downloaded again a couple of times before the check is reported as an error.
 form.label.project.html5.show_fullscreen_button = Show Fullscreen Button
 form.help.project.html5.show_fullscreen_button = Shows the fullscreen control below the canvas in the built-in HTML shell. Custom shells can use this setting as a Mustache condition.
 form.label.project.html5.show_made_with_defold = Show "Made With Defold"
@@ -1983,9 +2026,9 @@ form.help.project.html5.show_console_banner = Prints the **Made with Defold** ba
 form.label.project.html5.scale_mode = Scale Mode
 form.help.project.html5.scale_mode = Controls canvas resizing. **Downscale Fit** preserves aspect ratio and only shrinks. **Fit** preserves aspect ratio and can shrink or grow. **Stretch** fills the page and may distort. **No Scale** keeps the configured display dimensions.
 form.label.project.html5.retry_count = Retry Count
-form.help.project.html5.retry_count = Number of retries after a network error while loading bundle files. The initial request is separate.
+form.help.project.html5.retry_count = Number of retries after a network error or a failed HTTP status while loading bundle files. The initial request is separate.
 form.label.project.html5.retry_time = Retry Time
-form.help.project.html5.retry_time = Delay in seconds before retrying a bundle file after a network error.
+form.help.project.html5.retry_time = Delay in seconds before retrying a bundle file after a network error or a failed verification.
 form.label.project.html5.transparent_graphics_context = Transparent Context
 form.help.project.html5.transparent_graphics_context = Requests an alpha channel for the HTML5 graphics context so the page can show through transparent canvas pixels. The game must also render transparent pixels.
 
@@ -2123,11 +2166,6 @@ form.help.project.particle_fx.max_count = Maximum number of ParticleFX component
 form.label.project.particle_fx.max_emitter_count = Max Emitter Count
 form.help.project.particle_fx.max_emitter_count = Maximum total number of emitters across all concurrent ParticleFX instances in each loaded collection. A single effect can contain multiple emitters. If the limit is exceeded, the collection's entire ParticleFX render pass is skipped and a warning is logged.
 
-form.label.project.script = Script
-form.help.project.script = Script system settings
-form.label.project.script.shared_state = Shared State
-form.help.project.script.shared_state = Controls whether game object scripts, GUI scripts, and the render script use one Lua state. Globals and loaded-module caches are shared when enabled and isolated when disabled. A shared state uses less memory and is required by the Editor debugger.
-
 form.label.project.sound = Sound
 form.help.project.sound = Sound related settings
 form.label.project.sound.gain = Gain
@@ -2197,11 +2235,11 @@ form.help.project.display.display_profiles = Display Profiles resource used to s
 form.label.project.display.dynamic_orientation = Dynamic Orientation
 form.help.project.display.dynamic_orientation = Allows Android and iOS builds to use both portrait and landscape orientations and switch when the device rotates. When disabled, the supported orientation is inferred from **Width** and **Height**. The development app does not currently respect this setting.
 form.label.project.display.update_frequency = Update Frequency
-form.help.project.display.update_frequency = Desired game-loop and rendering rate in hertz. `0` uses a variable frame rate; a positive value such as `30` caps the rate when the device can run that fast.
+form.help.project.display.update_frequency = Desired game-loop and rendering rate in hertz. `0` uses a variable frame rate. On platforms where Defold owns the application loop, a positive value uses timer pacing and requests a **Swap Interval** of `0`; the requested interval is restored when this is set back to `0`. Update `dt` can vary to account for elapsed time. This is separate from `fixed_update()`.
 form.label.project.display.swap_interval = Swap Interval
-form.help.project.display.swap_interval = Requests presentation relative to the display refresh. `0` disables vertical sync and `1` presents every refresh. Larger values may skip intervals on OpenGL, while Vulkan and Metal treat any nonzero value as enabling vertical sync. Actual behavior depends on the backend and driver.
+form.help.project.display.swap_interval = Requests presentation relative to the display refresh. `0` requests disabling vertical sync and `1` requests every refresh. OpenGL may support larger intervals, while Vulkan and Metal treat any nonzero value as enabling vertical sync. DX12 clamps the interval to `0` through `4`. Engine-side timer pacing temporarily requests interval `0`. Actual behavior depends on the backend, platform, and driver.
 form.label.project.display.vsync = Vsync
-form.help.project.display.vsync = **Deprecated compatibility setting.** When disabled, it forces the effective **Swap Interval** to `0`; when enabled, **Swap Interval** determines the behavior. Use **Swap Interval** for new projects.
+form.help.project.display.vsync = **Deprecated compatibility setting.** When disabled, it forces the requested **Swap Interval** to `0`; when enabled, **Swap Interval** determines the requested behavior. Engine-side timer pacing also requests interval `0`. Use **Swap Interval** for new projects.
 form.label.project.display.variable_dt = Variable DT
 form.help.project.display.variable_dt = **Deprecated.** Enabling this maps the built project to **Vsync** disabled and **Update Frequency** set to `0`, reproducing the old variable-timestep behavior.
 form.label.project.display.display_device_info = Display Device Info
@@ -2214,7 +2252,7 @@ form.help.project.engine.run_while_iconified = Keeps updates and sound running w
 form.label.project.engine.fixed_update_frequency = Fixed Update Frequency
 form.help.project.engine.fixed_update_frequency = Sets the frequency of fixed updates in Hz. This controls `fixed_update(self, dt)` and physics when **Use Fixed Timestep** is enabled. `0` disables fixed updates.
 form.label.project.engine.max_time_step = Max Time Step
-form.help.project.engine.max_time_step = Caps the `dt` passed to regular update callbacks after a slow or suspended frame. It does not cap the fixed `dt` passed to `fixed_update()`; excess elapsed time is discarded.
+form.help.project.engine.max_time_step = Limits elapsed time accounted for by regular updates, in seconds. Excess hitch time is discarded rather than caught up later. Engine-side timer pacing uses the larger of this limit and the requested frame interval, so a low frame cap can produce `dt` above this value. It does not limit the timestep passed to `fixed_update()`.
 
 form.label.project.font = Font
 form.help.project.font = Font related settings
@@ -2425,11 +2463,15 @@ form.label.render.render-resources.name = Name
 form.label.render.render-resources.resource = Resource
 
 form.label.render-target = Render Target
+form.label.render-target.type = Texture Type
+form.help.render-target.type = Selects the texture type used by every render-target attachment. Cubemaps are rendered one face at a time and must be sampled using a `samplerCube`.
 form.label.render-target.color-attachments = Color Attachments
 form.help.render-target.color-attachments = Defines the color textures that receive rendered output. Each row creates one attachment with its own size and pixel format. Use matching dimensions for all attachments for portability across graphics backends. Up to `4` are supported.
 form.label.render-target.color-attachments.width = Width
 form.label.render-target.color-attachments.height = Height
 form.label.render-target.color-attachments.format = Format
+form.label.render-target.sample-count = Sample Count
+form.help.render-target.sample-count = Number of samples used by every color, depth, and stencil attachment. Unsupported values are reduced to the closest sample count available on the graphics backend.
 form.label.render-target.depth-stencil-attachment-width = Depth/Stencil Width
 form.help.render-target.depth-stencil-attachment-width = Width in pixels of the shared depth/stencil attachment. Set both width and height above `0` to create the attachment; leaving both at `0` disables it.
 form.label.render-target.depth-stencil-attachment-height = Depth/Stencil Height
@@ -2615,6 +2657,7 @@ form.help.material.samplers = Texture sampling settings used by the shader. Each
 form.label.material.samplers.name = Name
 form.label.material.samplers.wrap-u = Wrap U
 form.label.material.samplers.wrap-v = Wrap V
+form.label.material.samplers.wrap-w = Wrap W
 form.label.material.samplers.filter-min = Min Filter
 form.label.material.samplers.filter-mag = Mag Filter
 form.label.material.samplers.max-anisotropy = Max Anisotropy
@@ -2638,6 +2681,7 @@ form.help.compute.samplers = Sampling settings for sampler uniforms declared in 
 form.label.compute.samplers.name = Name
 form.label.compute.samplers.wrap-u = Wrap U
 form.label.compute.samplers.wrap-v = Wrap V
+form.label.compute.samplers.wrap-w = Wrap W
 form.label.compute.samplers.filter-min = Min Filter
 form.label.compute.samplers.filter-mag = Mag Filter
 form.label.compute.samplers.max-anisotropy = Max Anisotropy
@@ -2651,6 +2695,8 @@ quick-help.build-and-run-project = Build and Run Project
 quick-help.start-or-attach-debugger = Start or Attach Debugger
 
 # Error Messages
+error.engine.url-not-reported-before-exit = Engine exited before reporting its service URL.
+error.engine.url-not-reported-in-time = Engine service URL was not reported within 15 seconds. The game may still be running.
 error.assigned-image-has-internal-errors = The assigned image has internal errors.
 error.sampler-not-defined-in-material = "{sampler}" is not defined in the Material. Use the "Clear Override" command from the label's context menu to remove the property. If the sampler is necessary for the shader, add a missing sampler in the Material.
 error.light.invalid-source = The light file could not be parsed. Fix the text format or revert your changes.
@@ -2671,17 +2717,29 @@ error.tile-source.total-width-exceeds-image-width = The total width ("Tile Width
 error.tile-source.total-height-exceeds-image-height = The total height ("Tile Height" + "Tile Margin") is greater than the "Image" height ({total_height} vs {image_height}).
 error.property-contains-url-prohibited-characters = "{property}" should not contain special URL symbols such as "#" or ":".
 error.property-cannot-start-or-end-with-space = "{property}" should not start or end with a space character.
+error.property-cannot-contain-nul = "{property}" cannot contain NUL characters.
 error.property-cannot-be-negative = "{property}" cannot be negative.
 error.property-must-be-greater-than-zero = "{property}" must be greater than zero.
 error.property-must-be-at-least = "{property}" must be at least {min}.
 error.property-must-be-at-most = "{property}" must be at most {max}.
 error.render-target.color-attachments-cannot-exceed = "{property}" cannot have more than {max} color attachments.
+error.render-target.texture-type-must-be-supported = Texture type must be 2D or Cubemap.
+error.render-target.sample-count-must-be-supported = Sample count must be one of 1, 2, 4, 8, or 16.
+error.render-target.cubemap-sample-count-must-be-one = Cubemap render targets only support a sample count of 1.
+error.render-target.cubemap-attachments-must-be-square-and-equal = Cubemap render-target attachments must be square and have identical dimensions.
 error.render-target.color-attachment-width-must-be-greater-than-zero = Color attachment {index} must have a width greater than zero.
 error.render-target.color-attachment-height-must-be-greater-than-zero = Color attachment {index} must have a height greater than zero.
 error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is = Incorrect depth/stencil attachment: width is greater than zero, but height is zero.
 error.render-target.depth-stencil-width-must-be-greater-than-zero-if-height-is = Incorrect depth/stencil attachment: height is greater than zero, but width is zero.
 error.collision-object-shape-dimensions-must-be-greater-than-zero = All dimensions must be greater than zero.
 error.collision-object-has-no-shapes = Collision Object has no shapes.
+error.collision-object-mesh-shape-scene-required = Select a glTF or GLB scene for the Mesh or Hull shape.
+error.collision-object-mesh-shape-no-named-meshes = The selected scene contains no named meshes.
+error.collision-object-mesh-shape-mesh-required = Select a mesh from the scene.
+error.collision-object-mesh-shape-mesh-missing = Mesh "{mesh}" no longer exists or is ambiguous in the selected scene.
+error.collision-object-mesh-shape-triangle-topology-required = The selected mesh contains a non-triangle primitive.
+error.collision-object-mesh-shape-empty = The selected mesh contains no triangles.
+error.collision-object-hull-shape-empty = The selected mesh contains no vertices.
 error.collision-shape-conflict = Cannot combine embedded shapes with a referenced Collision Shape. Remove one of them.
 error.collision-object-shape-not-supported-in-physics = {shape} shapes are not supported in {physics} physics.
 error.texture-profiles.format-not-supported-by-texture-compressor = Texture format is not supported by the texture compressor.
@@ -2697,11 +2755,14 @@ error.lua-preprocessing-failed = Lua preprocessing failed.\n{error}
 error.go-property-disallowed = go.property cannot be used in this file type.
 error.transpiler-compilation-failed = Compilation failed: {error}
 error.animation-set-build-failed = Failed to build {resource}: {error}
+error.bob.project-operation-in-progress = Another project operation is already in progress
+error.bob.failed-to-save-project = Failed to save the project before invoking Bob.
 error.blend-mode-add-alpha-replaced = `{old}` is deprecated and behaves exactly like `{new}` because Defold uses premultiplied alpha. Select `{new}` instead.
 error.duplicate-instance-id = "{id}" is in use by another instance.
 error.non-unique-ids = The following ids are not unique: {ids}.
 error.only-components-allowed = Only components are allowed for "{property}". "{ext}" is not a component.
 error.property-resource-not-found = {property} "{resource}" could not be found.
+error.property-resource-is-a-folder = {property} "{resource}" is a folder, not a file.
 error.property-resource-is-a-broken-symlink = {property} symlink "{resource}" refers to missing path "{path}".
 error.resource-not-found = "{resource}" could not be found.
 error.resource-is-a-broken-symlink = Symlink "{resource}" refers to missing path "{path}".
@@ -2715,10 +2776,23 @@ error.material-does-not-support-paged-atlases = The Material does not support pa
 error.material-max-page-count-insufficient = The Material's "Max Page Count" is not sufficient for the number of pages in the selected {property}.
 error.model-unsupported-file-format = {property} "{resource}" has unsupported format {format}. Defold supports only {supported_formats} files for {property}.
 error.model-load-failed = The file "{file}" failed to load:\n{error}
+error.model-mesh-selection-file-type = Mesh is only available for glTF and GLB scenes.
+error.model-mesh-selection-name-required = The selected mesh index does not have a mesh name.
+error.model-mesh-selection-missing = Mesh "{mesh}" was not found in the scene.
 error.animation-not-found = "{animation}" could not be found in "{property}".
 error.buffer-syntax-error = Syntax error in buffer file.
 error.editor-extension-compilation-failed = Could not compile editor extension.
 error.font-bitmap-generation-failed = Failed to generate bitmap from Font. {error}
+error.font.style-not-found = Font style ''{style}'' does not exist.
+error.font.invalid-style-name = Style names must be unique and non-empty; default is reserved.
+error.font.authored-default-style = The default style is generated and cannot contain markup.
+error.font.rich-text-outline-and-shadow-not-supported-by-bmfont = Rich-text outline and shadow tags are not supported by BMFont fonts.
+error.font.no-reserved-data-for-rich-text-outlines = This font has no reserved data for rich-text outlines; the outline will not be rendered.
+error.font.bitmap-shadow-blur-includes-outline = This bitmap font's shadow blur includes its outline; rich-text shadow spans without an outline tag render crisp.
+error.font.per-span-shadow-blur-not-supported-by-bitmap-fonts = Per-span shadow blur is not supported by bitmap fonts; the shadow uses the available bitmap coverage.
+error.font.per-span-outline-size-fixed-for-bitmap-fonts = Per-span outline size is fixed for bitmap fonts; the outline uses the width reserved by the font resource.
+error.font.rich-text-outline-exceeds-reserved-width = The requested rich-text outline exceeds the width reserved by the font resource and will be clamped.
+error.font.no-reserved-distance-field-data-for-rich-text-shadow-blur = This font has no reserved distance-field data for rich-text shadow blur; the shadow renders crisp.
 error.at-line = Line {line}: {error}
 error.render.title = RENDER ERROR:
 error.render.unknown-resource = unknown

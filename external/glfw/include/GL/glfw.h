@@ -367,6 +367,7 @@ extern "C" {
 #define GLFW_OPENGL_PROFILE       0x00020018
 #define GLFW_WINDOW_HIGH_DPI      0x00020019
 #define GLFW_CLIENT_API           0x0002001A
+#define GLFW_WEBGL_VERSION        0x0002001B
 
 /* GLFW_OPENGL_PROFILE tokens */
 #define GLFW_OPENGL_CORE_PROFILE  0x00050001
@@ -572,6 +573,8 @@ GLFWAPI int  GLFWAPIENTRY glfwLoadTextureImage2D( GLFWimage *img, int flags );
 // Defold extensions
 GLFWAPI void glfwRegisterUIApplicationDelegate(void* delegate);
 GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
+GLFWAPI void glfwRegisterUISceneDelegate(void* delegate);
+GLFWAPI void glfwUnregisterUISceneDelegate(void* delegate);
 GLFWAPI void glfwSetViewType(int view_type);
 GLFWAPI void glfwSetWindowBackgroundColor(unsigned int color);
 GLFWAPI float glfwGetDisplayScaleFactor();
