@@ -32,7 +32,7 @@
 
 (deftest embedded-entry-transit-preserves-content-and-origin
   (test-support/with-clean-system
-    (let [workspace (test-util/setup-workspace! world "test/resources/empty_project")]
+    (let [workspace (test-util/setup-workspace! "test/resources/empty_project")]
       (doseq [source-path ["/game.project" "/builtins/materials/sprite.material"]]
         (let [source (workspace/find-resource workspace source-path)]
           (doseq [[content expected] [[(ByteString/copyFromUtf8 "embedded") "embedded"]
@@ -43,7 +43,7 @@
                                                              :content content})
                   restored (g/read-graph (g/write-graph entry (core/write-handlers)) (core/read-handlers))]
               (is (= expected (slurp restored)))
-              (with-open [connection (http-server/->connection (:body (http-server/response 200 restored)))]
+              (with-open [^java.io.InputStream connection (http-server/->connection (:body (http-server/response 200 restored)))]
                 (is (= expected (slurp connection))))
               (is (resource/read-only? restored))
               (is (nil? (resource/abs-path restored)))
