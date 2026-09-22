@@ -195,7 +195,21 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(0, styles.get(1).getUnderlinePattern());
         font.addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("default"));
         assertEquals(1, com.dynamo.bob.font.FontStyles.compileStyles(font.build()).size());
-        for (String markup : new String[] { "text", "<size=24>", "<link>", "<style=other>", "<color=#fff></color>", "<sprite id=icon>", "<wave unknown=1>" }) {
+        for (String markup : new String[] { "<size=25%>", "<link>", "<sprite id=icon>", "<shake fit=span><color=#FC6600><size=25%>" }) {
+            font.addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("valid").setMarkup(markup));
+            com.dynamo.render.proto.Font.CompiledStyle compiled = com.dynamo.bob.font.FontStyles.compileStyles(font.build()).get(1);
+            compiled = com.dynamo.render.proto.Font.CompiledStyle.parseFrom(compiled.toByteArray());
+            com.dynamo.bob.font.FontRenderer.Style restored = com.dynamo.bob.font.FontStyles.toNativeStyle(compiled);
+            assertEquals(compiled.getFontSize(), restored.fontSize, 0.0f);
+            assertEquals(compiled.getFontSizeUnit().getNumber(), restored.fontSizeUnit);
+            if (markup.contains("<size")) {
+                assertEquals(com.dynamo.render.proto.Font.CompiledStyle.FontSizeUnit.EM, compiled.getFontSizeUnit());
+                assertEquals(0.25f, restored.fontSize, 0.0f);
+                assertEquals(com.dynamo.bob.font.FontRenderer.Style.SIZE_EM, restored.fontSizeUnit);
+            }
+            font.removeStyles(1);
+        }
+        for (String markup : new String[] { "text", "<size=invalid>", "<style=other>", "<color=#fff></color>", "<wave unknown=1>" }) {
             font.addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("invalid").setMarkup(markup));
             try {
                 com.dynamo.bob.font.FontStyles.compileStyles(font.build());

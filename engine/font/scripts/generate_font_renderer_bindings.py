@@ -16,6 +16,7 @@
 
 import argparse
 import hashlib
+import json
 import pathlib
 import shlex
 import shutil
@@ -125,7 +126,18 @@ CONSTANTS = (
     "FONTC_MARKUP_ERROR_UNKNOWN_ATTRIBUTE",
     "FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE",
 )
-HEADER_HASH_PREFIX = "// Font renderer header SHA-256: "
+MANIFEST = "bindings.json"
+
+
+def file_hash(path):
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
+def write_if_changed(path, contents):
+    if path.is_file() and path.read_text(encoding="utf-8") == contents:
+        return False
+    path.write_text(contents, encoding="utf-8")
+    return True
 
 
 def parse_args():
@@ -140,23 +152,22 @@ def parse_args():
 
 def main():
     args = parse_args()
-    header_bytes = args.header.read_bytes().replace(b"\r\n", b"\n")
-    header_hash = hashlib.sha256(header_bytes).hexdigest()
+    header_hash = file_hash(args.header)
     generated_package = args.output.joinpath(*PACKAGE.split("."))
+    manifest_file = generated_package / MANIFEST
     expected_files = {f"{HEADER_CLASS}.java", f"{SYMBOLS_CLASS}.java"} | {f"{struct}.java" for struct in STRUCTS}
     if args.check:
         stale_files = []
-        expected_hash_line = HEADER_HASH_PREFIX + header_hash
+        try:
+            manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError):
+            manifest = {}
+        if manifest.get("header_sha256") != header_hash:
+            stale_files.append(MANIFEST)
+        file_hashes = manifest.get("files", {})
         for filename in sorted(expected_files):
             output_file = generated_package / filename
-            if not output_file.is_file():
-                stale_files.append(filename)
-                continue
-            output_lines = output_file.read_text(encoding="utf-8").splitlines()
-            hash_lines = [line for line in output_lines if line.startswith(HEADER_HASH_PREFIX)]
-            has_platform_dependent_long = (filename == f"{SYMBOLS_CLASS}.java" and
-                                           any(" C_LONG =" in line for line in output_lines))
-            if hash_lines != [expected_hash_line] or has_platform_dependent_long:
+            if not output_file.is_file() or file_hashes.get(filename) != file_hash(output_file):
                 stale_files.append(filename)
         if stale_files:
             regeneration_command = shlex.join((
@@ -206,6 +217,7 @@ def main():
         for stale_file in output_package.glob("*.java"):
             if stale_file.name not in generated_names:
                 stale_file.unlink()
+        file_hashes = {}
         for generated_file in generated_files:
             contents = generated_file.read_text(encoding="utf-8")
             if generated_file.name == f"{SYMBOLS_CLASS}.java":
@@ -217,8 +229,12 @@ def main():
                     raise RuntimeError("jextract output did not contain exactly one C_LONG declaration")
                 contents = "\n".join(line for line in lines if line != c_long_lines[0])
             output_file = output_package / generated_file.name
-            output_file.write_text(LICENSE + HEADER_HASH_PREFIX + header_hash + "\n\n" + contents.rstrip() + "\n", encoding="utf-8")
-            shutil.copymode(generated_file, output_file)
+            contents = LICENSE + contents.rstrip() + "\n"
+            if write_if_changed(output_file, contents):
+                shutil.copymode(generated_file, output_file)
+            file_hashes[generated_file.name] = file_hash(output_file)
+        manifest = {"header_sha256": header_hash, "files": file_hashes}
+        write_if_changed(manifest_file, json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
 
 if __name__ == "__main__":
