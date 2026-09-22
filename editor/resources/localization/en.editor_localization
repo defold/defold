@@ -1425,7 +1425,7 @@ property.font.all-chars.tooltip = Includes every glyph from the source instead o
 property.font.style = Style
 property.font.style.tooltip = The base style from the selected font. Leave empty for no base style. Inline markup overrides the selected style.
 property.font.markup = Markup
-property.font.markup.tooltip = Opening rich-text tags that define this style. Supports rendering properties, effects, underline, and strikethrough.
+property.font.markup.tooltip = Opening rich-text tags that define this style. Supports all rich-text tags, including size, links, and sprites.
 
 # Properties: gui
 

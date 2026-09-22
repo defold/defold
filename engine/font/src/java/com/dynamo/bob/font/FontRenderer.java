@@ -195,6 +195,7 @@ public final class FontRenderer implements AutoCloseable {
     /** Font-independent compiled resource style; native setters copy these values. */
     public static final class Style {
         // Render-property flags from TextRenderStyleFlags in font/text_layout.h.
+        public static final int FLAG_FONT_SIZE = 1 << 1;
         public static final int FLAG_OUTLINE_COLOR = 1 << 2;
         public static final int FLAG_OUTLINE_WIDTH = 1 << 3;
         public static final int FLAG_SHADOW_COLOR = 1 << 4;
@@ -203,6 +204,10 @@ public final class FontRenderer implements AutoCloseable {
         public static final int FLAG_SHADOW_BLUR = 1 << 7;
         public static final int FLAG_OUTLINE_ALPHA = 1 << 8;
         public static final int FLAG_SHADOW_ALPHA = 1 << 9;
+
+        public static final int SIZE_PIXELS = 0;
+        public static final int SIZE_EM = 1;
+        public static final int SIZE_OFFSET = 2;
 
         public float[] faceColor = {1, 1, 1, 1};
         public float[] outlineColor = {1, 1, 1, 1};
@@ -218,6 +223,8 @@ public final class FontRenderer implements AutoCloseable {
         public int underlinePattern;
         public int strikePattern;
         public StyleEffect[] effects = new StyleEffect[0];
+        public float fontSize;
+        public int fontSizeUnit;
     }
 
     public static final class StyleEffect {
@@ -245,6 +252,8 @@ public final class FontRenderer implements AutoCloseable {
                 style.faceColor = FontcStyle.m_FaceColor(values).toArray(JAVA_FLOAT);
                 style.outlineColor = FontcStyle.m_OutlineColor(values).toArray(JAVA_FLOAT);
                 style.shadowColor = FontcStyle.m_ShadowColor(values).toArray(JAVA_FLOAT);
+                style.fontSize = FontcStyle.m_FontSize(values);
+                style.fontSizeUnit = FontcStyle.m_FontSizeUnit(values);
                 style.outlineWidth = FontcStyle.m_OutlineWidth(values);
                 style.shadowX = FontcStyle.m_ShadowX(values);
                 style.shadowY = FontcStyle.m_ShadowY(values);
@@ -287,6 +296,8 @@ public final class FontRenderer implements AutoCloseable {
             FontcStyle.m_FaceColor(values, arena.allocateFrom(JAVA_FLOAT, style.faceColor));
             FontcStyle.m_OutlineColor(values, arena.allocateFrom(JAVA_FLOAT, style.outlineColor));
             FontcStyle.m_ShadowColor(values, arena.allocateFrom(JAVA_FLOAT, style.shadowColor));
+            FontcStyle.m_FontSize(values, style.fontSize);
+            FontcStyle.m_FontSizeUnit(values, style.fontSizeUnit);
             FontcStyle.m_OutlineWidth(values, style.outlineWidth);
             FontcStyle.m_ShadowX(values, style.shadowX);
             FontcStyle.m_ShadowY(values, style.shadowY);

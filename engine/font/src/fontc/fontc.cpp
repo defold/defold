@@ -2006,6 +2006,8 @@ FontRendererResult FontcCompileStyle(const char* markup, uint32_t length, FontcS
     memcpy(output->m_Style.m_FaceColor, style.m_FaceColor, sizeof(style.m_FaceColor));
     memcpy(output->m_Style.m_OutlineColor, style.m_OutlineColor, sizeof(style.m_OutlineColor));
     memcpy(output->m_Style.m_ShadowColor, style.m_ShadowColor, sizeof(style.m_ShadowColor));
+    output->m_Style.m_FontSize = style.m_FontSize;
+    output->m_Style.m_FontSizeUnit = style.m_FontSizeUnit;
     output->m_Style.m_OutlineWidth = style.m_OutlineWidth;
     output->m_Style.m_ShadowX = style.m_ShadowX;
     output->m_Style.m_ShadowY = style.m_ShadowY;
@@ -2060,12 +2062,17 @@ void FontcFreeStyle(FontcStyleData* style)
 
 FontRendererResult FontcSetStyle(HFontRenderer renderer, uint64_t name, const FontcStyleData* input)
 {
-    if (!renderer || !input || !name || (input->m_EffectCount && !input->m_Effects))
+    if (!renderer || !input || !name || (input->m_EffectCount && !input->m_Effects) ||
+        (input->m_Style.m_FontSizeUnit != TEXT_FONT_SIZE_PIXELS &&
+         input->m_Style.m_FontSizeUnit != TEXT_FONT_SIZE_EM &&
+         input->m_Style.m_FontSizeUnit != TEXT_FONT_SIZE_OFFSET))
         return FONT_RENDERER_RESULT_INVALID_ARGUMENT;
     TextRenderStyle style = {};
     memcpy(style.m_FaceColor, input->m_Style.m_FaceColor, sizeof(style.m_FaceColor));
     memcpy(style.m_OutlineColor, input->m_Style.m_OutlineColor, sizeof(style.m_OutlineColor));
     memcpy(style.m_ShadowColor, input->m_Style.m_ShadowColor, sizeof(style.m_ShadowColor));
+    style.m_FontSize = input->m_Style.m_FontSize;
+    style.m_FontSizeUnit = (TextFontSizeUnit)input->m_Style.m_FontSizeUnit;
     style.m_OutlineWidth = input->m_Style.m_OutlineWidth;
     style.m_ShadowX = input->m_Style.m_ShadowX;
     style.m_ShadowY = input->m_Style.m_ShadowY;

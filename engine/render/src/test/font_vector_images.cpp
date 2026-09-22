@@ -312,7 +312,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     dmGraphics::HVertexDeclaration declaration = resources.m_Declaration = dmRender::CreateVertexDeclaration(backend, context);
     dmGraphics::HTexture           textures[] = { map->m_Texture, map->m_VectorBandTexture, map->m_VectorSdfTexture ? map->m_VectorSdfTexture : map->m_Texture };
     dmGraphics::BeginFrame(context);
-    dmGraphics::SetRenderTarget(context, target, 0);
+    dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
     dmGraphics::SetViewport(context, 0, 0, width, height);
     dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1, 0);
     dmGraphics::EnableState(context, dmGraphics::STATE_BLEND);
@@ -337,7 +337,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     for (uint32_t i = 0; i < 3; ++i)
         dmGraphics::DisableTexture(context, i, textures[i]);
     dmGraphics::DisableProgram(context);
-    dmGraphics::SetRenderTarget(context, 0, 0);
+    dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::Flip(context);
     char metadata[512];
     dmSnPrintf(metadata, sizeof(metadata), "{\"backend\":\"opengl\",\"renderer\":\"vector-slug\",\"generation\":\"%s\",\"glyphs\":%u,\"vertices\":%u,\"curve_count\":%u,\"outline_data\":%s,\"shadow_data\":%s,\"baked_size\":40,\"font_size\":%.9g}", baked ? "fontc-glyph-bank" : "runtime", TextLayoutGetGlyphCount(layout), count, map->m_SlugData->m_CurveCount, outline ? "true" : "false", shadow ? "true" : "false", c.m_Size);
