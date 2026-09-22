@@ -2049,10 +2049,11 @@ public class Project implements AutoCloseable {
                             boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this, getPlatform());
                             boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
                             TimeProfiler.stop();
-                            var buildPhases = commandProgress.split(3);
+                            // setup 10%, engine 30%, resources 60%
+                            var buildPhases = commandProgress.split(10);
 
                             if (shouldBuildProject) {
-                                try (var setupProgress = buildPhases.subtask()) {
+                                try (var setupProgress = buildPhases.subtask(1)) {
                                     // do this before buildRemoteEngine to prevent concurrent modification exception, since
                                     // lua transpilation adds new mounts with compiled Lua that buildRemoteEngine iterates over
                                     // when sending to extender
@@ -2065,13 +2066,13 @@ public class Project implements AutoCloseable {
                                     TimeProfiler.stop();
                                 }
                             } else {
-                                buildPhases.worked();
+                                buildPhases.worked(1);
                             }
 
                             TimeProfiler.start("PrepEngine");
                             TimeProfiler.addData("shouldBuildRemoteEngine", shouldBuildRemoteEngine);
                             AtomicBoolean remoteBuildFailed = new AtomicBoolean(false);
-                            var engineProgress = buildPhases.subtask();
+                            var engineProgress = buildPhases.subtask(3);
                             if (shouldBuildRemoteEngine) {
                                 remoteBuildFuture = buildRemoteEngine(engineProgress, executor, remoteBuildFailed);
                             } else {
@@ -2086,7 +2087,7 @@ public class Project implements AutoCloseable {
                             }
                             TimeProfiler.stop();
                             boolean resourceBuildingFailed = false;
-                            try (var resourceProgress = buildPhases.subtask()) {
+                            try (var resourceProgress = buildPhases.subtask(6)) {
                                 if (shouldBuildProject) {
                                     result = createAndRunTasks(resourceProgress, remoteBuildFailed);
                                 }
