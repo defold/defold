@@ -1420,6 +1420,7 @@ property.font.all-chars.tooltip = Для офлайн-шрифтов включ�
 property.font.style = Стиль
 property.font.style.tooltip = Базовый стиль выбранного шрифта. Оставьте пустым, чтобы не использовать базовый стиль. Встроенная разметка переопределяет выбранный стиль.
 property.font.markup = Разметка
+property.font.markup.tooltip = Открывающие теги форматированного текста, определяющие этот стиль. Поддерживаются все теги форматированного текста, включая размер, ссылки и спрайты.
 
 # Properties: gui
 
@@ -2461,6 +2462,8 @@ form.label.render.render-resources.name = Имя
 form.label.render.render-resources.resource = Ресурс
 
 form.label.render-target = Рендер-таргет
+form.label.render-target.type = Тип текстуры
+form.help.render-target.type = Выбирает тип текстуры для всех вложений рендер-таргета. Кубические карты отрисовываются по одной грани за раз и должны сэмплироваться с помощью `samplerCube`.
 form.label.render-target.color-attachments = Цветовые буферы
 form.help.render-target.color-attachments = Определяет цветовые текстуры, в которые выводится результат рендеринга. Каждая строка создаёт одно вложение со своим размером и форматом пикселей. Для переносимости между графическими бэкендами используйте одинаковые размеры всех вложений. Поддерживается до `4` вложений.
 form.label.render-target.color-attachments.width = Ширина
@@ -2719,7 +2722,10 @@ error.property-must-be-greater-than-zero = Свойство «{property}» до�
 error.property-must-be-at-least = Свойство «{property}» должно быть не меньше {min}.
 error.property-must-be-at-most = Свойство «{property}» должно быть не больше {max}.
 error.render-target.color-attachments-cannot-exceed = Свойство «{property}» не может содержать более {max} {max, plural, one {цветового буфера} few {цветовых буферов} other {цветовых буферов}}.
+error.render-target.texture-type-must-be-supported = Тип текстуры должен быть 2D или Cubemap.
 error.render-target.sample-count-must-be-supported = Количество сэмплов должно быть одним из следующих значений\: 1, 2, 4, 8 или 16.
+error.render-target.cubemap-sample-count-must-be-one = Рендер-таргеты с кубической картой поддерживают только 1 сэмпл.
+error.render-target.cubemap-attachments-must-be-square-and-equal = Вложения рендер-таргета с кубической картой должны быть квадратными и иметь одинаковые размеры.
 error.render-target.color-attachment-width-must-be-greater-than-zero = Цветовой буфер {index} должен иметь ширину больше нуля.
 error.render-target.color-attachment-height-must-be-greater-than-zero = Цветовой буфер {index} должен иметь высоту больше нуля.
 error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is = Некорректный depth/stencil-буфер\: ширина больше нуля, но высота равна нулю.
