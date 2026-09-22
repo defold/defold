@@ -30,7 +30,7 @@
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce])
   (:import [com.dynamo.bob.pipeline ShaderUtil$Common]
-           [com.jogamp.opengl GL2]
+           [com.jogamp.opengl GL3]
            [java.io FileNotFoundException]
            [java.nio ByteBuffer FloatBuffer IntBuffer]
            [java.nio.charset StandardCharsets]
@@ -58,60 +58,60 @@
 (defmulti set-uniforms-at-index (fn [_ _ _ _ val] (class val)))
 
 (defmethod set-uniform-at-index Matrix4d
-  [^GL2 gl progn loc val]
+  [^GL3 gl progn loc val]
   (.glUniformMatrix4fv gl loc 1 false (float-array (geom/as-array val)) 0))
 
 (defmethod set-uniform-at-index Vector4f
-  [^GL2 gl progn loc ^Vector4f val]
+  [^GL3 gl progn loc ^Vector4f val]
   (.glUniform4f gl loc (.x val) (.y val) (.z val) (.w val)))
 
 (defmethod set-uniform-at-index Vector4d
-  [^GL2 gl progn loc ^Vector4d val]
+  [^GL3 gl progn loc ^Vector4d val]
   (.glUniform4f gl loc (.x val) (.y val) (.z val) (.w val)))
 
 (defmethod set-uniform-at-index Point3d
-  [^GL2 gl progn loc ^Point3d val]
+  [^GL3 gl progn loc ^Point3d val]
   (.glUniform3f gl loc (float (.x val)) (float (.y val)) (float (.z val))))
 
 (defmethod set-uniform-at-index (class (float-array []))
-  [^GL2 gl progn loc ^floats val]
+  [^GL3 gl progn loc ^floats val]
   (case (count val)
     3 (.glUniform4f gl loc (aget val 0) (aget val 1) (aget val 2) 1)
     4 (.glUniform4f gl loc (aget val 0) (aget val 1) (aget val 2) (aget val 3))))
 
 (defmethod set-uniform-at-index Integer
-  [^GL2 gl progn loc val]
+  [^GL3 gl progn loc val]
   (.glUniform1i gl loc val))
 
 (defmethod set-uniform-at-index Long
-  [^GL2 gl progn loc val]
+  [^GL3 gl progn loc val]
   (.glUniform1i gl loc (int val)))
 
 (defmethod set-uniform-at-index nil
-  [^GL2 gl progn loc val]
+  [^GL3 gl progn loc val]
   ;; No-Op. This is for sampler uniforms. They are just a name. Contains no
   ;; value to set.
   nil)
 
 (defmethod set-uniforms-at-index (class (float-array []))
-  [^GL2 gl progn loc count vals]
+  [^GL3 gl progn loc count vals]
   (let [fb (FloatBuffer/wrap vals)]
     (.glUniform4fv gl loc count fb)))
 
 (defn program-link-errors
-  [^GL2 gl progn]
+  [^GL3 gl progn]
   (let [msg-len (IntBuffer/allocate 1)]
-    (.glGetProgramiv gl progn GL2/GL_INFO_LOG_LENGTH msg-len)
+    (.glGetProgramiv gl progn GL3/GL_INFO_LOG_LENGTH msg-len)
     (let [msg (ByteBuffer/allocate (.get msg-len 0))]
       (.glGetProgramInfoLog gl progn (.capacity msg) nil msg)
       (bbuf->string msg))))
 
-(defn- delete-program [^GL2 gl ^long program]
+(defn- delete-program [^GL3 gl ^long program]
   (when-not (zero? program)
     (.glDeleteProgram gl program)))
 
 (defn make-program
-  [^GL2 gl shaders location+attribute-name-pairs]
+  [^GL3 gl shaders location+attribute-name-pairs]
   (let [program (.glCreateProgram gl)]
     (doseq [^int shader shaders]
       (.glAttachShader gl program shader))
@@ -119,8 +119,8 @@
       (.glBindAttribLocation gl program location attribute-name))
     (.glLinkProgram gl program)
     (let [status (IntBuffer/allocate 1)]
-      (.glGetProgramiv gl program GL2/GL_LINK_STATUS status)
-      (if (= GL2/GL_TRUE (.get status 0))
+      (.glGetProgramiv gl program GL3/GL_LINK_STATUS status)
+      (if (= GL3/GL_TRUE (.get status 0))
         program
         (try
           (throw (Exception. (str "Program link failure.\n" (program-link-errors gl program))))
@@ -128,9 +128,9 @@
             (delete-program gl program)))))))
 
 (defn shader-compile-errors
-  ^String [^GL2 gl shader-name]
+  ^String [^GL3 gl shader-name]
   (let [log-length-storage (IntBuffer/allocate 1)]
-    (.glGetShaderiv gl shader-name GL2/GL_INFO_LOG_LENGTH log-length-storage)
+    (.glGetShaderiv gl shader-name GL3/GL_INFO_LOG_LENGTH log-length-storage)
     (let [null-terminated-string-length (.get log-length-storage 0) ; Note: Some implementations return zero when the log is empty, some return one.
           string-length (dec null-terminated-string-length)]
       (if (pos? string-length)
@@ -140,12 +140,12 @@
         ""))))
 
 (defn- delete-shader
-  [^GL2 gl ^long shader]
+  [^GL3 gl ^long shader]
   (when-not (zero? shader)
     (.glDeleteShader gl shader)))
 
 (defn- make-shader*
-  [gl-shader-type ^GL2 gl source]
+  [gl-shader-type ^GL3 gl source]
   ;; Shader source can be either a string or a collection of strings.
   ;; However, it is not intended to be a collection of lines. The
   ;; shader compiler will simply read from each string in turn as if
@@ -160,8 +160,8 @@
     (.glShaderSource gl shader-name (count source-strings) source-strings-array nil)
     (.glCompileShader gl shader-name)
     (let [status (IntBuffer/allocate 1)]
-      (.glGetShaderiv gl shader-name GL2/GL_COMPILE_STATUS status)
-      (if (= GL2/GL_TRUE (.get status 0))
+      (.glGetShaderiv gl shader-name GL3/GL_COMPILE_STATUS status)
+      (if (= GL3/GL_TRUE (.get status 0))
         shader-name
         (try
           (let [error-log (shader-compile-errors gl shader-name)]
@@ -214,7 +214,7 @@
   gl.types/GLBinding
   (bind! [_this gl render-args]
     (let [{:keys [^int program uniform-infos]} (scene-cache/request-object! ::shader request-id gl request-data)]
-      (.glUseProgram ^GL2 gl program)
+      (.glUseProgram ^GL3 gl program)
       (when-not (zero? program)
         (doseq [[name val] uniforms
                 :when (some? val)
@@ -224,7 +224,7 @@
           (set-uniform-impl! gl program uniform-infos name val)))))
 
   (unbind! [_this gl _render-args]
-    (.glUseProgram ^GL2 gl 0))
+    (.glUseProgram ^GL3 gl 0))
 
   ShaderVariables
   (attribute-reflection-infos [_this]
@@ -354,7 +354,7 @@
         (coll/into-> shader-paths []
           (map (fn [^String shader-path]
                  (let [shader-source (shader-path->source shader-path)]
-                   (shader-gen/transpile-shader-source shader-path shader-source max-page-count "mediump" "highp")))))]
+                   (shader-gen/transpile-shader-source shader-path shader-source max-page-count "mediump" "highp" :language-glsl-sm330)))))]
 
     (shader-gen/combined-shader-info augmented-shader-infos)))
 
@@ -456,7 +456,7 @@
 (def ^:private gl-shader-parameter
   (let [out-param-value (int-array 1)]
     (fn gl-shader-parameter
-      ^long [^GL2 gl ^long program param]
+      ^long [^GL3 gl ^long program param]
       (.glGetProgramiv gl program param out-param-value 0)
       (aget out-param-value 0))))
 
@@ -467,7 +467,7 @@
         out-array-size (int-array 1)
         out-type (int-array 1)
         out-name (byte-array name-buffer-size)]
-    (fn uniform-info [^GL2 gl program uniform-index]
+    (fn uniform-info [^GL3 gl program uniform-index]
       {:post [(graphics.types/uniform-reflection-info? %)]}
       (.glGetActiveUniform gl program uniform-index name-buffer-size out-name-length 0 out-array-size 0 out-type 0 out-name 0)
       (let [name-length (aget out-name-length 0)
@@ -487,7 +487,7 @@
     (assoc uniform-info :name (string/replace (:name uniform-info) strip-resource-binding-namespace-regex ""))
     uniform-info))
 
-(defn- make-shader-program [^GL2 gl ^ShaderRequestData request-data]
+(defn- make-shader-program [^GL3 gl ^ShaderRequestData request-data]
   (let [gl-program
         (let [gl-shaders
               (reduce
@@ -524,7 +524,7 @@
               (map (fn [^long uniform-index]
                      (let [uniform-info (strip-resource-namespace (uniform-info gl gl-program uniform-index) strip-resource-binding-namespace-regex)]
                        (pair (:name uniform-info) uniform-info))))
-              (range (gl-shader-parameter gl gl-program GL2/GL_ACTIVE_UNIFORMS)))
+              (range (gl-shader-parameter gl gl-program GL3/GL_ACTIVE_UNIFORMS)))
 
         array-sampler-uniform-name?
         (into #{}
@@ -552,7 +552,7 @@
      :sampler-name->uniform-names sampler-name->uniform-names
      :sampler-index->sampler-name sampler-index->sampler-name}))
 
-(defn- update-shader-program [^GL2 gl {:keys [program]} request-data]
+(defn- update-shader-program [^GL3 gl {:keys [program]} request-data]
   (delete-program gl program)
   (try
     (make-shader-program gl request-data)
@@ -562,7 +562,7 @@
        :sampler-name->uniform-names {}
        :sampler-index->sampler-name {}})))
 
-(defn- destroy-shader-programs [^GL2 gl shader-infos _]
+(defn- destroy-shader-programs [^GL3 gl shader-infos _]
   (doseq [{:keys [program]} shader-infos]
     (delete-program gl program)))
 

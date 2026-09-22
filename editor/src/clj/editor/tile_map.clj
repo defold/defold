@@ -50,7 +50,7 @@
             [internal.graph.types :as gt]
             [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto Tile$TileCell Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
-           [com.jogamp.opengl GL2]
+           [com.jogamp.opengl GL3]
            [editor.gl.shader ShaderLifecycle]
            [editor.tile_map_common Tile]
            [editor.types AABB]
@@ -345,7 +345,7 @@
 (def tile-map-id-shader shaders/selection-uniform-local-space)
 
 (defn render-layer
-  [^GL2 gl render-args renderables n]
+  [^GL3 gl render-args renderables n]
   (let [pass (:pass render-args)]
     (condp = pass
       pass/transparent
@@ -375,8 +375,8 @@
               #_(if selected
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 1.0))
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 0.5)))
-              (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf))
-              (.glBlendFunc gl GL2/GL_SRC_ALPHA GL2/GL_ONE_MINUS_SRC_ALPHA)))))
+              (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vbuf))
+              (.glBlendFunc gl GL3/GL_SRC_ALPHA GL3/GL_ONE_MINUS_SRC_ALPHA)))))
 
       pass/selection
       (let [{:keys [user-data]} (first renderables)
@@ -384,7 +384,7 @@
         (when vbuf
           (let [vertex-binding (vtx/use-with node-id vbuf tile-map-id-shader)]
             (gl/with-gl-bindings gl (assoc render-args :id-color (scene-picking/renderable-picking-id-uniform (first renderables))) [tile-map-id-shader vertex-binding gpu-texture]
-              (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))))))
+              (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vbuf)))))))))
 
 (defn make-tile-uv-lookup-cache
   [tile-count uv-transforms]
@@ -737,7 +737,7 @@
 ;; brush
 
 (defn render-brush-outline
-  [^GL2 gl render-args renderables count]
+  [^GL3 gl render-args renderables count]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         [x y] (:cell user-data)
@@ -799,7 +799,7 @@
         (vtx/flip! vbuf)))))
 
 (defn render-brush
-  [^GL2 gl render-args renderables n]
+  [^GL3 gl render-args renderables n]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         {:keys [texture-set-data gpu-texture brush]} user-data
@@ -821,7 +821,7 @@
                              (:texture render-args)))]
     (gl/with-gl-bindings gl render-args [tex-shader vb gpu-texture]
       (shader/set-uniform tex-shader gl "texture_sampler" 0)
-      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vbuf)))))
 
 ;; palette
 
@@ -944,13 +944,13 @@
         (vtx/flip! vbuf)))))
 
 (defn- render-palette-tiles
-  [^GL2 gl render-args tile-source-attributes texture-set-data gpu-texture]
+  [^GL3 gl render-args tile-source-attributes texture-set-data gpu-texture]
   (let [vbuf (gen-palette-tiles-vbuf tile-source-attributes texture-set-data)
         vb (vtx/use-with ::palette-tiles vbuf tex-shader)
         gpu-texture (texture/set-params gpu-texture tile-source/texture-params)]
     (gl/with-gl-bindings gl render-args [tex-shader vb gpu-texture]
       (shader/set-uniform tex-shader gl "texture_sampler" 0)
-      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vbuf)))))
 
 (defn gen-palette-grid-vbuf
   [tile-source-attributes]
@@ -986,14 +986,14 @@
       (vtx/flip! vbuf))))
 
 (defn- render-palette-grid
-  [^GL2 gl render-args tile-source-attributes]
+  [^GL3 gl render-args tile-source-attributes]
   (let [vbuf (gen-palette-grid-vbuf tile-source-attributes)
         vb (vtx/use-with ::palette-grid vbuf color-shader)]
     (gl/with-gl-bindings gl render-args [color-shader vb]
-      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vbuf)))))
 
 (defn- render-palette-active
-  [^GL2 gl render-args tile-source-attributes start-tile end-tile]
+  [^GL3 gl render-args tile-source-attributes start-tile end-tile]
   (when (and start-tile end-tile)
     (let [tiles-per-row (:tiles-per-row tile-source-attributes)
           start-x (palette-x start-tile tiles-per-row)
@@ -1036,10 +1036,10 @@
                    (vtx/flip!))
           vb (vtx/use-with ::palette-active vbuf color-shader)]
       (gl/with-gl-bindings gl render-args [color-shader vb]
-        (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf))))))
+        (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vbuf))))))
 
 (defn render-palette-background
-  [^GL2 gl render-args viewport]
+  [^GL3 gl render-args viewport]
   (let [{:keys [right bottom]} viewport]
     (render-util/render-color-quad!
       gl render-args ::palette-background
@@ -1050,7 +1050,7 @@
        [0.0 bottom]])))
 
 (defn render-palette
-  [^GL2 gl render-args renderables count]
+  [^GL3 gl render-args renderables count]
   (let [user-data (:user-data (first renderables))
         {:keys [viewport tile-source-attributes texture-set-data gpu-texture palette-transform start-tile end-tile]} user-data
         [start-tile end-tile] (if (and start-tile end-tile (<= start-tile end-tile))
@@ -1068,7 +1068,7 @@
       (render-palette-active gl render-args tile-source-attributes start-tile end-tile))))
 
 (defn render-editor-select-outline
-  [^GL2 gl render-args renderables count]
+  [^GL3 gl render-args renderables count]
   (let [renderable (first renderables)
         user-data (:user-data renderable)
         [sx sy] (:start user-data)
@@ -1089,14 +1089,14 @@
            [x0 y1]])))))
 
 (defn render-editor-select
-  [^GL2 gl render-args renderables n]
+  [^GL3 gl render-args renderables n]
   (let [pass (:pass render-args)]
     (condp = pass
       pass/outline
       (render-editor-select-outline gl render-args renderables n))))
 
 (defn render-editor
-  [^GL2 gl render-args renderables n]
+  [^GL3 gl render-args renderables n]
   (let [pass (:pass render-args)]
     (condp = pass
       pass/opaque

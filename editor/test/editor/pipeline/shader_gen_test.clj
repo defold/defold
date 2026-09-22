@@ -41,13 +41,12 @@
                 "test_project/materials/test_attributes.fp"]]
     (testing path
       (let [source (slurp (io/resource path))
-            default-info (shader-gen/transpile-shader-source path source 2 "mediump" "highp")
+            legacy-info (shader-gen/transpile-shader-source path source 2 "mediump" "highp" :language-glsl-sm120)
             core-info (shader-gen/transpile-shader-source path source 2 "mediump" "highp" :language-glsl-sm330)]
-        (is (= default-info (shader-gen/transpile-shader-source path source 2 "mediump" "highp" :language-glsl-sm120)))
         (is (re-find #"#version 330" (:transpiled-shader-source core-info)))
         (is (not (re-find #"\b(attribute|varying|gl_FragColor|gl_ModelViewProjectionMatrix)\b|\btexture2D\s*\(" (:transpiled-shader-source core-info))))
-        (is (= (:attribute-reflection-infos default-info) (:attribute-reflection-infos core-info)))
-        (is (= (:array-sampler-names default-info) (:array-sampler-names core-info)))
+        (is (= (:attribute-reflection-infos legacy-info) (:attribute-reflection-infos core-info)))
+        (is (= (:array-sampler-names legacy-info) (:array-sampler-names core-info)))
         (validate-source! path (:transpiled-shader-source core-info))))))
 
 (deftest sm330-explicit-matrix-attributes-test

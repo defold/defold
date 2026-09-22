@@ -25,7 +25,7 @@
             [editor.image-util :as image-util]
             [editor.shaders :as shaders]
             [editor.types :as types])
-  (:import  [com.jogamp.opengl GL GL2]
+  (:import  [com.jogamp.opengl GL GL3]
             [java.awt.image BufferedImage]
             [java.nio BufferOverflowException]
             [javax.vecmath Point3d]
@@ -127,7 +127,7 @@
   (color-uv-vtx-put! vb x0 y0 1 1 r g b a)
   (color-uv-vtx-put! vb x1 y1 1 1 r g b a))
 
-(defn render-rulers [^GL2 gl render-args renderables rcount]
+(defn render-rulers [^GL3 gl render-args renderables rcount]
   (doseq [renderable renderables
           :let [user-data (:user-data renderable)
                 {:keys [vb tri-count line-count]} user-data]]
