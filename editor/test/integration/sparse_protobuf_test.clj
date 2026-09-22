@@ -729,6 +729,8 @@
             (workspace/resource-sync! workspace)
 
             (let [project (test-util/setup-project! workspace)
+                  basis (g/now)
+                  read-opts (workspace/make-read-opts basis workspace)
                   proj-paths (sort-by (fn [^String proj-path]
                                         (pair (resource/filename->type-ext proj-path)
                                               proj-path))
@@ -737,7 +739,7 @@
               (doseq [proj-path proj-paths]
                 (let [resource (workspace/find-resource workspace proj-path)
                       resource-node (project/get-resource-node project resource)
-                      {:keys [read-fn write-fn view-types]} (resource/resource-type resource)
+                      {:keys [write-fn view-types] :as resource-type} (resource/resource-type resource)
                       openable-in-view-type? (into #{} (map :id) view-types)]
                   (testing proj-path
                     (is (not (g/error? (g/node-value resource-node :_properties))))
@@ -751,7 +753,7 @@
                           (when (:dirty save-data)
                             (let [save-value (:save-value save-data)
                                   save-text (resource-node/save-data-content save-data)
-                                  read-value (read-fn resource)
+                                  read-value ((:read-fn resource-type) read-opts resource resource)
                                   read-text (slurp resource)
                                   written-read-text (write-fn read-value)]
                               (test-util/check-value-equivalence! read-value save-value read-text)

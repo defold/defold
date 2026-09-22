@@ -50,10 +50,16 @@ env:
   MACOS_CERTIFICATE_PASS: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.MACOS_CERTIFICATE_PASS || '' }}
   # ref_name only for a dispatch: for a pull request it is '<n>/merge', not a branch.
   BUILD_BRANCH: ${{ github.event.client_payload.branch || (github.event_name == 'workflow_dispatch' && github.ref_name) || github.head_ref }}
+  # Reuse the event commit in every checkout. A repository dispatch must supply its
+  # own SHA because github.sha identifies the default branch for that event.
+  # Keep a missing dispatch SHA empty so validation fails before any checkout.
+  BUILD_SHA: &build_sha "${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.sha) || (github.event_name != 'repository_dispatch' && (github.event.pull_request.head.sha || github.sha)) || '' }}"
   SERVICES_GITHUB_TOKEN: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.SERVICES_GITHUB_TOKEN || '' }}
   DEFOLD_EDITOR_DISABLE_PERFORMANCE_TESTS: true
   SLACK_WEBHOOK: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && secrets.SLACK_WEBHOOK || '' }}
-  DOTNET_CHANNEL: 9.0.1xx
+  # Use the same SDK on every platform. Bumping this version also creates a new
+  # cache for the installed SDK, including its runtime packs.
+  DOTNET_SDK_VERSION: 9.0.121
   # Shared by the Android SDK setup and the emulator the x86_64-android tests run on
   ANDROID_API_LEVEL: "36"
   DM_BOB_JAR: ${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
@@ -73,7 +79,7 @@ jobs:
   # by GitHub and must not be used; an alias cannot be overridden, so a step that needs to
   # differ has to be written out in full.
   #
-  #   &if_bob_enabled &should_release
+  #   &if_bob_enabled &should_release &build_sha &step_validate_build_commit
   #   &step_checkout &step_cache_dcache &step_cache_lein &step_python &step_java
   #   &step_download_bob &step_download_dynamo_home &step_chmod_dynamo_home
   #   &step_remove_bob_maven &step_stop_gradle &step_notify
@@ -187,11 +193,45 @@ jobs:
       run:
         shell: bash
     steps:
+      - &step_validate_build_commit
+        name: "Validate build commit"
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          BUILD_SHA: *build_sha
+        with:
+          script: |
+            const sha = process.env.BUILD_SHA;
+            if (!sha || sha.length !== 40 || !/^[0-9a-f]+$/.test(sha)) {
+              core.setFailed('A full build commit SHA is required. repository_dispatch must include client_payload.sha.');
+              return;
+            }
+            if (context.eventName !== 'repository_dispatch') return;
+
+            const branch = context.payload.client_payload?.branch;
+            if (typeof branch !== 'string' || !branch) {
+              core.setFailed('repository_dispatch must include client_payload.branch.');
+              return;
+            }
+            if (!['master', 'beta', 'dev'].includes(branch)) return;
+
+            // Validate release ancestry before checking out or running the selected code.
+            // Resolve heads explicitly so a tag with the same name cannot authorize a release.
+            const {data: ref} = await github.rest.git.getRef({
+              ...context.repo, ref: `heads/${branch}`
+            });
+            const {data: comparison} = await github.request('GET /repos/{owner}/{repo}/compare/{basehead}', {
+              ...context.repo, basehead: `${sha}...${ref.object.sha}`, per_page: 1
+            });
+            // The branch tip may have advanced since dispatch; the pinned SHA must
+            // still be an ancestor of that tip, or the tip itself.
+            if (!['ahead', 'identical'].includes(comparison.status)) {
+              core.setFailed(`Dispatched commit ${sha} is not in the history of release branch ${branch}.`);
+            }
       - &step_checkout
         name: "Checkout"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: "${{env.BUILD_BRANCH}}"
+          ref: *build_sha
       - &step_cache_dcache
         name: "Cache Defold downloads"
         # No cache for a contrib build, and none for a repository dispatch: that always
@@ -229,7 +269,7 @@ jobs:
           xcode-version: "26.5.0"
       - &step_java
         name: "Install Java"
-        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           java-version: "25.0.4+101.0.LTS"
           distribution: "temurin"
@@ -270,15 +310,23 @@ jobs:
           # This action keeps the SDK and NDK tree in the Actions cache. A contrib build
           # must not write there - see the cache steps above.
           cache: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch' }}
+      - name: "Cache dotnet SDK"
+        if: "matrix.dotnet && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch'"
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          # Cache an isolated installation, without the runner image's other SDKs.
+          path: "${{ runner.temp }}/defold-dotnet"
+          # v2 drops the unrelated LTS runtime installed by setup-dotnet.
+          key: "${{ runner.os }}-${{ runner.arch }}-dotnet-sdk-${{ env.DOTNET_SDK_VERSION }}-v2"
       - name: "Setup dotnet"
         if: matrix.dotnet
-        id: setup_dotnet
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: "${{ env.DOTNET_CHANNEL }}"
+        env:
+          DOTNET_INSTALL_DIR: "${{ runner.temp }}/defold-dotnet"
+        # Run on cache hits too to set PATH and DOTNET_ROOT for subsequent steps.
+        run: python ci/setup_dotnet.py
       - name: "Pin dotnet SDK"
         if: matrix.dotnet
-        run: 'echo "{\"sdk\":{\"version\":\"${{ steps.setup_dotnet.outputs.dotnet-version }}\"}}" > global.json'
+        run: 'echo "{\"sdk\":{\"version\":\"${{ env.DOTNET_SDK_VERSION }}\"}}" > global.json'
       # macOS installs the signing certificate into the keychain instead of passing a platform.
       - name: "Install dependencies"
         if: runner.os == 'macOS'
@@ -405,12 +453,14 @@ jobs:
       pull-requests: read
     if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'skip-ci-') && !startsWith(github.head_ref, 'DEFEDIT-'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true))) && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
     steps:
+      - *step_validate_build_commit
       - name: "Checkout CI scripts"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: "${{env.BUILD_BRANCH}}"
+          ref: *build_sha
           path: ci-check
-          sparse-checkout: "ci"
+          sparse-checkout: "/ci/"
+          sparse-checkout-cone-mode: false
       - name: "Check private platform changes"
         id: private_changes
         shell: bash
@@ -422,6 +472,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN }}
+          BUILD_SHA: *build_sha
         run: |
           public_branch="${{ env.BUILD_BRANCH || github.ref_name }}"
           channel="alpha"
@@ -446,7 +497,7 @@ jobs:
             --ref "${{ matrix.ref }}" \
             -f public_repo="${{ github.repository }}" \
             -f public_branch="$public_branch" \
-            -f public_sha="${{ github.event.client_payload.sha || github.event.pull_request.head.sha || github.sha }}" \
+            -f public_sha="$BUILD_SHA" \
             -f source_run_id="${{ github.run_id }}" \
             -f source_run_attempt="${{ github.run_attempt }}" \
             -f request_id="$request_id" \
@@ -470,6 +521,7 @@ jobs:
     if: &if_bob_enabled (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_bob != true))
     timeout-minutes: 15
     steps:
+      - *step_validate_build_commit
       - *step_checkout
       - *step_python
       - *step_java
@@ -510,6 +562,7 @@ jobs:
     if: *if_bob_enabled
     timeout-minutes: 15
     steps:
+      - *step_validate_build_commit
       - *step_checkout
       - *step_cache_dcache
       - *step_python
@@ -539,6 +592,7 @@ jobs:
     if: ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true))) && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
     timeout-minutes: 10
     steps:
+      - *step_validate_build_commit
       - *step_checkout
       - *step_python
       - name: "Install libzip tools"
@@ -554,7 +608,19 @@ jobs:
     if: github.event_name != 'pull_request'
     timeout-minutes: 30
     steps:
-      - *step_checkout
+      - *step_validate_build_commit
+      - name: "Checkout"
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: *build_sha
+          # Release notes only need the generator, its helpers, and existing notes.
+          sparse-checkout: |
+            /VERSION
+            /ci/
+            /scripts/
+            /build_tools/
+            /releasenotes/
+          sparse-checkout-cone-mode: false
       - *step_python
       - name: "Install Python dependencies"
         run: "pip install requests"
@@ -615,6 +681,7 @@ jobs:
             runner: windows-2025-vs2026
             name: "build-editor-windows (x86_64-win32)"
     steps:
+      - *step_validate_build_commit
       - *step_checkout
       - *step_cache_dcache
       - &step_cache_lein
@@ -712,6 +779,7 @@ jobs:
     if: ${{ !cancelled() && needs.build-bob.result == 'success' && (needs.build-sdk.result == 'success' || (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))) && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))) }}
     timeout-minutes: 60
     steps:
+      - *step_validate_build_commit
       - *step_checkout
       - *step_cache_dcache
       - *step_cache_lein
@@ -730,18 +798,30 @@ jobs:
   release:
     needs: [build-editor, test-editor-linux, test-bob]
     runs-on: ubuntu-22.04
+    # Each release branch publishes to its own channel: master -> stable, beta -> beta,
+    # dev -> alpha. Serialize the entire publication per channel, including tags and S3
+    # pointers, without interrupting a release already in progress.
+    # Keep pending jobs: their arrival order can differ from commit order. The release
+    # script checks the published channel SHA under this lock and skips older commits.
+    # https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency
+    concurrency:
+      group: release-${{ github.event.client_payload.branch || github.head_ref || github.ref_name }}
+      cancel-in-progress: false
+      queue: max
     # ci.py already refuses to release a branch other than master/beta/dev, but a contrib
     # branch must not even reach the release job.
     if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))"
     permissions:
       contents: write
     steps:
+      - *step_validate_build_commit
       - name: "Checkout CI scripts"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: "${{env.BUILD_BRANCH}}"
+          ref: *build_sha
           path: ci-check
-          sparse-checkout: "ci"
+          sparse-checkout: "/ci/"
+          sparse-checkout-cone-mode: false
       - name: "Check release branch"
         id: release
         run: |-
@@ -751,8 +831,22 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: &should_release steps.release.outputs.should_release == 'true'
         with:
-          ref: "${{env.BUILD_BRANCH}}"
-          fetch-tags: true
+          # Waiting for the release lock must not switch a dispatch to a newer branch tip.
+          ref: *build_sha
+          # Release publishes existing S3 artifacts; only tooling and metadata are needed.
+          # Keep sass.clj because it contributes to the shared download-cache key.
+          sparse-checkout: |
+            /VERSION
+            /ci/
+            /scripts/
+            /build_tools/
+            /packages/python/
+            /packages/boto3_data/
+            /releasenotes/
+            /share/
+            /editor/tasks/leiningen/sass.clj
+          # Cone mode would also include the large archives directly under packages/.
+          sparse-checkout-cone-mode: false
       - name: "Cache Defold downloads"
         # *should_release, plus the cache rule above.
         if: steps.release.outputs.should_release == 'true' && github.event_name != 'repository_dispatch'
@@ -779,11 +873,12 @@ jobs:
           name: "release-notes"
           path: "releasenotes"
       - name: "Release"
+        id: publish
         if: *should_release
         run: "ci/ci.sh release"
       - name: "Publish updated API ref"
         uses: defold/repository-dispatch@2d664dcc9f8090e4328d0c7f98aa483f832c80b3 # 1.2.1
-        if: steps.release.outputs.should_release == 'true' && ((github.ref == 'refs/heads/master') || (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'))
+        if: steps.publish.outputs.published == 'true' && ((github.ref == 'refs/heads/master') || (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'))
         with:
           repo: "defold/defold.github.io"
           token: "${{ secrets.SERVICES_GITHUB_TOKEN }}"

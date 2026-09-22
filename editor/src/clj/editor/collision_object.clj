@@ -800,11 +800,14 @@
         decoded-shape-data (decode-shape-data shape shape-data)]
     (merge shape decoded-shape-data)))
 
-(defn load-collision-object
-  [project self resource collision-object-desc]
+(defn- connect-collision-object
+  [project self _resource]
+  (g/connect self :group project :collision-groups))
+
+(defn- load-collision-object
+  [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id collision-object-desc :source-value}]
   {:pre [(map? collision-object-desc)]} ; Physics$CollisionObjectDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)
         resolve-shape-resources (fn [shape]
                                   (cond-> shape
                                           (:mesh-scene shape)
@@ -826,8 +829,6 @@
         event-collision :event-collision
         event-contact :event-contact
         event-trigger :event-trigger)
-      (g/connect self :collision-group-node project :collision-group-nodes)
-      (g/connect project :collision-groups-data self :collision-groups-data)
       (g/connect project :settings self :project-settings)
       (when-some [{:keys [data shapes]} (:embedded-collision-shape collision-object-desc)]
         (sequence (comp (map #(assoc %1 :node-outline-key %2))
@@ -1041,10 +1042,6 @@
                       :mesh-sets mesh-sets}
           :deps dep-build-targets})])))
 
-(g/defnk produce-collision-group-color
-  [collision-groups-data group]
-  (collision-groups/color collision-groups-data group))
-
 (defn- tilemap-collision-shape? [collision-shape]
   (boolean
     (when collision-shape
@@ -1058,7 +1055,6 @@
   (input collision-shape-resource resource/Resource)
   (input dep-build-targets g/Any :array)
   (input collision-mesh-set-infos g/Any :array)
-  (input collision-groups-data g/Any)
   (input project-settings g/Any)
   (input convex-shape-data g/Any)
   (input shape-errors g/Any :array)
@@ -1154,8 +1150,7 @@
   (output id-counts NameCounts :cached (g/fnk [shapes] (frequencies (keep :id shapes))))
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
-  (output collision-group-node g/Any :cached (g/fnk [_node-id group] {:node-id _node-id :collision-group group}))
-  (output collision-group-color g/Any :cached produce-collision-group-color))
+  (output collision-group-color g/Any (g/fnk [group] (collision-groups/color group))))
 
 (node-types/register-node-type-name! SphereShape "shape-type-sphere")
 (node-types/register-node-type-name! BoxShape "shape-type-box")
@@ -1163,7 +1158,7 @@
 (node-types/register-node-type-name! HullShape "shape-type-hull")
 (node-types/register-node-type-name! MeshShape "shape-type-mesh")
 
-(defn- sanitize-collision-object [collision-object-desc]
+(defn- sanitize-collision-object [_read-opts _owner-resource collision-object-desc]
   (strip-empty-embedded-collision-shape collision-object-desc))
 
 (defn register-resource-types [workspace]
@@ -1181,6 +1176,7 @@
       :label (localization/message "resource.type.collisionobject")
       :node-type CollisionObjectNode
       :ddf-type Physics$CollisionObjectDesc
+      :connect-fn connect-collision-object
       :load-fn load-collision-object
       :sanitize-fn sanitize-collision-object
       :icon collision-object-icon

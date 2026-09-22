@@ -1218,8 +1218,8 @@
                          be built in addition to the project
     :lint                optional flag that indicates whether to run LSP lints
                          and present the diagnostics alongside the build errors,
-                         defaults to the value of \"general-lint-on-build\" pref
-                         (true if not set)
+                         defaults to the value of the [:build :lint-code] pref
+                         (false if not set)
     :prefs               required, preferences for linting and engine building,
                          e.g. the build server settings
     :debug               optional flag that indicates whether to also build

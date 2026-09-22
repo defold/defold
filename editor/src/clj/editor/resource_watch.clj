@@ -127,8 +127,7 @@
         (file-resource-status resource)))
 
 (defn file-resource-status-map-entry? [[proj-path {:keys [version source]}]]
-  (and (string? proj-path)
-       (str/starts-with? proj-path "/")
+  (and (resource/proj-path? proj-path)
        (= :directory source)
        (try
          (Long/parseUnsignedLong version)

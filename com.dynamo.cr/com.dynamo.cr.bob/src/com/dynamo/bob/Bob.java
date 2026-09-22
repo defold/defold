@@ -746,7 +746,7 @@ public class Bob {
                 return new InvocationResult(true, Collections.emptyList());
             }
             if (cmd.hasOption("version")) {
-                System.out.printf("bob.jar version: %s  sha1: %s  built: %s%n", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp);
+                System.out.printf("bob.jar version: %s  sha1: %s  built: %s  channel: %s%n", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp, EngineVersion.channel);
                 return new InvocationResult(true, Collections.emptyList());
             }
             String buildDirectory = getOptionsValue(cmd, 'o', "build/default");

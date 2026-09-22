@@ -45,13 +45,13 @@
    [:resource-property-build-targets :other-resource-property-build-targets]
    [:scene :referenced-component-scenes]])
 
-(defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data project]
+(defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data {:keys [workspace] :as load-opts} owner-resource]
   (let [embedded-resource-ext (:type embedded-component-resource-data)
         embedded-resource-pb-map (:data embedded-component-resource-data)
-        embedded-resource (project/make-embedded-resource project :non-editable embedded-resource-ext embedded-resource-pb-map)
+        embedded-resource (workspace/make-memory-resource workspace :non-editable embedded-resource-ext embedded-resource-pb-map)
         embedded-resource-node-type (project/resource-node-type embedded-resource)]
     (g/make-nodes [embedded-resource-node-id [embedded-resource-node-type :resource embedded-resource]]
-      (project/load-embedded-resource-node project embedded-resource-node-id embedded-resource embedded-resource-pb-map)
+      (project/load-embedded-resource-node load-opts owner-resource embedded-resource-node-id embedded-resource embedded-resource-pb-map)
       (gu/connect-existing-outputs embedded-resource-node-type embedded-resource-node-id host-node-id embedded-component-connections))))
 
 (g/defnk produce-embedded-component-resource-data->scene-index [embedded-component-resource-data->index resource]
@@ -101,10 +101,12 @@
 
 (defn data->index-setter [evaluation-context self new-value old-sources-input-label add-resource-node-fn]
   (let [basis (:basis evaluation-context)
-        project (project/get-project basis)]
+        owner-resource (resource-node/owner-resource basis self)
+        load-opts (g/tx-cached-value! evaluation-context [:load-opts]
+                    (project/make-load-opts (project/get-project basis)))]
     (into (delete-connected-nodes-tx-data basis self old-sources-input-label)
           (mapcat (fn [[data]]
-                    (add-resource-node-fn self data project)))
+                    (add-resource-node-fn self data load-opts owner-resource)))
           (sort-by val new-value))))
 
 (defn connect-referenced-resources-tx-data [evaluation-context self new-value old-sources-input-label resource-connections]
@@ -176,29 +178,6 @@
   (into {}
         (map-indexed flipped-pair)
         (prototype-desc->embedded-component-resource-datas prototype-desc)))
-
-(defn prototype-desc->component-property-descs [prototype-desc]
-  (into []
-        (keep (fn [component-desc]
-                (let [component-id (:id component-desc)
-                      property-descs (:properties component-desc)]
-                  (when (seq property-descs)
-                    {:id component-id
-                     :properties property-descs}))))
-        (:components prototype-desc)))
-
-(defn component-property-descs->resources [component-property-descs proj-path->resource]
-  (eduction
-    (mapcat :properties)
-    (map #(dissoc % :id))
-    (distinct)
-    (keep #(properties/property-desc->resource % proj-path->resource))
-    component-property-descs))
-
-(defn- prototype-desc->referenced-property-resources [prototype-desc proj-path->resource]
-  (-> prototype-desc
-      prototype-desc->component-property-descs
-      (component-property-descs->resources proj-path->resource)))
 
 (defn- component-desc->component-instance-data [component-desc proj-path->build-target]
   {:pre [(map? component-desc)]} ; GameObject$ComponentDesc in map format.
@@ -307,7 +286,7 @@
         [(game-object-common/game-object-build-target resource _node-id component-instance-datas component-build-targets)])))
 
 (g/defnk produce-ddf-component-properties [prototype-desc]
-  (prototype-desc->component-property-descs prototype-desc))
+  (game-object-common/prototype-desc->component-property-descs prototype-desc))
 
 (g/defnk produce-node-outline [_node-id]
   {:node-id _node-id
@@ -339,7 +318,7 @@
                            (into (connect-referenced-components-tx-data evaluation-context self (prototype-desc->referenced-component-resources new-value proj-path->resource)))
                            (into (disconnect-connected-nodes-tx-data basis self :own-resource-property-build-targets resource-property-connections))
                            (into (mapcat #(connect-resource % resource-property-connections))
-                                 (prototype-desc->referenced-property-resources new-value proj-path->resource))))))))
+                                 (game-object-common/prototype-desc->referenced-property-resources new-value proj-path->resource))))))))
 
   ;; Internal outputs.
   (output proj-path->build-target g/Any :cached produce-proj-path->build-target)
@@ -351,20 +330,16 @@
   (output node-outline outline/OutlineData produce-node-outline)
   (output scene g/Any produce-scene))
 
-(defn- sanitize-non-editable-game-object [workspace prototype-desc]
-  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
-    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type)))
-
 (defn- string-encode-non-editable-game-object [workspace prototype-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
     (collection-string-data/string-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
 
-(defn- load-non-editable-game-object [_project self resource prototype-desc]
+(defn- load-non-editable-game-object [_load-opts {:keys [owner-resource] self :node-id prototype-desc :source-value}]
   ;; Validate the prototype-desc.
   ;; We want to throw an exception if we encounter corrupt data to ensure our
   ;; node gets marked defective at load-time.
   (doseq [embedded-component-desc (:embedded-components prototype-desc)]
-    (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc resource))
+    (collection-string-data/verify-string-decoded-embedded-component-desc! embedded-component-desc owner-resource))
 
   (g/set-property self :prototype-desc prototype-desc))
 
@@ -377,8 +352,8 @@
       :label (localization/message "resource.type.go.non-editable")
       :node-type NonEditableGameObjectNode
       :ddf-type GameObject$PrototypeDesc
-      :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))
-      :sanitize-fn (partial sanitize-non-editable-game-object workspace)
+      :dependencies-fn game-object-common/game-object-dependencies-fn
+      :sanitize-fn game-object-common/game-object-sanitize-fn
       :pb-encode-fn (partial string-encode-non-editable-game-object workspace)
       :load-fn load-non-editable-game-object
       :allow-unloaded-use true

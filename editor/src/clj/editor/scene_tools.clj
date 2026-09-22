@@ -27,6 +27,7 @@
             [editor.math :as math]
             [editor.prefs :as prefs]
             [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders]
             [util.coll :as coll])
   (:import [com.jogamp.opengl GL GL2]
            [java.lang Math Runnable]
@@ -78,19 +79,7 @@
 (vtx/defvertex pos-vtx
   (vec3 position))
 
-(shader/defshader vertex-shader
-  (uniform mat4 world_view_proj)
-  (attribute vec4 position)
-  (defn void main []
-    (setq gl_Position (* world_view_proj position))))
-
-(shader/defshader fragment-shader
-  (uniform vec4 color) ; `color` also used in selection pass to render picking id
-  (defn void main []
-    (setq gl_FragColor color)))
-
-; TODO - macro of this
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader {"world_view_proj" :world-view-proj}))
+(def shader shaders/uniform-color-local-space)
 
 ; Rendering
 
