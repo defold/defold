@@ -456,21 +456,30 @@ if os.environ.get('TERM','') in ('cygwin',):
 ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics font particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
 HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
 
-EXTERNAL_WAF_LIBS = "glfw opus".split()
-EXTERNAL_CMAKE_LIBS = "box2d box2d_v2 vkquality skribidi dawn".split()
-EXTERNAL_LIBS = EXTERNAL_WAF_LIBS + EXTERNAL_CMAKE_LIBS
+EXTERNAL_LIBS = "glfw opus box2d box2d_v2 vkquality harfbuzz sheenbidi libunibreak skribidi dawn".split()
 EXTERNAL_PACKAGE_VERSIONS = {
+    "glfw": "2.7.1",
+    "opus": "1.5.2",
     "box2d": "3.1.0",
     "box2d_v2": "2.2.1",
     "vkquality": "1.1-2642a0d",
+    "harfbuzz": "13.2.1",
+    "sheenbidi": "2.9.0",
+    "libunibreak": "6.1",
     "skribidi": "a4a2f5",
     "dawn": "6bab1bd",
 }
 EXTERNAL_PACKAGE_NAMES = {
     "box2d_v2": "box2d_defold",
+    "sheenbidi": "SheenBidi",
     "skribidi": "SkriBidi",
 }
 EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE = {
+    "opus",
+    "box2d",
+    "harfbuzz",
+    "sheenbidi",
+    "libunibreak",
     "skribidi",
 }
 
@@ -2688,19 +2697,10 @@ class Configuration(object):
                 self.fatal("Unknown external package '%s'. Expected one of: %s" % (self.external_package, ', '.join(EXTERNAL_LIBS)))
             libs = [self.external_package]
 
-        waf_libs = [lib for lib in libs if lib in EXTERNAL_WAF_LIBS]
-        if waf_libs:
-            flags = self._get_build_flags()
-            flags['prefix'] = join(self.defold_root, 'packages')
-            cmd = self._build_engine_cmd_waf(**flags)
-            # Some of these libraries vendor an upstream CMakeLists.txt next to our wscript
-            # (e.g. external/box2d_v2). Without --with-waf the CMake library guard in
-            # waf_dynamo mistakes them for migrated libraries and aborts the build.
-            args = cmd.split() + ['--with-waf', 'package']
-            for lib in waf_libs:
-                self._build_engine_lib(args, lib, platform=self.target_platform, directory='external')
-
-        for lib in [lib for lib in libs if lib in EXTERNAL_CMAKE_LIBS]:
+        for lib in libs:
+            if lib == 'glfw' and self.target_platform not in BASE_PLATFORMS and not self.external_package:
+                self._log("Skipping glfw for unsupported platform: %s" % self.target_platform)
+                continue
             if lib == 'vkquality' and self.target_platform not in ('armv7-android', 'arm64-android', 'x86_64-android') and not self.external_package:
                 self._log("Skipping vkquality for non-Android platform: %s" % self.target_platform)
                 continue
@@ -2750,6 +2750,7 @@ class Configuration(object):
             '-DDEFOLD_EXTERNAL_PLATFORM=%s' % platform,
             '-DDEFOLD_SDK_ROOT=%s' % self.dynamo_home,
             '-DDEFOLD_EXTERNAL_INSTALL_PREFIX=%s' % install_dir,
+            '-DBUILD_TESTS=OFF',
         ]
         build_args = ['cmake', '--build', build_dir, '--target', 'install']
         if self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options):

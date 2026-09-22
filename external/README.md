@@ -12,6 +12,29 @@ build directory.
 The other external libraries are distributed as packages. Rebuild those with
 `build_external`, which writes archives under `defold/packages`.
 
+From the repository root, with the platform SDK set up:
+
+```sh
+./scripts/build.py shell
+./scripts/build.py build_external --package=opus --platform=arm64-macos
+./scripts/build.py install_ext --platform=arm64-macos
+```
+
+The package builds use CMake. The migrated packages retain their existing names
+and installation layout:
+
+| Package selector | Archive prefix | Contents |
+| --- | --- | --- |
+| `glfw` | `glfw-2.7.1` | Platform archive with headers, native libraries, and Android Java or web JavaScript support files. |
+| `opus` | `opus-1.5.2` | Decoder library in the platform archive; headers in the common archive. |
+| `harfbuzz` | `harfbuzz-13.2.1` | Library in the platform archive; headers and Defold's configuration override in the common archive. |
+| `sheenbidi` | `SheenBidi-2.9.0` | Unity-built library in the platform archive; headers in the common archive. |
+| `libunibreak` | `libunibreak-6.1` | Library in the platform archive; headers in the common archive. |
+
+Box2D also produces separate common and platform archives, with both SIMD and
+non-SIMD libraries in the platform archive. `external/rebuild.sh` uses the same
+`build_external` command.
+
 Dawn is a desktop package built by `build_external`, with its revision pinned in
 `external/dawn/CMakeLists.txt`. The first build downloads its sources and
 dependencies and builds a static library with the native backend. Tests, samples,
