@@ -101,11 +101,12 @@ install(CODE "
     COMMAND \"${DAWN_STRIP_EXECUTABLE}\" -S \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/lib/${TARGET_PLATFORM}/$<TARGET_FILE_NAME:webgpu_dawn>\"
     COMMAND_ERROR_IS_FATAL ANY)
 ")
-install(DIRECTORY "${dawn_SOURCE_DIR}/include/webgpu" DESTINATION include)
+# Keep native WebGPU headers out of Emscripten's shared include search path.
+install(DIRECTORY "${dawn_SOURCE_DIR}/include/webgpu" DESTINATION "include/${TARGET_PLATFORM}")
 install(FILES "${dawn_BINARY_DIR}/gen/include/webgpu/webgpu_cpp_chained_struct.h"
-        DESTINATION include/webgpu)
+        DESTINATION "include/${TARGET_PLATFORM}/webgpu")
 install(FILES "${dawn_BINARY_DIR}/gen/include/dawn/webgpu.h"
               "${dawn_BINARY_DIR}/gen/include/dawn/webgpu_cpp.h"
               "${dawn_BINARY_DIR}/gen/include/dawn/webgpu_cpp_print.h"
-        DESTINATION include/dawn)
+        DESTINATION "include/${TARGET_PLATFORM}/dawn")
 install(FILES "${dawn_SOURCE_DIR}/LICENSE" DESTINATION share/licenses/dawn)

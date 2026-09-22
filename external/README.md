@@ -63,7 +63,12 @@ and compiles the library; later runs can reuse matching compiler results.
 
 These commands produce `packages/dawn-6bab1bd-arm64-macos.tar.gz` and install
 the library to `ext/lib/arm64-macos/libwebgpu_dawn.a` and the headers to
-`ext/include`. All Dawn packages strip debug information while preserving the
+`ext/include/arm64-macos`. Dawn headers are scoped to each native platform so they
+cannot shadow Emscripten's WebGPU headers. When updating an existing installation,
+remove the old shared `ext/include/webgpu` and `ext/include/dawn` directories
+before running `install_ext`.
+
+All Dawn packages strip debug information while preserving the
 symbols needed for linking; the libraries in the build directories retain their
 debug information. Repeated package builds reuse downloaded sources and compiled
 objects. `build_ext` does not configure or build Dawn.
