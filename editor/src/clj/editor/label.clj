@@ -210,20 +210,16 @@
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Label$LabelDesc pb)}))
 
-(g/defnk produce-build-targets [_node-id resource font material save-value dep-build-targets font-map outline shadow ^:try markup-error style use-sdf-material sdf-material-resource sdf-build-targets]
+(g/defnk produce-build-targets [_node-id resource font material save-value dep-build-targets font-map ^:try markup-error style]
   (or (font/style-error _node-id font-map style)
       (when (g/error-fatal? markup-error) markup-error)
-      (font/vector-color-effect-error _node-id :outline font-map outline)
-      (font/vector-color-effect-error _node-id :shadow font-map shadow)
       (when-let [errors (->> [[font :font font-message]
                               [material :material material-message]]
                              (keep (fn [[v prop-kw name]]
                                      (validation/prop-error :fatal _node-id prop-kw validation/prop-nil? v name)))
                              not-empty)]
         (g/error-aggregate errors))
-      (let [material (if use-sdf-material sdf-material-resource material)
-            dep-build-targets (into [] coll/flatten-xf (cond-> dep-build-targets
-                                                       use-sdf-material (conj sdf-build-targets)))
+      (let [dep-build-targets (into [] coll/flatten-xf dep-build-targets)
             deps-by-source (into {}
                                  (map #(let [res (:resource %)]
                                          (pair (:resource res) res)))
@@ -302,8 +298,6 @@
                                             [:gpu-texture :gpu-texture]
                                             [:font-map :font-map]
                                             [:font-data :font-data]
-                                            [:type :font-type]
-                                            [:vector-font-mode :font-vector-mode]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id font]
                              (or (validation/prop-error :info _node-id :font validation/prop-nil? font font-message)
@@ -313,15 +307,6 @@
                                   :ext ["font"]}))
             (dynamic label (properties/label-dynamic :label :font))
             (dynamic tooltip (properties/tooltip-dynamic :label :font)))
-  (property sdf-material resource/Resource
-            (dynamic visible (g/constantly false))
-            (set (fn [evaluation-context self old-value new-value]
-                   (project/resource-setter evaluation-context self old-value new-value
-                                            [:resource :sdf-material-resource]
-                                            [:shader :sdf-material-shader]
-                                            [:samplers :sdf-material-samplers]
-                                            [:build-targets :sdf-build-targets]))))
-
   (property material resource/Resource ; Always assigned in load-fn.
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -343,24 +328,8 @@
   (input gpu-texture g/Any)
   (input font-map g/Any)
   (input font-data font/FontData)
-  (input font-type g/Keyword)
-  (input font-vector-mode g/Keyword)
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
-  (input sdf-material-resource resource/Resource)
-  (input sdf-material-shader ShaderLifecycle)
-  (input sdf-material-samplers g/Any)
-  (input sdf-build-targets g/Any)
-
-  ;; Keep the authored material on disk. Resolve its SDF counterpart from the
-  ;; connected font so unsaved font edits, overrides and reloads stay correct.
-  (output use-sdf-material g/Bool (g/fnk [font-type font-vector-mode material-resource]
-                                  (and (= :distance-field font-type)
-                                       (not= :vector-font-mode-vector font-vector-mode)
-                                       (= "/builtins/fonts/label.material" (some-> material-resource resource/proj-path)))))
-  (output material-shader ShaderLifecycle (g/fnk [use-sdf-material material-shader sdf-material-shader]
-                                            (if use-sdf-material sdf-material-shader material-shader)))
-
   (output save-value g/Any :cached produce-save-value)
   (output markup-error g/Any :cached (g/fnk [_node-id ^:try font-map text]
                                        (when-not (g/error-value? font-map)
@@ -399,32 +368,30 @@
                                                     [max-x max-y 0]))))
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)
-  (output tex-params g/Any :cached (g/fnk [use-sdf-material material-samplers sdf-material-samplers]
-                                     (some-> (if use-sdf-material sdf-material-samplers material-samplers)
-                                             first material/sampler->tex-params)))
+  (output tex-params g/Any :cached (g/fnk [material-samplers]
+                                     (some-> material-samplers first material/sampler->tex-params)))
   (output gpu-texture g/Any :cached (g/fnk [_node-id gpu-texture tex-params]
                                       (texture/set-params gpu-texture tex-params))))
 
 (defn load-label [{:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id label :source-value}]
   {:pre [(map? label)]} ; Label$LabelDesc in map format.
   (let [resolve-resource #(resolve-resource-fn owner-resource %)]
-    (into [(g/set-property self :sdf-material (resolve-resource "/builtins/fonts/label-df.material"))]
-      (gu/set-properties-from-pb-map self Label$LabelDesc label
-        text :text
-        style :style
-        size (protobuf/vector4->vector3 :size)
-        font-size :font-size
-        legacy-scale (protobuf/vector4->vector3 :scale) ; Legacy field. Migrated to ComponentDesc or EmbeddedComponentDesc in PrototypeDesc when saving.
-        color :color
-        outline :outline
-        shadow :shadow
-        leading :leading
-        tracking :tracking
-        pivot :pivot
-        blend-mode :blend-mode
-        line-break :line-break
-        font (resolve-resource :font)
-        material (resolve-resource :material)))))
+    (gu/set-properties-from-pb-map self Label$LabelDesc label
+      text :text
+      style :style
+      size (protobuf/vector4->vector3 :size)
+      font-size :font-size
+      legacy-scale (protobuf/vector4->vector3 :scale) ; Legacy field. Migrated to ComponentDesc or EmbeddedComponentDesc in PrototypeDesc when saving.
+      color :color
+      outline :outline
+      shadow :shadow
+      leading :leading
+      tracking :tracking
+      pivot :pivot
+      blend-mode :blend-mode
+      line-break :line-break
+      font (resolve-resource :font)
+      material (resolve-resource :material))))
 
 (defn- sanitize-label [_read-opts _owner-resource label-desc]
   (let [legacy-scale-v3 (some-> label-desc :scale protobuf/vector4->vector3)
@@ -494,7 +461,6 @@
     :ext "label"
     :node-type LabelNode
     :ddf-type Label$LabelDesc
-    :editor-dependencies ["/builtins/fonts/label-df.material"]
     :load-fn load-label
     :sanitize-fn sanitize-label
     :icon label-icon

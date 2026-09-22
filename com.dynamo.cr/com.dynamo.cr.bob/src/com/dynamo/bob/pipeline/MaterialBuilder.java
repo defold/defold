@@ -139,9 +139,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         compileOptions.maxPageCount = materialBuilder.getMaxPageCount();
         for (MaterialDesc.Sampler sampler : materialBuilder.getSamplersList()) {
             if (VECTOR_CURVE_TEXTURE_SAMPLER.equals(sampler.getName())) {
-                // Native-float vector shaders use texelFetch/textureLoad and have
-                // no valid GLES 1.00 representation. The packed compatibility
-                // contract uses curve_texture_packed and retains GLES 1.00.
+                // Vector shaders use texelFetch/textureLoad and have no valid GLES 1.00 representation.
                 compileOptions.excludeGlesSm100 = true;
                 break;
             }

@@ -82,6 +82,8 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("vertex_program: \"/test.vp\"\n");
         src.append("fragment_program: \"/test.fp\"\n");
         addFile("/test.material", src.toString());
+        addFile("/builtins/fonts/font.material", src.toString());
+        addFile("/builtins/fonts/label.material", src.toString());
 
         src.append("samplers { name: \"curve_texture\" wrap_u: WRAP_MODE_CLAMP_TO_EDGE wrap_v: WRAP_MODE_CLAMP_TO_EDGE filter_min: FILTER_MODE_MIN_DEFAULT filter_mag: FILTER_MODE_MAG_DEFAULT }\n");
         src.append("samplers { name: \"band_texture\" wrap_u: WRAP_MODE_CLAMP_TO_EDGE wrap_v: WRAP_MODE_CLAMP_TO_EDGE filter_min: FILTER_MODE_MIN_NEAREST filter_mag: FILTER_MODE_MAG_NEAREST }\n");
@@ -140,7 +142,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                         + "outline_width: 1.375\noutline_alpha: 0.3725\nshadow_alpha: 0.6235\n"
                         + "shadow_x: 2.125\nshadow_y: -1.625\nshadow_blur: 1\n";
                 FontMap compiled = getFontMap(build("/single-layer.font", source));
-                assertEquals(7, compiled.getLayerMask());
+                assertEquals(outputFormat.equals("TYPE_BITMAP") ? 1 : 7, compiled.getLayerMask());
                 assertTrue(compiled.getStyles(0).getFlags() != 0);
                 assertEquals(1.375f, compiled.getStyles(0).getOutlineWidth(), 0.0f);
                 assertEquals(0.3725f, compiled.getStyles(0).getOutlineAlpha(), 0.0f);
@@ -303,11 +305,9 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("shadow_blur: 3\n");
         src.append("shadow_alpha: 1\n");
         src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
-        src.append("sdf_material: \"/test2.material\"\n");
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test-vector.materialc"));
-        assertTrue(fontMap.getSdfMaterial().isEmpty());
         assertEquals(FontTextureFormat.TYPE_DISTANCE_FIELD, fontMap.getOutputFormat());
         assertEquals(FontRenderMode.MODE_MULTI_LAYER, fontMap.getRenderMode());
         assertEquals("ABC", fontMap.getCharacters());
@@ -414,7 +414,6 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
             .build();
         FontDesc variant = desc.toBuilder()
             .setMaterial("/other.material")
-            .setSdfMaterial("/other-effects.material")
             .setRuntime(true)
             .setAlpha(0.25f)
             .setOutlineAlpha(0.5f)
@@ -552,7 +551,6 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
 
         assertTrue(fontMap != null);
         assertEquals(32, fontMap.getSize());
-        assertTrue(fontMap.getSdfMaterial().isEmpty());
         assertTrue(fontMap.getVectorBitmapEffects());
         assertTrue(fontMap.getFont().isEmpty());
         assertEquals(3, glyphBank.getGlyphChannels());
@@ -586,7 +584,6 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
 
         assertTrue(fontMap != null);
         assertEquals(32, fontMap.getSize());
-        assertTrue(fontMap.getSdfMaterial().isEmpty());
         assertTrue(fontMap.getVectorBitmapEffects());
         assertTrue(fontMap.getFont().isEmpty());
         assertEquals(3, glyphBank.getGlyphChannels());
@@ -603,6 +600,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testTTFSdfRuntime() throws Exception {
         StringBuilder src = new StringBuilder();
+        src.append("vector_font_mode: VECTOR_FONT_MODE_SDF\n");
         src.append("font: \"/Tuffy.ttf\"\n");
         src.append("material: \"/test.material\"\n");
         src.append("size: 24\n");
@@ -629,7 +627,6 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         FontMap fontMap = getFontMap(results);
         GlyphBank glyphBank = getGlyphBank(results);
         assertEquals(16, fontMap.getSize());
-        assertTrue(fontMap.getSdfMaterial().isEmpty());
         assertTrue(glyphBank.getGlyphData().isEmpty());
         assertTrue(!glyphBank.getVectorData().isEmpty());
     }
@@ -654,93 +651,11 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testLabelVectorEffectsRequireFontSupport() throws Exception {
-        String font = "font: \"/Tuffy.ttf\"\nmaterial: \"/test-vector.material\"\nvector_font_mode: VECTOR_FONT_MODE_VECTOR\ncharacters: \"A\"\n";
-        addFile("/effects.font", font);
-        String label = "size {}\nfont: \"/effects.font\"\nmaterial: \"/test-vector.material\"\nfont_size: 64\n";
-        build("/effects.label", label + "text: \"Plain\"\n");
-        for (String override : new String[] {"outline { x: 1 }", "shadow { w: 0.5 }", "text: \"<outline>A</outline>\"", "text: \"<shadow>A</shadow>\""}) {
-            try {
-                build("/effects.label", label + override);
-                fail("Missing Vector font effect must fail: " + override);
-            } catch (CompileExceptionError e) {
-                assertTrue(e.getMessage(), e.getMessage().contains(".font resource"));
-                assertTrue(e.getMessage(), e.getMessage().startsWith("The font has no "));
-            }
-        }
-        addFile("/effects.font", font + "size: 37\noutline_width: 2\noutline_alpha: 1\nshadow_x: 2\nshadow_alpha: 1\n");
-        FontMap fontMap = getFontMap(build("/effects.label", label + "text: \"<outline><shadow>A</shadow></outline>\"\noutline { x: 1 }\nshadow { w: 0.5 }"));
-        assertEquals(37, fontMap.getSize());
-    }
-
-    @Test
-    public void testVectorEffectTagsAreLiteralWhenRichTextIsExcluded() throws Exception {
-        getProject().setOption("platform", "arm64-macos");
-        getProject().setOption("architectures", "arm64-macos");
-        getProject().getProjectProperties().putStringValue("native_extension", "app_manifest", "plain.appmanifest");
-        addFile("/plain.appmanifest", "platforms:\n  arm64-osx:\n    context:\n      excludeLibs: [font_richtext]\n      libs: [font_richtext_null]\n");
-        getProject().configurePreBuildProjectOptions();
-        assertEquals("false", getProject().option("font-rich-text", "true"));
-        String font = "font: \"/Tuffy.ttf\"\nmaterial: \"/test-vector.material\"\nvector_font_mode: VECTOR_FONT_MODE_VECTOR\n";
-        addFile("/plain.font", font);
-        String label = "size {}\nfont: \"/plain.font\"\nmaterial: \"/test-vector.material\"\ntext: \"<outline><shadow>A</shadow></outline>\"\n";
-        // Exercise the content builders without requesting a custom engine build.
-        addFile("/plain.label", label);
-        Task labelTask = getProject().createTask(getProject().getResource("/plain.label"), ProtoBuilders.LabelDescBuilder.class);
-        labelTask.getBuilder().build(labelTask);
-        addFile("/plain.gui", "material: \"/test.material\"\nfonts { name: \"font\" font: \"/plain.font\" }\n" +
-            "nodes { type: TYPE_TEXT id: \"text\" font: \"font\" text: \"<outline><shadow>A</shadow></outline>\" }\n");
-        Task guiTask = getProject().createTask(getProject().getResource("/plain.gui"), GuiBuilder.class);
-        guiTask.getBuilder().build(guiTask);
-        try {
-            addFile("/override.label", label + "outline { x: 1 }\n");
-            Task overrideTask = getProject().createTask(getProject().getResource("/override.label"), ProtoBuilders.LabelDescBuilder.class);
-            overrideTask.getBuilder().build(overrideTask);
-            fail("Node colors must still be validated without rich text");
-        } catch (CompileExceptionError e) {
-            assertTrue(e.getMessage(), e.getMessage().contains(".font resource"));
-        }
-    }
-
-    @Test
-    public void testGuiVectorEffectsValidateResolvedLayoutsAndTemplates() throws Exception {
-        String font = "font: \"/Tuffy.ttf\"\nmaterial: \"/test-vector.material\"\nvector_font_mode: VECTOR_FONT_MODE_VECTOR\ncharacters: \"A\"\n";
-        addFile("/effects.font", font);
-        String scene = "material: \"/test.material\"\nfonts { name: \"font\" font: \"/effects.font\" }\n";
-        String node = "nodes { type: TYPE_TEXT id: \"text\" font: \"font\" text: \"A\" }\n";
-        build("/effects.gui", scene + node);
-        for (String override : new String[] {"outline { x: 1 }", "shadow_alpha: 0.5", "text: \"<outline>A</outline>\"", "text: \"<shadow>A</shadow>\""}) {
-            try {
-                build("/effects.gui", scene + "nodes { type: TYPE_TEXT id: \"text\" font: \"font\" " + override + " }\n");
-                fail("Missing GUI font effect must fail: " + override);
-            } catch (CompileExceptionError e) {
-                assertTrue(e.getMessage(), e.getMessage().contains(".font resource"));
-            }
-        }
-        try {
-            build("/effects.gui", scene + node + "layouts { name: \"wide\" nodes { id: \"text\" outline_alpha: 0.5 overridden_fields: 31 } }\n");
-            fail("GUI layout overrides must be validated");
-        } catch (CompileExceptionError e) {
-            assertTrue(e.getMessage(), e.getMessage().contains(".font resource"));
-        }
-        addFile("/template.gui", scene + node);
-        String parent = "material: \"/test.material\"\nnodes { type: TYPE_TEMPLATE id: \"instance\" template: \"/template.gui\" }\n" +
-            "nodes { type: TYPE_TEXT id: \"instance/text\" template_node_child: true shadow_alpha: 0.5 overridden_fields: 32 }\n";
-        try {
-            build("/parent.gui", parent);
-            fail("GUI template overrides must be validated");
-        } catch (CompileExceptionError e) {
-            assertTrue(e.getMessage(), e.getMessage().contains(".font resource"));
-        }
-        addFile("/effects.font", font + "size: 37\nshadow_x: 2\nshadow_alpha: 1\n");
-        build("/parent.gui", parent);
-    }
-
-    @Test
     public void testExplicitStaticSdfOverridesLegacyRuntimeGeneration() throws Exception {
         getProject().setOption("font-runtime-generation", "true");
 
         StringBuilder src = new StringBuilder();
+        src.append("vector_font_mode: VECTOR_FONT_MODE_SDF\n");
         src.append("font: \"/Tuffy.ttf\"\n");
         src.append("material: \"/test.material\"\n");
         src.append("size: 16\n");
@@ -756,7 +671,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testEffectiveFontSettingsMatrix() {
         String[] extensions = {"ttf", "otf", "fnt"};
-        VectorFontMode[] modes = {VectorFontMode.VECTOR_FONT_MODE_SDF, VectorFontMode.VECTOR_FONT_MODE_VECTOR};
+        VectorFontMode[] modes = {VectorFontMode.VECTOR_FONT_MODE_SDF, VectorFontMode.VECTOR_FONT_MODE_VECTOR, VectorFontMode.VECTOR_FONT_MODE_BITMAP};
         Boolean[] runtimeOptions = {null, false, true};
         boolean[] booleans = {false, true};
 
@@ -778,7 +693,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                             FontDesc effective = FontBuilder.getEffectiveFontDesc(builder.build(), legacyRuntime);
                             String context = extension + ", " + mode + ", runtime=" + runtime +
                                 ", legacy=" + legacyRuntime + ", allChars=" + allChars;
-                            boolean bitmap = extension.equals("fnt");
+                            boolean bitmap = extension.equals("fnt") || mode == VectorFontMode.VECTOR_FONT_MODE_BITMAP;
                             boolean vector = !bitmap && mode == VectorFontMode.VECTOR_FONT_MODE_VECTOR;
                             boolean dynamic = !bitmap &&
                                 (runtime != null ? runtime : vector || legacyRuntime);
@@ -799,20 +714,25 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testLegacyBitmapMaterialsFollowSdfConversion() throws Exception {
-        for (boolean runtime : new boolean[] { false, true }) {
-            String source = "font: \"/Tuffy.ttf\"\nmaterial: \"/builtins/fonts/font.material\"\n"
-                    + "size: 16\ncharacters: \"A\"\nruntime: " + runtime + "\n";
+    public void testLegacyBitmapSettingsArePreserved() throws Exception {
+        addFile("/Test.otf", getFile("/Tuffy.ttf"));
+        for (String extension : new String[] { "ttf", "otf" }) {
+            String path = extension.equals("ttf") ? "/Tuffy.ttf" : "/Test.otf";
+            String source = "font: \"" + path + "\"\nmaterial: \"/builtins/fonts/font.material\"\n"
+                    + "size: 16\ncharacters: \"A\"\nantialias: 0\nruntime: true\n";
             FontMap font = getFontMap(build("/legacy.font", source));
-            assertEquals(FontTextureFormat.TYPE_DISTANCE_FIELD, font.getOutputFormat());
-            assertEquals(ResourceUtil.minifyPath("/builtins/fonts/font-df.materialc"), font.getMaterial());
+            assertEquals(FontTextureFormat.TYPE_BITMAP, font.getOutputFormat());
+            assertEquals(ResourceUtil.minifyPath("/builtins/fonts/font.materialc"), font.getMaterial());
+            assertEquals(0, font.getAntialias());
+            assertTrue(font.getFont().isEmpty());
+            assertTrue(!font.getGlyphBank().isEmpty());
             String label = "size { x: 100 y: 32 }\nfont: \"/legacy.font\"\n"
                     + "material: \"/builtins/fonts/label.material\"\ntext: \"A\"\n";
             boolean foundLabel = false;
             for (Message message : build("/legacy.label", label)) {
                 if (message instanceof com.dynamo.gamesys.proto.Label.LabelDesc) {
                     foundLabel = true;
-                    assertEquals(ResourceUtil.minifyPath("/builtins/fonts/label-df.materialc"),
+                    assertEquals(ResourceUtil.minifyPath("/builtins/fonts/label.materialc"),
                         ((com.dynamo.gamesys.proto.Label.LabelDesc)message).getMaterial());
                 }
             }
@@ -825,7 +745,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testTTFDefaultSdfMaterial() throws Exception {
+    public void testDynamicVectorShadowBitmap() throws Exception {
         StringBuilder src = new StringBuilder();
         src.append("font: \"/Tuffy.ttf\"\n");
         src.append("material: \"/test-vector.material\"\n");
@@ -836,24 +756,7 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
-        assertTrue(fontMap.getSdfMaterial().isEmpty());
         assertTrue(fontMap.getVectorBitmapEffects());
-    }
-
-    @Test
-    public void testTTFZeroBlurDoesNotUseSdfEffectMaterial() throws Exception {
-        StringBuilder src = new StringBuilder();
-        src.append("font: \"/Tuffy.ttf\"\n");
-        src.append("material: \"/test-vector.material\"\n");
-        src.append("size: 16\n");
-        src.append("shadow_blur: 0\n");
-        src.append("shadow_alpha: 1\n");
-        src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
-        src.append("sdf_material: \"/test2.material\"\n");
-
-        FontMap fontMap = getFontMap(build("/test.font", src.toString()));
-
-        assertTrue(fontMap.getSdfMaterial().isEmpty());
     }
 
     @Test
@@ -869,7 +772,6 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
-        assertTrue(fontMap.getSdfMaterial().isEmpty());
         assertTrue(fontMap.getVectorBitmapEffects());
     }
 
@@ -885,7 +787,6 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
 
         FontMap fontMap = getFontMap(build("/test.font", src.toString()));
 
-        assertTrue(fontMap.getSdfMaterial().isEmpty());
         assertTrue(fontMap.getVectorBitmapEffects());
     }
 
@@ -984,13 +885,11 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("render_mode: MODE_MULTI_LAYER\n");
         src.append("characters: \"ABC\"\n");
         src.append("shadow_blur: 3\n");
-        src.append("sdf_material: \"/test2.material\"\n");
         List<Message> buildResults = build("/test.font", src.toString());
         FontMap fontMap = getFontMap(buildResults);
         GlyphBank glyphBank = getGlyphBank(buildResults);
 
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
-        assertTrue(fontMap.getSdfMaterial().isEmpty());
         assertEquals(FontTextureFormat.TYPE_BITMAP, fontMap.getOutputFormat());
         assertEquals(FontRenderMode.MODE_SINGLE_LAYER, fontMap.getRenderMode());
         assertEquals(32, fontMap.getSize());
@@ -1007,7 +906,6 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         src.append("material: \"/test.material\"\n");
         src.append("vector_font_mode: VECTOR_FONT_MODE_VECTOR\n");
         src.append("runtime: true\n");
-        src.append("sdf_material: \"/test2.material\"\n");
 
         List<Message> buildResults = build("/stale-bmfont.font", src.toString());
         FontMap fontMap = getFontMap(buildResults);
@@ -1016,7 +914,6 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(FontTextureFormat.TYPE_BITMAP, fontMap.getOutputFormat());
         assertTrue(fontMap.getFont().isEmpty());
         assertTrue(!fontMap.getGlyphBank().isEmpty());
-        assertTrue(fontMap.getSdfMaterial().isEmpty());
         assertEquals(com.dynamo.font.proto.GlyphBankProto.FontTextureFormat.TYPE_BITMAP,
                      glyphBank.getImageFormat());
     }

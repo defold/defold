@@ -618,39 +618,44 @@
           owner-resource (g/node-value font-node :resource)
           read-opts (workspace/make-read-opts (g/now) workspace)
           {:keys [read-fn write-fn]} (resource/resource-type owner-resource)]
-      (doseq [mode [:vector-font-mode-vector :vector-font-mode-sdf]
+      (doseq [mode [:vector-font-mode-vector :vector-font-mode-sdf :vector-font-mode-bitmap]
               runtime [false true]]
         (g/transact {:undoable false}
           [(g/set-property font-node :vector-font-mode mode)
            (g/set-property font-node :runtime runtime)])
         (let [saved (g/node-value font-node :save-value)
               reopened (read-fn read-opts owner-resource (java.io.StringReader. (write-fn saved)))]
+          (is (= mode (:vector-font-mode reopened)))
           (is (= runtime (:runtime saved)))
           (is (= runtime (:runtime reopened))))))))
 
-(deftest vector-to-sdf-font-size
+(deftest vector-to-bitmap-or-sdf-font-size
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/editor1/test.font")
-          vector-material (workspace/find-resource workspace "/builtins/fonts/font-vector.material")
-          sdf-material (workspace/find-resource workspace "/builtins/fonts/font-df.material")]
-      (doseq [[initial-size expected-size] [[0 15] [27 27]]]
+          vector-material (workspace/find-resource workspace "/builtins/fonts/font-vector.material")]
+      (doseq [[mode material] [[:vector-font-mode-sdf "/builtins/fonts/font-df.material"]
+                               [:vector-font-mode-bitmap "/builtins/fonts/font.material"]]
+              [initial-size expected-size] [[0 15] [27 27]]]
         (g/transact {:undoable false}
           [(g/set-property font-node :material vector-material)
            (g/set-property font-node :vector-font-mode :vector-font-mode-vector)
            (g/set-property font-node :size initial-size)])
         (properties/set-values! (get-in (properties/coalesce [(g/node-value font-node :_properties)])
                                        [:properties :vector-font-mode])
-                                [:vector-font-mode-sdf])
+                                [mode])
         (is (= expected-size (g/node-value font-node :size)))
         (is (= "Size" (test-util/localization (get-in (g/node-value font-node :_properties) [:properties :size :label]))))
-        (is (= sdf-material (g/node-value font-node :material))))
+        (is (= material (resource/proj-path (g/node-value font-node :material)))))
       (g/transact {:undoable false}
         [(g/set-property font-node :outline-alpha 0.0)
          (g/set-property font-node :shadow-alpha 0.0)])
       (let [node-properties (:properties (g/node-value font-node :_properties))]
         (is (properties/visible? (:size node-properties)))
         (is (false? (get-in node-properties [:size :read-only?])))
-        (is (not (contains? node-properties :sdf-material)))))))
+        (is (properties/visible? (:antialias node-properties)))
+        (is (properties/visible? (:render-mode node-properties)))
+        (is (true? (get-in node-properties [:runtime :read-only?])))
+        (is (false? (get-in node-properties [:runtime :value])))))))
 
 (deftest vector-glyph-generation-property
   (test-util/with-loaded-project
@@ -814,7 +819,6 @@
           (let [font-map (protobuf/pb->map-with-defaults (test-util/built-pb font-node Font$FontMap))]
             (is (= 15 (:size font-map)))
             (is (true? (:vector-bitmap-effects font-map)))
-            (is (= "" (:sdf-material font-map)))
             (if runtime
               (do
                 (is (= "/builtins/fonts/vera_mo_bd.ttf" (:font font-map)))

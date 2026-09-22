@@ -5,6 +5,5 @@ outline_width: 2.0
 output_format: TYPE_DISTANCE_FIELD
 render_mode: MODE_MULTI_LAYER
 characters: "A"
-sdf_material: "/builtins/fonts/font-df.material"
 vector_font_mode: VECTOR_FONT_MODE_VECTOR
 runtime: false

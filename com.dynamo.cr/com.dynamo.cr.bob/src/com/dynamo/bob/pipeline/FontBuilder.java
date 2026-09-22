@@ -24,10 +24,8 @@ import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.ProtoParams;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
-import com.dynamo.bob.font.FontRenderer;
 import com.dynamo.bob.font.BMFont;
 import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.FontStyles;
@@ -71,36 +69,6 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
                 fontDesc.getShadowX() != 0.0f || fontDesc.getShadowY() != 0.0f);
     }
 
-    static FontDesc readFontDesc(Project project, String path) throws IOException {
-        FontDesc.Builder desc = FontDesc.newBuilder();
-        TextFormat.merge(new String(project.getResource(path).getContent(), StandardCharsets.UTF_8), desc);
-        return desc.build();
-    }
-
-    static void validateTextEffects(IResource input, FontDesc fontDesc, String text, boolean richText,
-                                   boolean outlineChanged, boolean shadowChanged) throws CompileExceptionError {
-        if (!isVectorFont(fontDesc))
-            return;
-
-        if (richText && text.indexOf('<') >= 0) {
-            FontRenderer.MarkupParseResult parsed = FontRenderer.parseMarkup(text);
-            if (parsed.document != null) {
-                for (FontRenderer.MarkupNode node : parsed.document.nodes) {
-                    outlineChanged |= node.tag.equals("outline");
-                    shadowChanged |= node.tag.equals("shadow");
-                }
-            }
-        }
-        if (outlineChanged && !hasOutline(fontDesc)) {
-            throw new CompileExceptionError(input, 0,
-                "The font has no outline enabled. Enable Outline Alpha and Outline Width and set Size in the .font resource.");
-        }
-        if (shadowChanged && !hasShadow(fontDesc)) {
-            throw new CompileExceptionError(input, 0,
-                "The font has no shadow enabled. Enable Shadow Alpha and a shadow offset or blur and set Size in the .font resource.");
-        }
-    }
-
     private boolean legacyRuntimeGeneration() {
         return this.project.option("font-runtime-generation", "false").equals("true");
     }
@@ -111,39 +79,36 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
 
     static FontDesc getEffectiveFontDesc(FontDesc fontDesc, boolean legacyRuntimeGeneration) {
         FontDesc.Builder builder = fontDesc.toBuilder();
-
         boolean hasEffects = hasOutline(fontDesc) || hasShadow(fontDesc);
         if (isBitmapFont(fontDesc)) {
             builder.setOutputFormat(FontTextureFormat.TYPE_BITMAP);
             builder.setRenderMode(hasEffects ? FontRenderMode.MODE_MULTI_LAYER : FontRenderMode.MODE_SINGLE_LAYER);
             builder.setRuntime(false);
-            builder.setVectorFontMode(VectorFontMode.VECTOR_FONT_MODE_SDF);
-            builder.clearSdfMaterial();
+            builder.clearVectorFontMode();
             if (fontDesc.getCharacters().isEmpty()) {
                 builder.setAllChars(true);
             }
         } else {
-            boolean vector = isVectorFont(fontDesc);
-            boolean runtime = isTrueTypeFont(fontDesc) &&
+            VectorFontMode mode = fontDesc.hasVectorFontMode() ? fontDesc.getVectorFontMode() :
+                fontDesc.getOutputFormat() == FontTextureFormat.TYPE_BITMAP ?
+                    VectorFontMode.VECTOR_FONT_MODE_BITMAP : VectorFontMode.VECTOR_FONT_MODE_SDF;
+            boolean vector = mode == VectorFontMode.VECTOR_FONT_MODE_VECTOR;
+            boolean bitmap = mode == VectorFontMode.VECTOR_FONT_MODE_BITMAP;
+            boolean runtime = isTrueTypeFont(fontDesc) && !bitmap &&
                 (fontDesc.hasRuntime() ? fontDesc.getRuntime() : vector || legacyRuntimeGeneration);
 
-            builder.setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD);
-            builder.setRenderMode(vector || hasEffects ? FontRenderMode.MODE_MULTI_LAYER : FontRenderMode.MODE_SINGLE_LAYER);
+            builder.setVectorFontMode(mode);
+            builder.setOutputFormat(bitmap ? FontTextureFormat.TYPE_BITMAP : FontTextureFormat.TYPE_DISTANCE_FIELD);
+            if (!bitmap) {
+                builder.setRenderMode(vector || hasEffects ? FontRenderMode.MODE_MULTI_LAYER : FontRenderMode.MODE_SINGLE_LAYER);
+                builder.setAntialias(1);
+            }
             builder.setRuntime(runtime);
-            builder.setAntialias(1);
-
             if (runtime) {
                 builder.setAllChars(false);
             }
-
-            if (vector) {
-                if (!hasEffects) {
-                    builder.setSize(Fontc.VECTOR_REFERENCE_SIZE);
-                }
-                builder.clearSdfMaterial();
-            } else {
-                builder.setMaterial(Fontc.getSdfMaterial(fontDesc.getMaterial()));
-                builder.clearSdfMaterial();
+            if (vector && !hasEffects) {
+                builder.setSize(Fontc.VECTOR_REFERENCE_SIZE);
             }
         }
         return builder.build();
@@ -157,16 +122,13 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
         TextFormat.merge(new String(materialResource.getContent(), StandardCharsets.UTF_8), materialBuilder);
         MaterialDesc materialDesc = materialBuilder.build();
-        boolean hasVectorSampler = materialDesc.getSamplersList().stream().anyMatch(sampler ->
-            sampler.getName().equals("curve_texture") || sampler.getName().equals("curve_texture_packed"));
-
         boolean hasCurveSampler = materialDesc.getSamplersList().stream().anyMatch(sampler -> sampler.getName().equals("curve_texture"));
         boolean hasBandSampler = materialDesc.getSamplersList().stream().anyMatch(sampler -> sampler.getName().equals("band_texture"));
         if (isVectorFont(fontDesc) && (!hasCurveSampler || !hasBandSampler)) {
             throw new CompileExceptionError(input, 0, "Vector font mode requires curve_texture and band_texture samplers");
         }
-        if (!isVectorFont(fontDesc) && hasVectorSampler) {
-            throw new CompileExceptionError(input, 0, "SDF font mode does not support vector curve texture samplers");
+        if (!isVectorFont(fontDesc) && hasCurveSampler) {
+            throw new CompileExceptionError(input, 0, "Bitmap and SDF font modes do not support vector curve texture samplers");
         }
     }
 
@@ -223,10 +185,6 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             subTask = createSubTask(input, GlyphBankBuilder.class, taskBuilder);
         }
 
-        if (!fontDesc.getSdfMaterial().isEmpty()) {
-            createSubTask(fontDesc.getSdfMaterial(), "SDF material", taskBuilder);
-        }
-
         Task task = taskBuilder.build();
         subTask.setProductOf(task);
         return task;
@@ -255,9 +213,6 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         }
 
         fontMapBuilder.setMaterial(ResourceUtil.minifyPathAndReplaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
-        if (!fontDesc.getSdfMaterial().isEmpty()) {
-            fontMapBuilder.setSdfMaterial(ResourceUtil.minifyPathAndReplaceExt(fontDesc.getSdfMaterial(), ".material", ".materialc"));
-        }
         if (fontDesc.getAllChars())
         {
             fontMapBuilder.setAllChars(true); // 0x000000 - 0x10FFFF
@@ -273,6 +228,8 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
             throw new CompileExceptionError(task.firstInput(), 0, error.getMessage(), error);
         }
         fontMapBuilder.setSize(fontDesc.getSize());
+        if (fontDesc.getAntialias() != 1)
+            fontMapBuilder.setAntialias(fontDesc.getAntialias());
         fontMapBuilder.setShadowX(fontDesc.getShadowX());
         fontMapBuilder.setShadowY(fontDesc.getShadowY());
         fontMapBuilder.setShadowBlur(fontDesc.getShadowBlur());

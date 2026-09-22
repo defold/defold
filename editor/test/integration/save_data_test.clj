@@ -595,9 +595,7 @@
    'dmRenderDDF.FontDesc
    {:default
     {"extra_characters" :deprecated
-     "output_format" :deprecated
-     "render_mode" :deprecated
-     "sdf_material" :deprecated}} ; Migrations tested in silent-migrations-test.
+     "output_format" :deprecated}} ; Migrations tested in silent-migrations-test.
 
    'dmRenderDDF.MaterialDesc
    {:default
@@ -817,7 +815,7 @@
 
     (testing "font"
       (let [extra-characters-font (project/get-resource-node project "/silently_migrated/extra_characters.font")]
-        (is (= "/builtins/fonts/font-df.material" (:material (g/node-value extra-characters-font :save-value))))
+        (is (= "/builtins/fonts/font.material" (:material (g/node-value extra-characters-font :save-value))))
         (is (= " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~åäö"
                (g/node-value extra-characters-font :characters))))
       (let [legacy-font (project/get-resource-node project "/silently_migrated/font_properties.font")
@@ -826,7 +824,7 @@
         (is (= source-value save-value))
         (is (= 15 (:size save-value)))
         (is (false? (:runtime save-value)))
-        (is (not (coll/any? #(contains? save-value %) [:output-format :render-mode :sdf-material])))))
+        (is (not (coll/any? #(contains? save-value %) [:output-format :render-mode])))))
 
     (testing "gui"
       (let [background-color-gui (test-util/resource-node project "/silently_migrated/background_color.gui")]

@@ -22,7 +22,6 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.scene :as scene]
-            [editor.scene-selection :as scene-selection]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.coll :as coll]
@@ -38,13 +37,6 @@
                           (when (pixel-predicate (bit-and 0xffffff argb))
                             [(rem index width) (- height 1 (quot index width))])))
           (.getRGB image 0 0 width height nil 0 width))))
-
-(defn- pick [view point]
-  (scene/produce-selection
-    (assoc (into {} (map (fn [label] [label (g/node-value view label)]))
-                 [:scene-render-data :renderables-aabb+picking-node-id :picking-drawable
-                  :camera :viewport :pass->render-args])
-           :picking-rect (scene-selection/calc-picking-rect point point))))
 
 (deftest vector-label-preview-and-picking
   (test-util/with-loaded-project
@@ -87,8 +79,11 @@
                 (is (= effects (< 10 (count outline))))
                 (is (= effects (< 10 (count shadow))))
                 (when-not (coll/empty? face)
-                  (is (= [component-node] (pick view (nth face (quot (count face) 2))))))
-                (is (coll/empty? (pick view [5 5]))))
+                  (let [[x y] (nth face (quot (count face) 2))]
+                    (test-util/mouse-click! view x y)
+                    (is (test-util/selected? app-view component-node))))
+                (test-util/mouse-click! view 5 5)
+                (is (test-util/selected? app-view go-node)))
               (finally
                 (#'scene/dispose-preview view)
                 (test-util/close-tab! project app-view "/fonts/vector_preview.go")))))))))
@@ -111,12 +106,17 @@
                 hidden-face (vec (set/difference whole-face clipped-face))]
             (is (< 10 (count hidden-face)))
             (when-not (coll/empty? hidden-face)
-              (let [hidden-point (nth hidden-face (quot (count hidden-face) 2))]
-                (is (= [text-node] (pick view hidden-point)))
+              (let [[x y] (nth hidden-face (quot (count hidden-face) 2))]
+                (test-util/mouse-click! view x y)
+                (is (test-util/selected? app-view text-node))
                 (g/set-property! clip-node :clipping-mode :clipping-mode-stencil)
-                (is (not (contains? (set (pick view hidden-point)) text-node)))))
+                (test-util/mouse-click! view 5 5)
+                (test-util/mouse-click! view x y)
+                (is (not (test-util/selected? app-view text-node)))))
             (when-not (coll/empty? clipped-face)
-              (is (= [text-node] (pick view (first (sort clipped-face))))))))
+              (let [[x y] (first (sort clipped-face))]
+                (test-util/mouse-click! view x y)
+                (is (test-util/selected? app-view text-node))))))
         (finally
           (#'scene/dispose-preview view)
           (test-util/close-tab! project app-view "/fonts/vector_preview.gui"))))))
@@ -154,7 +154,9 @@
                 (let [points (image-points (g/valid-node-value view :frame) #(= 0xff00ff %))]
                   (is (< 10 (count points)))
                   (when-not (coll/empty? points)
-                    (is (= [selection] (pick view (nth points (quot (count points) 2))))))
+                    (let [[x y] (nth points (quot (count points) 2))]
+                      (test-util/mouse-click! view x y)
+                      (is (test-util/selected? app-view selection))))
                   (if-let [previous (get @previous-points [mode view])]
                     (is (= previous points))
                     (vswap! previous-points assoc [mode view] points))))))
@@ -175,8 +177,7 @@
          (g/set-property font-node :runtime true)
          (g/set-property font-node :vector-font-mode :vector-font-mode-sdf)])
       (let [[_ view] (test-util/open-scene-view! project app-view path 512 256)
-            request-vertex-buffer font/request-vertex-buffer
-            buffers (volatile! [])]
+            previous-points (volatile! {})]
         (try
           (doseq [mode [:sdf :vector :sdf :vector]]
             (testing (name mode)
@@ -184,16 +185,11 @@
                 {:undoable false}
                 [(g/set-property font-node :vector-font-mode (if (= :sdf mode) :vector-font-mode-sdf :vector-font-mode-vector))
                  (g/set-property font-node :material (workspace/find-resource workspace (if (= :sdf mode) "/builtins/fonts/font-df.material" "/builtins/fonts/font-vector.material")))])
-              (vreset! buffers [])
-              (with-redefs [font/request-vertex-buffer (fn [& args]
-                                                       (let [buffer (apply request-vertex-buffer args)]
-                                                         (vswap! buffers conj buffer)
-                                                         buffer))]
-                (g/valid-node-value view :frame))
-              (is (= 1 (count @buffers)))
-              (let [^editor.gl.vertex2.VertexBuffer buffer (first @buffers)]
-                (is (= 42 (count buffer)))
-                (is (= (if (= :sdf mode) 56 52) (:size (.vertex-description buffer)))))))
+              (let [points (image-points (g/valid-node-value view :frame) #(= 0xf8f8fb %))]
+                (is (< 100 (count points)))
+                (if-let [previous (get @previous-points mode)]
+                  (is (= previous points))
+                  (vswap! previous-points assoc mode points)))))
           (finally
             (#'scene/dispose-preview view)
             (test-util/close-tab! project app-view path)))))))

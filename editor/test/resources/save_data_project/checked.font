@@ -1,6 +1,8 @@
 font: "/builtins/fonts/vera_mo_bd.ttf"
-material: "/builtins/fonts/font-df.material"
+material: "/builtins/fonts/font.material"
 size: 32
+vector_font_mode: VECTOR_FONT_MODE_BITMAP
+render_mode: MODE_MULTI_LAYER
 antialias: 0
 alpha: 0.9
 outline_alpha: 0.8

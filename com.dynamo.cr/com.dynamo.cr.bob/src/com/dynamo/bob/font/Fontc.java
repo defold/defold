@@ -136,7 +136,7 @@ public class Fontc {
         }
 
         // These properties affect loading or drawing, not the baked glyph data.
-        builder.clearMaterial().clearSdfMaterial().clearStyles().clearRuntime()
+        builder.clearMaterial().clearStyles().clearRuntime()
             .clearAlpha().clearShadowX().clearShadowY();
         // Preserve glyph-bank sharing: only Vector effect enablement contributes,
         // not opacity or position. Shadow offsets can enable a zero-blur shadow.
@@ -228,16 +228,6 @@ public class Fontc {
             characters = new ArrayList<Integer>(sorted);
         }
         return characters;
-    }
-
-    /** Migrates the built-in bitmap materials when a scalable font becomes SDF.
-     * Custom materials retain their authored paths. */
-    public static String getSdfMaterial(String material) {
-        if ("/builtins/fonts/font.material".equals(material))
-            return "/builtins/fonts/font-df.material";
-        if ("/builtins/fonts/label.material".equals(material))
-            return "/builtins/fonts/label-df.material";
-        return material;
     }
 
     private void buildBMFont(InputStream fontStream) throws IOException {

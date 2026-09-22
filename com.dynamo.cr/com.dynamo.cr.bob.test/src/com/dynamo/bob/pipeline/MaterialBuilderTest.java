@@ -115,22 +115,22 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertFalse(nativeShader.getShadersList().stream().anyMatch(
                 shader -> shader.getLanguage() == Graphics.ShaderDesc.Language.LANGUAGE_GLES_SM100));
 
-        addFile("/vector-compat.fp", String.format(fragmentShader, "curve_texture_packed", "curve_texture_packed"));
-        List<com.google.protobuf.Message> compatOutputs = build("/vector-compat.material", """
-                name: "vector-compat"
+        addFile("/bitmap.fp", String.format(fragmentShader, "texture_sampler", "texture_sampler"));
+        List<com.google.protobuf.Message> bitmapOutputs = build("/bitmap.material", """
+                name: "bitmap"
                 vertex_program: "/vector.vp"
-                fragment_program: "/vector-compat.fp"
+                fragment_program: "/bitmap.fp"
                 samplers {
-                  name: "curve_texture_packed"
+                  name: "texture_sampler"
                   wrap_u: WRAP_MODE_CLAMP_TO_EDGE
                   wrap_v: WRAP_MODE_CLAMP_TO_EDGE
                   filter_min: FILTER_MODE_MIN_NEAREST
                   filter_mag: FILTER_MODE_MAG_NEAREST
                 }
                 """);
-        Graphics.ShaderDesc compatShader = getMessage(compatOutputs, Graphics.ShaderDesc.class);
-        assertNotNull(compatShader);
-        assertTrue(compatShader.getShadersList().stream().anyMatch(
+        Graphics.ShaderDesc bitmapShader = getMessage(bitmapOutputs, Graphics.ShaderDesc.class);
+        assertNotNull(bitmapShader);
+        assertTrue(bitmapShader.getShadersList().stream().anyMatch(
                 shader -> shader.getLanguage() == Graphics.ShaderDesc.Language.LANGUAGE_GLES_SM100));
     }
 

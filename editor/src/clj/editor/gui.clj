@@ -2289,15 +2289,13 @@
                                                                       h (second aabb-size)]
                                                                   [x (+ y (- h (:max-ascent text-layout)))]))))))
   (output own-build-errors g/Any
-          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node font font-data outline outline-alpha shadow shadow-alpha ^:try markup-error costly-gui-scene-info layout->prop->value]
+          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node font ^:try markup-error costly-gui-scene-info layout->prop->value]
             (let [font-names (:font-names basic-gui-scene-info)
                   font-datas (:font-datas costly-gui-scene-info)]
               (g/package-errors
                 _node-id
                 build-errors-visual-node
                 (when (g/error-fatal? markup-error) markup-error)
-                (font/vector-color-effect-error _node-id :outline (:font-map font-data) (assoc outline 3 outline-alpha))
-                (font/vector-color-effect-error _node-id :shadow (:font-map font-data) (assoc shadow 3 shadow-alpha))
                 (mapv (fn [props]
                         (font/style-error _node-id
                                           (:font-map (get font-datas (:font props)))
