@@ -39,8 +39,8 @@ ivec2 LoadBand(ivec2 location)
 uniform highp utexture2D band_texture;
 ivec2 LoadBand(ivec2 location)
 {
-    uint packed = texelFetch(band_texture, location, 0).x;
-    return ivec2(packed & 65535U, packed >> 16U);
+    uint band_data = texelFetch(band_texture, location, 0).x;
+    return ivec2(band_data & 65535U, band_data >> 16U);
 }
 #endif
 
