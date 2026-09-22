@@ -209,7 +209,6 @@
         (.glActiveTexture ^GL2 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.bind ...) and (texture-lifecycle->texture ...)
         (let [texture (texture-lifecycle->texture texture-lifecycle gl texture-unit-index)
               gl-target (.getTarget texture)]
-          (.enable texture gl)                                 ; Enable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
           (.bind texture gl)                                   ; Bind our texture to the active texture unit. Used for subsequent render calls. Also implicit parameter to (apply-params! ...)
           (apply-params! gl gl-target params has-mipmaps)))))) ; Apply filtering settings to the bound texture
 
@@ -223,9 +222,10 @@
         (.glActiveTexture ^GL2 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.glBindTexture ...) and (texture-lifecycle->texture ...)
         (let [tex (texture-lifecycle->texture texture-lifecycle gl texture-unit-index)
               tgt (.getTarget tex)]
-          (.glBindTexture ^GL2 gl tgt 0)             ; Re-bind default "no-texture" to the active texture unit
-          (.glActiveTexture ^GL2 gl GL/GL_TEXTURE0)  ; Set TEXTURE0 as the active texture unit in case anything outside of the bind / unbind cycle forgets to call (.glActiveTexture ...)
-          (.disable tex gl))))))                     ; Disable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
+          (.glBindTexture ^GL2 gl tgt 0) ; Re-bind default "no-texture" to the active texture unit.
+          ;; Set TEXTURE0 as the active texture unit in case anything outside of
+          ;; the bind / unbind cycle forgets to call glActiveTexture.
+          (.glActiveTexture ^GL2 gl GL/GL_TEXTURE0))))))
 
 (defn texture-lifecycle? [value]
   (instance? TextureLifecycle value))
@@ -255,14 +255,34 @@
   default-image-texture-params
   {:min-filter gl/linear-mipmap-linear
    :mag-filter gl/linear
-   :wrap-s     gl/clamp
-   :wrap-t     gl/clamp})
+   :wrap-s     gl/clamp-to-edge
+   :wrap-t     gl/clamp-to-edge})
+
+(defn- expand-gray-buffer-to-rgba
+  "Preserves legacy luminance sampling as (L, L, L, 1) without relying on the
+  removed luminance pixel format. CPU expansion also works on pre-GL3 contexts
+  during the transition to the new desktop baseline.
+
+  TODO: Once OpenGL 3.3 is the minimum requirement, replace this expansion with
+  GL_R8/GL_RED textures using an (R, R, R, ONE) texture swizzle."
+  ^ByteBuffer [^Buffer data]
+  (when data
+    (assert (instance? ByteBuffer data))
+    (let [^ByteBuffer source (.duplicate ^ByteBuffer data)
+          ^ByteBuffer target (ByteBuffer/allocateDirect (* 4 (.remaining source)))]
+      (while (.hasRemaining source)
+        (let [luminance (.get source)]
+          (.put target luminance)
+          (.put target luminance)
+          (.put target luminance)
+          (.put target (byte -1))))
+      (.flip target))))
 
 (defn- data-format->internal-format
   ^long [data-format]
   ;; Internal format signifies only color content, not channel order.
   (case data-format
-    :gray GL2/GL_LUMINANCE
+    :gray GL2/GL_RGBA
     :bgr  GL2/GL_RGB
     :abgr GL2/GL_RGBA
     :rgb  GL2/GL_RGB
@@ -274,7 +294,7 @@
   ^long [data-format]
   ;; Pixel format signifies channel order.
   (case data-format
-    :gray GL2/GL_LUMINANCE
+    :gray GL2/GL_RGBA
     :bgr  GL2/GL_BGR
     :abgr GL2/GL_RGBA ;; There is no GL_ABGR, so this is swizzled into ABGR by the GL_UNSIGNED_INT_8_8_8_8 type returned by data-format->type.
     :rgb  GL2/GL_RGB
@@ -303,7 +323,10 @@
   "For internal use only - Use the make-texture-request-data function to
  construct a TextureRequestData instead."
   ^TextureData [^Buffer data data-format width height mipmap]
-  (let [internal-format (data-format->internal-format data-format)
+  (let [data (if (= :gray data-format)
+               (expand-gray-buffer-to-rgba data)
+               data)
+        internal-format (data-format->internal-format data-format)
         pixel-format (data-format->pixel-format data-format)
         type (data-format->type data-format)
         border 0]
@@ -420,7 +443,7 @@
 
 (def format->gl-format
   {Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE
-   GL2/GL_LUMINANCE
+   GL2/GL_RGBA ; The source data is expanded to RGBA before upload.
 
    Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGB
    GL2/GL_RGB
@@ -436,11 +459,15 @@
 (defn- image->mipmap-buffers
   ^"[Ljava.nio.Buffer;" [^Graphics$TextureImage$Image image mip-image-byte-arrays]
   (assert (= (.getMipMapSizeCount image) (.getMipMapOffsetCount image) (count mip-image-byte-arrays)))
-  (let [mipmap-count (.getMipMapSizeCount image)
+  (let [is-luminance (= Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE (.getFormat image))
+        mipmap-count (.getMipMapSizeCount image)
         ^"[Ljava.nio.Buffer;" bufs (make-array Buffer mipmap-count)]
     (loop [i 0]
       (if (< i mipmap-count)
-        (let [buf (ByteBuffer/wrap (nth mip-image-byte-arrays i))]
+        (let [buf (ByteBuffer/wrap (nth mip-image-byte-arrays i))
+              buf (if is-luminance
+                    (expand-gray-buffer-to-rgba buf)
+                    buf)]
           (aset bufs i buf)
           (recur (inc i)))
         bufs))))

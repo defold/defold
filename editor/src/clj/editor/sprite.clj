@@ -619,7 +619,7 @@
 
 (def ^:private default-material-proj-path (protobuf/default Sprite$SpriteDesc :material))
 
-(defn- sanitize-sprite [{:keys [size size-mode slice9 material textures tile-set] :as sprite-desc}]
+(defn- sanitize-sprite [_read-opts _owner-resource {:keys [size size-mode slice9 material textures tile-set] :as sprite-desc}]
   {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.
   (cond-> (dissoc sprite-desc :tile-set)
 
@@ -640,10 +640,9 @@
           (assoc :textures [{:sampler "texture_sampler"
                              :texture tile-set}])))
 
-(defn- load-sprite [project self resource sprite-desc]
+(defn- load-sprite [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id sprite-desc :source-value}]
   {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (g/connect project :exclude-gles-sm100 self :exclude-gles-sm100)

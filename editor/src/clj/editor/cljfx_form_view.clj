@@ -506,11 +506,13 @@
 
 (ui/defc form-choicebox-combo-box-view
   {:compose [{:fx/type fxui/ext-map-event-handler}]}
-  [{:keys [value on-value-changed options to-string show-on-focus map-event-handler]
-    :or {to-string str}}]
+  [{:keys [value on-value-changed options to-string show-on-focus map-event-handler disable]
+    :or {disable false
+         to-string str}}]
   (let [value->label (into {} options)]
     {:fx/type fxui.combo-box/view
      :pref-width normal-field-width
+     :disable disable
      :value value
      :show-on-focus show-on-focus
      :on-value-changed #(map-event-handler (assoc on-value-changed :fx/event %))
@@ -521,13 +523,16 @@
                                              on-value-changed
                                              options
                                              from-string
-                                             to-string]
-                                      :or {to-string str}}]
+                                             to-string
+                                             disable]
+                                      :or {disable false
+                                           to-string str}}]
   (let [value->label (into {} options)
         label->value (set/map-invert value->label)]
     {:fx/type fx.combo-box/lifecycle
      :style-class ["combo-box" "combo-box-base" "cljfx-form-combo-box"]
      :pref-width normal-field-width
+     :disable disable
      :value value
      :on-value-changed on-value-changed
      :converter (DefoldStringConverter.

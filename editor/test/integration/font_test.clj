@@ -615,14 +615,16 @@
 (deftest glyph-generation-survives-save-and-reopen
   (test-util/with-loaded-project
     (let [font-node (test-util/resource-node project "/fonts/vector_implicit_dynamic.font")
-          {:keys [read-fn write-fn]} (resource/resource-type (g/node-value font-node :resource))]
+          owner-resource (g/node-value font-node :resource)
+          read-opts (workspace/make-read-opts (g/now) workspace)
+          {:keys [read-fn write-fn]} (resource/resource-type owner-resource)]
       (doseq [mode [:vector-font-mode-vector :vector-font-mode-sdf]
               runtime [false true]]
         (g/transact {:undoable false}
           [(g/set-property font-node :vector-font-mode mode)
            (g/set-property font-node :runtime runtime)])
         (let [saved (g/node-value font-node :save-value)
-              reopened (read-fn (java.io.StringReader. (write-fn saved)))]
+              reopened (read-fn read-opts owner-resource (java.io.StringReader. (write-fn saved)))]
           (is (= runtime (:runtime saved)))
           (is (= runtime (:runtime reopened))))))))
 
@@ -868,7 +870,7 @@
       (g/transact (mapv #(g/delete-node (:node-id %)) (subvec children 1)))
       (let [saved (g/node-value node :save-value)]
         (is (= [{:name "default"}] (:styles saved)))
-        (is (= ["default"] (mapv :name (:styles (font/sanitize-font saved)))))
+        (is (= ["default"] (mapv :name (:styles (font/sanitize-font {} nil saved)))))
         (is (= 1 (count (FontStyles/compileStyles (protobuf/map->pb Font$FontDesc saved)))))))))
 
 (deftest style-errors-preserve-font-outline

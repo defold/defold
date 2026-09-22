@@ -622,7 +622,9 @@
         (is (not (contains? saved-node :custom-type)))
         (is (str/includes? source "custom_type_name: \"TestCustom\""))
         (is (not (str/includes? source "custom_type:")))))
-    (let [gui-resource-type (get (workspace/get-resource-type-map workspace :editable) "gui")
+    (let [basis (g/now)
+          read-opts (workspace/make-read-opts basis workspace)
+          gui-resource-type (get (workspace/get-resource-type-map workspace :editable) "gui")
           mismatched-node {:type :type-custom
                            :custom-type-name "TestCustom"
                            :custom-type (inc (murmur/hash32 "TestCustom"))
@@ -637,15 +639,16 @@
              (-> (with-open [reader (StringReader.
                                       (format "nodes { type: TYPE_CUSTOM custom_type: %d id: \"custom\" }"
                                               (murmur/hash32 "TestCustom")))]
-                   ((:read-fn gui-resource-type) reader))
+                   ((:read-fn gui-resource-type) read-opts nil reader))
                  (get-in [:nodes 0])
                  (select-keys [:type :custom-type-name :custom-type :id]))))
       (is (thrown-with-msg?
             IllegalStateException
             #"custom_type_name 'TestCustom' resolves to custom_type"
-            (#'gui/sanitize-scene workspace {:nodes [mismatched-node]})))
-      (let [sanitized-node (-> (#'gui/sanitize-scene
-                                 workspace
+            (#'gui/sanitize-gui-scene read-opts nil {:nodes [mismatched-node]})))
+      (let [sanitized-node (-> (#'gui/sanitize-gui-scene
+                                 read-opts
+                                 nil
                                  {:nodes [{:type :type-custom
                                            :custom-type-name "TestCustom"
                                            :id "custom"
@@ -655,7 +658,7 @@
                                :nodes
                                first)]
         (is (not (contains? sanitized-node :custom-properties))))
-      (let [sanitized-node (-> (#'gui/sanitize-scene workspace {:nodes [boxed-node-with-stale-custom-type-name]})
+      (let [sanitized-node (-> (#'gui/sanitize-gui-scene read-opts nil {:nodes [boxed-node-with-stale-custom-type-name]})
                                :nodes
                                first)]
         (is (= {:type :type-box

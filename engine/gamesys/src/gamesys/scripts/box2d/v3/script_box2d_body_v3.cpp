@@ -196,6 +196,13 @@ namespace dmGameSystem
         return luabody->m_Collection;
     }
 
+    dmhash_t GetBodyInstanceId(lua_State* L, int index)
+    {
+        b2BodyId* body = CheckBody(L, index);
+        CollisionComponent* component = (CollisionComponent*)b2Body_GetUserData(*body);
+        return component && component->m_Instance ? dmGameObject::GetIdentifier(component->m_Instance) : 0;
+    }
+
     static b2BodyId* ToBody(lua_State* L, int index)
     {
         B2DLuaBody* luabody = (B2DLuaBody*)dmScript::ToUserType(L, index, TYPE_HASH_BODY);

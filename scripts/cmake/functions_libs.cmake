@@ -9,7 +9,6 @@ endif()
 
 set(DEFOLD_EXACT_WINDOWS_STATIC_LIBS
   basis_encoder
-  basis_encoder_noasan
   basis_transcoder
   crashext
   crashext_null
@@ -144,6 +143,9 @@ function(defold_target_link_libraries target platform)
   set(_SDK_LIBS ${DLIB_UNPARSED_ARGUMENTS})
   set(_LIBS)
   foreach(_lib IN LISTS DLIB_UNPARSED_ARGUMENTS)
+    if(_lib MATCHES "^(basis_encoder|basis_transcoder)$")
+      defold_import_basisu("${_lib}" "${platform}")
+    endif()
     set(_vendor_libs)
     set(_vendor_libs_found OFF)
     if(COMMAND defold_xbox_resolve_library)
@@ -504,6 +506,7 @@ function(defold_add_executable target)
 
   # Forward all remaining args directly to add_executable
   add_executable(${target} ${_sources})
+  defold_validate_android_elf(${target})
 
   if(DEFINED DEFOLD_PLATFORM_EXECUTABLE_SUFFIX)
     set_target_properties(${target} PROPERTIES SUFFIX "${DEFOLD_PLATFORM_EXECUTABLE_SUFFIX}")
@@ -597,6 +600,7 @@ function(defold_add_library target)
 
   # Forward all remaining args directly to add_library
   add_library(${target} ${_sources})
+  defold_validate_android_elf(${target})
 
   if(TARGET defold_sdk)
     get_target_property(_defold_target_type ${target} TYPE)

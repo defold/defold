@@ -524,7 +524,6 @@
 (def clamp-to-border        GL2/GL_CLAMP_TO_BORDER)
 (def mirrored-repeat        GL2/GL_MIRRORED_REPEAT)
 (def repeat                 GL2/GL_REPEAT)
-(def clamp                  GL2/GL_CLAMP)
 (def compare-ref-to-texture GL2/GL_COMPARE_REF_TO_TEXTURE)
 (def none                   GL2/GL_NONE)
 (def nearest                GL2/GL_NEAREST)

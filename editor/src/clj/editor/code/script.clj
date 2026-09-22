@@ -754,13 +754,10 @@
       cat
       (distinct))))
 
-(defn- additional-load-fn [project self _resource]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [code-preprocessors (project/code-preprocessors project evaluation-context)
-          script-intelligence (project/script-intelligence project evaluation-context)]
-      (e/concat
-        (g/connect code-preprocessors :lua-preprocessors self :lua-preprocessors)
-        (g/connect script-intelligence :lua-completions self :script-intelligence-completions)))))
+(defn- additional-load-fn [{:keys [code-preprocessor script-intelligence]} {self :node-id}]
+  (e/concat
+    (g/connect code-preprocessor :lua-preprocessors self :lua-preprocessors)
+    (g/connect script-intelligence :lua-completions self :script-intelligence-completions)))
 
 (defn register-resource-types [workspace]
   (for [def script-defs

@@ -30,9 +30,12 @@
     NSString *fakeText;
 }
 
+@property (nullable, nonatomic, copy) NSDictionary<NSAttributedStringKey, id> *markedTextStyle;
+
 - (void)swapBuffers;
 - (void)setSwapInterval: (int) interval;
 - (void)setCurrentContext;
+- (void)startDisplayLink;
 - (void)invalidateDisplayLink;
 - (void)setupView;
 - (void)teardownView;
