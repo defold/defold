@@ -175,7 +175,20 @@ public class ProtoBuilders {
 
     @ProtoParams(srcClass = RenderTargetDesc.class, messageClass = RenderTargetDesc.class)
     @BuilderParams(name="RenderTarget", inExts=".render_target", outExt=".render_targetc")
-    public static class RenderTargetDescBuilder extends ProtoBuilder<RenderTargetDesc.Builder> {}
+    public static class RenderTargetDescBuilder extends ProtoBuilder<RenderTargetDesc.Builder> {
+        @Override
+        protected RenderTargetDesc.Builder transform(Task task, IResource resource, RenderTargetDesc.Builder messageBuilder) throws CompileExceptionError {
+            switch (messageBuilder.getType()) {
+                case TYPE_2D:
+                case TYPE_CUBEMAP:
+                    return messageBuilder;
+                default:
+                    throw new CompileExceptionError(resource, 0, String.format(
+                            "Render target texture type '%s' is not supported. Only TYPE_2D and TYPE_CUBEMAP are supported.",
+                            messageBuilder.getType()));
+            }
+        }
+    }
 
     @ProtoParams(srcClass = FactoryDesc.class, messageClass = FactoryDesc.class)
     @BuilderParams(name="Factory", inExts=".factory", outExt=".factoryc")

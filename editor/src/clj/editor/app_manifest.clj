@@ -773,7 +773,7 @@
           manifest
           (conj windows :win32)))
 
-(defn- load-app-manifest [_project self _resource]
+(defn- load-app-manifest [_load-opts {self :node-id}]
   (g/expand-ec
     (fn [evaluation-context]
       (let [manifest (g/node-value self :manifest evaluation-context)]

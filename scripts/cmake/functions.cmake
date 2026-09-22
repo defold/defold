@@ -99,6 +99,7 @@ function(defold_create_exported_symbols_file OUT_PATH SYMBOL_LIST)
     unset(DM_EXPORTED_SYMBOL_CALLS)
 endfunction()
 
+include(functions_android)
 include(functions_app)
 include(functions_bullet)
 include(functions_basisu)

@@ -805,10 +805,9 @@
   (g/connect self :group project :collision-groups))
 
 (defn- load-collision-object
-  [project self resource collision-object-desc]
+  [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id collision-object-desc :source-value}]
   {:pre [(map? collision-object-desc)]} ; Physics$CollisionObjectDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)
         resolve-shape-resources (fn [shape]
                                   (cond-> shape
                                           (:mesh-scene shape)
@@ -1159,7 +1158,7 @@
 (node-types/register-node-type-name! HullShape "shape-type-hull")
 (node-types/register-node-type-name! MeshShape "shape-type-mesh")
 
-(defn- sanitize-collision-object [collision-object-desc]
+(defn- sanitize-collision-object [_read-opts _owner-resource collision-object-desc]
   (strip-empty-embedded-collision-shape collision-object-desc))
 
 (defn register-resource-types [workspace]

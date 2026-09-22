@@ -728,6 +728,23 @@
              (lsp/await (lsp/get-lsp))
              ret#))))))
 
+(defn unexpected-graph-query [& _args]
+  (throw (AssertionError. "Graph queries are not allowed from this context.")))
+
+(defmacro with-graph-queries-blocked
+  [mode & body]
+  (case mode
+    :allow-unsafe-basis
+    `(with-redefs [g/make-evaluation-context unexpected-graph-query
+                   g/now unexpected-graph-query]
+       ~@body)
+
+    :disallow-unsafe-basis
+    `(with-redefs [g/make-evaluation-context unexpected-graph-query
+                   g/now unexpected-graph-query
+                   g/unsafe-basis unexpected-graph-query]
+       ~@body)))
+
 (defmacro with-ui-run-later-rebound
   [& forms]
   `(let [laters# (atom [])]
@@ -1901,7 +1918,10 @@
         read-fn (:read-fn resource-type)]
     (if read-fn
       ;; Compare data.
-      (let [disk-value (resource-node/save-value->source-value (read-fn resource) resource-type)
+      (let [basis (g/now)
+            workspace (resource/workspace resource)
+            read-opts (workspace/make-read-opts basis workspace)
+            disk-value (resource-node/save-value->source-value (read-fn read-opts resource resource) resource-type)
             save-value (resource-node/save-value->source-value (:save-value save-data) resource-type)]
         (value-diff-message disk-value save-value))
 
@@ -1921,7 +1941,10 @@
         are-values-equivalent
         (if-not read-fn
           false
-          (let [disk-value (resource-node/save-value->source-value (read-fn resource) resource-type)
+          (let [basis (g/now)
+                workspace (resource/workspace resource)
+                read-opts (workspace/make-read-opts basis workspace)
+                disk-value (resource-node/save-value->source-value (read-fn read-opts resource resource) resource-type)
                 save-value (resource-node/save-value->source-value (:save-value save-data) resource-type)]
             ;; We have a read-fn, compare data.
             (check-value-equivalence! disk-value save-value message)))]
