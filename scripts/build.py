@@ -1163,6 +1163,8 @@ class Configuration(object):
         if not os.path.exists(proto_path):
             os.makedirs(proto_path)
 
+        self.build_ext()
+
     def get_local_or_remote_file(self, path):
         if os.path.isdir(self.package_path): # is is a local path?
             if os.path.exists(path):
@@ -3926,8 +3928,7 @@ if __name__ == '__main__':
 Commands:
 distclean        - Removes DYNAMO_HOME and engine/external build caches
 clean            - Remove generated engine build outputs without removing DYNAMO_HOME
-install_ext      - Install external packages
-build_ext        - Build and install source dependencies with CMake
+install_ext      - Install prepackaged dependencies, then build and install source dependencies
 build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk

@@ -11,8 +11,8 @@ Make sure you have followed the [setup guide](/README_SETUP.md) to install the t
 The standard workflow when building the engine is the following:
 
 1. [Setup](/README_SETUP.md) environment
-2. [Install](/README_SETUP.md#required-software---platform-sdks) libraries and SDKs
-3. Build source dependencies with `build_ext`
+2. [Install](/README_SETUP.md#required-software---platform-sdks) platform SDKs
+3. Install packages and build source dependencies with `install_ext`
 4. Build the engine
 
 When working on a new feature or fixing a bug you start by first building the engine once as described above. You then proceed to develop your feature or fix the bug and rebuild and test changes until satisfied. When you do a rebuild you can speed things up by only building the parts that have changed.
@@ -35,12 +35,11 @@ $ ./scripts/build.py shell          # creates the shell. No need for "--platform
 
 Once per platform to be built
 ```
-$ ./scripts/build.py install_ext    # extracts packages
-$ ./scripts/build.py check_sdk      # checks that it finds the platform SDK
-$ ./scripts/build.py build_ext      # builds and installs some external libs like Bullet etc
+$ ./scripts/build.py install_ext    # extracts packages, checks the SDK, then builds source dependencies
 ```
 
-Repeat these steps after `distclean`. Re-run `build_ext` when the external
+Set up the platform SDK before running `install_ext`. Repeat the installation
+after `distclean`. Re-run `install_ext` when the external
 sources or toolchain change; ordinary engine rebuilds use the installed libraries.
 
 Build full engine, docs, bob light, tests + running the tests
@@ -63,8 +62,6 @@ Rebuild a single library, and then relink the dmengine executable. No tests are 
 You can also specify the platform explicitly:
 ```
 $ ./scripts/build.py install_ext --platform=arm64-android
-$ ./scripts/build.py check_sdk --platform=arm64-android
-$ ./scripts/build.py build_ext --platform=arm64-android
 $ ./scripts/build.py build_engine --platform=arm64-android
 ```
 
@@ -95,41 +92,7 @@ $ ./scripts/build.py shell
 
 This will start a new shell with all of the required environment variables set (`DYNAMO_HOME` etc).
 
-### STEP 2 - Install packages
-
-Next thing you need to do is to install external packages:
-
-Install for the current host platform (e.g x86_64-win32)
-```sh
-$ ./scripts/build.py install_ext
-```
-
-Or for another target platform
-```sh
-$ ./scripts/build.py install_ext --platform=arm64-android
-```
-
-It is important that you provide the `--platform` if you target a platform other than the host platform.
-With host platform, we mean any of the `x86_64-win32`, `x86_64-macos`, `arm64-macos` or `x86_64-linux`.
-
-When the `install_ext` command has finished you will find the external packages and any downloaded SDKs in `${DYNAMO_HOME}/ext`.
-
-**IMPORTANT!**
-You need to rerun the `install_ext` command for each target platform, as different packages and SDKs are installed.
-
-#### Installing packages
-The `install_ext` command starts by installing external packages, mostly pre-built libraries for each supported platform, found in the `./packages` folder. External packages include Box2D and Protocol Buffers (a.k.a. protobuf). Some libs like Bullet are built from source by `build_ext` instead.
-
-This step also installs some Python dependencies:
-
-* `boto` - For interacting with AWS. Installed from wheel package in `packages/`.
-* `markdown` - Used when generating script API docs. Installed from wheel package in `packages/`.
-* `protobuf` - Installed from wheel package in `packages/`
-* `Pygments` - For use by the `CodeHilite` extension used by `markdown` in `script_doc.py`. Installed from wheel package in `packages/`.
-* `requests` - Installed using pip
-* `pyaml` - Installed using pip
-
-### Step 3 - Installing SDKs (mostly optional)
+### STEP 2 - Install SDKs (when needed)
 
 NOTE: As mentioned above, you may skip this step if your host OS and target OS is in the supported list of platforms that can use the local (host) installations of sdks.
 (Most likely, it is)
@@ -143,7 +106,7 @@ The `install_sdk`command will install SDKs (build tools etc) such as the Android
 
 If you wish to build for any other platform, you will need to install an sdk package where the build system can find it.
 
-Next thing you need to do is to install external packages:
+Install the SDK before running `install_ext`, which needs it to build source dependencies:
 
 ```sh
 $ ./scripts/build.py install_sdk --platform=... --package-path=...
@@ -158,20 +121,45 @@ $ DM_PACKAGES_URL=https://my.url ./scripts/build.py install_sdk --platform=...
 </p></details>
 
 
-### STEP 4 - Build source dependencies
+### STEP 3 - Install dependencies
 
-Once the packages and platform SDK are installed, build the source dependencies:
-
+Install for the current host platform (e.g x86_64-win32):
 ```sh
-$ ./scripts/build.py build_ext --platform=...
+$ ./scripts/build.py install_ext
 ```
 
-This uses the Defold CMake toolchain to build Bullet plus other external libs and install them into
-`${DYNAMO_HOME}/ext`. Run it for each target platform before building the engine
-or packaging a local platform SDK. Repeat it after `distclean` or changes to
-the external sources or toolchain. Subsequent calls reuse the CMake build cache.
+Or for another target platform:
+```sh
+$ ./scripts/build.py install_ext --platform=arm64-android
+```
 
-### STEP 5 - Build the engine
+It is important that you provide the `--platform` if you target a platform other than the host platform.
+With host platform, we mean any of the `x86_64-win32`, `x86_64-macos`, `arm64-macos`, `x86_64-linux` or `arm64-linux`.
+
+The `install_ext` command first installs the prepackaged dependencies from `./packages`,
+including Box2D and Protocol Buffers (a.k.a. protobuf). After installing the packages
+and support files, it checks the SDK and builds and installs source
+dependencies with CMake. These include Bullet, Basis Universal, LZ4, and GLFW on iOS.
+Cross-builds build source dependencies for both the host and target platform.
+
+When `install_ext` finishes, the dependencies are installed in `${DYNAMO_HOME}/ext`.
+Run it for each target platform before building the engine or packaging a local
+platform SDK, and repeat it after `distclean`.
+
+Run `install_ext` again when the external sources or toolchain change.
+Subsequent calls reuse the CMake build cache; ordinary engine rebuilds use the
+installed libraries.
+
+This step also installs some Python dependencies:
+
+* `boto` - For interacting with AWS. Installed from wheel package in `packages/`.
+* `markdown` - Used when generating script API docs. Installed from wheel package in `packages/`.
+* `protobuf` - Installed from wheel package in `packages/`
+* `Pygments` - For use by the `CodeHilite` extension used by `markdown` in `script_doc.py`. Installed from wheel package in `packages/`.
+* `requests` - Installed using pip
+* `pyaml` - Installed using pip
+
+### STEP 4 - Build the engine
 
 With the setup and installation done you're ready to build the engine:
 

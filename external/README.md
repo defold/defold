@@ -1,8 +1,8 @@
 # External
 
-`./scripts/build.py build_ext` builds source dependencies
-with the regular Defold CMake toolchain and installs them into
-`tmp/dynamo_home/ext`. Run it after `install_ext`, before the first engine
+`./scripts/build.py install_ext` installs prepackaged dependencies, then builds
+source dependencies with the regular Defold CMake toolchain and installs them into
+`tmp/dynamo_home/ext`. Run it with the platform SDK set up, before the first engine
 build, and whenever these sources or the toolchain change. Use `--platform`
 for cross-compilation; this builds dependencies for the host tools first,
 then for the target platform. Repeated calls reuse each platform's CMake
@@ -40,7 +40,7 @@ the commands below also work before the first `install_ext`.
 
 The **Build Dawn** GitHub Actions workflow builds all four
 platforms and uploads the package archives as artifacts, retained for seven days.
-It uses `build_external --package=dawn`; `build_ext` does not build Dawn.
+It uses `build_external --package=dawn`.
 Pushes to `webgpu-dawn-support` build and commit the packages back to the branch
 after all four platforms succeed. Manual dispatch is also supported once the
 workflow exists on the repository's default branch. Manual runs commit packages
@@ -66,7 +66,7 @@ the library to `ext/lib/arm64-macos/libwebgpu_dawn.a` and the headers to
 `ext/include`. All Dawn packages strip debug information while preserving the
 symbols needed for linking; the libraries in the build directories retain their
 debug information. Repeated package builds reuse downloaded sources and compiled
-objects. `build_ext` does not configure or build Dawn.
+objects.
 
 To build the engine with Dawn on macOS, run this in the same build shell:
 

@@ -269,7 +269,7 @@ def build_engine(channel, platform, args):
                     'x86_64-android'):
         install_sdk = ''
 
-    cmd_args = ('"%s" scripts/build.py distclean %s install_ext check_sdk' % (sys.executable, install_sdk)).split()
+    cmd_args = ('"%s" scripts/build.py distclean %s install_ext' % (sys.executable, install_sdk)).split()
 
     cmd_opts = []
     waf_opts = []
@@ -280,7 +280,7 @@ def build_engine(channel, platform, args):
     if args.verbose:
         cmd_opts.append('--verbose')
 
-    cmd_args.extend(['build_ext', 'build_engine'])
+    cmd_args.append('build_engine')
 
     if channel:
         cmd_opts.append('--channel=%s' % channel)
