@@ -61,6 +61,7 @@ public final class Progress implements IProgress {
                 var label = switch (message) {
                     case Message.Bundling _ -> "Bundling";
                     case Message.BuildingEngine _ -> "Building engine";
+                    case Message.BuildingEngineStage stage -> "Building engine [" + stage.platform() + "] " + stage.label();
                     case Message.CleaningEngine _ -> "Cleaning engine";
                     case Message.DownloadingSymbols _ -> "Downloading symbols";
                     case Message.TranspilingToLua _ -> "Transpiling to Lua";
