@@ -258,7 +258,7 @@ public class ShaderCompilers {
                     }
 
                     if (arrayTextureFallbackRequired) {
-                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult.data), compileOptions.maxPageCount);
+                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult.data), compileOptions.maxPageCount, shaderLanguage);
                         if (variantCompileResult != null && variantCompileResult.arraySamplers.length > 0) {
                             crossCompileResult.data = variantCompileResult.source.getBytes();
                             variantTextureArray = true;

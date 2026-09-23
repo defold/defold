@@ -271,10 +271,10 @@ public class ShaderUtil {
     }
 
     public static class VariantTextureArrayFallback {
-        private static void generateTextureArrayFn(ArrayList<String> buffer, String samplerName, int maxPages, boolean modernTextureLookup) {
+        private static void generateTextureArrayFn(ArrayList<String> buffer, String samplerName, int maxPages, String textureLookup) {
             buffer.add(String.format("vec4 texture2DArray_%s(vec3 dm_texture_array_args) {", samplerName));
             buffer.add("    int page_index = int(dm_texture_array_args.z + 0.5);");
-            String lineFmt = "    %s if (page_index == %d) return " + (modernTextureLookup ? "texture" : "texture2D") + "(%s_%d, dm_texture_array_args.st);";
+            String lineFmt = "    %s if (page_index == %d) return " + textureLookup + "(%s_%d, dm_texture_array_args.st);";
 
             for (int i = 0; i < maxPages; i++) {
                 if (i == 0) {
@@ -297,14 +297,11 @@ public class ShaderUtil {
             return String.format("%s_%d", samplerName, slice);
         }
 
-        public static Common.GLSLCompileResult transform(String shaderSource, int maxPageCount) {
-            return transform(shaderSource, maxPageCount, false);
-        }
-
-        public static Common.GLSLCompileResult transform(String shaderSource, int maxPageCount, boolean modernTextureLookup) {
+        public static Common.GLSLCompileResult transform(String shaderSource, int maxPageCount, ShaderDesc.Language shaderLanguage) {
             // For the texture array fallback variant, we need to convert texture2DArray functions
             // into separate texture samplers. Samplers in arrays (uniform sampler2D my_samplers[4]; does not work on all platforms unfortunately)
             Common.GLSLCompileResult result = new Common.GLSLCompileResult();
+            String textureLookup = isRequired(shaderLanguage) ? "texture2D" : "texture";
 
             ArrayList<String> arraySamplers = new ArrayList<String>();
             ArrayList<String> shaderBody = new ArrayList<>();
@@ -327,7 +324,7 @@ public class ShaderUtil {
                     }
 
                     shaderBody.add("");
-                    generateTextureArrayFn(shaderBody, uniformName, maxPageCount, modernTextureLookup);
+                    generateTextureArrayFn(shaderBody, uniformName, maxPageCount, textureLookup);
                     arraySamplers.add(uniformName);
                 } else {
                     shaderBody.add(line);
@@ -342,7 +339,7 @@ public class ShaderUtil {
             shaderBodyStr        = shaderBodyStr.replaceAll(arrayReplaceTextureRegex, "texture2DArray_$1(");
 
             for (String samplerName : arraySamplers) {
-                String texture2DReplaceTextureRegex = String.format("\\b%s\\s*\\(\\s*%s\\s*,", modernTextureLookup ? "texture" : "texture2D", Pattern.quote(samplerName));
+                String texture2DReplaceTextureRegex = String.format("\\b%s\\s*\\(\\s*%s\\s*,", textureLookup, Pattern.quote(samplerName));
                 String texture2DReplaceTextureReplacement = String.format("texture2DArray_%s(", samplerName);
                 shaderBodyStr = shaderBodyStr.replaceAll(texture2DReplaceTextureRegex,  texture2DReplaceTextureReplacement);
             }

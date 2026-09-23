@@ -32,6 +32,8 @@
       (finally (.delete file)))))
 
 (deftest representative-preview-shaders-test
+  "Built-in and project shaders compile to SM330 without compatibility syntax,
+  while retaining the SM120 attribute and paged-sampler reflection."
   (doseq [path ["shaders/basic-color.vp"
                 "shaders/basic-color.fp"
                 "shaders/basic-texture-paged.vp"
@@ -50,6 +52,7 @@
         (validate-source! path (:transpiled-shader-source core-info))))))
 
 (deftest sm330-explicit-matrix-attributes-test
+  "SM330 preserves explicit attribute locations and reflects matrix attributes."
   (let [info (shader-gen/transpile-shader-source
                "matrix.vp"
                "#version 330\nlayout(location=2) in vec4 position;\nlayout(location=4) in mat4 transform;\nvoid main() { gl_Position = transform * position; }"
@@ -60,6 +63,8 @@
     (validate-source! "matrix.vp" (:transpiled-shader-source info))))
 
 (deftest sm330-binding-metadata-test
+  "SM330 reflection provides attribute locations, paged-sampler mappings, and
+  generated uniform namespaces needed by editor bindings."
   (let [vertex (shader-gen/transpile-shader-source
                  "binding.vp"
                  "#version 140\nin vec4 position;\nuniform uniforms { mat4 view_proj; };\nvoid main() { gl_Position = view_proj * position; }"

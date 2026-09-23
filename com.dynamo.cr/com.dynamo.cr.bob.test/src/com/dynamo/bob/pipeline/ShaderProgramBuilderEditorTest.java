@@ -18,7 +18,10 @@ import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class ShaderProgramBuilderEditorTest {
     private static final String VERTEX = """
@@ -40,6 +43,7 @@ public class ShaderProgramBuilderEditorTest {
 
     @Test
     public void plainUniformsAndReflection() throws Exception {
+        // Both editor targets emit plain uniforms while preserving attribute and UBO reflection.
         for (ShaderDesc.Language language : new ShaderDesc.Language[]{ShaderDesc.Language.LANGUAGE_GLSL_SM120, ShaderDesc.Language.LANGUAGE_GLSL_SM330}) {
             var result = compile(VERTEX, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, language);
             assertTrue(result.source.contains(language == ShaderDesc.Language.LANGUAGE_GLSL_SM330 ? "#version 330" : "#version 120"));
@@ -62,6 +66,7 @@ public class ShaderProgramBuilderEditorTest {
 
     @Test
     public void runtimeSm330RetainsUniformBlocks() throws Exception {
+        // Runtime SM330 compilation retains UBOs unless plain uniforms are explicitly requested.
         var module = new ShaderCompilePipeline.ShaderModuleDesc();
         module.source = VERTEX;
         module.type = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
@@ -77,6 +82,7 @@ public class ShaderProgramBuilderEditorTest {
 
     @Test
     public void pagedSamplersUseTargetAppropriateLookups() throws Exception {
+        // Paged samplers use separate 2D textures and the lookup syntax of the selected target.
         String fragment = """
             #version 140
             uniform sampler2DArray pages;
@@ -104,7 +110,15 @@ public class ShaderProgramBuilderEditorTest {
 
     @Test
     public void legacyProjectShaderCanTargetSm330() throws Exception {
-        var result = compile("attribute vec4 position;\nuniform mat4 view_proj;\nvoid main() { gl_Position = view_proj * position; }",
+        // Legacy project shader syntax is converted to valid SM330 inputs and plain uniforms.
+        String vertex = """
+            attribute vec4 position;
+            uniform mat4 view_proj;
+            void main() {
+                gl_Position = view_proj * position;
+            }
+            """;
+        var result = compile(vertex,
             ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM330);
         assertTrue(result.source.contains("#version 330"));
         assertTrue(result.source.contains("in vec4 position"));

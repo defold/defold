@@ -46,7 +46,10 @@ public class ShaderProgramBuilderEditor {
             Shaderc.ShaderCompileResult result = pipeline.crossCompile(shaderType, shaderLanguage);
 
             String compiledSource = new String(result.data);
-            ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(compiledSource, maxPageCount, shaderLanguage == Graphics.ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+            // SM330 supports array textures, but editor previews still upload atlas pages as
+            // separate 2D textures. Keep the fallback until texture allocation, layer uploads,
+            // and sampler binding are migrated together to real array textures.
+            ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(compiledSource, maxPageCount, shaderLanguage);
             SPIRVReflector reflector = pipeline.getReflectionData(shaderType);
 
             // If the variant transformation didn't do anything, we pass the original source but without array samplers
@@ -121,7 +124,7 @@ public class ShaderProgramBuilderEditor {
                     boolean variantTextureArray = false;
 
                     if (ShaderUtil.VariantTextureArrayFallback.isRequired(shaderLanguage)) {
-                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(source), maxPageCount);
+                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(source), maxPageCount, shaderLanguage);
                         if (variantCompileResult != null && variantCompileResult.arraySamplers.length > 0) {
                             source = variantCompileResult.source.getBytes();
                             variantTextureArray = true;

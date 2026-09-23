@@ -110,10 +110,6 @@
     (with-drawable-as-current drawable
       (let [^GL gl (.getGL gl-context)]
         (reset! gl-info-atom {:vendor (.glGetString gl GL2/GL_VENDOR)
-                              :requested-profile GLProfile/GL2ES1
-                              :actual-profile (.getName (.getGLProfile gl))
-                              :core-profile (.isGLCoreProfile gl-context)
-                              :preview-shader-language :language-glsl-sm120
                               :renderer (.glGetString gl GL2/GL_RENDERER)
                               :version (.glGetString gl GL2/GL_VERSION)
                               :shading-language-version (.glGetString gl GL2/GL_SHADING_LANGUAGE_VERSION)
