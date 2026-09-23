@@ -2398,7 +2398,8 @@ TEST_F(dmRenderTest, DrawTextPreservesEffectAlphaAboveOne)
         uint8_t m_ExpectedAlpha;
     } cases[] = {
         { 4.0f, 0.25f, 255 },
-        { 4.0f, 0.5f, 254 }, // Preserve the 1.13.1 byte conversion of 2.0.
+        { 4.0f, 0.375f, 255 },
+        { 4.0f, 0.5f, 255 },
         { 2.0f, 0.25f, 127 },
         { 0.5f, 0.5f, 63 },
     };

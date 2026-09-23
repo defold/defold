@@ -729,10 +729,9 @@ static void TestFontImage(const FontImageCase& c)
     if (strstr(c.m_Name, "outline_half") || strstr(c.m_Name, "shadow_half"))
     {
         const bool shadow = strstr(c.m_Name, "shadow_half") != 0;
-        const uint8_t expected_alpha[] = { 255, 254 }; // 2 * 0.5 and legacy conversion of 4 * 0.5.
-        for (uint32_t a = 0; a < DM_ARRAY_SIZE(expected_alpha); ++a)
+        // With font alpha 0.5, all of these component alphas must be opaque.
+        for (uint32_t node_alpha = 2; node_alpha <= 4; ++node_alpha)
         {
-            const uint32_t node_alpha = a == 0 ? 2 : 4;
             FontLayoutVertexConfig alpha_config = config;
             (shadow ? alpha_config.m_ShadowColor : alpha_config.m_OutlineColor).setW((float)node_alpha);
             dmArray<FontGlyphVertex> actual_vertices, expected_vertices;
@@ -745,7 +744,7 @@ static void TestFontImage(const FontImageCase& c)
             {
                 actual_vertices[i].m_Position[0] += geometry.m_OriginX;
                 actual_vertices[i].m_Position[1] += (float)height - geometry.m_OriginTop;
-                (shadow ? expected_vertices[i].m_ShadowColor : expected_vertices[i].m_OutlineColor)[3] = expected_alpha[a];
+                (shadow ? expected_vertices[i].m_ShadowColor : expected_vertices[i].m_OutlineColor)[3] = 255;
             }
             dmArray<uint8_t> captures[2];
             dmGraphics::SetVertexBufferData(buffer, expected_vertices.Size() * sizeof(FontGlyphVertex), expected_vertices.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
@@ -754,7 +753,7 @@ static void TestFontImage(const FontImageCase& c)
             CaptureFontImage(target, texture, buffer, program, actual_vertices.Size(), width, height, captures[1]);
             const int difference = memcmp(captures[0].Begin(), captures[1].Begin(), captures[0].Size());
             if (difference)
-                printf("%s: node alpha %u, font alpha 0.5, expected byte %u\n", c.m_Name, node_alpha, expected_alpha[a]);
+                printf("%s: node alpha %u, font alpha 0.5, expected byte 255\n", c.m_Name, node_alpha);
             EXPECT_EQ(0, difference);
             for (uint32_t i = 0; i < DM_ARRAY_SIZE(captures); ++i)
             {
