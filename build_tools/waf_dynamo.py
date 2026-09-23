@@ -84,7 +84,7 @@ def platform_supports_feature(platform, feature, data):
     if feature == 'opengles':
         return platform in ['arm64-linux', 'armv7-android', 'arm64-android', 'x86_64-android', 'arm64-ios', 'arm64_sim-ios']
     if feature == 'webgpu':
-        return platform in ['wasm-web', 'wasm_pthread-web']
+        return platform in ['wasm-web', 'wasm_pthread-web', 'arm64-macos', 'x86_64-macos']
     if feature == 'metal':
         return platform in ['x86_64-macos', 'arm64-macos', 'arm64-ios', 'arm64_sim-ios']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
@@ -259,6 +259,8 @@ def platform_graphics_libs_and_symbols(platform):
     elif platform in ('arm64-macos', 'x86_64-macos', 'arm64-nx64'):
         use_opengl = Options.options.with_opengl
         use_vulkan = True
+        if platform in ('arm64-macos', 'x86_64-macos') and Options.options.with_webgpu:
+            use_vulkan = Options.options.with_vulkan
     elif platform in ('arm64-linux'):
         use_opengles = True
         use_vulkan = Options.options.with_vulkan
@@ -290,6 +292,8 @@ def platform_graphics_libs_and_symbols(platform):
 
     if Options.options.with_webgpu and platform_supports_feature(platform, 'webgpu', {}):
         graphics_libs += ['GRAPHICS_WEBGPU']
+        if platform in ['arm64-macos', 'x86_64-macos']:
+            graphics_libs += ['DAWN', 'DMGLFW']
         graphics_lib_symbols.append('GraphicsAdapterWebGPU')
 
     if use_metal:
@@ -2164,6 +2168,12 @@ def detect(conf):
         else:
             Logs.info("record disabled")
             conf.env['STLIB_RECORD'] = 'record_null'
+
+    conf.env['STLIB_DAWN'] = ['webgpu_dawn']
+    conf.env['DEFINES_DAWN'] = ['DM_GRAPHICS_WEBGPU2', 'DM_GRAPHICS_DAWN']
+    if platform in ['x86_64-macos', 'arm64-macos']:
+        conf.env['FRAMEWORK_DAWN'] = ['Metal', 'IOSurface', 'QuartzCore', 'IOKit']
+
     conf.env['STLIB_RECORD_NULL'] = 'record_null'
 
     static_libs(conf, 'GRAPHICS',          ['graphics', 'image', 'graphics_transcoder_basisu', 'basis_transcoder'])
