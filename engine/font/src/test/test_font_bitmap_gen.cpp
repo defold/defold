@@ -668,9 +668,6 @@ static void TestFontImage(const FontImageCase& c)
         ASSERT_EQ(previous_pixels.Size(), pixels.Size());
         ASSERT_NE(0, memcmp(previous_pixels.Begin(), pixels.Begin(), pixels.Size()));
     }
-    dmGraphics::DeleteVertexBuffer(buffer);
-    dmGraphics::DeleteTexture(g_ImageContext, texture);
-    dmGraphics::DeleteRenderTarget(g_ImageContext, target);
     const char* root = g_TestImageDirectory ? g_TestImageDirectory : "build/font-test-images";
 #if defined(FONT_USE_SKRIBIDI)
     const char* layout_name = "full";
@@ -725,6 +722,56 @@ static void TestFontImage(const FontImageCase& c)
             (unsigned long long)dmHashBuffer64(vertices.Begin(), vertices.Size() * sizeof(FontGlyphVertex)));
     ASSERT_EQ(0, fclose(data));
     ++g_TestImagesWritten;
+
+    // Reuse the half-alpha fixtures for component alpha above one. Runtime
+    // queuing is covered in test_render.cpp; these comparisons check the final
+    // style multiplication and rendering with both bitmap and SDF shaders.
+    if (strstr(c.m_Name, "outline_half") || strstr(c.m_Name, "shadow_half"))
+    {
+        const bool shadow = strstr(c.m_Name, "shadow_half") != 0;
+        const uint8_t expected_alpha[] = { 255, 254 }; // 2 * 0.5 and legacy conversion of 4 * 0.5.
+        for (uint32_t a = 0; a < DM_ARRAY_SIZE(expected_alpha); ++a)
+        {
+            const uint32_t node_alpha = a == 0 ? 2 : 4;
+            FontLayoutVertexConfig alpha_config = config;
+            (shadow ? alpha_config.m_ShadowColor : alpha_config.m_OutlineColor).setW((float)node_alpha);
+            dmArray<FontGlyphVertex> actual_vertices, expected_vertices;
+            actual_vertices.SetCapacity(vertices.Size());
+            actual_vertices.SetSize(vertices.Size());
+            expected_vertices.SetCapacity(vertices.Size());
+            expected_vertices.PushArray(vertices.Begin(), vertices.Size());
+            ASSERT_EQ(vertices.Size(), FontCreateLayoutVertices(alpha_config, metrics, actual_vertices.Begin(), actual_vertices.Size()));
+            for (uint32_t i = 0; i < vertices.Size(); ++i)
+            {
+                actual_vertices[i].m_Position[0] += geometry.m_OriginX;
+                actual_vertices[i].m_Position[1] += (float)height - geometry.m_OriginTop;
+                (shadow ? expected_vertices[i].m_ShadowColor : expected_vertices[i].m_OutlineColor)[3] = expected_alpha[a];
+            }
+            dmArray<uint8_t> captures[2];
+            dmGraphics::SetVertexBufferData(buffer, expected_vertices.Size() * sizeof(FontGlyphVertex), expected_vertices.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+            CaptureFontImage(target, texture, buffer, program, expected_vertices.Size(), width, height, captures[0]);
+            dmGraphics::SetVertexBufferData(buffer, actual_vertices.Size() * sizeof(FontGlyphVertex), actual_vertices.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+            CaptureFontImage(target, texture, buffer, program, actual_vertices.Size(), width, height, captures[1]);
+            const int difference = memcmp(captures[0].Begin(), captures[1].Begin(), captures[0].Size());
+            if (difference)
+                printf("%s: node alpha %u, font alpha 0.5, expected byte %u\n", c.m_Name, node_alpha, expected_alpha[a]);
+            EXPECT_EQ(0, difference);
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(captures); ++i)
+            {
+                for (uint32_t p = 0; p < captures[i].Size(); p += 4)
+                {
+                    uint8_t blue = captures[i][p];
+                    captures[i][p] = captures[i][p + 2];
+                    captures[i][p + 2] = blue;
+                }
+                dmSnPrintf(filename, sizeof(filename), "%s/%s_node_alpha_%u_%s.png", directory, c.m_Name, node_alpha, i == 0 ? "expected" : "actual");
+                ASSERT_NE(0, stbi_write_png(filename, width, height, 4, captures[i].Begin(), width * 4));
+            }
+        }
+    }
+    dmGraphics::DeleteVertexBuffer(buffer);
+    dmGraphics::DeleteTexture(g_ImageContext, texture);
+    dmGraphics::DeleteRenderTarget(g_ImageContext, target);
     for (uint32_t i = 0; i < glyphs.Size(); ++i)
         FontFreeGlyph(glyphs[i].m_Font, &glyphs[i].m_Glyph);
     TextLayoutRelease(layout);
