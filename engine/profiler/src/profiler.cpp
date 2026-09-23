@@ -317,6 +317,16 @@ struct ThreadSortPred
 };
 
 
+ProfileResult EndFrame(HProfile profile)
+{
+    if (g_ProfilerCurrentFrame)
+    {
+        DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
+        g_ProfilerCurrentFrame->m_Properties.SetSize(0);
+    }
+    return ProfileFrameEnd(profile);
+}
+
 void RenderProfiler(HProfile profile, dmGraphics::HContext graphics_context, dmRender::HRenderContext render_context, dmRender::HFontMap system_font_map)
 {
     if(gRenderProfile && g_ProfilerCurrentFrame)
@@ -362,8 +372,6 @@ void RenderProfiler(HProfile profile, dmGraphics::HContext graphics_context, dmR
         if (g_ProfilerDumpNextFrame)
             dump_frame = dmProfileRender::DuplicateProfilerFrame(g_ProfilerCurrentFrame);
         g_ProfilerDumpNextFrame = false;
-
-        g_ProfilerCurrentFrame->m_Properties.SetSize(0);
     }
 
     if (dump_frame)

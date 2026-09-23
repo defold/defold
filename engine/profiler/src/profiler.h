@@ -33,6 +33,10 @@ namespace dmProfiler
 {
     void SetUpdateFrequency(uint32_t update_frequency);
     void ToggleProfiler();
+
+    // Clear the previous property snapshot before collecting the next frame.
+    ProfileResult EndFrame(HProfile profile);
+
     void RenderProfiler(HProfile profile, dmGraphics::HContext graphics_context, dmRender::HRenderContext render_context, dmRender::HFontMap system_font_map);
 
     // Tag the currently recorded frame for output to console
