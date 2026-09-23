@@ -448,6 +448,46 @@
             (is (not-any? #{"graphics_metal"} (:libs context)))
             (is (not-any? #{"GraphicsAdapterMetal"} (:symbols context)))))))))
 
+(deftest macos-graphics-overrides-test
+  (let [expected {:metal {}
+                  :open-gl-metal {:libs ["graphics"]
+                                  :symbols ["GraphicsAdapterOpenGL"]
+                                  :frameworks ["OpenGL"]}
+                  :open-gl {:libs ["graphics"]
+                            :symbols ["GraphicsAdapterOpenGL"]
+                            :frameworks ["OpenGL"]
+                            :excludeLibs ["graphics_metal"]
+                            :excludeSymbols ["GraphicsAdapterMetal"]}
+                  :vulkan {:libs ["graphics_vulkan" "platform_vulkan" "MoltenVK"]
+                           :symbols ["GraphicsAdapterVulkan"]
+                           :excludeLibs ["platform" "graphics_metal"]
+                           :excludeSymbols ["GraphicsAdapterMetal"]}
+                  :open-gl-vulkan {:libs ["graphics" "graphics_vulkan" "platform_vulkan" "MoltenVK"]
+                                   :symbols ["GraphicsAdapterOpenGL" "GraphicsAdapterVulkan"]
+                                   :frameworks ["OpenGL"]
+                                   :excludeLibs ["platform" "graphics_metal"]
+                                   :excludeSymbols ["GraphicsAdapterMetal"]}}
+        legacy-setting (app-manifest/make-choice-setting
+                         :open-gl (concat app-manifest/open-gl-osx-toggles app-manifest/exclude-metal-osx-toggles app-manifest/exclude-vulkan-osx-toggles)
+                         :metal (concat app-manifest/metal-osx-toggles app-manifest/exclude-open-gl-osx-toggles app-manifest/exclude-vulkan-osx-toggles)
+                         :vulkan (concat app-manifest/explicit-vulkan-osx-toggles app-manifest/exclude-open-gl-osx-toggles app-manifest/exclude-metal-osx-toggles)
+                         :open-gl-metal (concat app-manifest/open-gl-osx-toggles app-manifest/metal-osx-toggles app-manifest/exclude-vulkan-osx-toggles)
+                         :open-gl-vulkan (concat app-manifest/open-gl-osx-toggles app-manifest/explicit-vulkan-osx-toggles app-manifest/exclude-metal-osx-toggles)
+                         :unused)]
+    (doseq [source-setting [legacy-setting app-manifest/graphics-setting-osx]
+            from apple-graphics-selections
+            to apple-graphics-selections]
+      (let [original (app-manifest/set-setting-value {} source-setting from)
+            original (assoc-in original [:platforms :arm64-osx :context :linkFlags] ["custom-link-flag"])
+            manifest (app-manifest/set-setting-value original app-manifest/graphics-setting-osx to)]
+        (is (= from (app-manifest/get-setting-value original app-manifest/graphics-setting-osx)))
+        (is (= to (app-manifest/get-setting-value manifest app-manifest/graphics-setting-osx)))
+        (is (= ["custom-link-flag"] (get-in manifest [:platforms :arm64-osx :context :linkFlags])))
+        (doseq [platform app-manifest/macos]
+          (is (= (get expected to)
+                 (into {} (filter (comp seq val))
+                       (dissoc (get-in manifest [:platforms platform :context]) :linkFlags)))))))))
+
 (deftest ios-graphics-setting-test
   (testing "iOS supports every OpenGL/Metal/Vulkan selection"
     (doseq [selection apple-graphics-selections]
