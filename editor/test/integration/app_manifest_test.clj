@@ -61,9 +61,41 @@
           (is (false? (:dirty save-data)))
           (is (= migrated-content (resource-node/save-data-content save-data))))))))
 
+(deftest legacy-macos-vulkan-load-migration-test
+  (doseq [[filename selection] [["vulkan.appmanifest" :vulkan]
+                                ["vulkan_and_opengl_osx.appmanifest" :open-gl-vulkan]]]
+    (let [migrated-content
+          (test-util/with-loaded-project
+            (let [node (test-util/resource-node project (str "/app_manifest/" filename))
+                  manifest (g/node-value node :manifest)
+                  save-data (g/node-value node :save-data)
+                  original (yaml/load (slurp (:resource save-data)) keyword)]
+              (doseq [platform app-manifest/macos]
+                (is (not-any? #{"platform"} (get-in original [:platforms platform :context :excludeLibs])))
+                (is (some #{"platform"} (get-in manifest [:platforms platform :context :excludeLibs]))))
+              (is (= selection (app-manifest/get-setting-value manifest app-manifest/graphics-setting-osx)))
+              (is (true? (:dirty save-data)))
+              (is (= manifest (-> original
+                                  (#'app-manifest/migrate-windows-library-names)
+                                  (#'app-manifest/migrate-macos-vulkan-platform))))
+              (resource-node/save-data-content save-data)))]
+      (test-util/with-temp-project-content
+        {"/current.appmanifest" (data/string->lines migrated-content)}
+        (let [node (test-util/resource-node project "/current.appmanifest")
+              save-data (g/node-value node :save-data)]
+          (is (false? (:dirty save-data)))
+          (is (= selection (g/node-value node :graphics-osx)))
+          (is (= migrated-content (resource-node/save-data-content save-data)))))))
+  (doseq [manifest [{} {:platforms {:osx {:context {:libs ["graphics_metal"]}}}}
+                   {:platforms {:osx {:context {:libs ["platform_vulkan"] :excludeLibs ["platform_vulkan"]}}}}
+                   {:platforms {:osx {:context {:libs ["platform_vulkan"] :excludeLibs "invalid"}}}}]]
+    (is (= manifest (#'app-manifest/migrate-macos-vulkan-platform manifest)))))
+
 (deftest unchanged-app-manifest-load-test
   (test-util/with-temp-project-content
-    {"/current.appmanifest"
+    {"/empty.appmanifest" ["# Use engine defaults" "platforms: {}"]
+
+     "/current.appmanifest"
      ["# Preserve comments and formatting"
       "platforms: {win32: {context: {libs: [font_render, dmbedtls, libcustom.lib]}}}"]
 
@@ -72,7 +104,7 @@
 
      "/malformed.appmanifest"
      ["platforms: {win32: {context: {libs: libmbedtls.lib}}, x86-win32: null, x86_64-win32: {context: {libs: [null, 42, libcustom.lib]}}}"]}
-    (doseq [proj-path ["/current.appmanifest" "/invalid.appmanifest" "/malformed.appmanifest"]]
+    (doseq [proj-path ["/empty.appmanifest" "/current.appmanifest" "/invalid.appmanifest" "/malformed.appmanifest"]]
       (let [manifest-node (test-util/resource-node project proj-path)
             save-data (g/node-value manifest-node :save-data)]
         (is (false? (:dirty save-data)))

@@ -247,6 +247,33 @@ public class ExtenderUtilTest {
 
     @SuppressWarnings("unchecked")
     @Test
+    public void testLegacyMacOSVulkanPlatformMigratesBeforeUpload() throws Exception {
+        project.getProjectProperties().putStringValue("osx", "privacymanifest", "");
+        for (String platform : List.of("osx", "arm64-osx", "x86_64-osx")) {
+            for (String key : List.of("libs", "engineLibs")) {
+                String yaml = "platforms:\n  " + platform + ":\n    context:\n"
+                        + "      " + key + ": [graphics_vulkan, platform_vulkan, MoltenVK, custom]\n"
+                        + "      excludeLibs: [graphics_metal]\n";
+                byte[] original = yaml.getBytes(StandardCharsets.UTF_8);
+                createFile(fileSystem, "legacy-macos.appmanifest", original);
+                project.getProjectProperties().putStringValue("native_extension", "app_manifest", "legacy-macos.appmanifest");
+                byte[] migrated = findResource(ExtenderUtil.getExtensionSources(project, Platform.Arm64MacOS, null),
+                        ExtenderUtil.appManifestPath).getContent();
+                Map<String, Object> expected = new Yaml().load(yaml);
+                Map<String, Object> platforms = (Map<String, Object>) expected.get("platforms");
+                Map<String, Object> context = (Map<String, Object>) ((Map<String, Object>) platforms.get(platform)).get("context");
+                context.put("excludeLibs", List.of("graphics_metal", "platform"));
+                assertEquals(expected, new Yaml().load(new String(migrated, StandardCharsets.UTF_8)));
+                assertArrayEquals(original, project.getResource("legacy-macos.appmanifest").getContent());
+                createFile(fileSystem, "legacy-macos.appmanifest", migrated);
+                assertArrayEquals(migrated, findResource(ExtenderUtil.getExtensionSources(project, Platform.Arm64MacOS, null),
+                        ExtenderUtil.appManifestPath).getContent());
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
     public void testLegacyWindowsAppManifestLibrariesAreMigratedBeforeUpload() throws Exception {
         String libraries = "[libphysics, libphysics_3d.lib, record_null.lib, "
                 + "librender_font_default, librender_font_default.lib, render_font_default.lib, render_font_default, "
@@ -304,6 +331,10 @@ public class ExtenderUtilTest {
                 "# Preserve comments and formatting\nplatforms: {win32: {context: {libs: [font_render, dmbedtls, libcustom.lib]}}}\n",
                 "platforms: [",
                 "platforms: {win32: {context: {libs: libmbedtls.lib}}, x86-win32: null, x86_64-win32: {context: {libs: [null, 42, libcustom.lib]}}}",
+                "platforms: {osx: {context: {libs: [platform_vulkan], excludeLibs: [platform_vulkan]}}}",
+                "platforms: {osx: {context: {libs: [graphics_metal]}}}",
+                "platforms: {osx: {context: {libs: [platform_vulkan], excludeLibs: invalid}}}",
+                "platforms: {arm64-ios: {context: {libs: [platform_vulkan]}}}",
                 "", "null", "[]", "not a map", "platforms: null")) {
             byte[] originalContent = manifestYaml.getBytes(StandardCharsets.UTF_8);
             createFile(fileSystem, "unchanged.appmanifest", originalContent);

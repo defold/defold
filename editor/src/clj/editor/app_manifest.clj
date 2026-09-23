@@ -773,12 +773,30 @@
           manifest
           (conj windows :win32)))
 
+(defn- migrate-macos-vulkan-platform [manifest]
+  ;; platform_vulkan replaces the new default platform library. Keep old
+  ;; explicit Vulkan manifests recognizable and link only the selected variant.
+  (reduce (fn [manifest platform]
+            (let [context (get-in-guarded manifest :platforms map? platform map? :context map?)
+                  excluded (:excludeLibs context)
+                  libraries (mapcat #(let [v (get context %)] (when (vector? v) v)) [:libs :engineLibs])]
+              (if (and (or (nil? excluded) (vector? excluded))
+                       (some #{"platform_vulkan"} libraries)
+                       (not-any? #{"platform" "platform_vulkan"} excluded))
+                (assoc-in manifest [:platforms platform :context :excludeLibs]
+                          (conj (or excluded []) "platform"))
+                manifest)))
+          manifest
+          (conj macos :osx)))
+
 (defn- load-app-manifest [_load-opts {self :node-id}]
   (g/expand-ec
     (fn [evaluation-context]
       (let [manifest (g/node-value self :manifest evaluation-context)]
         (when-not (g/error? manifest)
-          (let [migrated-manifest (migrate-windows-library-names manifest)]
+          (let [migrated-manifest (-> manifest
+                                      migrate-windows-library-names
+                                      migrate-macos-vulkan-platform)]
             (when-not (= manifest migrated-manifest)
               ;; Prevent the project loader from caching the original lines as save-data.
               (g/flag-nodes-as-migrated! evaluation-context [self])
