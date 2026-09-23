@@ -158,11 +158,11 @@
   (let [{:keys [changes user-data applied-user-data]} @(ec/state evaluation-context)
         user-data-changed (not (identical? user-data applied-user-data))
         ctx (cond-> (reduce (fn [ctx change]
-                             (cond-> (-> (perform-change ctx change)
-                                         (update :completed-action-count inc))
-                               (:realized-changes ctx) (update :realized-changes conj change)))
-                           ctx
-                           changes)
+                              (cond-> (-> (perform-change ctx change)
+                                          (update :completed-action-count inc))
+                                (:realized-changes ctx) (update :realized-changes conj change)))
+                            ctx
+                            changes)
               user-data-changed
               (update :evaluation-user-data #(merge-with merge % user-data)))]
     (when (or (coll/not-empty changes) user-data-changed)
@@ -422,7 +422,7 @@
 (defn- realize-override
   [ctx undoable-changes root-id traverse-fn init-props-fn init-fn properties-by-node-id]
   (let [evaluation-context (make-evaluation-context ctx)
-        _ (materialize-node! evaluation-context root-id)
+        _ (materialize-node! root-id evaluation-context)
         ctx (apply-evaluation-context ctx evaluation-context)
         basis (:basis ctx)
         node-ids (ig/pre-traverse basis [root-id] traverse-fn)
@@ -770,7 +770,7 @@
   [ctx undoable-changes node property-label old-value new-value]
   (let [node-id (gt/node-id node)
         node-type (gt/node-type node)
-        property-assigned (contains? (if (in/shell-node? node)
+        property-assigned (contains? (if (in/unmaterialized-shell-node? node)
                                        node
                                        (gt/assigned-properties node))
                                      property-label)
@@ -1083,7 +1083,7 @@
     (-> (perform-and-conj-change ctx undoable-changes (->AddNodesTXC added-nodes introduced-node-id->pkid->override-node-id))
         (coll/reduce=> added-nodes
           (fn [[ctx undoable-changes] added-node]
-            (if (in/shell-node? added-node)
+            (if (in/unmaterialized-shell-node? added-node)
               (pair ctx undoable-changes)
               (realize-defaults ctx undoable-changes added-node)))))
     (pair ctx undoable-changes)))
@@ -1775,11 +1775,12 @@
   (step_type [_] :tx-step/materialize-shell)
   (metrics_key [_] node-id)
   (realize [_ ctx undoable-changes]
-    (let [node (ig/node-by-id-at (:basis ctx) node-id)]
-      (if-let [materialize-fn (:_materialize-fn node)]
+    (let [node (ig/node-by-id-at (:basis ctx) node-id)
+          materialize-fn (:_materialize-fn node)]
+      (if-not materialize-fn
+        (pair ctx undoable-changes)
         (let [[ctx undoable-changes] (perform-and-conj-change ctx undoable-changes (->MaterializeShellTXC node-id materialize-fn))]
-          (realize-defaults ctx undoable-changes (ig/node-by-id-at (:basis ctx) node-id)))
-        (pair ctx undoable-changes)))))
+          (realize-defaults ctx undoable-changes (ig/node-by-id-at (:basis ctx) node-id)))))))
 
 (defn materialize-shell [node-id]
   [(->MaterializeShellTXS node-id)])
@@ -1809,7 +1810,7 @@
           (swap! local-temp #(reduce dissoc % outputs-modified)))
         result))))
 
-(defn materialize-node! [evaluation-context node-id]
+(defn materialize-node! [node-id evaluation-context]
   ;; Dependency tracing skips output functions and caches placeholder values.
   ;; Loading needs actual values even when triggered by such a traversal.
   (let [evaluation-context (cond-> evaluation-context
@@ -1841,8 +1842,8 @@
               (throw error))))))))
 
 (defn materialized-node-ids [changes]
-  (into #{}
-        (keep (fn [change]
-                (when (instance? MaterializeShellTXC change)
-                  (.-node-id ^MaterializeShellTXC change))))
-        changes))
+  ;; TODO(partial-project-loading): Why is it a set? Aren't these naturally distinct? Could we return an eduction instead?
+  (coll/into-> changes #{}
+    (keep (fn [change]
+            (when (instance? MaterializeShellTXC change)
+              (.-node-id ^MaterializeShellTXC change))))))

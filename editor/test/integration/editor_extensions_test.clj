@@ -273,15 +273,16 @@
     (let [node-id (first (g/take-node-ids 1))
           loads (atom 0)
           _ (g/transact
-              (g/add-node (g/construct-shell TestNode
-                            (fn [self _evaluation-context]
-                              (swap! loads inc)
-                              (g/set-property self :value 17))
-                            {:_node-id node-id})))
+              (g/add-node
+                (g/construct-shell TestNode
+                  (fn [self _evaluation-context]
+                    (swap! loads inc)
+                    (g/set-property self :value 17))
+                  {:_node-id node-id})))
           rt (rt/make :env {"get_value" (rt/lua-fn [{:keys [evaluation-context]}]
-                                         (rt/->lua (g/node-value node-id :value evaluation-context)))
-                           "refresh" (rt/suspendable-lua-fn [_]
-                                       (rt/and-refresh-context true))})
+                                          (rt/->lua (g/node-value node-id :value evaluation-context)))
+                            "refresh" (rt/suspendable-lua-fn [_]
+                                        (rt/and-refresh-context true))})
           lua-fn (->> (rt/read "return function()
                                   local before = get_value()
                                   refresh()
@@ -2726,7 +2727,7 @@ localization.message('progress.loading-resource', {resource = message}) => Loadi
             (ui/run-now
               (g/transact
                 {:undoable false}
-                (concat
+                (e/concat
                   (g/add-node (apply g/construct view-node-type :_node-id view-node view-node-args))
                   (view/connect-resource-node view-node resource-node)
                   (g/set-property app-view :active-view view-node))))

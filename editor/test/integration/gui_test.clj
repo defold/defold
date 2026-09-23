@@ -347,7 +347,8 @@
                              (gui/prop-unique-id-error _node-id :name name name-counts "Name"))))
   (property test-gui-resource resource/Resource
             (set (fn [evaluation-context self old-value new-value]
-                   (project/resource-setter evaluation-context self old-value new-value
+                   (project/resource-setter
+                     evaluation-context self old-value new-value
                      [:resource :test-gui-resource-resource])))
             (value (gu/passthrough test-gui-resource-resource))
             (dynamic error (g/fnk [_node-id test-gui-resource]

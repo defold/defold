@@ -48,14 +48,16 @@
 (deftest lazy-loaded-resources-tracked-after-materialization
   (test-util/with-loaded-project "test/resources/reload_unchanged_project"
     (let [editable-lazy-loaded-file-proj-paths
-          (into (sorted-set)
-                (comp (filter resource/editable?)
-                      (filter #(:lazy-loaded (resource/resource-type %)))
-                      (map resource/proj-path))
-                (all-file-resources workspace))
+          (coll/into-> (all-file-resources workspace) (sorted-set)
+            (filter resource/editable?)
+            (filter #(:lazy-loaded (resource/resource-type %)))
+            (map resource/proj-path))
 
-          tracked-proj-paths (fn tracked-proj-paths []
-                              (into #{} (map resource/proj-path) (save-tracked-resources project)))]
+          tracked-proj-paths
+          (fn tracked-proj-paths []
+            (coll/into-> (save-tracked-resources project) #{}
+              (map resource/proj-path)))]
+
       (g/node-value project :save-data)
       (is (coll/empty? (set/intersection editable-lazy-loaded-file-proj-paths (tracked-proj-paths))))
       (doseq [proj-path editable-lazy-loaded-file-proj-paths]

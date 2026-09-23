@@ -166,8 +166,7 @@
     evaluation-context    the evaluation context"
   [workspace node-id evaluation-context]
   (g/materialize-node! node-id evaluation-context)
-  (let [basis (:basis evaluation-context)
-        current-state (workspace/node-attachments basis workspace)]
+  (let [current-state (workspace/node-attachments (:basis evaluation-context) workspace)]
     (reify IReduceInit
       (reduce [_ rf init]
         (loop [node-id node-id

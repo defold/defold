@@ -432,13 +432,7 @@
 (defn materialize-node!
   "Materializes a shell before inspecting its structure in evaluation-context."
   [node-id evaluation-context]
-  (it/materialize-node! evaluation-context node-id))
-
-(defn transact-in-evaluation-context!
-  "Applies transaction steps to an evaluation context, retaining all realized
-  changes for update-system-from-evaluation-context! without adding undo."
-  [evaluation-context tx-data]
-  (it/transact-in-evaluation-context! evaluation-context tx-data))
+  (it/materialize-node! node-id evaluation-context))
 
 (defn non-undoable
   "Marks a sequence of transaction steps so its effects are applied, but its

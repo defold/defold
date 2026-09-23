@@ -465,10 +465,11 @@
 (defn materialize-project! [project]
   ;; Structural tests need a populated graph before taking basis snapshots.
   (g/with-auto-evaluation-context evaluation-context
-    (let [node-ids (into []
-                        (keep (fn [[node-id resource]]
-                                (when (resource/loaded? resource) node-id)))
-                        (g/node-value project :node-id+resources evaluation-context))]
+    (let [node-id+resources (g/node-value project :node-id+resources evaluation-context)
+          node-ids (coll/into-> node-id+resources []
+                     (keep (fn [[node-id resource]]
+                             (when (resource/loaded? resource)
+                               node-id))))]
       (doseq [node-id node-ids]
         (g/materialize-node! node-id evaluation-context))
       (doseq [node-id node-ids]
@@ -713,7 +714,7 @@
     `(let [options# ~options]
        (binding [log/*logging-suppressed* (or log/*logging-suppressed* (:logging-suppressed options#))]
          (test-support/with-clean-system {:cache-size ~system-cache-size
-                                         :cache-retain? project/cache-retain?}
+                                          :cache-retain? project/cache-retain?}
            (let [~'workspace (setup-scratch-workspace! ~project-path)]
              (fetch-libraries! ~'workspace)
              (let [~'project (setup-project! ~'workspace)

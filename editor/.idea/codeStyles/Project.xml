@@ -19,6 +19,7 @@
           <entry key="dev/run-with-progress" value="-1" />
           <entry key="dev/run-with-terminal-progress" value="-1" />
           <entry key="dynamo.graph/construct" value="-1" />
+          <entry key="dynamo.graph/construct-shell" value="-1" />
           <entry key="dynamo.graph/let-ec" value="-1" />
           <entry key="dynamo.graph/make-node" value="-1" />
           <entry key="dynamo.graph/make-node!" value="-1" />
@@ -47,6 +48,11 @@
           <entry key="editor.file-test/with-temp-dir" value="-1" />
           <entry key="editor.file-test/with-temp-dir!" value="-1" />
           <entry key="editor.fs/maybe-silently" value="-1" />
+          <entry key="editor.future/catch" value="-1" />
+          <entry key="editor.future/complete!" value="-1" />
+          <entry key="editor.future/fail!" value="-1" />
+          <entry key="editor.future/then" value="-1" />
+          <entry key="editor.future/then-async" value="-1" />
           <entry key="editor.fxui/defc" value="-1" />
           <entry key="editor.git-test/with-git" value="-1" />
           <entry key="editor.gl.shader/defshader" value="-1" />
