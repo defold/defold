@@ -288,11 +288,11 @@
              :owner-resource resource
              :resource resource
              :resource-type resource-type}
-            read-error (assoc :read-error read-error)
-            source-value (assoc :source-value source-value)
-            disk-sha256 (assoc :disk-sha256 disk-sha256)
-            dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths)
-            prerequisite-proj-paths (assoc :prerequisite-proj-paths prerequisite-proj-paths))))
+      read-error (assoc :read-error read-error)
+      source-value (assoc :source-value source-value)
+      disk-sha256 (assoc :disk-sha256 disk-sha256)
+      dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths)
+      prerequisite-proj-paths (assoc :prerequisite-proj-paths prerequisite-proj-paths))))
 
 (defn- sort-node-ids-for-loading-impl
   ([node-ids in-progress queue queued batch node-id->dependency-node-ids]
@@ -713,14 +713,14 @@
            render-progress! progress/null-render-progress!}
       :as read-nodes-opts}]
   {:pre [(coll/every? #{:evaluation-context
-                       :force-read
-                       :old-node-id->dependency-proj-paths
-                       :old-node-id->old-node-state
-                       :old-node-ids-by-proj-path
-                       :read-opts
-                       :render-progress!
-                       :resource-metrics}
-                     (coll/keys read-nodes-opts))]}
+                        :force-read
+                        :old-node-id->dependency-proj-paths
+                        :old-node-id->old-node-state
+                        :old-node-ids-by-proj-path
+                        :read-opts
+                        :render-progress!
+                        :resource-metrics}
+                      (coll/keys read-nodes-opts))]}
   (let [basis (if evaluation-context (:basis evaluation-context) (g/now))
 
         workspace
@@ -1061,13 +1061,16 @@
                           :force-read true
                           :old-node-ids-by-proj-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context))
         {:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state node-load-infos)]
-    (g/merge-evaluation-user-data! evaluation-context
-      (into {} (map (fn [[node-id source-value]] (pair node-id {:source-value source-value}))) node-id+source-value-pairs))
+    (g/merge-evaluation-user-data!
+      evaluation-context
+      (coll/into-> node-id+source-value-pairs {}
+        (map (fn [[node-id source-value]]
+               (pair node-id {:source-value source-value})))))
     (e/concat
       (e/mapcat (fn [[node-id _source-value]] (g/invalidate-output node-id :source-value)) node-id+source-value-pairs)
       (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
       (load-nodes-tx-data load-opts (get-transpiler-tx-data-fn! evaluation-context)
-                         node-load-infos progress/null-render-progress! progress/null-render-progress! nil))))
+                          node-load-infos progress/null-render-progress! progress/null-render-progress! nil))))
 
 (defn make-resource-node-tx-data [project node-type node-id resource]
   {:pre [(g/node-id? project)
@@ -1885,8 +1888,11 @@
                   load-opts (g/tx-cached-value! evaluation-context [:load-opts]
                               (make-load-opts-in-evaluation-context project evaluation-context))
                   [node-id+source-value-pairs load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded (:basis evaluation-context) node-id resource transpiler-tx-data-fn load-opts)]
-              (g/merge-evaluation-user-data! evaluation-context
-                (into {} (map (fn [[node-id source-value]] (pair node-id {:source-value source-value}))) node-id+source-value-pairs))
+              (g/merge-evaluation-user-data!
+                evaluation-context
+                (coll/into-> node-id+source-value-pairs {}
+                  (map (fn [[node-id source-value]]
+                         (pair node-id {:source-value source-value})))))
               load-tx-data))]
 
       {:node-id node-id

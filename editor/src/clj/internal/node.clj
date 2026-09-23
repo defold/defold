@@ -418,9 +418,6 @@
   (override-id [this]
     nil))
 
-(defn shell-node? [node]
-  (some? (:_materialize-fn node)))
-
 (defonce/record ShellNode [_node-id _node-type _materialize-fn]
   gt/Node
   (node-id [_] _node-id)
@@ -430,7 +427,8 @@
     (when (and _materialize-fn
                (not (unjammable? (get (all-properties _node-type) property))))
       (throw (ex-info "Cannot read a property of an unmaterialized shell node without an evaluation-context."
-                      {:node-id _node-id :property property})))
+                      {:node-id _node-id
+                       :property property})))
     (get this property (get (defaults _node-type) property)))
 
   (set-property [this _basis property value]
@@ -450,10 +448,10 @@
   gt/Evaluation
   (produce-value [this label evaluation-context]
     (let [node (ig/node-by-id-at (:basis evaluation-context) _node-id)]
-      (if (and (shell-node? node)
+      (if (and (:_materialize-fn node)
                (not (unjammable? (get-in @_node-type [:output label]))))
-        (do
-          ((:materialize-node! evaluation-context) evaluation-context _node-id)
+        (let [materialize-node! (:materialize-node! evaluation-context)]
+          (materialize-node! _node-id evaluation-context)
           (gt/produce-value (ig/node-by-id-at (:basis evaluation-context) _node-id) label evaluation-context))
         (let [beh (behavior _node-type label)]
           (assert beh (str "No such output, input, or property " label " on " (:name @_node-type)))
@@ -466,6 +464,10 @@
   (set-original [_ _original-id]
     (throw (ex-info "Originals can't be changed for original nodes" {})))
   (override-id [_] nil))
+
+(defn unmaterialized-shell-node? [node]
+  (and (instance? ShellNode node)
+       (some? (:_materialize-fn node))))
 
 ;;; ----------------------------------------
 ;;; Evaluating outputs
@@ -524,7 +526,7 @@
           (assoc :local-temp (atom {}))
 
           (not (contains? options :tx-data-context))
-          (assoc :tx-data-context (atom {})))))
+      (assoc :tx-data-context (atom {})))))
 
 (defn pruned-evaluation-context
   "Selectively filters out cache entries from the supplied evaluation context.
@@ -579,9 +581,9 @@
 (defn node-property-value [node label evaluation-context]
   (validate-evaluation-context evaluation-context)
   (let [node-id (gt/node-id node)]
-    (when (and (shell-node? node)
+    (when (and (unmaterialized-shell-node? node)
                (not (unjammable? (get (all-properties (gt/node-type node)) label))))
-      ((:materialize-node! evaluation-context) evaluation-context node-id))
+      ((:materialize-node! evaluation-context) node-id evaluation-context))
     (let [node (ig/node-by-id-at (:basis evaluation-context) node-id)
           node-type (gt/node-type node)]
       (when-let [behavior (property-behavior node-type label)]

@@ -435,7 +435,8 @@
                                   e)))
                 (future/then-async
                   (fn [result]
-                    (if (refresh-context? result)
+                    (if-not (refresh-context? result)
+                      (invoke-suspending-impl execution-context runtime co (vm/wrap-userdata result))
                       (let [refreshed-context (future/make)]
                         (fx/on-fx-thread
                           (try
@@ -446,8 +447,7 @@
                               (future/fail! refreshed-context error))))
                         (future/then-async refreshed-context
                           (fn [new-context]
-                            (invoke-suspending-impl new-context runtime co (vm/wrap-userdata result)))))
-                      (invoke-suspending-impl execution-context runtime co (vm/wrap-userdata result))))))))
+                            (invoke-suspending-impl new-context runtime co (vm/wrap-userdata result)))))))))))
         (future/failed (LuaError. ^String (->clj runtime coerce/to-string (.arg lua-success+rest-varargs 2))))))))
 
 (defn stdout

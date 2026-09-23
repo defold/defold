@@ -14,7 +14,7 @@
 
 (ns internal.evaluation-context
   (:require [util.defonce :as defonce])
-  (:import [clojure.lang Associative IFn IHashEq ILookup IMeta IObj IPersistentCollection IPersistentMap MapEntry Seqable Util]
+  (:import [clojure.lang Associative IFn IHashEq ILookup IMeta IObj IPersistentCollection IPersistentMap MapEntry SeqIterator Seqable Util]
            [java.util Map]))
 
 (set! *warn-on-reflection* true)
@@ -27,9 +27,10 @@
   (valAt [_ key not-found]
     (case key
       :basis (:basis @state)
-      :initial-invalidate-counters (if (contains? data key)
-                                     (get @state key (get data key))
-                                     not-found)
+      :initial-invalidate-counters (let [default (get data key ::not-found)]
+                                     (if (= ::not-found default)
+                                       not-found
+                                       (get @state key default)))
       (get data key not-found)))
 
   Associative
@@ -66,7 +67,7 @@
            (assoc :initial-invalidate-counters (.valAt this :initial-invalidate-counters)))))
 
   Iterable
-  (iterator [this] (clojure.lang.SeqIterator. (.seq this)))
+  (iterator [this] (SeqIterator. (.seq this)))
 
   IFn
   (invoke [this key] (.valAt this key))

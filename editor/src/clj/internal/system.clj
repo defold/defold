@@ -291,8 +291,8 @@
 
 (defn default-evaluation-context [system]
   (-> (in/default-evaluation-context (basis system)
-                                  (system-cache system)
-                                  (:invalidate-counters system))
+                                     (system-cache system)
+                                     (:invalidate-counters system))
       (assoc :node-id-generator (node-id-generator system)
              :override-id-generator (override-id-generator system)
              :materialize-node! it/materialize-node!)))
@@ -310,13 +310,13 @@
   ;; we're using the system basis & cache.
   [system {options-basis :basis options-cache :cache :as options}]
   (let [options (assoc options
-                 :node-id-generator (node-id-generator system)
-                 :override-id-generator (override-id-generator system)
-                 :materialize-node! it/materialize-node!)]
+                  :node-id-generator (node-id-generator system)
+                  :override-id-generator (override-id-generator system)
+                  :materialize-node! it/materialize-node!)]
     (in/custom-evaluation-context
-      (if (some? options-cache)
+      (if options-cache
         (do
-          (assert (some? options-basis))
+          (assert options-basis)
           options)
         (let [system-basis (basis system)]
           (if (or (nil? options-basis)
@@ -396,11 +396,14 @@
     (and initial-invalidate-counters
          (not (full-invalidation-since? initial-invalidate-counters invalidate-counters))
          (or (coll/empty? changes)
-             (and (coll/not-any? #(endpoint-invalidated-since? % initial-invalidate-counters invalidate-counters) invalidated)
-                  (coll/not-any? (fn [node-id]
-                                   (when-let [original-node (ig/node-by-id-at initial-basis node-id)]
-                                     (not (identical? original-node (ig/node-by-id-at current-basis node-id)))))
-                                 (it/materialized-node-ids changes)))))))
+             (and (coll/not-any?
+                    #(endpoint-invalidated-since? % initial-invalidate-counters invalidate-counters)
+                    invalidated)
+                  (coll/not-any?
+                    (fn [node-id]
+                      (when-let [original-node (ig/node-by-id-at initial-basis node-id)]
+                        (not (identical? original-node (ig/node-by-id-at current-basis node-id)))))
+                    (it/materialized-node-ids changes)))))))
 
 (defn update-system-from-evaluation-context [system evaluation-context]
   (if-not (evaluation-context-compatible? system evaluation-context)
