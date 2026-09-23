@@ -4467,13 +4467,17 @@
             focus-owner-property (.focusOwnerProperty scene)
             focus-change-listener (make-focus-change-listener view-node grid canvas)
             dispose-breakpoint-editor! (create-breakpoint-editor! view-node canvas)
+            first-repaint (volatile! true)
 
             dispose-repainter!
             (ui/node-timer!
               canvas nil "repaint-code-editor-view"
               (fn [elapsed-time]
                 (when-not (ui/ui-disabled?)
-                  (repaint-view! view-node elapsed-time {:cursor-visible true :editable editable}))))]
+                  (repaint-view! view-node elapsed-time {:cursor-visible true :editable editable})
+                  (when @first-repaint
+                    (vreset! first-repaint false)
+                    (slog/smoke-log "code-view-visible")))))]
 
         (.addListener focus-owner-property focus-change-listener)
 
@@ -4495,7 +4499,6 @@
                              (.removeListener visible-whitespace-property visible-whitespace-setter)
                              (.removeListener focus-owner-property focus-change-listener)))))
 
-    (ui/run-later (slog/smoke-log "code-view-visible"))
     view-node))
 
 (def ^:private fundamental-read-only-handlers
