@@ -136,61 +136,21 @@ TEST_F(CollectionLimitTest, CollectionRegistryExhaustion)
         ASSERT_NE(dmGameObject::INVALID_COLLECTION, collection);
         ASSERT_LT((uint32_t)(collection & 0xffff), collection_count);
         collections.Push(collection);
-
-        // Keep the message socket registry from becoming the limiting resource
-        // in this collection-handle registry test.
         dmGameObject::Collection* internal_collection = dmGameObject::GetCollectionFromHandle(collection);
-        dmMessage::DeleteSocket(internal_collection->m_ComponentSocket);
-        dmMessage::DeleteSocket(internal_collection->m_FrameSocket);
-        internal_collection->m_ComponentSocket = 0;
-        internal_collection->m_FrameSocket = 0;
+        ASSERT_NE((dmGameObject::Collection*)0, internal_collection);
+        dmGameObject::DetachCollection(internal_collection, false);
     }
 
     ASSERT_EQ(dmGameObject::INVALID_COLLECTION,
               dmGameObject::NewCollection("registry_overflow", m_Factory, m_Register, 1, 0x0));
 
-    dmGameObject::HCollection previous_handle = collections[0];
-    dmGameObject::Collection* previous = dmGameObject::GetCollectionFromHandle(previous_handle);
-    dmGameObject::HInstance previous_instance = dmGameObject::New(previous_handle, 0);
-    ASSERT_TRUE(dmGameObject::IsValid(previous_instance));
-
-    dmGameObject::DetachCollection(previous, false);
-    dmGameObject::HCollection replacement_handle = dmGameObject::NewCollection("registry_replacement", m_Factory, m_Register, 1, 0x0, previous_handle);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, replacement_handle);
-    ASSERT_EQ((uint16_t)previous_handle, (uint16_t)replacement_handle);
-    ASSERT_NE((uint16_t)(previous_handle >> 16), (uint16_t)(replacement_handle >> 16));
-
-    dmGameObject::Collection* replacement = dmGameObject::GetCollectionFromHandle(replacement_handle);
-    dmGameObject::HInstance replacement_instance = dmGameObject::New(replacement_handle, 0);
-    ASSERT_NE(previous_instance, replacement_instance);
-    ASSERT_TRUE(dmGameObject::IsValid(previous_instance));
-    ASSERT_TRUE(dmGameObject::IsValid(replacement_instance));
-    ASSERT_EQ(previous_handle, dmGameObject::GetCollection(previous_instance));
-    ASSERT_EQ(replacement_handle, dmGameObject::GetCollection(replacement_instance));
-
-    dmGameObject::DeleteCollection(replacement);
-    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::AttachCollection(previous, "registry_0"));
-    ASSERT_TRUE(dmGameObject::IsValid(previous_instance));
-    ASSERT_FALSE(dmGameObject::IsValid(replacement_instance));
-
-    dmGameObject::DetachCollection(previous, false);
-    replacement_handle = dmGameObject::NewCollection("registry_replacement", m_Factory, m_Register, 1, 0x0, previous_handle);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, replacement_handle);
-    replacement = dmGameObject::GetCollectionFromHandle(replacement_handle);
-    replacement_instance = dmGameObject::New(replacement_handle, 0);
-    ASSERT_NE(previous_instance, replacement_instance);
-    ASSERT_TRUE(dmGameObject::IsValid(previous_instance));
-    ASSERT_TRUE(dmGameObject::IsValid(replacement_instance));
-    ASSERT_EQ(previous_handle, dmGameObject::GetCollection(previous_instance));
-    ASSERT_EQ(replacement_handle, dmGameObject::GetCollection(replacement_instance));
-    dmGameObject::DeleteCollection(previous);
-    ASSERT_FALSE(dmGameObject::IsValid(previous_instance));
-    ASSERT_TRUE(dmGameObject::IsValid(replacement_instance));
-    collections[0] = replacement_handle;
-
     for (uint32_t i = 0; i < collections.Size(); ++i)
     {
-        dmGameObject::DeleteCollection(collections[i]);
+        dmGameObject::HCollection collection = collections[i];
+        dmGameObject::Collection* internal_collection = dmGameObject::GetCollectionFromHandle(collection);
+        ASSERT_NE((dmGameObject::Collection*)0, internal_collection);
+        dmGameObject::DeleteCollection(internal_collection);
+        ASSERT_EQ((dmGameObject::Collection*)0, dmGameObject::GetCollectionFromHandle(collection));
     }
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Register));
 }

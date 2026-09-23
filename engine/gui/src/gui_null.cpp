@@ -181,11 +181,6 @@ namespace dmGui
         return 0;
     }
 
-    void* GetSceneCustomNodeCallbackContext(HScene scene)
-    {
-        return 0;
-    }
-
     Result AddTexture(HScene scene, dmhash_t texture_name_hash, dmGui::HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
     {
         return RESULT_OK;

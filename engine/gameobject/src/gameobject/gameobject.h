@@ -115,7 +115,7 @@ namespace dmGameObject
      * @param collection_desc description data of collections
      * @return HCollection
      */
-    HCollection NewCollection(const char* name, dmResource::HFactory factory, HContext gocontext, uint32_t max_instances, HCollectionDesc collection_desc, HCollection replaced_hcollection = INVALID_COLLECTION);
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HContext gocontext, uint32_t max_instances, HCollectionDesc collection_desc);
 
     /**
      * Deletes a gameobject collection

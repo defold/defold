@@ -74,10 +74,8 @@ namespace dmGameObject
     struct CollectionRegistrySlot
     {
         Collection* m_Collection;
-        Collection* m_ReplacementCollection;
         uint32_t    m_InstanceGeneration;
         uint16_t    m_Generation;
-        uint16_t    m_ReplacementGeneration;
         uint16_t    m_NextGeneration;
         uint16_t    m_NextFree;
     };
@@ -133,7 +131,7 @@ namespace dmGameObject
         uint16_t collection_index = GetCollectionIndex(collection->m_HCollection);
         assert(collection_index < g_CollectionRegistry.Size());
         CollectionRegistrySlot& slot = g_CollectionRegistry[collection_index];
-        assert(slot.m_Collection == collection || slot.m_ReplacementCollection == collection);
+        assert(slot.m_Collection == collection);
         slot.m_InstanceGeneration = NextGameObjectGeneration(slot.m_InstanceGeneration);
         return slot.m_InstanceGeneration;
     }
@@ -151,37 +149,17 @@ namespace dmGameObject
         {
             CollectionRegistrySlot& slot = g_CollectionRegistry[i];
             slot.m_Collection = 0;
-            slot.m_ReplacementCollection = 0;
             slot.m_InstanceGeneration = 0;
             slot.m_Generation = 0;
-            slot.m_ReplacementGeneration = 0;
             slot.m_NextGeneration = 1;
             slot.m_NextFree = g_FirstFreeCollection;
             g_FirstFreeCollection = (uint16_t)i;
         }
     }
 
-    static HCollection RegisterCollection(Collection* collection, HCollection replaced_collection)
+    static HCollection RegisterCollection(Collection* collection)
     {
         DM_MUTEX_SCOPED_LOCK(g_CollectionRegistryMutex);
-
-        if (replaced_collection != INVALID_COLLECTION)
-        {
-            uint16_t index = GetCollectionIndex(replaced_collection);
-            if (index >= g_CollectionRegistry.Size())
-                return INVALID_COLLECTION;
-
-            CollectionRegistrySlot& slot = g_CollectionRegistry[index];
-            if (!slot.m_Collection || slot.m_Generation != GetCollectionGeneration(replaced_collection) || slot.m_ReplacementCollection)
-                return INVALID_COLLECTION;
-
-            slot.m_ReplacementCollection = collection;
-            slot.m_ReplacementGeneration = slot.m_NextGeneration;
-            if (slot.m_ReplacementGeneration == slot.m_Generation)
-                slot.m_ReplacementGeneration = NextCollectionGeneration(slot.m_ReplacementGeneration);
-            slot.m_NextGeneration = NextCollectionGeneration(slot.m_ReplacementGeneration);
-            return MakeCollectionHandle(index, slot.m_ReplacementGeneration);
-        }
 
         if (g_FirstFreeCollection == INVALID_COLLECTION_INDEX)
             GrowCollectionRegistry();
@@ -212,20 +190,9 @@ namespace dmGameObject
         uint16_t generation = GetCollectionGeneration(collection);
         if (slot.m_Collection && slot.m_Generation == generation)
         {
-            slot.m_Collection = slot.m_ReplacementCollection;
-            slot.m_Generation = slot.m_ReplacementGeneration;
-            slot.m_ReplacementCollection = 0;
-            slot.m_ReplacementGeneration = 0;
-            if (!slot.m_Collection)
-            {
-                slot.m_NextFree = g_FirstFreeCollection;
-                g_FirstFreeCollection = index;
-            }
-        }
-        else if (slot.m_ReplacementCollection && slot.m_ReplacementGeneration == generation)
-        {
-            slot.m_ReplacementCollection = 0;
-            slot.m_ReplacementGeneration = 0;
+            slot.m_Collection = 0;
+            slot.m_NextFree = g_FirstFreeCollection;
+            g_FirstFreeCollection = index;
         }
     }
 
@@ -242,8 +209,6 @@ namespace dmGameObject
         uint16_t generation = GetCollectionGeneration(collection);
         if (slot.m_Generation == generation)
             return slot.m_Collection;
-        if (slot.m_ReplacementGeneration == generation)
-            return slot.m_ReplacementCollection;
         return 0;
     }
 
@@ -257,7 +222,7 @@ namespace dmGameObject
             return INVALID_GAME_OBJECT;
 
         CollectionRegistrySlot& slot = g_CollectionRegistry[collection_index];
-        if (slot.m_Collection != collection && slot.m_ReplacementCollection != collection)
+        if (slot.m_Collection != collection)
             return INVALID_GAME_OBJECT;
         return MakeInstanceHandle(collection_index, instance->m_Index, instance->m_Generation);
     }
@@ -289,17 +254,6 @@ namespace dmGameObject
             }
         }
 
-        collection = slot.m_ReplacementCollection;
-        if (collection && instance_index < collection->m_Instances.Size())
-        {
-            Instance* instance = collection->m_Instances[instance_index];
-            if (instance && instance->m_Generation == generation)
-            {
-                if (out_collection)
-                    *out_collection = collection;
-                return instance;
-            }
-        }
         return 0;
     }
 
@@ -850,7 +804,7 @@ namespace dmGameObject
         DetachCollection(collection, true);
     }
 
-    HCollection NewCollection(const char* name, dmResource::HFactory factory, HContext gocontext, uint32_t max_instances, HCollectionDesc collection_desc, HCollection replaced_hcollection)
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HContext gocontext, uint32_t max_instances, HCollectionDesc collection_desc)
     {
         if (max_instances == 0 || max_instances > MAX_INSTANCE_COUNT)
         {
@@ -866,7 +820,7 @@ namespace dmGameObject
 
         collection->m_NameHash = dmHashString64(name); // Same as the socket name
 
-        HCollection hcollection = RegisterCollection(collection, replaced_hcollection);
+        HCollection hcollection = RegisterCollection(collection);
         if (hcollection == INVALID_COLLECTION)
         {
             dmMutex::Delete(collection->m_Mutex);

@@ -90,11 +90,6 @@ namespace dmGameSystem
     static void PrepareGuiNodeTextLayout(dmGui::HScene scene, dmGui::HNode node);
     static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type);
 
-    static inline GuiWorld* GetGuiWorld(dmGui::HScene scene)
-    {
-        return (GuiWorld*)dmGui::GetSceneCustomNodeCallbackContext(scene);
-    }
-
     static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
     static void                  DeleteTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, dmGui::HTextureSource texture_source);
     static void                  SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, dmImage::CompressionType compression_type, const void* buffer, uint32_t buffer_size);
@@ -973,10 +968,10 @@ namespace dmGameSystem
 
             case dmGuiDDF::NodeDesc::TYPE_CUSTOM:
             {
-                GuiWorld* gui_world = GetGuiWorld(scene);
+                GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
                 uint32_t custom_type = dmGui::GetNodeCustomType(scene, n);
                 void* custom_node_data = dmGui::GetNodeCustomData(scene, n);
-                const CompGuiNodeType* node_type = GetCompGuiCustomType(gui_world->m_CompGuiContext, custom_type);
+                const CompGuiNodeType* node_type = GetCompGuiCustomType(component->m_World->m_CompGuiContext, custom_type);
 
                 if (node_type->m_SetNodeDesc)
                 {
@@ -1376,6 +1371,7 @@ namespace dmGameSystem
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
 
         GuiComponent* gui_component = new GuiComponent();
+        gui_component->m_World = gui_world;
         gui_component->m_Resource = scene_resource;
         gui_component->m_Instance = params.m_Instance;
         gui_component->m_Material = 0;
@@ -1403,7 +1399,7 @@ namespace dmGameSystem
         scene_params.m_DestroyCustomNodeCallback = &DestroyCustomNodeCallback;
         scene_params.m_CloneCustomNodeCallback = &CloneCustomNodeCallback;
         scene_params.m_UpdateCustomNodeCallback = &UpdateCustomNodeCallback;
-        scene_params.m_CreateCustomNodeCallbackContext = gui_world;
+        scene_params.m_CreateCustomNodeCallbackContext = gui_component;
         scene_params.m_PrepareNodeTextLayoutCallback = &PrepareGuiNodeTextLayout;
         scene_params.m_GetResourceCallback = GetSceneResourceByHash;
         scene_params.m_GetResourceCallbackContext = gui_component;
@@ -3091,8 +3087,8 @@ namespace dmGameSystem
 
     static void* CreateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type)
     {
-        GuiWorld* gui_world = (GuiWorld*)context;
-        CompGuiContext* gui_context = gui_world->m_CompGuiContext;
+        GuiComponent* gui_component = (GuiComponent*)context;
+        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
 
         CompGuiNodeContext ctx;
 
@@ -3102,8 +3098,8 @@ namespace dmGameSystem
 
     static void* CloneCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data)
     {
-        GuiWorld* gui_world = (GuiWorld*)context;
-        CompGuiContext* gui_context = gui_world->m_CompGuiContext;
+        GuiComponent* gui_component = (GuiComponent*)context;
+        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
 
         CompGuiNodeContext ctx;
 
@@ -3120,8 +3116,8 @@ namespace dmGameSystem
 
     static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data)
     {
-        GuiWorld* gui_world = (GuiWorld*)context;
-        CompGuiContext* gui_context = gui_world->m_CompGuiContext;
+        GuiComponent* gui_component = (GuiComponent*)context;
+        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
 
         const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
         if (!type->m_Destroy)
@@ -3141,8 +3137,8 @@ namespace dmGameSystem
 
     static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt)
     {
-        GuiWorld* gui_world = (GuiWorld*)context;
-        CompGuiContext* gui_context = gui_world->m_CompGuiContext;
+        GuiComponent* gui_component = (GuiComponent*)context;
+        CompGuiContext* gui_context = gui_component->m_World->m_CompGuiContext;
 
         const CompGuiNodeType* type = GetCompGuiCustomType(gui_context, custom_type);
         if (!type->m_Update)

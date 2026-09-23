@@ -434,14 +434,28 @@ TEST_F(IdTest, TestSceneTraversalRejectsStaleHandles)
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_FALSE(dmGameObject::TraverseIterateNext(&children));
 
+    dmGameObject::HInstance component_owner = dmGameObject::New(m_Collection, "/go.goc");
+    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, component_owner);
+
+    dmGameObject::SceneNode component_owner_node = {};
+    component_owner_node.m_Type = dmGameObject::SCENE_NODE_TYPE_GAMEOBJECT;
+    component_owner_node.m_Collection = m_Collection;
+    component_owner_node.m_Instance = component_owner;
+    dmGameObject::SceneNodeIterator component_nodes = dmGameObject::TraverseIterateChildren(&component_owner_node);
+
     dmGameObject::SceneNode component_node = {};
-    component_node.m_Type = dmGameObject::SCENE_NODE_TYPE_COMPONENT;
-    component_node.m_Collection = m_Collection;
-    component_node.m_Instance = child;
-    component_node.m_ComponentType = (dmGameObject::ComponentType*)1;
-    component_node.m_ComponentPrototype = (void*)1;
-    component_node.m_ComponentWorld = (void*)1;
-    component_node.m_Component = 1;
+    while (dmGameObject::TraverseIterateNext(&component_nodes))
+    {
+        if (component_nodes.m_Node.m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT)
+        {
+            component_node = component_nodes.m_Node;
+            break;
+        }
+    }
+    ASSERT_EQ(dmGameObject::SCENE_NODE_TYPE_COMPONENT, component_node.m_Type);
+
+    dmGameObject::Delete(m_Collection, component_owner, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
     dmGameObject::SceneNodeIterator component_children = dmGameObject::TraverseIterateChildren(&component_node);
     ASSERT_FALSE(dmGameObject::TraverseIterateNext(&component_children));

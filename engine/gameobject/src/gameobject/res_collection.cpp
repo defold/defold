@@ -37,7 +37,7 @@ namespace dmGameObject
         return resource ? resource->m_Collection : INVALID_COLLECTION;
     }
 
-    static dmResource::Result AcquireResources(const char* name, dmResource::HFactory factory, dmGameObject::HContext gocontext, dmGameObjectDDF::CollectionDesc* collection_desc, const char* filename, CollectionResource* collection_resource, HCollection* out_hcollection, Collection* replaced_collection = 0)
+    static dmResource::Result AcquireResources(const char* name, dmResource::HFactory factory, dmGameObject::HContext gocontext, dmGameObjectDDF::CollectionDesc* collection_desc, const char* filename, CollectionResource* collection_resource, HCollection* out_hcollection)
     {
         // NOTE: Be careful about control flow. See below with dmMutex::Unlock, return, etc
         dmResource::Result res = dmResource::RESULT_OK;
@@ -46,8 +46,7 @@ namespace dmGameObject
         uint32_t created_instances = 0;
         uint32_t default_capacity = dmGameObject::GetCollectionDefaultCapacity(gocontext);
 
-        HCollection replaced_hcollection = replaced_collection ? replaced_collection->m_HCollection : INVALID_COLLECTION;
-        HCollection hcollection = NewCollection(collection_desc->m_Name, factory, gocontext, default_capacity, collection_desc, replaced_hcollection);
+        HCollection hcollection = NewCollection(collection_desc->m_Name, factory, gocontext, default_capacity, collection_desc);
         if (hcollection == 0)
         {
             dmLogError("AcquireResources NewCollection RESULT_OUT_OF_RESOURCES");
@@ -328,7 +327,7 @@ bail:
         dmGameObject::DetachCollection(prev_collection, false);
 
         HCollection new_hcollection;
-        dmResource::Result res = AcquireResources(collection_desc->m_Name, params->m_Factory, gocontext, collection_desc, params->m_Filename, resource, &new_hcollection, prev_collection);
+        dmResource::Result res = AcquireResources(collection_desc->m_Name, params->m_Factory, gocontext, collection_desc, params->m_Filename, resource, &new_hcollection);
         Collection* new_collection = 0;
         if (dmResource::RESULT_OK == res)
         {
