@@ -38,6 +38,72 @@ TYPE_FIX = "FIX"
 TYPE_NEW = "NEW"
 
 
+# Shared by generation and the lightweight PR check. Let GitHub resolve closing
+# keywords and manually linked issues instead of parsing PR descriptions twice.
+RELEASE_NOTES_LABELS_FRAGMENT = r"""
+fragment ReleaseNotesLabels on Labelable {
+  labels(first: 100, after: %s) {
+    pageInfo {
+      endCursor
+      hasNextPage
+    }
+    nodes {
+      name
+    }
+  }
+}
+"""
+
+QUERY_LABELS = r"""
+{
+  node(id: %s) {
+    ...ReleaseNotesLabels
+  }
+}
+""" + RELEASE_NOTES_LABELS_FRAGMENT
+
+RELEASE_NOTES_CLOSING_ISSUES_FRAGMENT = r"""
+fragment ReleaseNotesClosingIssues on PullRequest {
+  closingIssuesReferences(first: 100, after: %s) {
+    pageInfo {
+      endCursor
+      hasNextPage
+    }
+    nodes {
+      id
+      number
+      url
+      repository {
+        name
+        url
+      }
+      ...ReleaseNotesLabels
+    }
+  }
+}
+"""
+
+QUERY_PULLREQUEST_METADATA = r"""
+{
+  organization(login: "defold") {
+    repository(name: %s) {
+      pullRequest(number: %d) {
+        id
+        number
+        url
+        body
+        repository {
+          name
+        }
+        ...ReleaseNotesLabels
+        ...ReleaseNotesClosingIssues
+      }
+    }
+  }
+}
+""" + (RELEASE_NOTES_LABELS_FRAGMENT % "null") + RELEASE_NOTES_CLOSING_ISSUES_FRAGMENT
+
+
 QUERY_ISSUE = r"""
 {
   organization(login: "defold") {
@@ -55,11 +121,7 @@ QUERY_ISSUE = r"""
         repository {
           name
         }
-        labels(first: 10) {
-          nodes {
-            name
-          }
-        }
+        ...ReleaseNotesLabels
         timelineItems(first: 250) {
           nodes {
             __typename
@@ -80,7 +142,7 @@ QUERY_ISSUE = r"""
     }
   }
 }
-"""
+""" + (RELEASE_NOTES_LABELS_FRAGMENT % "null")
 
 
 QUERY_PULLREQUEST = r"""
@@ -116,20 +178,8 @@ QUERY_PULLREQUEST = r"""
         repository {
           name
         }
-        labels(first: 10) {
-          nodes {
-            name
-          }
-        }
-        closingIssuesReferences(first: 10) {
-            nodes {
-                number,
-                repository {
-                    name,
-                    url
-                }
-            }
-        }
+        ...ReleaseNotesLabels
+        ...ReleaseNotesClosingIssues
         timelineItems(first: 250) {
           nodes {
             __typename
@@ -157,7 +207,7 @@ QUERY_PULLREQUEST = r"""
     }
   }
 }
-"""
+""" + (RELEASE_NOTES_LABELS_FRAGMENT % "null") + (RELEASE_NOTES_CLOSING_ISSUES_FRAGMENT % "null")
 
 QUERY_PULLREQUEST_TIMELINE_EVENTS = r"""
 {
@@ -193,7 +243,11 @@ QUERY_PROJECT_ISSUES_AND_PRS = r"""
     projectV2(number: %s) {
       id
       title
-      items(first: 100) {
+      items(first: 100, after: %s) {
+        pageInfo {
+          endCursor
+          hasNextPage
+        }
         nodes {
           type
           content {
@@ -252,8 +306,8 @@ def _print_errors(response):
     for error in response['errors']:
         print(error['message'])
 
-def github_query(query):
-    response = github.query(query, token)
+def github_query(query, query_token = None):
+    response = github.query(query, token if query_token is None else query_token)
     if response is None:
         print("No response from GitHub")
         sys.exit(1)
@@ -282,17 +336,43 @@ def get_pullrequest(number, repository = "defold"):
         pr["timelineItems"] = timeline_data["organization"]["repository"]["pullRequest"]["timelineItems"]
     return pr
 
+def get_pullrequest_metadata(number, repository = "defold", cursor = None):
+    data = github_query(QUERY_PULLREQUEST_METADATA % (json.dumps(repository), number, json.dumps(cursor)))
+    repo = data["organization"]["repository"]
+    pr = repo["pullRequest"] if repo else None
+    if pr is None:
+        sys.exit("Unable to find pull request defold/%s#%s" % (repository, number))
+    return pr
+
 def get_issues_and_prs(project):
-    data = github_query(QUERY_PROJECT_ISSUES_AND_PRS % project.get("number"))
-    return data["organization"]["projectV2"]["items"]["nodes"]
+    items = []
+    cursor = None
+    while True:
+        data = github_query(QUERY_PROJECT_ISSUES_AND_PRS % (project.get("number"), json.dumps(cursor)))
+        page = data["organization"]["projectV2"]["items"]
+        items.extend(page["nodes"])
+        if not page["pageInfo"]["hasNextPage"]:
+            return items
+        cursor = page["pageInfo"]["endCursor"]
 
 def get_labels(*args):
     labels = []
     for item in args:
-        for label in item["labels"]["nodes"]:
-            if not label["name"] in labels:
-                labels.append(label["name"])
+        page = item["labels"]
+        while True:
+            for label in page["nodes"]:
+                if not label["name"] in labels:
+                    labels.append(label["name"])
+            if not page["pageInfo"]["hasNextPage"]:
+                break
+            data = github_query(QUERY_LABELS % (json.dumps(item["id"]), json.dumps(page["pageInfo"]["endCursor"])))
+            if data["node"] is None:
+                sys.exit("Unable to read labels for %s" % item["url"])
+            page = data["node"]["labels"]
     return labels
+
+def should_skip_release_notes(*items):
+    return "skip release notes" in get_labels(*items)
 
 def get_pr_authors(pr):
     authors = []
@@ -302,7 +382,7 @@ def get_pr_authors(pr):
             author_node = author_node or {}
             login = (author_node.get("user") or {}).get("login")
             author = login or author_node.get("name")
-            if author and author not in authors:
+            if author and (author not in authors) and (author != "defold-services"):
                 authors.append(author)
 
     if not authors:
@@ -323,8 +403,17 @@ def get_issue_type_from_labels(labels):
         return TYPE_NEW
     return TYPE_FIX
 
+def get_closing_issues(pr):
+    page = pr["closingIssuesReferences"]
+    issues = list(page["nodes"])
+    while page["pageInfo"]["hasNextPage"]:
+        metadata = get_pullrequest_metadata(pr["number"], pr["repository"]["name"], page["pageInfo"]["endCursor"])
+        page = metadata["closingIssuesReferences"]
+        issues.extend(page["nodes"])
+    return issues
+
 def get_closing_issue(pr):
-    for node in reversed(pr["closingIssuesReferences"]["nodes"]):
+    for node in reversed(get_closing_issues(pr)):
         issue_number = node["number"]
         repository = node["repository"]["name"]
         return get_issue(issue_number, repository)
@@ -457,10 +546,54 @@ def fetch_item(item):
         return None
 
     labels = get_labels(issue, pr)
-    if "skip release notes" in labels:
+    if should_skip_release_notes(issue, pr):
         return dict(record, status = "ignored", reason = "skip release notes")
 
     return dict(record, status = "ok", issue = issue, pr = pr, labels = labels)
+
+def get_release_notes_body(body):
+    body = body or ""
+    # strip from match to end of file
+    flags = re.DOTALL|re.IGNORECASE
+    body = re.sub(r"## PR checklist.*", "", body, flags=flags).strip()
+    body = re.sub(r"#* Technical changes.*", "", body, flags=flags).strip()
+    body = re.sub(r"Technical changes.*", "", body, flags=flags).strip()
+    body = re.sub(r"#* Technical notes.*", "", body, flags=flags).strip()
+    body = re.sub(r"Technical notes.*", "", body, flags=flags).strip()
+    body = re.sub(r"#* Technical details.*", "", body, flags=flags).strip()
+    body = re.sub(r"Technical details.*", "", body, flags=flags).strip()
+
+    # Remove closing keywords
+    flags = re.IGNORECASE
+    body = re.sub(r"Resolves:? https.*", "", body, flags=flags).strip()
+    body = re.sub(r"Resolves:? #\d*.*", "", body, flags=flags).strip()
+    body = re.sub(r"Resolved:? https.*", "", body, flags=flags).strip()
+    body = re.sub(r"Resolved:? #\d*.*", "", body, flags=flags).strip()
+    body = re.sub(r"Resolve:? https.*", "", body, flags=flags).strip()
+    body = re.sub(r"Resolve:? #\d*.*", "", body, flags=flags).strip()
+    body = re.sub(r"Closes:? https.*", "", body, flags=flags).strip()
+    body = re.sub(r"Closes:? #\d*.*", "", body, flags=flags).strip()
+    body = re.sub(r"Closed:? https.*", "", body, flags=flags).strip()
+    body = re.sub(r"Closed:? #\d*.*", "", body, flags=flags).strip()
+    body = re.sub(r"Close:? https.*", "", body, flags=flags).strip()
+    body = re.sub(r"Close:? #\d*.*", "", body, flags=flags).strip()
+    body = re.sub(r"Fixes:? https.*", "", body, flags=flags).strip()
+    body = re.sub(r"Fixes:? #\d*.*", "", body, flags=flags).strip()
+    body = re.sub(r"Fixed:? https.*", "", body, flags=flags).strip()
+    body = re.sub(r"Fixed:? #\d*.*", "", body, flags=flags).strip()
+    body = re.sub(r"Fix:? https.*", "", body, flags=flags).strip()
+    body = re.sub(r"Fix:? #\d*.*", "", body, flags=flags).strip()
+
+    # Remove other common ways to reference issues
+    flags = re.IGNORECASE
+    body = re.sub(r"Also related to #\d*.*", "", body, flags=flags).strip()
+    body = re.sub(r"Related to #\d*.*", "", body, flags=flags).strip()
+
+    # Remove "user facing changes" header
+    flags = re.IGNORECASE
+    body = re.sub("User-facing changes.", "", body, flags=flags).strip()
+    body = re.sub("### User-facing changes", "", body, flags=flags).strip()
+    return body
 
 def parse_github_project(version):
     project = get_project(version)
@@ -504,7 +637,7 @@ def parse_github_project(version):
 
         entry = {
             "title": pr.get("title"),
-            "body": pr.get("body"),
+            "body": get_release_notes_body(pr.get("body")),
             "url": pr.get("url"),
             "issue_number": issue.get("number"),
             "pr_number": pr.get("number"),
@@ -518,47 +651,6 @@ def parse_github_project(version):
             "repository": issue.get("repository").get("name"),
             "pr_repository": pr.get("repository").get("name")
         }
-        # strip from match to end of file
-        flags = re.DOTALL|re.IGNORECASE
-        entry["body"] = re.sub(r"## PR checklist.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"#* Technical changes.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Technical changes.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"#* Technical notes.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Technical notes.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"#* Technical details.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Technical details.*", "", entry["body"], flags=flags).strip()
-
-        # Remove closing keywords
-        flags = re.IGNORECASE
-        entry["body"] = re.sub(r"Resolves https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Resolves #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Resolved https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Resolved #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Resolve https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Resolve #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Closes https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Closes #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Closed https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Closed #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Close https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Close #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fixes https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fixes #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fixed https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fixed #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fix https.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Fix #\d*.*", "", entry["body"], flags=flags).strip()
-
-        # Remove other common ways to reference issues
-        flags = re.IGNORECASE
-        entry["body"] = re.sub(r"Also related to #\d*.*", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub(r"Related to #\d*.*", "", entry["body"], flags=flags).strip()
-
-        # Remove "user facing changes" header
-        flags = re.IGNORECASE
-        entry["body"] = re.sub("User-facing changes.", "", entry["body"], flags=flags).strip()
-        entry["body"] = re.sub("### User-facing changes", "", entry["body"], flags=flags).strip()
-
         issues.append(entry)
         green("OK")
 

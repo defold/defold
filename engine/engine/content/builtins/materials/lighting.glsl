@@ -87,7 +87,7 @@ vec3 diffuse_lambert(int index, vec3 normal, vec3 view_position)
 vec3 diffuse_lambert(vec3 view_normal, vec3 view_position)
 {
     vec3 total_light = vec3(0.0);
-    int light_count = int(light_info.w);
+    int light_count = min(int(light_info.w), MAX_LIGHT_COUNT);
 
     for (int i = 0; i < MAX_LIGHT_COUNT; ++i)
     {

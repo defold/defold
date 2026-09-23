@@ -25,6 +25,7 @@
 #include <script/script.h>
 #include <font/font.h>
 #include <font/fontcollection.h>
+#include <font/glyphbank_ddf.h>
 #include <font/render/glyph_vertex.h>
 #include <font/text_layout.h>
 #include <platform/window.hpp>
@@ -1934,6 +1935,32 @@ TEST_F(dmRenderTest, GetTextMetricsWithNullPreparedLayout)
     ASSERT_EQ(0u, metrics.m_LineCount);
 }
 
+TEST_F(dmRenderTest, SdfEdgeTransitionWidth)
+{
+    // Both native generation and legacy banks use the same distance encoding.
+    const float distance_per_texel = 1.0f / 12.0f;
+    m_SystemFontMap->m_IsSdf = true;
+    m_SystemFontMap->m_SdfSpread = 3.0f;
+    m_SystemFontMap->m_OutlineWidth = 0.0f;
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+
+    dmRender::TextEntry te = {};
+    te.m_Transform = Matrix4::identity();
+    te.m_FaceColor = COLOR_WHITE_RGBA;
+    te.m_Leading = 1.0f;
+    te.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    te.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+    const float scales[] = { 0.5f, 1.0f, 2.0f };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(scales); ++i)
+    {
+        FontGlyphVertex vertices[6];
+        ASSERT_EQ(DM_ARRAY_SIZE(vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, "H", te, scales[i], 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices)));
+        float width = 2.0f * vertices[0].m_SdfParams[2] * scales[i] / distance_per_texel;
+        // The selected filter has a two-screen-pixel smoothstep band.
+        EXPECT_NEAR(2.0f, width, 0.05f);
+    }
+}
+
 TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLayout)
 {
     const char* text = "Hello World Bonanza";
@@ -1986,6 +2013,9 @@ TEST_F(dmRenderTest, CreateFontVertexDataWithPreparedTextLayoutMatchesRawTextLay
 
 TEST_F(dmRenderTest, MarkupOutlineLayerOnlyCoversSpan)
 {
+    // Separate effect quads require a multi-layer font; markup does not change its layer mode.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+
     const char source[] = "<outline size=1>A</outline>B";
     const char text[] = "AB";
     HMarkup markup = 0;
@@ -2019,6 +2049,20 @@ TEST_F(dmRenderTest, MarkupOutlineLayerOnlyCoversSpan)
         ASSERT_EQ(1.0f, vertices[i].m_LayerMasks[1]);
         ASSERT_EQ(0u, vertices[12 + i].m_OutlineColor[3]);
         ASSERT_EQ(0.0f, vertices[12 + i].m_LayerMasks[1]);
+    }
+
+    // The same markup on a single-layer font stays at one combined quad per glyph.
+    // Only the tagged glyph receives outline alpha; channel masks alone do not hide it.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    FontGlyphVertex single_vertices[12];
+    memset(single_vertices, 0, sizeof(single_vertices));
+    ASSERT_EQ(DM_ARRAY_SIZE(single_vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, text, te, 1.0f, 1.0f, 1.0f, single_vertices, DM_ARRAY_SIZE(single_vertices)));
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        ASSERT_EQ(255u, single_vertices[i].m_OutlineColor[3]);
+        ASSERT_EQ(0u, single_vertices[6 + i].m_OutlineColor[3]);
+        ASSERT_EQ(1.0f, single_vertices[i].m_LayerMasks[1]);
+        ASSERT_EQ(1.0f, single_vertices[6 + i].m_LayerMasks[1]);
     }
 
     TextLayoutRelease(layout);
@@ -2095,8 +2139,9 @@ TEST_F(dmRenderTest, MarkupWithoutEffectTagsSuppressesBaseEffects)
     ASSERT_EQ(0u, rich_vertices[0].m_OutlineColor[3]);
     ASSERT_EQ(0u, rich_vertices[0].m_ShadowColor[3]);
     ASSERT_EQ(1.0f, rich_vertices[0].m_LayerMasks[0]);
-    ASSERT_EQ(0.0f, rich_vertices[0].m_LayerMasks[1]);
-    ASSERT_EQ(0.0f, rich_vertices[0].m_LayerMasks[2]);
+    // Single-layer compositing keeps all channels enabled; zero alpha suppresses the effects.
+    ASSERT_EQ(1.0f, rich_vertices[0].m_LayerMasks[1]);
+    ASSERT_EQ(1.0f, rich_vertices[0].m_LayerMasks[2]);
 
     TextLayoutRelease(legacy_layout);
     TextLayoutRelease(rich_layout);
@@ -2143,6 +2188,9 @@ TEST_F(dmRenderTest, MarkupOutlineColorOverridesBaseOutlineColor)
 
 TEST_F(dmRenderTest, MarkupOutlineSizeZeroDisablesAndOversizeClamps)
 {
+    // Separate effect quads require a multi-layer font; markup does not change its layer mode.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+
     const char zero_source[] = "<outline size=0>A</outline>";
     const char oversize_source[] = "<outline size=8>A</outline>";
     HMarkup zero_markup = 0;
@@ -2190,7 +2238,7 @@ TEST_F(dmRenderTest, MarkupOutlineSizeZeroDisablesAndOversizeClamps)
     ASSERT_EQ(1.0f, zero_vertices[0].m_LayerMasks[0]);
     ASSERT_EQ(0.0f, zero_vertices[0].m_LayerMasks[1]);
     ASSERT_EQ(1.0f, oversize_vertices[0].m_LayerMasks[1]);
-    ASSERT_NEAR(0.75f - (191.0f / 255.0f) * 4.0f / 8.0f, oversize_vertices[0].m_SdfParams[1], EPSILON);
+    ASSERT_NEAR(0.75f - 0.25f * 4.0f / 8.0f, oversize_vertices[0].m_SdfParams[1], EPSILON);
 
     TextLayoutRelease(zero_layout);
     TextLayoutRelease(oversize_layout);
@@ -2200,6 +2248,9 @@ TEST_F(dmRenderTest, MarkupOutlineSizeZeroDisablesAndOversizeClamps)
 
 TEST_F(dmRenderTest, MarkupCrispShadowOnlyCoversSpan)
 {
+    // Separate effect quads require a multi-layer font; markup does not change its layer mode.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+
     const char source[] = "<shadow x=0 y=0 blur=0 color=#FFFFFFFF>A</shadow>B";
     const char text[] = "AB";
     HMarkup markup = 0;
@@ -2251,6 +2302,9 @@ TEST_F(dmRenderTest, MarkupCrispShadowOnlyCoversSpan)
 
 TEST_F(dmRenderTest, MarkupBitmapShadowDoesNotRevealUntaggedOutline)
 {
+    // Separate effect quads require a multi-layer font; markup does not change its layer mode.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+
     const char source[] = "<shadow blur=2>A</shadow>";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
@@ -2303,7 +2357,7 @@ TEST_F(dmRenderTest, MarkupBitmapShadowDoesNotRevealUntaggedOutline)
     m_SystemFontMap->m_SdfSpread = old_sdf_spread;
 
     ASSERT_EQ(1.875f, outlined_shadow_vertices[0].m_SdfParams[3]);
-    ASSERT_NEAR(0.75f - (191.0f / 255.0f) * 2.0f / 8.0f, face_shadow_vertices[0].m_SdfParams[3], EPSILON);
+    ASSERT_NEAR(0.75f - 0.25f * 2.0f / 8.0f, face_shadow_vertices[0].m_SdfParams[3], EPSILON);
 
     TextLayoutRelease(layout);
     MarkupDestroy(markup);
@@ -2370,6 +2424,9 @@ TEST_F(dmRenderTest, DrawTextOnlyAppliesBaseOutlineAlphaToLegacyText)
 
 TEST_F(dmRenderTest, MarkupShadowUsesFontBlurWhenOmitted)
 {
+    // Separate effect quads require a multi-layer font; markup does not change its layer mode.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
+
     const char source[] = "<shadow x=1>A</shadow>";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
@@ -2408,7 +2465,7 @@ TEST_F(dmRenderTest, MarkupShadowUsesFontBlurWhenOmitted)
     m_SystemFontMap->m_IsSdf = old_is_sdf;
 
     ASSERT_EQ(1.0f, vertices[0].m_LayerMasks[2]);
-    ASSERT_NEAR(1.5f + 0.5f * (0.75f - (191.0f / 255.0f) * 4.0f / 8.0f), vertices[0].m_SdfParams[3], EPSILON);
+    ASSERT_NEAR(1.5f + 0.5f * (0.75f - 0.25f * 4.0f / 8.0f), vertices[0].m_SdfParams[3], EPSILON);
     ASSERT_EQ(vertices[6].m_Position[0] + 1.0f, vertices[0].m_Position[0]);
 
     TextLayoutRelease(layout);
@@ -2475,8 +2532,8 @@ TEST_F(dmRenderTest, MarkupShadowBlurClampsToBakedCapacity)
     m_SystemFontMap->m_SdfShadow = old_sdf_shadow;
     m_SystemFontMap->m_IsSdf = old_is_sdf;
 
-    ASSERT_NEAR(1.5f + 0.5f * (0.75f - (191.0f / 255.0f) * 2.0f / 8.0f), reduced_sdf_shadow, EPSILON);
-    ASSERT_NEAR(1.5f + 0.5f * (0.75f - (191.0f / 255.0f) * 4.0f / 8.0f), clamped_sdf_shadow, EPSILON);
+    ASSERT_NEAR(1.5f + 0.5f * (0.75f - 0.25f * 2.0f / 8.0f), reduced_sdf_shadow, EPSILON);
+    ASSERT_NEAR(1.5f + 0.5f * (0.75f - 0.25f * 4.0f / 8.0f), clamped_sdf_shadow, EPSILON);
     ASSERT_EQ(1.875f, no_capacity_sdf_shadow);
 
     TextLayoutRelease(layout);
@@ -2639,7 +2696,8 @@ TEST_F(dmRenderTest, MarkupDecorationInheritsOutlineAndShadowLayers)
 
     const uint8_t old_layer_mask = m_SystemFontMap->m_LayerMask;
     const bool    old_is_sdf = m_SystemFontMap->m_IsSdf;
-    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+    // These assertions inspect separate shadow/outline quads.
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW;
     m_SystemFontMap->m_IsSdf = true;
     FontGlyphVertex vertices[36];
     memset(vertices, 0, sizeof(vertices));
@@ -3200,6 +3258,133 @@ TEST_F(dmRenderTest, FontMapSetup)
     dmRender::DeleteFontMap(font);
 }
 
+TEST_F(dmRenderTest, FontMapNegativeGlyphAscent)
+{
+    HFontCollection font_collection = FontCollectionCreate();
+    FontCollectionAddFont(font_collection, m_Font);
+
+    dmRender::FontMapParams font_map_params;
+    font_map_params.m_FontCollection = font_collection;
+    font_map_params.m_CacheWidth = 128;
+    font_map_params.m_CacheHeight = 128;
+    font_map_params.m_CacheMaxWidth = 128;
+    font_map_params.m_CacheMaxHeight = 128;
+    font_map_params.m_CacheCellWidth = 64;
+    font_map_params.m_CacheCellHeight = 128;
+    font_map_params.m_CacheCellMaxAscent = 102;
+    font_map_params.m_MaxAscent = 102.0f;
+    font_map_params.m_MaxDescent = 26.0f;
+    font_map_params.m_Alpha = 1.0f;
+    font_map_params.m_OutlineAlpha = 0.0f;
+    font_map_params.m_ShadowAlpha = 0.0f;
+    font_map_params.m_IsDynamic = 1;
+    font_map_params.m_Padding = 0;
+
+    dmRender::DeleteFontMap(m_SystemFontMap);
+    m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
+    ASSERT_NE((dmRender::HFontMap)0, m_SystemFontMap);
+
+    // The underscore in IBM Plex Mono at size 96 lies entirely below the baseline.
+    const uint32_t codepoints[] = {'_', 'I'};
+    const uint16_t widths[] = {53, 50};
+    const uint16_t heights[] = {19, 74};
+    const float ascents[] = {-3.0f, 71.0f};
+    FontGlyph* glyphs[2];
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        FontGlyph* glyph = new FontGlyph;
+        memset(glyph, 0, sizeof(*glyph));
+        glyph->m_Codepoint = codepoints[i];
+        glyph->m_GlyphIndex = FontGetGlyphIndex(m_Font, codepoints[i]);
+        glyph->m_Ascent = ascents[i];
+        glyph->m_Bitmap.m_Width = widths[i];
+        glyph->m_Bitmap.m_Height = heights[i];
+        glyph->m_Bitmap.m_Channels = 1;
+        glyph->m_Bitmap.m_DataSize = widths[i] * heights[i];
+        glyph->m_Bitmap.m_Data = (uint8_t*)malloc(glyph->m_Bitmap.m_DataSize);
+        memset(glyph->m_Bitmap.m_Data, 255, glyph->m_Bitmap.m_DataSize);
+        glyphs[i] = glyph;
+
+        dmRender::AddGlyphByIndex(m_SystemFontMap, m_Font, glyph->m_GlyphIndex, glyph);
+
+        ASSERT_EQ(102, m_SystemFontMap->m_CacheCellMaxAscent);
+        ASSERT_EQ(64, m_SystemFontMap->m_CacheCellWidth);
+        ASSERT_EQ(128, m_SystemFontMap->m_CacheCellHeight);
+        ASSERT_FALSE(m_SystemFontMap->m_IsCacheSizeDirty);
+    }
+
+    FontGlyph* glyph = glyphs[1];
+    const int32_t cell_offset_y = m_SystemFontMap->m_CacheCellMaxAscent - (int32_t)glyph->m_Ascent;
+    ASSERT_EQ(31, cell_offset_y);
+
+    const uint64_t glyph_key = dmRender::MakeGlyphIndexKey(m_Font, glyph->m_GlyphIndex);
+    dmRender::CacheGlyph* cached = dmRender::AddGlyphToCache(m_SystemFontMap, 1, glyph_key, glyph, cell_offset_y);
+    ASSERT_NE((dmRender::CacheGlyph*)0, cached);
+    ASSERT_EQ(glyph, cached->m_Glyph);
+    ASSERT_TRUE(cached->m_Y + cell_offset_y >= 0);
+    ASSERT_TRUE(cached->m_Y + cell_offset_y + glyph->m_Bitmap.m_Height <= m_SystemFontMap->m_CacheHeight);
+
+    // Preserve a negative maximum through serialization, cache creation, and a later cache reset.
+    dmFontDDF::GlyphBank glyph_bank = {};
+    glyph_bank.m_CacheCellMaxAscent = -8;
+    dmArray<uint8_t> glyph_bank_data;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&glyph_bank, dmFontDDF::GlyphBank::m_DDFDescriptor, glyph_bank_data));
+    dmFontDDF::GlyphBank* loaded_glyph_bank = 0;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(glyph_bank_data.Begin(), glyph_bank_data.Size(), &loaded_glyph_bank));
+    ASSERT_EQ(-8, loaded_glyph_bank->m_CacheCellMaxAscent);
+    font_collection = FontCollectionCreate();
+    FontCollectionAddFont(font_collection, m_Font);
+    dmRender::FontMapParams negative_font_map_params;
+    negative_font_map_params.m_FontCollection = font_collection;
+    negative_font_map_params.m_CacheWidth = 128;
+    negative_font_map_params.m_CacheHeight = 256;
+    negative_font_map_params.m_CacheMaxWidth = 128;
+    negative_font_map_params.m_CacheMaxHeight = 256;
+    negative_font_map_params.m_CacheCellWidth = 64;
+    negative_font_map_params.m_CacheCellHeight = 123;
+    negative_font_map_params.m_CacheCellMaxAscent = loaded_glyph_bank->m_CacheCellMaxAscent;
+    negative_font_map_params.m_Alpha = 1.0f;
+    negative_font_map_params.m_OutlineAlpha = 0.0f;
+    negative_font_map_params.m_ShadowAlpha = 0.0f;
+    negative_font_map_params.m_IsDynamic = 1;
+    negative_font_map_params.m_Padding = 0;
+    dmDDF::FreeMessage(loaded_glyph_bank);
+    dmRender::DeleteFontMap(m_SystemFontMap);
+    m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, negative_font_map_params);
+    ASSERT_NE((dmRender::HFontMap)0, m_SystemFontMap);
+    ASSERT_EQ(-8, m_SystemFontMap->m_CacheCellMaxAscent);
+
+    glyph = new FontGlyph;
+    memset(glyph, 0, sizeof(*glyph));
+    glyph->m_Codepoint = '_';
+    glyph->m_GlyphIndex = FontGetGlyphIndex(m_Font, '_');
+    glyph->m_Ascent = -3.0f;
+    glyph->m_Descent = 22.0f;
+    glyph->m_Bitmap.m_Width = 53;
+    glyph->m_Bitmap.m_Height = 19;
+    glyph->m_Bitmap.m_Channels = 1;
+    glyph->m_Bitmap.m_DataSize = 53 * 19;
+    glyph->m_Bitmap.m_Data = (uint8_t*)calloc(1, glyph->m_Bitmap.m_DataSize);
+    dmRender::AddGlyphByIndex(m_SystemFontMap, m_Font, glyph->m_GlyphIndex, glyph);
+    ASSERT_EQ(-3, m_SystemFontMap->m_CacheCellMaxAscent);
+    ASSERT_EQ(-3.0f, glyph->m_Ascent);
+    ASSERT_TRUE(m_SystemFontMap->m_IsCacheSizeDirty);
+
+    dmRender::UpdateCacheTexture(m_SystemFontMap);
+    ASSERT_EQ(-3, m_SystemFontMap->m_CacheCellMaxAscent);
+    ASSERT_EQ(128, m_SystemFontMap->m_CacheCellHeight);
+    ASSERT_FALSE(m_SystemFontMap->m_IsCacheSizeDirty);
+    const uint64_t underscore_key = dmRender::MakeGlyphIndexKey(m_Font, glyph->m_GlyphIndex);
+    cached = dmRender::AddGlyphToCache(m_SystemFontMap, 1, underscore_key, glyph, 0);
+    ASSERT_NE((dmRender::CacheGlyph*)0, cached);
+
+    // A negative upload origin must be rejected before conversion to graphics coordinates.
+    ASSERT_EQ((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(m_SystemFontMap, 1, underscore_key + 1, glyph, -1));
+    ASSERT_FALSE(m_SystemFontMap->m_IsCacheSizeDirty);
+    // An upload may fit in the texture and still overlap the next cache row.
+    ASSERT_EQ((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(m_SystemFontMap, 1, underscore_key + 2, glyph, 120));
+}
+
 TEST_F(dmRenderTest, LightBufferTestSimple)
 {
     ASSERT_EQ(8u, sizeof(dmRender::LightInstance));
@@ -3225,6 +3410,17 @@ TEST_F(dmRenderTest, LightBufferTestSimple)
 TEST_F(dmRenderTest, LightBufferTestAllTypes)
 {
     dmRender::LightPrototypeParams params;
+
+    params.m_Type = dmRender::LIGHT_TYPE_AMBIENT;
+    params.m_Color = dmVMath::Vector4(0.25f, 0.5f, 0.75f, 1.0f);
+    params.m_Intensity = 2.0f;
+    dmRender::HLightPrototype proto_ambient = dmRender::NewLightPrototype(m_Context, params);
+    ASSERT_NE((dmRender::HLightPrototype)0, proto_ambient);
+    dmRender::HLightInstance inst_ambient = dmRender::NewLightInstance(m_Context, proto_ambient);
+    ASSERT_NE((dmRender::HLightInstance)0, inst_ambient);
+    dmRender::SetLightInstance(m_Context, inst_ambient, dmVMath::Point3(0, 0, 0), dmVMath::Quat::identity(), 1.0f);
+    dmRender::DeleteLightInstance(m_Context, inst_ambient);
+    dmRender::DeleteLightPrototype(m_Context, proto_ambient);
 
     params.m_Type = dmRender::LIGHT_TYPE_DIRECTIONAL;
     params.m_Color = dmVMath::Vector4(1.0f, 0.0f, 0.0f, 1.0f);
@@ -3261,6 +3457,32 @@ TEST_F(dmRenderTest, LightBufferTestAllTypes)
     dmRender::SetLightInstance(m_Context, inst_spot, dmVMath::Point3(0, 0, 10), dmVMath::Quat::identity(), 1.0f);
     dmRender::DeleteLightInstance(m_Context, inst_spot);
     dmRender::DeleteLightPrototype(m_Context, proto_spot);
+}
+
+TEST_F(dmRenderTest, LightBufferSubmissionIsPerFrame)
+{
+    dmRender::LightPrototypeParams params;
+    dmRender::HLightPrototype prototype = dmRender::NewLightPrototype(m_Context, params);
+    dmRender::HLightInstance instance = dmRender::NewLightInstance(m_Context, prototype);
+    ASSERT_NE((dmRender::HLightInstance)0, instance);
+
+    uint16_t light_buffer_index = instance & 0xFFFF;
+    dmRender::RenderContext* render_context = (dmRender::RenderContext*) m_Context;
+
+    dmRender::BeginFrame(m_Context, 1.0f, 1.0f / 60.0f);
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitLightInstance(m_Context, instance);
+    ASSERT_EQ(1, render_context->m_LightBufferSubmitted[light_buffer_index]);
+
+    // Starting another render list in the same frame must preserve submissions.
+    dmRender::RenderListBegin(m_Context);
+    ASSERT_EQ(1, render_context->m_LightBufferSubmitted[light_buffer_index]);
+
+    dmRender::BeginFrame(m_Context, 2.0f, 1.0f / 60.0f);
+    ASSERT_EQ(0, render_context->m_LightBufferSubmitted[light_buffer_index]);
+
+    dmRender::DeleteLightInstance(m_Context, instance);
+    dmRender::DeleteLightPrototype(m_Context, prototype);
 }
 
 TEST_F(dmRenderTest, LightBufferTestMultipleInstances)
@@ -3426,10 +3648,10 @@ TEST_F(dmRenderTest, ConstantTypeTimeSetsTimeAndDt)
     dmGraphics::ProgramResourceBinding& pgm_res = null_program->m_BaseProgram.m_ResourceBindings[set][binding];
     uint32_t uniform_offset = pgm_res.m_UniformBufferOffset + buffer_offset;
 
-    // Set frame time values on the render context.
+    // Begin the frame with time values on the render context.
     float time = 123.0f;
     float dt   = 1.0f / 60.0f;
-    dmRender::SetFrameTime(m_Context, time, dt);
+    dmRender::BeginFrame(m_Context, time, dt);
 
     // Enable the program so constants can be written to its uniform buffer.
     dmGraphics::EnableProgram(m_GraphicsContext, program);

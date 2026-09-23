@@ -121,9 +121,11 @@ namespace dmGraphics
         HTexture      m_TextureStencil;
         HTexture      m_TextureDepthStencil;
         uint32_t      m_SampleCount;
+        TextureType   m_TextureType;
         uint16_t      m_Id;
         uint8_t       m_ColorAttachmentCount;
         uint8_t       m_IsBound;
+        CubeMapFace   m_CubeMapFace;
     };
 
     static inline uint32_t GetDefaultSampleCount(uint32_t sample_count)
@@ -409,6 +411,7 @@ namespace dmGraphics
     void                       SetPipelineStateValue(PipelineState& pipeline_state, State state, uint8_t value);
     bool                       IsTextureFormatCompressed(TextureFormat format);
     bool                       IsTextureFormatASTC(TextureFormat format);
+    bool                       IsTextureFormatBC(TextureFormat format); // S3TC/RGTC/BPTC families (BC1/BC3/BC4/BC5/BC7)
     const char*                TextureFormatToString(TextureFormat format);
     ShaderDesc::Language       GetShaderProgramLanguage(HContext context);
     uint32_t                   GetShaderTypeSize(ShaderDesc::ShaderDataType type);

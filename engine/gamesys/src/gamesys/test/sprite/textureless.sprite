@@ -1,0 +1,7 @@
+default_animation: "anim"
+material: "/sprite/textureless.material"
+size {
+  x: 64.0
+  y: 64.0
+}
+size_mode: SIZE_MODE_MANUAL

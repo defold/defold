@@ -31,6 +31,7 @@
 #include "font_renderer.h"          // for FontGlyphCompression
 
 #include <dmsdk/font/text_layout.h>
+#include <font/font.h>
 #include <font_render.h>
 #include <font/render/glyph_vertex.h>
 #include <layout_vertex.h>
@@ -411,7 +412,7 @@ namespace dmRender
 
         if (!cached)
         {
-            const int16_t cell_offset_y = glyph_context->m_FontMap->m_CacheCellMaxAscent - (int16_t)glyph->m_Ascent;
+            const int32_t cell_offset_y = glyph_context->m_FontMap->m_CacheCellMaxAscent - (int32_t)glyph->m_Ascent;
             cached = AddGlyphToCache(glyph_context->m_FontMap, glyph_context->m_Frame, glyph_key, glyph, cell_offset_y);
         }
 
@@ -450,7 +451,7 @@ namespace dmRender
         config.m_DecorationV = decoration_cache ? (decoration_cache->m_Y + 0.5f) * recip_h : 0.0f;
         config.m_SdfEdge = 0.75f;
         config.m_SdfOutline = font_map->m_SdfOutline;
-        config.m_SdfSmoothing = 0.25f / (font_map->m_SdfSpread * sdf_scale);
+        config.m_SdfSmoothing = FONT_SDF_DISTANCE_SCALE / (font_map->m_SdfSpread * sdf_scale);
         config.m_SdfShadow = font_map->m_SdfShadow;
         config.m_SdfSpread = font_map->m_SdfSpread;
         config.m_OutlineWidth = font_map->m_OutlineWidth;

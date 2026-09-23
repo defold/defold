@@ -753,11 +753,29 @@ namespace dmGraphics
                format == TEXTURE_FORMAT_RGBA_ASTC_12X12;
     }
 
+    bool IsTextureFormatBC(TextureFormat format)
+    {
+        // The S3TC/RGTC/BPTC ("BC") compressed families. WebGL2 forbids these on
+        // TEXTURE_2D_ARRAY / TEXTURE_3D targets while allowing them on TEXTURE_2D.
+        return format == TEXTURE_FORMAT_RGB_BC1  ||
+               format == TEXTURE_FORMAT_RGBA_BC3 ||
+               format == TEXTURE_FORMAT_R_BC4    ||
+               format == TEXTURE_FORMAT_RG_BC5   ||
+               format == TEXTURE_FORMAT_RGBA_BC7;
+    }
+
     bool IsTextureFormatSupportedForType(HContext context, TextureType type, TextureFormat format)
     {
-        if ((type == TEXTURE_TYPE_2D_ARRAY || type == TEXTURE_TYPE_3D) && IsTextureFormatASTC(format))
+        // Some compressed families can't be uploaded to array/3D targets on all backends (notably
+        // BC and ASTC on WebGL2), even though they work fine as plain 2D textures. Each is gated
+        // behind a context feature the backend only sets where array/3D uploads actually work.
+        if (type == TEXTURE_TYPE_2D_ARRAY || type == TEXTURE_TYPE_3D)
         {
-            if (!IsContextFeatureSupported(context, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES))
+            if (IsTextureFormatASTC(format) && !IsContextFeatureSupported(context, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES))
+            {
+                return false;
+            }
+            if (IsTextureFormatBC(format) && !IsContextFeatureSupported(context, CONTEXT_FEATURE_BC_ARRAY_TEXTURES))
             {
                 return false;
             }
@@ -1063,7 +1081,7 @@ namespace dmGraphics
 
         if (IsFormatRGBA(format))
         {
-            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_BC7);
+            TEST_AND_RETURN_FOR_TYPE(dmGraphics::TEXTURE_FORMAT_RGBA_BC7);
             TEST_AND_RETURN_FOR_TYPE(dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGBA_ETC2);
             if (width == height) {
@@ -1075,7 +1093,7 @@ namespace dmGraphics
 
         if (IsFormatRGB(format))
         {
-            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_BC1);
+            TEST_AND_RETURN_FOR_TYPE(dmGraphics::TEXTURE_FORMAT_RGB_BC1);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_ETC1);
             if (width == height) {
                 TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
@@ -1086,7 +1104,7 @@ namespace dmGraphics
 
         if (IsFormatRG(format))
         {
-            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RG_BC5);
+            TEST_AND_RETURN_FOR_TYPE(dmGraphics::TEXTURE_FORMAT_RG_BC5);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_RG_ETC2);
             TEST_AND_RETURN(format);
             return dmGraphics::TEXTURE_FORMAT_LUMINANCE_ALPHA;
@@ -1094,7 +1112,7 @@ namespace dmGraphics
 
         if (IsFormatR(format))
         {
-            TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_R_BC4);
+            TEST_AND_RETURN_FOR_TYPE(dmGraphics::TEXTURE_FORMAT_R_BC4);
             TEST_AND_RETURN(dmGraphics::TEXTURE_FORMAT_R_ETC2);
             TEST_AND_RETURN(format);
             return dmGraphics::TEXTURE_FORMAT_LUMINANCE;
@@ -1897,6 +1915,10 @@ namespace dmGraphics
     void SetSwapInterval(HContext context, uint32_t swap_interval)
     {
         dmPlatform::SetSwapInterval(g_functions.m_GetWindow(context), swap_interval);
+        if (g_functions.m_SetSwapInterval)
+        {
+            g_functions.m_SetSwapInterval(context, swap_interval);
+        }
     }
 
     ///////////////////////////////////////////////////
@@ -2004,6 +2026,13 @@ namespace dmGraphics
         const RenderTarget* rt = GetAssetFromContainer<RenderTarget>(gc->m_AssetHandleContainer, render_target);
         return rt ? GetDefaultSampleCount(rt->m_SampleCount) : 0;
     }
+    TextureType GetRenderTargetTextureType(HContext context, HRenderTarget render_target)
+    {
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const RenderTarget* rt = GetAssetFromContainer<RenderTarget>(gc->m_AssetHandleContainer, render_target);
+        return rt ? rt->m_TextureType : TEXTURE_TYPE_2D;
+    }
     uint16_t GetTextureWidth(HContext context, HTexture texture)
     {
         GraphicsContext* gc = (GraphicsContext*)context;
@@ -2082,6 +2111,12 @@ namespace dmGraphics
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
         const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
         return t ? (uint32_t)t->m_UsageHintFlags : 0;
+    }
+
+    // SDK-friendly overload that preserves the Vector4-based adapter API.
+    void SetConstantM4(HContext context, const dmVMath::Matrix4* data, int count, HUniformLocation base_location)
+    {
+        SetConstantM4(context, reinterpret_cast<const dmVMath::Vector4*>(data), count, base_location);
     }
 
     ///////////////////////////////////////////////////
@@ -2366,18 +2401,89 @@ namespace dmGraphics
     }
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
-        return g_functions.m_NewRenderTarget(context, buffer_type_flags, params);
+        if (params.m_TextureType != TEXTURE_TYPE_2D && params.m_TextureType != TEXTURE_TYPE_CUBE_MAP)
+        {
+            dmLogError("Render target texture type %s is not supported.", GetTextureTypeLiteral(params.m_TextureType));
+            return 0;
+        }
+
+        RenderTargetCreationParams normalized_params = params;
+        if (params.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
+        {
+            uint32_t target_size = 0;
+            for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+            {
+                if ((buffer_type_flags & (BUFFER_TYPE_COLOR0_BIT << i)) == 0)
+                    continue;
+
+                TextureParams& texture_params = normalized_params.m_ColorBufferParams[i];
+                if (texture_params.m_Width == 0 || texture_params.m_Width != texture_params.m_Height || (target_size != 0 && target_size != texture_params.m_Width))
+                {
+                    dmLogError("Cubemap render target attachments must be non-zero, square, and equally sized.");
+                    return 0;
+                }
+                target_size = texture_params.m_Width;
+                normalized_params.m_ColorBufferCreationParams[i].m_Type       = TEXTURE_TYPE_CUBE_MAP;
+                normalized_params.m_ColorBufferCreationParams[i].m_LayerCount = CUBEMAP_FACE_COUNT;
+                texture_params.m_LayerCount                                   = CUBEMAP_FACE_COUNT;
+            }
+
+            TextureParams* depth_stencil_params = 0;
+            if (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT)
+                depth_stencil_params = &normalized_params.m_DepthBufferParams;
+            else if (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT)
+                depth_stencil_params = &normalized_params.m_StencilBufferParams;
+
+            if (depth_stencil_params)
+            {
+                if (depth_stencil_params->m_Width == 0 || depth_stencil_params->m_Width != depth_stencil_params->m_Height || (target_size != 0 && target_size != depth_stencil_params->m_Width))
+                {
+                    dmLogError("Cubemap render target attachments must be non-zero, square, and equally sized.");
+                    return 0;
+                }
+
+                if (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT)
+                {
+                    normalized_params.m_DepthBufferCreationParams.m_Type       = TEXTURE_TYPE_CUBE_MAP;
+                    normalized_params.m_DepthBufferCreationParams.m_LayerCount = CUBEMAP_FACE_COUNT;
+                    normalized_params.m_DepthBufferParams.m_LayerCount          = CUBEMAP_FACE_COUNT;
+                }
+                if (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT)
+                {
+                    normalized_params.m_StencilBufferCreationParams.m_Type       = TEXTURE_TYPE_CUBE_MAP;
+                    normalized_params.m_StencilBufferCreationParams.m_LayerCount = CUBEMAP_FACE_COUNT;
+                    normalized_params.m_StencilBufferParams.m_LayerCount          = CUBEMAP_FACE_COUNT;
+                }
+            }
+        }
+        return g_functions.m_NewRenderTarget(context, buffer_type_flags, normalized_params);
     }
     void DeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
         g_functions.m_DeleteRenderTarget(context, render_target);
     }
-    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
+    void SetRenderTarget(HContext context, HRenderTarget render_target, const RenderTargetBindingParams& params)
     {
-        g_functions.m_SetRenderTarget(context, render_target, transient_buffer_types);
+        if (params.m_CubeMapFace < CUBEMAP_FACE_POSITIVE_X || params.m_CubeMapFace >= CUBEMAP_FACE_COUNT)
+        {
+            dmLogError("Invalid cubemap render-target face: %d.", params.m_CubeMapFace);
+            return;
+        }
+        if (params.m_CubeMapFace != CUBEMAP_FACE_POSITIVE_X &&
+            (!render_target || GetRenderTargetTextureType(context, render_target) != TEXTURE_TYPE_CUBE_MAP))
+        {
+            dmLogError("A cubemap face can only be selected on a cubemap render target.");
+            return;
+        }
+        g_functions.m_SetRenderTarget(context, render_target, params);
     }
     void SetRenderTargetSize(HContext context, HRenderTarget render_target, uint32_t width, uint32_t height)
     {
+        if (GetRenderTargetTextureType(context, render_target) == TEXTURE_TYPE_CUBE_MAP && width != height)
+        {
+            dmLogError("Cubemap render target dimensions must be square.");
+            return;
+        }
         g_functions.m_SetRenderTargetSize(context, render_target, width, height);
     }
     bool IsTextureFormatSupported(HContext context, TextureFormat format)

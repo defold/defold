@@ -181,6 +181,8 @@ namespace dmGraphics
             // (which already specifies CLEAR for both). VK_NULL_HANDLE when no depth attachment.
             VkRenderPass  m_RenderPassClearColorDepth;
             VkFramebuffer m_Framebuffer;
+            VkFramebuffer m_CubeMapFramebuffers[CUBEMAP_FACE_COUNT - 1];
+            VkImageView   m_CubeMapAttachmentViews[CUBEMAP_FACE_COUNT][MAX_BUFFER_COLOR_ATTACHMENTS + 1];
             uint8_t       m_LastUsedFrame;
         };
 
@@ -528,6 +530,7 @@ namespace dmGraphics
         uint32_t                        m_AndroidVulkanWindowHeight;
 #endif
         uint32_t                        m_SwapInterval;
+        uint32_t                        m_SwapIntervalChanged  : 1;
         uint32_t                        m_FrameBegun           : 1;
         uint32_t                        m_CurrentFrameInFlight : 2;
         uint32_t                        m_NumFramesInFlight    : 2;

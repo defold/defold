@@ -298,7 +298,7 @@ struct Viewer
     uint32_t                         m_ColorDebugVertexCount;
     uint16_t                         m_CellWidth;
     uint16_t                         m_CellHeight;
-    uint16_t                         m_CellMaxAscent;
+    int32_t                          m_CellMaxAscent;
     uint8_t                          m_AtlasChannels;
     bool                             m_Closed;
     bool                             m_LegacyLayout;
@@ -849,9 +849,6 @@ static bool AddLayoutGlyphs(Viewer* viewer, HTextLayout layout, float font_size,
             dmLogError("Unable to generate glyph %u", glyph.m_GlyphIndex);
             return false;
         }
-        viewer->m_CellWidth = dmMath::Max(viewer->m_CellWidth, (uint16_t)(glyph.m_Glyph.m_Bitmap.m_Width + CELL_PADDING * 2));
-        viewer->m_CellHeight = dmMath::Max(viewer->m_CellHeight, (uint16_t)(glyph.m_Glyph.m_Bitmap.m_Height + CELL_PADDING * 2));
-        viewer->m_CellMaxAscent = dmMath::Max(viewer->m_CellMaxAscent, (uint16_t)glyph.m_Glyph.m_Ascent);
         if (viewer->m_Glyphs.Full())
             viewer->m_Glyphs.OffsetCapacity(32);
         viewer->m_Glyphs.Push(glyph);
@@ -861,6 +858,29 @@ static bool AddLayoutGlyphs(Viewer* viewer, HTextLayout layout, float font_size,
 
 static bool BuildAtlas(Viewer* viewer)
 {
+    uint32_t cell_width = 1;
+    int32_t max_ascent = 0;
+    int32_t max_descent = 0;
+    for (uint32_t i = 0; i < viewer->m_Glyphs.Size(); ++i)
+    {
+        const FontGlyph& glyph = viewer->m_Glyphs[i].m_Glyph;
+        int32_t ascent = (int32_t)glyph.m_Ascent;
+        int32_t descent = (int32_t)glyph.m_Bitmap.m_Height - ascent;
+        cell_width = dmMath::Max(cell_width, glyph.m_Bitmap.m_Width + CELL_PADDING * 2);
+        max_ascent = i == 0 ? ascent : dmMath::Max(max_ascent, ascent);
+        max_descent = i == 0 ? descent : dmMath::Max(max_descent, descent);
+    }
+    // All bitmaps share one baseline, so the row must fit both vertical extrema.
+    int64_t cell_height = dmMath::Max((int64_t)1, (int64_t)max_ascent + max_descent + CELL_PADDING * 2);
+    if (cell_width > ATLAS_WIDTH || cell_height > ATLAS_HEIGHT)
+    {
+        dmLogError("Font cache cell exceeds the %ux%u atlas dimensions", ATLAS_WIDTH, ATLAS_HEIGHT);
+        return false;
+    }
+    viewer->m_CellWidth = (uint16_t)cell_width;
+    viewer->m_CellHeight = (uint16_t)cell_height;
+    viewer->m_CellMaxAscent = max_ascent;
+
     const uint32_t columns = ATLAS_WIDTH / viewer->m_CellWidth;
     const uint32_t rows = ATLAS_HEIGHT / viewer->m_CellHeight;
     if (columns * rows < viewer->m_Glyphs.Size())
@@ -877,7 +897,13 @@ static bool BuildAtlas(Viewer* viewer)
         glyph.m_X = (i % columns) * viewer->m_CellWidth;
         glyph.m_Y = (i / columns) * viewer->m_CellHeight;
         const uint32_t image_x = glyph.m_X + CELL_PADDING;
-        const uint32_t image_y = glyph.m_Y + CELL_PADDING + viewer->m_CellMaxAscent - (uint16_t)glyph.m_Glyph.m_Ascent;
+        const int32_t  offset_y = (int32_t)CELL_PADDING + viewer->m_CellMaxAscent - (int32_t)glyph.m_Glyph.m_Ascent;
+        const int32_t  image_y = (int32_t)glyph.m_Y + offset_y;
+        if (offset_y < (int32_t)CELL_PADDING || offset_y + glyph.m_Glyph.m_Bitmap.m_Height + CELL_PADDING > viewer->m_CellHeight)
+        {
+            dmLogError("Glyph %u does not fit in its font atlas row", glyph.m_GlyphIndex);
+            return false;
+        }
         for (uint32_t y = 0; y < glyph.m_Glyph.m_Bitmap.m_Height; ++y)
         {
             uint8_t*       destination = viewer->m_Atlas.Begin() + ((image_y + y) * ATLAS_WIDTH + image_x) * viewer->m_AtlasChannels;
@@ -1220,13 +1246,15 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
     const float padding_outline_width = dmMath::Max(base_outline_width, markup_outline_width);
     const float shadow_blur = apply_properties ? viewer->m_Properties.m_ShadowBlur : 0.0f;
     const float padding = 6.0f + padding_outline_width + shadow_blur;
-    const float sdf_outline = (0.75f * 255.0f - (191.0f / padding) * base_outline_width) / 255.0f;
-    const float sdf_shadow = shadow_blur > 0.0f ? (0.75f * 255.0f - (191.0f / padding) * shadow_blur) / 255.0f : 1.0f;
+    const float sdf_distance_scale = FONT_SDF_DISTANCE_SCALE;
+    const float sdf_outline = 0.75f - sdf_distance_scale * base_outline_width / padding;
+    const float sdf_shadow = shadow_blur > 0.0f ? 0.75f - sdf_distance_scale * shadow_blur / padding : 1.0f;
     // The editable field uses a slightly lower edge threshold and a narrower
     // transition, making small SDF text stronger while keeping it crisp.
     const bool    crisp_ui_text = !apply_properties && clip_box.m_Width < WINDOW_WIDTH;
-    const float   sdf_face = bold ? 0.69f : (crisp_ui_text ? 0.72f : 0.75f);
-    const float   sdf_smoothing = (crisp_ui_text ? 0.125f : 0.25f) / padding;
+    // Preserve the UI emboldening distance from the original 191/255 encoding.
+    const float   sdf_face = 0.75f - (bold ? 0.06f : (crisp_ui_text ? 0.03f : 0.0f)) * sdf_distance_scale / (191.0f / 255.0f);
+    const float   sdf_smoothing = (crisp_ui_text ? 0.5f : 1.0f) * sdf_distance_scale / padding;
     const Vector4 face_color(apply_properties ? viewer->m_Properties.m_FaceColor[0] : 1.0f,
                              apply_properties ? viewer->m_Properties.m_FaceColor[1] : 1.0f,
                              apply_properties ? viewer->m_Properties.m_FaceColor[2] : 1.0f,
@@ -1281,7 +1309,7 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
 
             if (glyph_render_data.m_StyleFlags & TEXT_RENDER_STYLE_OUTLINE_WIDTH)
             {
-                glyph_sdf_outline = (0.75f * 255.0f - (191.0f / padding) * glyph_render_data.m_OutlineWidth / text_glyph.m_RenderScale) / 255.0f;
+                glyph_sdf_outline = 0.75f - sdf_distance_scale * glyph_render_data.m_OutlineWidth / (padding * text_glyph.m_RenderScale);
             }
 
             const uint32_t shadow_flags = TEXT_RENDER_STYLE_SHADOW_COLOR | TEXT_RENDER_STYLE_SHADOW_X | TEXT_RENDER_STYLE_SHADOW_Y | TEXT_RENDER_STYLE_SHADOW_BLUR;
@@ -1305,7 +1333,7 @@ static void PackLayout(Viewer* viewer, HTextLayout layout, float paragraph_x, fl
                 }
                 else if (shadow_blur > 0.0f && requested_shadow_blur < shadow_blur)
                 {
-                    glyph_sdf_shadow = (0.75f * 255.0f - (191.0f / padding) * requested_shadow_blur) / 255.0f;
+                    glyph_sdf_shadow = 0.75f - sdf_distance_scale * requested_shadow_blur / padding;
                 }
             }
 

@@ -56,6 +56,7 @@ namespace dmGameSystem
     uint64_t                  GetOrCreateBullet3DCollisionObjectId(lua_State* L, void* collision_object, dmGameObject::HInstance hinstance);
     btCollisionObject*        ToBullet3DCollisionObjectById(lua_State* L, uint64_t id);
     dmGameObject::HCollection GetBullet3DCollisionObjectCollection(lua_State* L, int index);
+    dmhash_t                  GetBullet3DCollisionObjectInstanceId(lua_State* L, int index);
     dmGameObject::HCollection GetBullet3DCollisionObjectCollectionById(lua_State* L, uint64_t id);
     void                      PushBullet3DCollisionObject(lua_State* L, void* collision_object, dmGameObject::HInstance hinstance);
     void                      PushBullet3DCollisionObjectById(lua_State* L, uint64_t id);

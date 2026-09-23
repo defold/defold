@@ -28,6 +28,10 @@
 
 #include "test_app_graphics.h"
 
+#if defined(DM_GRAPHICS_DAWN)
+#include "../webgpu/graphics_webgpu_private.h"
+#endif
+
 #include <dmsdk/graphics/graphics_vulkan.h>
 #include <platform/window.hpp>
 
@@ -236,6 +240,338 @@ struct ClearBackbufferTest : ITest
                                     (float)color_b,
                                     (float)color_a,
                                     1.0f, 0);
+    }
+};
+
+#if defined(DM_GRAPHICS_DAWN)
+#if defined(DM_PLATFORM_MACOS)
+bool WebGPUIsDisplaySyncEnabled();
+#endif
+
+static void WebGPUTestErrorCallback(WGPUPopErrorScopeStatus status, WGPUErrorType type, WGPUStringView message, void* userdata, void*)
+{
+    EngineCtx* engine = (EngineCtx*)userdata;
+    if (status != WGPUPopErrorScopeStatus_Success || type != WGPUErrorType_NoError)
+    {
+        dmLogError("WebGPU rendering test failed (%d, %d): %.*s", (int)status, (int)type, (int)message.length, message.data);
+        engine->m_Failed = true;
+    }
+}
+
+struct WebGPURenderingTest : ClearBackbufferTest
+{
+    dmGraphics::HProgram m_Program;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
+
+        const char* vertex_source =
+            "@vertex fn main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {\n"
+            "    var positions = array<vec2f, 3>(vec2f(-0.5, -0.5), vec2f(0.5, -0.5), vec2f(0.0, 0.5));\n"
+            "    return vec4f(positions[index], 0.5, 1.0);\n"
+            "}\n";
+        const char* fragment_source =
+            "@fragment fn main() -> @location(0) vec4f { return vec4f(1.0, 0.5, 0.0, 1.0); }\n";
+        dmGraphics::ShaderDesc shader_desc = {};
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                         (uint8_t*)vertex_source, strlen(vertex_source));
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                         (uint8_t*)fragment_source, strlen(fragment_source));
+        char error_buffer[512] = {};
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, error_buffer, sizeof(error_buffer));
+        DeleteShaderDesc(&shader_desc);
+        if (!m_Program)
+        {
+            dmLogError("WebGPU rendering test could not create program: %s", error_buffer);
+            engine->m_Failed = true;
+        }
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        ClearBackbufferTest::Execute(engine);
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::SetViewport(context, 0, 0, dmGraphics::GetWindowWidth(context), dmGraphics::GetWindowHeight(context));
+        dmGraphics::EnableProgram(context, m_Program);
+        // Both paths must create a valid depth-stencil pipeline. In WebGPU v2,
+        // disabled depth writes must be False rather than Undefined.
+        if (engine->m_WasRun % 2)
+        {
+            dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+        }
+        else
+        {
+            dmGraphics::EnableState(context, dmGraphics::STATE_DEPTH_TEST);
+        }
+        dmGraphics::SetDepthMask(context, engine->m_WasRun % 2 == 0);
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        dmGraphics::DisableProgram(context);
+#if defined(DM_PLATFORM_MACOS)
+        // EngineUpdate changes the interval during frames 1 and 2. Check the
+        // actual Metal layer after BeginFrame applies each pending change.
+        if (engine->m_WasRun <= 3)
+        {
+            ASSERT_EQ(engine->m_WasRun != 2, WebGPUIsDisplaySyncEnabled());
+        }
+#endif
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        if (m_Program)
+        {
+            dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
+        }
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        WGPUPopErrorScopeCallbackInfo callback_info = WGPU_POP_ERROR_SCOPE_CALLBACK_INFO_INIT;
+        callback_info.mode = WGPUCallbackMode_WaitAnyOnly;
+        callback_info.callback = WebGPUTestErrorCallback;
+        callback_info.userdata1 = engine;
+        WGPUFutureWaitInfo wait_info = { wgpuDevicePopErrorScope(context->m_Device, callback_info), 0 };
+        WGPUWaitStatus status = wgpuInstanceWaitAny(context->m_Instance, 1, &wait_info, UINT64_MAX);
+        engine->m_Failed |= context->m_HasValidationError != 0;
+        ASSERT_EQ(WGPUWaitStatus_Success, status);
+        ASSERT_TRUE(wait_info.completed);
+    }
+};
+#endif
+
+// Run with "opengles depth-texture" to exercise a real depth attachment, not
+// the null adapter used by test_graphics. Graphics-call verification is enabled.
+struct DepthTextureTest : ClearBackbufferTest
+{
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        for (uint32_t color = 0; color < 2; ++color)
+        {
+            dmGraphics::RenderTargetCreationParams params = {};
+            params.m_DepthTexture                         = 1;
+            params.m_DepthBufferParams.m_Format           = dmGraphics::TEXTURE_FORMAT_DEPTH;
+            params.m_DepthBufferParams.m_Width            = 64;
+            params.m_DepthBufferParams.m_Height           = 64;
+            params.m_DepthBufferCreationParams.m_Width    = 64;
+            params.m_DepthBufferCreationParams.m_Height   = 64;
+            params.m_ColorBufferParams[0].m_Format        = dmGraphics::TEXTURE_FORMAT_RGBA;
+            params.m_ColorBufferParams[0].m_Width         = 64;
+            params.m_ColorBufferParams[0].m_Height        = 64;
+            params.m_ColorBufferCreationParams[0].m_Width  = 64;
+            params.m_ColorBufferCreationParams[0].m_Height = 64;
+
+            uint32_t flags = dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+            if (color)
+            {
+                flags |= dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+            }
+
+            dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(context, flags, params);
+            for (uint32_t size = 64; size <= 128; size *= 2)
+            {
+                if (size != 64)
+                {
+                    dmGraphics::SetRenderTargetSize(context, target, size, size);
+                }
+
+                dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
+                dmGraphics::Clear(context, flags, 0, 0, 0, 255, 0.5f, 0);
+                dmGraphics::HTexture depth = dmGraphics::GetRenderTargetTexture(context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
+                if (!dmGraphics::IsAssetHandleValid(context, depth) ||
+                    dmGraphics::GetTextureWidth(context, depth) != size ||
+                    dmGraphics::GetTextureHeight(context, depth) != size)
+                {
+                    dmLogError("Depth texture allocation/resize failed (color=%u, size=%u)", color, size);
+                    engine->m_Failed = true;
+                }
+                dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
+            }
+            dmGraphics::DeleteRenderTarget(context, target);
+        }
+    }
+};
+
+// Run with "opengl cubemap-face-order". Each face has a distinct color so GPU
+// readback detects face swaps in both full uploads and subupdates (issue #11566).
+struct CubemapFaceOrderTest : ITest
+{
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HRenderTarget      m_RenderTarget;
+    dmGraphics::HUniformLocation   m_SampleParams;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_OPENGL ||
+            !dmGraphics::IsTextureFormatSupported(context, dmGraphics::TEXTURE_FORMAT_RGB_BC1))
+        {
+            dmLogError("Cubemap face order test requires OpenGL with BC1 texture support");
+            engine->m_Failed = true;
+            return;
+        }
+
+        const char* vertex_source =
+            "#version 330\n"
+            "in vec2 position;\n"
+            "void main() { gl_Position = vec4(position, 0.0, 1.0); }\n";
+        const char* fragment_source =
+            "#version 330\n"
+            "uniform samplerCube cubemap;\n"
+            "uniform vec4 sample_params;\n"
+            "out vec4 color;\n"
+            "void main() { color = textureLod(cubemap, sample_params.xyz, sample_params.w); }\n";
+        dmGraphics::ShaderDesc shader_desc = {};
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+            (uint8_t*) vertex_source, strlen(vertex_source));
+        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+            (uint8_t*) fragment_source, strlen(fragment_source));
+        AddShaderResource(&shader_desc, "position", dmGraphics::ShaderDesc::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        AddShaderResource(&shader_desc, "cubemap", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER_CUBE, 0, 0, BINDING_TYPE_TEXTURE, dmGraphics::SHADER_STAGE_FLAG_FRAGMENT);
+        char error_buffer[1024] = {};
+        m_Program = dmGraphics::NewProgram(context, &shader_desc, error_buffer, sizeof(error_buffer));
+        DeleteShaderDesc(&shader_desc);
+        if (!m_Program)
+        {
+            dmLogError("Failed to create cubemap test program: %s", error_buffer);
+            engine->m_Failed = true;
+            return;
+        }
+        m_SampleParams = GetUniformLocation(m_Program, "sample_params");
+
+        const float vertices[] = { -1.0f, -1.0f, 3.0f, -1.0f, -1.0f, 3.0f };
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(context, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(context);
+        dmGraphics::AddVertexStream(streams, "position", 2, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(context, streams);
+        dmGraphics::DeleteVertexStreamDeclaration(streams);
+
+        dmGraphics::RenderTargetCreationParams target_params = {};
+        target_params.m_ColorBufferCreationParams[0].m_Width = 1;
+        target_params.m_ColorBufferCreationParams[0].m_Height = 1;
+        target_params.m_ColorBufferParams[0].m_Width = 1;
+        target_params.m_ColorBufferParams[0].m_Height = 1;
+        target_params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+        m_RenderTarget = dmGraphics::NewRenderTarget(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_params);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        // +X, -X, +Y, -Y, +Z, -Z. BC1 endpoint colors are exact in RGB565.
+        const uint8_t colors[6][4] = {
+            {255, 0, 0, 255}, {0, 255, 0, 255}, {0, 0, 255, 255},
+            {255, 255, 0, 255}, {255, 0, 255, 255}, {0, 255, 255, 255}
+        };
+        const float directions[6][3] = {
+            {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}
+        };
+
+        dmGraphics::SetRenderTarget(context, m_RenderTarget, dmGraphics::RenderTargetBindingParams());
+        dmGraphics::SetViewport(context, 0, 0, 1, 1);
+        dmGraphics::EnableProgram(context, m_Program);
+        dmGraphics::SetSampler(context, GetUniformLocation(m_Program, "cubemap"), 0);
+        dmGraphics::EnableVertexBuffer(context, m_VertexBuffer, 0);
+        dmGraphics::EnableVertexDeclaration(context, m_VertexDeclaration, 0, 0, m_Program);
+
+        for (uint32_t compressed = 0; compressed < 2; ++compressed)
+        {
+            dmGraphics::TextureCreationParams creation_params;
+            creation_params.m_Type = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+            creation_params.m_Width = 4;
+            creation_params.m_Height = 4;
+            creation_params.m_MipMapCount = 3;
+            dmGraphics::HTexture texture = dmGraphics::NewTexture(context, creation_params);
+
+            for (uint32_t subupdate = 0; subupdate < 2; ++subupdate)
+            {
+                for (uint32_t mip = 0; mip < 3; ++mip)
+                {
+                    dmGraphics::TextureParams params;
+                    params.m_Width = 4 >> mip;
+                    params.m_Height = 4 >> mip;
+                    params.m_MipMap = mip;
+                    params.m_LayerCount = 6;
+                    params.m_Format = compressed ? dmGraphics::TEXTURE_FORMAT_RGB_BC1 : dmGraphics::TEXTURE_FORMAT_RGBA;
+                    params.m_DataSize = compressed ? 8 : params.m_Width * params.m_Height * 4;
+                    params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST;
+                    params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+                    params.m_SubUpdate = subupdate;
+                    uint8_t data[6 * 4 * 4 * 4] = {};
+                    for (uint32_t face = 0; face < 6; ++face)
+                    {
+                        const uint8_t* color = colors[(face + mip + subupdate) % 6];
+                        uint8_t* face_data = data + face * params.m_DataSize;
+                        if (compressed)
+                        {
+                            // One BC1 block: RGB565 endpoint 0, all pixel indices 0.
+                            uint16_t rgb565 = ((color[0] >> 3) << 11) | ((color[1] >> 2) << 5) | (color[2] >> 3);
+                            face_data[0] = rgb565 & 0xff;
+                            face_data[1] = rgb565 >> 8;
+                        }
+                        else
+                        {
+                            for (uint32_t pixel = 0; pixel < params.m_Width * params.m_Height; ++pixel)
+                            {
+                                memcpy(face_data + pixel * 4, color, 4);
+                            }
+                        }
+                    }
+                    params.m_Data = data;
+                    dmGraphics::SetTexture(context, texture, params);
+                }
+
+                dmGraphics::EnableTexture(context, 0, 0, texture);
+                for (uint32_t mip = 0; mip < 3; ++mip)
+                {
+                    for (uint32_t face = 0; face < 6; ++face)
+                    {
+                        dmVMath::Vector4 sample_params(directions[face][0], directions[face][1], directions[face][2], (float) mip);
+                        dmGraphics::SetConstantV4(context, &sample_params, 1, m_SampleParams);
+                        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+                        uint8_t pixel[4] = {};
+                        dmGraphics::ReadPixels(context, 0, 0, 1, 1, pixel, sizeof(pixel));
+                        const uint8_t* expected = colors[(face + mip + subupdate) % 6];
+                        // OpenGL ReadPixels returns BGRA.
+                        if (pixel[0] != expected[2] || pixel[1] != expected[1] || pixel[2] != expected[0] || pixel[3] != expected[3])
+                        {
+                            dmLogError("Cubemap face %u, mip %u, compressed %u, subupdate %u: expected RGBA %u,%u,%u,%u, got %u,%u,%u,%u",
+                                face, mip, compressed, subupdate, expected[0], expected[1], expected[2], expected[3], pixel[2], pixel[1], pixel[0], pixel[3]);
+                            engine->m_Failed = true;
+                        }
+                    }
+                }
+                dmGraphics::DisableTexture(context, 0, texture);
+            }
+            dmGraphics::DeleteTexture(context, texture);
+        }
+        dmGraphics::DisableVertexDeclaration(context, m_VertexDeclaration);
+        dmGraphics::DisableVertexBuffer(context, m_VertexBuffer);
+        dmGraphics::DisableProgram(context);
+        dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
+        engine->m_Running = 0;
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        if (m_RenderTarget)
+        {
+            dmGraphics::DeleteRenderTarget(context, m_RenderTarget);
+        }
+        if (m_VertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(m_VertexDeclaration);
+        }
+        if (m_VertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(m_VertexBuffer);
+        }
+        if (m_Program)
+        {
+            dmGraphics::DeleteProgram(context, m_Program);
+        }
     }
 };
 
@@ -1287,6 +1623,10 @@ static void* EngineCreate(int argc, char** argv)
     {
         window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_METAL;
     }
+    else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_WEBGPU)
+    {
+        window_params.m_GraphicsApi = WINDOW_GRAPHICS_API_WEBGPU;
+    }
 
     WindowResult wr = dmPlatform::OpenWindow(engine->m_Window, window_params);
     if (WINDOW_RESULT_OK != wr)
@@ -1333,7 +1673,17 @@ static void* EngineCreate(int argc, char** argv)
         engine->m_Failed = true;
     }
 
-    if (HasArgument("issue-12878"))
+    if (HasArgument("depth-texture"))
+    {
+        dmLogInfo("test_app_graphics: running DepthTextureTest");
+        engine->m_Test = new DepthTextureTest();
+    }
+    else if (HasArgument("cubemap-face-order"))
+    {
+        dmLogInfo("test_app_graphics: running CubemapFaceOrderTest");
+        engine->m_Test = new CubemapFaceOrderTest();
+    }
+    else if (HasArgument("issue-12878"))
     {
         dmGraphics::AdapterFamily family = dmGraphics::GetInstalledAdapterFamily();
         if (family != dmGraphics::ADAPTER_FAMILY_VULKAN && family != dmGraphics::ADAPTER_FAMILY_METAL)
@@ -1362,6 +1712,13 @@ static void* EngineCreate(int argc, char** argv)
             engine->m_Test = new AsyncTextureUploadQueueTest();
         }
     }
+#if defined(DM_GRAPHICS_DAWN)
+    else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_WEBGPU)
+    {
+        dmLogInfo("test_app_graphics: running WebGPURenderingTest");
+        engine->m_Test = new WebGPURenderingTest();
+    }
+#endif
     else
     {
         //engine->m_Test = new ComputeTest();
@@ -1430,6 +1787,18 @@ static UpdateResult EngineUpdate(void* _engine)
 
     engine->m_Test->Execute(engine);
 
+    // Exercise runtime presentation-mode changes while a frame is active. The
+    // Vulkan and native WebGPU backends defer reconfiguration until the next
+    // BeginFrame, while other backends may apply the change immediately.
+    if (engine->m_WasRun == 1)
+    {
+        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, 0);
+    }
+    else if (engine->m_WasRun == 2)
+    {
+        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, 1);
+    }
+
     dmGraphics::Flip(engine->m_GraphicsContext);
 
     if (ShouldAutoExit() && !HasArgument("issue-12898-12902") && engine->m_WasRun >= TEST_APP_GRAPHICS_MAX_FRAME_COUNT)
@@ -1475,6 +1844,7 @@ static const char* GetAdapterName(dmGraphics::AdapterFamily family)
         case dmGraphics::ADAPTER_FAMILY_OPENGLES: return "opengles";
         case dmGraphics::ADAPTER_FAMILY_VULKAN:   return "vulkan";
         case dmGraphics::ADAPTER_FAMILY_METAL:    return "metal";
+        case dmGraphics::ADAPTER_FAMILY_WEBGPU:   return "webgpu";
         default: break;
     }
     return "unknown";
@@ -1501,6 +1871,10 @@ static void InstallAdapter(int argc, char **argv)
         else if (strcmp(argv[i], "metal") == 0)
         {
             family = dmGraphics::ADAPTER_FAMILY_METAL;
+        }
+        else if (strcmp(argv[i], "webgpu") == 0)
+        {
+            family = dmGraphics::ADAPTER_FAMILY_WEBGPU;
         }
     }
 
@@ -1530,6 +1904,7 @@ TEST(App, Run)
 
     int ret = RunLoop(&params);
     ASSERT_EQ(0, ret);
+    ASSERT_FALSE(g_EngineCtx.m_Failed);
 
 
     uint64_t t = dmTime::GetMonotonicTime();

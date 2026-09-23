@@ -105,7 +105,21 @@ local function print_collision_object(collision, indent)
         elseif type == "shape-type-capsule" then
             print(("%s  diameter: %s"):format(indent, editor.get(shape, "diameter")))
             print(("%s  height: %s"):format(indent, editor.get(shape, "height")))
+        elseif type == "shape-type-hull" or type == "shape-type-mesh" then
+            assert(editor.can_get(shape, "mesh_scene"))
         end
+    end
+end
+
+local function print_font(font)
+    local styles = editor.get(font, "styles")
+    print(("  styles: %s"):format(#styles))
+    for i = 1, #styles do
+        local style = styles[i]
+        print(("    id: %s"):format(editor.get(style, "id")))
+        print(("    markup: [%s]"):format(editor.get(style, "markup"):gsub("\n", "\\n")))
+        assert(editor.can_set(style, "id"))
+        assert(editor.can_set(style, "markup"))
     end
 end
 
@@ -392,7 +406,7 @@ function M.get_commands()
                 print("Collision object initial state:")
                 print_collision_object(collision)
 
-                print("Transaction: add 3 shapes")
+                print("Transaction: add 5 shapes")
                 editor.transact({
                     editor.tx.set(collision, "collision_type", "collision-object-type-static"),
                     editor.tx.add(collision, "shapes", {
@@ -406,10 +420,18 @@ function M.get_commands()
                     editor.tx.add(collision, "shapes", {
                         id = "capsule",
                         type = "shape-type-capsule"
+                    }),
+                    editor.tx.add(collision, "shapes", {
+                        id = "hull",
+                        type = "shape-type-hull"
+                    }),
+                    editor.tx.add(collision, "shapes", {
+                        id = "mesh",
+                        type = "shape-type-mesh"
                     })
                 })
 
-                print("After transaction (add 3 shapes):")
+                print("After transaction (add 5 shapes):")
                 print_collision_object(collision)
 
                 print("Transaction: clear")
@@ -815,6 +837,45 @@ function M.get_commands()
 
                 print("After transaction (clear collection)")
                 print_coll(coll)
+
+                print("Font initial state:")
+                local font = "/test.font"
+                local markup = "<color=#aa3300>\n<ul>"
+                print_font(font)
+                print(("  can get styles: %s"):format(tostring(editor.can_get(font, "styles"))))
+                print(("  can add styles: %s"):format(tostring(editor.can_add(font, "styles"))))
+                print(("  can set styles: %s"):format(tostring(editor.can_set(font, "styles"))))
+
+                print("Transaction: add and edit font styles")
+                local styles = editor.get(font, "styles")
+                editor.transact({
+                    editor.tx.add(font, "styles", {}),
+                    editor.tx.add(font, "styles", {}),
+                    editor.tx.add(font, "styles", {id = "accent", markup = "<color=#ff6600>"}),
+                    editor.tx.set(styles[1], "id", "notice"),
+                    editor.tx.set(styles[1], "markup", markup)
+                })
+                print("After transaction (add and edit font styles):")
+                print_font(font)
+
+                print("Transaction: remove font style")
+                styles = editor.get(font, "styles")
+                editor.transact({editor.tx.remove(font, "styles", styles[2])})
+                print("After transaction (remove font style):")
+                print_font(font)
+
+                print("Transaction: clear font styles")
+                editor.transact({editor.tx.clear(font, "styles")})
+                print("After transaction (clear font styles):")
+                print_font(font)
+
+                print("Transaction: add font styles after clear")
+                editor.transact({
+                    editor.tx.add(font, "styles", {id = "notice", markup = markup}),
+                    editor.tx.add(font, "styles", {id = "accent", markup = "<color=#ff6600>"})
+                })
+                print("After transaction (add font styles after clear):")
+                print_font(font)
             end
         })
     }

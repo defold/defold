@@ -28,6 +28,7 @@
             [editor.properties :as properties]
             [editor.resource :as resource]
             [editor.types :as types]
+            [editor.workspace :as workspace]
             [schema.core :as s]
             [util.coll :as coll]
             [util.eduction :as e]))
@@ -84,8 +85,8 @@
 ;;
 ;; The scanner emits one token per structural bracket or block keyword, as [dir kind index]:
 ;; - Skips quoted strings and comments without tokenizing their contents
-;; - Tracks whether we're inside a long string/comment, since that state
-;;   carries across lines
+;; - Tracks lexer state that carries across lines: long strings/comments, short
+;;   strings continued by a trailing backslash, and unfinished function headers
 ;; - Records the opening column of function parameter lists, so parameters can
 ;;   line up under the first one. Other openers just indent by one level
 ;; - Treats `else` as closing and reopening a block, and `elseif` as just
@@ -100,40 +101,50 @@
 ;; - :leading - the kind of the closer the line starts with, or nil if it does
 ;;   not start with one. Only a matching closer at the start should dedent the
 ;;   line; one at the end is continuation punctuation
-;; - :opens - one entry per still-open bracket/keyword, holding its :kind and
-;;   its :col, which is either:
+;; - :opens - one entry per still-open bracket/keyword, holding its :kind,
+;;   whether it is a :bracket rather than a block keyword, and its :col, which
+;;   is either:
 ;;     * the column to align its contents to (just past the bracket, with
 ;;       tabs expanded, so it matches where the text actually appears)
 ;;     * or nil, if no parameter follows the opening parenthesis, or if the
 ;;       opener is not a function parameter list
-;; - :unfinished - :assign if the line ends on a bare `=`, :arg if it ends on a
-;;   comma, or nil. Either way the lines below it finish what it started
+;; - :unfinished - :assignment if the line ends on a bare `=`, or nil
+;; - :trailing-comma - whether the line ends on a comma
 ;; - :has-code - whether the line has any code on it at all
 ;;
 ;; A closer whose kind does not match is dropped. On well-formed code that
 ;; never happens, since a closer's opener is always the innermost one still
 ;; open; on half-typed code it keeps the mistake from disturbing the rest.
-(defn lua-lex-line [^String line in-long-bracket]
+(defn lua-lex-line [^String line {:keys [in-long-bracket after-function]}]
   (let [len (long (.length line))]
     (loop [i 0
            ^Character in-quote nil
            escaped false
            in-long-bracket in-long-bracket
-           after-function false
+           after-function after-function
            tokens []
            last-code -1]
       (if (>= i len)
-        [tokens in-long-bracket last-code]
+        ;; A short string continues on the next line when the line ends on a
+        ;; backslash. Function headers may continue until their parameter list.
+        [tokens {:in-long-bracket (if (and in-quote escaped) [in-quote :quote] in-long-bracket)
+                 :after-function after-function}
+         last-code]
         (let [ch (.charAt line i)]
           (cond
             in-long-bracket
-            ;; Resume lexing after the matching long-bracket delimiter.
-            (let [[level kind] in-long-bracket
-                  close (long-bracket-end line i (long level))]
-              (if (neg? close)
-                [tokens in-long-bracket last-code]
-                (recur close in-quote false nil after-function tokens
-                       (if (= :comment kind) last-code (dec close)))))
+            ;; Resume lexing after the matching long-bracket delimiter, or in
+            ;; the short string the line above continued.
+            (let [[level kind] in-long-bracket]
+              (if (= :quote kind)
+                (recur i level false nil after-function tokens last-code)
+                (let [close (long-bracket-end line i (long level))]
+                  (if (neg? close)
+                    [tokens {:in-long-bracket in-long-bracket
+                             :after-function after-function}
+                     last-code]
+                    (recur close in-quote false nil after-function tokens
+                           (if (= :comment kind) last-code (dec close)))))))
 
             in-quote
             (cond
@@ -235,20 +246,20 @@
 (def ^:private lua-close-line-pattern
   #"^\s*((\b(elseif|else|end|until)\b)|[)}\]])")
 
-(defn lua-indent-counts [^String line in-long-bracket tab-spaces]
-  (let [[tokens in-long-bracket ^long last-code] (lua-lex-line line in-long-bracket)
+(defn lua-indent-counts [^String line lex-state tab-spaces]
+  (let [[tokens lex-state ^long last-code] (lua-lex-line line lex-state)
+        in-long-bracket (:in-long-bracket lex-state)
         ;; A line whose last code character is a bare `=` leaves an assignment
-        ;; unfinished, and one ending on a comma leaves an argument list open.
-        unfinished (when (and (not= :string (get in-long-bracket 1))
-                              (not (neg? last-code)))
-                     (case (.charAt line last-code)
-                       \, :arg
-                       \= (when (or (zero? last-code)
-                                    (case (.charAt line (dec last-code))
-                                      (\= \~ \< \>) false
-                                      true))
-                            :assign)
-                       nil))
+        ;; unfinished, and a trailing comma leaves continuation punctuation.
+        code (and (not (contains? #{:string :quote} (get in-long-bracket 1)))
+                  (not (neg? last-code)))
+        unfinished (when (and code (= \= (.charAt line last-code))
+                              (or (zero? last-code)
+                                  (case (.charAt line (dec last-code))
+                                    (\= \~ \< \>) false
+                                    true)))
+                     :assignment)
+        trailing-comma (and code (= \, (.charAt line last-code)))
         ;; Cancel matched pairs, leaving only structure that crosses this line.
         leftover (reduce (fn [stack t]
                            (let [top (peek stack)]
@@ -269,6 +280,7 @@
         ;; survives the reduce while nothing is open.
         opens (mapv (fn [t]
                       {:kind (t 1)
+                       :bracket (contains? #{:paren :brace :bracket} (t 1))
                        :col (when-let [index (t 2)]
                               (when (code-after-index? line index)
                                 (inc (visual-column line index tab-spaces))))})
@@ -277,8 +289,10 @@
      :opens opens
      :leading (when (re-find lua-close-line-pattern line) (first closes))
      :unfinished unfinished
+     :trailing-comma trailing-comma
      :has-code (not (neg? last-code))
-     :in-long-bracket in-long-bracket}))
+     :lex-state lex-state
+     :in-multiline-scope (boolean in-long-bracket)}))
 
 (def lua-grammar
   {:name "Lua"
@@ -289,7 +303,8 @@
                                       (<= 0 (.indexOf line (int \]))))
                                   (re-find #"\[=*\[|\]=*\]" line)))
             :end lua-close-line-pattern
-            :multiline-scopes #{"string.quoted.other.multiline.lua" "comment.block.lua"}}
+            :multiline-scopes #{"string.quoted.other.multiline.lua" "comment.block.lua"
+                                "string.quoted.double.lua" "string.quoted.single.lua"}}
    :line-comment "--"
    :auto-insert {:characters {\" \"
                               \' \'
@@ -386,7 +401,7 @@
 (g/defnk produce-script-property-entries [^:unsafe _evaluation-context _this _node-id deleted? name resource-kind type value]
   (when-not deleted?
     (let [basis (:basis _evaluation-context)
-          project (project/get-project basis _node-id)
+          project (project/get-project basis)
           workspace (project/workspace project _evaluation-context)
           prop-kw (properties/user-name->key name)
           prop-type (script-compilation/script-property-type->property-type type)
@@ -454,7 +469,7 @@
                    ;; When assigning a resource property, we must make sure the
                    ;; assigned resource is built and included in the game.
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project basis self)]
+                         project (project/get-project basis)]
                      (concat
                        (g/disconnect-sources basis self :resource)
                        (g/disconnect-sources basis self :resource-build-targets)
@@ -501,7 +516,7 @@
   (g/set-properties node-id :type type :resource-kind resource-kind :value value))
 
 (defn- create-script-property [script-node-id name type resource-kind value]
-  (g/make-nodes (g/node-id->graph-id script-node-id) [node-id [ScriptPropertyNode :name name]]
+  (g/make-nodes [node-id [ScriptPropertyNode :name name]]
     (edit-script-property node-id type resource-kind value)
     (g/connect node-id :_node-id script-node-id :nodes)
     (g/connect node-id :build-targets script-node-id :resource-property-build-targets)
@@ -560,7 +575,7 @@
 
 (g/defnk produce-script-build-targets [^:unsafe _evaluation-context _node-id resource lines lua-preprocessors script-properties original-resource-property-build-targets]
   (let [basis (:basis _evaluation-context)
-        project (project/get-project basis _node-id)]
+        project (project/get-project basis)]
     (script-compilation/build-targets
       _node-id
       resource
@@ -574,7 +589,7 @@
 
 (g/defnk produce-lua-build-targets [^:unsafe _evaluation-context _node-id resource lines lua-preprocessors]
   (let [basis (:basis _evaluation-context)
-        project (project/get-project basis _node-id)]
+        project (project/get-project basis)]
     (script-compilation/build-targets
       _node-id
       resource
@@ -599,6 +614,10 @@
     (filter data/breakpoint-region?)
     (map (partial region->breakpoint resource))))
 
+(def ^:private xform-required-modules-to-proj-paths
+  (comp (remove lua/preinstalled-modules)
+        (map lua/lua-module->path)))
+
 (g/defnode LuaCodeNode
   (inherits r/CodeEditorResourceNode)
 
@@ -618,8 +637,7 @@
              (resource/proj-path resource)
              (with-open [reader (data/lines-reader lines)]
                (coll/into-> (lua-parser/modules reader) []
-                 (remove lua/preinstalled-modules)
-                 (map lua/lua-module->path)))]))
+                 xform-required-modules-to-proj-paths))]))
   (output resource-with-lines script-annotations/ResourceWithLines (g/fnk [resource lines :as ret] ret)))
 
 (g/defnode LuaNode
@@ -644,11 +662,12 @@
                    (let [resource (g/node-value self :resource evaluation-context)
                          basis (:basis evaluation-context)
                          source-value (g/node-value self :source-value evaluation-context)
-                         lsp (lsp/get-node-lsp basis self)
+                         lsp (lsp/get-lsp basis)
                          workspace (resource/workspace resource)
+                         proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)
                          lua-info (with-open [reader (data/lines-reader new-value)]
-                                    (lua-parser/lua-info basis workspace script-compilation/valid-resource-kind? reader))
-                         script-properties (script-compilation/lua-info->script-properties lua-info)]
+                                    (lua-parser/lua-info reader script-compilation/valid-resource-kind?))
+                         script-properties (script-compilation/lua-info->script-properties lua-info proj-path->resource)]
                      (lsp/notify-lines-modified! lsp resource source-value new-value)
                      (g/set-property self :script-properties script-properties)))))
 
@@ -657,7 +676,7 @@
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project basis self)]
+                         project (project/get-project basis)]
                      (concat
                        (update-script-properties evaluation-context self old-value new-value)
                        (g/disconnect-sources basis self :original-resource-property-build-targets)
@@ -717,13 +736,28 @@
         (when (and annotations (resource/zip-resource? resource))
           (g/connect self :resource-with-lines script-annotations :script-annotations))))))
 
-(defn- additional-load-fn [project self _resource]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [code-preprocessors (project/code-preprocessors project evaluation-context)
-          script-intelligence (project/script-intelligence project evaluation-context)]
-      (e/concat
-        (g/connect code-preprocessors :lua-preprocessors self :lua-preprocessors)
-        (g/connect script-intelligence :lua-completions self :script-intelligence-completions)))))
+(defn- script-dependencies [_read-opts _owner-resource lines]
+  (let [lua-info
+        (with-open [reader (data/lines-reader lines)]
+          (lua-parser/lua-info reader script-compilation/valid-resource-kind?))
+
+        script-property-resource-proj-paths
+        (coll/into-> (:script-properties lua-info) :eduction
+          (filter #(= :script-property-type-resource (:type %)))
+          (keep :value))
+
+        required-module-proj-paths
+        (coll/into-> (:modules lua-info) :eduction
+          xform-required-modules-to-proj-paths)]
+
+    (coll/into-> [required-module-proj-paths script-property-resource-proj-paths] []
+      cat
+      (distinct))))
+
+(defn- additional-load-fn [{:keys [code-preprocessor script-intelligence]} {self :node-id}]
+  (e/concat
+    (g/connect code-preprocessor :lua-preprocessors self :lua-preprocessors)
+    (g/connect script-intelligence :lua-completions self :script-intelligence-completions)))
 
 (defn register-resource-types [workspace]
   (for [def script-defs
@@ -731,6 +765,7 @@
                        (dissoc :annotations :reference-completions)
                        (assoc
                          :built-pb-class script-compilation/built-pb-class
+                         :dependencies-fn script-dependencies
                          :language "lua"
                          :lazy-loaded false
                          :connect-fn (partial connect-fn (:annotations def) (:reference-completions def))

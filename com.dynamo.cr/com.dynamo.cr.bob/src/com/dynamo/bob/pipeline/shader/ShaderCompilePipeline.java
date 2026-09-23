@@ -21,12 +21,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.pipeline.ShaderUtil;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.pipeline.Shaderc;
 import com.dynamo.bob.pipeline.ShadercJni;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
@@ -39,6 +39,9 @@ import org.apache.commons.io.FileUtils;
 import com.dynamo.bob.pipeline.Shaderc;
 
 public class ShaderCompilePipeline {
+    private static final String WGSL_FLIPPED_VERTEX_ENTRY_POINT_MARKER = "// defold-webgpu-flipped-entry-point: ";
+    private static final String WGSL_FLIPPED_VERTEX_ENTRY_POINT_BASE = "_defold_webgpu_main_flipped";
+
     public static class Options {
         public boolean splitTextureSamplers;
         public boolean remapVertexFragmentIOForHLSL;
@@ -188,12 +191,72 @@ public class ShaderCompilePipeline {
         }
     }
 
-    protected static void generateWGSL(String resourcePath, String pathFileInSpv, String pathFileOutWGSL) throws IOException, CompileExceptionError {
+    private static String addWGSLFlippedVertexEntryPoint(String resourcePath, String source) throws CompileExceptionError {
+        // WebGPU cannot emulate the negative-height viewport used by the engine to
+        // preserve its render-target convention. Keep Tint's original entry point
+        // for the backbuffer and add a flipped variant that the adapter can select
+        // when rendering to an offscreen target.
+        int vertexEntryPoint = source.lastIndexOf("@vertex");
+        int entryPointFunction = source.indexOf("fn main(", vertexEntryPoint);
+        int entryPointBody = source.indexOf('{', entryPointFunction);
+        if (vertexEntryPoint == -1 || entryPointFunction == -1 || entryPointBody == -1) {
+            throw new CompileExceptionError("Unable to locate the generated WGSL vertex entry point for " + resourcePath);
+        }
+
+        int braceDepth = 0;
+        int entryPointEnd = -1;
+        for (int i = entryPointBody; i < source.length(); ++i) {
+            char c = source.charAt(i);
+            if (c == '{') {
+                ++braceDepth;
+            } else if (c == '}' && --braceDepth == 0) {
+                entryPointEnd = i + 1;
+                break;
+            }
+        }
+
+        if (entryPointEnd == -1) {
+            throw new CompileExceptionError("Unable to locate the end of the generated WGSL vertex entry point for " + resourcePath);
+        }
+
+        String flippedEntryPoint = source.substring(vertexEntryPoint, entryPointEnd);
+        int flippedFunction = flippedEntryPoint.indexOf("fn main(");
+        int entryPointReturn = flippedEntryPoint.indexOf("  return ");
+        if (entryPointReturn == -1 || flippedEntryPoint.indexOf("gl_Position") == -1) {
+            throw new CompileExceptionError("Unable to add the WebGPU vertex Y-flip entry point for " + resourcePath);
+        }
+
+        String flippedEntryPointName = WGSL_FLIPPED_VERTEX_ENTRY_POINT_BASE;
+        while (Pattern.compile("\\b" + Pattern.quote(flippedEntryPointName) + "\\b").matcher(source).find()) {
+            flippedEntryPointName += "_";
+        }
+
+        flippedEntryPoint = flippedEntryPoint.substring(0, flippedFunction) +
+                            "fn " + flippedEntryPointName + "(" +
+                            flippedEntryPoint.substring(flippedFunction + "fn main(".length());
+        entryPointReturn = flippedEntryPoint.indexOf("  return ");
+        flippedEntryPoint = flippedEntryPoint.substring(0, entryPointReturn) +
+                            "  gl_Position.y = -gl_Position.y;\n" +
+                            flippedEntryPoint.substring(entryPointReturn);
+
+        return source.substring(0, entryPointEnd) + "\n\n" +
+               WGSL_FLIPPED_VERTEX_ENTRY_POINT_MARKER + flippedEntryPointName + "\n" +
+               flippedEntryPoint + source.substring(entryPointEnd);
+    }
+
+    protected static void generateWGSL(String resourcePath, ShaderDesc.ShaderType shaderType, String pathFileInSpv, String pathFileOutWGSL) throws IOException, CompileExceptionError {
         Result result = Exec.execResult(tintExe,
             "--format", "wgsl",
             "-o", pathFileOutWGSL,
             pathFileInSpv);
         checkResult(resourcePath, result);
+
+        if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX) {
+            File outputFile = new File(pathFileOutWGSL);
+            String source = FileUtils.readFileToString(outputFile, StandardCharsets.UTF_8);
+            source = addWGSLFlippedVertexEntryPoint(resourcePath, source);
+            FileUtils.writeStringToFile(outputFile, source, StandardCharsets.UTF_8);
+        }
     }
 
     private void generateSPIRv(String resourcePath, ShaderDesc.ShaderType shaderType, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
@@ -311,9 +374,6 @@ public class ShaderCompilePipeline {
             return;
         }
 
-        ShaderModule vertexModule = null;
-        ShaderModule fragmentModule = null;
-
         // Generate SPIR-V for each module
         for (ShaderModule module : this.shaderModules) {
             String baseName = this.pipelineName + "." + ShaderTypeToSpirvStage(module.desc.type);
@@ -338,7 +398,18 @@ public class ShaderCompilePipeline {
             module.spirvContext = ShadercJni.NewShaderContext(ToShadercShaderStageValue(module.desc.type), FileUtils.readFileToByteArray(fileOutSpvOpt));
             module.spirvReflector = new SPIRVReflector(module.spirvContext, module.desc.type);
             module.shaderInfo = ShaderUtil.Common.getShaderInfo(module.desc.source);
+        }
 
+        postProcessGraphicsStages(true);
+    }
+
+    // SPIR-V modules are compiled one stage at a time. Reconcile and validate the
+    // graphics-stage interface before any backend consumes those modules.
+    protected void postProcessGraphicsStages(boolean mergeStageResources) throws IOException, CompileExceptionError {
+        ShaderModule vertexModule = null;
+        ShaderModule fragmentModule = null;
+
+        for (ShaderModule module : this.shaderModules) {
             if (module.desc.type == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX) {
                 vertexModule = module;
             } else if (module.desc.type == ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT) {
@@ -346,7 +417,6 @@ public class ShaderCompilePipeline {
             }
         }
 
-        // Potentially post-fix the modules so they are compatible in runtime
         if (vertexModule != null && fragmentModule != null) {
             ArrayList<Long> mergedResources = new ArrayList<>();
             long compilerVs = 0;
@@ -358,7 +428,9 @@ public class ShaderCompilePipeline {
             } else {
                 compilerFs = remapFragmentInputsToVertexOutputs(vertexModule, fragmentModule);
             }
-            compilerFs = mergeResources(vertexModule, fragmentModule, compilerFs, mergedResources);
+            if (mergeStageResources) {
+                compilerFs = mergeResources(vertexModule, fragmentModule, compilerFs, mergedResources);
+            }
 
             // If we remapped the input/outputs or the resources, we need to re-generate the spir-v
             if (compilerVs != 0 || compilerFs != 0) {
@@ -381,6 +453,8 @@ public class ShaderCompilePipeline {
                     fragmentModule.spirvReflector.removeResourceByNameHash(mergedResource);
                 }
             }
+
+            validateGraphicsStageInterfaces(vertexModule, fragmentModule);
         }
     }
 
@@ -424,6 +498,42 @@ public class ShaderCompilePipeline {
             }
         }
         return compiler;
+    }
+
+    private void validateGraphicsStageInterfaces(ShaderModule vertexModule, ShaderModule fragmentModule) throws CompileExceptionError {
+        HashMap<String, Shaderc.ShaderResource> outputByName = new HashMap<>();
+        for (Shaderc.ShaderResource output : vertexModule.spirvReflector.getOutputs()) {
+            if (!isBuiltInStageIO(output)) {
+                outputByName.put(output.name, output);
+            }
+        }
+
+        for (Shaderc.ShaderResource input : fragmentModule.spirvReflector.getInputs()) {
+            if (isBuiltInStageIO(input)) {
+                continue;
+            }
+
+            Shaderc.ShaderResource output = outputByName.get(input.name);
+            // Preserve support for legacy shaders with fragment-only varyings.
+            // Cross-stage validation applies to interface entries shared by name.
+            if (output == null) {
+                continue;
+            }
+
+            int outputLocation = Byte.toUnsignedInt(output.location);
+            int inputLocation = Byte.toUnsignedInt(input.location);
+            if (outputLocation != inputLocation) {
+                throw new CompileExceptionError(String.format(
+                        "Shader stage location mismatch for '%s': vertex output location %d in '%s', fragment input location %d in '%s'",
+                        input.name, outputLocation, vertexModule.desc.resourcePath, inputLocation, fragmentModule.desc.resourcePath));
+            }
+
+            if (!SPIRVReflector.AreResourceTypesEqual(vertexModule.spirvReflector, fragmentModule.spirvReflector, output, input)) {
+                throw new CompileExceptionError(String.format(
+                        "Shader stage type mismatch for '%s' at location %d between '%s' and '%s'",
+                        input.name, inputLocation, vertexModule.desc.resourcePath, fragmentModule.desc.resourcePath));
+            }
+        }
     }
 
     private void recompileSpirvModule(ShaderModule module, long compiler) throws IOException, CompileExceptionError {
@@ -645,7 +755,7 @@ public class ShaderCompilePipeline {
 
             File fileCrossCompiled = createTempFile(this.pipelineName, "." + versionStr + "." + shaderTypeStr);
 
-            generateWGSL(module.desc.resourcePath, module.spirvFile.getAbsolutePath(), fileCrossCompiled.getAbsolutePath());
+            generateWGSL(module.desc.resourcePath, shaderType, module.spirvFile.getAbsolutePath(), fileCrossCompiled.getAbsolutePath());
 
             Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
             result.data = FileUtils.readFileToByteArray(fileCrossCompiled);

@@ -368,6 +368,14 @@ namespace dmGameSystem
         return body_meta ? dmGameObject::GetCollection(body_meta->m_Instance) : 0;
     }
 
+    dmhash_t GetBodyInstanceId(lua_State* L, int index)
+    {
+        B2DLuaBody* luabody = CheckBodyInternal(L, index);
+        B2DBodyMeta* body_meta = 0;
+        VerifyBodyInternal(L, luabody, &body_meta);
+        return body_meta && body_meta->m_Instance ? dmGameObject::GetIdentifier(body_meta->m_Instance) : 0;
+    }
+
     dmGameObject::HInstance GetBodyInstance(b2Body* body)
     {
         void* user_data = body->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp

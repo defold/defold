@@ -474,6 +474,20 @@ namespace dmPhysics
     HCollisionShape3D NewConvexHullShape3D(HContext3D context, const float* vertices, uint32_t vertex_count);
 
     /**
+     * Create a new 3D triangle mesh shape
+     *
+     * @param context Physics context
+     * @param vertices Vertices. x0, y0, z0, x1, ...
+     * @param vertex_count Vertex count
+     * @param indices Triangle indices, three per triangle
+     * @param index_count Index count
+     * @param object_type Collision object type that will use the shape
+     * @return Shape
+     */
+    HCollisionShape3D NewTriangleMeshShape3D(HContext3D context, const float* vertices, uint32_t vertex_count,
+                                              const uint32_t* indices, uint32_t index_count, CollisionObjectType object_type);
+
+    /**
      * Create a new 2D polygon shape
      *
      * @param context Physics context

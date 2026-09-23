@@ -18,16 +18,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
@@ -66,8 +64,6 @@ import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
 import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.rig.proto.Rig.AnimationSet;
-
-import static com.dynamo.bob.util.ComponentsCounter.isCompCounterStorage;
 
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", paramsForSignature = {"liveupdate", "variant", "archive", "archive-resource-padding",
                 "platform", "build-report-json", "build-report-html"})
@@ -468,7 +464,7 @@ public class GameProjectBuilder extends Builder {
         }
 
         transformGameProjectFile(properties);
-        task.getOutputs().get(0).setContent(properties.serialize().getBytes());
+        task.getOutputs().get(0).setContent(properties.serialize().getBytes(StandardCharsets.UTF_8));
     }
 
     @Override

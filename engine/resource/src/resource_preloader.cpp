@@ -268,13 +268,11 @@ namespace dmResource
             out_path_descriptor.m_InternalizedName = InternalizePath(&preloader->m_SyncedData, out_path_descriptor.m_NameHash, name, name_len);
             if (out_path_descriptor.m_InternalizedName == 0x0)
             {
-                dmSpinlock::Unlock(&preloader->m_SyncedDataSpinlock);
                 return RESULT_OUT_OF_MEMORY;
             }
             out_path_descriptor.m_InternalizedCanonicalPath = InternalizePath(&preloader->m_SyncedData, out_path_descriptor.m_CanonicalPathHash, canonical_path, canonical_path_len);
             if (out_path_descriptor.m_InternalizedCanonicalPath == 0x0)
             {
-                dmSpinlock::Unlock(&preloader->m_SyncedDataSpinlock);
                 return RESULT_OUT_OF_MEMORY;
             }
         }

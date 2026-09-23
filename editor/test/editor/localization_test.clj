@@ -1,3 +1,17 @@
+;; Copyright 2020-2026 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;;
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;;
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns editor.localization-test
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
@@ -70,6 +84,18 @@
       (is (= "=huh=" (localization (localization/transform "huh" #(str "=" % "=")))))
       (is (= "=APPLE=" (localization (localization/transform (localization/message "apple") #(str "=" % "="))))))))
 
+(deftest model-property-message-test
+  (is (= "glTF or GLB resource containing the model's visible geometry. Morph targets are imported together with the mesh."
+         (test-util/localization (localization/message "property.model.mesh.tooltip"))))
+  (is (= "Mesh"
+         (test-util/localization (localization/message "property.model.mesh-name"))))
+  (is (= "Optional named raw mesh from the selected scene. Leave empty to render the whole scene. A selected mesh is rendered once in mesh-local coordinates without glTF node transforms."
+         (test-util/localization (localization/message "property.model.mesh-name.tooltip"))))
+  (is (= "glTF or GLB resource containing the bone hierarchy used for skeletal animation. Defold imports the first skin in the file; this is often the same resource used for **Scene**."
+         (test-util/localization (localization/message "property.model.skeleton.tooltip"))))
+  (is (= "Mesh \"Tree\" no longer exists or is ambiguous in the selected scene."
+         (test-util/localization (localization/message "error.collision-object-mesh-shape-mesh-missing" {"mesh" "Tree"})))))
+
 (deftest available-locales-test
   (is (= [] (localization/available-locales @(make))))
   (is (= ["en"] (localization/available-locales @(make {"en" ""}))))
@@ -84,6 +110,69 @@
     (localization/set-bundle! localization :test (bundle {"en" "hello = Hi, {name}!"}))
     (localization/await-for-updates localization)
     (is (= "Hi, User!" (.getText label)))))
+
+;; Verifies that listener registration, removal, and unchanged locale or bundle
+;; updates do not notify watches and trigger unrelated UI refreshes.
+(deftest watches-ignore-unchanged-state-test
+  (let [test-bundle (bundle {"en" "hello = Hello!"})
+        localization (localization/make (test-util/make-test-prefs) :test test-bundle #(throw %))
+        initial-state @localization
+        notifications (atom [])
+        label (Label.)]
+    (add-watch localization ::watch
+               (fn [key _reference old-state new-state]
+                 (swap! notifications conj [key old-state new-state])))
+
+    (localization/localize! label localization (localization/message "hello"))
+    (is (= "Hello!" (.getText label)))
+    (localization/await-for-updates localization)
+
+    (localization/localize! label localization "Fixed text")
+    (is (= "Fixed text" (.getText label)))
+    (localization/unlocalize! label localization)
+    (localization/set-locale! localization (localization/current-locale initial-state))
+    (localization/set-bundle! localization :test test-bundle)
+    (localization/await-for-updates localization)
+
+    (is (identical? initial-state @localization))
+    (is (= [] @notifications))))
+
+;; Verifies that actual language and bundle changes notify watches exactly once,
+;; still refresh localized labels, and respect watch replacement and removal.
+(deftest watches-notify-localization-changes-test
+  (let [localization (make {"en" "hello = Hello!"
+                            "sv" "hello = Hej!"})
+        initial-state @localization
+        notifications (atom [])
+        label (Label.)]
+    (localization/localize! label localization (localization/message "hello"))
+    (localization/await-for-updates localization)
+    (add-watch localization ::watch
+               (fn [key _reference old-state new-state]
+                 (swap! notifications conj [key old-state new-state])))
+
+    (localization/set-locale! localization "sv")
+    (localization/await-for-updates localization)
+    (let [locale-state @localization]
+      (is (= [[::watch initial-state locale-state]] @notifications))
+      (is (= "Hej!" (.getText label)))
+
+      (add-watch localization ::watch
+                 (fn [key _reference old-state new-state]
+                   (swap! notifications conj [:replacement key old-state new-state])))
+      (localization/set-bundle! localization :test (bundle {"en" "hello = Goodbye!"
+                                                            "sv" "hello = Hej då!"}))
+      (localization/await-for-updates localization)
+      (let [expected-notifications [[::watch initial-state locale-state]
+                                    [:replacement ::watch locale-state @localization]]]
+        (is (= expected-notifications @notifications))
+        (is (= "Hej då!" (.getText label)))
+
+        (remove-watch localization ::watch)
+        (localization/set-locale! localization "en")
+        (localization/await-for-updates localization)
+        (is (= expected-notifications @notifications))
+        (is (= "Goodbye!" (.getText label)))))))
 
 (deftest listener-weak-reference-test
   (let [localization (make {"en" "hello = Hello, {name}."})

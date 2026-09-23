@@ -466,9 +466,6 @@
             (resolve-validation property localization-state)
             (resolve-scrubber property :left #(assoc %1 :spread (properties/round-scalar-float %2)) :spread))]}]}))
 
-(defn- vec->color [[r g b a]]
-  (Color. (float r) (float g) (float b) (float (or a 1.0))))
-
 (defmethod make-control-view types/Color [property {:keys [prefs]} localization-state]
   (let [values (properties/values property)
         value (properties/unify-values values)
@@ -476,7 +473,7 @@
         old-num (coalesced-property->old-num property)
         coerce (if (math/float32? old-num) float double)]
     (-> {:fx/type fxui/color-picker
-         :value (some-> value vec->color)
+         :value (some-> value fxui/vec->color)
          :on-value-changed
          (fn [^Color new-color]
            (set-values! property
@@ -824,12 +821,12 @@
 
   (output pane-desc g/Any :cached produce-pane-desc))
 
-(defn make-properties-view [workspace project app-view search-results-view view-graph prefs]
+(defn make-properties-view [workspace project app-view search-results-view prefs]
   (first
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
-        (g/make-nodes view-graph [view [PropertiesView :prefs prefs]]
+        (g/make-nodes [view [PropertiesView :prefs prefs]]
           (g/connect workspace :_node-id view :workspace)
           (g/connect workspace :localization view :localization)
           (g/connect project :_node-id view :project)

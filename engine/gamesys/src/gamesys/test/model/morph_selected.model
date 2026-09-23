@@ -1,0 +1,5 @@
+name: "morph_selected"
+mesh: "/model/morph_weights_anim.gltf"
+mesh_name: "MorphSource"
+mesh_index: 0
+material: "/model/morph_instanced_attr.material"

@@ -18,6 +18,11 @@
 #include "test_physics.h"
 #include <dlib/math.h>
 
+#if defined(PHYSICS_TEST_BULLET_3D)
+#include <BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h>
+#include <BulletCollision/CollisionShapes/btTriangleIndexVertexArray.h>
+#include <BulletCollision/Gimpact/btGImpactShape.h>
+#endif
 
 using namespace dmVMath;
 
@@ -270,6 +275,617 @@ TYPED_TEST(PhysicsTest, ConvexHullShape)
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
 }
+
+#if defined(PHYSICS_TEST_BULLET_3D)
+static const float TRIANGLE_MESH_TEST_CUBE_VERTICES[] = {
+    -0.5f, -0.5f, -0.5f,
+     0.5f, -0.5f, -0.5f,
+     0.5f, -0.5f,  0.5f,
+    -0.5f, -0.5f,  0.5f,
+    -0.5f,  0.5f, -0.5f,
+     0.5f,  0.5f, -0.5f,
+     0.5f,  0.5f,  0.5f,
+    -0.5f,  0.5f,  0.5f,
+};
+
+static const uint32_t TRIANGLE_MESH_TEST_CUBE_INDICES[] = {
+    0, 2, 1, 0, 3, 2,
+    4, 5, 6, 4, 6, 7,
+    0, 1, 5, 0, 5, 4,
+    1, 2, 6, 1, 6, 5,
+    2, 3, 7, 2, 7, 6,
+    3, 0, 4, 3, 4, 7,
+};
+
+static const uint32_t TRIANGLE_MESH_TEST_CUBE_VERTEX_COUNT =
+    sizeof(TRIANGLE_MESH_TEST_CUBE_VERTICES) / (3 * sizeof(float));
+static const uint32_t TRIANGLE_MESH_TEST_CUBE_INDEX_COUNT = sizeof(TRIANGLE_MESH_TEST_CUBE_INDICES) / sizeof(uint32_t);
+
+static void AssertTriangleMeshGeometryShared(btTriangleIndexVertexArray* source_interface,
+                                             btTriangleIndexVertexArray* clone_a_interface,
+                                             btTriangleIndexVertexArray* clone_b_interface,
+                                             const float* vertices, uint32_t vertex_count,
+                                             const uint32_t* indices, uint32_t index_count)
+{
+    ASSERT_NE((void*)source_interface, (void*)clone_a_interface);
+    ASSERT_NE((void*)source_interface, (void*)clone_b_interface);
+    ASSERT_NE((void*)clone_a_interface, (void*)clone_b_interface);
+    ASSERT_EQ(1, source_interface->getNumSubParts());
+    ASSERT_EQ(1, clone_a_interface->getNumSubParts());
+    ASSERT_EQ(1, clone_b_interface->getNumSubParts());
+
+    const btIndexedMesh& source_mesh = source_interface->getIndexedMeshArray()[0];
+    const btIndexedMesh& clone_a_mesh = clone_a_interface->getIndexedMeshArray()[0];
+    const btIndexedMesh& clone_b_mesh = clone_b_interface->getIndexedMeshArray()[0];
+    ASSERT_EQ((const void*)source_mesh.m_vertexBase, (const void*)clone_a_mesh.m_vertexBase);
+    ASSERT_EQ((const void*)source_mesh.m_vertexBase, (const void*)clone_b_mesh.m_vertexBase);
+    ASSERT_EQ((const void*)source_mesh.m_triangleIndexBase, (const void*)clone_a_mesh.m_triangleIndexBase);
+    ASSERT_EQ((const void*)source_mesh.m_triangleIndexBase, (const void*)clone_b_mesh.m_triangleIndexBase);
+    ASSERT_EQ((int)vertex_count, source_mesh.m_numVertices);
+    ASSERT_EQ((int)index_count / 3, source_mesh.m_numTriangles);
+    ASSERT_EQ(source_mesh.m_numVertices, clone_a_mesh.m_numVertices);
+    ASSERT_EQ(source_mesh.m_numVertices, clone_b_mesh.m_numVertices);
+    ASSERT_EQ(source_mesh.m_numTriangles, clone_a_mesh.m_numTriangles);
+    ASSERT_EQ(source_mesh.m_numTriangles, clone_b_mesh.m_numTriangles);
+    ASSERT_EQ(source_mesh.m_vertexStride, clone_a_mesh.m_vertexStride);
+    ASSERT_EQ(source_mesh.m_vertexStride, clone_b_mesh.m_vertexStride);
+    ASSERT_EQ(source_mesh.m_triangleIndexStride, clone_a_mesh.m_triangleIndexStride);
+    ASSERT_EQ(source_mesh.m_triangleIndexStride, clone_b_mesh.m_triangleIndexStride);
+    ASSERT_EQ(source_mesh.m_vertexType, clone_a_mesh.m_vertexType);
+    ASSERT_EQ(source_mesh.m_vertexType, clone_b_mesh.m_vertexType);
+    ASSERT_EQ(source_mesh.m_indexType, clone_a_mesh.m_indexType);
+    ASSERT_EQ(source_mesh.m_indexType, clone_b_mesh.m_indexType);
+
+    const float* shared_vertices = (const float*)source_mesh.m_vertexBase;
+    const uint32_t* shared_indices = (const uint32_t*)source_mesh.m_triangleIndexBase;
+    for (uint32_t i = 0; i < vertex_count * 3; ++i)
+    {
+        ASSERT_NEAR(vertices[i] * PHYSICS_SCALE, shared_vertices[i], 0.000001f);
+    }
+    for (uint32_t i = 0; i < index_count; ++i)
+    {
+        ASSERT_EQ(indices[i], shared_indices[i]);
+    }
+}
+
+static void AssertUniformScale(const btVector3& scaling, btScalar expected_scale)
+{
+    ASSERT_NEAR(expected_scale, scaling.getX(), 0.000001f);
+    ASSERT_NEAR(expected_scale, scaling.getY(), 0.000001f);
+    ASSERT_NEAR(expected_scale, scaling.getZ(), 0.000001f);
+}
+
+static void AssertTriangleMeshRayCastHit(dmPhysics::HWorld3D world, const Point3& from, const Point3& to,
+                                         void* expected_user_data)
+{
+    dmArray<dmPhysics::RayCastResponse> hits;
+    hits.SetCapacity(4);
+
+    dmPhysics::RayCastRequest request;
+    hits.SetSize(0);
+    request.m_From = from;
+    request.m_To = to;
+    request.m_Mask = 0xffff;
+    request.m_ReturnAllResults = 0;
+    request.m_UserId = 0;
+    dmPhysics::RayCast3D(world, request, hits);
+
+    ASSERT_EQ(1u, hits.Size());
+    ASSERT_EQ(expected_user_data, hits[0].m_CollisionObjectUserData);
+}
+
+TYPED_TEST(PhysicsTest, TriangleMeshShapes)
+{
+    const float ground_vertices[] = {
+        -10.0f, 0.0f, -10.0f,
+         10.0f, 0.0f, -10.0f,
+         10.0f, 0.0f,  10.0f,
+        -10.0f, 0.0f,  10.0f,
+    };
+    const uint32_t ground_indices[] = {0, 2, 1, 0, 3, 2};
+    dmPhysics::HCollisionShape3D ground_shape = dmPhysics::NewTriangleMeshShape3D(
+        TestFixture::m_Context, ground_vertices, 4, ground_indices, 6, dmPhysics::COLLISION_OBJECT_TYPE_STATIC);
+
+    VisualObject ground_visual_object;
+    dmPhysics::CollisionObjectData ground_data;
+    ground_data.m_UserData = &ground_visual_object;
+    ground_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    ground_data.m_Mass = 0.0f;
+    dmPhysics::HCollisionObject3D ground_object = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, ground_data, &ground_shape, 1);
+
+    const float mesh_vertices[] = {
+        -0.5f, 0.0f, -0.5f,
+         0.5f, 0.0f, -0.5f,
+         0.0f, 0.0f,  0.5f,
+         0.0f, 1.0f,  0.0f,
+    };
+    const uint32_t mesh_indices[] = {0, 2, 1, 0, 1, 3, 1, 2, 3, 2, 0, 3};
+    dmPhysics::HCollisionShape3D mesh_shape = dmPhysics::NewTriangleMeshShape3D(
+        TestFixture::m_Context, mesh_vertices, 4, mesh_indices, 12, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC);
+
+    VisualObject mesh_visual_object;
+    mesh_visual_object.m_Position = Point3(0.0f, 3.0f, 0.0f);
+    dmPhysics::CollisionObjectData mesh_data;
+    mesh_data.m_UserData = &mesh_visual_object;
+    dmPhysics::HCollisionObject3D mesh_object = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, mesh_data, &mesh_shape, 1);
+
+    for (uint32_t i = 0; i < 240 && mesh_visual_object.m_CollisionCount == 0; ++i)
+    {
+        dmPhysics::StepWorld3D(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    }
+
+    ASSERT_GT(mesh_visual_object.m_CollisionCount, 0);
+    ASSERT_GT(ground_visual_object.m_CollisionCount, 0);
+
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, mesh_object);
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, ground_object);
+    dmPhysics::DeleteCollisionShape3D(mesh_shape);
+    dmPhysics::DeleteCollisionShape3D(ground_shape);
+}
+
+TYPED_TEST(PhysicsTest, TriangleMeshMixedCompoundScaling)
+{
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, true);
+
+    const float mesh_vertices[] = {
+        -0.5f, 0.0f, -0.5f,
+         0.5f, 0.0f, -0.5f,
+         0.0f, 0.0f,  0.5f,
+         0.0f, 1.0f,  0.0f,
+    };
+    const uint32_t mesh_indices[] = {0, 2, 1, 0, 1, 3, 1, 2, 3, 2, 0, 3};
+    dmPhysics::HCollisionShape3D shapes[] = {
+        dmPhysics::NewTriangleMeshShape3D(TestFixture::m_Context, mesh_vertices, 4, mesh_indices, 12,
+                                          dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC),
+        dmPhysics::NewBoxShape3D(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.5f)),
+    };
+    Vector3 translations[] = {Vector3(-1.0f, 0.0f, 0.0f), Vector3(1.0f, 0.0f, 0.0f)};
+    Quat rotations[] = {Quat::identity(), Quat::identity()};
+
+    VisualObject visual_object;
+    visual_object.m_Position = Point3(0.0f, 10.0f, 0.0f);
+    visual_object.m_Scale = 1.5f;
+    dmPhysics::CollisionObjectData data;
+    data.m_UserData = &visual_object;
+    dmPhysics::HCollisionObject3D collision_object = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, data, shapes, translations, rotations, 2);
+
+    dmPhysics::HCollisionShape3D object_shapes[2];
+    ASSERT_EQ(2, dmPhysics::GetCollisionShapes3D(collision_object, object_shapes, 2));
+
+    visual_object.m_Scale = 2.0f;
+    dmPhysics::StepWorld3D(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, collision_object);
+    dmPhysics::DeleteCollisionShape3D(shapes[0]);
+    dmPhysics::DeleteCollisionShape3D(shapes[1]);
+}
+
+TYPED_TEST(PhysicsTest, BvhTriangleMeshClonesShareGeometry)
+{
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, false);
+
+    dmPhysics::HCollisionShape3D mesh_shape = dmPhysics::NewTriangleMeshShape3D(
+        TestFixture::m_Context,
+        TRIANGLE_MESH_TEST_CUBE_VERTICES, TRIANGLE_MESH_TEST_CUBE_VERTEX_COUNT,
+        TRIANGLE_MESH_TEST_CUBE_INDICES, TRIANGLE_MESH_TEST_CUBE_INDEX_COUNT,
+        dmPhysics::COLLISION_OBJECT_TYPE_STATIC);
+
+    VisualObject visual_object_a;
+    visual_object_a.m_Position = Point3(-6.0f, 0.0f, 0.0f);
+    visual_object_a.m_Scale = 2.0f;
+    dmPhysics::CollisionObjectData data_a;
+    data_a.m_UserData = &visual_object_a;
+    data_a.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data_a.m_Mass = 0.0f;
+    dmPhysics::HCollisionObject3D object_a = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, data_a, &mesh_shape, 1);
+
+    VisualObject visual_object_b;
+    visual_object_b.m_Position = Point3(6.0f, 0.0f, 0.0f);
+    visual_object_b.m_Scale = 3.0f;
+    dmPhysics::CollisionObjectData data_b;
+    data_b.m_UserData = &visual_object_b;
+    data_b.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data_b.m_Mass = 0.0f;
+    dmPhysics::HCollisionObject3D object_b = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, data_b, &mesh_shape, 1);
+
+    dmPhysics::HCollisionShape3D clone_a_handle = 0;
+    dmPhysics::HCollisionShape3D clone_b_handle = 0;
+    ASSERT_EQ(1, dmPhysics::GetCollisionShapes3D(object_a, &clone_a_handle, 1));
+    ASSERT_EQ(1, dmPhysics::GetCollisionShapes3D(object_b, &clone_b_handle, 1));
+    ASSERT_NE(mesh_shape, clone_a_handle);
+    ASSERT_NE(mesh_shape, clone_b_handle);
+
+    btCollisionShape* source_collision_shape = (btCollisionShape*)mesh_shape;
+    btCollisionShape* clone_a_collision_shape = (btCollisionShape*)clone_a_handle;
+    btCollisionShape* clone_b_collision_shape = (btCollisionShape*)clone_b_handle;
+    btBvhTriangleMeshShape* source_shape = static_cast<btBvhTriangleMeshShape*>(source_collision_shape);
+    btBvhTriangleMeshShape* clone_a_shape = static_cast<btBvhTriangleMeshShape*>(clone_a_collision_shape);
+    btBvhTriangleMeshShape* clone_b_shape = static_cast<btBvhTriangleMeshShape*>(clone_b_collision_shape);
+    btTriangleIndexVertexArray* source_interface =
+        static_cast<btTriangleIndexVertexArray*>(source_shape->getMeshInterface());
+    btTriangleIndexVertexArray* clone_a_interface =
+        static_cast<btTriangleIndexVertexArray*>(clone_a_shape->getMeshInterface());
+    btTriangleIndexVertexArray* clone_b_interface =
+        static_cast<btTriangleIndexVertexArray*>(clone_b_shape->getMeshInterface());
+
+    AssertTriangleMeshGeometryShared(source_interface, clone_a_interface, clone_b_interface,
+                                     TRIANGLE_MESH_TEST_CUBE_VERTICES, TRIANGLE_MESH_TEST_CUBE_VERTEX_COUNT,
+                                     TRIANGLE_MESH_TEST_CUBE_INDICES, TRIANGLE_MESH_TEST_CUBE_INDEX_COUNT);
+    AssertUniformScale(source_shape->getLocalScaling(), 1.0f);
+    AssertUniformScale(clone_a_shape->getLocalScaling(), 2.0f);
+    AssertUniformScale(clone_b_shape->getLocalScaling(), 3.0f);
+
+    dmPhysics::DeleteCollisionShape3D(mesh_shape);
+    AssertTriangleMeshRayCastHit(TestFixture::m_World, Point3(-6.0f, 3.0f, 0.0f),
+                                 Point3(-6.0f, -3.0f, 0.0f), &visual_object_a);
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, object_a);
+    AssertTriangleMeshRayCastHit(TestFixture::m_World, Point3(6.0f, 3.0f, 0.0f),
+                                 Point3(6.0f, -3.0f, 0.0f), &visual_object_b);
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, object_b);
+}
+
+TYPED_TEST(PhysicsTest, UnscaledStaticTriangleMeshSharesShapeWithDynamicTransforms)
+{
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, true);
+
+    dmPhysics::HCollisionShape3D mesh_shape = dmPhysics::NewTriangleMeshShape3D(
+        TestFixture::m_Context,
+        TRIANGLE_MESH_TEST_CUBE_VERTICES, TRIANGLE_MESH_TEST_CUBE_VERTEX_COUNT,
+        TRIANGLE_MESH_TEST_CUBE_INDICES, TRIANGLE_MESH_TEST_CUBE_INDEX_COUNT,
+        dmPhysics::COLLISION_OBJECT_TYPE_STATIC);
+
+    VisualObject unscaled_visual_object;
+    unscaled_visual_object.m_Position = Point3(-6.0f, 0.0f, 0.0f);
+    dmPhysics::CollisionObjectData unscaled_data;
+    unscaled_data.m_UserData = &unscaled_visual_object;
+    unscaled_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    unscaled_data.m_Mass = 0.0f;
+    dmPhysics::HCollisionObject3D unscaled_object = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, unscaled_data, &mesh_shape, 1);
+
+    VisualObject scaled_visual_object;
+    scaled_visual_object.m_Position = Point3(6.0f, 0.0f, 0.0f);
+    scaled_visual_object.m_Scale = 2.0f;
+    dmPhysics::CollisionObjectData scaled_data;
+    scaled_data.m_UserData = &scaled_visual_object;
+    scaled_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    scaled_data.m_Mass = 0.0f;
+    dmPhysics::HCollisionObject3D scaled_object = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, scaled_data, &mesh_shape, 1);
+
+    dmPhysics::HCollisionShape3D unscaled_object_shape = 0;
+    dmPhysics::HCollisionShape3D scaled_object_shape = 0;
+    ASSERT_EQ(1, dmPhysics::GetCollisionShapes3D(unscaled_object, &unscaled_object_shape, 1));
+    ASSERT_EQ(1, dmPhysics::GetCollisionShapes3D(scaled_object, &scaled_object_shape, 1));
+    ASSERT_EQ(mesh_shape, unscaled_object_shape);
+    ASSERT_NE(mesh_shape, scaled_object_shape);
+
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, unscaled_object);
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, scaled_object);
+    dmPhysics::DeleteCollisionShape3D(mesh_shape);
+}
+
+TYPED_TEST(PhysicsTest, GImpactTriangleMeshClonesShareGeometry)
+{
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, false);
+
+    dmPhysics::HCollisionShape3D mesh_shape = dmPhysics::NewTriangleMeshShape3D(
+        TestFixture::m_Context,
+        TRIANGLE_MESH_TEST_CUBE_VERTICES, TRIANGLE_MESH_TEST_CUBE_VERTEX_COUNT,
+        TRIANGLE_MESH_TEST_CUBE_INDICES, TRIANGLE_MESH_TEST_CUBE_INDEX_COUNT,
+        dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC);
+
+    VisualObject visual_object_a;
+    visual_object_a.m_Position = Point3(-6.0f, 0.0f, 0.0f);
+    visual_object_a.m_Scale = 2.0f;
+    dmPhysics::CollisionObjectData data_a;
+    data_a.m_UserData = &visual_object_a;
+    data_a.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data_a.m_Mass = 1.0f;
+    dmPhysics::HCollisionObject3D object_a = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, data_a, &mesh_shape, 1);
+
+    VisualObject visual_object_b;
+    visual_object_b.m_Position = Point3(6.0f, 0.0f, 0.0f);
+    visual_object_b.m_Scale = 3.0f;
+    dmPhysics::CollisionObjectData data_b;
+    data_b.m_UserData = &visual_object_b;
+    data_b.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data_b.m_Mass = 1.0f;
+    dmPhysics::HCollisionObject3D object_b = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, data_b, &mesh_shape, 1);
+
+    dmPhysics::HCollisionShape3D clone_a_handle = 0;
+    dmPhysics::HCollisionShape3D clone_b_handle = 0;
+    ASSERT_EQ(1, dmPhysics::GetCollisionShapes3D(object_a, &clone_a_handle, 1));
+    ASSERT_EQ(1, dmPhysics::GetCollisionShapes3D(object_b, &clone_b_handle, 1));
+    ASSERT_NE(mesh_shape, clone_a_handle);
+    ASSERT_NE(mesh_shape, clone_b_handle);
+
+    btCollisionShape* source_collision_shape = (btCollisionShape*)mesh_shape;
+    btCollisionShape* clone_a_collision_shape = (btCollisionShape*)clone_a_handle;
+    btCollisionShape* clone_b_collision_shape = (btCollisionShape*)clone_b_handle;
+    btGImpactMeshShape* source_shape = static_cast<btGImpactMeshShape*>(source_collision_shape);
+    btGImpactMeshShape* clone_a_shape = static_cast<btGImpactMeshShape*>(clone_a_collision_shape);
+    btGImpactMeshShape* clone_b_shape = static_cast<btGImpactMeshShape*>(clone_b_collision_shape);
+    btTriangleIndexVertexArray* source_interface =
+        static_cast<btTriangleIndexVertexArray*>(source_shape->getMeshInterface());
+    btTriangleIndexVertexArray* clone_a_interface =
+        static_cast<btTriangleIndexVertexArray*>(clone_a_shape->getMeshInterface());
+    btTriangleIndexVertexArray* clone_b_interface =
+        static_cast<btTriangleIndexVertexArray*>(clone_b_shape->getMeshInterface());
+
+    AssertTriangleMeshGeometryShared(source_interface, clone_a_interface, clone_b_interface,
+                                     TRIANGLE_MESH_TEST_CUBE_VERTICES, TRIANGLE_MESH_TEST_CUBE_VERTEX_COUNT,
+                                     TRIANGLE_MESH_TEST_CUBE_INDICES, TRIANGLE_MESH_TEST_CUBE_INDEX_COUNT);
+    AssertUniformScale(source_shape->getLocalScaling(), 1.0f);
+    AssertUniformScale(clone_a_shape->getLocalScaling(), 2.0f);
+    AssertUniformScale(clone_b_shape->getLocalScaling(), 3.0f);
+    ASSERT_EQ(1, source_shape->getMeshPartCount());
+    ASSERT_EQ(1, clone_a_shape->getMeshPartCount());
+    ASSERT_EQ(1, clone_b_shape->getMeshPartCount());
+    AssertUniformScale(source_shape->getMeshPart(0)->getLocalScaling(), 1.0f);
+    AssertUniformScale(clone_a_shape->getMeshPart(0)->getLocalScaling(), 2.0f);
+    AssertUniformScale(clone_b_shape->getMeshPart(0)->getLocalScaling(), 3.0f);
+
+    dmPhysics::DeleteCollisionShape3D(mesh_shape);
+    AssertTriangleMeshRayCastHit(TestFixture::m_World, Point3(-6.0f, 3.0f, 0.0f),
+                                 Point3(-6.0f, -3.0f, 0.0f), &visual_object_a);
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, object_a);
+    AssertTriangleMeshRayCastHit(TestFixture::m_World, Point3(6.0f, 3.0f, 0.0f),
+                                 Point3(6.0f, -3.0f, 0.0f), &visual_object_b);
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, object_b);
+}
+
+TYPED_TEST(PhysicsTest, TriangleMeshClonePreservesMargin)
+{
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, false);
+
+    const float mesh_vertices[] = {
+        -0.5f, 0.0f, -0.5f,
+         0.5f, 0.0f, -0.5f,
+         0.0f, 0.0f,  0.5f,
+         0.0f, 1.0f,  0.0f,
+    };
+    const uint32_t mesh_indices[] = {0, 2, 1, 0, 1, 3, 1, 2, 3, 2, 0, 3};
+    dmPhysics::HCollisionShape3D mesh_shape = dmPhysics::NewTriangleMeshShape3D(
+        TestFixture::m_Context, mesh_vertices, 4, mesh_indices, 12, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC);
+
+    btCollisionShape* source_collision_shape = (btCollisionShape*)mesh_shape;
+    btGImpactMeshShape* source_shape = static_cast<btGImpactMeshShape*>(source_collision_shape);
+    ASSERT_EQ(1, source_shape->getMeshPartCount());
+    const btScalar source_margin = source_shape->getMeshPart(0)->getMargin();
+    ASSERT_GT(source_margin, btScalar(0.0f));
+    ASSERT_NEAR(source_margin, source_shape->getMargin(), 0.000001f);
+
+    VisualObject visual_object;
+    visual_object.m_Scale = 2.0f;
+    dmPhysics::CollisionObjectData data;
+    data.m_UserData = &visual_object;
+    dmPhysics::HCollisionObject3D collision_object = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, data, &mesh_shape, 1);
+
+    dmPhysics::HCollisionShape3D cloned_shape_handle = 0;
+    ASSERT_EQ(1, dmPhysics::GetCollisionShapes3D(collision_object, &cloned_shape_handle, 1));
+    ASSERT_NE(mesh_shape, cloned_shape_handle);
+    btCollisionShape* cloned_collision_shape = (btCollisionShape*)cloned_shape_handle;
+    btGImpactMeshShape* cloned_shape = static_cast<btGImpactMeshShape*>(cloned_collision_shape);
+    ASSERT_EQ(1, cloned_shape->getMeshPartCount());
+    ASSERT_NEAR(source_margin, cloned_shape->getMargin(), 0.000001f);
+    ASSERT_NEAR(source_margin, cloned_shape->getMeshPart(0)->getMargin(), 0.000001f);
+
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, collision_object);
+    dmPhysics::DeleteCollisionShape3D(mesh_shape);
+}
+
+TYPED_TEST(PhysicsTest, TriangleMeshDynamicScalingUpdatesBounds)
+{
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, true);
+
+    const float ground_vertices[] = {
+        -10.0f, 0.0f, -10.0f,
+         10.0f, 0.0f, -10.0f,
+         10.0f, 0.0f,  10.0f,
+        -10.0f, 0.0f,  10.0f,
+    };
+    const uint32_t ground_indices[] = {0, 2, 1, 0, 3, 2};
+    dmPhysics::HCollisionShape3D ground_shape = dmPhysics::NewTriangleMeshShape3D(
+        TestFixture::m_Context, ground_vertices, 4, ground_indices, 6, dmPhysics::COLLISION_OBJECT_TYPE_STATIC);
+
+    VisualObject ground_visual_object;
+    dmPhysics::CollisionObjectData ground_data;
+    ground_data.m_UserData = &ground_visual_object;
+    ground_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    ground_data.m_Mass = 0.0f;
+    dmPhysics::HCollisionObject3D ground_object = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, ground_data, &ground_shape, 1);
+
+    const float mesh_vertices[] = {
+        -0.5f, -0.5f, -0.5f,
+         0.5f, -0.5f, -0.5f,
+         0.0f, -0.5f,  0.5f,
+         0.0f,  0.5f,  0.0f,
+    };
+    const uint32_t mesh_indices[] = {0, 2, 1, 0, 1, 3, 1, 2, 3, 2, 0, 3};
+    dmPhysics::HCollisionShape3D mesh_shape = dmPhysics::NewTriangleMeshShape3D(
+        TestFixture::m_Context, mesh_vertices, 4, mesh_indices, 12, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC);
+
+    VisualObject mesh_visual_object;
+    mesh_visual_object.m_Position = Point3(0.0f, 6.0f, 0.0f);
+    mesh_visual_object.m_Scale = 4.0f;
+    dmPhysics::CollisionObjectData mesh_data;
+    mesh_data.m_UserData = &mesh_visual_object;
+    dmPhysics::HCollisionObject3D mesh_object = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, mesh_data, &mesh_shape, 1);
+
+    for (uint32_t i = 0; i < 240 && mesh_visual_object.m_CollisionCount == 0; ++i)
+    {
+        dmPhysics::StepWorld3D(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    }
+
+    ASSERT_GT(mesh_visual_object.m_CollisionCount, 0);
+    ASSERT_GT(mesh_visual_object.m_Position.getY(), 1.5f);
+
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, mesh_object);
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, ground_object);
+    dmPhysics::DeleteCollisionShape3D(mesh_shape);
+    dmPhysics::DeleteCollisionShape3D(ground_shape);
+}
+
+TYPED_TEST(PhysicsTest, TriangleMeshScaledCubeSettles)
+{
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, true);
+
+    const float ground_vertices[] = {
+        -10.0f, 0.0f, -10.0f,
+         10.0f, 0.0f, -10.0f,
+         10.0f, 0.0f,  10.0f,
+        -10.0f, 0.0f,  10.0f,
+    };
+    const uint32_t ground_indices[] = {0, 2, 1, 0, 3, 2};
+    dmPhysics::HCollisionShape3D ground_shape = dmPhysics::NewTriangleMeshShape3D(
+        TestFixture::m_Context, ground_vertices, 4, ground_indices, 6, dmPhysics::COLLISION_OBJECT_TYPE_STATIC);
+
+    VisualObject ground_visual_object;
+    dmPhysics::CollisionObjectData ground_data;
+    ground_data.m_UserData = &ground_visual_object;
+    ground_data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    ground_data.m_Mass = 0.0f;
+    dmPhysics::HCollisionObject3D ground_object = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, ground_data, &ground_shape, 1);
+
+    const float cube_vertices[] = {
+        -0.5f, -0.5f, -0.5f,
+         0.5f, -0.5f, -0.5f,
+         0.5f, -0.5f,  0.5f,
+        -0.5f, -0.5f,  0.5f,
+        -0.5f,  0.5f, -0.5f,
+         0.5f,  0.5f, -0.5f,
+         0.5f,  0.5f,  0.5f,
+        -0.5f,  0.5f,  0.5f,
+    };
+    const uint32_t cube_indices[] = {
+        0, 2, 1, 0, 3, 2,
+        4, 5, 6, 4, 6, 7,
+        0, 1, 5, 0, 5, 4,
+        1, 2, 6, 1, 6, 5,
+        2, 3, 7, 2, 7, 6,
+        3, 0, 4, 3, 4, 7,
+    };
+    dmPhysics::HCollisionShape3D cube_shape = dmPhysics::NewTriangleMeshShape3D(
+        TestFixture::m_Context, cube_vertices, 8, cube_indices, 36, dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC);
+
+    VisualObject cube_visual_object;
+    cube_visual_object.m_Position = Point3(0.0f, 8.0f, 0.0f);
+    cube_visual_object.m_Scale = 4.0f;
+    dmPhysics::CollisionObjectData cube_data;
+    cube_data.m_UserData = &cube_visual_object;
+    cube_data.m_Mass = 64.0f;
+    cube_data.m_LinearDamping = 0.15f;
+    cube_data.m_AngularDamping = 0.2f;
+    dmPhysics::HCollisionObject3D cube_object = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, cube_data, &cube_shape, 1);
+
+    for (uint32_t i = 0; i < 600; ++i)
+    {
+        dmPhysics::StepWorld3D(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    }
+
+    ASSERT_TRUE(dmPhysics::IsSleeping3D(cube_object));
+    ASSERT_NEAR(2.0f, cube_visual_object.m_Position.getY(), 0.05f);
+
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, cube_object);
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, ground_object);
+    dmPhysics::DeleteCollisionShape3D(cube_shape);
+    dmPhysics::DeleteCollisionShape3D(ground_shape);
+}
+
+TYPED_TEST(PhysicsTest, DynamicScalingUpdatesInertia)
+{
+    TestFixture::RecreateContextAndWorld(PHYSICS_SCALE, true);
+    dmPhysics::SetGravity3D(TestFixture::m_World, Vector3(0.0f, 0.0f, 0.0f));
+
+    VisualObject initially_scaled_visual_object;
+    initially_scaled_visual_object.m_Position = Point3(-10.0f, 0.0f, 0.0f);
+    initially_scaled_visual_object.m_Scale = 2.0f;
+    dmPhysics::CollisionObjectData initially_scaled_data;
+    initially_scaled_data.m_UserData = &initially_scaled_visual_object;
+
+    VisualObject dynamically_scaled_visual_object;
+    dynamically_scaled_visual_object.m_Position = Point3(10.0f, 0.0f, 0.0f);
+    dmPhysics::CollisionObjectData dynamically_scaled_data;
+    dynamically_scaled_data.m_UserData = &dynamically_scaled_visual_object;
+
+    dmPhysics::HCollisionShape3D shape = dmPhysics::NewBoxShape3D(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.5f));
+    dmPhysics::HCollisionObject3D initially_scaled_object = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, initially_scaled_data, &shape, 1);
+    dmPhysics::HCollisionObject3D dynamically_scaled_object = dmPhysics::NewCollisionObject3D(
+        TestFixture::m_World, dynamically_scaled_data, &shape, 1);
+
+    dynamically_scaled_visual_object.m_Scale = 2.0f;
+    TestFixture::m_StepWorldContext.m_DT = 0.0f;
+    dmPhysics::StepWorld3D(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    const Vector3 force(0.0f, 10.0f, 0.0f);
+    dmPhysics::ApplyForce3D(TestFixture::m_Context, initially_scaled_object, force,
+                            initially_scaled_visual_object.m_Position + Vector3(1.0f, 0.0f, 0.0f));
+    dmPhysics::ApplyForce3D(TestFixture::m_Context, dynamically_scaled_object, force,
+                            dynamically_scaled_visual_object.m_Position + Vector3(1.0f, 0.0f, 0.0f));
+
+    TestFixture::m_StepWorldContext.m_DT = 1.0f / 60.0f;
+    dmPhysics::StepWorld3D(TestFixture::m_World, TestFixture::m_StepWorldContext);
+
+    Vector3 initially_scaled_angular_velocity = dmPhysics::GetAngularVelocity3D(TestFixture::m_Context, initially_scaled_object);
+    Vector3 dynamically_scaled_angular_velocity = dmPhysics::GetAngularVelocity3D(TestFixture::m_Context, dynamically_scaled_object);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_NEAR(initially_scaled_angular_velocity.getElem(i), dynamically_scaled_angular_velocity.getElem(i), 0.000001f);
+    }
+
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, dynamically_scaled_object);
+    dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, initially_scaled_object);
+    dmPhysics::DeleteCollisionShape3D(shape);
+}
+
+TYPED_TEST(PhysicsTest, TriangleMeshKinematicAndTrigger)
+{
+    const float vertices[] = {
+        -0.5f, 0.0f, -0.5f,
+         0.5f, 0.0f, -0.5f,
+         0.0f, 0.0f,  0.5f,
+         0.0f, 1.0f,  0.0f,
+    };
+    const uint32_t indices[] = {0, 2, 1, 0, 1, 3, 1, 2, 3, 2, 0, 3};
+    const dmPhysics::CollisionObjectType object_types[] = {
+        dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC,
+        dmPhysics::COLLISION_OBJECT_TYPE_TRIGGER,
+    };
+
+    for (uint32_t i = 0; i < sizeof(object_types) / sizeof(object_types[0]); ++i)
+    {
+        dmPhysics::HCollisionShape3D shape = dmPhysics::NewTriangleMeshShape3D(
+            TestFixture::m_Context, vertices, 4, indices, 12, object_types[i]);
+        VisualObject visual_object;
+        dmPhysics::CollisionObjectData data;
+        data.m_UserData = &visual_object;
+        data.m_Type = object_types[i];
+        data.m_Mass = 0.0f;
+        dmPhysics::HCollisionObject3D collision_object = dmPhysics::NewCollisionObject3D(
+            TestFixture::m_World, data, &shape, 1);
+
+        ASSERT_NE((dmPhysics::HCollisionShape3D)0,  shape);
+        ASSERT_NE((dmPhysics::HCollisionObject3D)0, collision_object);
+
+        dmPhysics::DeleteCollisionObject3D(TestFixture::m_World, collision_object);
+        dmPhysics::DeleteCollisionShape3D(shape);
+    }
+}
+#endif
 
 TYPED_TEST(PhysicsTest, DynamicConstruction)
 {

@@ -21,7 +21,7 @@ def build(bld):
                           uselib = 'LUA',
                           target = 'crashext_null')
 
-    is_win32 = bld.env['PLATFORM'] in ['win32', 'x86_64-win32']
+    is_win32 = bld.env['PLATFORM'] == 'x86_64-win32'
     if 'android' in bld.env['PLATFORM']:
         sig_handler = 'backtrace_libunwind_ndk.cpp'
         signal_handler = 'backtrace_signal_posix.cpp'

@@ -1,5 +1,6 @@
 /collision_object/default.texture_profiles
 /collision_object/box2d_chain_test.go
+/collision_object/box2d_test.go
 /collision_object/box2d_shape_test.go
 /collision_object/box2d_world_test.go
 /collision_object/bullet3d_kinematic.go

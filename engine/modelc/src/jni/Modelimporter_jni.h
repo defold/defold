@@ -200,6 +200,7 @@ struct MeshJNI {
     jfieldID aabb;
     jfieldID indices;
     jfieldID vertexCount;
+    jfieldID primitiveType;
     jfieldID morphTargets;
     jfieldID morphBaseWeights;
 };
@@ -208,6 +209,7 @@ struct ModelJNI {
     jfieldID name;
     jfieldID meshes;
     jfieldID index;
+    jfieldID nameIsGenerated;
     jfieldID parentBone;
 };
 struct BoneJNI {

@@ -16,8 +16,7 @@
   (:require [clj-kondo.hooks-api :as api]))
 
 (def implicit-clean-system-bindings
-  '{cache nil
-    world 0})
+  '{cache nil})
 
 (defn- binding-symbols [form]
   (into #{}

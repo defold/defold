@@ -15,11 +15,33 @@
 package com.dynamo.bob.bundle.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
+import java.io.File;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.ProxySelector;
+import java.net.SocketAddress;
+import java.net.URI;
+import java.nio.file.Files;
+import java.util.List;
+
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.EngineArtifactsProvider;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.bundle.HTML5Bundler;
+import com.dynamo.bob.fs.DefaultFileSystem;
 
 /**
  * Tests for HTML5Bundler.getUrlOrigin(), which decides if index.html should contain a
@@ -27,6 +49,54 @@ import com.dynamo.bob.bundle.HTML5Bundler;
  * A null result means "no hint", ie the archive is loaded from the same origin as index.html.
  */
 public class HTML5BundlerTest {
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    @Test
+    public void testMissingPthreadEngineAbortsBundle() throws Exception {
+        // Local Bob builds may still embed this engine. The download failure only
+        // applies when it is absent, as in the default Bob distribution.
+        assumeTrue(Bob.class.getResource("/libexec/wasm_pthread-web/dmengine_release.js") == null);
+        Bob.init();
+        assumeTrue(!new File(Bob.getRootFolder(), "wasm_pthread-web/dmengine_release.js").exists());
+
+        File projectDir = temporaryFolder.newFolder("project");
+        File buildDir = new File(projectDir, "build");
+        assertTrue(buildDir.mkdirs());
+        for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
+            Files.write(new File(buildDir, name).toPath(), new byte[] {1});
+        }
+        File bundleDir = temporaryFolder.newFolder("bundle");
+        ProxySelector previousProxySelector = ProxySelector.getDefault();
+        EngineArtifactsProvider.setCacheBase(temporaryFolder.newFolder("cache"));
+        try (Project project = new Project(new DefaultFileSystem(), projectDir.getAbsolutePath(), "build")) {
+            // Force a connection failure without contacting the engine archive.
+            ProxySelector.setDefault(new ProxySelector() {
+                @Override
+                public List<Proxy> select(URI uri) {
+                    return List.of(new Proxy(Proxy.Type.HTTP, new InetSocketAddress("127.0.0.1", 0)));
+                }
+
+                @Override
+                public void connectFailed(URI uri, SocketAddress address, IOException error) {
+                }
+            });
+            project.setOption("architectures", "wasm_pthread-web");
+            project.setOption("variant", Bob.VARIANT_RELEASE);
+            project.getProjectProperties().putStringValue("project", "title", "OfflineTest");
+            try {
+                new HTML5Bundler().bundleApplication(project, Platform.WasmPthreadWeb, bundleDir, () -> false);
+                fail("Expected bundling to fail when the pthread engine cannot be downloaded");
+            } catch (IOException e) {
+                assertTrue(e.getMessage().contains("release engine for wasm_pthread-web (dmengine_release.js)"));
+                assertTrue(e.getMessage().contains("Check your internet connection and try again."));
+                assertFalse(new File(bundleDir, "OfflineTest/dmloader.js").exists());
+            }
+        } finally {
+            ProxySelector.setDefault(previousProxySelector);
+            EngineArtifactsProvider.setCacheBase(null);
+        }
+    }
 
     // The default value of html5.archive_location_prefix and other relative prefixes must not
     // produce a preconnect hint, since they are served from the same origin as index.html.

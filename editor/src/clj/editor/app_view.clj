@@ -58,6 +58,7 @@
             [editor.hot-reload :as hot-reload]
             [editor.icons :as icons]
             [editor.keymap :as keymap]
+            [editor.launcher :as launcher]
             [editor.library :as library]
             [editor.live-update-settings :as live-update-settings]
             [editor.localization :as localization]
@@ -105,10 +106,8 @@
             [util.profiler :as profiler]
             [util.thread-util :as thread-util])
   (:import [com.defold.editor Editor]
-           [com.dynamo.bob Platform]
            [com.sun.javafx.scene NodeHelper]
            [java.io File IOException PipedInputStream PipedOutputStream]
-           [java.lang.management ManagementFactory]
            [java.net SocketTimeoutException URL]
            [java.time LocalTime]
            [java.time.format DateTimeFormatter]
@@ -474,8 +473,8 @@
        resource))))
 
 (defn- disconnect-sources [basis target-node target-label]
-  (for [[source-node source-label] (g/sources-of basis target-node target-label)]
-    (g/disconnect source-node source-label target-node target-label)))
+  (for [arc (g/inputs basis target-node target-label)]
+    (g/disconnect (gt/source-id arc) (gt/source-label arc) target-node target-label)))
 
 (defn- replace-connection [basis source-node source-label target-node target-label]
   (concat
@@ -662,23 +661,6 @@
   (run []
     (let [^Stage main-stage (ui/main-stage)]
       (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST)))))
-
-(defn- start-launcher! []
-  (if (system/defold-dev?)
-    (apply process/start!
-           {:dir (System/getProperty "user.dir")
-            :out :inherit
-            :err :inherit}
-           (str (io/file (System/getProperty "java.home") "bin" (if (os/is-win32?) "java.exe" "java")))
-           (into (vec (.getInputArguments (ManagementFactory/getRuntimeMXBean)))
-                 ["-cp" (System/getProperty "java.class.path") "com.defold.editor.Main"]))
-    (let [resources-path (system/defold-resourcespath)]
-      (process/start!
-        {:dir (.getCanonicalFile
-                (case (.getOs (Platform/getHostPlatform))
-                  "macos" (io/file resources-path "../../")
-                  ("linux" "win32") (io/file resources-path)))}
-        (system/defold-launcherpath)))))
 
 (defn store-window-dimensions [^Stage stage prefs]
   (let [dims    {:x           (.getX stage)
@@ -919,6 +901,11 @@
 (defn- build-in-progress? []
   @build-in-progress-atom)
 
+(def ^:private bob-task-in-progress-atom (atom false))
+
+(defn- bob-task-in-progress? []
+  @bob-task-in-progress-atom)
+
 (declare async-save!)
 
 (defn- async-reload-on-app-focus? [prefs]
@@ -933,7 +920,7 @@
 
 (defn- can-async-save? []
   (and (disk-availability/available?)
-       (not (bob/build-in-progress?))))
+       (not (bob-task-in-progress?))))
 
 (defn async-reload!
   [app-view changes-view workspace moved-files]
@@ -1231,8 +1218,8 @@
                          be built in addition to the project
     :lint                optional flag that indicates whether to run LSP lints
                          and present the diagnostics alongside the build errors,
-                         defaults to the value of \"general-lint-on-build\" pref
-                         (true if not set)
+                         defaults to the value of the [:build :lint-code] pref
+                         (false if not set)
     :prefs               required, preferences for linting and engine building,
                          e.g. the build server settings
     :debug               optional flag that indicates whether to also build
@@ -1296,7 +1283,7 @@
 
         start-lint!
         (fn start-lint! []
-          (when lint (lsp/pull-workspace-diagnostics! (lsp/get-node-lsp project) lint-promise)))
+          (when lint (lsp/pull-workspace-diagnostics! (lsp/get-lsp) lint-promise)))
 
         run-on-background-thread!
         (fn run-on-background-thread! [background-thread-fn ui-thread-fn]
@@ -1556,19 +1543,6 @@
     (= (:instance-count user-data)
        (prefs/get prefs [:run :instance-count]))))
 
-(defn- debugging-supported?
-  [project localization]
-  (if (project/shared-script-state? project)
-    true
-    (do (dialogs/make-info-dialog
-          localization
-          {:title (localization/message "dialog.debugging-not-supported.title")
-           :icon :icon/triangle-error
-           :header (localization/message "dialog.debugging-not-supported.header")
-           :content {:wrap-text true
-                     :text (localization/message "dialog.debugging-not-supported.content")}})
-        false)))
-
 (defn- run-with-debugger! [workspace project prefs debug-view render-build-error! web-server]
   (let [project-directory (workspace/project-directory workspace)
         skip-engine (target-cannot-swap-engine? (targets/selected-target prefs))
@@ -1621,19 +1595,16 @@
   (active? [debug-view evaluation-context]
     (not (debug-view/debugging? debug-view evaluation-context)))
   (enabled? [] (not (build-in-progress?)))
-  (run [project workspace prefs web-server build-errors-view console-view debug-view main-stage tool-tab-pane localization]
-    (if-not (debugging-supported? project localization)
-      {:error (g/map->error {:severity :fatal
-                             :message (localization/message "dialog.debugging-not-supported.header")})}
-      (let [main-scene (.getScene ^Stage main-stage)
-            render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
-        (build-errors-view/clear-build-errors build-errors-view)
-        (try
-          (if (debug-view/can-attach? prefs)
-            (attach-debugger! workspace project prefs debug-view render-build-error!)
-            (run-with-debugger! workspace project prefs debug-view render-build-error! web-server))
-          (catch SocketTimeoutException e
-            (debug-view/show-connect-failed-info! e workspace)))))))
+  (run [project workspace prefs web-server build-errors-view console-view debug-view main-stage tool-tab-pane]
+    (let [main-scene (.getScene ^Stage main-stage)
+          render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)]
+      (build-errors-view/clear-build-errors build-errors-view)
+      (try
+        (if (debug-view/can-attach? prefs)
+          (attach-debugger! workspace project prefs debug-view render-build-error!)
+          (run-with-debugger! workspace project prefs debug-view render-build-error! web-server))
+        (catch SocketTimeoutException e
+          (debug-view/show-connect-failed-info! e workspace))))))
 
 (def ^:private clean-build-dialog-info
   {:title (localization/message "dialog.clean-build.title")
@@ -1661,37 +1632,57 @@
     (console/pipe-log-stream-to-console! in)
     (PipedOutputStream. in)))
 
-(defn- build-html5! [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane bob-commands]
-  (let [main-scene (.getScene ^Stage main-stage)
-        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-        render-reload-progress! (make-render-task-progress :resource-sync)
-        render-save-progress! (make-render-task-progress :save-all)
-        [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
-        bob-args (bob/build-html5-bob-options project prefs)]
-    (build-errors-view/clear-build-errors build-errors-view)
-    (future/io
-      (let [build-results
-            (with-open [out (start-new-log-pipe!)]
-              (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
-                               out build-task-cancelled? bob-commands bob-args project changes-view))]
-        (ui/run-now
-          (if-let [error (:error build-results)]
-            (render-build-error! error)
-            (let [url (str (http-server/local-url web-server) "/html5")]
-              (if (prefs/get prefs [:build :open-html5-build])
-                (ui/open-url url)
-                (console/append-console-entry! nil (format "INFO: The game is available at %s" url))))))
-        build-results))))
+(defn invoke-bob! [app-view project changes-view build-errors-view prefs options commands]
+  (if-not (compare-and-set! bob-task-in-progress-atom false true)
+    {:error (g/error-fatal (localization/message "error.bob.project-operation-in-progress"))}
+    (try
+      (let [evaluation-context (g/make-evaluation-context)
+            options (cond-> options
+                      (not (contains? options "build-server"))
+                      (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
+
+                      (not (contains? options "build-server-header"))
+                      (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
+            main-scene (g/node-value app-view :scene evaluation-context)
+            tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
+            render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+            render-reload-progress! (make-render-task-progress :resource-sync)
+            render-save-progress! (make-render-task-progress :save-all)
+            [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
+            _ (ui/run-now
+                (g/update-cache-from-evaluation-context! evaluation-context)
+                (build-errors-view/clear-build-errors build-errors-view))
+            build-results (with-open [out (start-new-log-pipe!)]
+                            (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
+                                             out build-task-cancelled? commands options project changes-view))]
+        (when-let [error (:error build-results)]
+          (ui/run-now (render-build-error! error)))
+        build-results)
+      (finally
+        (reset! bob-task-in-progress-atom false)))))
+
+(defn- build-html5! [app-view project prefs web-server build-errors-view changes-view bob-commands]
+  (future/io
+    (let [{:keys [error] :as build-results}
+          (invoke-bob! app-view project changes-view build-errors-view prefs (bob/build-html5-bob-options project prefs) bob-commands)]
+      (when-not error
+        (let [url (str (http-server/local-url web-server) "/html5")]
+          (if (prefs/get prefs [:build :open-html5-build])
+            (ui/open-url url)
+            (console/append-console-entry! nil (format "INFO: The game is available at %s" url)))))
+      build-results)))
 
 (handler/defhandler :project.clean-build-html5 :global
-  (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane localization]
+  (enabled? [] (disk-availability/available?))
+  (run [app-view project prefs web-server build-errors-view changes-view localization]
     (when (dialogs/make-confirmation-dialog localization clean-build-dialog-info)
-      (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
+      (build-html5! app-view project prefs web-server build-errors-view changes-view
                     bob/clean-build-html5-bob-commands))))
 
 (handler/defhandler :project.build-html5 :global
-  (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
-    (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
+  (enabled? [] (disk-availability/available?))
+  (run [app-view project prefs web-server build-errors-view changes-view]
+    (build-html5! app-view project prefs web-server build-errors-view changes-view
                   bob/build-html5-bob-commands)))
 
 (defn- updated-build-resource-proj-paths [old-etags new-etags]
@@ -1984,7 +1975,7 @@
   (run [] (ui/reload-root-styles!)))
 
 (handler/defhandler :file.open-project :global
-  (run [] (start-launcher!)))
+  (run [] (launcher/start!)))
 
 (handler/register-menu! ::menubar
   [{:label (localization/message "menu.file")
@@ -2279,6 +2270,7 @@
              (.select (.getSelectionModel tab-pane)))))))
 
 (defn- configure-editor-tab-pane! [^TabPane tab-pane app-view prefs]
+  (ui/init-tab-pane! tab-pane)
   (apply-tab-pane-active-style! tab-pane false)
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
   (.setTabDragPolicy tab-pane TabPane$TabDragPolicy/REORDER)
@@ -2334,10 +2326,11 @@
              right-split-desc (g/node-value app-view :right-split-desc evaluation-context)]
     (ui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
 
-(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
+(defn make-app-view [project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)
         editor-tab-pane (TabPane.)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
+    (ui/init-tab-pane! tool-tab-pane)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (ui/make-title))
     (.add (.getItems editor-tabs-split) editor-tab-pane)
@@ -2346,16 +2339,16 @@
                      (g/tx-nodes-added
                        (g/transact
                          {:undoable false}
-                         (g/make-node view-graph AppView
-                                      :stage stage
-                                      :scene app-scene
-                                      :editor-tabs-split editor-tabs-split
-                                      :right-split right-split
-                                      :tool-tab-pane tool-tab-pane
-                                      :active-tool :move
-                                      :manip-space :world
-                                      :keymap keymap
-                                      :localization localization))))]
+                         (g/make-node AppView
+                           :stage stage
+                           :scene app-scene
+                           :editor-tabs-split editor-tabs-split
+                           :right-split right-split
+                           :tool-tab-pane tool-tab-pane
+                           :active-tool :move
+                           :manip-space :world
+                           :keymap keymap
+                           :localization localization))))]
       (configure-editor-tab-pane! editor-tab-pane app-view prefs)
 
       (ui/observe (.focusOwnerProperty app-scene)
@@ -2470,8 +2463,8 @@
 (defn make-editor-tab!
   "Creates an editor tab from a tab specification, adds it to `tabs`, and returns
   the Tab. This is the resource-independent part of opening an editor tab: it
-  creates the view graph, connects the resulting WorkbenchView to the AppView,
-  and disposes the view graph when the tab closes.
+  creates the WorkbenchView in the AppView's graph, connects it to the AppView,
+  and disposes the view node when the tab closes.
 
   The tab specification is a map with:
     `:title` - required, tab label, a localization message or a string
@@ -2485,12 +2478,12 @@
     `:view-type` - optional, view-type map. See workspace/register-view-type
     `:wrap-content-fn` - optional, (fn [parent]) returning the tab content
                          wrapping the view parent
-    `:make-view-fn` - required, (fn [view-graph parent opts]) returning a
-                      view/WorkbenchView created in the supplied graph
+    `:make-view-fn` - required, (fn [parent opts]) returning a
+                      view/WorkbenchView
     `:connect-view-fn` - optional, (fn [view-node-id]) returning transaction
                          data applied together with the AppView connections
     `:on-closed-fn` - optional, (fn [view-node-id]) called when the tab closes,
-                      before the view graph is disposed
+                      before the view node is disposed
 
   `opts` is passed on to `:make-view-fn` with the AppView and the Tab added."
   [app-view localization ^ObservableList tabs tab-spec opts]
@@ -2506,9 +2499,8 @@
               (.setGraphic icon)
               (editor-tab/set-view-type! view-type)
               (editor-tab/set-instance-key! instance-key))
-        view-graph (g/make-graph! :volatility 2)
         undo-stack-revisions-before (g/undo-stack-revisions)
-        view (make-view-fn view-graph parent (assoc opts :app-view app-view :tab tab))]
+        view (make-view-fn parent (assoc opts :app-view app-view :tab tab))]
     (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
             (format "The editor tab :make-view-fn created undo steps for '%s'."
                     (.getText tab)))
@@ -2523,6 +2515,21 @@
         (g/connect view :view-dirty app-view :open-dirty-views)
         (g/connect view :view-sidebar-panes app-view :open-sidebar-panes)))
     (editor-tab/set-view-node-id! tab view)
+
+    ;; Hidden tab content must not resize its scene viewport and GL surfaces.
+    (.bind (.managedProperty (.getContent tab)) (.selectedProperty tab))
+
+    ;; Render selected scenes at their current size before the first visible frame.
+    ;; Waiting for the refresh timer would briefly stretch the old scene image.
+    (when (= :scene (:id view-type))
+      (ui/observe (.selectedProperty tab)
+                  (fn [_ _ selected]
+                    (when selected
+                      (when-let [content-parent (.getParent (.getContent tab))]
+                        (.applyCss content-parent)
+                        (.layout content-parent)
+                        (refresh-scene-view! view 0))))))
+
     (.add tabs tab)
     (ui/add-styles! tab style-classes)
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
@@ -2531,7 +2538,7 @@
                      (when on-closed-fn
                        (on-closed-fn view))
 
-                     ;; The menu refresh can occur after the view graph is
+                     ;; The menu refresh can occur after the view node is
                      ;; deleted but before the tab controls lose input focus,
                      ;; causing handlers to evaluate against deleted graph
                      ;; nodes. Using run-later here prevents this.
@@ -2539,12 +2546,12 @@
                        (doto tab
                          (editor-tab/set-view-type! nil)
                          (editor-tab/set-view-node-id! nil))
-                       (g/delete-graph! view-graph))))
+                       (g/transact {:undoable false} (g/delete-node view)))))
     tab))
 
 (defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
   (let [basis (g/now)
-        project (project/get-project basis resource-node)
+        project (project/get-project basis)
         resource (resource-node/resource basis resource-node)
         workspace (resource/workspace resource)
         resource-type (resource/lookup-resource-type basis workspace resource)
@@ -2576,8 +2583,8 @@
                                          (ui/children! [(make-info-box! localization)
                                                         (doto parent (VBox/setVgrow Priority/ALWAYS))]))))
 
-                  :make-view-fn (fn make-resource-view [view-graph parent view-opts]
-                                  ((:make-view-fn view-type) view-graph parent resource-node view-opts))
+                  :make-view-fn (fn make-resource-view [parent view-opts]
+                                  ((:make-view-fn view-type) parent resource-node view-opts))
 
                   :connect-view-fn (fn connect-view [view]
                                      (view/connect-resource-node view resource-node))
@@ -2838,12 +2845,12 @@
 (g/defnode ReleaseNotesView
   (inherits view/NonResourceWorkbenchView))
 
-(defn- make-release-notes-view [view-graph parent {:keys [content project ^Tab tab]}]
+(defn- make-release-notes-view [parent {:keys [content project ^Tab tab]}]
   (let [view (first
                (g/tx-nodes-added
                  (g/transact
                    {:undoable false}
-                   (g/make-node view-graph ReleaseNotesView))))]
+                   (g/make-node ReleaseNotesView))))]
     (ui/advance-graph-user-data-component!
       view :view
       {:fx/type fxui/ext-with-anchor-pane-props
@@ -3070,7 +3077,7 @@
 (defn- restart-defold! [^Stage stage prefs]
   (store-window-state! stage prefs)
   (ui/close! stage)
-  (start-launcher!))
+  (launcher/start!))
 
 (handler/defhandler :app.restart :global
   (run [app-view changes-view project prefs localization]
@@ -3114,12 +3121,12 @@
                 :text (localization (localization/message "dialog.save-and-upgrade.version-control.info.after-manual"))}]}))
 
 (handler/defhandler :file.save-all :global
-  (enabled? [] (not (bob/build-in-progress?)))
+  (enabled? [] (not (bob-task-in-progress?)))
   (run [app-view changes-view project prefs]
     (async-save! app-view changes-view project prefs project/dirty-save-data)))
 
 (handler/defhandler :file.save-and-upgrade-all :global
-  (enabled? [] (not (bob/build-in-progress?)))
+  (enabled? [] (not (bob-task-in-progress?)))
   (run [app-view changes-view project prefs workspace localization]
     (let [git (g/node-value changes-view :git)]
       (when (and
@@ -3434,7 +3441,6 @@
                              image-view ^ImageView (.getGraphic tooltip)]
                          (when-not (.getImage image-view)
                            (let [resource-node (project/get-resource-node project resource)
-                                 view-graph (g/make-graph! :volatility 2)
                                  select-fn (partial select app-view)
                                  opts (assoc ((:id view-type) (:view-opts resource-type))
                                         :app-view app-view
@@ -3442,19 +3448,21 @@
                                         :project project
                                         :workspace workspace)
                                  undo-stack-revisions-before (g/undo-stack-revisions)
-                                 preview (make-preview-fn view-graph resource-node opts 256 256)]
-                             (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
-                                     (format "The %s view-type :make-preview-fn created undo steps for '%s'."
-                                             (:id view-type)
-                                             (resource/proj-path resource)))
-                             (.setImage image-view ^Image (g/node-value preview :image))
-                             (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
-                               (dispose-preview-fn preview))
-                             (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
-                                     (format "The %s view-type :dispose-preview-fn created undo steps for '%s'."
-                                             (:id view-type)
-                                             (resource/proj-path resource)))
-                             (g/delete-graph! view-graph)))))}))))
+                                 preview (make-preview-fn resource-node opts 256 256)]
+                             (try
+                               (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                                       (format "The %s view-type :make-preview-fn created undo steps for '%s'."
+                                               (:id view-type)
+                                               (resource/proj-path resource)))
+                               (.setImage image-view ^Image (g/node-value preview :image))
+                               (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
+                                 (dispose-preview-fn preview))
+                               (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+                                       (format "The %s view-type :dispose-preview-fn created undo steps for '%s'."
+                                               (:id view-type)
+                                               (resource/proj-path resource)))
+                               (finally
+                                 (g/transact {:undoable false} (g/delete-node preview))))))))}))))
 
 (def ^:private open-assets-term-prefs-key [:open-assets :term])
 
@@ -3592,27 +3600,10 @@
                         f))
     :fetch-libraries! (fn fetch-libraries! []
                         (fetch-libraries app-view workspace project changes-view build-errors-view prefs localization web-server))
-    :invoke-bob! (fn invoke-bob! [options commands evaluation-context]
-                   (let [options (cond-> options
-                                   (not (contains? options "build-server"))
-                                   (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
-                                   (not (contains? options "build-server-header"))
-                                   (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
-                         main-scene (g/node-value app-view :scene evaluation-context)
-                         tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
-                         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-                         render-reload-progress! (make-render-task-progress :resource-sync)
-                         render-save-progress! (make-render-task-progress :save-all)
-                         [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)]
-                     (future/io
-                       (ui/run-now (build-errors-view/clear-build-errors build-errors-view))
-                       (let [{:keys [error]}
-                             (with-open [out (start-new-log-pipe!)]
-                               (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!
-                                                out build-task-cancelled? commands options project changes-view))]
-                         (when error
-                           (ui/run-now (render-build-error! error))
-                           (throw (LuaError. "Bob invocation failed")))))))
+    :invoke-bob! (fn invoke-bob-from-editor-script! [options commands]
+                   (future/io
+                     (when (:error (invoke-bob! app-view project changes-view build-errors-view prefs options commands))
+                       (throw (LuaError. "Bob invocation failed")))))
     :web-server web-server)
   (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
   (ui/invalidate-menubar-item! ::project/bundle))

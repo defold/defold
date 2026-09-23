@@ -19,6 +19,7 @@
 
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/jobsystem.h>
+#include <dmsdk/dlib/vmath.h>
 #include <dmsdk/platform/window.h>
 
 #include <graphics/graphics_ddf.h>
@@ -660,6 +661,32 @@ namespace dmGraphics
     };
 
     /*#
+     * Cubemap faces
+     *
+     * The six face values are contiguous, zero-based, and may be used as array indices.
+     * `CUBEMAP_FACE_COUNT` is the number of cubemap faces and is not a valid face.
+     * @enum
+     * @name CubeMapFace
+     * @member CUBEMAP_FACE_POSITIVE_X Positive X face (array index 0)
+     * @member CUBEMAP_FACE_NEGATIVE_X Negative X face (array index 1)
+     * @member CUBEMAP_FACE_POSITIVE_Y Positive Y face (array index 2)
+     * @member CUBEMAP_FACE_NEGATIVE_Y Negative Y face (array index 3)
+     * @member CUBEMAP_FACE_POSITIVE_Z Positive Z face (array index 4)
+     * @member CUBEMAP_FACE_NEGATIVE_Z Negative Z face (array index 5)
+     * @member CUBEMAP_FACE_COUNT Number of cubemap faces
+     */
+    enum CubeMapFace
+    {
+        CUBEMAP_FACE_POSITIVE_X = 0,
+        CUBEMAP_FACE_NEGATIVE_X = 1,
+        CUBEMAP_FACE_POSITIVE_Y = 2,
+        CUBEMAP_FACE_NEGATIVE_Y = 3,
+        CUBEMAP_FACE_POSITIVE_Z = 4,
+        CUBEMAP_FACE_NEGATIVE_Z = 5,
+        CUBEMAP_FACE_COUNT      = 6,
+    };
+
+    /*#
      * Texture filtering modes.
      * Controls how texels are sampled when scaling or rotating textures
      * @enum
@@ -893,6 +920,16 @@ namespace dmGraphics
 
     struct RenderTargetCreationParams
     {
+        RenderTargetCreationParams()
+        : m_SampleCount(0)
+        , m_TextureType(TEXTURE_TYPE_2D)
+        , m_ColorBufferLoadOps()
+        , m_ColorBufferStoreOps()
+        , m_ColorBufferClearValue()
+        , m_DepthTexture(false)
+        , m_StencilTexture(false)
+        {}
+
         TextureCreationParams m_ColorBufferCreationParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureCreationParams m_DepthBufferCreationParams;
         TextureCreationParams m_StencilBufferCreationParams;
@@ -902,6 +939,7 @@ namespace dmGraphics
         // Requested render target sample count. Adapters normalize this to a supported
         // power-of-two value shared by all attachments.
         uint32_t              m_SampleCount;
+        TextureType           m_TextureType;
         AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float                 m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
@@ -909,6 +947,19 @@ namespace dmGraphics
 
         uint8_t               m_DepthTexture   : 1;
         uint8_t               m_StencilTexture : 1;
+    };
+
+    /*#
+     * Render target binding parameters.
+     * @struct
+     * @name RenderTargetBindingParams
+     * @member m_TransientBufferTypes [type:uint32_t] BufferType bit mask identifying attachments whose contents may be discarded after the render pass
+     * @member m_CubeMapFace [type:dmGraphics::CubeMapFace] Cubemap face to bind. For non-cubemap render targets this must remain `CUBEMAP_FACE_POSITIVE_X`, which is also the zero-initialized default
+     */
+    struct RenderTargetBindingParams
+    {
+        uint32_t    m_TransientBufferTypes;
+        CubeMapFace m_CubeMapFace;
     };
 
     /*#
@@ -1560,12 +1611,13 @@ namespace dmGraphics
     void DeleteRenderTarget(HContext context, HRenderTarget render_target);
 
     /*#
+     * Bind a render target with generic binding parameters.
      * @name SetRenderTarget
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param render_target [type:dmGraphics::HRenderTarget]
-     * @param transient_buffer_types [type:uint32_t]
+     * @param params [type:dmGraphics::RenderTargetBindingParams]
      */
-    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
+    void SetRenderTarget(HContext context, HRenderTarget render_target, const RenderTargetBindingParams& params);
 
     /*#
      * @name GetRenderTargetTexture
@@ -1593,6 +1645,14 @@ namespace dmGraphics
      * @return sample_count [type:uint32_t] the effective, adapter-conformed sample count
      */
     uint32_t GetRenderTargetSampleCount(HContext context, HRenderTarget render_target);
+
+    /*#
+     * @name GetRenderTargetTextureType
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param render_target [type:dmGraphics::HRenderTarget]
+     * @return texture_type [type:dmGraphics::TextureType] render target texture type
+     */
+    TextureType GetRenderTargetTextureType(HContext context, HRenderTarget render_target);
 
     /*#
      * @name SetRenderTargetSize
@@ -1772,6 +1832,20 @@ namespace dmGraphics
     void SetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
 
     /*#
+     * Sets the scissor rectangle for rendering.
+     *
+     * Defines the rectangular pixel region that rendering is clipped to when
+     * `STATE_SCISSOR_TEST` is enabled.
+     * @name SetScissor
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param x [type:int32_t] X coordinate of the scissor rectangle's origin (in pixels)
+     * @param y [type:int32_t] Y coordinate of the scissor rectangle's origin (in pixels)
+     * @param width [type:int32_t] Width of the scissor rectangle (in pixels)
+     * @param height [type:int32_t] Height of the scissor rectangle (in pixels)
+     */
+    void SetScissor(HContext context, int32_t x, int32_t y, int32_t width, int32_t height);
+
+    /*#
      * Activates a shader program for rendering.
      *
      * Binds the specified program to the graphics pipeline, making it the active program
@@ -1855,6 +1929,48 @@ namespace dmGraphics
      * @param instance_count [type:uint32_t] Number of instances to draw (for instanced rendering)
      */
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
+
+    /*#
+     * Draws indexed primitives.
+     *
+     * Renders geometry using indices from the supplied index buffer. The `first`
+     * argument is a byte offset into the index buffer.
+     * @name DrawElements
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param prim_type [type:dmGraphics::PrimitiveType] Type of primitives to draw
+     * @param first [type:uint32_t] Byte offset of the first index to draw
+     * @param count [type:uint32_t] Number of indices to draw
+     * @param type [type:dmGraphics::Type] Index element type
+     * @param index_buffer [type:dmGraphics::HIndexBuffer] Index buffer handle
+     * @param instance_count [type:uint32_t] Number of instances to draw (for instanced rendering)
+     */
+    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
+
+    /*#
+     * Sets one or more vec4 uniform values.
+     *
+     * Updates a shader uniform or uniform-buffer member starting at the supplied
+     * uniform location.
+     * @name SetConstantV4
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param data [type:const dmVMath::Vector4*] Vector data to upload
+     * @param count [type:int] Number of vec4 values to upload
+     * @param base_location [type:dmGraphics::HUniformLocation] Uniform location
+     */
+    void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
+
+    /*#
+     * Sets one or more mat4 uniform values.
+     *
+     * Updates a shader uniform or uniform-buffer member starting at the supplied
+     * uniform location.
+     * @name SetConstantM4
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param data [type:const dmVMath::Matrix4*] Matrix data to upload
+     * @param count [type:int] Number of mat4 values to upload
+     * @param base_location [type:dmGraphics::HUniformLocation] Uniform location
+     */
+    void SetConstantM4(HContext context, const dmVMath::Matrix4* data, int count, HUniformLocation base_location);
 
     /*#
      * Binds a texture sampler to a texture unit.

@@ -22,7 +22,6 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
-            [editor.gl.shader :as shader]
             [editor.gl.vertex :as vtx]
             [editor.grid :as grid]
             [editor.handler :as handler]
@@ -31,6 +30,7 @@
             [editor.rulers :as rulers]
             [editor.scene :as scene]
             [editor.scene-selection :as selection]
+            [editor.shaders :as shaders]
             [editor.types :as types]
             [editor.ui :as ui]
             [util.defonce :as defonce]
@@ -72,20 +72,7 @@
   (vec3 position)
   (vec4 color))
 
-(shader/defshader line-vertex-shader
-  (attribute vec4 position)
-  (attribute vec4 color)
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))
-    (setq var_color color)))
-
-(shader/defshader line-fragment-shader
-  (varying vec4 var_color)
-  (defn void main []
-    (setq gl_FragColor var_color)))
-
-(def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
+(def line-shader shaders/basic-color-straight-alpha-world-space)
 
 (defn render-curves [^GL2 gl render-args renderables _rcount]
   (doseq [renderable renderables
@@ -535,6 +522,9 @@
   (input camera-id g/NodeID :cascade-delete)
   (input grid-id g/NodeID :cascade-delete)
   (input background-id g/NodeID :cascade-delete)
+  (input controller-id g/NodeID :cascade-delete)
+  (input selection-id g/NodeID :cascade-delete)
+  (input rulers-id g/NodeID :cascade-delete)
   (input input-handlers Runnable :array)
   ;; NOTE: Part of an interface SceneView calls during update-image-view!
   (input update-tick-handlers Runnable :array)
@@ -666,55 +656,58 @@
                                     :z 1}}))))
 
 (defn make-view!
-  ([app-view graph ^Parent parent ^ListView list ^AnchorPane view localization opts]
-   (let [view-id (make-view! app-view graph parent list view localization opts false)]
-     (reset! view-state {:app-view app-view :graph graph :parent parent :list list :view view :opts opts :view-id view-id})
+  ([app-view ^Parent parent ^ListView list ^AnchorPane view localization opts]
+   (let [view-id (make-view! app-view parent list view localization opts false)]
+     (reset! view-state {:app-view app-view :parent parent :list list :view view :opts opts :view-id view-id})
      view-id))
-  ([app-view graph ^Parent parent ^ListView list ^AnchorPane view localization opts _reloading?]
+  ([app-view ^Parent parent ^ListView list ^AnchorPane view localization opts _reloading?]
    (let [[node-id] (g/tx-nodes-added
                      (g/transact
                        {:undoable false}
-                       (g/make-nodes graph [view-id [CurveView :list list :hidden-curves #{} :updatable-states (atom {})]
-                                                      controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
-                                                      selection [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
-                                                      background background/Background
-                                                      camera [camera/CameraController :local-camera (or (:camera opts) (camera/make-camera :orthographic camera-filter-fn))
-                                                                                      :movements-enabled #{:dolly :track}]
-                                                      grid CurveGrid
-                                                      rulers [rulers/Rulers]]
+                       (g/make-nodes [view-id [CurveView :list list :hidden-curves #{} :updatable-states (atom {})]
+                                      controller [CurveController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
+                                      selection [selection/SelectionController :select-fn (fn [selection op-seq] (app-view/sub-select! app-view selection op-seq))]
+                                      background background/Background
+                                      camera [camera/CameraController :local-camera (or (:camera opts) (camera/make-camera :orthographic camera-filter-fn))
+                                              :movements-enabled #{:dolly :track}]
+                                      grid CurveGrid
+                                      rulers [rulers/Rulers]]
 
-                                   (g/connect camera :_node-id view-id :camera-id)
-                                   (g/connect grid :_node-id view-id :grid-id)
-                                   (g/connect camera :local-camera view-id :local-camera)
-                                   (g/connect camera :camera view-id :camera)
-                                   (g/connect camera :camera grid :camera)
-                                   (g/connect camera :input-handler view-id :input-handlers)
-                                   (g/connect camera :update-tick-handler view-id :update-tick-handlers)
-                                   (g/connect view-id :viewport camera :viewport)
-                                   (g/connect grid :renderable view-id :aux-renderables)
-                                   (g/connect background :_node-id view-id :background-id)
-                                   (g/connect background :renderable view-id :aux-renderables)
+                         (g/connect camera :_node-id view-id :camera-id)
+                         (g/connect grid :_node-id view-id :grid-id)
+                         (g/connect controller :_node-id view-id :controller-id)
+                         (g/connect selection :_node-id view-id :selection-id)
+                         (g/connect rulers :_node-id view-id :rulers-id)
+                         (g/connect camera :local-camera view-id :local-camera)
+                         (g/connect camera :camera view-id :camera)
+                         (g/connect camera :camera grid :camera)
+                         (g/connect camera :input-handler view-id :input-handlers)
+                         (g/connect camera :update-tick-handler view-id :update-tick-handlers)
+                         (g/connect view-id :viewport camera :viewport)
+                         (g/connect grid :renderable view-id :aux-renderables)
+                         (g/connect background :_node-id view-id :background-id)
+                         (g/connect background :renderable view-id :aux-renderables)
 
-                                   (g/connect app-view :selected-node-properties view-id :selected-node-properties)
-                                   (g/connect app-view :sub-selection view-id :sub-selection)
+                         (g/connect app-view :selected-node-properties view-id :selected-node-properties)
+                         (g/connect app-view :sub-selection view-id :sub-selection)
 
-                                   (g/connect view-id :curve-handle controller :curve-handle)
-                                   (g/connect app-view :sub-selection controller :sub-selection)
-                                   (g/connect controller :input-handler view-id :input-handlers)
-                                   (g/connect controller :info-text view-id :tool-info-text)
+                         (g/connect view-id :curve-handle controller :curve-handle)
+                         (g/connect app-view :sub-selection controller :sub-selection)
+                         (g/connect controller :input-handler view-id :input-handlers)
+                         (g/connect controller :info-text view-id :tool-info-text)
 
-                                   (g/connect selection :renderable view-id :tool-renderables)
-                                   (g/connect selection :input-handler view-id :input-handlers)
-                                   (g/connect selection :picking-rect view-id :picking-rect)
-                                   (g/connect view-id :picking-selection selection :picking-selection)
-                                   (g/connect app-view :sub-selection selection :selection)
+                         (g/connect selection :renderable view-id :tool-renderables)
+                         (g/connect selection :input-handler view-id :input-handlers)
+                         (g/connect selection :picking-rect view-id :picking-rect)
+                         (g/connect view-id :picking-selection selection :picking-selection)
+                         (g/connect app-view :sub-selection selection :selection)
 
-                                   (g/connect camera :camera rulers :camera)
-                                   (g/connect rulers :renderables view-id :aux-renderables)
-                                   (g/connect view-id :viewport rulers :viewport)
-                                   (g/connect view-id :cursor-pos rulers :cursor-pos)
-                                   (g/connect view-id :_node-id app-view :scene-view-ids)
-                                   (g/connect view-id :viewport grid :viewport))))]
+                         (g/connect camera :camera rulers :camera)
+                         (g/connect rulers :renderables view-id :aux-renderables)
+                         (g/connect view-id :viewport rulers :viewport)
+                         (g/connect view-id :cursor-pos rulers :cursor-pos)
+                         (g/connect view-id :_node-id app-view :scene-view-ids)
+                         (g/connect view-id :viewport grid :viewport))))]
      (when parent
        (let [^Node pane (scene/make-gl-pane! node-id opts)]
          (ui/context! parent :curve-view {:view-id node-id} (SubSelectionProvider. app-view))

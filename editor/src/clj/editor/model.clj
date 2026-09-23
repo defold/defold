@@ -26,6 +26,7 @@
             [editor.image :as image]
             [editor.localization :as localization]
             [editor.material :as material]
+            [editor.model-loader :as model-loader]
             [editor.model-scene :as model-scene]
             [editor.pipeline :as pipeline]
             [editor.properties :as properties]
@@ -35,7 +36,6 @@
             [editor.rig :as rig]
             [editor.texture-util :as texture-util]
             [editor.validation :as validation]
-            [editor.workspace :as workspace]
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]])
@@ -51,8 +51,56 @@
 (def ^:private animations-message (properties/label-message :model :animations))
 (def ^:private default-animation-message (properties/label-message :model :default-animation))
 (def ^:private material-message (properties/label-message :material))
-(def ^:private mesh-message (properties/label-message :model :mesh))
+(def ^:private scene-message (properties/label-message :model :scene))
 (def ^:private skeleton-message (properties/label-message :model :skeleton))
+
+(def ^:private mesh-selection-file-types #{"glb" "gltf"})
+
+(defn- model-mesh-choicebox [collision-meshes]
+  {:type :choicebox
+   :options (model-loader/named-mesh-choicebox-options collision-meshes)})
+
+(defn- set-mesh-index [evaluation-context self _old-value new-value]
+  (when (properties/user-edit? self :mesh-index evaluation-context)
+    (let [collision-meshes (g/node-value self :collision-meshes evaluation-context)
+          selected-mesh (when-not (g/error-value? collision-meshes)
+                          (coll/first-where #(= new-value (:index %))
+                                            (model-loader/named-meshes collision-meshes)))]
+      (g/set-property self :mesh-name (or (:name selected-mesh) "")))))
+
+(defn- set-mesh [evaluation-context self old-value new-value]
+  (into (project/resource-setter evaluation-context self old-value new-value
+                                 [:resource :mesh-resource]
+                                 [:mesh-set-build-target :mesh-set-build-target]
+                                 [:content :mesh-content]
+                                 [:material-ids :mesh-material-ids]
+                                 [:collision-meshes :collision-meshes]
+                                 [:scene :scene])
+        (when (properties/user-edit? self :mesh evaluation-context)
+          (g/set-properties self :mesh-name "" :mesh-index -1))))
+
+(defn- model-mesh-selection-error [node-id mesh mesh-name mesh-index collision-meshes]
+  (cond
+    (and (str/blank? mesh-name)
+         (= -1 mesh-index))
+    nil
+
+    (str/blank? mesh-name)
+    (g/->error node-id :mesh-index :fatal mesh-index
+               (localization/message "error.model-mesh-selection-name-required"))
+
+    (not (contains? mesh-selection-file-types (some-> mesh resource/type-ext)))
+    (g/->error node-id :mesh-index :fatal mesh-index
+               (localization/message "error.model-mesh-selection-file-type"))
+
+    (g/error-value? collision-meshes)
+    collision-meshes
+
+    :else
+    (let [selected-mesh (model-loader/resolve-named-mesh collision-meshes mesh-name mesh-index)]
+      (when (nil? selected-mesh)
+        (g/->error node-id :mesh-index :fatal mesh-index
+                   (localization/message "error.model-mesh-selection-missing" {"mesh" mesh-name}))))))
 
 (g/defnk produce-animation-set-build-target-single [_node-id resource animations-resource animation-set]
   (let [is-single-anim (and (not (empty? animation-set))
@@ -69,20 +117,25 @@
         [])
       (:animation-ids animation-set-info))))
 
-(g/defnk produce-pb-msg [name mesh materials skeleton animations default-animation create-go-bones]
-  (protobuf/make-map-without-defaults ModelProto$ModelDesc
-    :mesh (resource/resource->proj-path mesh)
-    :materials (mapv
-                 (fn [material]
-                   (-> material
-                       (update :material resource/resource->proj-path) ; Required protobuf field.
-                       (protobuf/sanitize-repeated :textures #(update % :texture resource/resource->proj-path))))
-                 materials)
-    :skeleton (resource/resource->proj-path skeleton)
-    :animations (resource/resource->proj-path animations)
-    :default-animation default-animation
-    :name name
-    :create-go-bones create-go-bones))
+(g/defnk produce-pb-msg [name mesh mesh-name mesh-index materials skeleton animations default-animation create-go-bones]
+  (cond-> (protobuf/make-map-without-defaults ModelProto$ModelDesc
+            :mesh (resource/resource->proj-path mesh)
+            :materials (mapv
+                         (fn [material]
+                           (-> material
+                               (update :material resource/resource->proj-path) ; Required protobuf field.
+                               (protobuf/sanitize-repeated :textures #(update % :texture resource/resource->proj-path))))
+                         materials)
+            :skeleton (resource/resource->proj-path skeleton)
+            :animations (resource/resource->proj-path animations)
+            :default-animation default-animation
+            :name name
+            :create-go-bones create-go-bones)
+    (not (str/blank? mesh-name))
+    (assoc :mesh-name mesh-name)
+
+    (not= -1 mesh-index)
+    (assoc :mesh-index mesh-index)))
 
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
@@ -138,9 +191,10 @@
           materials
           material-binding-infos)))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-set-build-target materials material-binding-infos skeleton-build-target animations mesh skeleton create-go-bones]
-  (or (some->> (into [(prop-resource-error :fatal _node-id :mesh mesh mesh-message)
-                      (prop-resource-format-error _node-id :mesh mesh mesh-message model-scene/model-file-types)
+(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets default-animation animation-ids animation-set-build-target animation-set-build-target-single mesh-content mesh-set-build-target materials material-binding-infos skeleton-build-target animations mesh mesh-name mesh-index collision-meshes skeleton create-go-bones]
+  (or (some->> (into [(prop-resource-error :fatal _node-id :mesh mesh scene-message)
+                      (prop-resource-format-error _node-id :mesh mesh scene-message model-scene/model-file-types)
+                      (model-mesh-selection-error _node-id mesh mesh-name mesh-index collision-meshes)
                       (validation/prop-error :fatal _node-id :skeleton validation/prop-resource-not-exists? skeleton skeleton-message)
                       (prop-resource-format-error _node-id :skeleton skeleton skeleton-message model-scene/model-file-types)
                       (validation/prop-error :fatal _node-id :animations validation/prop-resource-not-exists? animations animations-message)
@@ -157,17 +211,31 @@
                not-empty
                g/error-aggregate)
       (let [workspace (resource/workspace resource)
+            mesh-set-build-target
+            (if (str/blank? mesh-name)
+              mesh-set-build-target
+              (let [selected-mesh-set (-> (:mesh-set mesh-content)
+                                          (update :models coll/filterv-> #(= mesh-index (:mesh-index %)))
+                                          (update :raw-models coll/filterv-> #(= mesh-index (:mesh-index %))))]
+                (rig/make-mesh-set-build-target workspace
+                                                _node-id
+                                                selected-mesh-set
+                                                (:morph-target-textures mesh-content))))
             animation-set-build-target (if (nil? animation-set-build-target-single) animation-set-build-target animation-set-build-target-single)
             rig-scene-dep-build-targets {:animation-set animation-set-build-target
                                          :mesh-set mesh-set-build-target
                                          :skeleton skeleton-build-target}
             rig-scene-pb-msg {}
             rig-scene-build-target (rig/make-rig-scene-build-target workspace _node-id rig-scene-pb-msg dep-build-targets rig-scene-dep-build-targets)
-            rt-pb-msg (-> {:rig-scene (:resource rig-scene-build-target)
-                           :default-animation default-animation
-                           :materials (:materials pb-msg)
-                           :create-go-bones create-go-bones}
-                          (update-build-target-vertex-attributes material-binding-infos))
+            rt-pb-msg (cond-> {:rig-scene (:resource rig-scene-build-target)
+                               :default-animation default-animation
+                               :materials (:materials pb-msg)
+                               :create-go-bones create-go-bones}
+                        (not (str/blank? mesh-name))
+                        (assoc :mesh-index mesh-index)
+
+                        true
+                        (update-build-target-vertex-attributes material-binding-infos))
             dep-build-targets (into [rig-scene-build-target] (flatten dep-build-targets))]
         [(pipeline/make-protobuf-build-target _node-id resource ModelProto$Model rt-pb-msg dep-build-targets)])))
 
@@ -198,9 +266,18 @@
       explicit-textures
       samplers)))
 
-(g/defnk produce-scene [_node-id scene material-name->material-scene-info skeleton-resource]
+(g/defnk produce-scene [_node-id scene mesh-name mesh-index ^:try collision-meshes material-name->material-scene-info skeleton-resource]
   (if scene
-    (model-scene/augment-scene scene _node-id "model" material-name->material-scene-info (some? skeleton-resource))
+    (let [selected-mesh-index (if (str/blank? mesh-name)
+                                -1
+                                (when-not (g/error-value? collision-meshes)
+                                  (:index (model-loader/resolve-named-mesh collision-meshes mesh-name mesh-index))))]
+      (model-scene/augment-scene scene
+                                 _node-id
+                                 "model"
+                                 material-name->material-scene-info
+                                 (some? skeleton-resource)
+                                 selected-mesh-index))
     {:aabb geom/empty-bounding-box
      :renderable {:passes [pass/selection]}}))
 
@@ -306,19 +383,19 @@
           texture-binding-name-index)))
 
 (defn- create-texture-binding-tx [material-binding sampler texture]
-  (g/make-nodes (g/node-id->graph-id material-binding) [texture-binding [TextureBinding
-                                                                         :sampler sampler
-                                                                         :texture texture]]
+  (g/make-nodes [texture-binding [TextureBinding
+                                  :sampler sampler
+                                  :texture texture]]
     (g/connect texture-binding :_node-id material-binding :copied-nodes)
     (g/connect texture-binding :texture-binding-info material-binding :texture-binding-infos)
     (g/connect texture-binding :build-targets material-binding :dep-build-targets)))
 
 (defn- create-material-binding-tx [model-node-id name material material-index textures vertex-attribute-overrides]
-  (g/make-nodes (g/node-id->graph-id model-node-id) [material-binding [MaterialBinding
-                                                                       :name name
-                                                                       :material material
-                                                                       :material-index material-index
-                                                                       :vertex-attribute-overrides vertex-attribute-overrides]]
+  (g/make-nodes [material-binding [MaterialBinding
+                                   :name name
+                                   :material material
+                                   :material-index material-index
+                                   :vertex-attribute-overrides vertex-attribute-overrides]]
     (g/connect material-binding :_node-id model-node-id :copied-nodes)
     (g/connect material-binding :dep-build-targets model-node-id :dep-build-targets)
     (g/connect material-binding :material-scene-info model-node-id :material-scene-infos)
@@ -443,21 +520,40 @@
             (dynamic visible (g/constantly false)))
   (property mesh resource/Resource ; Required protobuf field.
             (value (gu/passthrough mesh-resource))
-            (set (fn [evaluation-context self old-value new-value]
-                   (project/resource-setter evaluation-context self old-value new-value
-                                            [:resource :mesh-resource]
-                                            [:mesh-set-build-target :mesh-set-build-target]
-                                            [:material-ids :mesh-material-ids]
-                                            [:scene :scene])))
+            (set set-mesh)
             (dynamic error (g/fnk [_node-id mesh ^:try scene]
                              (if (g/error-value? scene)
                                scene
-                               (or (prop-resource-error :fatal _node-id :mesh mesh mesh-message)
-                                   (prop-resource-format-error _node-id :mesh mesh mesh-message model-scene/model-file-types)))))
+                               (or (prop-resource-error :fatal _node-id :mesh mesh scene-message)
+                                   (prop-resource-format-error _node-id :mesh mesh scene-message model-scene/model-file-types)))))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext model-scene/model-file-types}))
-            (dynamic label (properties/label-dynamic :model :mesh))
-            (dynamic tooltip (properties/tooltip-dynamic :model :mesh)))
+            (dynamic label (properties/label-dynamic :model :scene))
+            (dynamic tooltip (properties/tooltip-dynamic :model :scene)))
+  (property mesh-name g/Str
+            (default "")
+            (dynamic visible (g/constantly false)))
+  (property mesh-index g/Int
+            (default -1)
+            (value (g/fnk [^:try collision-meshes mesh-index mesh-name]
+                     (if (g/error-value? collision-meshes)
+                       mesh-index
+                       (or (:index (model-loader/resolve-named-mesh collision-meshes mesh-name mesh-index))
+                           mesh-index))))
+            (set set-mesh-index)
+            (dynamic visible (g/fnk [mesh]
+                               (contains? mesh-selection-file-types (some-> mesh resource/type-ext))))
+            (dynamic read-only? (g/fnk [mesh ^:try collision-meshes]
+                                  (or (nil? mesh)
+                                      (g/error-value? collision-meshes))))
+            (dynamic edit-type (g/fnk [^:try collision-meshes]
+                                 (if (g/error-value? collision-meshes)
+                                   (model-mesh-choicebox [])
+                                   (model-mesh-choicebox collision-meshes))))
+            (dynamic error (g/fnk [_node-id mesh mesh-name mesh-index ^:try collision-meshes]
+                             (model-mesh-selection-error _node-id mesh mesh-name mesh-index collision-meshes)))
+            (dynamic label (properties/label-dynamic :model :mesh-name))
+            (dynamic tooltip (properties/tooltip-dynamic :model :mesh-name)))
   (input copied-nodes g/Any :array :cascade-delete)
   (input material-binding-infos g/Any :array)
   (output materials [Material] :cached
@@ -529,8 +625,10 @@
             (dynamic tooltip (properties/tooltip-dynamic :model :default-animation)))
 
   (input mesh-resource resource/Resource)
+  (input mesh-content g/Any)
   (input mesh-set-build-target g/Any)
   (input mesh-material-ids g/Any)
+  (input collision-meshes g/Any)
 
   (input skeleton-resource resource/Resource)
   (input skeleton-build-target g/Any)
@@ -579,14 +677,15 @@
   (when (migrated? model-node-id model-desc evaluation-context)
     (g/flag-nodes-as-migrated! evaluation-context [model-node-id])))
 
-(defn load-model [_project self resource {:keys [materials] :as model-desc}]
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+(defn load-model [{:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id {:keys [materials] :as model-desc} :source-value}]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (concat
       (gu/set-properties-from-pb-map self ModelProto$ModelDesc model-desc
         name :name
         default-animation :default-animation
         mesh (resolve-resource :mesh)
+        mesh-name :mesh-name
+        mesh-index (:mesh-index :or -1)
         skeleton (resolve-resource :skeleton)
         animations (resolve-resource :animations)
         create-go-bones :create-go-bones)
@@ -601,7 +700,7 @@
         materials)
       (g/callback-ec detect-and-flag-migrated! self model-desc))))
 
-(defn- sanitize-model [{:keys [material textures materials] :as model-desc}]
+(defn- sanitize-model [_read-opts _owner-resource {:keys [material textures materials] :as model-desc}]
   {:pre [(map? model-desc)]} ; ModelProto$ModelDesc in map format.
   (-> model-desc
       (dissoc :material :textures)

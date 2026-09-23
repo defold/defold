@@ -34,6 +34,7 @@ static void SetupDX12Context(const ContextParams& params, DX12Context* context)
     context->m_BaseContext.m_Width                   = params.m_Width;
     context->m_BaseContext.m_Height                  = params.m_Height;
     context->m_UseValidationLayers     = params.m_UseValidationLayers;
+    context->m_SwapInterval            = params.m_SwapInterval;
     SetAllContextFeaturesSupported(&context->m_BaseContext);
 
     context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_LUMINANCE;
@@ -234,7 +235,12 @@ void DX12NativeBeginFrame(DX12Context* context)
 
 void DX12NativeEndFrame(DX12Context* context)
 {
-    HRESULT hr = context->m_SwapChain->Present(0, 0);
+    // Present must use the effective interval selected by the engine; presenting
+    // with zero here would bypass vsync while reporting that DX12 provides it.
+    // DXGI accepts sync intervals from 0 through 4, while Defold allows larger
+    // values for backends that support them.
+    uint32_t sync_interval = dmMath::Min(context->m_SwapInterval, 4U);
+    HRESULT hr = context->m_SwapChain->Present(sync_interval, 0);
     CHECK_HR_ERROR(hr);
 }
 

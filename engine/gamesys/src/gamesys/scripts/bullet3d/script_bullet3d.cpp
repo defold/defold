@@ -233,6 +233,21 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int Bullet3D_GetGameObjectId(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmhash_t instance_id = GetBullet3DCollisionObjectInstanceId(L, 1);
+        if (instance_id)
+        {
+            dmScript::PushHash(L, instance_id);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        return 1;
+    }
+
     static int Bullet3D_GetVersion(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -259,6 +274,7 @@ namespace dmGameSystem
         { "get_world", Bullet3D_GetWorld },
         { "get_collision_object", Bullet3D_GetCollisionObject },
         { "get_rigid_body", Bullet3D_GetRigidBody },
+        { "get_gameobject_id", Bullet3D_GetGameObjectId },
         { "get_version", Bullet3D_GetVersion },
         { 0, 0 }
     };
@@ -415,6 +431,23 @@ namespace dmGameSystem
  * -- A trigger is a collision object, not a rigid body.
  * local trigger = bullet3d.get_collision_object("#trigger")
  * assert(trigger and bullet3d.get_rigid_body("#trigger") == nil)
+ * ```
+ */
+
+/*# Get the game object id associated with a Bullet collision object
+ *
+ * Returns the id of the game object that owns the collision-object component.
+ * Accepts both rigid bodies and ghost trigger objects.
+ * Raises a Lua error if the handle is invalid or its game object has been deleted.
+ *
+ * @name bullet3d.get_gameobject_id
+ * @param object [type:btCollisionObject|btRigidBody] the Bullet collision object
+ * @return id [type:hash|nil] the game object id, or `nil` if the collision object has no associated game object
+ * @examples
+ *
+ * ```lua
+ * local object = bullet3d.get_collision_object("#collisionobject")
+ * local id = bullet3d.get_gameobject_id(object)
  * ```
  */
 

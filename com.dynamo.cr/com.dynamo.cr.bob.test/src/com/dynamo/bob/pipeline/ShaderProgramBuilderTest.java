@@ -19,6 +19,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
@@ -52,29 +53,10 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "gl_Position = position; \n" +
             "}\n";
 
-    private final String vpEs3 =
-            "#version 310 es \n" +
-            "in vec4 position; \n" +
-            "out vec4 fragColor; \n" +
-            "uniform NonOpaqueBlock { vec4 color; }; \n" +
-            "void main(){ \n" +
-            "   fragColor   = color;\n" +
-            "   gl_Position = position; \n" +
-            "}\n";
-
     public static final String fp =
             "varying vec4 fragColor; \n" +
             "void main(){ \n" +
             "gl_FragColor = fragColor; \n" +
-            "}\n";
-
-    private final String fpEs3 =
-            "#version 310 es \n" +
-            "precision mediump float; \n" +
-            "in vec4 fragColor; \n" +
-            "out vec4 FragColorOut; \n" +
-            "void main(){ \n" +
-            "   FragColorOut = fragColor; \n" +
             "}\n";
 
     private static ShaderDesc.Language getPlatformGLSLLanguage() {
@@ -111,10 +93,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private void checkOnlyExpectedLanguages(ShaderDesc shader, ShaderDesc.Language... expectedLanguages) {
-        Set<ShaderDesc.Language> expected = new HashSet<>();
-        for (ShaderDesc.Language language : expectedLanguages) {
-            expected.add(language);
-        }
+        Set<ShaderDesc.Language> expected = new HashSet<>(Arrays.asList(expectedLanguages));
 
         Set<ShaderDesc.Language> actual = new HashSet<>();
         for (ShaderDesc.Shader shaderDesc : shader.getShadersList()) {
@@ -176,9 +155,24 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private void doTestEs3(ShaderDesc.Language[] expectedLanguagesES3, String outputResource) throws Exception {
+        String vpEs3 = "#version 310 es \n" +
+                "in vec4 position; \n" +
+                "out vec4 fragColor; \n" +
+                "uniform NonOpaqueBlock { vec4 color; }; \n" +
+                "void main(){ \n" +
+                "   fragColor   = color;\n" +
+                "   gl_Position = position; \n" +
+                "}\n";
         ShaderDesc shader = addAndBuildShaderDesc("/test_shader.vp", vpEs3, outputResource);
         checkExpectedLanguages(shader, expectedLanguagesES3);
 
+        String fpEs3 = "#version 310 es \n" +
+                "precision mediump float; \n" +
+                "in vec4 fragColor; \n" +
+                "out vec4 FragColorOut; \n" +
+                "void main(){ \n" +
+                "   FragColorOut = fragColor; \n" +
+                "}\n";
         shader = addAndBuildShaderDesc("/test_shader.fp", fpEs3, outputResource);
         checkExpectedLanguages(shader, expectedLanguagesES3);
     }
@@ -524,12 +518,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         Object[][] platformLanguages = new Object[][] {
             { Platform.X86_64MacOS,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.Arm64MacOS,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_SPIRV } },
-            { Platform.X86Win32,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
             { Platform.X86_64Win32,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
             { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
             { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
             { Platform.Arm64Ios,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
-            { Platform.X86_64Ios,      new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.Arm64IosSim,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
             { Platform.Armv7Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.Arm64Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.WasmWeb,        new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
@@ -581,11 +574,23 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "{\n" +
             "   color_out = texture(texture_sampler, var_texcoord0.xy);\n" +
             "}\n";
+        ShaderDesc webShaderDesc = compileShaderWithCompiler(
+            getProject().getShaderCompiler(Platform.WasmWeb), shaderAdapters, "manifest_webgpu_sampler", samplerSource);
         checkOnlyExpectedLanguages(
-            compileShaderWithCompiler(getProject().getShaderCompiler(Platform.WasmWeb), shaderAdapters, "manifest_webgpu_sampler", samplerSource),
+            webShaderDesc,
             ShaderDesc.Language.LANGUAGE_GLES_SM300,
             ShaderDesc.Language.LANGUAGE_GLES_SM100,
             ShaderDesc.Language.LANGUAGE_WGSL);
+
+        // WGSL requires separate texture/sampler resources, but including that
+        // variant must not rename the combined sampler used by WebGL fallback.
+        for (ShaderDesc.Language language : List.of(
+                ShaderDesc.Language.LANGUAGE_GLES_SM300,
+                ShaderDesc.Language.LANGUAGE_GLES_SM100)) {
+            String glslSource = getShaderByLanguage(webShaderDesc, language).getSource().toStringUtf8();
+            assertTrue("WebGL sampler name must match shared reflection for " + language,
+                glslSource.contains("sampler2D texture_sampler"));
+        }
 
         shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
             platformSettings("excludeSymbols", List.of("GraphicsAdapterVulkan"))));

@@ -20,6 +20,8 @@
           <entry key="dev/run-with-terminal-progress" value="-1" />
           <entry key="dynamo.graph/construct" value="-1" />
           <entry key="dynamo.graph/let-ec" value="-1" />
+          <entry key="dynamo.graph/make-node" value="-1" />
+          <entry key="dynamo.graph/make-node!" value="-1" />
           <entry key="dynamo.graph/make-nodes" value="-1" />
           <entry key="dynamo.graph/override" value="-1" />
           <entry key="dynamo.graph/precluding-errors" value="-1" />
@@ -95,6 +97,7 @@
           <entry key="integration.test-util/set-code-editor-lines" value="-1" />
           <entry key="integration.test-util/set-code-editor-lines!" value="-1" />
           <entry key="integration.test-util/with-changes-reverted" value="-1" />
+          <entry key="integration.test-util/with-graph-queries-blocked" value="-1" />
           <entry key="integration.test-util/with-loaded-project" value="-1" />
           <entry key="integration.test-util/with-logged-calls" value="-1" />
           <entry key="integration.test-util/with-prop" value="-1" />

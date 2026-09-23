@@ -21,20 +21,28 @@
  * @struct
  * @name FontSDFParams
  * @member m_Scale [type: float] scale from font coordinates to bitmap pixels
- * @member m_Spread [type: uint32_t] distance-field padding and range in pixels
+ * @member m_Spread [type: float] distance range in pixels; bitmap padding is rounded up
  * @member m_OnEdgeValue [type: uint8_t] bitmap value assigned to the glyph edge
+ * @member m_OutputBitmap [type: bool] output alpha coverage directly, without quantizing distance first
+ * @member m_OutlineWidth [type: float] bitmap outline width; positive values add a second coverage channel
+ * @member m_Antialias [type: bool] antialias bitmap coverage
  */
 struct FontSDFParams
 {
     float    m_Scale;
-    uint32_t m_Spread;
+    float    m_Spread;
     uint8_t  m_OnEdgeValue;
+    bool     m_OutputBitmap;
+    float    m_OutlineWidth;
+    bool     m_Antialias;
 };
 
 /*# generate a signed distance field from a glyph outline
  * Distances are calculated directly from the outline's line and Bezier
  * segments. The outline is filled using the non-zero winding rule. The
- * returned bitmap is single-channel and top-down. Its data is owned by the
+ * returned bitmap is top-down. SDF output has one channel; bitmap output has
+ * face coverage and, when requested, a second outline coverage channel.
+ * Its data is owned by the
  * bitmap and must be released with FontSDFFree.
  * @name FontSDFGenerate
  * @param outline [type: const FontOutline*] source outline in unscaled font coordinates

@@ -39,12 +39,9 @@ The alpha channel is automatically released for every successful push to dev.
         $ cd defold-platform
         $ git checkout dev
         $ git pull
-
         $ git checkout beta
         $ git pull
         $ git merge dev
-        $ git fetch upstream
-        $ git merge upstream/beta
         $ git push
 
 ## Stable

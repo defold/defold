@@ -24,8 +24,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +55,7 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 
-@BundlerParams(platforms = {"arm64-ios", "x86_64-ios"})
+@BundlerParams(platforms = {"arm64-ios", "arm64_sim-ios"})
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
 
@@ -64,7 +66,7 @@ public class IOSBundler implements IBundler {
             ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
             IOUtils.copy(errorIn, errorOut);
             errorIn.close();
-            String errorMessage = new String(errorOut.toByteArray());
+            String errorMessage = errorOut.toString();
 
             int ret = process.waitFor();
             if (ret != 0) {
@@ -100,7 +102,7 @@ public class IOSBundler implements IBundler {
         return binaries;
     }
 
-    private static final String SYMBOL_EXE_RELATIVE_PATH = String.format("Contents/Resources/DWARF/dmengine");
+    private static final String SYMBOL_EXE_RELATIVE_PATH = "Contents/Resources/DWARF/dmengine";
 
     public static List<File> getSymbolDirsFromArchitectures(File buildDir, List<Platform> architectures) {
         final String[] prefixes = {"", "src" + File.separator};
@@ -146,6 +148,9 @@ public class IOSBundler implements IBundler {
     }
 
     private static String MANIFEST_NAME = "Info.plist";
+
+    // codesign uses "-" to select ad-hoc signing
+    private static final String ADHOC_SIGN_IDENTITY = "-";
 
     @Override
     public IResource getManifestResource(Project project, Platform platform) throws IOException {
@@ -217,13 +222,115 @@ public class IOSBundler implements IBundler {
 
     }
 
+    public static void validateSceneManifest(String manifest) throws IOException {
+        XMLPropertyListConfiguration plist = new XMLPropertyListConfiguration();
+        try {
+            plist.read(new StringReader(manifest));
+        } catch (ConfigurationException e) {
+            throw new IOException("Unable to read ios.infoplist", e);
+        }
+        String multipleScenes = "UIApplicationSceneManifest.UIApplicationSupportsMultipleScenes";
+        if (!plist.containsKey(multipleScenes) || plist.getBoolean(multipleScenes, true)) {
+            throw new IOException("ios.infoplist must contain UIApplicationSceneManifest with UIApplicationSupportsMultipleScenes set to false. Update custom plists from /builtins/manifests/ios/Info.plist.");
+        }
+        String configuration = "UIApplicationSceneManifest.UISceneConfigurations.UIWindowSceneSessionRoleApplication";
+        for (Object value : plist.getList(configuration)) {
+            if (!(value instanceof XMLPropertyListConfiguration)) {
+                throw new IOException("ios.infoplist application scene configurations must be dictionaries.");
+            }
+            XMLPropertyListConfiguration scene = (XMLPropertyListConfiguration) value;
+            String delegate = scene.getString("UISceneDelegateClassName", "DefoldSceneDelegate");
+            if (!"DefoldSceneDelegate".equals(delegate)) {
+                throw new IOException("ios.infoplist must use DefoldSceneDelegate for the application scene.");
+            }
+            if (scene.containsKey("UISceneStoryboardFile")) {
+                throw new IOException("ios.infoplist must not set UISceneStoryboardFile. Defold creates the game window programmatically; use UILaunchStoryboardName for the launch screen.");
+            }
+        }
+    }
+
     private void copyManifestFile(BundleHelper helper, Platform platform, File destDir) throws IOException, CompileExceptionError {
         File manifestFile = helper.copyOrWriteManifestFile(platform, destDir);
         String manifest = FileUtils.readFileToString(manifestFile, StandardCharsets.UTF_8);
         // remove attribute definition (https://github.com/defold/defold/pull/6914)
         // it is automatically removed if the manifest was merged
         manifest = manifest.replace("[ <!ATTLIST key merge (keep) #IMPLIED> ]", "");
+        validateSceneManifest(manifest);
         FileUtils.write(manifestFile, manifest);
+    }
+
+    private void codesign(File target, String identity, String... extraArgs) throws IOException {
+        List<String> args = new ArrayList<String>();
+        args.add("codesign");
+        args.addAll(Arrays.asList(extraArgs));
+        args.add("-f");
+        args.add("-s");
+        args.add(identity);
+        args.add(target.getAbsolutePath());
+
+        ProcessBuilder processBuilder = new ProcessBuilder(args);
+        processBuilder.environment().put("CODESIGN_ALLOCATE", Bob.getExe(Platform.getHostPlatform(), "codesign_allocate"));
+        logProcess(processBuilder.start());
+    }
+
+    // Nested code must be signed before the enclosing application bundle
+    private void signNestedCode(File appDir, File frameworksDir, String identity, ICanceled canceled) throws IOException, CompileExceptionError {
+        if (frameworksDir.exists()) {
+            logger.info("Signing ./Frameworks folder");
+            for (File file : frameworksDir.listFiles()) {
+
+                BundleHelper.throwIfCanceled(canceled);
+
+                if (!file.getName().endsWith(".dylib") && !file.getName().endsWith(".framework"))
+                    continue;
+
+                codesign(file, identity);
+            }
+        }
+        else {
+            System.out.print("No ./Framework folder to sign\n");
+        }
+
+        File pluginsDir = new File(appDir, "PlugIns");
+        if (pluginsDir.exists()) {
+            logger.info("Signing ./PlugIns folder");
+            for (File file : pluginsDir.listFiles()) {
+
+                BundleHelper.throwIfCanceled(canceled);
+
+                if (!file.getName().endsWith(".appex")) {
+                    continue;
+                }
+
+                // -f discards the previous signature, so carry the entitlements over
+                codesign(file, identity, "--preserve-metadata=entitlements");
+            }
+        }
+        else {
+            System.out.print("No ./PlugIns folder to sign\n");
+        }
+    }
+
+    private static void plutilReplace(File manifestFile, String key, String type, String value) throws IOException {
+        Result result = Exec.execResult("plutil", "-replace", key, type, value, manifestFile.getAbsolutePath());
+        if (result.ret != 0) {
+            throw new IOException(String.format("Failed to update '%s' in '%s' for the iOS Simulator:%n%s",
+                    key, manifestFile, new String(result.stdOutErr)));
+        }
+    }
+
+    // simctl refuses to install a bundle that declares the iPhoneOS platform
+    private static void updateManifestForSimulator(File manifestFile) throws IOException {
+        plutilReplace(manifestFile, "CFBundleSupportedPlatforms", "-json", "[\"iPhoneSimulator\"]");
+        plutilReplace(manifestFile, "DTPlatformName", "-string", "iphonesimulator");
+
+        Result sdkName = Exec.execResult("plutil", "-extract", "DTSDKName", "raw", "-o", "-", manifestFile.getAbsolutePath());
+        if (sdkName.ret == 0) {
+            String value = new String(sdkName.stdOutErr).trim();
+            if (value.startsWith("iphoneos")) {
+                plutilReplace(manifestFile, "DTSDKName", "-string", value.replace("iphoneos", "iphonesimulator"));
+            }
+        }
     }
 
     @Override
@@ -260,7 +367,14 @@ public class IOSBundler implements IBundler {
 
         String provisioningProfile = project.option("mobileprovisioning", null);
         String identity = project.option("identity", null);
-        Boolean shouldSign = provisioningProfile != null && identity != null;
+        boolean shouldSign = provisioningProfile != null && identity != null;
+
+        // The simulator cannot use device signing; simctl installs ad-hoc signed bundles
+        final boolean isSimulator = platform == Platform.Arm64IosSim;
+        if (isSimulator && shouldSign) {
+            logger.info("Signing identity and provisioning profile are not used for iOS Simulator bundles. Using ad-hoc signing.");
+            shouldSign = false;
+        }
 
         // Verify that the user supplied both of the needed arguments if the application should be signed.
         if (shouldSign) {
@@ -364,8 +478,11 @@ public class IOSBundler implements IBundler {
             logger.warning("ios.icons_asset is not set");
         }
 
-        BundleHelper helper = new BundleHelper(project, Platform.Arm64Ios, bundleDir, variant, this);
+        BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant, this);
         copyManifestFile(helper, architectures.get(0), appDir);
+        if (isSimulator) {
+            updateManifestForSimulator(new File(appDir, MANIFEST_NAME));
+        }
         helper.copyIosIcons();
 
         BundleHelper.throwIfCanceled(canceled);
@@ -494,8 +611,17 @@ public class IOSBundler implements IBundler {
             }
         }
 
+        if (isSimulator) {
+            // Simulator runtimes refuse unsigned binaries, and stripping invalidates
+            // the ad-hoc signature added by the linker
+            BundleHelper.throwIfCanceled(canceled);
+            signNestedCode(appDir, frameworksDir, ADHOC_SIGN_IDENTITY, canceled);
+
+            BundleHelper.throwIfCanceled(canceled);
+            codesign(appDir, ADHOC_SIGN_IDENTITY, "--timestamp=none");
+        }
+
         // Sign (only if identity and provisioning profile set)
-        // iOS simulator can install non signed apps
         if (shouldSign && !identity.isEmpty() && !provisioningProfile.isEmpty()) {
             // Copy Provisioning Profile
             FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
@@ -585,50 +711,7 @@ public class IOSBundler implements IBundler {
                 }
             }
 
-            // Sign any .dylib files in the Frameworks folder
-            if (frameworksDir.exists()) {
-                logger.info("Signing ./Frameworks folder");
-                for (File file : frameworksDir.listFiles()) {
-
-                    BundleHelper.throwIfCanceled(canceled);
-
-                    if (!file.getName().endsWith(".dylib") && !file.getName().endsWith(".framework"))
-                        continue;
-
-                    ProcessBuilder processBuilder = new ProcessBuilder("codesign", "-f", "-s", identity, file.getAbsolutePath());
-                    processBuilder.environment().put("CODESIGN_ALLOCATE", Bob.getExe(Platform.getHostPlatform(), "codesign_allocate"));
-
-                    Process process = processBuilder.start();
-                    logProcess(process);
-                }
-            }
-            else {
-                System.out.printf("No ./Framework folder to sign\n");
-            }
-
-            // Sign any .appex files in the PlugIns folder
-            File pluginsDir = new File(appDir, "PlugIns");
-            if (pluginsDir.exists()) {
-                logger.info("Signing ./PlugIns folder");
-                for (File file : pluginsDir.listFiles()) {
-
-                    BundleHelper.throwIfCanceled(canceled);
-
-                    if (!file.getName().endsWith(".appex")) {
-                        continue;
-                    }
-
-                    ProcessBuilder processBuilder = new ProcessBuilder("codesign", "--preserve-metadata=entitlements", "-f", "-s", identity, file.getAbsolutePath());
-                    processBuilder.environment().put("CODESIGN_ALLOCATE", Bob.getExe(Platform.getHostPlatform(), "codesign_allocate"));
-
-                    Process process = processBuilder.start();
-                    logProcess(process);
-                }
-            }
-            else {
-                System.out.printf("No ./PlugIns folder to sign\n");
-            }
-
+            signNestedCode(appDir, frameworksDir, identity, canceled);
 
             BundleHelper.throwIfCanceled(canceled);
             ProcessBuilder processBuilder = new ProcessBuilder("codesign",

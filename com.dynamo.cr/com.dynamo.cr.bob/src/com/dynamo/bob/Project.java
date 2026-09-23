@@ -74,6 +74,7 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.net.ConnectException;
 import java.net.URI;
 import java.net.URL;
@@ -104,7 +105,6 @@ import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.logging.Level;
-import java.util.stream.Collectors;
 import java.util.zip.ZipOutputStream;
 
 import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
@@ -422,7 +422,7 @@ public class Project implements AutoCloseable {
                         !(is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper")))
-                .collect(Collectors.toList());
+                .toList();
         for (String className : filteredClassNames) {
             try {
                 TimeProfiler.start(className);
@@ -555,7 +555,7 @@ public class Project implements AutoCloseable {
         TimeProfiler.addData("type", "createTask");
         Builder builder;
         try {
-            builder = builderClass.newInstance();
+            builder = builderClass.getDeclaredConstructor().newInstance();
             builder.setProject(this);
             task = builder.create(inputResource);
             if (task != null) {
@@ -565,6 +565,15 @@ public class Project implements AutoCloseable {
             }
             circularDependencyChecker.remove(key);
             return task;
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof CompileExceptionError compileException) {
+                throw compileException;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw new RuntimeException(cause);
         } catch (CompileExceptionError e) {
             // Just pass CompileExceptionError on unmodified
             throw e;
@@ -639,10 +648,10 @@ public class Project implements AutoCloseable {
     }
 
     private void logWarning(String fmt, Object... args) {
-        System.err.println(String.format(fmt, args));
+        System.err.printf((fmt) + "%n", args);
     }
     private void logInfo(String fmt, Object... args) {
-        System.out.println(String.format(fmt, args));
+        System.out.printf((fmt) + "%n", args);
     }
 
     public void createPublisher() throws CompileExceptionError {
@@ -760,6 +769,14 @@ public class Project implements AutoCloseable {
 
     public void addBuildServerHeader(String header) {
         buildServerHeaders.add(header);
+    }
+
+    private String getBuildServerUrl() {
+        String defaultServerUrl = "https://build-stage.defold.com";
+        if ("stable".equals(EngineVersion.channel)) {
+            defaultServerUrl = "https://build.defold.com";
+        }
+        return option("build-server", defaultServerUrl);
     }
 
     public void addPropertyFile(String propertyFile) {
@@ -971,7 +988,7 @@ public class Project implements AutoCloseable {
         }
 
         try {
-            return bundlerClass.newInstance();
+            return bundlerClass.getDeclaredConstructor().newInstance();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -1023,7 +1040,7 @@ public class Project implements AutoCloseable {
     public void registerTextureCompressors() {
         for (Class<? extends ITextureCompressor> klass : textureCompressorClasses) {
             try {
-                TextureCompression.registerCompressor(klass.newInstance());
+                TextureCompression.registerCompressor(klass.getDeclaredConstructor().newInstance());
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -1050,7 +1067,7 @@ public class Project implements AutoCloseable {
         Class<? extends IShaderCompiler> shaderCompilerClass = getShaderCompilerClass(platform);
         if (shaderCompilerClass != null) {
             try {
-                return shaderCompilerClass.newInstance();
+                return shaderCompilerClass.getDeclaredConstructor().newInstance();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -1163,7 +1180,7 @@ public class Project implements AutoCloseable {
 
         // Located in the same place as the log file in the unpacked successful build
         File logFile = new File(buildDir, "log.txt");
-        String serverURL = this.option("build-server", "https://build.defold.com");
+        String serverURL = getBuildServerUrl();
 
         try {
             ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
@@ -1193,7 +1210,7 @@ public class Project implements AutoCloseable {
 
         // Located in the same place as the log file in the unpacked successful build
         File logFile = new File(buildDir, "log.txt");
-        String serverURL = this.option("build-server", "https://build.defold.com");
+        String serverURL = getBuildServerUrl();
 
         //platforms /armv7-ios /context /flags
         Map<String, Object> compilerOptions = new HashMap<>();
@@ -1409,7 +1426,7 @@ public class Project implements AutoCloseable {
 
     private boolean shouldBuildEngine() {
         String str = this.option("build-artifacts", "");
-        return str.equals("") || shouldBuildArtifact("engine");
+        return str.isEmpty() || shouldBuildArtifact("engine");
     }
 
     public void scanJavaClasses() throws IOException, CompileExceptionError {
@@ -1782,7 +1799,7 @@ public class Project implements AutoCloseable {
                             Files.createDirectories(outputDir.toPath());
                             try {
                                 List<ILuaTranspiler.Issue> issues = transpiler.transpile(new File(getPluginsDirectory()), sourceDir, outputDir);
-                                List<ILuaTranspiler.Issue> errors = issues.stream().filter(issue -> issue.severity == ILuaTranspiler.Severity.ERROR).collect(Collectors.toList());
+                                List<ILuaTranspiler.Issue> errors = issues.stream().filter(issue -> issue.severity == ILuaTranspiler.Severity.ERROR).toList();
                                 if (!errors.isEmpty()) {
                                     MultipleCompileException exception = new MultipleCompileException("Transpilation failed", null);
                                     errors.forEach(issue -> exception.addIssue(issue.severity.ordinal(), getResource(issue.resourcePath), issue.message, issue.lineNumber));
@@ -1985,7 +2002,6 @@ public class Project implements AutoCloseable {
             var split = progress.split(commands.length + 1L); // + 1 for reading classes
             // it should be done before scanJavaClasses to have updated options
             configurePreBuildProjectOptions();
-            resourceWalker.initIgnorePatterns();
             {
                 TimeProfiler.start("scanJavaClasses");
                 try (var readClassesProgress = split.subtask()) {
@@ -2029,7 +2045,7 @@ public class Project implements AutoCloseable {
                             final String[] platforms = getPlatformStrings();
                             Future<Void> remoteBuildFuture = null;
                             // Get or build engine binary
-                            boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
+                            boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this, getPlatform());
                             boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
                             TimeProfiler.stop();
                             var buildPhases = commandProgress.split(3);

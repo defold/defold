@@ -472,6 +472,20 @@
      "    print(message_id)"
      "end"]
 
+    ;; A function header may split before its parameter list. The block still
+    ;; starts at `function`, while the parameters align under the first one.
+    ["function foo"
+     "    (a,"
+     "     b)"
+     "    print(a)"
+     "end"]
+
+    ["function"
+     "    foo(a,"
+     "        b)"
+     "    print(a)"
+     "end"]
+
     ["repeat"
      "    print(i)"
      "until done(i)"
@@ -485,6 +499,14 @@
     ;; An unmatched parenthesis inside a long string opens nothing.
     ["local s = [[ see the note (below ]]"
      "print(s)"]
+
+    ;; A short string continued by a trailing backslash is still a string on
+    ;; the line below, so its contents open nothing and keep their own layout.
+    ["function f()"
+     "    local s = \"if x then ( \\"
+     "not code\""
+     "    print(s)"
+     "end"]
 
     ;; Nor does one inside a comment or a quoted string.
     ["local text = \"(\""
@@ -632,6 +654,31 @@
      "    y = 2"
      "}"]
 
+    ;; A comma between the values of a multiple assignment does not finish it,
+    ;; even when the value above it closed a call.
+    ["local a, b ="
+     "    foo(),"
+     "    bar()"]
+
+    ["local a, b ="
+     "    foo(x,"
+     "        y,"
+     "        z),"
+     "    bar()"]
+
+    ;; A value that spans lines suspends the assignment instead of finishing
+    ;; it, so the bracket that held it resumes it when it closes.
+    ["local a, b ="
+     "    foo("
+     "        x),"
+     "    bar()"]
+
+    ["local a, b ="
+     "    function()"
+     "        return 1"
+     "    end,"
+     "    bar()"]
+
     ;; A closed block comment is not code, so it does not finish the assignment
     ;; the way a value would.
     ["local value = --[[comment]]"
@@ -671,6 +718,21 @@
     (is (= (count lines) (count reindented)))
     (dotimes [row (count lines)]
       (is (= (lines row) (reindented row)) (str "row " row)))))
+
+(deftest reindent-below-function-header-test
+  ;; The parameter list is indented by the function block, so replaying from a
+  ;; line below it reaches `function` and restores the header lexer state.
+  (is (= ["function foo"
+          "    (a,"
+          "     b)"
+          "    print(a)"
+          "end"]
+         (reindent-rows ["function foo"
+                         "    (a,"
+                         "     b)"
+                         "print(a)"
+                         "    end"]
+                        3 4))))
 
 (deftest reindent-below-multiline-scope-test
   ;; Reindenting part of a buffer replays from the nearest unindented line above
@@ -720,6 +782,25 @@
                          "print(s)"
                          "end"]
                         4 5)))
+
+  ;; A short string continued by a trailing backslash is a multiline scope too,
+  ;; even though it carries no long bracket for the scan restart to notice. Its
+  ;; second line looks unindented and looks like code, but it is neither.
+  (is (= ["function f()"
+          "    if x then"
+          "        local s = \"keep \\"
+          "not code then (\""
+          "        print(s)"
+          "    end"
+          "end"]
+         (reindent-rows ["function f()"
+                         "    if x then"
+                         "        local s = \"keep \\"
+                         "not code then (\""
+                         "print(s)"
+                         "end"
+                         "    end"]
+                        4 6)))
 
   ;; An unindented line of prose inside the string must not become a replay anchor.
   (is (= ["function f()"

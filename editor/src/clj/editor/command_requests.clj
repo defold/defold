@@ -14,6 +14,8 @@
 
 (ns editor.command-requests
   (:require [cljfx.api :as fx]
+            [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-errors-view :as build-errors-view]
@@ -25,6 +27,7 @@
             [editor.resource :as resource]
             [editor.targets :as targets]
             [editor.ui :as ui]
+            [editor.web-server :as web-server]
             [util.coll :as coll]
             [util.http-server :as http-server])
   (:import [com.dynamo.bob.util Library$Result]))
@@ -131,15 +134,42 @@
     (when-not @result
       (throw (http-server/error http-server/internal-server-error)))))
 
-(defn router [ui-node localization render-reload-progress!]
-  {"/command/asset-portal"
+(defn router [ui-node localization render-reload-progress! token invoke-bob!]
+  {"/bob"
+   {"POST" (with-meta
+             (bound-fn [request]
+               (future/io
+                 (web-server/require-authorized! request token)
+                 (let [body (with-open [reader (io/reader (:body request))]
+                              (json/read reader))
+                       options (get body "options" {})
+                       commands (get body "commands" [])]
+                   (when-not (and (map? body) (map? options) (vector? commands) (coll/every? string? commands))
+                     (throw (http-server/error (http-server/response 400 "Expected {options?: object, commands?: string[]}\n"))))
+                   (build-response (invoke-bob! options commands) @localization))))
+             {:openapi
+              {:summary "Bundle or build the project with Bob options"
+               :description "Does not launch. Output goes to /console. Option keys are Bob CLI options without --. Use arrays for repeatable options. Print help with options.help=true"
+               :security [{"token" []}]
+               :requestBody
+               {:required true
+                :content
+                {"application/json"
+                 {:schema {:type "object"
+                           :properties {"options" {:type "object"}
+                                        "commands" {:type "array" :items {:type "string"}}}}
+                  :example {"options" {"platform" "wasm-web" "archive" true}
+                            "commands" ["build" "bundle"]}}}}
+               :responses {"default" {:description "Build result"}}}})}
+
+   "/command/asset-portal"
    {"POST" (with-meta
              (bound-fn [_request]
                (future/io
                  (execute-command! ui-node :help.open-asset-portal {})
                  http-server/ok))
              {:openapi {:summary "Open the Asset Portal in a web browser."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    ;; Deprecated compatibility alias. Remove after 2027-07-15.
    "/command/build"
@@ -156,8 +186,8 @@
                  (let [handler (resolve-command-handler! ui-node :project.build-html5 {})]
                    (resource-sync! ui-node render-reload-progress! handler)
                    (build-response (execute-handler! handler) @localization))))
-             {:openapi {:summary "Build the project for HTML5 and open it in a web browser."
-                        :responses {"200" {:description "OK"}}}})}
+             {:openapi {:summary "Build and launch HTML5 in a web browser."
+                        :responses {"default" {:description "Build result"}}}})}
 
    "/command/clean-build"
    {"POST" (with-meta
@@ -167,7 +197,7 @@
                    (resource-sync! ui-node render-reload-progress! handler)
                    (build-response (execute-handler! handler) @localization))))
              {:openapi {:summary "Clears build caches and rebuilds. Use only if builds fail oddly or miss changes."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Build result"}}}})}
 
    "/command/compile"
    {"POST" (with-meta
@@ -176,8 +206,8 @@
                  (let [handler (resolve-command-handler! ui-node :project.compile {})]
                    (resource-sync! ui-node render-reload-progress! handler)
                    (build-response (execute-handler! handler) @localization))))
-             {:openapi {:summary "Compile the project without running it."
-                        :responses {"200" {:description "OK"}}}})}
+             {:openapi {:summary "Compile the project without launching or bundling."
+                        :responses {"default" {:description "Build result"}}}})}
 
    "/command/debugger-break"
    {"POST" (with-meta
@@ -186,7 +216,7 @@
                  (execute-command! ui-node :debugger.break {})
                  http-server/accepted))
              {:openapi {:summary "Break into the debugger."
-                        :responses {"202" {:description "Accepted"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/debugger-continue"
    {"POST" (with-meta
@@ -195,7 +225,7 @@
                  (execute-command! ui-node :debugger.continue {})
                  http-server/ok))
              {:openapi {:summary "Resume execution in the debugger."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/debugger-detach"
    {"POST" (with-meta
@@ -204,7 +234,7 @@
                  (execute-command! ui-node :debugger.detach {})
                  http-server/ok))
              {:openapi {:summary "Detach the debugger from the running project."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/debugger-start"
    {"POST" (with-meta
@@ -214,7 +244,7 @@
                    (resource-sync! ui-node render-reload-progress! handler)
                    (build-response (execute-handler! handler) @localization))))
              {:openapi {:summary "Start the project with the debugger, or attach the debugger to the running project."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Build result"}}}})}
 
    "/command/debugger-step-into"
    {"POST" (with-meta
@@ -223,7 +253,7 @@
                  (execute-command! ui-node :debugger.step-into {})
                  http-server/ok))
              {:openapi {:summary "Step into the current expression in the debugger."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/debugger-step-out"
    {"POST" (with-meta
@@ -232,7 +262,7 @@
                  (execute-command! ui-node :debugger.step-out {})
                  http-server/ok))
              {:openapi {:summary "Step out of the current expression in the debugger."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/debugger-step-over"
    {"POST" (with-meta
@@ -241,7 +271,7 @@
                  (execute-command! ui-node :debugger.step-over {})
                  http-server/ok))
              {:openapi {:summary "Step over the current expression in the debugger."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/debugger-stop"
    {"POST" (with-meta
@@ -250,7 +280,7 @@
                  (execute-command! ui-node :debugger.stop {})
                  http-server/ok))
              {:openapi {:summary "Stop the debugger and the running project."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/documentation"
    {"POST" (with-meta
@@ -259,7 +289,7 @@
                  (execute-command! ui-node :help.open-documentation {})
                  http-server/ok))
              {:openapi {:summary "Open the Defold documentation in a web browser."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/donate-page"
    {"POST" (with-meta
@@ -268,7 +298,7 @@
                  (execute-command! ui-node :help.open-donations {})
                  http-server/ok))
              {:openapi {:summary "Open the Donate to Defold page in a web browser."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/editor-logs"
    {"POST" (with-meta
@@ -277,7 +307,7 @@
                  (execute-command! ui-node :help.open-logs {})
                  http-server/ok))
              {:openapi {:summary "Show the directory containing the editor logs."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/engine-profiler"
    {"POST" (with-meta
@@ -286,7 +316,7 @@
                  (execute-command! ui-node :run.open-profiler {})
                  http-server/ok))
              {:openapi {:summary "Open the Engine Profiler in a web browser."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/engine-resource-profiler"
    {"POST" (with-meta
@@ -295,7 +325,7 @@
                  (execute-command! ui-node :run.open-resource-profiler {})
                  http-server/ok))
              {:openapi {:summary "Open the Engine Resource Profiler in a web browser."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/fetch-libraries"
    {"POST" (with-meta
@@ -305,7 +335,7 @@
                    (resource-sync! ui-node render-reload-progress! handler)
                    (fetch-libraries-response (execute-handler! handler) @localization))))
              {:openapi {:summary "Download the latest version of the project library dependencies."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Fetch result"}}}})}
 
    "/command/hot-reload"
    {"POST" (with-meta
@@ -315,7 +345,7 @@
                    (resource-sync! ui-node render-reload-progress! handler)
                    (build-response (execute-handler! handler) @localization))))
              {:openapi {:summary "Hot-reload all modified files into the running project."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Build result"}}}})}
 
    "/command/issues"
    {"POST" (with-meta
@@ -324,7 +354,7 @@
                  (execute-command! ui-node :help.open-issues {})
                  http-server/ok))
              {:openapi {:summary "Open the Defold Issue Tracker in a web browser."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/rebundle"
    {"POST" (with-meta
@@ -335,7 +365,7 @@
                    (execute-handler! handler)
                    http-server/ok)))
              {:openapi {:summary "Re-bundle the project using the previous Bundle dialog settings."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/reload-extensions"
    {"POST" (with-meta
@@ -346,7 +376,7 @@
                    (execute-handler! handler)
                    http-server/ok)))
              {:openapi {:summary "Reload editor extensions."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/reload-stylesheets"
    {"POST" (with-meta
@@ -355,7 +385,7 @@
                  (execute-command! ui-node :dev.reload-css {})
                  http-server/ok))
              {:openapi {:summary "Reload editor stylesheets."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/report-issue"
    {"POST" (with-meta
@@ -364,7 +394,7 @@
                  (execute-command! ui-node :help.report-issue {})
                  http-server/ok))
              {:openapi {:summary "Open the Report Issue page in a web browser."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/report-suggestion"
    {"POST" (with-meta
@@ -373,7 +403,7 @@
                  (execute-command! ui-node :help.report-suggestion {})
                  http-server/ok))
              {:openapi {:summary "Open the Report Suggestion page in a web browser."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/run"
    {"POST" (with-meta
@@ -382,13 +412,13 @@
                  (let [handler (resolve-command-handler! ui-node :project.build (run-request-user-data request))]
                    (resource-sync! ui-node render-reload-progress! handler)
                    (build-response (execute-handler! handler) @localization))))
-             {:openapi {:summary "Compile and run the project."
+             {:openapi {:summary "Compile and launch the project."
                         :parameters [{:name "focus"
                                       :in "query"
                                       :description "Whether the launched game takes focus."
                                       :schema {:type "boolean"
                                                :default true}}]
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Build result"}}}})}
 
    "/command/show-build-errors"
    {"POST" (with-meta
@@ -397,7 +427,7 @@
                  (execute-command! ui-node :window.show-build-errors {})
                  http-server/ok))
              {:openapi {:summary "Show the Build Errors tab."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/show-console"
    {"POST" (with-meta
@@ -406,7 +436,7 @@
                  (execute-command! ui-node :window.show-console {})
                  http-server/ok))
              {:openapi {:summary "Show the Console tab."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/show-curve-editor"
    {"POST" (with-meta
@@ -415,7 +445,7 @@
                  (execute-command! ui-node :window.show-curve-editor {})
                  http-server/ok))
              {:openapi {:summary "Show the Curve Editor tab."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/support-forum"
    {"POST" (with-meta
@@ -424,7 +454,7 @@
                  (execute-command! ui-node :help.open-forum {})
                  http-server/ok))
              {:openapi {:summary "Open the Defold Support Forum in a web browser."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/toggle-pane-bottom"
    {"POST" (with-meta
@@ -433,7 +463,7 @@
                  (execute-command! ui-node :window.toggle-bottom-pane {})
                  http-server/ok))
              {:openapi {:summary "Toggle visibility of the bottom editor pane."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/toggle-pane-left"
    {"POST" (with-meta
@@ -442,7 +472,7 @@
                  (execute-command! ui-node :window.toggle-left-pane {})
                  http-server/ok))
              {:openapi {:summary "Toggle visibility of the left editor pane."
-                        :responses {"200" {:description "OK"}}}})}
+                        :responses {"default" {:description "Done"}}}})}
 
    "/command/toggle-pane-right"
    {"POST" (with-meta
@@ -451,7 +481,7 @@
                  (execute-command! ui-node :window.toggle-right-pane {})
                  http-server/ok))
              {:openapi {:summary "Toggle visibility of the right editor pane."
-                        :responses {"200" {:description "OK"}}}})}})
+                        :responses {"default" {:description "Done"}}}})}})
 
 (comment
 

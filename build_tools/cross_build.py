@@ -69,28 +69,31 @@ def load_platform_sdks(path):
         return json.load(f)
 
 
-def merge_platform_sdks(defold_root, platform):
-    """Merge public platform SDK mappings with the private mapping for platform.
+def merge_platform_sdks(defold_root, platforms):
+    """Merge public SDK mappings with private mappings for one or more platforms.
 
-    Private repositories can contain SDK mappings for multiple platforms. A
-    cross build should only expose the mapping for the target platform being
-    built, while keeping all public mappings from the base repository.
+    Private repositories can contain mappings for additional platforms. Only
+    expose the requested private mappings, keeping all public mappings from the
+    base repository. A single platform string is accepted for cross builds.
     """
     platform_sdks = load_platform_sdks(get_platform_sdks_path(defold_root))
 
-    private_root = get_platform_root(platform) if platform else ''
-    if private_root:
-        private_platform_sdks_path = get_platform_sdks_path(private_root)
-        if os.path.exists(private_platform_sdks_path):
-            private_platform_sdks = load_platform_sdks(private_platform_sdks_path)
-            if platform in private_platform_sdks:
-                platform_sdks[platform] = private_platform_sdks[platform]
+    if isinstance(platforms, str):
+        platforms = [platforms]
+    for platform in platforms or []:
+        private_root = get_platform_root(platform) if platform else ''
+        if private_root:
+            private_platform_sdks_path = get_platform_sdks_path(private_root)
+            if os.path.exists(private_platform_sdks_path):
+                private_platform_sdks = load_platform_sdks(private_platform_sdks_path)
+                if platform in private_platform_sdks:
+                    platform_sdks[platform] = private_platform_sdks[platform]
 
     return platform_sdks
 
 
-def write_merged_platform_sdks(defold_root, platform, output_path):
-    platform_sdks = merge_platform_sdks(defold_root, platform)
+def write_merged_platform_sdks(defold_root, platforms, output_path):
+    platform_sdks = merge_platform_sdks(defold_root, platforms)
     with open(output_path, 'w') as f:
         json.dump(platform_sdks, f, indent=4)
         f.write('\n')

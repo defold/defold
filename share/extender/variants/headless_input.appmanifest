@@ -41,3 +41,9 @@ platforms:
             excludeLibs: ["record","vpx","sound","tremolo","graphics","hid","platform"]
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
+
+    arm64_sim-ios:
+        context:
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid","platform"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
+            symbols: ["NullSoundDevice", "GraphicsAdapterNull"]

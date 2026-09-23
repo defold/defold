@@ -16,18 +16,23 @@
   (:require [clojure.string :as s]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
+            [editor.build :as build]
             [editor.code.data :as code.data]
             [editor.defold-project :as project]
             [editor.font :as font]
             [editor.form :as form]
             [editor.game-project :as game-project]
+            [editor.gl.pass :as pass]
+            [editor.input :as input]
             [editor.protobuf :as protobuf]
+            [editor.scene :as scene]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [util.coll :as coll])
   (:import [ch.qos.logback.classic Logger]
            [ch.qos.logback.core.read ListAppender]
-           [com.dynamo.bob.font FontRenderer$GlyphBank FontRenderer$Params FontRenderer$Properties]
+           [com.dynamo.bob.font FontRenderer$GlyphBank FontRenderer$Params FontRenderer$Properties FontRenderer$Style FontStyles]
            [com.dynamo.render.proto Font$FontDesc]
            [javax.vecmath Matrix4d]
            [org.slf4j LoggerFactory]))
@@ -249,11 +254,19 @@
     (is (s/includes? (test-util/localization (g/error-message unreserved-blur-error)) "no reserved distance-field data"))
     (is (nil? overridden-unreserved-blur-error))))
 
-(deftest native-sdf-limit-test
-  (let [native-sdf-limit (ns-resolve 'editor.font 'native-sdf-limit)]
-    (is (= 0.75 (native-sdf-limit 3.0 0.0)))
-    (is (< (native-sdf-limit 6.0 2.0)
-           (native-sdf-limit 6.0 1.0)))))
+(deftest native-preview-sdf-params-match-compiled-font
+  (test-util/with-loaded-project
+    (let [font-node (test-util/resource-node project "/editor1/test.font")]
+      (doseq [[outline-width shadow-blur] [[0.0 0] [0.5 0] [1.5 2] [2.375 4]]]
+        (testing (str "outline width " outline-width ", shadow blur " shadow-blur)
+          (g/transact {:undoable false}
+            [(g/set-property font-node :outline-width outline-width)
+             (g/set-property font-node :shadow-blur shadow-blur)])
+          (let [font-map (g/valid-node-value font-node :font-map)
+                ^FontRenderer$Params render-params (get-in font-map [:native-renderer-spec :render-params])]
+            (is (= (:sdf-spread font-map) (.-sdfSpread render-params)))
+            (is (= (:sdf-outline font-map) (.-sdfOutline render-params)))
+            (is (= (:sdf-shadow font-map) (.-sdfShadow render-params)))))))))
 
 (deftest static-native-preview-character-set
   (test-util/with-loaded-project
@@ -569,3 +582,210 @@
                                              :material
                                              [:renderable :user-data :shader]
                                              [:renderable :user-data :texture]))))
+
+(deftest style-authoring-undo-and-validation
+  (test-util/with-loaded-project
+    (let [node (test-util/resource-node project "/editor1/test.font")
+          font-outline (g/node-value node :node-outline)
+          styles-outline (first (:children font-outline))
+          children (:children styles-outline)
+          default-node (:node-id (first children))
+          link-node (:node-id (second children))]
+      (is (= ["Styles"] (mapv (comp test-util/localization :label) (:children font-outline))))
+      (is (= (g/node-value node :styles-node) (:node-id styles-outline)))
+      (is (true? (:read-only styles-outline)))
+      (is (= ["(default)" "link" "link:hover" "link:active"] (mapv (comp test-util/localization :label) children)))
+      (is (= "Name" (test-util/localization (get-in (g/node-value link-node :_properties) [:properties :id :label]))))
+      (is (= "Markup" (test-util/localization (get-in (g/node-value link-node :_properties) [:properties :markup :label]))))
+      (is (= ["" "(default)" "link" "link:hover" "link:active"]
+             (mapv second (:options (font/style-choices (g/node-value node :font-map))))))
+      (is (= "Font style 'missing' does not exist."
+             (test-util/localization (g/error-message (font/style-error node (g/node-value node :font-map) "missing")))))
+      (is (coll/every? #(not= (:icon font-outline) (:icon %)) children))
+      (is (true? (:read-only (first children))))
+      (is (true? (get-in (g/node-value default-node :_properties) [:properties :id :read-only?])))
+      (g/reset-undo! :undo/global)
+      (g/set-property! link-node :id "notice")
+      (g/set-property! link-node :markup "<color=#ff6600><ul><wave amplitude=2>")
+      (is (nil? (g/node-value link-node :build-errors)))
+      (is (= "notice" (get-in (g/node-value node :save-value) [:styles 1 :name])))
+      (is (= ["notice" "notice"] (get-in (font/style-choices (g/node-value node :font-map)) [:options 2])))
+      (g/undo! :undo/global)
+      (g/undo! :undo/global)
+      (is (= "link" (g/node-value link-node :id)))
+      (g/redo! :undo/global)
+      (g/redo! :undo/global)
+      (is (= "notice" (g/node-value link-node :id)))
+      (test-util/with-prop [link-node :id "link:hover"]
+        (is (g/error-fatal? (test-util/prop-error link-node :id))))
+      (doseq [markup ["<shake fit=span><color=#FC6600><size=25%>" "<link>" "<sprite id=icon>"]]
+        (test-util/with-prop [link-node :markup markup]
+          (is (nil? (test-util/prop-error link-node :markup)))
+          (is (nil? (g/node-value link-node :build-errors)))))
+      (test-util/with-prop [link-node :markup "<size=invalid>"]
+        (is (g/error-fatal? (test-util/prop-error link-node :markup)))
+        (is (g/error-fatal? (g/node-value node :build-targets))))
+      (g/transact (mapv #(g/delete-node (:node-id %)) (subvec children 1)))
+      (let [saved (g/node-value node :save-value)]
+        (is (= [{:name "default"}] (:styles saved)))
+        (is (= ["default"] (mapv :name (:styles (font/sanitize-font {} nil saved)))))
+        (is (= 1 (count (FontStyles/compileStyles (protobuf/map->pb Font$FontDesc saved)))))))))
+
+(deftest style-errors-preserve-font-outline
+  (test-util/with-loaded-project
+    (let [node (test-util/resource-node project "/editor1/test.font")
+          original-children (get-in (g/node-value node :node-outline) [:children 0 :children])
+          style-node (:node-id (second original-children))]
+      (doseq [[property value severity outline-errors] [[:markup "<outline size=2>" :warning [false false false false]]
+                                                        [:markup "<size=invalid>" :fatal [false true false false]]
+                                                        [:id "link:hover" :fatal [false true true false]]]]
+        (testing (str property " " value)
+          (test-util/with-prop [style-node property value]
+            (let [build-errors (g/node-value style-node :build-errors)
+                  font-outline (g/node-value node :node-outline)
+                  children (get-in font-outline [:children 0 :children])]
+              (is (= severity (:severity (test-util/prop-error style-node property))))
+              (is (g/error-package? build-errors))
+              (is (= node (:node-id font-outline)))
+              (is (= (mapv :node-id original-children) (mapv :node-id children)))
+              (is (= outline-errors (mapv :outline-error? children)))
+              (is (= (= :fatal severity) (g/error-fatal? (g/node-value node :build-targets))))))
+          (is (= original-children (get-in (g/node-value node :node-outline) [:children 0 :children]))))))))
+
+(deftest style-capability-warnings-allow-builds
+  (test-util/with-loaded-project
+    (let [node (test-util/resource-node project "/editor1/test.font")
+          style-node (:node-id (second (g/node-value node :style-infos)))]
+      (g/set-property! style-node :markup "<outline size=2>")
+      (is (g/error-warning? (test-util/prop-error style-node :markup)))
+      (is (vector? (g/node-value node :build-targets)))
+      (is (not (g/error? (build/resolve-node-dependencies node project))))
+      (g/set-property! style-node :markup "<outline size=1>")
+      (is (nil? (test-util/prop-error style-node :markup)))
+      (g/set-property! style-node :markup "<outline alpha=0.5><shadow alpha=0.25>")
+      (is (nil? (test-util/prop-error style-node :markup)))
+      (let [compiled (g/node-value style-node :compiled-style)]
+        (is (instance? FontRenderer$Style compiled))
+        (test-util/with-prop [node :outline-width 0]
+          (is (g/error-warning? (test-util/prop-error style-node :markup)))
+          (is (vector? (g/node-value node :build-targets)))
+          (is (identical? compiled (g/node-value style-node :compiled-style)))))
+      (g/set-property! style-node :markup "<size=invalid>")
+      (is (g/error-fatal? (g/node-value node :build-targets))))))
+
+(deftest default-style-markup-follows-font-settings
+  ;; The read-only default markup is derived from font properties. Single Layer fonts
+  ;; must expose the same inherited effects as Multi Layer fonts in the editor.
+  (test-util/with-loaded-project
+    (let [node (test-util/resource-node project "/editor1/test.font")
+          default-node (:node-id (first (g/node-value node :style-infos)))
+          original-markup "<outline size=1.0 alpha=0.1><shadow x=1.0 y=2.0 blur=1.0 alpha=0.5>"
+          updated-markup "<outline size=2.375 alpha=0.12345679><shadow x=-1.25 y=2.5 blur=0.0 alpha=0.375>"]
+      (is (= original-markup (g/node-value default-node :markup)))
+      (g/set-property! node :render-mode :mode-multi-layer)
+      (is (= original-markup (get-in (g/node-value default-node :_properties) [:properties :markup :value])))
+      (is (true? (get-in (g/node-value default-node :_properties) [:properties :markup :read-only?])))
+      (g/reset-undo! :undo/global)
+      (g/transact [(g/set-property node :outline-width 2.375)
+                   (g/set-property node :outline-alpha 0.12345679)
+                   (g/set-property node :shadow-x -1.25)
+                   (g/set-property node :shadow-y 2.5)
+                   (g/set-property node :shadow-blur 0)
+                   (g/set-property node :shadow-alpha 0.375)])
+      (is (= updated-markup (g/node-value default-node :markup)))
+      ;; Save only the default style's name. Its generated properties should compile
+      ;; identically to an authored style containing the displayed markup.
+      (let [saved (g/node-value node :save-value)
+            [generated copied] (mapv protobuf/pb->map-with-defaults
+                                     (FontStyles/compileStyles
+                                       (protobuf/map->pb Font$FontDesc
+                                         (assoc saved :styles [{:name "default"}
+                                                               {:name "copy" :markup updated-markup}]))))]
+        (is (= {:name "default"} (first (:styles saved))))
+        (is (= (dissoc generated :name :name-hash) (dissoc copied :name :name-hash))))
+      ;; Property history must invalidate the derived markup rather than leave stale effects.
+      (g/undo! :undo/global)
+      (is (= original-markup (g/node-value default-node :markup)))
+      (g/redo! :undo/global)
+      (is (= updated-markup (g/node-value default-node :markup)))
+      (test-util/with-prop [node :render-mode :mode-single-layer]
+        (doseq [output-format [:type-bitmap :type-distance-field]]
+          (test-util/with-prop [node :output-format output-format]
+            (is (= updated-markup (g/node-value default-node :markup))))))
+      ;; Disabling both effects removes their markup without deleting the default style.
+      (g/transact [(g/set-property node :outline-alpha 0)
+                   (g/set-property node :shadow-alpha 0)])
+      (is (= "" (g/node-value default-node :markup)))
+      (is (= {:name "default"} (g/node-value default-node :style-msg))))))
+
+(deftest styles-save-and-reload
+  (test-util/with-scratch-project "test/resources/reload_unchanged_project"
+    (let [node (test-util/resource-node project "/editable/bitmap-font.font")
+          children (get-in (g/node-value node :node-outline) [:children 0 :children])
+          link (:node-id (second children))]
+      (g/set-property! link :id "notice")
+      (g/set-property! link :markup "<color=#aa3300><ul>")
+      (test-util/save-project! project)
+      (let [saved (g/node-value node :save-value)]
+        (is (= "notice" (get-in saved [:styles 1 :name])))
+        (test-util/write-file-resource! workspace "/editable/roundtrip.font" saved)
+        (workspace/resource-sync! workspace)
+        (let [reloaded (test-util/resource-node project "/editable/roundtrip.font")]
+          (is (= (:styles saved) (:styles (g/node-value reloaded :save-value))))
+          (is (= ["(default)" "notice" "link:hover" "link:active"]
+                 (mapv (comp test-util/localization :label) (get-in (g/node-value reloaded :node-outline) [:children 0 :children])))))))))
+
+(deftest opening-font-view-dispatches-input
+  (test-util/with-loaded-project
+    (let [[_node view] (test-util/open-scene-view! project app-view "/editor1/test.font" 320 240
+                                                (get-in (workspace/get-resource-type workspace "font") [:view-opts :scene]))
+          input-context (scene/input-dispatch-context view)
+          final-state (reduce (fn [input-state action-type]
+                                (scene/dispatch-input-action
+                                  input-context
+                                  input-state
+                                  (scene/augment-action view {:type action-type
+                                                             :x 160.0
+                                                             :y 120.0
+                                                             :screen-x 160.0
+                                                             :screen-y 120.0
+                                                             :button :primary
+                                                             :click-count 1
+                                                             :modifiers #{}})))
+                              (input/make-input-state)
+                              [:mouse-moved :mouse-pressed :mouse-released])]
+      (is (= [160.0 120.0] (:view-pos final-state)))
+      (is (= #{} (:mouse-buttons final-state))))))
+
+(deftest add-style-command-and-selected-preview
+  (test-util/with-loaded-project
+    (let [[node view] (test-util/open-scene-view! project app-view "/editor1/test.font" 320 240
+                                                       (get-in (workspace/get-resource-type workspace "font") [:view-opts :scene]))
+          styles-node (g/node-value node :styles-node)]
+      (is (= "Style: (default)" (g/node-value view :tool-info-text)))
+      (doseq [[parent name] [[node "style"] [styles-node "style1"]]]
+        (let [contexts [{:name :workbench :env {:selection [parent] :app-view app-view}}]]
+          (is (test-util/handler-enabled? :edit.add-embedded-component contexts nil))
+          (test-util/handler-run :edit.add-embedded-component contexts nil)
+          (let [styles (g/node-value node :style-infos)
+                added (:node-id (peek styles))]
+            (is (= name (g/node-value added :id)))
+            (is (= added (:node-id (peek (get-in (g/node-value node :node-outline) [:children 0 :children])))))
+            (g/set-property! added :markup "<color=#ff6600><ul>")
+            (app-view/select! app-view [added])
+            (is (= {nil {:style name}} (g/node-value view :preview-overrides)))
+            (is (= (str "Style: " name) (g/node-value view :tool-info-text)))
+            (let [renderables (g/node-value view :all-renderables)
+                  font-renderable (coll/first-where #(= node (:node-id %)) (get renderables pass/transparent))]
+              (is (= name (get-in font-renderable [:user-data :text-layout :style])))))))
+      (let [style-node (:node-id (peek (g/node-value node :style-infos)))]
+        (g/set-property! style-node :id "notice")
+        (is (= "Style: notice" (g/node-value view :tool-info-text)))
+        (is (= {nil {:style "notice"}} (g/node-value view :preview-overrides))))
+      (doseq [selection [[(:node-id (first (g/node-value node :style-infos)))] [styles-node] [node] []]]
+        (app-view/select! app-view selection)
+        (is (= "Style: (default)" (g/node-value view :tool-info-text)))
+        (is (= {nil {:style "default"}} (g/node-value view :preview-overrides)))
+        (let [renderables (g/node-value view :all-renderables)
+              font-renderable (coll/first-where #(= node (:node-id %)) (get renderables pass/transparent))]
+          (is (= "default" (get-in font-renderable [:user-data :text-layout :style]))))))))

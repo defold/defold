@@ -143,20 +143,6 @@ def install_linux(args):
     call("update-alternatives --display clang")
     call("update-alternatives --display clang++")
 
-    # Legacy ncurses 5 libraries needed when building wasm-web.
-    # Ubuntu 24.04/Noble runners no longer provide these package names in apt.
-    if platform.machine() in ('aarch64', 'arm64'):
-        ncurses_url = "http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses"
-        libtinfo_deb = "libtinfo5_6.3-2_arm64.deb"
-        libncurses_deb = "libncurses5_6.3-2_arm64.deb"
-    else:
-        ncurses_url = "http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses"
-        libtinfo_deb = "libtinfo5_6.3-2ubuntu0.2_amd64.deb"
-        libncurses_deb = "libncurses5_6.3-2ubuntu0.2_amd64.deb"
-
-    call(f"wget {ncurses_url}/{libtinfo_deb} {ncurses_url}/{libncurses_deb}")
-    call(f"sudo apt install -y ./{libtinfo_deb} ./{libncurses_deb}")
-
     clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
     clang_version = 20
     clang_path = "/usr/bin"
@@ -206,13 +192,15 @@ def install_linux(args):
         "libxrandr-dev",
         "libopenal-dev",
         "libgl1-mesa-dev",
+        "libgl1-mesa-dri",
         "libglw1-mesa-dev",
         "openssl",
         "tofrodos",
         "tree",
         "valgrind",
         "uuid-dev",
-        "xvfb"
+        "xvfb",
+        "xauth"
     ]
     aptget(" ".join(packages))
 
@@ -271,7 +259,7 @@ def build_engine(channel, platform, args):
     if platform in ('x86_64-macos',
                     'arm64-macos',
                     'arm64-ios',
-                    'x86_64-ios',
+                    'arm64_sim-ios',
                     'wasm-web',
                     'wasm_pthread-web',
                     'arm64-linux',
@@ -292,7 +280,7 @@ def build_engine(channel, platform, args):
     if args.verbose:
         cmd_opts.append('--verbose')
 
-    cmd_args.append('build_engine')
+    cmd_args.extend(['build_ext', 'build_engine'])
 
     if channel:
         cmd_opts.append('--channel=%s' % channel)
@@ -503,12 +491,13 @@ def gen_release_notes(channel):
     elif not notes_json_exists:
         print("::warning::No release notes generated for %s on '%s' - shipping without them" % (version, channel))
 
-def build_sdk(channel, platform=None):
+def build_sdk(channel, platforms=None):
     cmd_args = ('"%s" scripts/build.py install_release_dependencies build_sdk' % sys.executable).split()
     cmd_opts = []
     cmd_opts.append("--channel=%s" % channel)
-    if platform:
-        cmd_opts.append("--platform=%s" % platform)
+    if platforms:
+        platforms = ','.join(platform.strip() for platform in platforms.split(','))
+        cmd_opts.append("--platforms=%s" % platforms)
 
     cmd = ' '.join(cmd_args + cmd_opts)
     call(cmd)
@@ -563,6 +552,7 @@ def main(argv):
     parser = ArgumentParser()
     parser.add_argument('commands', nargs="+", help="The command to execute (engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform, should-build-private-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
+    parser.add_argument("--platforms", dest="platforms", help="Comma-separated platforms to include in the combined SDK")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-ubsan", dest="with_ubsan", action='store_true', help="")
     parser.add_argument("--with-tsan", dest="with_tsan", action='store_true', help="")
@@ -660,7 +650,7 @@ def main(argv):
         elif command == "test-bob":
             test_bob(channel)
         elif command == "sdk":
-            build_sdk(channel, platform)
+            build_sdk(channel, args.platforms or platform)
         elif command == "smoke":
             smoke_test()
         elif command == "install":

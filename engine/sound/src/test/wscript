@@ -150,14 +150,14 @@ def build(bld):
     soundlibs = ['SOUND', 'OPUS', 'decoder_wav', 'decoder_ogg', 'decoder_opus']
     exported_symbols = ["DefaultSoundDevice", "AudioDecoderWav", "AudioDecoderStbVorbis", "AudioDecoderOpus"]
 
-    if bld.env.PLATFORM not in ['wasm-web', 'wasm_pthread-web', 'win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']:
+    if bld.env.PLATFORM not in ['wasm-web', 'wasm_pthread-web', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5', 'x86_64-xbone']:
         exported_symbols.append("AudioDecoderTremolo")
         soundlibs.append('TREMOLO')
 
     if bld.env.PLATFORM in ['arm64-nx64', 'x86_64-ps4']:
         pass
     else:
-        if bld.env.PLATFORM not in ('x86_64-macos','arm64-macos','x86_64-ios','arm64-ios'):
+        if bld.env.PLATFORM not in ('x86_64-macos','arm64-macos','arm64-ios','arm64_sim-ios'):
             soundlibs.append('OPENAL')
         soundlibs.append('DMGLFW')
         soundlibs.append('OPENGL')
@@ -172,12 +172,12 @@ def build(bld):
                     source = 'test_sound_perf.cpp')
 
     extra_features = []
-    if waflib.Options.options.with_asan and bld.env.PLATFORM in ['win32', 'x86_64-win32']:
+    if waflib.Options.options.with_asan and bld.env.PLATFORM == 'x86_64-win32':
         extra_features = ['skip_test']
         print("Skipping sound test since current version throws an error with ASan")
 
     test_sound_sources = ['test_sound.cpp']
-    if bld.env.PLATFORM in ('x86_64-macos', 'arm64-macos', 'x86_64-ios', 'arm64-ios'):
+    if bld.env.PLATFORM in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'arm64_sim-ios'):
         test_sound_sources.append('test_sound_avaudio.mm')
 
     test = bld.program(features = 'cxx embed test'.split() + extra_features,
