@@ -58,7 +58,6 @@ welcome.new-project.native-extension.title = ネイティブ拡張機能
 welcome.new-project.native-extension.description = このテンプレートには、ネイティブ拡張機能の作成を開始する場合の基本的なセットアップが含まれています。
 welcome.new-project.basic-3d-project.title = 基本的な3Dプロジェクト
 welcome.new-project.basic-3d-project.description = このテンプレートには、3D レンダリングを行うための基本的な設定が含まれています。
-welcome.new-project.platformer-game.title = プラットフォーマー・ゲーム
 welcome.new-project.platformer-game.description = このテンプレートには、プラットフォーマーゲームの構築を開始する場合の基本的なセットアップが含まれています。
 welcome.new-project.rive-project.title = Riveプロジェクト
 welcome.new-project.rive-project.description = このテンプレートにはrive拡張機能が含まれています。
