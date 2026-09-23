@@ -14,21 +14,23 @@
 
 (ns integration.gltf-asset-browser-test
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.game-project :as game-project]
             [editor.handler :as handler]
             [editor.notifications :as notifications]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [support.test-support :as test-support :refer [with-clean-system]])
-  (:import [java.io File]
+  (:import [com.dynamo.gamesys.proto ModelProto$Model ModelProto$ModelDesc]
+           [java.io File]
            [java.net URI]
            [java.nio ByteBuffer ByteOrder]
            [java.nio.charset StandardCharsets]
@@ -42,7 +44,7 @@
   "AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAABAAIA")
 
 (def ^:private image-base64
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z6L8AAAAASUVORK5CYII=")
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII=")
 
 (defn- scene-json [material-name buffer-json]
   (str "{"
@@ -111,10 +113,8 @@
 
 (def ^:private expected-mesh-resource-names
   #{"mymesh"
-    "Mesh 1"
     "Shared [2]"
     "Shared [3]"
-    "Mesh 4"
     "Mesh 5"})
 
 (defn- expected-tree-proj-paths [source-proj-path]
@@ -146,8 +146,6 @@
                 (is (some? source-resource))
                 (is (= "Albedo [0].png" (resource/resource-name image-resource)))
                 (is (= material-label (resource/resource-name material-resource)))
-                (is (= "Albedo [0].png" (#'app-view/tab-title image-resource false)))
-                (is (= material-label (#'app-view/tab-title material-resource false)))
                 (is (some? meshes-resource))
                 (when (and source-resource meshes-resource)
                   (let [mesh-resources (resource/children meshes-resource)
@@ -168,8 +166,6 @@
                     (doseq [^TreeItem mesh-tree-item (.getChildren meshes-tree-item)]
                       (is (.isLeaf mesh-tree-item)))
                     (doseq [mesh-resource mesh-resources]
-                      (is (= (resource/resource-name mesh-resource)
-                             (#'app-view/tab-title mesh-resource false)))
                       (is (= :file (resource/source-type mesh-resource)))
                       (is (resource/read-only? mesh-resource))
                       (is (true? (resource/openable? mesh-resource)))
@@ -189,36 +185,112 @@
         (let [workspace (test-util/setup-workspace! project-path)]
           (f workspace (test-util/setup-project! workspace) source-file))))))
 
+(defn- copy-selection! [selection]
+  (let [copied-files (atom nil)]
+    (with-redefs-fn {#'asset-browser/copy #(reset! copied-files %)}
+      #(test-util/handler-run :edit.copy
+                             [(handler/->context :asset-browser {:selection selection})]
+                             {}))
+    @copied-files))
+
 (deftest copying-an-embedded-material-preserves-its-name-and-content
   (with-glb-project
     (fn [workspace _project _source-file]
       (let [material (workspace/find-resource workspace "/robot.glb/materials/0.material")
-            ^File exported (first (#'asset-browser/fileify-resources! [material]))]
+            ^File exported (first (copy-selection! [material]))]
         (with-open [_deleter (test-util/make-directory-deleter (.getParentFile exported))]
           (is (= "Paint_Chrome [0].material" (resource/resource-name material) (.getName exported)))
           (is (= (slurp material) (slurp exported))))))))
 
-(deftest metadata-meshes-cannot-be-copied-as-empty-files
+(deftest embedded-meshes-can-be-copied
   (with-glb-project
     (fn [workspace _project _source-file]
       (doseq [[paths copyable]
               [[[] false]
                [["/robot.glb"] true]
                [["/robot.glb/materials/0.material"] true]
-               [["/robot.glb/meshes"] false]
-               [["/robot.glb/meshes/Mesh 1"] false]
+               [["/robot.glb/meshes"] true]
+               [["/robot.glb/meshes/Shared [2]"] true]
                [["/robot.glb" "/robot.glb/materials/0.material"] true]
-               [["/robot.glb/materials/0.material" "/robot.glb/meshes/Mesh 1"] false]]]
+               [["/robot.glb/materials/0.material" "/robot.glb/meshes/Shared [2]"] true]]]
         (let [selection (mapv #(workspace/find-resource workspace %) paths)]
           (is (= copyable
                  (test-util/handler-enabled? :edit.copy
                                              [(handler/->context :asset-browser {:selection selection})]
                                              {}))))))))
 
+(deftest copying-meshes-exports-buildable-models
+  (with-glb-project
+    (fn [workspace project source-file]
+      (let [meshes (workspace/find-resource workspace "/robot.glb/meshes")
+            ^File exported-directory (first (copy-selection! [meshes]))
+            project-directory (.getParentFile ^File source-file)]
+        (with-open [_deleter (test-util/make-directory-deleter (.getParentFile exported-directory))]
+          (is (= (into #{} (map #(str % ".model")) expected-mesh-resource-names)
+                 (set (.list exported-directory))))
+          (doseq [^File exported-file (.listFiles exported-directory)]
+            (let [model-desc (protobuf/read-map-without-defaults ModelProto$ModelDesc exported-file)]
+              (is (= "/robot.glb" (:mesh model-desc)))
+              (is (= [{:name "Paint/Chrome"
+                       :material "/robot.glb/materials/0.material"
+                       :textures [{:sampler "PbrMetallicRoughness_baseColorTexture"
+                                   :texture "/robot.glb/images/0.png"}]}]
+                     (:materials model-desc)))
+              (io/copy exported-file (io/file project-directory (.getName exported-file)))))
+          (doseq [extension ["vp" "fp"]]
+            (fs/create-file! (io/file project-directory (str "defold-pbr/shaders/pbr." extension))
+                             "void main() {}\n"))
+          (workspace/resource-sync! workspace)
+          (doseq [[index name mesh-name] [[0 "mymesh" "mymesh"]
+                                         [2 "Shared [2]" "Shared"]
+                                         [3 "Shared [3]" "Shared"]
+                                         [5 "Mesh 5" "bad/name"]]]
+            (testing name
+              (let [node (test-util/resource-node project (str "/" name ".model"))
+                    save-value (g/node-value node :save-value)]
+                (is (= index (:mesh-index save-value)))
+                (is (= mesh-name (:mesh-name save-value)))
+                (is (= [index] (into [] (keep :mesh-index) (:children (g/node-value node :scene)))))
+                (with-open [_build (test-util/build! node)]
+                  (is (= index (:mesh-index (protobuf/bytes->map-with-defaults ModelProto$Model
+                                                                             (test-util/node-build-output node))))))))))))))
+
+(deftest copied-mesh-zero-with-duplicate-names-survives-reload
+  (let [original-scene-json scene-json]
+    (with-redefs [scene-json (fn [material-name buffer-json]
+                               (string/replace (original-scene-json material-name buffer-json)
+                                               "\"name\":\"mymesh\"" "\"name\":\"Shared\""))]
+      (with-glb-project
+        (fn [workspace project source-file]
+          (let [mesh (workspace/find-resource workspace "/robot.glb/meshes/Shared [0]")
+                project-directory (.getParentFile ^File source-file)]
+            (doseq [extension ["vp" "fp"]]
+              (fs/create-file! (io/file project-directory (str "defold-pbr/shaders/pbr." extension))
+                               "void main() {}\n"))
+            (doseq [[name content] [["explicit" (slurp mesh)]
+                                    ["omitted" (string/replace (slurp mesh) "mesh_index: 0\n" "")]]]
+              (testing name
+                (fs/create-file! (io/file project-directory (str name ".model")) content)
+                (workspace/resource-sync! workspace)
+                (let [node (test-util/resource-node project (str "/" name ".model"))
+                      save-value (g/node-value node :save-value)
+                      reloaded-path (str "/" name "-reloaded.model")]
+                  (is (= 0 (g/raw-property-value (g/now) node :mesh-index)))
+                  (is (= 0 (test-util/prop node :mesh-index)))
+                  (is (= [0] (into [] (keep :mesh-index) (:children (g/node-value node :scene)))))
+                  (fs/create-file! (io/file project-directory (subs reloaded-path 1))
+                                   (protobuf/map->str ModelProto$ModelDesc save-value))
+                  (workspace/resource-sync! workspace)
+                  (let [reloaded-node (test-util/resource-node project reloaded-path)]
+                    (is (= 0 (test-util/prop reloaded-node :mesh-index)))
+                    (with-open [_build (test-util/build! reloaded-node)]
+                      (is (= 0 (:mesh-index (protobuf/bytes->map-with-defaults ModelProto$Model
+                                                                               (test-util/node-build-output reloaded-node))))))))))))))))
+
 (deftest an-unreferenced-mesh-has-a-read-only-preview
   (with-glb-project
     (fn [workspace project _source-file]
-      (let [mesh (workspace/find-resource workspace "/robot.glb/meshes/Mesh 1")
+      (let [mesh (workspace/find-resource workspace "/robot.glb/meshes/Shared [2]")
             node (test-util/resource-node project (resource/proj-path mesh))
             scene (g/node-value node :scene)]
         (is (resource/editor-openable-resource? mesh))
@@ -226,7 +298,7 @@
         (is (= [:scene] (mapv :id (workspace/resource-view-types mesh))))
         (is (not (g/error-value? scene)))
         (is (= node (:node-id scene)))
-        (is (= [1] (into [] (keep :mesh-index) (:children scene))))))))
+        (is (= [2] (into [] (keep :mesh-index) (:children scene))))))))
 
 (deftest deleting-a-container-reports-missing-embedded-references
   (with-glb-project

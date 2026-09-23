@@ -394,9 +394,8 @@
 (defn- textual-resource-node? [node-id evaluation-context]
   (let [resource (g/node-value node-id :resource evaluation-context)]
     (and (some? resource)
-         (-> evaluation-context
-             :basis
-             (resource/lookup-resource-type (resource/workspace resource) resource)
+         (-> resource
+             (resource/resource-type (:basis evaluation-context))
              :textual?))))
 
 (register-property-getter!

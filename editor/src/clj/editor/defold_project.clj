@@ -29,7 +29,6 @@
             [editor.editor-localization-bundle :as editor-localization-bundle]
             [editor.game-project-core :as gpc]
             [editor.gl :as gl]
-            [editor.gltf :as gltf]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.library :as library]
@@ -211,13 +210,8 @@
   [read-opts node-id resource]
   {:pre [(g/node-id? node-id)]}
   (let [resource-metrics (:resource-metrics read-opts)
-        editable->type-ext->resource-type (:editable->type-ext->resource-type read-opts)
-        editable (resource/editable-resource? resource)
-        type-ext->resource-type (editable->type-ext->resource-type editable)
-
         {:keys [lazy-loaded read-fn] :as resource-type}
-        (or (type-ext->resource-type (resource/type-ext resource))
-            (type-ext->resource-type resource/placeholder-resource-type-ext))
+        (resource/resource-type* resource (:editable->type-ext->resource-type read-opts))
 
         ;; Seeing as how we're operating on a list of resources that we got from
         ;; the file system itself, you might assume that every resource will
@@ -1541,9 +1535,15 @@
       [(if (or (not= desired-deps installed-deps)
                (coll/every? resources ["/defold-pbr/shaders/pbr.vp" "/defold-pbr/shaders/pbr.fp"]))
          (notifications/close notifications ::pbr-library)
-         (when (coll/any? #(and (= :material (:kind (gltf/asset-info %)))
-                                (resource/file-resource? (resource/entry-source %)))
-                          added-resources)
+         (when (coll/any? (fn [resource]
+                            (and (= "material" (resource/ext resource))
+                                 (loop [parent-path (resource/parent-proj-path (resource/proj-path resource))]
+                                   (when-let [parent (resources parent-path)]
+                                     (if (= :file (resource/source-type parent))
+                                       (and (resource/file-resource? parent)
+                                            (#{"gltf" "glb"} (resource/ext parent)))
+                                       (recur (resource/parent-proj-path parent-path)))))))
+                added-resources)
            (notifications/show
              notifications
              {:id ::pbr-library

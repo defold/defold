@@ -471,7 +471,10 @@
   resource/Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension (.getPath file)))
-  (resource-type [this] (resource/lookup-resource-type (g/unsafe-basis) workspace this))
+  (resource-type* [this resource-types]
+    (let [types (resource-types true)]
+      (or (types (resource/type-ext this))
+          (types resource/placeholder-resource-type-ext))))
   (source-type [this] source-type)
   (exists? [this] exists?)
   (read-only? [this] read-only?)

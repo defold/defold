@@ -108,7 +108,7 @@
   resource/Resource
   (children [_] nil)
   (ext [_] "json")
-  (resource-type [_]
+  (resource-type* [_ _resource-types]
     {:ext "json"
      :label (localization/message "resource.type.custom")
      :build-ext "json"})
@@ -137,7 +137,7 @@
   resource/Resource
   (children [this] (resource/children resource))
   (ext [this] (resource/ext resource))
-  (resource-type [this]
+  (resource-type* [this _resource-types]
     (let [ext (resource/ext this)]
       {:ext ext
        :label (localization/message "resource.type.custom")

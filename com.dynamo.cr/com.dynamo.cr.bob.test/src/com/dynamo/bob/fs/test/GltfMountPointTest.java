@@ -65,6 +65,7 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ModelImporterJni;
 import com.dynamo.bob.pipeline.Modelimporter;
 import com.dynamo.bob.test.util.MockFileSystem;
+import com.dynamo.gamesys.proto.ModelProto.ModelDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.google.protobuf.TextFormat;
 
@@ -98,22 +99,24 @@ public class GltfMountPointTest {
     @Test
     public void testMountLookupAndWalk() throws Exception {
         assertNull(mountPoint.get("models/robot.gltf/materials/0.material"));
-        assertNull(mountPoint.get("models/robot.gltf/meshes/Mesh 0"));
+        assertNull(mountPoint.get("models/robot.gltf/meshes/Body"));
         fileSystem.addMountPoint(mountPoint);
 
         IResource material = fileSystem.get("/models/robot.gltf/materials/0.material");
         assertTrue(material instanceof GltfMaterialResource);
         assertEquals("models/robot.gltf", ((GltfResource)material).getSourceResource().getPath());
 
-        GltfMeshResource mesh = (GltfMeshResource)fileSystem.get("models/robot.gltf/meshes/Mesh 0");
+        GltfMeshResource mesh = (GltfMeshResource)fileSystem.get("models/robot.gltf/meshes/Body");
         assertNotNull(mesh);
         assertEquals("models/robot.gltf", mesh.getSourceResource().getPath());
         assertEquals(GltfResource.Kind.MESH, mesh.getKind());
-        assertEquals("model_0", mesh.getName());
-        assertTrue(mesh.isNameGenerated());
+        assertEquals("Body", mesh.getName());
+        assertFalse(mesh.isNameGenerated());
         assertEquals(1, mesh.getPrimitiveCount());
         assertEquals(3, mesh.getVertexCount());
-        assertEquals(0, mesh.getContent().length);
+        var model = ModelDesc.newBuilder();
+        TextFormat.merge(new String(mesh.getContent(), StandardCharsets.UTF_8), model);
+        assertEquals(0, model.getMeshIndex());
         assertSetContentFails(mesh);
 
         assertNull(mountPoint.get("models/robot.gltf/materials/0.materialc"));
@@ -125,15 +128,13 @@ public class GltfMountPointTest {
         assertEquals(list(
                 "models/robot.gltf",
                 "models/robot.gltf/materials/0.material",
-                "models/robot.gltf/images/0.png",
                 "models/robot.gltf/images/1.png",
                 "models/robot.gltf/images/2.png",
-                "models/robot.gltf/meshes/Mesh 0"), results);
+                "models/robot.gltf/meshes/Body"), results);
 
         results.clear();
         fileSystem.walk("models/robot.gltf/images", new FileSystemWalker(), results);
         assertEquals(list(
-                "models/robot.gltf/images/0.png",
                 "models/robot.gltf/images/1.png",
                 "models/robot.gltf/images/2.png"), results);
 
@@ -166,7 +167,7 @@ public class GltfMountPointTest {
             @Override
             public byte[] getData(String path, String uri) {
                 assertEquals("nested/robot.gltf", path);
-                return "external.png".equals(uri) ? png : null;
+                throw new AssertionError("External images must not be read: " + uri);
             }
         };
 
@@ -174,19 +175,26 @@ public class GltfMountPointTest {
                 sourceBytes, "nested/robot.gltf", resolver);
 
         assertTrue(extraction.diagnostics().isEmpty());
-        assertEquals(5, extraction.assets().size());
+        assertEquals(4, extraction.assets().size());
         assertEquals(1, extraction.meshes().size());
 
         GltfContainer.MeshMetadata mesh = extraction.meshes().get(0);
-        assertSame(mesh, extraction.assets().get(4));
+        assertSame(mesh, extraction.assets().get(3));
         assertEquals(GltfContainer.AssetKind.MESH, mesh.getKind());
-        assertEquals("meshes/Mesh 0", mesh.getPath());
+        assertEquals("meshes/Body", mesh.getPath());
         assertEquals(0, mesh.getIndex());
-        assertEquals("model_0", mesh.getName());
-        assertTrue(mesh.isNameGenerated());
+        assertEquals("Body", mesh.getName());
+        assertFalse(mesh.isNameGenerated());
         assertEquals(1, mesh.getPrimitiveCount());
         assertEquals(3, mesh.getVertexCount());
-        assertEquals(0, mesh.getContent().length);
+        var model = ModelDesc.newBuilder();
+        TextFormat.merge(new String(mesh.getContent(), StandardCharsets.UTF_8), model);
+        assertEquals("/nested/robot.gltf", model.getMesh());
+        assertEquals(0, model.getMeshIndex());
+        assertEquals("Body", model.getMeshName());
+        assertEquals("Paint", model.getMaterials(0).getName());
+        assertEquals("/nested/robot.gltf/materials/0.material", model.getMaterials(0).getMaterial());
+        assertEquals("/nested/external.png", model.getMaterials(0).getTextures(0).getTexture());
 
         GltfContainer.Asset material = extraction.assets().get(0);
         assertTrue(material instanceof GltfContainer.MaterialAsset);
@@ -195,23 +203,19 @@ public class GltfMountPointTest {
         assertEquals("Paint", material.getName());
         GltfContainer.MaterialAsset materialAsset = (GltfContainer.MaterialAsset)material;
         assertEquals("Paint", materialAsset.getMaterialDesc().getName());
-        assertEquals("images/0.png", materialAsset.getSamplerBindings()
+        assertEquals("/nested/external.png", materialAsset.getSamplerBindings()
                 .get("PbrMetallicRoughness_baseColorTexture").imagePath());
 
-        GltfContainer.Asset externalImage = extraction.assets().get(1);
-        assertTrue(externalImage instanceof GltfContainer.ImageAsset);
-        assertEquals(GltfContainer.AssetKind.IMAGE, externalImage.getKind());
-        assertEquals("images/0.png", externalImage.getPath());
-        assertArrayEquals(png, externalImage.getContent());
-        GltfContainer.ImageAsset image = (GltfContainer.ImageAsset)externalImage;
-        assertEquals("external.png", image.getUri());
-        assertEquals("image/png", image.getMimeType());
-        assertEquals("external-uri", image.getSourceKind());
-        assertEquals(2, image.getTextures().size());
+        var externalImage = extraction.externalImages().get(0);
+        assertEquals("/nested/external.png", externalImage.path());
+        assertEquals("external.png", externalImage.uri());
+        assertEquals("image/png", externalImage.mimeType());
+        assertEquals(2, externalImage.textures().size());
 
-        byte[] firstRead = externalImage.getContent();
+        var embeddedImage = extraction.assets().get(1);
+        byte[] firstRead = embeddedImage.getContent();
         firstRead[0] = (byte)(firstRead[0] + 1);
-        assertArrayEquals(png, externalImage.getContent());
+        assertArrayEquals(png, embeddedImage.getContent());
 
         try {
             extraction.assets().clear();
@@ -237,48 +241,37 @@ public class GltfMountPointTest {
         String source = withExternalImageBuffer(gltf("missing.png"), png.length)
                 .replace("data:application/octet-stream;base64," + GEOMETRY_BUFFER_BASE64, "missing.bin");
         GltfContainer.Extraction extraction = GltfContainer.inspect(
-                new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8)), "models/robot.gltf", null);
+                new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8)), "models/robot.gltf");
         assertTrue(extraction.diagnostics().isEmpty());
-        assertEquals(5, extraction.assets().size());
+        assertEquals(4, extraction.assets().size());
         GltfContainer.MaterialAsset material = (GltfContainer.MaterialAsset)extraction.assets().get(0);
         assertEquals(5, material.getSamplerBindings().size());
-        GltfContainer.ImageAsset external = (GltfContainer.ImageAsset)extraction.assets().get(1);
-        assertEquals(new GltfContainer.ImageLocation("models/missing.png", 0, -1), external.getLocation());
-        GltfContainer.ImageAsset embedded = (GltfContainer.ImageAsset)extraction.assets().get(2);
+        assertEquals("/models/missing.png", extraction.externalImages().get(0).path());
+        GltfContainer.ImageAsset embedded = (GltfContainer.ImageAsset)extraction.assets().get(1);
         assertArrayEquals(png, embedded.getContent());
-        GltfContainer.ImageAsset buffer = (GltfContainer.ImageAsset)extraction.assets().get(3);
+        GltfContainer.ImageAsset buffer = (GltfContainer.ImageAsset)extraction.assets().get(2);
         assertEquals(new GltfContainer.ImageLocation("models/image.bin", 0, png.length), buffer.getLocation());
     }
 
     @Test
-    public void testInspectionAndExtractionAgreeOnExternalImageFormats() throws Exception {
-        for (String format : List.of("png", "jpg")) {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            assertTrue(ImageIO.write(new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB), format, output));
-            byte[] content = output.toByteArray();
-            for (String uri : List.of("albedo", "albedo.bin", "albedo." + format,
-                    "albedo.%" + Integer.toHexString(format.charAt(0)) + format.substring(1))) {
-                String json = "{\"asset\":{\"version\":\"2.0\"},\"images\":[{\"uri\":\"" + uri
-                        + "\"}],\"textures\":[{\"source\":0}],\"materials\":[{\"pbrMetallicRoughness\":{"
-                        + "\"baseColorTexture\":{\"index\":0}}}]}";
-                byte[] source = json.getBytes(StandardCharsets.UTF_8);
-                List<String> headerReads = new ArrayList<>();
-                GltfContainer.Extraction inspected = GltfContainer.inspect(new ByteArrayInputStream(source),
-                        "models/robot.gltf", (path, imageUri) -> {
-                            headerReads.add(imageUri);
-                            return Arrays.copyOf(content, 8);
-                        });
-                GltfContainer.Extraction extracted = GltfContainer.extract(source, "models/robot.gltf",
-                        (path, imageUri) -> content);
-                assertEquals(uri, List.of(), inspected.diagnostics());
-                assertEquals(uri, extracted.assets().stream().map(GltfContainer.Asset::getPath).toList(),
-                        inspected.assets().stream().map(GltfContainer.Asset::getPath).toList());
-                assertEquals(uri, ((GltfContainer.MaterialAsset)extracted.assets().get(0)).getSamplerBindings(),
-                        ((GltfContainer.MaterialAsset)inspected.assets().get(0)).getSamplerBindings());
-                assertEquals(uri, ((GltfContainer.ImageAsset)extracted.assets().get(1)).getMimeType(),
-                        ((GltfContainer.ImageAsset)inspected.assets().get(1)).getMimeType());
-                assertEquals(uri, uri.equals("albedo") || uri.endsWith(".bin") ? List.of(uri) : List.of(), headerReads);
-            }
+    public void testExternalImageReferencesDoNotRequireReadingImages() throws Exception {
+        for (var uri : List.of("albedo", "albedo.bin", "albedo.png", "albedo.jpg", "albedo.ktx2", "../textures/albedo%20map.png")) {
+            var source = gltf(uri).getBytes(StandardCharsets.UTF_8);
+            var inspected = GltfContainer.inspect(new ByteArrayInputStream(source), "models/robot.gltf");
+            var extracted = GltfContainer.extract(source, "models/robot.gltf", (path, imageUri) -> {
+                throw new AssertionError("External images must not be read: " + imageUri);
+            });
+            assertTrue(inspected.diagnostics().isEmpty());
+            assertTrue(extracted.diagnostics().isEmpty());
+            assertEquals(extracted.externalImages(), inspected.externalImages());
+            var imagePath = "/" + GltfContainer.resolveExternalResourcePath("models/robot.gltf", uri);
+            assertEquals(imagePath, inspected.externalImages().get(0).path());
+            assertEquals(List.of("materials/0.material", "images/1.png", "images/2.png", "meshes/Body"),
+                    inspected.assets().stream().map(GltfContainer.Asset::getPath).toList());
+            var material = (GltfContainer.MaterialAsset)inspected.assets().get(0);
+            assertEquals(imagePath, material.getSamplerBindings().get("PbrMetallicRoughness_baseColorTexture").imagePath());
+            assertEquals(material.getSamplerBindings(),
+                    ((GltfContainer.MaterialAsset)extracted.assets().get(0)).getSamplerBindings());
         }
     }
 
@@ -292,7 +285,7 @@ public class GltfMountPointTest {
                 + "\"images\":[{\"bufferView\":0,\"mimeType\":\"image/png\"}]}";
         byte[] glb = glbFromJson(json, binary);
         ByteArrayInputStream stream = new ByteArrayInputStream(glb);
-        GltfContainer.Extraction extraction = GltfContainer.inspect(stream, "models/image.glb", null);
+        GltfContainer.Extraction extraction = GltfContainer.inspect(stream, "models/image.glb");
         assertTrue(extraction.diagnostics().isEmpty());
         assertEquals(1, extraction.assets().size());
         assertEquals((binary.length + 3) & ~3, stream.available());
@@ -313,7 +306,7 @@ public class GltfMountPointTest {
 
         GltfContainer container = mountPoint.getContainer("models/spaces.gltf");
         assertTrue(container.getDiagnostics().isEmpty());
-        assertNotNull(container.getResource("meshes/Mesh 0"));
+        assertNotNull(container.getResource("meshes/Body"));
     }
 
     @Test
@@ -325,10 +318,10 @@ public class GltfMountPointTest {
         assertTrue(material instanceof GltfMaterialResource);
         assertEquals("models/robot.glb", ((GltfResource)material).getSourceResource().getPath());
 
-        GltfMeshResource mesh = (GltfMeshResource)fileSystem.get("models/robot.glb/meshes/Mesh 0");
+        GltfMeshResource mesh = (GltfMeshResource)fileSystem.get("models/robot.glb/meshes/Body");
         assertNotNull(mesh);
-        assertEquals("model_0", mesh.getName());
-        assertTrue(mesh.isNameGenerated());
+        assertEquals("Body", mesh.getName());
+        assertFalse(mesh.isNameGenerated());
 
         GltfImageResource image = (GltfImageResource)fileSystem.get("models/robot.glb/images/2.png");
         assertNotNull(image);
@@ -340,16 +333,15 @@ public class GltfMountPointTest {
         assertEquals(list(
                 "models/robot.glb",
                 "models/robot.glb/materials/0.material",
-                "models/robot.glb/images/0.png",
                 "models/robot.glb/images/1.png",
                 "models/robot.glb/images/2.png",
-                "models/robot.glb/meshes/Mesh 0"), results);
+                "models/robot.glb/meshes/Body"), results);
     }
 
     @Test
     public void testNamedMeshLookupAndWalkForGltfAndGlb() throws Exception {
         String source = gltf("external.png").replace(
-                "\"meshes\":[{", "\"meshes\":[{\"name\":\"mymesh\",");
+                "\"name\":\"Body\"", "\"name\":\"mymesh\"");
         fileSystem.addFile("models/named.gltf", source.getBytes(StandardCharsets.UTF_8));
         fileSystem.addFile("models/named.glb", glbFromGltf(source));
         fileSystem.addMountPoint(mountPoint);
@@ -364,7 +356,11 @@ public class GltfMountPointTest {
             assertFalse(mesh.isNameGenerated());
             assertEquals(1, mesh.getPrimitiveCount());
             assertEquals(3, mesh.getVertexCount());
-            assertEquals(0, mesh.getContent().length);
+            var model = ModelDesc.newBuilder();
+            TextFormat.merge(new String(mesh.getContent(), StandardCharsets.UTF_8), model);
+            assertEquals("/" + containerPath, model.getMesh());
+            assertEquals(0, model.getMeshIndex());
+            assertEquals("mymesh", model.getMeshName());
 
             Collection<String> results = new ArrayList<String>();
             fileSystem.walk(containerPath + "/meshes", new FileSystemWalker(), results);
@@ -373,10 +369,22 @@ public class GltfMountPointTest {
     }
 
     @Test
+    public void testUnnamedMeshesAreNotResources() throws Exception {
+        String source = meshMetadataGltf(null, "", "   ", "Body");
+        for (var path : List.of("models/unnamed.gltf", "models/unnamed.glb")) {
+            byte[] bytes = path.endsWith(".glb") ? glbFromGltf(source) : source.getBytes(StandardCharsets.UTF_8);
+            fileSystem.addFile(path, bytes);
+            var container = GltfContainer.load(fileSystem, fileSystem.get(path));
+            assertEquals(List.of("meshes/Body"), meshPaths(container));
+            assertEquals(3, container.getResource("meshes/Body").getIndex());
+        }
+    }
+
+    @Test
     public void testMeshPathNaming() throws Exception {
         String longName = String.join("", Collections.nCopies(256, "a"));
         String maxCollidingName = String.join("", Collections.nCopies(255, "b"));
-        String maxUniqueName = String.join("", Collections.nCopies(255, "c"));
+        String maxUniqueName = String.join("", Collections.nCopies(249, "c"));
         String source = meshMetadataGltf(
                 "Cube.001",
                 null,
@@ -403,8 +411,6 @@ public class GltfMountPointTest {
         GltfContainer container = mountPoint.getContainer("models/naming.gltf");
         assertEquals(list(
                 "meshes/Cube.001",
-                "meshes/Mesh 1",
-                "meshes/Mesh 2",
                 "meshes/Mesh 3",
                 "meshes/Mesh 4",
                 "meshes/Shared [5]",
@@ -422,8 +428,8 @@ public class GltfMountPointTest {
                 "meshes/" + maxUniqueName,
                 "meshes/Mesh 15 [18]"), meshPaths(container));
 
-        assertEquals("model_1", container.getResource("meshes/Mesh 1").getName());
-        assertEquals("", container.getResource("meshes/Mesh 2").getName());
+        assertNull(container.getResource("meshes/Mesh 1"));
+        assertNull(container.getResource("meshes/Mesh 2"));
         assertEquals("bad/name", container.getResource("meshes/Mesh 3").getName());
         assertEquals("CON.txt", container.getResource("meshes/Mesh 4").getName());
         assertEquals(longName, container.getResource("meshes/Mesh 13").getName());
@@ -496,7 +502,7 @@ public class GltfMountPointTest {
         Map<String, GltfContainer.SamplerBinding> bindings = resource.getSamplerBindings();
         assertEquals(5, bindings.size());
         assertSamplerBinding(bindings, "PbrMetallicRoughness_baseColorTexture",
-                0, 0, 0, "images/0.png");
+                0, 0, 0, "/models/external.png");
         assertSamplerBinding(bindings, "PbrMetallicRoughness_metallicRoughnessTexture",
                 0, 1, 1, "images/1.png");
         assertSamplerBinding(bindings, "PbrMaterial_normalTexture",
@@ -504,7 +510,7 @@ public class GltfMountPointTest {
         assertSamplerBinding(bindings, "PbrMaterial_occlusionTexture",
                 0, 2, 2, "images/2.png");
         assertSamplerBinding(bindings, "PbrMaterial_emissiveTexture",
-                0, 3, 0, "images/0.png");
+                0, 3, 0, "/models/external.png");
 
         assertEquals(bindings.get("PbrMetallicRoughness_baseColorTexture").imagePath(),
                 bindings.get("PbrMaterial_emissiveTexture").imagePath());
@@ -529,35 +535,15 @@ public class GltfMountPointTest {
         fileSystem.addFile("models/robot.gltf", source.getBytes(StandardCharsets.UTF_8));
         fileSystem.addMountPoint(mountPoint);
 
-        // PNG stand-ins exercise image selection independently of GPU texture decoding.
-        for (boolean preferredAvailable : new boolean[] { false, true, false }) {
-            if (preferredAvailable) {
-                fileSystem.addFile("models/preferred.png", png);
-            } else if (fileSystem.get("models/preferred.png").exists()) {
-                fileSystem.get("models/preferred.png").remove();
-            }
-
-            GltfContainer container = mountPoint.getContainer("models/robot.gltf");
-            GltfMaterialResource material = (GltfMaterialResource)container.getResource("materials/0.material");
-            int selectedImageIndex = preferredAvailable ? 1 : 0;
-            assertSamplerBinding(material.getSamplerBindings(), "PbrMetallicRoughness_baseColorTexture",
-                    0, 0, selectedImageIndex, "images/" + selectedImageIndex + ".png");
-
-            Map<Integer, Integer> imageIndexByTextureIndex = new HashMap<Integer, Integer>();
-            for (GltfResource resource : container.getResources()) {
-                if (resource instanceof GltfImageResource) {
-                    GltfImageResource image = (GltfImageResource)resource;
-                    for (GltfContainer.TextureMetadata texture : image.getTextures()) {
-                        assertNull(imageIndexByTextureIndex.put(texture.index(), image.getIndex()));
-                        if (texture.index() == 0) {
-                            assertEquals(preferredAvailable, texture.basisu());
-                        }
-                    }
-                }
-            }
-            assertEquals(Integer.valueOf(selectedImageIndex), imageIndexByTextureIndex.get(0));
-            assertNotNull(container.getResource("images/0.png"));
-        }
+        var extraction = GltfContainer.extract(source.getBytes(StandardCharsets.UTF_8), "models/robot.gltf",
+                (path, uri) -> { throw new AssertionError("Unexpected read: " + uri); });
+        var material = (GltfContainer.MaterialAsset)extraction.assets().get(0);
+        assertSamplerBinding(material.getSamplerBindings(), "PbrMetallicRoughness_baseColorTexture",
+                0, 0, 1, "/models/preferred.png");
+        var preferred = extraction.externalImages().get(1);
+        assertEquals(1, preferred.index());
+        assertEquals(0, preferred.textures().get(0).index());
+        assertTrue(preferred.textures().get(0).basisu());
     }
 
     @Test
@@ -587,7 +573,7 @@ public class GltfMountPointTest {
                 baseColorMaterial.getSamplers(0).getFilterMag());
         assertEquals(1, baseColorResource.getSamplerBindings().size());
         assertSamplerBinding(baseColorResource.getSamplerBindings(),
-                "PbrMetallicRoughness_baseColorTexture", 0, 0, 0, "images/0.png");
+                "PbrMetallicRoughness_baseColorTexture", 0, 0, 0, "/models/external.png");
         assertNotNull(fileSystem.get("models/base-color-only.gltf/images/1.png"));
         assertNotNull(fileSystem.get("models/base-color-only.gltf/images/2.png"));
 
@@ -614,17 +600,8 @@ public class GltfMountPointTest {
     public void testImageBytesAndTextureMetadata() throws Exception {
         fileSystem.addMountPoint(mountPoint);
 
-        GltfImageResource external = imageResource(0);
-        assertArrayEquals(png, external.getContent());
-        assertEquals("external-uri", external.getSourceKind());
-        assertEquals("external.png", external.getUri());
-        assertEquals("image/png", external.getMimeType());
-        assertEquals(1, external.getWidth());
-        assertEquals(1, external.getHeight());
-        assertEquals(2, external.getTextures().size());
-        assertEquals(0, external.getTextures().get(0).index());
-        assertEquals("ExternalTexture", external.getTextures().get(0).name());
-        assertEquals(3, external.getTextures().get(1).index());
+        assertNull(mountPoint.get("models/robot.gltf/images/0.png"));
+        assertArrayEquals(png, fileSystem.get("models/external.png").getContent());
 
         GltfImageResource dataUri = imageResource(1);
         assertArrayEquals(png, dataUri.getContent());
@@ -668,37 +645,26 @@ public class GltfMountPointTest {
     }
 
     @Test
-    public void testBadImageDoesNotHideOtherVirtualResources() throws Exception {
+    public void testMissingExternalImageKeepsReferenceAndOtherAssets() throws Exception {
         fileSystem.addFile("models/missing-image.gltf", gltf("missing.png").getBytes(StandardCharsets.UTF_8));
         fileSystem.addMountPoint(mountPoint);
-
-        GltfContainer container = mountPoint.getContainer("models/missing-image.gltf");
-        GltfMaterialResource material = (GltfMaterialResource)container.getResource("materials/0.material");
-        assertNotNull(material);
+        var container = mountPoint.getContainer("models/missing-image.gltf");
+        var material = (GltfMaterialResource)container.getResource("materials/0.material");
         assertNull(container.getResource("images/0.png"));
         assertNotNull(container.getResource("images/1.png"));
         assertNotNull(container.getResource("images/2.png"));
-        assertEquals(1, container.getDiagnostics().size());
-        assertTrue(container.getDiagnostics().get(0).contains("missing.png"));
-        assertFalse(material.getSamplerBindings().containsKey(
-                "PbrMetallicRoughness_baseColorTexture"));
-        assertFalse(material.getSamplerBindings().containsKey("PbrMaterial_emissiveTexture"));
-        assertEquals(3, material.getSamplerBindings().size());
-
+        assertTrue(container.getDiagnostics().isEmpty());
+        assertEquals(5, material.getSamplerBindings().size());
+        assertEquals("/models/missing.png", material.getSamplerBindings()
+                .get("PbrMetallicRoughness_baseColorTexture").imagePath());
         fileSystem.addFile("models/missing.png", png);
-        GltfContainer refreshed = mountPoint.getContainer("models/missing-image.gltf");
-        assertNotSame(container, refreshed);
-        assertNotNull(refreshed.getResource("images/0.png"));
-        assertTrue(refreshed.getDiagnostics().isEmpty());
-        assertEquals(5, ((GltfMaterialResource)refreshed.getResource("materials/0.material"))
-                .getSamplerBindings().size());
+        assertSame(container, mountPoint.getContainer("models/missing-image.gltf"));
     }
 
     @Test
     public void testUnsupportedImageProducesDiagnostic() throws Exception {
-        String unsupported = gltf("external.png")
-                .replace("\"name\":\"ExternalImage\",\"uri\":\"external.png\",\"mimeType\":\"image/png\"",
-                         "\"name\":\"ExternalImage\",\"uri\":\"external.png\",\"mimeType\":\"image/webp\"");
+        String unsupported = gltf("data:image/webp;base64," + Base64.getEncoder().encodeToString(png))
+                .replaceFirst("image/png", "image/webp");
         fileSystem.addFile("models/unsupported.gltf", unsupported.getBytes(StandardCharsets.UTF_8));
         fileSystem.addMountPoint(mountPoint);
 
@@ -718,17 +684,15 @@ public class GltfMountPointTest {
 
         GltfContainer container = mountPoint.getContainer("models/escaped-mime.gltf");
         assertTrue(container.getDiagnostics().isEmpty());
-        assertNotNull(container.getResource("images/0.png"));
+        assertNull(container.getResource("images/0.png"));
         assertNotNull(container.getResource("images/2.png"));
     }
 
     @Test
     public void testJpegImageUsesJpgVirtualExtension() throws Exception {
         byte[] jpeg = createJpeg(0xff8844);
-        fileSystem.addFile("models/external.jpg", jpeg);
-        String jpegSource = gltf("external.jpg")
-                .replace("\"name\":\"ExternalImage\",\"uri\":\"external.jpg\",\"mimeType\":\"image/png\"",
-                         "\"name\":\"ExternalImage\",\"uri\":\"external.jpg\",\"mimeType\":\"image/jpeg\"");
+        String jpegSource = gltf("data:image/jpeg;base64," + Base64.getEncoder().encodeToString(jpeg))
+                .replaceFirst("image/png", "image/jpeg");
         fileSystem.addFile("models/jpeg.gltf", jpegSource.getBytes(StandardCharsets.UTF_8));
         fileSystem.addMountPoint(mountPoint);
 
@@ -743,15 +707,12 @@ public class GltfMountPointTest {
     }
 
     @Test
-    public void testExternalImageMimeTypeIsInferredFromBytes() throws Exception {
-        fileSystem.addFile("models/external-image", png);
-        String source = gltf("external-image")
-                .replace("\"name\":\"ExternalImage\",\"uri\":\"external-image\",\"mimeType\":\"image/png\"",
-                         "\"name\":\"ExternalImage\",\"uri\":\"external-image\"");
+    public void testEmbeddedImageMimeTypeIsInferredFromBytes() throws Exception {
+        var source = gltf("data:;base64," + Base64.getEncoder().encodeToString(png))
+                .replaceFirst(",\"mimeType\":\"image/png\"", "");
         fileSystem.addFile("models/inferred-mime.gltf", source.getBytes(StandardCharsets.UTF_8));
         fileSystem.addMountPoint(mountPoint);
-
-        GltfImageResource image = (GltfImageResource)mountPoint.get("models/inferred-mime.gltf/images/0.png");
+        var image = (GltfImageResource)mountPoint.get("models/inferred-mime.gltf/images/0.png");
         assertNotNull(image);
         assertArrayEquals(png, image.getContent());
         assertEquals("image/png", image.getMimeType());
@@ -845,9 +806,10 @@ public class GltfMountPointTest {
             assertTrue(project.getResource("/models/robot.gltf/materials/0.material") instanceof GltfMaterialResource);
             Collection<String> paths = new ArrayList<String>();
             project.findResourcePaths("", paths);
-            assertTrue(paths.contains("models/robot.gltf/images/0.png"));
+            assertFalse(paths.contains("models/robot.gltf/images/0.png"));
+            assertTrue(paths.contains("models/robot.gltf/images/1.png"));
             assertTrue(paths.contains("models/robot.gltf/materials/0.material"));
-            assertTrue(paths.contains("models/robot.gltf/meshes/Mesh 0"));
+            assertTrue(paths.contains("models/robot.gltf/meshes/Body"));
 
             fileSystem.addFile("models/project-added.gltf", gltf("external.png").getBytes(StandardCharsets.UTF_8));
             project.cleanupResourcePathsCache();
@@ -908,7 +870,6 @@ public class GltfMountPointTest {
                         resolvedUris.add(uri);
                         switch (uri) {
                             case "image.bin":
-                            case "external.png":
                                 return png;
                             case "geometry.bin":
                                 return geometry;
@@ -917,10 +878,10 @@ public class GltfMountPointTest {
                         }
                     });
 
-            assertEquals(list("image.bin", "external.png"), resolvedUris);
+            assertEquals(list("image.bin"), resolvedUris);
             assertTrue(extraction.diagnostics().isEmpty());
-            assertEquals(5, extraction.assets().size());
-            assertArrayEquals(png, extraction.assets().get(3).getContent());
+            assertEquals(4, extraction.assets().size());
+            assertArrayEquals(png, extraction.assets().get(2).getContent());
             assertEquals(1, extraction.meshes().size());
             assertEquals(3, extraction.meshes().get(0).getVertexCount());
         }
@@ -937,7 +898,7 @@ public class GltfMountPointTest {
 
         fileSystem.addFile("models/oversized-header.png", oversizedHeader);
         fileSystem.addFile("models/oversized-image.gltf",
-                gltf("oversized-header.png").getBytes(StandardCharsets.UTF_8));
+                gltf("data:image/png;base64," + Base64.getEncoder().encodeToString(oversizedHeader)).getBytes(StandardCharsets.UTF_8));
         fileSystem.addMountPoint(mountPoint);
 
         GltfImageResource image = (GltfImageResource)mountPoint.get("models/oversized-image.gltf/images/0.png");
@@ -948,7 +909,7 @@ public class GltfMountPointTest {
     }
 
     @Test
-    public void testCyclicVirtualImageReferencesAreIsolated() throws Exception {
+    public void testImageReferencesToContainersAreNotTraversed() throws Exception {
         fileSystem.addFile("models/self.gltf", gltf("self.gltf/images/0.png").getBytes(StandardCharsets.UTF_8));
         fileSystem.addFile("models/a.gltf", gltf("b.gltf/images/0.png").getBytes(StandardCharsets.UTF_8));
         fileSystem.addFile("models/b.gltf", gltf("a.gltf/images/0.png").getBytes(StandardCharsets.UTF_8));
@@ -959,12 +920,12 @@ public class GltfMountPointTest {
             assertNotNull(container.getResource("materials/0.material"));
             assertNull(container.getResource("images/0.png"));
             assertNotNull(container.getResource("images/1.png"));
-            assertEquals(1, container.getDiagnostics().size());
+            assertTrue(container.getDiagnostics().isEmpty());
         }
     }
 
     @Test
-    public void testContainerCacheTracksSourceAndExternalImages() throws Exception {
+    public void testContainerCacheIgnoresExternalImages() throws Exception {
         fileSystem.addMountPoint(mountPoint);
 
         GltfContainer first = mountPoint.getContainer("models/robot.gltf");
@@ -973,20 +934,18 @@ public class GltfMountPointTest {
         byte[] updatedPng = createPng(0xffcc8844);
         fileSystem.addFile("models/external.png", updatedPng);
         GltfContainer imageUpdated = mountPoint.getContainer("models/robot.gltf");
-        assertNotSame(first, imageUpdated);
-        assertArrayEquals(updatedPng, imageUpdated.getResource("images/0.png").getContent());
+        assertSame(first, imageUpdated);
 
         fileSystem.get("models/external.png").remove();
         GltfContainer imageRemoved = mountPoint.getContainer("models/robot.gltf");
-        assertNotSame(imageUpdated, imageRemoved);
+        assertSame(imageUpdated, imageRemoved);
         assertNull(imageRemoved.getResource("images/0.png"));
         assertNotNull(imageRemoved.getResource("images/1.png"));
-        assertEquals(1, imageRemoved.getDiagnostics().size());
+        assertTrue(imageRemoved.getDiagnostics().isEmpty());
 
         fileSystem.addFile("models/external.png", updatedPng);
         GltfContainer imageRestored = mountPoint.getContainer("models/robot.gltf");
-        assertNotSame(imageRemoved, imageRestored);
-        assertNotNull(imageRestored.getResource("images/0.png"));
+        assertSame(imageRemoved, imageRestored);
 
         String updatedGltf = gltf("external.png").replace("\"name\":\"Paint\"", "\"name\":\"Chrome\"");
         fileSystem.addFile("models/robot.gltf", updatedGltf.getBytes(StandardCharsets.UTF_8));
@@ -997,19 +956,18 @@ public class GltfMountPointTest {
     }
 
     @Test
-    public void testContainerCacheRecoversAfterExternalImageReadFailure() throws Exception {
+    public void testContainerDoesNotReadExternalImages() throws Exception {
         fileSystem.setExternalImageReadable(false);
         fileSystem.addMountPoint(mountPoint);
 
         GltfContainer unreadable = mountPoint.getContainer("models/robot.gltf");
         assertNull(unreadable.getResource("images/0.png"));
         assertNotNull(unreadable.getResource("images/1.png"));
-        assertEquals(1, unreadable.getDiagnostics().size());
+        assertTrue(unreadable.getDiagnostics().isEmpty());
 
         fileSystem.setExternalImageReadable(true);
         GltfContainer recovered = mountPoint.getContainer("models/robot.gltf");
-        assertNotSame(unreadable, recovered);
-        assertArrayEquals(png, recovered.getResource("images/0.png").getContent());
+        assertSame(unreadable, recovered);
     }
 
     private GltfImageResource imageResource(int index) {
@@ -1193,7 +1151,7 @@ public class GltfMountPointTest {
                 + "\"scene\":0,"
                 + "\"scenes\":[{\"nodes\":[0]}],"
                 + "\"nodes\":[{\"mesh\":0,\"name\":\"Node0\"}],"
-                + "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1,\"material\":0}]}],"
+                + "\"meshes\":[{\"name\":\"Body\",\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1,\"material\":0}]}],"
                 + "\"buffers\":["
                 + "{\"uri\":\"data:application/octet-stream;base64," + GEOMETRY_BUFFER_BASE64 + "\",\"byteLength\":42},"
                 + "{\"uri\":\"data:application/octet-stream;base64," + pngBase64 + "\",\"byteLength\":" + png.length + "}],"

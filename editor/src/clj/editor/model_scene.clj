@@ -51,7 +51,8 @@
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
            [java.nio ByteOrder FloatBuffer]
-           [javax.vecmath Matrix4d Vector4d]))
+           [javax.vecmath Matrix4d Vector4d]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -691,9 +692,9 @@
      :aabb aabb
      :renderable renderable}))
 
-(defn- make-model-scene [renderable-model mesh-scene-info-by-index]
+(defn- make-model-scene [scene-node-id renderable-model mesh-scene-info-by-index]
   (let [{:keys [pose-with-skeleton pose-without-skeleton mesh-index aabb renderable-meshes]} renderable-model
-        {:keys [node-id node-outline-key]} (mesh-scene-info-by-index mesh-index)
+        {:keys [node-id node-outline-key]} (get mesh-scene-info-by-index mesh-index {:node-id scene-node-id})
         mesh-scenes (mapv #(make-mesh-scene node-id %)
                           renderable-meshes)]
     {:node-id node-id
@@ -714,12 +715,12 @@
         (into [{:node-id scene-node-id
                 :aabb aabb
                 :renderable model-aabb-outline-renderable}]
-              (map #(make-model-scene % mesh-scene-info-by-index))
+              (map #(make-model-scene scene-node-id % mesh-scene-info-by-index))
               renderable-models)]
 
     {:node-id scene-node-id
      :aabb aabb
-     :raw-model-scenes (mapv #(make-model-scene % mesh-scene-info-by-index)
+     :raw-model-scenes (mapv #(make-model-scene scene-node-id % mesh-scene-info-by-index)
                              renderable-raw-models)
      :renderable {:tags #{:model}
                   :batch-key nil ; Batching is disabled in the editor for simplicity.
@@ -1176,6 +1177,7 @@
 
 (defn load-model-scene-node [{:keys [project resolve-resource-fn]} {self :node-id resource :owner-resource external-buffer-uris :source-value}]
   (let [source-path (resource/path resource)
+        resolve-resource #(resolve-resource-fn resource %)
         external-buffer-resources
         (into []
               (keep (fn [uri]
@@ -1188,8 +1190,8 @@
         preview-tx-data
         (into initial-tx-data
               (mapcat #(create-gltf-preview-material-binding-tx self %))
-              (gltf/material-binding-descriptors resource nil))
-        {:keys [materials meshes textures]} (gltf/metadata-descriptors resource)]
+              (gltf/material-binding-descriptors resource nil resolve-resource))
+        {:keys [materials meshes textures]} (gltf/metadata-descriptors resource resolve-resource)]
     (into preview-tx-data
           (comp (keep identity) cat)
           [(create-gltf-metadata-group-tx
@@ -1263,7 +1265,7 @@
 (defn- load-gltf-mesh-node
   "Connects a virtual mesh preview to its source scene so materials and reloads are shared."
   [_load-opts {self :node-id mesh-resource :owner-resource}]
-  (g/set-property self :source (resource/entry-source mesh-resource)))
+  (g/set-property self :source (:source mesh-resource)))
 
 (defn- read-model-scene [_read-opts _owner-resource readable]
   (model-loader/read-external-buffer-uris readable))
@@ -1274,7 +1276,8 @@
         (coll/into-> external-buffer-uris []
           (keep #(gltf/uri->proj-path source-path %)))]
     (if include-editor-dependencies
-      (coll/into-> (resource/children source-resource) external-buffer-proj-paths
+      (coll/into-> (resource/children source-resource)
+          (into external-buffer-proj-paths (gltf/external-image-paths source-resource))
         resource/xform-recursive-resources
         (filter #(#{:material :image} (:kind (gltf/asset-info %))))
         (map resource/proj-path))
@@ -1282,7 +1285,7 @@
 
 (defn- gltf-mesh-dependencies [{:keys [include-editor-dependencies]} mesh-resource _source-value]
   (if include-editor-dependencies
-    [(resource/proj-path (resource/entry-source mesh-resource))]
+    [(resource/proj-path (:source mesh-resource))]
     []))
 
 (defn register-resource-types [workspace]
@@ -1299,6 +1302,7 @@
       :view-types [:scene :text])
     (workspace/register-resource-type workspace
       :ext "gltf-mesh"
+      :export-name-fn #(str (FilenameUtils/getName (resource/proj-path %)) ".model")
       :node-type GltfMeshNode
       :load-fn load-gltf-mesh-node
       :dependencies-fn gltf-mesh-dependencies

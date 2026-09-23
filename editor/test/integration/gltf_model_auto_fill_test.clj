@@ -224,7 +224,7 @@
                        :name-generated false
                        :primitive-count 1
                        :vertex-count 3}]
-                     (:meshes (gltf/metadata-descriptors multi-mesh-gltf-resource))))
+                     (:meshes (gltf/metadata-descriptors multi-mesh-gltf-resource (partial workspace/resolve-workspace-resource workspace)))))
               (is (= 1 (test-util/prop model-node-id :mesh-index)))
               (is (= selected-mesh-state (model-state model-node-id)))
               (is (nil? (get-in (g/node-value model-node-id :_properties)
@@ -265,3 +265,27 @@
 
               (g/redo! :undo/global)
               (is (= generated-state (model-state model-node-id))))))))))
+
+(deftest auto-fill-preserves-external-image-references
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_deleter (test-util/make-directory-deleter project-path)]
+      (fs/create-file! (io/file project-path "robot.model") "mesh: \"/builtins/assets/gltf/cube.gltf\"\n")
+      (fs/create-file!
+        (io/file project-path "models/robot.gltf")
+        (string/replace
+          (gltf-content "[0]" "[{\"mesh\":0}]"
+                        "[{\"primitives\":[{\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":1},\"indices\":2,\"material\":0}]}]")
+          #"data:image/png;base64,[^\"]+"
+          "../textures/albedo%20map.png"))
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)
+              project (test-util/setup-project! workspace)
+              model-node (test-util/resource-node project "/robot.model")]
+          (with-redefs [dialogs/make-confirmation-dialog (fn [_ _] true)]
+            (edit-property! model-node :mesh (workspace/find-resource workspace "/models/robot.gltf")))
+          (is (= {"Chrome" {:material "/models/robot.gltf/materials/1.material"
+                            :textures {"PbrMetallicRoughness_metallicRoughnessTexture" "/textures/albedo map.png"}}
+                  "Paint" {:material "/models/robot.gltf/materials/0.material"
+                           :textures {"PbrMetallicRoughness_baseColorTexture" "/textures/albedo map.png"}}}
+                 (material-bindings model-node)))
+          (is (nil? (workspace/find-resource workspace "/models/robot.gltf/images"))))))))

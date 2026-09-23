@@ -17,7 +17,6 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [dynamo.graph :as g]
-            [editor.gltf :as gltf]
             [editor.library :as library]
             [editor.resource :as resource]
             [editor.system :as system]
@@ -44,7 +43,7 @@
                         (.toFile (.path archive))
                         (when-not (str/blank? base-dir) base-dir))
         include-dirs (set (.includeDirs archive))
-        {:keys [tree crc]} (update zip-resources :tree coll/filterv-> #(include-dirs (resource-root-dir %)))]
+        {:keys [tree versions]} (update zip-resources :tree coll/filterv-> #(include-dirs (resource-root-dir %)))]
     {:mtime mtime
      :resources tree
      :status-map (coll/into-> tree {}
@@ -52,7 +51,7 @@
                    (map (fn [resource]
                           (let [proj-path (resource/proj-path resource)]
                             (pair proj-path
-                                  {:version (str mtime ":" (crc proj-path))
+                                  {:version (versions proj-path)
                                    :source :library
                                    :library (.uri lib-result)})))))}))
 
@@ -102,22 +101,6 @@
              (= file-name ".DS_Store"))
            (reserved-proj-path? root (resource/file->proj-path root f)))))
 
-(defn- make-file-tree
-  ([workspace ^File file]
-   (let [basis (g/now)
-         project-directory (resource/project-directory basis workspace)
-         editable-proj-path? (g/raw-property-value basis workspace :editable-proj-path?)
-         unloaded-proj-path? (g/raw-property-value basis workspace :unloaded-proj-path?)]
-     (make-file-tree workspace project-directory file editable-proj-path? unloaded-proj-path?)))
-  ([workspace ^File root ^File file editable-proj-path? unloaded-proj-path?]
-   (coll/ptree
-     (fn file-tree-children [^File file]
-       (when (.isDirectory file)
-         (filterv #(file-resource-filter root %) (.listFiles file))))
-     (fn file-tree-node [^File file children]
-       (resource/make-file-resource workspace (.getPath root) file children editable-proj-path? unloaded-proj-path?))
-     file)))
-
 (defn- file-resource-status [resource]
   (assert (resource/file-resource? resource))
   {:version (str (.lastModified ^File (io/file resource)))
@@ -136,14 +119,14 @@
          (catch NumberFormatException _
            false))))
 
-(defn- make-directory-snapshot [workspace ^File root]
-  (assert (and root (.isDirectory root)))
-  (let [resources (resource/children (make-file-tree workspace root))]
-    {:resources resources
-     :status-map (into {}
-                       (comp resource/xform-recursive-resources
-                             (map file-resource-status-map-entry))
-                       resources)}))
+(defn- make-directory-snapshot [workspace ^File mount-root ^File root editable-proj-path? unloaded-proj-path?]
+  (let [{:keys [tree versions]} (resource/load-directory-resources workspace mount-root root
+                                                                (partial file-resource-filter mount-root)
+                                                                editable-proj-path? unloaded-proj-path?)]
+    {:resources tree
+     :status-map (coll/into-> versions {}
+                   (map (fn [[proj-path version]]
+                          (pair proj-path {:version version :source :directory}))))}))
 
 (def empty-snapshot
   {:resources []
@@ -180,18 +163,13 @@
                     (.getAbsolutePath (io/file "bundle-resources"))
                     (system/defold-unpack-path))
         root (io/file base-path "_defold/debugger")
-        ;; Supplying this mount-root derived from the base-path appears to
-        ;; produce a strange file-resource-filter inside make-file-tree, which
-        ;; won't include defignore patterns and so on. It probably won't matter
-        ;; for this case, since this directory will not have any of those files
-        ;; below it anyway.
-        mount-root (io/file base-path)
-        resources (resource/children (make-file-tree workspace mount-root root fn/constantly-false fn/constantly-false))]
-    {:resources resources
-     :status-map (into {}
-                       (comp resource/xform-recursive-resources
-                             (map file-resource-status-map-entry))
-                       resources)}))
+        ;; This mount-root is outside the project, so file-resource-filter in
+        ;; make-directory-snapshot won't apply the project's defignore patterns.
+        ;; The debugger directory is not expected to contain files that need
+        ;; those exclusions. It also uses neither the project's editability
+        ;; nor its unloaded-resource settings.
+        mount-root (io/file base-path)]
+    (make-directory-snapshot workspace mount-root root fn/constantly-false fn/constantly-false)))
 
 (defn update-snapshot-status [snapshot file-resource-status-map-entries]
   (assert (every? file-resource-status-map-entry? file-resource-status-map-entries))
@@ -199,17 +177,17 @@
 
 (defn make-snapshot-info [workspace project-directory library-uris snapshot-cache]
   (resource/with-defignore-pred project-directory
-    (let [lib-results (library/cached project-directory library-uris)
+    (let [basis (g/now)
+          editable-proj-path? (g/raw-property-value basis workspace :editable-proj-path?)
+          unloaded-proj-path? (g/raw-property-value basis workspace :unloaded-proj-path?)
+          lib-results (library/cached project-directory library-uris)
           new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-results)
           snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
-                                            (make-directory-snapshot workspace project-directory)
+                                            (make-directory-snapshot workspace project-directory project-directory editable-proj-path? unloaded-proj-path?)
                                             (make-debugger-snapshot workspace)
-                                            (make-library-snapshots new-library-snapshot-cache lib-results)))
-          {:keys [resources status-map cache]} (gltf/make-snapshot (:resources snapshot)
-                                                                 (:status-map snapshot)
-                                                                 (::gltf-expansions snapshot-cache))]
-      {:snapshot (assoc snapshot :resources resources :status-map status-map)
-       :snapshot-cache (assoc new-library-snapshot-cache ::gltf-expansions cache)})))
+                                            (make-library-snapshots new-library-snapshot-cache lib-results)))]
+      {:snapshot snapshot
+       :snapshot-cache new-library-snapshot-cache})))
 
 (defn make-resource-map [snapshot]
   (into {}

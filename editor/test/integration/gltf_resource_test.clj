@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.gltf-resource-test
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
@@ -24,14 +25,17 @@
             [editor.model-scene :as model-scene]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
+            [editor.resource-watch :as resource-watch]
             [editor.texture-util :as texture-util]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :as test-support :refer [with-clean-system]])
+            [support.test-support :as test-support :refer [with-clean-system]]
+            [util.coll :as coll])
   (:import [java.awt.image BufferedImage]
            [java.io ByteArrayOutputStream IOException]
            [java.net URI]
+           [java.nio ByteBuffer ByteOrder]
            [java.nio.charset StandardCharsets]
            [java.util Base64]
            [java.util.zip ZipEntry ZipOutputStream]
@@ -52,7 +56,7 @@
         "\"scene\":0,"
         "\"scenes\":[{\"nodes\":[0]}],"
         "\"nodes\":[{\"mesh\":0,\"name\":\"Node0\"}],"
-        "\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1}]}],"
+        "\"meshes\":[{\"name\":\"Body\",\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1}]}],"
         "\"buffers\":[{\"uri\":\""
         buffer-uri
         "\",\"byteLength\":42}],"
@@ -82,6 +86,11 @@
     (when-not (ImageIO/write image "png" output)
       (throw (IOException. "No PNG writer is available")))
     (.toByteArray output)))
+
+(defn- embedded-gltf-content [material-name]
+  (string/replace (gltf-content material-name)
+                  "albedo.png"
+                  (str "data:image/png;base64," (.encodeToString (Base64/getEncoder) (png-bytes 0xff336699)))))
 
 (defn- proj-paths [resources]
   (into #{} (map resource/proj-path) resources))
@@ -121,6 +130,15 @@
                 (workspace/resource-sync! workspace))
               (f project-path workspace (test-util/setup-project! workspace)))))))))
 
+(defn- preview-texture-paths
+  "Returns the image paths connected to the source scene's preview bindings."
+  [source-node]
+  (into []
+        (comp (filter #(g/node-instance? model-scene/GltfPreviewMaterialBinding %))
+              (mapcat #(g/node-value % :nodes))
+              (map #(resource/proj-path (g/node-value % :texture))))
+        (g/node-value source-node :nodes)))
+
 (deftest discovers-assets-from-files-and-zip-entries
   (doseq [origin [:file :zip]]
     (testing origin
@@ -128,26 +146,80 @@
         (fn [_project-path workspace _project]
           (let [source (workspace/find-resource workspace "/models/robot.gltf")
                 material (workspace/find-resource workspace "/models/robot.gltf/materials/0.material")
-                mesh (workspace/find-resource workspace "/models/robot.gltf/meshes/Mesh 0")]
-            (is (= #{"/models/robot.gltf/images" "/models/robot.gltf/materials" "/models/robot.gltf/meshes"}
+                mesh (workspace/find-resource workspace "/models/robot.gltf/meshes/Body")]
+            (is (= #{"/models/robot.gltf/materials" "/models/robot.gltf/meshes"}
                    (proj-paths (resource/children source))))
             (is (= :file (resource/source-type source)))
             (is (resource/openable? source))
             (is (= "robot.gltf" (resource/resource-name source)))
             (is (resource/openable? mesh))
-            (is (= "robot.gltf : Mesh 0" (resource/resource-name mesh)))
+            (is (= "robot.gltf : Body" (resource/resource-name mesh)))
             (is (= "icons/32/Icons_27-AT-Mesh.png" (workspace/resource-icon mesh)))
             (is (resource/read-only? material))
             (is (= "Paint [0].material" (resource/resource-name material)))
             (is (not (resource/save-tracked? material)))
             (is (string/includes? (slurp material) "name: \"Paint\""))
             (is (thrown? Exception (io/output-stream material)))
-            (is (thrown? IOException (io/input-stream mesh)))))))))
+            (is (string/includes? (slurp mesh) "mesh_index: 0"))))))))
+
+(deftest unnamed-meshes-render-without-exposing-resources
+  (doseq [origin [:file :zip]]
+    (with-gltf-project origin (string/replace (gltf-content "Paint") "\"name\":\"Body\"," "")
+      (fn [_project-path workspace project]
+        (let [source-path "/models/robot.gltf"
+              source-node (test-util/resource-node project source-path)]
+          (is (nil? (workspace/find-resource workspace (str source-path "/meshes"))))
+          (is (not (g/error-value? (g/node-value source-node :scene))))
+          (is (= 1 (count (get-in (g/node-value source-node :content) [:mesh-set :models])))))))))
+
+(deftest touching-containers-preserves-embedded-resources
+  (doseq [origin [:file :zip]]
+    (testing origin
+      (with-gltf-project origin (gltf-content "Paint")
+        (fn [project-path workspace project]
+          (let [container-file (if (= :file origin)
+                                 (io/file project-path "models/robot.gltf")
+                                 (test-support/library-file (io/file project-path) (URI/create "file:/gltf-resource-test") ""))
+                mesh-path "/models/robot.gltf/meshes/Body"
+                mesh-node (test-util/resource-node project mesh-path)
+                old-snapshot (g/node-value workspace :resource-snapshot)]
+            (test-support/touch-until-new-mtime container-file)
+            (workspace/resource-sync! workspace)
+            (let [changes (resource-watch/diff old-snapshot (g/node-value workspace :resource-snapshot))]
+              (is (contains? (proj-paths (:changed changes)) "/models/robot.gltf"))
+              (is (coll/not-any? #(string/starts-with? (resource/proj-path %) "/models/robot.gltf/")
+                                 (:changed changes)))
+              (is (= mesh-node (test-util/resource-node project mesh-path))))))))))
+
+(deftest mesh-previews-update-without-replacing-embedded-resources
+  (with-gltf-project :file (gltf-content "Paint")
+    (fn [project-path workspace project]
+      (let [source-file (io/file project-path "models/robot.gltf")
+            mesh-path "/models/robot.gltf/meshes/Body"
+            mesh-node (test-util/resource-node project mesh-path)
+            old-scene (g/node-value mesh-node :scene)]
+        (is (not (g/error-value? old-scene)))
+        (let [geometry-bytes (byte-array geometry-buffer-bytes)]
+          (doto (ByteBuffer/wrap geometry-bytes)
+            (.order ByteOrder/LITTLE_ENDIAN)
+            (.putFloat 12 2.0))
+          (test-support/write-until-new-mtime
+            source-file
+            (json/write-str
+              (-> (json/read-str (gltf-content "Paint") :key-fn keyword)
+                  (assoc-in [:buffers 0 :uri] (str "data:application/octet-stream;base64,"
+                                                  (.encodeToString (Base64/getEncoder) geometry-bytes)))
+                  (assoc-in [:accessors 0 :max] [2 1 0])))))
+        (workspace/resource-sync! workspace)
+        (is (= mesh-node (test-util/resource-node project mesh-path)))
+        (let [scene (g/node-value mesh-node :scene)]
+          (is (not (g/error-value? scene)))
+          (is (not= (:aabb old-scene) (:aabb scene))))))))
 
 (deftest embedded-resource-names-are-safe-filenames
   (doseq [origin [:file :zip]]
     (testing origin
-      (with-gltf-project origin (-> (gltf-content "Paint/Chrome")
+      (with-gltf-project origin (-> (embedded-gltf-content "Paint/Chrome")
                                    (string/replace "\"Albedo\"" "\"Albedo/Chrome\"")
                                    (string/replace "albedo.png" "../albedo.png"))
         (fn [_project-path workspace _project]
@@ -159,7 +231,7 @@
               (is (= original-name (:name (gltf/asset-info resource)))))))))))
 
 (deftest embedded-assets-appear-in-resource-dialogs
-  (with-gltf-project :file (gltf-content "Paint")
+  (with-gltf-project :file (embedded-gltf-content "Paint")
     (fn [_project-path workspace _project]
       (let [choices (atom #{})]
         (with-redefs [dialogs/make-select-list-dialog
@@ -169,7 +241,9 @@
           (resource-dialog/make workspace nil {:ext "material"})
           (is (contains? @choices "/models/robot.gltf/materials/0.material"))
           (resource-dialog/make workspace nil {:ext "png"})
-          (is (contains? @choices "/models/robot.gltf/images/0.png")))))))
+          (is (contains? @choices "/models/robot.gltf/images/0.png"))
+          (resource-dialog/make workspace nil {:ext "model"})
+          (is (not (contains? @choices "/models/robot.gltf/meshes/Body"))))))))
 
 (deftest external-images-refresh-without-reloading-the-container
   (doseq [origin [:file :zip]]
@@ -177,19 +251,18 @@
       (with-gltf-project origin (string/replace (gltf-content "Paint") "albedo.png" "../albedo.png")
         (fn [project-path workspace project]
           (let [source-node (test-util/resource-node project "/models/robot.gltf")
-                image-node (test-util/resource-node project "/models/robot.gltf/images/0.png")
                 source (workspace/find-resource workspace "/models/robot.gltf")
-                bindings (gltf/material-binding-descriptors source nil)
+                resolve-resource (partial workspace/resolve-workspace-resource workspace)
+                bindings (gltf/material-binding-descriptors source nil resolve-resource)
                 image-file (io/file project-path "albedo.png")]
-            (fs/create-parent-directories! image-file)
             (is (= 5 (count (:textures (first bindings)))))
-            (is (g/error-value? (g/node-value image-node :content-generator)))
+            (is (= (vec (repeat 5 "/albedo.png")) (preview-texture-paths source-node)))
             (doseq [color [0xff336699 0xffcc8844]]
               (test-support/write-until-new-mtime image-file (png-bytes color))
               (workspace/resource-sync! workspace)
               (is (= source-node (test-util/resource-node project "/models/robot.gltf")))
-              (is (= image-node (test-util/resource-node project "/models/robot.gltf/images/0.png")))
-              (let [generator (g/node-value image-node :content-generator)]
+              (let [image-node (test-util/resource-node project "/albedo.png")
+                    generator (g/node-value image-node :content-generator)]
                 (is (not (g/error-value? generator)))
                 (when-not (g/error-value? generator)
                   (let [^BufferedImage image (texture-util/call-generator generator)]
@@ -197,14 +270,15 @@
             (fs/delete-file! image-file)
             (workspace/resource-sync! workspace)
             (is (= source-node (test-util/resource-node project "/models/robot.gltf")))
-            (is (= bindings (gltf/material-binding-descriptors (workspace/find-resource workspace "/models/robot.gltf") nil)))
-            (is (g/error-value? (g/node-value image-node :content-generator)))))))))
+            (is (= bindings (gltf/material-binding-descriptors (workspace/find-resource workspace "/models/robot.gltf") nil resolve-resource)))
+            (is (= (vec (repeat 5 "/albedo.png")) (preview-texture-paths source-node)))
+            (is (nil? (workspace/find-resource workspace "/albedo.png")))))))))
 
 (deftest images-in-the-same-zip-refresh-with-the-library
   (with-gltf-project :zip (gltf-content "Paint")
     (fn [project-path workspace project]
       (let [archive (test-support/library-file (io/file project-path) (URI/create "file:/gltf-resource-test") "")
-            image-path "/models/robot.gltf/images/0.png"]
+            image-path "/models/albedo.png"]
         (doseq [color [0xff336699 0xffcc8844]]
           (let [bytes (png-bytes color)]
             (write-library-zip! archive
@@ -216,7 +290,7 @@
             (let [image (workspace/find-resource workspace image-path)
                   node (test-util/resource-node project image-path)
                   generator (g/node-value node :content-generator)]
-              (is (resource/zip-resource? (resource/entry-source image)))
+              (is (resource/zip-resource? image))
               (is (resource/zip-resource? (workspace/find-resource workspace "/models/albedo.png")))
               (is (= (vec bytes) (vec (resource/resource->bytes image))))
               (is (not (g/error-value? generator)))
@@ -226,33 +300,30 @@
                             [["game.project" "[library]\ninclude_dirs = models\n"]
                              ["models/robot.gltf" (gltf-content "Paint")]])
         (workspace/resource-sync! workspace)
-        (is (g/error-value? (g/node-value (test-util/resource-node project image-path) :content-generator)))))))
+        (is (nil? (workspace/find-resource workspace image-path)))))))
 
-(deftest extensionless-images-appear-and-refresh-after-import
-  (with-gltf-project :file (string/replace (gltf-content "Paint")
-                                           "\"uri\":\"albedo.png\",\"mimeType\":\"image/png\""
-                                           "\"uri\":\"albedo\"")
-    (fn [project-path workspace project]
-      (let [image-file (io/file project-path "models/albedo")
-            source-path "/models/robot.gltf"
-            image-path (str source-path "/images/0.png")]
-        (is (nil? (workspace/find-resource workspace image-path)))
-        (doseq [color [0xff336699 0xffcc8844]]
-          (test-support/write-until-new-mtime image-file (png-bytes color))
-          (workspace/resource-sync! workspace)
-          (let [bindings (gltf/material-binding-descriptors (workspace/find-resource workspace source-path) nil)
-                node (test-util/resource-node project image-path)
-                generator (g/node-value node :content-generator)]
-            (is (= 5 (count (:textures (first bindings)))))
-            (is (not (g/error-value? generator)))
-            (when-not (g/error-value? generator)
-              (is (= (unchecked-int color) (.getRGB ^BufferedImage (texture-util/call-generator generator) 0 0))))))))))
+(deftest external-image-discovery-does-not-read-siblings
+  (doseq [origin [:file :zip]
+          uri ["albedo" "albedo.ktx2" "../textures/albedo%20map.png"]]
+    (with-gltf-project origin (string/replace (gltf-content "Paint") "albedo.png" uri)
+      (fn [_project-path workspace _project]
+        (let [source (workspace/find-resource workspace "/models/robot.gltf")
+              resolve-resource (partial workspace/resolve-workspace-resource workspace)
+              image-path (gltf/uri->proj-path "/models/robot.gltf" uri)
+              bindings (gltf/material-binding-descriptors source nil resolve-resource)]
+          (is (nil? (workspace/find-resource workspace "/models/robot.gltf/images")))
+          (is (= [image-path] (gltf/external-image-paths source)))
+          (is (= (vec (repeat 5 image-path))
+                 (mapv (comp resource/proj-path :texture) (:textures (first bindings)))))
+          (is (= [image-path]
+                 (mapv (comp resource/proj-path :image)
+                       (:textures (gltf/metadata-descriptors source resolve-resource))))))))))
 
 (deftest missing-geometry-does-not-hide-container-assets
   (with-gltf-project :file (gltf-content "Paint" "geometry.bin")
     (fn [project-path workspace project]
       (let [source-node (test-util/resource-node project "/models/robot.gltf")
-            bindings (gltf/material-binding-descriptors (workspace/find-resource workspace "/models/robot.gltf") nil)]
+            bindings (gltf/material-binding-descriptors (workspace/find-resource workspace "/models/robot.gltf") nil (partial workspace/resolve-workspace-resource workspace))]
         (is (= ["Paint"] (mapv :name bindings)))
         (is (g/error-value? (g/node-value source-node :content)))
         (fs/create-file! (io/file project-path "models/geometry.bin") geometry-buffer-bytes)
@@ -279,7 +350,7 @@
   (doseq [[renamed-resource-path target-source-path] [["/models/robot.gltf" "/models/renamed.gltf"]
                                                      ["/models" "/renamed/robot.gltf"]]]
     (testing renamed-resource-path
-      (with-gltf-project :file (gltf-content "Paint")
+      (with-gltf-project :file (embedded-gltf-content "Paint")
         (fn [_project-path workspace project]
           (let [changes (atom nil)
                 source-path "/models/robot.gltf"
@@ -294,7 +365,7 @@
                                   "renamed" test-util/localization)
             (let [moves (mapv #(mapv resource/proj-path %) (:moved @changes))]
               (is (= (count moves) (count (set moves))))
-              (doseq [suffix ["" "/materials/0.material" "/images/0.png" "/meshes/Mesh 0"]]
+              (doseq [suffix ["" "/materials/0.material" "/images/0.png" "/meshes/Body"]]
                 (is (contains? (set moves) [(str source-path suffix) (str target-source-path suffix)]))))
             (is (= source-node (test-util/resource-node project target-source-path)))
             (is (not (resource/exists? old-material)))
@@ -324,77 +395,47 @@
               (fs/delete-file! image-file))
             (workspace/resource-sync! workspace)
             (let [source (workspace/find-resource workspace "/models/robot.gltf")
-                  {:keys [materials textures]} (gltf/metadata-descriptors source)]
+                  {:keys [materials textures]} (gltf/metadata-descriptors source (partial workspace/resolve-workspace-resource workspace))]
               (is (= [1] (mapv :image-index textures)))
               (is (:basisu (first textures)))
               (is (= "Material 0" (:name (first materials))))
-              (is (= ["gltf_material_0"] (mapv :name (gltf/material-binding-descriptors source nil)))))))))))
+              (is (= ["gltf_material_0"] (mapv :name (gltf/material-binding-descriptors source nil (partial workspace/resolve-workspace-resource workspace))))))))))))
 
-(deftest changing-an-image-uri-tracks-the-new-content-source
+(deftest changing-an-image-uri-updates-preview-bindings
   (with-gltf-project :file (gltf-content "Paint")
     (fn [project-path workspace project]
       (let [source-file (io/file project-path "models/robot.gltf")
-            old-image-file (io/file project-path "models/albedo.png")
-            new-image-file (io/file project-path "models/other.png")
-            image-path "/models/robot.gltf/images/0.png"]
-        (test-support/write-until-new-mtime old-image-file (png-bytes 0xff112233))
-        (test-support/write-until-new-mtime new-image-file (png-bytes 0xff445566))
+            source-path "/models/robot.gltf"]
+        (is (= (vec (repeat 5 "/models/albedo.png"))
+               (preview-texture-paths (test-util/resource-node project source-path))))
+        (test-support/write-until-new-mtime source-file
+                                          (string/replace (gltf-content "Paint") "albedo.png" "other.png"))
         (workspace/resource-sync! workspace)
-        (let [image-node (test-util/resource-node project image-path)]
-          (g/node-value image-node :content-generator)
-          (test-support/write-until-new-mtime source-file (string/replace (gltf-content "Paint") "albedo.png" "other.png"))
-          (workspace/resource-sync! workspace)
-          (is (= image-node (test-util/resource-node project image-path)))
-          (let [generator (g/node-value image-node :content-generator)
-                sha256 (g/node-value image-node :sha256)
-                build-target (first (g/node-value image-node :build-targets))]
-            (is (not (g/error-value? generator)))
-            (test-support/write-until-new-mtime new-image-file (png-bytes 0xff778899))
-            (workspace/resource-sync! workspace)
-            (let [updated-generator (g/node-value image-node :content-generator)]
-              (is (not (g/error-value? updated-generator)))
-              (is (not= (:sha1 generator) (:sha1 updated-generator)))
-              (is (not= sha256 (g/node-value image-node :sha256)))
-              (is (not= (:content-hash build-target)
-                        (:content-hash (first (g/node-value image-node :build-targets)))))
-              (when-not (g/error-value? updated-generator)
-                (is (= (unchecked-int 0xff778899)
-                       (.getRGB ^BufferedImage (texture-util/call-generator updated-generator) 0 0))))
-              (test-support/write-until-new-mtime old-image-file (png-bytes 0xffaabbcc))
-              (workspace/resource-sync! workspace)
-              (is (identical? updated-generator (g/node-value image-node :content-generator))))))))))
+        (is (= (vec (repeat 5 "/models/other.png"))
+               (preview-texture-paths (test-util/resource-node project source-path))))))))
 
-(defn- preview-texture-paths
-  "Returns the image paths connected to the source scene's preview bindings."
-  [source-node]
-  (into []
-        (comp (filter #(g/node-instance? model-scene/GltfPreviewMaterialBinding %))
-              (mapcat #(g/node-value % :nodes))
-              (map #(resource/proj-path (g/node-value % :texture))))
-        (g/node-value source-node :nodes)))
-
-(deftest extensionless-images-refresh-preview-bindings
+(deftest external-images-keep-preview-bindings
   (with-gltf-project :file (string/replace (gltf-content "Paint")
                                            "\"uri\":\"albedo.png\",\"mimeType\":\"image/png\""
                                            "\"uri\":\"albedo\"")
     (fn [project-path workspace project]
       (let [image-file (io/file project-path "models/albedo")
             source-path "/models/robot.gltf"
-            image-path (str source-path "/images/0.png")]
-        (is (= [] (preview-texture-paths (test-util/resource-node project source-path))))
+            image-path "/models/albedo"]
+        (is (= (vec (repeat 5 image-path)) (preview-texture-paths (test-util/resource-node project source-path))))
         (doseq [available [true false true]]
           (if available
             (test-support/write-until-new-mtime image-file (png-bytes 0xff336699))
             (fs/delete-file! image-file))
           (log/without-logging (workspace/resource-sync! workspace))
           (let [source-node (test-util/resource-node project source-path)]
-            (is (= (if available (vec (repeat 5 image-path)) [])
+            (is (= (vec (repeat 5 image-path))
                    (preview-texture-paths source-node)))
             (is (= (workspace/find-resource workspace source-path)
                    (g/node-value source-node :resource)))))))))
 
 (deftest container-outline-links-follow-renames
-  (with-gltf-project :file (gltf-content "Paint")
+  (with-gltf-project :file (embedded-gltf-content "Paint")
     (fn [_project-path workspace project]
       (let [source-path "/models/robot.gltf"
             renamed-path "/models/renamed.gltf"
@@ -410,3 +451,90 @@
                  (proj-paths links)))
           (doseq [link links]
             (is (resource/exists? link))))))))
+
+(deftest buffer-backed-images-reload-when-buffers-change
+  (doseq [origin [:file :zip]]
+    (testing origin
+      (let [image-bytes (png-bytes 0xff336699)
+            content (json/write-str
+                      {:asset {:version "2.0"}
+                       :buffers [{:uri "../images.bin" :byteLength (+ 4 (alength image-bytes))}]
+                       :bufferViews [{:buffer 0 :byteOffset 4 :byteLength (alength image-bytes)}]
+                       :images [{:bufferView 0 :mimeType "image/png"}]}
+                      :escape-slash false)]
+        (with-gltf-project origin content
+          (fn [project-path workspace project]
+            (let [source-path "/models/robot.gltf"
+                  image-path (str source-path "/images/0.png")
+                  buffer-file (io/file project-path "images.bin")
+                  build-outputs (atom [])]
+              (let [image-node (test-util/resource-node project image-path)]
+                (is (g/error-value? (g/node-value image-node :content-generator)))
+                (is (g/error-value? (g/node-value image-node :size))))
+              (doseq [color [0xff336699 0xffcc8844]]
+                (let [bytes (png-bytes color)]
+                  (test-support/write-until-new-mtime buffer-file
+                                                    (byte-array (into [0 0 0 0] bytes))))
+                (workspace/resource-sync! workspace)
+                (let [image-node (test-util/resource-node project image-path)
+                      generator (g/node-value image-node :content-generator)]
+                  (is (= {:width 1 :height 1} (g/node-value image-node :size)))
+                  (is (not (g/error-value? generator)))
+                  (when-not (g/error-value? generator)
+                    (is (= (unchecked-int color)
+                           (.getRGB ^BufferedImage (texture-util/call-generator generator) 0 0))))
+                  (with-open [_build (test-util/build! image-node)]
+                    (swap! build-outputs conj (vec (test-util/node-build-output image-node))))))
+              (is (= 2 (count (set @build-outputs))))
+              (fs/delete-file! buffer-file)
+              (workspace/resource-sync! workspace)
+              (let [image-node (test-util/resource-node project image-path)]
+                (is (g/error-value? (g/node-value image-node :content-generator)))
+                (is (g/error-value? (g/node-value image-node :size))))
+              (test-support/write-until-new-mtime buffer-file (byte-array (into [0 0 0 0] image-bytes)))
+              (workspace/resource-sync! workspace)
+              (let [image-node (test-util/resource-node project image-path)]
+                (is (= {:width 1 :height 1} (g/node-value image-node :size)))
+                (is (not (g/error-value? (g/node-value image-node :content-generator))))))))))))
+
+(deftest glb-image-content-depends-on-its-container
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_deleter (test-util/make-directory-deleter project-path)]
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)
+              project (test-util/setup-project! workspace)
+              source-file (io/file project-path "image.glb")]
+          (doseq [color [0xff336699 0xffcc8844]]
+            (let [image-bytes (png-bytes color)
+                  json-bytes (.getBytes (json/write-str
+                                         {:asset {:version "2.0"}
+                                          :buffers [{:byteLength (alength image-bytes)}]
+                                          :bufferViews [{:buffer 0 :byteLength (alength image-bytes)}]
+                                          :images [{:bufferView 0 :mimeType "image/png"}]}
+                                         :escape-slash false)
+                                       StandardCharsets/UTF_8)
+                  json-length (bit-and (+ (alength json-bytes) 3) -4)
+                  binary-length (bit-and (+ (alength image-bytes) 3) -4)
+                  length (+ 28 json-length binary-length)
+                  glb (doto (ByteBuffer/allocate length)
+                        (.order ByteOrder/LITTLE_ENDIAN)
+                        (.putInt 0x46546c67)
+                        (.putInt 2)
+                        (.putInt length)
+                        (.putInt json-length)
+                        (.putInt 0x4e4f534a)
+                        (.put json-bytes))]
+              (while (< (.position glb) (+ 20 json-length))
+                (.put glb (byte 32)))
+              (doto glb
+                (.putInt binary-length)
+                (.putInt 0x004e4942)
+                (.put image-bytes))
+              (test-support/write-until-new-mtime source-file (.array glb)))
+            (workspace/resource-sync! workspace)
+            (let [node (test-util/resource-node project "/image.glb/images/0.png")
+                  generator (g/node-value node :content-generator)]
+              (is (not (g/error-value? generator)))
+              (when-not (g/error-value? generator)
+                (is (= (unchecked-int color)
+                       (.getRGB ^BufferedImage (texture-util/call-generator generator) 0 0)))))))))))

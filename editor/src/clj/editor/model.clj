@@ -83,7 +83,10 @@
   "Prepares available material bindings and records whether applying them would replace existing ones."
   [evaluation-context node-id source-resource material-indices]
   (when-let [descriptors (and (gltf-source-resource? source-resource)
-                              (coll/not-empty (gltf/material-binding-descriptors source-resource material-indices)))]
+                              (coll/not-empty
+                                (gltf/material-binding-descriptors
+                                  source-resource material-indices
+                                  (workspace/make-proj-path->resource-fn (resource/workspace source-resource) evaluation-context))))]
     (let [material-binding-infos (g/node-value node-id :material-binding-infos evaluation-context)]
       {:node-id node-id
        :source-resource source-resource
@@ -518,7 +521,7 @@
   (reify resource/Resource
     (children [_])
     (ext [_] "")
-    (resource-type [_])
+    (resource-type* [_ _resource-types])
     (source-type [_])
     (exists? [_] false)
     (read-only? [_] true)
@@ -657,13 +660,20 @@
             (dynamic label (properties/label-dynamic :model :scene))
             (dynamic tooltip (properties/tooltip-dynamic :model :scene)))
   (property mesh-name g/Str
-            (default "")
+            (default (protobuf/default ModelProto$ModelDesc :mesh-name))
             (dynamic visible (g/constantly false)))
   (property mesh-index g/Int
-            (default -1)
+            (default (protobuf/default ModelProto$ModelDesc :mesh-index))
             (value (g/fnk [^:try collision-meshes mesh-index mesh-name]
-                     (if (g/error-value? collision-meshes)
+                     (cond
+                       (and (str/blank? mesh-name)
+                            (= mesh-index (protobuf/default ModelProto$ModelDesc :mesh-index)))
+                       -1
+
+                       (g/error-value? collision-meshes)
                        mesh-index
+
+                       :else
                        (or (:index (model-loader/resolve-named-mesh collision-meshes mesh-name mesh-index))
                            mesh-index))))
             (set set-mesh-index)
@@ -812,7 +822,7 @@
         default-animation :default-animation
         mesh (resolve-resource :mesh)
         mesh-name :mesh-name
-        mesh-index (:mesh-index :or -1)
+        mesh-index :mesh-index
         skeleton (resolve-resource :skeleton)
         animations (resolve-resource :animations)
         create-go-bones :create-go-bones)

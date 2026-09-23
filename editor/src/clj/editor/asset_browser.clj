@@ -150,7 +150,8 @@
     (mapv path->resource roots)))
 
 (defn- temp-resource-file! [^File dir resource]
-  (let [target (File. dir (resource/resource-name resource))]
+  (let [{:keys [export-name-fn]} (resource/resource-type resource)
+        target (File. dir ^String (export-name-fn resource))]
     (if (= :file (resource/source-type resource))
       (with-open [in (io/input-stream resource)
                   out (io/output-stream target)]
@@ -185,9 +186,7 @@
 
 (handler/defhandler :edit.copy :asset-browser
   (enabled? [selection]
-    (let [resources (filterv resource/resource? selection)]
-      (and (coll/not-empty resources)
-           (coll/every? resource/has-content? resources))))
+    (coll/any? resource/resource? selection))
   (run [selection]
     (copy (fileify-resources! (roots (filterv resource/resource? selection))))))
 
@@ -783,7 +782,7 @@
 
 (defn- drag-detected [^MouseEvent e selection]
   (let [resources (roots (filterv resource/resource? selection))
-        files (fileify-resources! (filterv resource/has-content? resources))
+        files (fileify-resources! resources)
         paths (->> resources
                    (mapv resource/proj-path)
                    (string/join "\n"))

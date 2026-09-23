@@ -70,7 +70,7 @@
        "\"scene\":0,"
        "\"scenes\":[{\"nodes\":[0]}],"
        "\"nodes\":[{\"mesh\":0,\"name\":\"PreviewNode\"}],"
-       "\"meshes\":[{\"primitives\":["
+       "\"meshes\":[{\"name\":\"Body\",\"primitives\":["
        "{\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":1},\"indices\":2,\"material\":0},"
        "{\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":1},\"indices\":2,\"material\":1}]}],"
        "\"buffers\":[" buffer-json "],"
@@ -298,7 +298,7 @@
                 (is (= "icons/32/Icons_27-AT-Mesh.png" (:icon source-outline)))
                 (is (= ["Meshes" "Materials" "Textures"]
                        (mapv (comp test-util/localization :label) groups)))
-                (is (= ["Mesh 0"] (mapv :label (:children meshes-group))))
+                (is (= ["Body"] (mapv :label (:children meshes-group))))
                 (is (= ["Shared [0]" "Shared [1]"] (mapv :label material-outlines)))
                 (is (= ["PaintAlbedoTexture" "ChromeAlbedoTexture"]
                        (mapv :label texture-outlines)))
@@ -326,8 +326,8 @@
                                               (= :self-selected (:selected %)))
                                         (get-in scene-render-data [:renderables pass/outline]))]
                   (assert-read-only-property mesh-node-id :index 0)
-                  (assert-read-only-property mesh-node-id :name "Mesh 0")
-                  (assert-read-only-property mesh-node-id :name-generated true)
+                  (assert-read-only-property mesh-node-id :name "Body")
+                  (assert-read-only-property mesh-node-id :name-generated false)
                   (assert-read-only-property mesh-node-id :primitive-count 2)
                   (assert-read-only-property mesh-node-id :vertex-count 6)
                   (assert-selected-property app-view mesh-node-id :primitive-count 2)

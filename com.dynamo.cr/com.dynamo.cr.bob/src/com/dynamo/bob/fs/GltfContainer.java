@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -41,6 +42,7 @@ import org.apache.commons.io.FilenameUtils;
 import com.dynamo.bob.pipeline.ModelImporterJni;
 import com.dynamo.bob.pipeline.ModelUtil;
 import com.dynamo.bob.pipeline.Modelimporter;
+import com.dynamo.gamesys.proto.ModelProto;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.google.protobuf.TextFormat;
 
@@ -60,13 +62,14 @@ public final class GltfContainer {
         MESH
     }
 
-    /** Immutable metadata for a glTF texture and its selected virtual image. */
+    /** Immutable metadata for a glTF texture and its selected image. */
     public record TextureMetadata(int index, String name, int samplerIndex, int minFilter, int magFilter,
                                   int wrapS, int wrapT, boolean basisu) {}
 
     /**
      * Immutable native-backed relationship from a generated material sampler to
-     * the virtual image asset that supplies it.
+     * the image that supplies it. Embedded image paths are container-relative;
+     * external image paths are project-absolute (starting with a slash).
      */
     public record SamplerBinding(String samplerName, int materialIndex, int textureIndex,
                                  int imageIndex, String imagePath) {}
@@ -191,8 +194,8 @@ public final class GltfContainer {
         private final int vertexCount;
 
         MeshMetadata(String path, int index, String name, boolean nameGenerated,
-                     int primitiveCount, int vertexCount) {
-            super(path, AssetKind.MESH, index, name, new byte[0]);
+                     int primitiveCount, int vertexCount, ModelProto.ModelDesc model) {
+            super(path, AssetKind.MESH, index, name, TextFormat.printToString(model).getBytes(StandardCharsets.UTF_8));
             this.nameGenerated = nameGenerated;
             this.primitiveCount = primitiveCount;
             this.vertexCount = vertexCount;
@@ -203,12 +206,22 @@ public final class GltfContainer {
         public int getVertexCount() { return vertexCount; }
     }
 
+    /** An ordinary external image reference, not a resource inside this container. */
+    public record ImageReference(int index, String name, String path, String uri, String mimeType,
+                                 List<TextureMetadata> textures) {
+        public ImageReference {
+            textures = List.copyOf(textures);
+        }
+    }
+
     /** Immutable result from the native-backed, file-system-independent extractor. */
-    public record Extraction(List<Asset> assets, List<MeshMetadata> meshes, List<String> diagnostics) {
+    public record Extraction(List<Asset> assets, List<MeshMetadata> meshes, List<String> diagnostics,
+                             List<ImageReference> externalImages) {
         public Extraction {
             assets = List.copyOf(assets);
             meshes = List.copyOf(meshes);
             diagnostics = List.copyOf(diagnostics);
+            externalImages = List.copyOf(externalImages);
         }
     }
 
@@ -217,7 +230,8 @@ public final class GltfContainer {
     private static final int MAX_EXTERNAL_URI_CHARACTERS = 8192;
     private static final int MAX_DATA_URI_METADATA_CHARACTERS = 1024;
     private static final long MAX_DATA_URI_BASE64_CHARACTERS = ((MAX_IMAGE_BYTES + 2L) / 3L) * 4L;
-    private static final int MAX_MESH_PATH_NAME_BYTES = 255;
+    // Leave room for the .model suffix when a mesh is copied out.
+    private static final int MAX_MESH_PATH_NAME_BYTES = 255 - ".model".length();
 
     private final IResource sourceResource;
     private final List<GltfResource> resources;
@@ -278,8 +292,9 @@ public final class GltfContainer {
      * Extracts virtual glTF assets without requiring Bob's file-system API.
      *
      * The supplied resolver is used by native ModelImporter for external buffers
-     * and by this adapter for external image bytes. Asset paths in the result are
-     * relative to {@code sourcePath}; returned byte arrays are defensive copies.
+     * containing embedded image buffer views. External images remain references.
+     * Asset paths are relative to {@code sourcePath}; external image paths are
+     * project-absolute. Returned byte arrays are defensive copies.
      */
     public static Extraction extract(byte[] sourceBytes, String sourcePath,
                                      ModelImporterJni.DataResolver dataResolver) throws IOException {
@@ -296,28 +311,27 @@ public final class GltfContainer {
         Modelimporter.Scene scene = ModelUtil.loadScene(
                 sourceBytes, sourcePath, options, dataResolver);
 
-        return extractAssets(scene, image -> resolveImage(sourcePath, dataResolver, image));
+        return extractAssets(scene, sourcePath, GltfContainer::resolveImage);
     }
 
     /** Builds the same asset paths and bindings for eager extraction and deferred inspection. */
-    private static Extraction extractAssets(Modelimporter.Scene scene, ImageResolver imageResolver) {
+    private static Extraction extractAssets(Modelimporter.Scene scene, String sourcePath, ImageResolver imageResolver) {
         List<Asset> assets = new ArrayList<>();
         List<String> diagnostics = new ArrayList<>();
-        Map<Integer, String> imagePaths = extractImages(scene, imageResolver, assets, diagnostics);
+        List<ImageReference> externalImages = new ArrayList<>();
+        Map<Integer, String> imagePaths = extractImages(scene, sourcePath, imageResolver, assets, diagnostics, externalImages);
         extractMaterials(scene, imagePaths, assets);
-        List<MeshMetadata> meshes = extractMeshMetadata(scene);
+        List<MeshMetadata> meshes = extractMeshMetadata(scene, sourcePath, assets);
         assets.addAll(meshes);
         assets.sort(Comparator.comparing(Asset::getKind).thenComparingInt(Asset::getIndex));
-        return new Extraction(assets, meshes, diagnostics);
+        return new Extraction(assets, meshes, diagnostics, externalImages);
     }
 
     /**
      * Enumerates assets without reading external payloads or the GLB BIN chunk.
-     * If neither MIME type nor URI identifies an external image, headerResolver supplies
-     * its first eight bytes (or null if missing) for the same format detection as extract().
+     * External images are returned as references regardless of their format or existence.
      */
-    public static Extraction inspect(InputStream stream, String sourcePath,
-                                     ModelImporterJni.DataResolver headerResolver) throws IOException {
+    public static Extraction inspect(InputStream stream, String sourcePath) throws IOException {
         ModelUtil.ModelSource source = ModelUtil.readModelSource(stream);
         Modelimporter.Options options = new Modelimporter.Options();
         options.loadMaterialsOnly = true;
@@ -326,9 +340,9 @@ public final class GltfContainer {
         // The importer accepts JSON for both suffixes; sourcePath still anchors image URIs.
         Modelimporter.Scene scene = ModelUtil.loadScene(source.json(), sourcePath, options, null);
         Map<Integer, byte[]> dataBuffers = new LinkedHashMap<>();
-        return extractAssets(scene, image -> {
+        return extractAssets(scene, sourcePath, image -> {
             if (isDataUri(image.uri)) {
-                return resolveImage(sourcePath, null, image);
+                return resolveImage(image);
             }
             String mimeType = normalizedMimeType(image.mimeType);
             if (image.bufferIndex >= 0) {
@@ -360,16 +374,7 @@ public final class GltfContainer {
                 }
                 return new ResolvedImage(null, mimeType, "buffer-view", null, location);
             }
-            ImageLocation location = new ImageLocation(resolveExternalResourcePath(sourcePath, image.uri), 0, -1);
-            if (extensionForImage(mimeType, image.uri, null) == null) {
-                byte[] header = headerResolver == null ? null : headerResolver.getData(sourcePath, image.uri);
-                if (header == null) {
-                    throw new IOException(String.format("external image format cannot be determined: '%s'",
-                            uriForDiagnostic(image.uri)));
-                }
-                mimeType = mimeTypeForExtension(extensionForImage(null, image.uri, header));
-            }
-            return new ResolvedImage(image.uri, mimeType, "external-uri", null, location);
+            throw new IOException("image has neither embedded data nor a buffer view");
         });
     }
 
@@ -487,15 +492,25 @@ public final class GltfContainer {
                 new LinkedHashMap<String, SamplerBinding>(samplerBindings));
     }
 
-    private static List<MeshMetadata> extractMeshMetadata(Modelimporter.Scene scene) {
-        List<MeshMetadata> meshes = new ArrayList<MeshMetadata>();
+    private static List<MeshMetadata> extractMeshMetadata(Modelimporter.Scene scene, String sourcePath, List<Asset> assets) {
+        var meshes = new ArrayList<MeshMetadata>();
         if (scene.models == null) {
             return meshes;
         }
 
-        List<String> pathNames = meshPathNames(scene.models);
-        for (int modelOrdinal = 0; modelOrdinal < scene.models.length; ++modelOrdinal) {
-            Modelimporter.Model model = scene.models[modelOrdinal];
+        var sourceResourcePath = sourcePath.startsWith("/") ? sourcePath : "/" + sourcePath;
+        var materials = new LinkedHashMap<Integer, MaterialAsset>();
+        for (var asset : assets) {
+            if (asset instanceof MaterialAsset material) {
+                materials.put(material.getIndex(), material);
+            }
+        }
+        var models = Arrays.stream(scene.models)
+                .filter(model -> !model.nameIsGenerated && !isBlank(model.name))
+                .toArray(Modelimporter.Model[]::new);
+        List<String> pathNames = meshPathNames(models);
+        for (int modelOrdinal = 0; modelOrdinal < models.length; ++modelOrdinal) {
+            Modelimporter.Model model = models[modelOrdinal];
             int primitiveCount = model.meshes == null ? 0 : model.meshes.length;
             long vertexCount = 0;
             if (model.meshes != null) {
@@ -507,28 +522,53 @@ public final class GltfContainer {
                     }
                 }
             }
+            var modelDesc = ModelProto.ModelDesc.newBuilder()
+                    .setMesh(sourceResourcePath)
+                    .setMeshIndex(model.index)
+                    .setMeshName(model.name);
+            var usedMaterials = new LinkedHashSet<Integer>();
+            if (model.meshes != null) {
+                for (var primitive : model.meshes) {
+                    if (primitive.material != null) {
+                        usedMaterials.add(primitive.material.index);
+                    }
+                }
+            }
+            for (var materialIndex : usedMaterials) {
+                var material = materials.get(materialIndex);
+                var binding = ModelProto.Material.newBuilder()
+                        .setName(material.getMaterialDesc().getName())
+                        .setMaterial(sourceResourcePath + "/" + material.getPath());
+                for (var sampler : material.getSamplerBindings().values()) {
+                    var imagePath = sampler.imagePath();
+                    binding.addTextures(ModelProto.Texture.newBuilder()
+                            .setSampler(sampler.samplerName())
+                            .setTexture(imagePath.startsWith("/") ? imagePath : sourceResourcePath + "/" + imagePath));
+                }
+                modelDesc.addMaterials(binding);
+            }
             String path = "meshes/" + pathNames.get(modelOrdinal);
             meshes.add(new MeshMetadata(path, model.index, model.name, model.nameIsGenerated,
-                    primitiveCount, (int)vertexCount));
+                    primitiveCount, (int)vertexCount, modelDesc.build()));
         }
         return meshes;
     }
 
     private static List<String> meshPathNames(Modelimporter.Model[] models) {
-        List<String> pathNames = new ArrayList<String>(models.length);
+        var pathNames = new ArrayList<String>(models.length);
         for (Modelimporter.Model model : models) {
             String name = model.name;
-            if (model.nameIsGenerated || isBlank(name) || !isPortableFilenameSegment(name)) {
+            if (!isPortableFilenameSegment(name)) {
                 name = "Mesh " + model.index;
             }
             pathNames.add(name);
         }
 
         while (true) {
-            Map<String, List<Integer>> ordinalsByName = new LinkedHashMap<String, List<Integer>>();
+            var ordinalsByName = new LinkedHashMap<String, List<Integer>>();
             for (int ordinal = 0; ordinal < pathNames.size(); ++ordinal) {
                 String comparisonName = meshPathComparisonName(pathNames.get(ordinal));
-                List<Integer> ordinals = ordinalsByName.get(comparisonName);
+                var ordinals = ordinalsByName.get(comparisonName);
                 if (ordinals == null) {
                     ordinals = new ArrayList<Integer>();
                     ordinalsByName.put(comparisonName, ordinals);
@@ -644,8 +684,8 @@ public final class GltfContainer {
     }
 
     private static Map<Integer, String> extractImages(
-            Modelimporter.Scene scene, ImageResolver imageResolver,
-            List<Asset> assets, List<String> diagnostics) {
+            Modelimporter.Scene scene, String sourcePath, ImageResolver imageResolver,
+            List<Asset> assets, List<String> diagnostics, List<ImageReference> externalImages) {
         Map<Integer, String> imagePaths = new LinkedHashMap<Integer, String>();
         if (scene.images == null) {
             return imagePaths;
@@ -655,6 +695,10 @@ public final class GltfContainer {
         ExtractionBudget extractionBudget = new ExtractionBudget();
         for (Modelimporter.Image image : scene.images) {
             try {
+                if (image.uri != null && !image.uri.isEmpty() && !isDataUri(image.uri)) {
+                    imagePaths.put(image.index, "/" + resolveExternalResourcePath(sourcePath, image.uri));
+                    continue;
+                }
                 ResolvedImage resolvedImage = imageResolver.resolve(image);
                 extractionBudget.include(resolvedImage.content);
                 String extension = extensionForImage(
@@ -670,8 +714,14 @@ public final class GltfContainer {
                 diagnostics.add(String.format("Image %d: %s", image.index, e.getMessage()));
             }
         }
-        // Select texture images only after all extraction successes and failures are known.
+        // Select texture images after collecting both embedded assets and external references.
         for (Modelimporter.Image image : scene.images) {
+            String imagePath = imagePaths.get(image.index);
+            if (imagePath != null && imagePath.startsWith("/")) {
+                externalImages.add(new ImageReference(image.index, image.name, imagePath, image.uri,
+                        normalizedMimeType(image.mimeType), textureMetadata(scene, image.index, imagePaths)));
+                continue;
+            }
             ResolvedImage resolvedImage = resolvedImages.remove(image.index);
             if (resolvedImage == null) {
                 continue;
@@ -721,27 +771,17 @@ public final class GltfContainer {
     private record ResolvedImage(String uri, String mimeType, String sourceKind,
                                  byte[] content, ImageLocation location) {}
 
-    private static ResolvedImage resolveImage(String sourcePath, ModelImporterJni.DataResolver dataResolver,
-                                              Modelimporter.Image image) throws IOException {
+    private static ResolvedImage resolveImage(Modelimporter.Image image) throws IOException {
         String uri = image.uri;
         String mimeType = normalizedMimeType(image.mimeType);
-        if (uri != null && !uri.isEmpty()) {
-            if (isDataUri(uri)) {
-                DataUri dataUri = decodeDataUri(uri);
-                if (mimeType != null && dataUri.mimeType != null && !mimeType.equals(dataUri.mimeType)) {
-                    throw new IOException(String.format("image MIME type '%s' conflicts with data URI MIME type '%s'",
-                            mimeType, dataUri.mimeType));
-                }
-                return new ResolvedImage(uri, mimeType == null ? dataUri.mimeType : mimeType,
-                        "data-uri", dataUri.content, null);
+        if (isDataUri(uri)) {
+            DataUri dataUri = decodeDataUri(uri);
+            if (mimeType != null && dataUri.mimeType != null && !mimeType.equals(dataUri.mimeType)) {
+                throw new IOException(String.format("image MIME type '%s' conflicts with data URI MIME type '%s'",
+                        mimeType, dataUri.mimeType));
             }
-
-            byte[] content = dataResolver == null ? null : dataResolver.getData(sourcePath, uri);
-            if (content == null) {
-                throw new IOException(String.format("external resource does not exist: '%s'",
-                        uriForDiagnostic(uri)));
-            }
-            return new ResolvedImage(uri, mimeType, "external-uri", content, null);
+            return new ResolvedImage(uri, mimeType == null ? dataUri.mimeType : mimeType,
+                    "data-uri", dataUri.content, null);
         }
 
         if (image.buffer == null || image.buffer.buffer == null || image.buffer.buffer.length == 0) {

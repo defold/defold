@@ -70,6 +70,7 @@
    "/test.collisionobject" ["/test.tilemap"]
    "/test.cubemap" ["/builtins/graphics/particle_blob.png"]
    "/test.gltf" []
+   "/test.gltf/meshes/Cube.001" []
    "/test.gltf/materials/0.material" ["/defold-pbr/shaders/pbr.fp"
                                      "/defold-pbr/shaders/pbr.vp"]
    "/test.display_profiles" []
@@ -156,6 +157,7 @@
    "/test.fp" []
    "/test.gamepads" []
    "/test.gltf" ["/test.gltf/materials/0.material"]
+   "/test.gltf/meshes/Cube.001" ["/test.gltf"]
    "/test.gltf/materials/0.material" []
    "/test.go" []
    "/test.gui" ["/builtins/fonts/default.font"]
@@ -205,11 +207,9 @@
           project (test-util/setup-project! workspace)
           resource-nodes (g/node-value project :nodes-by-resource-path)
           basis (g/now)]
-      ;; Source dependency checks apply to resources with file content.
       (doseq [[resource-path node-id] resource-nodes
               :when (.startsWith resource-path "/test")
-              :let [resource (resource-node/resource basis node-id)]
-              :when (resource/has-content? resource)]
+              :let [resource (resource-node/resource basis node-id)]]
         (let [resource-type (resource/resource-type resource)
               dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
               save-value (g/node-value node-id :save-value)
