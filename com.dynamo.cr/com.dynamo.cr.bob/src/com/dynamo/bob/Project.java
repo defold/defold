@@ -31,7 +31,6 @@ import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.bundle.BundlerParams;
-import com.dynamo.bob.bundle.EngineProgressGate;
 import com.dynamo.bob.bundle.IBundler;
 import com.dynamo.bob.cache.ResourceCache;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
@@ -131,7 +130,6 @@ public class Project implements AutoCloseable {
     }
 
     private ExecutorService executor = Executors.newCachedThreadPool();
-    private EngineProgressGate engineProgressGate = new EngineProgressGate();
     private ResourceCache resourceCache = new ResourceCache();
     private IFileSystem fileSystem;
     private final ProjectResourceWalker resourceWalker;
@@ -1139,6 +1137,10 @@ public class Project implements AutoCloseable {
         return platformStrings;
     }
 
+    public void buildEnginePlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
+        buildEnginePlatform(buildDir, cacheDir, appmanifestOptions, platform, Progress.discarding());
+    }
+
     public void buildEnginePlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform, IProgress progress) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Get SHA1 and create log file
@@ -1199,6 +1201,10 @@ public class Project implements AutoCloseable {
         } catch (ExtenderClientException e) {
             throw new CompileExceptionError(String.format("Failed to build engine: %s", e.getMessage()), e);
         }
+    }
+
+    public void buildLibraryPlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
+        buildLibraryPlatform(buildDir, cacheDir, appmanifestOptions, platform, Progress.discarding());
     }
 
     public void buildLibraryPlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform, IProgress progress) throws IOException, CompileExceptionError, MultipleCompileException {
@@ -1438,14 +1444,9 @@ public class Project implements AutoCloseable {
         scan(scanner, "com.defold.extension.pipeline");
     }
 
-    public EngineProgressGate getEngineProgressGate() {
-        return engineProgressGate;
-    }
-
     private Future buildRemoteEngine(IProgress progress, ExecutorService executor, AtomicBoolean remoteBuildFailed) {
-        engineProgressGate = new EngineProgressGate();
         return executor.submit(() -> {
-            engineProgressGate.message(progress, IProgress.Message.BuildingEngine.INSTANCE);
+            progress.message(IProgress.Message.BuildingEngine.INSTANCE);
             var variant = option("variant", Bob.VARIANT_RELEASE);
             var withSymbols = hasOption("with-symbols");
 
@@ -2056,8 +2057,9 @@ public class Project implements AutoCloseable {
                             boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this, getPlatform());
                             boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
                             TimeProfiler.stop();
-                            // setup 10%, engine 30%, resources 60%
+                            // setup 10%, then engine and resources: 30%/60% with a remote engine build, 10%/80% without
                             IProgress.ISplit buildPhases = commandProgress.split(10);
+                            int engineParts = shouldBuildRemoteEngine ? 3 : 1;
 
                             if (shouldBuildProject) {
                                 try (IProgress setupProgress = buildPhases.subtask(1)) {
@@ -2079,9 +2081,12 @@ public class Project implements AutoCloseable {
                             TimeProfiler.start("PrepEngine");
                             TimeProfiler.addData("shouldBuildRemoteEngine", shouldBuildRemoteEngine);
                             AtomicBoolean remoteBuildFailed = new AtomicBoolean(false);
-                            IProgress engineProgress = buildPhases.subtask(3);
+                            IProgress engineProgress = buildPhases.subtask(engineParts);
+                            // Resource building owns the message until we start waiting for the engine
+                            Progress.Deferred remoteEngineProgress = null;
                             if (shouldBuildRemoteEngine) {
-                                remoteBuildFuture = buildRemoteEngine(engineProgress, executor, remoteBuildFailed);
+                                remoteEngineProgress = Progress.deferMessages(engineProgress);
+                                remoteBuildFuture = buildRemoteEngine(remoteEngineProgress, executor, remoteBuildFailed);
                             } else {
                                 // Remove the remote built executables in the build folder, they're still in the cache
                                 var engineSplit = engineProgress.split(2);
@@ -2094,7 +2099,7 @@ public class Project implements AutoCloseable {
                             }
                             TimeProfiler.stop();
                             boolean resourceBuildingFailed = false;
-                            try (IProgress resourceProgress = buildPhases.subtask(6)) {
+                            try (IProgress resourceProgress = buildPhases.subtask(9 - engineParts)) {
                                 if (shouldBuildProject) {
                                     result = createAndRunTasks(resourceProgress, remoteBuildFailed);
                                 }
@@ -2109,7 +2114,7 @@ public class Project implements AutoCloseable {
                                     // if an exception was thrown in buildRemoteEngine() the
                                     // original exception is included in the ExecutionException
                                     try {
-                                        engineProgressGate.open(engineProgress);
+                                        remoteEngineProgress.releaseMessages();
                                         remoteBuildFuture.get();
                                     } catch (ExecutionException | InterruptedException e) {
                                         Throwable cause = e.getCause();

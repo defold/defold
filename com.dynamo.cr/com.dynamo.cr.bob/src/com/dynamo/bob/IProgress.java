@@ -17,6 +17,8 @@ package com.dynamo.bob;
 import com.dynamo.bob.bundle.ICanceled;
 
 import java.net.URI;
+import java.util.Locale;
+import java.util.Objects;
 
 /// Reports progress for a unit of work
 public interface IProgress extends ICanceled, AutoCloseable {
@@ -81,9 +83,9 @@ public interface IProgress extends ICanceled, AutoCloseable {
         record BuildingEngineStage(String platform, String stage, String detail, int currentFile, int totalFiles) implements IProgress.Message {
             /// Display text: detail (or stage when detail is missing), with file counts only while compiling
             public String label() {
-                String text = detail == null || detail.isBlank() ? stage : detail;
+                String text = detail == null || detail.isBlank() ? Objects.requireNonNullElse(stage, "") : detail;
                 if (totalFiles >= 0) {
-                    return String.format("%s (%d/%d)", text, Math.max(0, currentFile), totalFiles);
+                    return String.format(Locale.ROOT, "%s (%d/%d)", text, Math.max(0, currentFile), totalFiles);
                 }
                 return text;
             }

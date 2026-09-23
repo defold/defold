@@ -15,7 +15,6 @@
 package com.dynamo.bob;
 
 import com.dynamo.bob.bundle.BundleHelper;
-import com.dynamo.bob.bundle.EngineProgressGate;
 import com.defold.extender.client.ExtenderProgressListener;
 
 import org.junit.Test;
@@ -212,6 +211,7 @@ public class ProgressTest {
         assertEquals("Linking engine", new IProgress.Message.BuildingEngineStage("arm64-ios", "LINKING", "Linking engine", -1, -1).label());
         assertEquals("SDK", new IProgress.Message.BuildingEngineStage("arm64-ios", "SDK", null, -1, -1).label());
         assertEquals("ext: compiling source files (3/17)", new IProgress.Message.BuildingEngineStage("arm64-ios", "COMPILING", "ext: compiling source files", 3, 17).label());
+        assertEquals("", new IProgress.Message.BuildingEngineStage("arm64-ios", null, null, -1, -1).label());
     }
 
     @Test
@@ -244,24 +244,55 @@ public class ProgressTest {
     }
 
     @Test
-    public void engineProgressGateDefersMessagesUntilOpened() {
+    public void deferredProgressHoldsMessagesUntilReleased() {
         RecordingReporter reporter = new RecordingReporter();
         Progress progress = new Progress(reporter);
-        EngineProgressGate gate = new EngineProgressGate();
+        IProgress.ISplit phases = progress.split(2);
+        Progress.Deferred deferred = Progress.deferMessages(phases.subtask());
         IProgress.Message.BuildingEngineStage first = new IProgress.Message.BuildingEngineStage("arm64-ios", "SDK", "Downloading SDK", -1, -1);
         IProgress.Message.BuildingEngineStage second = new IProgress.Message.BuildingEngineStage("arm64-ios", "LINKING", "Linking engine", -1, -1);
 
-        gate.message(progress, first);
-        gate.message(progress, second);
-        assertTrue(reporter.reports.isEmpty());
-
-        gate.open(progress);
+        IProgress.ISplit split = deferred.split(2);
+        IProgress architecture = split.subtask();
+        architecture.message(first);
+        architecture.message(second);
+        split.worked();
         assertEquals(1, reporter.reports.size());
-        assertSame(second, reporter.reports.get(0).message());
+        assertSame(IProgress.Message.Working.INSTANCE, reporter.reports.get(0).message());
+        assertEquals(0.25, reporter.reports.get(0).fraction(), 0.0);
+
+        deferred.releaseMessages();
+        assertEquals(2, reporter.reports.size());
+        assertSame(second, reporter.reports.get(1).message());
 
         IProgress.Message.BuildingEngineStage third = new IProgress.Message.BuildingEngineStage("arm64-ios", "SUCCESS", null, -1, -1);
-        gate.message(progress, third);
-        assertSame(third, reporter.reports.get(1).message());
+        architecture.message(third);
+        assertSame(third, reporter.reports.get(2).message());
+
+        architecture.close();
+        architecture.message(first);
+        deferred.close();
+        deferred.message(first);
+        assertSame(third, reporter.reports.get(reporter.reports.size() - 1).message());
+        assertEquals(0.5, reporter.reports.get(reporter.reports.size() - 1).fraction(), 0.0);
+    }
+
+    @Test
+    public void workReportCarriesLatestMessage() throws Exception {
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
+        IProgress.ISplit split = progress.split(1000);
+        IProgress.Message.BuildingEngineStage stage = new IProgress.Message.BuildingEngineStage("arm64-ios", "LINKING", "Linking engine", -1, -1);
+        Thread worker = new Thread(() -> {
+            for (int i = 0; i < 999; ++i) {
+                split.worked();
+            }
+        });
+        worker.start();
+        progress.message(stage);
+        worker.join();
+
+        assertSame(stage, reporter.reports.get(reporter.reports.size() - 1).message());
     }
 
     @Test
@@ -276,8 +307,10 @@ public class ProgressTest {
         listener.onProgress("SUCCESS", null, 100, -1, -1);
 
         Report last = reporter.reports.get(reporter.reports.size() - 1);
-        assertEquals(1.0, last.fraction(), 0.0);
+        assertEquals(0.9, last.fraction(), 1e-9);
         assertEquals("SUCCESS", ((IProgress.Message.BuildingEngineStage) last.message()).label());
+        progress.close();
+        assertEquals(1.0, reporter.reports.get(reporter.reports.size() - 1).fraction(), 0.0);
         double[] fractions = reporter.reports.stream().mapToDouble(Report::fraction).toArray();
         for (int i = 1; i < fractions.length; ++i) {
             assertTrue(fractions[i] >= fractions[i - 1]);

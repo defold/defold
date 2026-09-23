@@ -63,6 +63,7 @@ import com.dynamo.bob.IProgress;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.MultipleCompileException.Info;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ExtenderUtil;
@@ -802,28 +803,23 @@ public class BundleHelper {
     /// Creates a listener that forwards extender build progress into `progress`.
     ///
     /// Callbacks arrive on a background thread; the server percent estimate is clamped to
-    /// never decrease and is reported as work on a 100-part split of `progress`.
+    /// never decrease and mapped onto the first 90% of `progress`. The rest is left for
+    /// downloading and unpacking the result, and is filled when `progress` is closed.
     public static ExtenderProgressListener createProgressListener(IProgress progress, String platform) {
-        return createProgressListener(progress, platform, null);
-    }
-
-    /// As above, but stage messages go through `gate` when it is non-null.
-    public static ExtenderProgressListener createProgressListener(IProgress progress, String platform, EngineProgressGate gate) {
-        IProgress.ISplit split = progress.split(100);
+        IProgress.ISplit split = progress.split(10).subtask(9).split(100);
         AtomicInteger lastPercent = new AtomicInteger(0);
         return (stage, detail, percent, currentFile, totalFiles) -> {
+            progress.message(new IProgress.Message.BuildingEngineStage(platform, stage, detail, currentFile, totalFiles));
             int clamped = Math.max(0, Math.min(100, percent));
             int previous = lastPercent.getAndAccumulate(clamped, Math::max);
             if (clamped > previous) {
                 split.worked(clamped - previous);
             }
-            IProgress.Message message = new IProgress.Message.BuildingEngineStage(platform, stage, detail, currentFile, totalFiles);
-            if (gate != null) {
-                gate.message(progress, message);
-            } else {
-                progress.message(message);
-            }
         };
+    }
+
+    public static File buildEngineRemote(Project project, ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
+        return buildEngineRemote(project, extender, platform, sdkVersion, allSource, logFile, Progress.discarding());
     }
 
     public static File buildEngineRemote(Project project, ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, IProgress progress) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
@@ -838,7 +834,7 @@ public class BundleHelper {
         checkForDuplicates(allSource);
 
         try {
-            extender.build(platform, sdkVersion, allSource, zipFile, logFile, createProgressListener(progress, platform, project.getEngineProgressGate()));
+            extender.build(platform, sdkVersion, allSource, zipFile, logFile, createProgressListener(progress, platform));
         } catch (ExtenderClientException e) {
             if (e.getCause() instanceof ConnectException) {
                 throw (ConnectException)e.getCause();
