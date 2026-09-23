@@ -1284,6 +1284,7 @@ namespace dmGameObject
         }
         Instance* instance = NewInstance(collection, proto, prototype_name);
         if (instance != 0) {
+            collection->m_WorldTransforms[instance->m_Index] = dmTransform::ToMatrix4(instance->m_Transform);
             CreateResult result = CreateComponents(collection, instance);
             if (result != CREATE_RESULT_OK) {
                 // We can not call Delete here. Delete call DestroyFunction for every component
