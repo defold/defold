@@ -45,7 +45,7 @@
 
 (def vulkan-ios #{:arm64-ios})
 
-(def metal-ios #{:arm64-ios :arm64_sim-ios})
+(def metal-ios #{:arm64-ios})
 
 (def all-platforms
   #{;; ios

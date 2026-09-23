@@ -522,7 +522,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
             { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
             { Platform.Arm64Ios,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
-            { Platform.Arm64IosSim,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.Arm64IosSim,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.Armv7Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.Arm64Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.WasmWeb,        new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
@@ -535,6 +535,24 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             checkOnlyExpectedLanguages(
                 buildShaderForPlatform(platform.getPair(), platform.getPair(), "default_" + platform.getPair().replace("-", "_")),
                 expectedLanguages);
+        }
+    }
+
+    // Verifies simulator shaders remain MSL when an old manifest excludes Metal
+    // or adapter options request another backend, while device defaults stay GLES.
+    @Test
+    public void testIosSimulatorAlwaysCompilesMetalShaders() throws Exception {
+        List<Map<String, Object>> settings = List.of(platformSettings(
+                "symbols", List.of("GraphicsAdapterOpenGL", "GraphicsAdapterVulkan"),
+                "excludeSymbols", List.of("GraphicsAdapterMetal"),
+                "excludeLibs", List.of("graphics_metal")));
+        assertEquals("metal", Project.getShaderAdaptersOption(Platform.Arm64IosSim, settings));
+        assertEquals("opengles", Project.getShaderAdaptersOption(Platform.Arm64Ios, List.of()));
+
+        for (String adapters : List.of("", "opengles", "vulkan", "opengles,vulkan", "metal")) {
+            checkOnlyExpectedLanguages(
+                    compileShaderForPlatform(Platform.Arm64IosSim, adapters, "simulator_" + adapters.replace(',', '_')),
+                    ShaderDesc.Language.LANGUAGE_MSL_22);
         }
     }
 

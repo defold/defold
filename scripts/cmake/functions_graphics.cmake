@@ -53,7 +53,10 @@ function(defold_get_graphics_symbols OUT_VAR PLATFORM)
     set(_use_metal    ${_WITH_METAL})
 
     # Base selection per platform
-    if("${PLATFORM}" MATCHES "^(arm64-ios|arm64_sim-ios)$")
+    if(PLATFORM STREQUAL "arm64_sim-ios")
+        # The simulator always uses Metal, independently of feature toggles.
+        set(_use_metal ON)
+    elseif(PLATFORM STREQUAL "arm64-ios")
         set(_use_opengles ON)
         set(_use_vulkan ${_WITH_VULKAN})
     elseif("${PLATFORM}" MATCHES "^(arm64-macos|x86_64-macos|arm64-nx64)$")
@@ -249,7 +252,9 @@ function(defold_target_link_graphics target platform)
     set(_use_vulkan   OFF)
     set(_use_metal    ${_WITH_METAL})
 
-    if("${platform}" MATCHES "^(arm64-ios|arm64_sim-ios)$")
+    if(platform STREQUAL "arm64_sim-ios")
+        set(_use_metal ON)
+    elseif(platform STREQUAL "arm64-ios")
         set(_use_opengles ON)
         set(_use_vulkan ${_WITH_VULKAN})
     elseif("${platform}" MATCHES "^(arm64-macos|x86_64-macos|arm64-nx64)$")

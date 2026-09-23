@@ -46,7 +46,7 @@ if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
 endif()
 defold_register_test_target(test_transcoder ON "${GRAPHICS_TEST_SRC_DIR}")
 
-if(WITH_METAL AND TARGET graphics_metal)
+if(TARGET graphics_metal AND (WITH_METAL OR TARGET_PLATFORM STREQUAL "arm64_sim-ios"))
   defold_add_executable(test_graphics_metal "${GRAPHICS_TEST_SRC_DIR}/test_graphics_metal.mm")
   target_include_directories(test_graphics_metal PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
   defold_target_link_libraries(test_graphics_metal "${TARGET_PLATFORM}"

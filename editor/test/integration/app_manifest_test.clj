@@ -20,7 +20,8 @@
             [editor.code.data :as data]
             [editor.resource-node :as resource-node]
             [editor.yaml :as yaml]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [util.coll :as coll]))
 
 (deftest windows-library-name-load-migration-test
   (let [migrated-content
@@ -406,45 +407,39 @@
             (is (not-any? #{"graphics_metal"} (:libs context)))
             (is (not-any? #{"GraphicsAdapterMetal"} (:symbols context)))))))))
 
+;; Verifies device graphics choices leave the simulator on its Metal default.
 (deftest ios-graphics-setting-test
   (testing "iOS supports every OpenGL/Metal/Vulkan selection"
     (doseq [selection apple-graphics-selections]
       (let [manifest (-> {}
                          (app-manifest/set-setting-value app-manifest/graphics-setting-ios :metal)
                          (app-manifest/set-setting-value app-manifest/graphics-setting-ios selection))]
-        (is (= selection (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios))))))
+        (is (= selection (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
+        (is (nil? (get-in manifest [:platforms :arm64_sim-ios]))))))
   (testing "Metal-only iOS includes Metal and excludes OpenGL/Vulkan"
-    (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :metal)]
+    (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :metal)
+          context (get-in manifest [:platforms :arm64-ios :context])]
       (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
-      (doseq [platform [:arm64-ios :arm64_sim-ios]]
-        (let [context (get-in manifest [:platforms platform :context])]
-          (is (some #{"graphics_metal"} (:libs context)))
-          (is (some #{"GraphicsAdapterMetal"} (:symbols context)))
-          (is (some #{"Metal"} (:frameworks context)))
-          (is (some #{"IOSurface"} (:frameworks context)))
-          (is (some #{"QuartzCore"} (:frameworks context)))))
-      (let [context (get-in manifest [:platforms :arm64-ios :context])]
-        (is (some #{"graphics"} (:excludeLibs context)))
-        (is (some #{"graphics_vulkan"} (:excludeLibs context)))
-        (is (some #{"MoltenVK"} (:excludeLibs context)))
-        (is (some #{"GraphicsAdapterOpenGL"} (:excludeSymbols context)))
-        (is (some #{"GraphicsAdapterVulkan"} (:excludeSymbols context))))))
-  (testing "Vulkan-only iOS keeps the simulator OpenGL fallback"
+      (is (coll/any? #{"graphics_metal"} (:libs context)))
+      (is (coll/any? #{"GraphicsAdapterMetal"} (:symbols context)))
+      (is (coll/any? #{"Metal"} (:frameworks context)))
+      (is (coll/any? #{"IOSurface"} (:frameworks context)))
+      (is (coll/any? #{"QuartzCore"} (:frameworks context)))
+      (is (coll/any? #{"graphics"} (:excludeLibs context)))
+      (is (coll/any? #{"graphics_vulkan"} (:excludeLibs context)))
+      (is (coll/any? #{"MoltenVK"} (:excludeLibs context)))
+      (is (coll/any? #{"GraphicsAdapterOpenGL"} (:excludeSymbols context)))
+      (is (coll/any? #{"GraphicsAdapterVulkan"} (:excludeSymbols context)))))
+  (testing "Vulkan-only iOS keeps the simulator Metal default"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :vulkan)
-          arm64-context (get-in manifest [:platforms :arm64-ios :context])
-          simulator-context (get-in manifest [:platforms :arm64_sim-ios :context])]
+          arm64-context (get-in manifest [:platforms :arm64-ios :context])]
       (is (= :vulkan (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
-      (is (some #{"graphics_vulkan"} (:libs arm64-context)))
-      (is (some #{"MoltenVK"} (:libs arm64-context)))
-      (is (some #{"GraphicsAdapterVulkan"} (:symbols arm64-context)))
-      (is (some #{"graphics"} (:excludeLibs arm64-context)))
-      (is (some #{"GraphicsAdapterOpenGL"} (:excludeSymbols arm64-context)))
-      (is (not-any? #{"graphics"} (:excludeLibs simulator-context)))
-      (is (not-any? #{"GraphicsAdapterOpenGL"} (:excludeSymbols simulator-context)))
-      (is (not-any? #{"graphics_vulkan"} (:libs simulator-context)))
-      (is (not-any? #{"GraphicsAdapterVulkan"} (:symbols simulator-context)))
-      (is (not-any? #{"graphics_metal"} (:libs simulator-context)))
-      (is (not-any? #{"GraphicsAdapterMetal"} (:symbols simulator-context)))))
+      (is (coll/any? #{"graphics_vulkan"} (:libs arm64-context)))
+      (is (coll/any? #{"MoltenVK"} (:libs arm64-context)))
+      (is (coll/any? #{"GraphicsAdapterVulkan"} (:symbols arm64-context)))
+      (is (coll/any? #{"graphics"} (:excludeLibs arm64-context)))
+      (is (coll/any? #{"GraphicsAdapterOpenGL"} (:excludeSymbols arm64-context)))
+      (is (nil? (get-in manifest [:platforms :arm64_sim-ios])))))
   (testing "Generic graphics changes do not clear iOS graphics"
     (let [manifest (-> {}
                        (app-manifest/set-setting-value app-manifest/graphics-setting-ios :metal)

@@ -806,6 +806,32 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::DeleteProgram(m_Context, program);
 }
 
+#if !defined(DM_PLATFORM_VENDOR)
+// Verifies the null adapter can load MSL graphics and compute programs from a
+// Metal-only simulator bundle without another shader language to fall back to.
+TEST_F(dmGraphicsTest, TestMslPrograms)
+{
+    const char* vertex_data = "#include <metal_stdlib>\nusing namespace metal;\nvertex float4 main0(uint id [[vertex_id]]) { return float4(0.0); }\n";
+    const char* fragment_data = "#include <metal_stdlib>\nusing namespace metal;\nfragment float4 main0() { return float4(1.0); }\n";
+    const char* compute_data = "#include <metal_stdlib>\nusing namespace metal;\nkernel void main0(uint3 id [[thread_position_in_grid]]) {}\n";
+
+    dmGraphics::ShaderDescBuilder graphics_builder;
+    graphics_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_MSL_22, vertex_data, (uint32_t) strlen(vertex_data));
+    graphics_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_MSL_22, fragment_data, (uint32_t) strlen(fragment_data));
+    dmGraphics::HProgram graphics_program = dmGraphics::NewProgram(m_Context, graphics_builder.Get(), 0, 0);
+    ASSERT_NE((dmGraphics::HProgram) 0, graphics_program);
+    ASSERT_EQ(dmGraphics::ShaderDesc::LANGUAGE_MSL_22, dmGraphics::GetProgramLanguage(graphics_program));
+    dmGraphics::DeleteProgram(m_Context, graphics_program);
+
+    dmGraphics::ShaderDescBuilder compute_builder;
+    compute_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_MSL_22, compute_data, (uint32_t) strlen(compute_data));
+    dmGraphics::HProgram compute_program = dmGraphics::NewProgram(m_Context, compute_builder.Get(), 0, 0);
+    ASSERT_NE((dmGraphics::HProgram) 0, compute_program);
+    ASSERT_EQ(dmGraphics::ShaderDesc::LANGUAGE_MSL_22, dmGraphics::GetProgramLanguage(compute_program));
+    dmGraphics::DeleteProgram(m_Context, compute_program);
+}
+#endif
+
 TEST_F(dmGraphicsTest, TestComputeProgram)
 {
     const char* compute_data = ""

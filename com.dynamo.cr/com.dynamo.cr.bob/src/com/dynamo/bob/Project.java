@@ -1638,6 +1638,9 @@ public class Project implements AutoCloseable {
     }
 
     public static String getShaderAdaptersOption(Platform platform, List<Map<String, Object>> platformsSettings) {
+        if (platform == Platform.Arm64IosSim) {
+            return ShaderCompilers.SHADER_ADAPTER_METAL;
+        }
         LinkedHashSet<String> adapters = getDefaultShaderAdapters(platform);
         LinkedHashSet<String> adaptersToAdd = new LinkedHashSet<>();
         LinkedHashSet<String> adaptersToRemove = new LinkedHashSet<>();
