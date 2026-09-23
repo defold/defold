@@ -205,9 +205,9 @@
     of the bytes consumed during the read operation.
 
   :dependency-proj-paths (optional)
-    Whe the resource-type specifies both a :read-fn and a :dependencies-fn, this
-    will be a vector of proj-paths reported as dependencies by the
-    :dependencies-fn when we give it the source-value returned by the :read-fn."
+    When the resource-type specifies a :dependencies-fn, this will be a vector
+    of proj-paths reported as dependencies. Resource types without a :read-fn
+    pass nil as the source-value."
   [read-opts node-id resource]
   {:pre [(g/node-id? node-id)]}
   (let [resource-metrics (:resource-metrics read-opts)
@@ -257,7 +257,9 @@
           read-result)
 
         dependency-proj-paths
-        (when (some? source-value)
+        (when (and (nil? read-error)
+                   (or (some? source-value)
+                       (nil? read-fn)))
           (when-let [dependencies-fn (:dependencies-fn resource-type)]
             (try
               (du/measuring resource-metrics (resource/proj-path resource) :find-new-reload-dependencies

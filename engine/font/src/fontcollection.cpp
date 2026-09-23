@@ -33,6 +33,7 @@ struct TextNamedStyle
     dmhash_t                 m_Name;
     TextRenderStyle          m_Style;
     TextNamedStyleDecoration m_Decoration;
+    TextNamedStyleDecoration m_BaseDecoration;
     dmArray<TextEffect>      m_Effects;
 };
 
@@ -82,6 +83,7 @@ static TextNamedStyle* GetOrCreateNamedStyle(HFontCollection collection, dmhash_
     named_style->m_Name = name;
     memset(&named_style->m_Style, 0, sizeof(named_style->m_Style));
     memset(&named_style->m_Decoration, 0, sizeof(named_style->m_Decoration));
+    memset(&named_style->m_BaseDecoration, 0, sizeof(named_style->m_BaseDecoration));
     collection->m_NamedStyles.Push(named_style);
 
     return named_style;
@@ -195,10 +197,11 @@ void FontCollectionSetNamedStyle(HFontCollection collection, dmhash_t name, cons
 
 bool FontCollectionSetNamedStyleMarkup(HFontCollection collection, dmhash_t name, const char* definition, uint32_t definition_length, MarkupError* error)
 {
-    TextRenderStyle    style = {};
-    dmArray<TextEffect> effects;
+    TextRenderStyle          style = {};
+    dmArray<TextEffect>      effects;
+    TextNamedStyleDecoration decoration = {};
 
-    if (!TextLayoutCompileStyleFragment(definition, definition_length, &style, &effects, 0, error))
+    if (!TextLayoutCompileStyleFragment(definition, definition_length, &style, &effects, &decoration, error))
     {
         effects.SetCapacity(0);
 
@@ -208,6 +211,7 @@ bool FontCollectionSetNamedStyleMarkup(HFontCollection collection, dmhash_t name
     TextNamedStyle* named_style = GetOrCreateNamedStyle(collection, name);
     named_style->m_Style = style;
     named_style->m_Effects.Swap(effects);
+    named_style->m_Decoration = decoration.m_Flags ? decoration : named_style->m_BaseDecoration;
     effects.SetCapacity(0);
     ++collection->m_NamedStyleRevision;
 
@@ -218,6 +222,7 @@ void FontCollectionSetNamedStyleDecoration(HFontCollection collection, dmhash_t 
 {
     TextNamedStyle* named_style = GetOrCreateNamedStyle(collection, name);
     named_style->m_Decoration = decoration;
+    named_style->m_BaseDecoration = decoration;
     ++collection->m_NamedStyleRevision;
 }
 

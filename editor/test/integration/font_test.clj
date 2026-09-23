@@ -618,7 +618,11 @@
       (is (= "notice" (g/node-value link-node :id)))
       (test-util/with-prop [link-node :id "link:hover"]
         (is (g/error-fatal? (test-util/prop-error link-node :id))))
-      (test-util/with-prop [link-node :markup "<size=48>"]
+      (doseq [markup ["<shake fit=span><color=#FC6600><size=25%>" "<link>" "<sprite id=icon>"]]
+        (test-util/with-prop [link-node :markup markup]
+          (is (nil? (test-util/prop-error link-node :markup)))
+          (is (nil? (g/node-value link-node :build-errors)))))
+      (test-util/with-prop [link-node :markup "<size=invalid>"]
         (is (g/error-fatal? (test-util/prop-error link-node :markup)))
         (is (g/error-fatal? (g/node-value node :build-targets))))
       (g/transact (mapv #(g/delete-node (:node-id %)) (subvec children 1)))
@@ -633,7 +637,7 @@
           original-children (get-in (g/node-value node :node-outline) [:children 0 :children])
           style-node (:node-id (second original-children))]
       (doseq [[property value severity outline-errors] [[:markup "<outline size=2>" :warning [false false false false]]
-                                                        [:markup "<size=48>" :fatal [false true false false]]
+                                                        [:markup "<size=invalid>" :fatal [false true false false]]
                                                         [:id "link:hover" :fatal [false true true false]]]]
         (testing (str property " " value)
           (test-util/with-prop [style-node property value]
@@ -666,7 +670,7 @@
           (is (g/error-warning? (test-util/prop-error style-node :markup)))
           (is (vector? (g/node-value node :build-targets)))
           (is (identical? compiled (g/node-value style-node :compiled-style)))))
-      (g/set-property! style-node :markup "<size=48>")
+      (g/set-property! style-node :markup "<size=invalid>")
       (is (g/error-fatal? (g/node-value node :build-targets))))))
 
 (deftest default-style-markup-follows-font-settings

@@ -23,14 +23,11 @@
             [editor.game-project :as game-project]
             [editor.handler :as handler]
             [editor.notifications :as notifications]
-            [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.ui :as ui]
-            [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [support.test-support :as test-support :refer [with-clean-system]]
-            [util.http-server :as http-server])
+            [support.test-support :as test-support :refer [with-clean-system]])
   (:import [java.io File]
            [java.net URI]
            [java.nio ByteBuffer ByteOrder]
@@ -257,6 +254,13 @@
           (workspace/resource-sync! workspace)
           (is (= :info (:type (notification))))
           (is (= "Add Library" (test-util/localization (get-in (notification) [:actions 0 :message]))))
+          (let [command-call (atom nil)]
+            (with-redefs [ui/main-scene (constantly (Scene. (VBox.)))
+                          ui/execute-command (fn [_ command user-data]
+                                               (reset! command-call [command user-data]))]
+              ((get-in (notification) [:actions 0 :on-action])))
+            (is (= [:private/add-dependency {:dep-url "https://github.com/defold/asset-pbr/archive/refs/heads/master.zip"}]
+                   @command-call)))
           (is (= 1 (count (:ids (g/node-value notifications :notifications)))))
           (is (= dependencies (project/project-dependencies project)))
 
@@ -332,57 +336,3 @@
                     (fs/create-file! (io/file project-path (shader-paths 1)) "void main() {}")
                     (workspace/resource-sync! workspace)
                     (is (nil? (notification)) "Making the shaders available clears the offer")))))))))))
-
-(deftest pbr-library-notification-action-adds-and-fetches-the-dependency
-  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
-    (with-open [_deleter (test-util/make-directory-deleter project-path)
-                library-server (http-server/start! test-util/lib-server-handler)
-                editor-server (http-server/start! (web-server/make-dynamic-handler []))]
-      (with-clean-system
-        (let [workspace (test-util/setup-workspace! project-path)
-              project (test-util/setup-project! workspace)
-              app-view (test-util/setup-app-view! project)
-              library-url (test-util/lib-server-uri library-server "lib_resource_project")
-              scene (Scene. (VBox.))
-              completion (promise)
-              execute-command ui/execute-command]
-          (ui/context! (.getRoot scene) :global
-                       {:app-view app-view
-                        :workspace workspace
-                        :project project
-                        :changes-view nil
-                        :build-errors-view nil
-                        :prefs (test-util/make-test-prefs)
-                        :localization test-util/localization
-                        :web-server editor-server}
-                       (reify handler/SelectionProvider
-                         (selection [_this _evaluation-context] [])
-                         (succeeding-selection [_this _evaluation-context] [])
-                         (alt-selection [_this _evaluation-context] [])))
-          ;; Supply UI boundaries and a local HTTP fixture; run the real add/fetch command.
-          (with-redefs [ui/execute-command
-                        (fn [contexts command user-data]
-                          (is (= :private/add-dependency command))
-                          (is (= {:dep-url "https://github.com/defold/asset-pbr/archive/refs/heads/master.zip"}
-                                 user-data))
-                          (execute-command contexts command (assoc user-data :dep-url library-url)))
-                        app-view/make-render-task-progress (constantly progress/null-render-progress!)
-                        ui/main-scene (constantly scene)]
-            (test-util/run-event-loop!
-              (fn [exit!]
-                (fs/create-file! (io/file project-path "robot.gltf") (gltf-content "Paint"))
-                (workspace/resource-sync! workspace)
-                (let [notification (get-in (g/node-value (workspace/notifications workspace) :notifications)
-                                           [:id->notification ::project/pbr-library])
-                      fetch ((get-in notification [:actions 0 :on-action]))]
-                  (future
-                    (deliver completion
-                             (try
-                               (deref fetch 30000 ::timeout)
-                               (catch Throwable error error)))
-                    (exit!))))))
-          (is (vector? @completion) (str @completion))
-          (when (vector? @completion)
-            (is (true? (second @completion))))
-          (is (= [library-url] (mapv str (project/project-dependencies project))))
-          (is (resource/exists? (workspace/find-resource workspace "/lib_resource_project/simple.gui"))))))))

@@ -1174,15 +1174,13 @@
                                             [:sha256 :external-buffer-sha256s]))
           new-value)))
 
-(defn load-model-scene-node [{:keys [project]} {self :node-id resource :owner-resource external-buffer-uris :source-value}]
-  (let [basis (g/now)
-        workspace (resource/workspace resource)
-        source-path (resource/path resource)
+(defn load-model-scene-node [{:keys [project resolve-resource-fn]} {self :node-id resource :owner-resource external-buffer-uris :source-value}]
+  (let [source-path (resource/path resource)
         external-buffer-resources
         (into []
               (keep (fn [uri]
                       (when-let [proj-path (gltf/uri->proj-path source-path uri)]
-                        (workspace/resolve-workspace-resource basis workspace proj-path))))
+                        (resolve-resource-fn resource proj-path))))
               external-buffer-uris)
         initial-tx-data
         (into (g/connect project :settings self :project-settings)
@@ -1265,12 +1263,27 @@
 (defn- load-gltf-mesh-node
   "Connects a virtual mesh preview to its source scene so materials and reloads are shared."
   [_load-opts {self :node-id mesh-resource :owner-resource}]
-  (let [source-proj-path (-> mesh-resource resource/proj-path resource/parent-proj-path resource/parent-proj-path)
-        source-resource (workspace/resolve-workspace-resource (resource/workspace mesh-resource) source-proj-path)]
-    (g/set-property self :source source-resource)))
+  (g/set-property self :source (resource/entry-source mesh-resource)))
 
 (defn- read-model-scene [_read-opts _owner-resource readable]
   (model-loader/read-external-buffer-uris readable))
+
+(defn- model-scene-dependencies [{:keys [include-editor-dependencies]} source-resource external-buffer-uris]
+  (let [source-path (resource/path source-resource)
+        external-buffer-proj-paths
+        (coll/into-> external-buffer-uris []
+          (keep #(gltf/uri->proj-path source-path %)))]
+    (if include-editor-dependencies
+      (coll/into-> (resource/children source-resource) external-buffer-proj-paths
+        resource/xform-recursive-resources
+        (filter #(#{:material :image} (:kind (gltf/asset-info %))))
+        (map resource/proj-path))
+      external-buffer-proj-paths)))
+
+(defn- gltf-mesh-dependencies [{:keys [include-editor-dependencies]} mesh-resource _source-value]
+  (if include-editor-dependencies
+    [(resource/proj-path (resource/entry-source mesh-resource))]
+    []))
 
 (defn register-resource-types [workspace]
   (into
@@ -1280,6 +1293,7 @@
       :node-type ModelSceneNode
       :load-fn load-model-scene-node
       :read-fn read-model-scene
+      :dependencies-fn model-scene-dependencies
       :icon mesh-icon
       :icon-class :design
       :view-types [:scene :text])
@@ -1287,6 +1301,7 @@
       :ext "gltf-mesh"
       :node-type GltfMeshNode
       :load-fn load-gltf-mesh-node
+      :dependencies-fn gltf-mesh-dependencies
       :icon mesh-icon
       :icon-class :design
       :view-types [:scene])))

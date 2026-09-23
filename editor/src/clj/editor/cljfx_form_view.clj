@@ -396,8 +396,6 @@
 
 ;; region color input
 
-(defn- clamp-unit ^double [^double n] (min 1.0 (max 0.0 n)))
-
 (defn- color->value
   "Assocs the color into the old value to retain its vector and number types."
   [value ^Color color]
@@ -415,18 +413,14 @@
   {:compose [{:fx/type fxui/ext-map-event-handler}
              {:fx/type fx/ext-get-env :env [:prefs]}]}
   [{:keys [value on-value-changed map-event-handler prefs]}]
-  (let [[r g b a] value]
-    {:fx/type fxui/color-picker
-     :max-width normal-field-width
-     :prefs prefs
-     :ignore-alpha (not= 4 (count value))
-     :value (Color. (clamp-unit (double r))
-                    (clamp-unit (double g))
-                    (clamp-unit (double b))
-                    (clamp-unit (double (or a 1.0))))
-     :on-value-changed (fn [^Color color]
-                         (map-event-handler
-                           (assoc on-value-changed :fx/event (color->value value color))))}))
+  {:fx/type fxui/color-picker
+   :max-width normal-field-width
+   :prefs prefs
+   :ignore-alpha (not= 4 (count value))
+   :value (fxui/vec->color value)
+   :on-value-changed (fn [^Color color]
+                       (map-event-handler
+                         (assoc on-value-changed :fx/event (color->value value color))))})
 
 (defmethod form-input-view :color [{:keys [value on-value-changed] :as field}]
   {:fx/type form-color-picker-view
@@ -1867,13 +1861,16 @@
 (defn- make-form-view [parent resource-node opts]
   (let [{:keys [workspace project prefs tab localization]} opts
         view-id (make-form-view-node! parent resource-node workspace project prefs localization)
-        repaint-timer (ui/->timer 30 "refresh-form-view"
-                                  (fn [_timer _elapsed _dt]
-                                    (g/node-value view-id :form-view)))]
+
+        dispose-repaint-timer!
+        (ui/node-timer!
+          parent 30 "refresh-form-view"
+          (fn [_elapsed-time]
+            (g/node-value view-id :form-view)))]
+
     (g/node-value view-id :form-view)
-    (ui/timer-start! repaint-timer)
     (ui/on-closed! tab (fn [_]
-                         (ui/timer-stop! repaint-timer)
+                         (dispose-repaint-timer!)
                          ;; dispose the state to e.g. unwatch the localization
                          ((g/node-value view-id :renderer) nil)))
     view-id))

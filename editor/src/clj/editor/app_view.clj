@@ -1218,8 +1218,8 @@
                          be built in addition to the project
     :lint                optional flag that indicates whether to run LSP lints
                          and present the diagnostics alongside the build errors,
-                         defaults to the value of \"general-lint-on-build\" pref
-                         (true if not set)
+                         defaults to the value of the [:build :lint-code] pref
+                         (false if not set)
     :prefs               required, preferences for linting and engine building,
                          e.g. the build server settings
     :debug               optional flag that indicates whether to also build
@@ -2515,6 +2515,21 @@
         (g/connect view :view-dirty app-view :open-dirty-views)
         (g/connect view :view-sidebar-panes app-view :open-sidebar-panes)))
     (editor-tab/set-view-node-id! tab view)
+
+    ;; Hidden tab content must not resize its scene viewport and GL surfaces.
+    (.bind (.managedProperty (.getContent tab)) (.selectedProperty tab))
+
+    ;; Render selected scenes at their current size before the first visible frame.
+    ;; Waiting for the refresh timer would briefly stretch the old scene image.
+    (when (= :scene (:id view-type))
+      (ui/observe (.selectedProperty tab)
+                  (fn [_ _ selected]
+                    (when selected
+                      (when-let [content-parent (.getParent (.getContent tab))]
+                        (.applyCss content-parent)
+                        (.layout content-parent)
+                        (refresh-scene-view! view 0))))))
+
     (.add tabs tab)
     (ui/add-styles! tab style-classes)
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)

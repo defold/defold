@@ -230,6 +230,7 @@ namespace dmGraphics
         WGPUQueue                          m_Queue;
         WGPUSurface                        m_Surface;
         WGPUTextureFormat                  m_Format;
+        WGPUPresentMode                    m_PresentMode;
         WGPUCommandEncoder                 m_CommandEncoder;
         uint32_t                           m_RenderPasses;
         uint32_t                           m_LastSubmittedRenderPass;
@@ -251,9 +252,14 @@ namespace dmGraphics
         uint32_t            m_InitComplete : 1;
         uint32_t            m_OpaqueSurface : 1;
         uint32_t            m_InitializeOpaqueSurface : 1;
+        uint32_t            m_ImmediatePresentModeSupported : 1;
+        uint32_t            m_SwapIntervalChanged : 1;
 
         // StorageBufferBinding             m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
     };
+#if defined(DM_GRAPHICS_DAWN) && defined(DM_PLATFORM_MACOS)
+    WGPUSurface WebGPUCreateSurfaceMacOS(WebGPUContext* context);
+#endif
 } // namespace dmGraphics
 
 #endif // __GRAPHICS_DEVICE_WEBGPU__

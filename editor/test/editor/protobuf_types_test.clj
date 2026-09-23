@@ -155,7 +155,7 @@
    "/test.font" []
    "/test.fp" []
    "/test.gamepads" []
-   "/test.gltf" []
+   "/test.gltf" ["/test.gltf/materials/0.material"]
    "/test.gltf/materials/0.material" []
    "/test.go" []
    "/test.gui" ["/builtins/fonts/default.font"]
