@@ -1208,6 +1208,35 @@ TEST_F(FontTest, GlyphUVPacking)
     ASSERT_NEAR(uv, FontUnpackGlyphUV(FontPackGlyphUV(uv)), max_error + 0.0000001f);
 }
 
+TEST_F(FontTest, ColorPackingClampsFinalAlpha)
+{
+    const struct
+    {
+        float m_Alpha;
+        uint8_t m_Expected;
+    } cases[] = {
+        { -1.0f, 0 },
+        { 0.0f, 0 },
+        { 0.5f, 127 },
+        { 1.0f, 255 },
+        { 256.0f / 255.0f, 255 },
+        { 1.5f, 255 },
+        { 2.0f, 255 },
+        { 4.0f, 255 },
+        { FLT_MAX, 255 },
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        const uint32_t packed = FontPackColor(dmVMath::Vector4(1.0f, 0.5f, 0.0f, cases[i].m_Alpha));
+        uint8_t rgba[4];
+        memcpy(rgba, &packed, sizeof(rgba));
+        EXPECT_EQ(255, rgba[0]);
+        EXPECT_EQ(127, rgba[1]);
+        EXPECT_EQ(0, rgba[2]);
+        EXPECT_EQ(cases[i].m_Expected, rgba[3]);
+    }
+}
+
 TEST_F(FontTest, PackLayeredGlyphVertices)
 {
     ASSERT_EQ(56u, sizeof(FontGlyphVertex));

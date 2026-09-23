@@ -1,13 +1,16 @@
-#
+# GLFW 2.7.1
 
-Build steps:
+Build a package from the repository root, with the platform SDK set up:
 
-* configure
-* build
-* install
+```sh
+./scripts/build.py shell
+./scripts/build.py build_external --package=glfw --platform=arm64-android
+```
 
-Example:
+CMake writes `packages/glfw-2.7.1-<platform>.tar.gz`. Android packages contain
+`libdmglfw`, `libdmglfw_vulkan`, and `share/java/glfw_android.jar`. Web packages
+contain `libdmglfw` and `lib/<platform>/js/library_glfw.js`. Each platform archive
+also includes the GLFW headers.
 
-    $ waf configure --platform=x86_64-win32
-    $ waf install
-
+The iOS source build runs automatically during `install_ext`. Desktop engine
+packages use GLFW 3.4, built separately under `share/ext/glfw`.

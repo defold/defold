@@ -2002,7 +2002,6 @@ public class Project implements AutoCloseable {
             var split = progress.split(commands.length + 1L); // + 1 for reading classes
             // it should be done before scanJavaClasses to have updated options
             configurePreBuildProjectOptions();
-            resourceWalker.initIgnorePatterns();
             {
                 TimeProfiler.start("scanJavaClasses");
                 try (var readClassesProgress = split.subtask()) {
