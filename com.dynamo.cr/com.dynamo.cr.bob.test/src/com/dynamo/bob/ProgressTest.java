@@ -15,6 +15,8 @@
 package com.dynamo.bob;
 
 import com.dynamo.bob.bundle.BundleHelper;
+import com.dynamo.bob.bundle.EngineProgressGate;
+import com.defold.extender.client.ExtenderProgressListener;
 
 import org.junit.Test;
 
@@ -213,20 +215,70 @@ public class ProgressTest {
     }
 
     @Test
+    public void concurrentSubtasksNeverReportDecreasingFractions() throws Exception {
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
+        IProgress.ISplit split = progress.split(4);
+        List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < 4; ++i) {
+            IProgress subtask = split.subtask();
+            IProgress.ISplit subSplit = subtask.split(1000);
+            threads.add(new Thread(() -> {
+                for (int j = 0; j < 1000; ++j) {
+                    subSplit.worked();
+                }
+                subtask.close();
+            }));
+        }
+        threads.forEach(Thread::start);
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        progress.close();
+
+        double[] fractions = reporter.reports.stream().mapToDouble(Report::fraction).toArray();
+        for (int i = 1; i < fractions.length; ++i) {
+            assertTrue("fraction decreased at report " + i, fractions[i] >= fractions[i - 1]);
+        }
+        assertEquals(1.0, fractions[fractions.length - 1], 0.0);
+    }
+
+    @Test
+    public void engineProgressGateDefersMessagesUntilOpened() {
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
+        EngineProgressGate gate = new EngineProgressGate();
+        IProgress.Message.BuildingEngineStage first = new IProgress.Message.BuildingEngineStage("arm64-ios", "SDK", "Downloading SDK", -1, -1);
+        IProgress.Message.BuildingEngineStage second = new IProgress.Message.BuildingEngineStage("arm64-ios", "LINKING", "Linking engine", -1, -1);
+
+        gate.message(progress, first);
+        gate.message(progress, second);
+        assertTrue(reporter.reports.isEmpty());
+
+        gate.open(progress);
+        assertEquals(1, reporter.reports.size());
+        assertSame(second, reporter.reports.get(0).message());
+
+        IProgress.Message.BuildingEngineStage third = new IProgress.Message.BuildingEngineStage("arm64-ios", "SUCCESS", null, -1, -1);
+        gate.message(progress, third);
+        assertSame(third, reporter.reports.get(1).message());
+    }
+
+    @Test
     public void extenderProgressListenerNeverDecreases() {
-        var reporter = new RecordingReporter();
-        var progress = new Progress(reporter);
-        var listener = BundleHelper.createProgressListener(progress, "arm64-ios");
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
+        ExtenderProgressListener listener = BundleHelper.createProgressListener(progress, "arm64-ios");
 
         listener.onProgress("SDK", "Downloading SDK", 10, -1, -1);
         listener.onProgress("COMPILING", "ext: compiling source files", 50, 1, 2);
         listener.onProgress("COMPILING", "ext: compiling source files", 0, 2, 2);
         listener.onProgress("SUCCESS", null, 100, -1, -1);
 
-        var last = reporter.reports.get(reporter.reports.size() - 1);
+        Report last = reporter.reports.get(reporter.reports.size() - 1);
         assertEquals(1.0, last.fraction(), 0.0);
         assertEquals("SUCCESS", ((IProgress.Message.BuildingEngineStage) last.message()).label());
-        var fractions = reporter.reports.stream().mapToDouble(Report::fraction).toArray();
+        double[] fractions = reporter.reports.stream().mapToDouble(Report::fraction).toArray();
         for (int i = 1; i < fractions.length; ++i) {
             assertTrue(fractions[i] >= fractions[i - 1]);
         }
@@ -234,8 +286,8 @@ public class ProgressTest {
 
     @Test
     public void closeStopsFurtherNotifications() {
-        var reporter = new RecordingReporter();
-        var progress = new Progress(reporter);
+        RecordingReporter reporter = new RecordingReporter();
+        Progress progress = new Progress(reporter);
 
         progress.close();
         progress.message(IProgress.Message.Cleaning.INSTANCE);

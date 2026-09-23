@@ -31,6 +31,7 @@ import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.bundle.BundlerParams;
+import com.dynamo.bob.bundle.EngineProgressGate;
 import com.dynamo.bob.bundle.IBundler;
 import com.dynamo.bob.cache.ResourceCache;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
@@ -130,6 +131,7 @@ public class Project implements AutoCloseable {
     }
 
     private ExecutorService executor = Executors.newCachedThreadPool();
+    private EngineProgressGate engineProgressGate = new EngineProgressGate();
     private ResourceCache resourceCache = new ResourceCache();
     private IFileSystem fileSystem;
     private final ProjectResourceWalker resourceWalker;
@@ -1436,9 +1438,14 @@ public class Project implements AutoCloseable {
         scan(scanner, "com.defold.extension.pipeline");
     }
 
+    public EngineProgressGate getEngineProgressGate() {
+        return engineProgressGate;
+    }
+
     private Future buildRemoteEngine(IProgress progress, ExecutorService executor, AtomicBoolean remoteBuildFailed) {
+        engineProgressGate = new EngineProgressGate();
         return executor.submit(() -> {
-            progress.message(IProgress.Message.BuildingEngine.INSTANCE);
+            engineProgressGate.message(progress, IProgress.Message.BuildingEngine.INSTANCE);
             var variant = option("variant", Bob.VARIANT_RELEASE);
             var withSymbols = hasOption("with-symbols");
 
@@ -2050,10 +2057,10 @@ public class Project implements AutoCloseable {
                             boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
                             TimeProfiler.stop();
                             // setup 10%, engine 30%, resources 60%
-                            var buildPhases = commandProgress.split(10);
+                            IProgress.ISplit buildPhases = commandProgress.split(10);
 
                             if (shouldBuildProject) {
-                                try (var setupProgress = buildPhases.subtask(1)) {
+                                try (IProgress setupProgress = buildPhases.subtask(1)) {
                                     // do this before buildRemoteEngine to prevent concurrent modification exception, since
                                     // lua transpilation adds new mounts with compiled Lua that buildRemoteEngine iterates over
                                     // when sending to extender
@@ -2072,7 +2079,7 @@ public class Project implements AutoCloseable {
                             TimeProfiler.start("PrepEngine");
                             TimeProfiler.addData("shouldBuildRemoteEngine", shouldBuildRemoteEngine);
                             AtomicBoolean remoteBuildFailed = new AtomicBoolean(false);
-                            var engineProgress = buildPhases.subtask(3);
+                            IProgress engineProgress = buildPhases.subtask(3);
                             if (shouldBuildRemoteEngine) {
                                 remoteBuildFuture = buildRemoteEngine(engineProgress, executor, remoteBuildFailed);
                             } else {
@@ -2087,7 +2094,7 @@ public class Project implements AutoCloseable {
                             }
                             TimeProfiler.stop();
                             boolean resourceBuildingFailed = false;
-                            try (var resourceProgress = buildPhases.subtask(6)) {
+                            try (IProgress resourceProgress = buildPhases.subtask(6)) {
                                 if (shouldBuildProject) {
                                     result = createAndRunTasks(resourceProgress, remoteBuildFailed);
                                 }
@@ -2102,6 +2109,7 @@ public class Project implements AutoCloseable {
                                     // if an exception was thrown in buildRemoteEngine() the
                                     // original exception is included in the ExecutionException
                                     try {
+                                        engineProgressGate.open(engineProgress);
                                         remoteBuildFuture.get();
                                     } catch (ExecutionException | InterruptedException e) {
                                         Throwable cause = e.getCause();

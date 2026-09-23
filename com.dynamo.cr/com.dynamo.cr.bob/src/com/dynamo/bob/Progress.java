@@ -38,6 +38,7 @@ public final class Progress implements IProgress {
     }
 
     private final Reporter reporter;
+    private Rational lastReportedCompleted = Rational.ZERO;
     private final AtomicReference<ProgressState> state = new AtomicReference<>(new ProgressState(Rational.ZERO, Message.Working.INSTANCE, false));
 
     public Progress(Reporter reporter) {
@@ -128,8 +129,18 @@ public final class Progress implements IProgress {
         return transition.newState().completed.subtract(transition.oldState().completed);
     }
 
+    // Subtasks advance the shared state from several threads and the state update is
+    // atomic while the reporter callback is not, so a thread that observed a lower
+    // fraction can report after a higher one was already reported. Serialize the
+    // callback and drop such stale fractions so the reported progress never decreases.
     private void report(ProgressState state) {
-        reporter.report(state.message, state.completed.doubleValue());
+        synchronized (reporter) {
+            if (state.completed.compareTo(lastReportedCompleted) < 0) {
+                return;
+            }
+            lastReportedCompleted = state.completed;
+            reporter.report(state.message, state.completed.doubleValue());
+        }
     }
 
     private static Rational consume(IProgress progress, Rational requestedCapacity) {

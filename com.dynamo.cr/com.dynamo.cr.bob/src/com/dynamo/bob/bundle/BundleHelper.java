@@ -804,6 +804,11 @@ public class BundleHelper {
     /// Callbacks arrive on a background thread; the server percent estimate is clamped to
     /// never decrease and is reported as work on a 100-part split of `progress`.
     public static ExtenderProgressListener createProgressListener(IProgress progress, String platform) {
+        return createProgressListener(progress, platform, null);
+    }
+
+    /// As above, but stage messages go through `gate` when it is non-null.
+    public static ExtenderProgressListener createProgressListener(IProgress progress, String platform, EngineProgressGate gate) {
         IProgress.ISplit split = progress.split(100);
         AtomicInteger lastPercent = new AtomicInteger(0);
         return (stage, detail, percent, currentFile, totalFiles) -> {
@@ -812,7 +817,12 @@ public class BundleHelper {
             if (clamped > previous) {
                 split.worked(clamped - previous);
             }
-            progress.message(new IProgress.Message.BuildingEngineStage(platform, stage, detail, currentFile, totalFiles));
+            IProgress.Message message = new IProgress.Message.BuildingEngineStage(platform, stage, detail, currentFile, totalFiles);
+            if (gate != null) {
+                gate.message(progress, message);
+            } else {
+                progress.message(message);
+            }
         };
     }
 
@@ -828,7 +838,7 @@ public class BundleHelper {
         checkForDuplicates(allSource);
 
         try {
-            extender.build(platform, sdkVersion, allSource, zipFile, logFile, createProgressListener(progress, platform));
+            extender.build(platform, sdkVersion, allSource, zipFile, logFile, createProgressListener(progress, platform, project.getEngineProgressGate()));
         } catch (ExtenderClientException e) {
             if (e.getCause() instanceof ConnectException) {
                 throw (ConnectException)e.getCause();
