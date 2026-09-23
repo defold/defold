@@ -1456,6 +1456,20 @@
         c))
     (catch IllegalArgumentException _)))
 
+(defn- clamp-unit
+  ^double [n]
+  (min 1.0 (max 0.0 (double n))))
+
+(defn vec->color
+  "Converts an [r g b] or [r g b a] vector to a Color, clamping each component
+  to the 0.0 .. 1.0 range that Color requires. Values outside that range occur
+  in the wild, and Color's constructor throws on them."
+  ^Color [[r g b a]]
+  (Color. (clamp-unit r)
+          (clamp-unit g)
+          (clamp-unit b)
+          (clamp-unit (or a 1.0))))
+
 (def ^:private on-color-dropper-mouse-pressed MouseEvent/.consume)
 
 (def ^:private saved-colors-prefs-path [:workflow :saved-colors])
