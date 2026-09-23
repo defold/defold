@@ -228,9 +228,8 @@ defold_log("DEFOLD_BUILD_HOME: ${DEFOLD_BUILD_HOME}")
 # Prefer colored diagnostics from compilers that support it
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
-# Export compilation database for tooling (clangd, IDEs)
-# -- currently set to off, as it currently interferes with the Waf option
-set(CMAKE_EXPORT_COMPILE_COMMANDS OFF)
+# Export compilation database for tooling (clangd, IDEs) when requested.
+option(CMAKE_EXPORT_COMPILE_COMMANDS "Export compilation database" OFF)
 
 # Common paths
 set(DEFOLD_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/include")
@@ -380,8 +379,7 @@ link_libraries(defold_sdk)
 set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}" CACHE PATH "Install prefix" FORCE)
 defold_log("Install prefix set to DEFOLD_SDK_ROOT: ${CMAKE_INSTALL_PREFIX}")
 
-# CMake libraries may be built before every Waf library has populated its
-# dmsdk compatibility headers. Mirror Waf's dmsdk_add_files convention here.
+# Install compatibility headers even when only a subset of libraries is built.
 foreach(_DEFOLD_DMSDK_DIR IN LISTS _DEFOLD_DMSDK_DIRS)
   file(GLOB_RECURSE _DEFOLD_DMSDK_HEADERS CONFIGURE_DEPENDS
        RELATIVE "${_DEFOLD_DMSDK_DIR}"
