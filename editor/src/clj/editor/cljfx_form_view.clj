@@ -1862,11 +1862,13 @@
 (defn- make-form-view [parent resource-node opts]
   (let [{:keys [workspace project prefs tab localization]} opts
         view-id (make-form-view-node! parent resource-node workspace project prefs localization)
+
         dispose-repaint-timer!
         (ui/node-timer!
           parent 30 "refresh-form-view"
           (fn [_elapsed-time]
             (g/node-value view-id :form-view)))]
+
     (g/node-value view-id :form-view)
     (ui/on-closed! tab (fn [_]
                          (dispose-repaint-timer!)

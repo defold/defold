@@ -224,8 +224,8 @@
   :clean-targets ^{:protect false} [:target-path "src/antlr"]
 
   :profiles          {:test    {:injections [(com.defold.libs.ResourceUnpacker/unpackResources)
-                                           ;; Keep JavaFX alive between tests regardless of which namespace starts it.
-                                           (javafx.application.Platform/setImplicitExit false)]
+                                             ;; Keep JavaFX alive between tests regardless of which namespace starts it.
+                                             (javafx.application.Platform/setImplicitExit false)]
                                 :resource-paths ["test/resources"]
                                 :jvm-opts ["-Ddefold.tests=true"
                                            "-Ddefold.cache.libraries=true"]}

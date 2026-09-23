@@ -4289,6 +4289,7 @@
 
 (defn- create-breakpoint-editor! [view-node canvas]
   (let [state (atom nil)
+
         dispose-timer!
         (ui/node-timer!
           canvas 10 "breakpoint-code-editor-timer"
@@ -4300,6 +4301,7 @@
                           {:edited-breakpoint edited-breakpoint
                            :gutter-metrics (g/node-value view-node :gutter-metrics evaluation-context)
                            :layout (g/node-value view-node :layout evaluation-context)}))))))]
+
     (fx/mount-renderer
       state
       (fx/create-renderer
@@ -4465,12 +4467,14 @@
             focus-owner-property (.focusOwnerProperty scene)
             focus-change-listener (make-focus-change-listener view-node grid canvas)
             dispose-breakpoint-editor! (create-breakpoint-editor! view-node canvas)
+
             dispose-repainter!
             (ui/node-timer!
               canvas nil "repaint-code-editor-view"
               (fn [elapsed-time]
                 (when-not (ui/ui-disabled?)
                   (repaint-view! view-node elapsed-time {:cursor-visible true :editable editable}))))]
+
         (.addListener focus-owner-property focus-change-listener)
 
         ;; Remove callbacks when our tab is closed.

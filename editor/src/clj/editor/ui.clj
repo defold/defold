@@ -3049,6 +3049,7 @@
     f       function receiving elapsed time in seconds"
   [^Node node fps name f]
   (let [running (volatile! false)
+
         timer
         (->timer fps name
                  (fn [_ elapsed-time _]
@@ -3067,6 +3068,7 @@
                            #(and (.getValue tree-showing-property)
                                  (.get tree-visible-property))
                            (into-array Observable [tree-showing-property tree-visible-property]))
+
         ^ChangeListener on-running-changed
         (fn [_ _ tree-visible]
           (vreset! running tree-visible)
