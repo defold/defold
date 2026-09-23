@@ -57,7 +57,22 @@ class ExternalPackageTests(unittest.TestCase):
     def read_package(self, filename):
         with tarfile.open(self.root / 'packages' / filename) as archive:
             return {member.name: archive.extractfile(member).read().decode()
-                    for member in archive if member.isfile()}
+                    for member in archive
+                    if member.isfile() and not Path(member.name).name.startswith('._')}
+
+    def test_read_package_ignores_appledouble_metadata(self):
+        (self.root / 'packages').mkdir()
+        files = {
+            'include/fixture.h': b'header',
+            'include/._fixture.h': b'\x00\x05\x16\x07\xff',
+            '._include': b'\x00\x05\x16\x07\xff',
+        }
+        with tarfile.open(self.root / 'packages/metadata.tar.gz', 'w:gz') as archive:
+            for name, contents in files.items():
+                member = tarfile.TarInfo(name)
+                member.size = len(contents)
+                archive.addfile(member, io.BytesIO(contents))
+        self.assertEqual({'include/fixture.h': 'header'}, self.read_package('metadata.tar.gz'))
 
     def test_common_headers_are_separate_from_platform_libraries(self):
         cases = (
