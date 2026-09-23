@@ -527,6 +527,11 @@ jobs:
       - *step_python
       - *step_java
       - *step_cmake
+      - &step_install_linux
+        name: "Install Linux build dependencies"
+        if: runner.os == 'Linux'
+        # install_ext builds native dependencies and requires the SDK's Clang version.
+        run: "ci/ci.sh install"
       - name: "Download engine builds"
         # Without S3 credentials build_bob falls back to the artifacts in $DYNAMO_HOME,
         # so every engine build has to be restored there first.
@@ -570,6 +575,7 @@ jobs:
       - *step_python
       - *step_java
       - *step_cmake
+      - *step_install_linux
       - name: "Download bob jar"
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -716,9 +722,7 @@ jobs:
         with:
           name: "bob-jar"
           path: "${{ github.workspace }}/com.dynamo.cr/com.dynamo.cr.bob/dist"
-      - name: "Install dependencies"
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
+      - *step_install_linux
       - name: "Install dependencies"
         if: runner.os == 'macOS'
         run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
@@ -791,8 +795,7 @@ jobs:
       - *step_java
       - *step_cmake
       - *step_download_bob
-      - name: "Install dependencies"
-        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
+      - *step_install_linux
       - *step_download_dynamo_home
       - *step_chmod_dynamo_home
       - name: "Test editor"
