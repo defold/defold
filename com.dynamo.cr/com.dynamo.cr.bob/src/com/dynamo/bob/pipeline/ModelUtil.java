@@ -290,6 +290,42 @@ public class ModelUtil {
         }
     }
 
+    /**
+     * Finds buffer indices used exclusively as EXT/KHR Meshopt fallbacks, whose
+     * contents modelc replaces with decoded data. Buffers also used as compressed
+     * sources or by ordinary views remain dependencies, as do unreferenced buffers.
+     * This mirrors modelc's geometry-load requirements using only JSON metadata,
+     * so dependency discovery does not require unused fallback files to exist.
+     */
+    private static Set<Integer> getUnusedMeshoptFallbackBuffers(JsonNode root) {
+        Set<Integer> fallbacks = new HashSet<>();
+        Set<Integer> required = new HashSet<>();
+        JsonNode bufferViews = root.path("bufferViews");
+        if (bufferViews.isArray()) {
+            for (JsonNode view : bufferViews) {
+                JsonNode extensions = view.path("extensions");
+                JsonNode compression = extensions.path("EXT_meshopt_compression");
+                if (!compression.isObject()) {
+                    compression = extensions.path("KHR_meshopt_compression");
+                }
+                int buffer = view.path("buffer").asInt(-1);
+                if (compression.isObject()) {
+                    fallbacks.add(buffer);
+                    required.add(compression.path("buffer").asInt(-1));
+                } else {
+                    required.add(buffer);
+                }
+            }
+        }
+        // A fallback may share its buffer with compressed sources or ordinary data.
+        fallbacks.removeAll(required);
+        return fallbacks;
+    }
+
+    /**
+     * Collects external dependencies in buffer declaration order and detects morph
+     * targets. Geometry validation and decoding are left to the native importer.
+     */
     private static ModelMetadata getModelMetadata(JsonNode root) throws IOException {
         if (root == null || !root.isObject()) {
             throw new IOException("glTF root must be an object");
@@ -298,8 +334,12 @@ public class ModelUtil {
         LinkedHashSet<String> externalBufferUris = new LinkedHashSet<>();
         JsonNode buffers = root.path("buffers");
         if (buffers.isArray()) {
-            for (JsonNode buffer : buffers) {
-                JsonNode uriNode = buffer.get("uri");
+            Set<Integer> unusedFallbacks = getUnusedMeshoptFallbackBuffers(root);
+            for (int i = 0; i < buffers.size(); ++i) {
+                if (unusedFallbacks.contains(i)) {
+                    continue;
+                }
+                JsonNode uriNode = buffers.get(i).get("uri");
                 if (uriNode != null && uriNode.isTextual()) {
                     String uri = uriNode.getTextValue();
                     if (isExternalBufferUri(uri)) {
@@ -751,13 +791,8 @@ public class ModelUtil {
             throw new IOException("Model load returned null");
         }
 
-        for (Modelimporter.Buffer buffer : scene.buffers)
-        {
-            // Material-only imports intentionally leave geometry-only buffers empty.
-            // Buffers needed by images are still resolved by the native importer.
-            if (!options.loadMaterialsOnly && (buffer.buffer == null || buffer.buffer.length == 0))
-                throw new IOException(String.format("Failed to load buffer '%s' for file '%s", buffer.uri, path));
-        }
+        // The native importer validates required buffers. Optional Meshopt fallbacks
+        // and geometry skipped by material-only imports can remain empty.
         return loadInternal(scene);
     }
 
