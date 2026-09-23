@@ -341,7 +341,7 @@ Scene* LoadFromPath(Options* options, const char* path)
     {
         for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
         {
-            if (scene->m_Buffers[i].m_Buffer)
+            if (scene->m_Buffers[i].m_Buffer || scene->m_Buffers[i].m_BufferCount == 0)
                 continue;
 
             uint32_t mem_size = 0;

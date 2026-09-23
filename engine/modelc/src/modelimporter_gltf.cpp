@@ -16,6 +16,7 @@
 // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html
 
 #include "modelimporter.h"
+#include "modelimporter_compression.h"
 
 // NOTE: https://github.com/jkuhlmann/cgltf/issues/259
 // We need our own locale-independent implementation to avoid a bug where gltf/glb imports break
@@ -58,12 +59,23 @@ float AtoFLocaleIndependent(char* str) {
 
 namespace dmModelImporter
 {
+// Each allocation owns an accessor copy and its decoded bytes; metadata is borrowed.
+// Stable addresses let primitives sharing an accessor use different Draco data.
+struct DecodedAccessor
+{
+    cgltf_accessor    m_Accessor;
+    cgltf_buffer_view m_View;
+    DecodedAccessor*  m_Next;
+};
+
 struct GltfData
 {
-    cgltf_data* m_Data;
-    bool        m_LoadMaterialsOnly;
-    bool        m_LoadMeshMetadata;
-    bool        m_SkipImageData;
+    cgltf_data*      m_Data;
+    DecodedAccessor* m_DecodedAccessors;
+    bool            m_CompressionDecoded;
+    bool            m_LoadMaterialsOnly;
+    bool            m_LoadMeshMetadata;
+    bool            m_SkipImageData;
 };
 
 static dmTransform::Transform& ToTransform(const dmModelImporter::Transform& in, dmTransform::Transform& out)
@@ -2020,7 +2032,8 @@ static bool IsSupportedAnimationOutput(const cgltf_animation_channel* channel, c
 {
     if (output->component_type == cgltf_component_type_r_32f)
         return true;
-    if (channel->target_path != cgltf_animation_path_type_weights || !output->normalized)
+    if ((channel->target_path != cgltf_animation_path_type_weights &&
+         channel->target_path != cgltf_animation_path_type_rotation) || !output->normalized)
         return false;
 
     switch (output->component_type)
@@ -2063,7 +2076,7 @@ static bool ValidateAnimationChannel(Scene* scene, cgltf_animation_channel* chan
     }
     if (!IsSupportedAnimationOutput(channel, output))
     {
-        SetLoadError(scene, "glTF animation output accessor must contain floats or normalized integer weights.");
+        SetLoadError(scene, "glTF animation output accessor must contain floats or normalized integer rotations/weights.");
         return false;
     }
 
@@ -2167,9 +2180,14 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
+static bool IsBufferRequired(const GltfData* data, const cgltf_buffer* buffer);
+
 // Based on cgltf.h: cgltf_load_buffers(...)
-static cgltf_result ResolveBuffers(const cgltf_options* options, cgltf_data* data, const char* gltf_path)
+// Loads GLB/data-URI bytes and, when a path is supplied, external buffers.
+// Skips sources not needed by the requested load, including replaced fallbacks.
+static cgltf_result ResolveBuffers(const cgltf_options* options, GltfData* scene_data, const char* gltf_path)
 {
+    cgltf_data* data = scene_data->m_Data;
     if (options == NULL)
     {
         return cgltf_result_invalid_options;
@@ -2188,7 +2206,7 @@ static cgltf_result ResolveBuffers(const cgltf_options* options, cgltf_data* dat
 
     for (cgltf_size i = 0; i < data->buffers_count; ++i)
     {
-        if (data->buffers[i].data)
+        if (data->buffers[i].data || !IsBufferRequired(scene_data, &data->buffers[i]))
         {
             continue;
         }
@@ -2260,18 +2278,39 @@ static cgltf_result ResolveBuffers(const cgltf_options* options, cgltf_data* dat
     return cgltf_result_success;
 }
 
+// Geometry loads omit only buffers used exclusively as Meshopt fallbacks.
+// Material-only loads require just the source buffers of requested images.
 static bool IsBufferRequired(const GltfData* data, const cgltf_buffer* buffer)
 {
     if (!data->m_LoadMaterialsOnly)
-        return true;
+    {
+        bool replaced = false;
+        for (cgltf_size i = 0; i < data->m_Data->buffer_views_count; ++i)
+        {
+            const cgltf_buffer_view* view = &data->m_Data->buffer_views[i];
+            if (view->has_meshopt_compression && view->meshopt_compression.buffer == buffer)
+                return true;
+            if (view->buffer == buffer)
+            {
+                if (!view->has_meshopt_compression)
+                    return true;
+                replaced = true;
+            }
+        }
+        return !replaced;
+    }
     if (data->m_SkipImageData)
         return false;
 
     for (cgltf_size i = 0; i < data->m_Data->images_count; ++i)
     {
         const cgltf_image* image = &data->m_Data->images[i];
-        if (image->buffer_view && image->buffer_view->buffer == buffer)
-            return true;
+        if (image->buffer_view)
+        {
+            const cgltf_buffer_view* view = image->buffer_view;
+            if ((view->has_meshopt_compression ? view->meshopt_compression.buffer : view->buffer) == buffer)
+                return true;
+        }
     }
     return false;
 }
@@ -2579,6 +2618,267 @@ static bool ValidateGltfResourceLimits(Scene* scene, cgltf_data* data)
     return true;
 }
 
+// Translates parser metadata to the private codec descriptor, preserving invalid
+// modes/filters so the codec validator can reject them.
+static Compression::MeshoptBuffer GetMeshoptBuffer(const cgltf_meshopt_compression& compression)
+{
+    Compression::MeshoptBuffer buffer;
+    switch (compression.mode)
+    {
+        case cgltf_meshopt_compression_mode_attributes: buffer.m_Mode = Compression::MODE_ATTRIBUTES; break;
+        case cgltf_meshopt_compression_mode_triangles: buffer.m_Mode = Compression::MODE_TRIANGLES; break;
+        case cgltf_meshopt_compression_mode_indices: buffer.m_Mode = Compression::MODE_INDICES; break;
+        default: buffer.m_Mode = Compression::MODE_INVALID; break;
+    }
+    switch (compression.filter)
+    {
+        case cgltf_meshopt_compression_filter_none: buffer.m_Filter = Compression::FILTER_NONE; break;
+        case cgltf_meshopt_compression_filter_octahedral: buffer.m_Filter = Compression::FILTER_OCTAHEDRAL; break;
+        case cgltf_meshopt_compression_filter_quaternion: buffer.m_Filter = Compression::FILTER_QUATERNION; break;
+        case cgltf_meshopt_compression_filter_exponential: buffer.m_Filter = Compression::FILTER_EXPONENTIAL; break;
+        case cgltf_meshopt_compression_filter_color: buffer.m_Filter = Compression::FILTER_COLOR; break;
+        default: buffer.m_Filter = Compression::FILTER_INVALID; break;
+    }
+    buffer.m_Extension = compression.is_khr ? Compression::KHR_MESHOPT : Compression::EXT_MESHOPT;
+    buffer.m_Count = compression.count;
+    buffer.m_Stride = compression.stride;
+    return buffer;
+}
+
+// Stores a load error with its codec and view/primitive context; returns false
+// so callers can propagate the failure directly.
+static bool CompressionError(Scene* scene, const char* codec, cgltf_size index, const char* message)
+{
+    char error[512];
+    dmSnPrintf(error, sizeof(error), "glTF %s %u: %s", codec, (uint32_t)index, message);
+    SetLoadError(scene, error);
+    return false;
+}
+
+// Checks source ranges, decoded layouts, and fallback declarations before buffer
+// resolution/allocation. The compressed bitstream is checked during decoding.
+static bool ValidateMeshoptViews(Scene* scene, cgltf_data* data)
+{
+    for (cgltf_size i = 0; i < data->buffer_views_count; ++i)
+    {
+        const cgltf_buffer_view* view = &data->buffer_views[i];
+        if (!view->has_meshopt_compression)
+            continue;
+        const cgltf_meshopt_compression& compression = view->meshopt_compression;
+        if (!compression.buffer || compression.offset > compression.buffer->size ||
+            compression.size == 0 || compression.size > compression.buffer->size - compression.offset)
+            return CompressionError(scene, "Meshopt buffer view", i, "Compressed range exceeds its source buffer.");
+        if (view->stride && view->stride != compression.stride)
+            return CompressionError(scene, "Meshopt buffer view", i, "Compressed and decoded strides differ.");
+        char error[256];
+        if (!Compression::ValidateMeshoptBuffer(GetMeshoptBuffer(compression), view->size, error, sizeof(error)))
+            return CompressionError(scene, "Meshopt buffer view", i, error);
+
+        // A placeholder with no bytes is valid only when its extension is required.
+        if (!view->buffer->uri && !(view->buffer == data->buffers && data->bin))
+        {
+            const char* extension = compression.is_khr ? "KHR_meshopt_compression" : "EXT_meshopt_compression";
+            bool required = false;
+            for (cgltf_size j = 0; j < data->extensions_required_count; ++j)
+                required |= strcmp(data->extensions_required[j], extension) == 0;
+            if (!required)
+                return CompressionError(scene, "Meshopt buffer view", i, "Missing fallback requires extensionsRequired.");
+        }
+    }
+    return true;
+}
+
+// Requires validated metadata and resolved sources. Each view gets one override
+// owned by cgltf; material-only loads decode only views needed by images.
+static bool DecodeMeshoptViews(Scene* scene, GltfData* data)
+{
+    for (cgltf_size i = 0; i < data->m_Data->buffer_views_count; ++i)
+    {
+        cgltf_buffer_view* view = &data->m_Data->buffer_views[i];
+        if (!view->has_meshopt_compression || view->data)
+            continue;
+        if (data->m_LoadMaterialsOnly)
+        {
+            bool required = false;
+            if (!data->m_SkipImageData)
+            {
+                for (cgltf_size j = 0; j < data->m_Data->images_count; ++j)
+                    required |= data->m_Data->images[j].buffer_view == view;
+            }
+            if (!required)
+                continue;
+        }
+        const cgltf_meshopt_compression& compression = view->meshopt_compression;
+        if (!compression.buffer->data)
+            return CompressionError(scene, "Meshopt buffer view", i, "Compressed source buffer is missing.");
+        // cgltf_free owns buffer-view overrides allocated through its allocator.
+        view->data = data->m_Data->memory.alloc_func(data->m_Data->memory.user_data, view->size);
+        if (!view->data)
+            return CompressionError(scene, "Meshopt buffer view", i, "Could not allocate decoded buffer.");
+        char error[256];
+        if (!Compression::DecodeMeshoptBuffer(GetMeshoptBuffer(compression),
+                (const uint8_t*)compression.buffer->data + compression.offset, compression.size,
+                view->data, view->size, error, sizeof(error)))
+            return CompressionError(scene, "Meshopt buffer view", i, error);
+    }
+    return true;
+}
+
+// Maps accessor storage types for exact Draco type matching and index extraction.
+// Unsupported types remain invalid; attribute values are not converted here.
+static Compression::ComponentType GetCompressionComponentType(cgltf_component_type type)
+{
+    switch (type)
+    {
+        case cgltf_component_type_r_8: return Compression::TYPE_INT8;
+        case cgltf_component_type_r_8u: return Compression::TYPE_UINT8;
+        case cgltf_component_type_r_16: return Compression::TYPE_INT16;
+        case cgltf_component_type_r_16u: return Compression::TYPE_UINT16;
+        case cgltf_component_type_r_32u: return Compression::TYPE_UINT32;
+        case cgltf_component_type_r_32f: return Compression::TYPE_FLOAT32;
+        default: return Compression::TYPE_INVALID;
+    }
+}
+
+// Requires counts bounded by importer limits. Allocates a private, tightly packed
+// copy with writable bytes, borrowing metadata without changing the source accessor.
+// The scene owns the allocation, including when subsequent extraction fails.
+static cgltf_accessor* CreateDecodedAccessor(GltfData* data, const cgltf_accessor* source)
+{
+    size_t stride = cgltf_calc_size(source->type, source->component_type);
+    size_t size = source->count * stride;
+    DecodedAccessor* decoded = (DecodedAccessor*)calloc(1, sizeof(DecodedAccessor) + size);
+    if (!decoded)
+        return 0;
+    decoded->m_Accessor = *source;
+    decoded->m_Accessor.offset = 0;
+    decoded->m_Accessor.stride = stride;
+    decoded->m_Accessor.is_sparse = false;
+    decoded->m_Accessor.buffer_view = &decoded->m_View;
+    decoded->m_View.size = size;
+    decoded->m_View.data = decoded + 1;
+    decoded->m_Next = data->m_DecodedAccessors;
+    data->m_DecodedAccessors = decoded;
+    return &decoded->m_Accessor;
+}
+
+// Validates unique-ID mappings and copies decoded data into this primitive's
+// private accessors, preserving attributes and morph data outside Draco.
+// Partial results remain scene-owned; a false result must fail the import.
+static bool ReadDracoPrimitive(GltfData* data, cgltf_primitive* primitive, Compression::HDracoMesh mesh,
+                               const Compression::DracoMeshInfo& info, char* error, size_t error_size)
+{
+    const cgltf_draco_mesh_compression& compression = primitive->draco_mesh_compression;
+    if (compression.attributes_count == 0)
+    {
+        dmSnPrintf(error, error_size, "Draco attribute map is empty.");
+        return false;
+    }
+    for (cgltf_size i = 0; i < compression.attributes_count; ++i)
+    {
+        const cgltf_draco_attribute& compressed = compression.attributes[i];
+        cgltf_attribute* attribute = 0;
+        for (cgltf_size j = 0; j < primitive->attributes_count; ++j)
+        {
+            if (strcmp(primitive->attributes[j].name, compressed.name) == 0)
+            {
+                attribute = &primitive->attributes[j];
+                break;
+            }
+        }
+        Compression::DracoAttributeInfo attribute_info;
+        if (!attribute || !attribute->data ||
+            !Compression::GetDracoAttributeInfo(mesh, compressed.unique_id, &attribute_info) ||
+            attribute->data->count != info.m_VertexCount ||
+            attribute_info.m_ComponentCount != cgltf_num_components(attribute->data->type) ||
+            attribute_info.m_Type != GetCompressionComponentType(attribute->data->component_type))
+        {
+            dmSnPrintf(error, error_size, "Attribute '%s' (ID %u) is missing or does not match its accessor.", compressed.name, compressed.unique_id);
+            return false;
+        }
+        cgltf_accessor* accessor = CreateDecodedAccessor(data, attribute->data);
+        if (!accessor || !Compression::ReadDracoAttribute(mesh, compressed.unique_id, accessor->buffer_view->data, accessor->buffer_view->size))
+        {
+            dmSnPrintf(error, error_size, "Could not extract attribute '%s'.", compressed.name);
+            return false;
+        }
+        attribute->data = accessor;
+    }
+    cgltf_accessor indices;
+    memset(&indices, 0, sizeof(indices));
+    if (primitive->indices)
+        indices = *primitive->indices;
+    else
+    {
+        indices.type = cgltf_type_scalar;
+        indices.component_type = cgltf_component_type_r_32u;
+        indices.count = info.m_IndexCount;
+    }
+    if (indices.type != cgltf_type_scalar || indices.count != info.m_IndexCount)
+    {
+        dmSnPrintf(error, error_size, "Decoded indices do not match the index accessor.");
+        return false;
+    }
+    cgltf_accessor* accessor = CreateDecodedAccessor(data, &indices);
+    if (!accessor || !Compression::ReadDracoIndices(mesh, GetCompressionComponentType(indices.component_type),
+            accessor->buffer_view->data, accessor->buffer_view->size))
+    {
+        dmSnPrintf(error, error_size, "Could not extract indices into the declared component type.");
+        return false;
+    }
+    primitive->indices = accessor;
+    return true;
+}
+
+// Decodes a resolved primitive source and releases the temporary codec handle on
+// success or failure. Extracted accessors remain owned by the scene.
+static bool DecodeDracoPrimitive(GltfData* data, cgltf_primitive* primitive, char* error, size_t error_size)
+{
+    if (primitive->type != cgltf_primitive_type_triangles && primitive->type != cgltf_primitive_type_triangle_strip)
+    {
+        dmSnPrintf(error, error_size, "Draco requires TRIANGLES or TRIANGLE_STRIP.");
+        return false;
+    }
+    const cgltf_buffer_view* view = primitive->draco_mesh_compression.buffer_view;
+    Compression::DracoMeshInfo info;
+    Compression::HDracoMesh mesh = Compression::DecodeDracoMesh(cgltf_buffer_view_data(view), view->size,
+        primitive->type == cgltf_primitive_type_triangle_strip, &info, error, error_size);
+    if (!mesh)
+        return false;
+    bool success = ReadDracoPrimitive(data, primitive, mesh, info, error, error_size);
+    Compression::DestroyDracoMesh(mesh);
+    return success;
+}
+
+// Decodes geometry once before the scene readers run, adding mesh/primitive
+// context to failures. LoadFinalizeGltf guards repeat calls; material-only loads
+// skip decoding.
+static bool DecodeDracoPrimitives(Scene* scene, GltfData* data)
+{
+    if (data->m_LoadMaterialsOnly)
+        return true;
+    for (cgltf_size i = 0; i < data->m_Data->meshes_count; ++i)
+    {
+        cgltf_mesh* mesh = &data->m_Data->meshes[i];
+        for (cgltf_size j = 0; j < mesh->primitives_count; ++j)
+        {
+            cgltf_primitive* primitive = &mesh->primitives[j];
+            if (!primitive->has_draco_mesh_compression)
+                continue;
+            char error[256];
+            if (!DecodeDracoPrimitive(data, primitive, error, sizeof(error)))
+            {
+                char context[128];
+                dmSnPrintf(context, sizeof(context), "Draco mesh %u primitive", (uint32_t)i);
+                return CompressionError(scene, context, j, error);
+            }
+            // The primitive now reads from its decoded accessors.
+            // Keep the flag for cgltf's metadata cleanup; do not decode it twice.
+        }
+    }
+    return true;
+}
+
 static bool LoadFinalizeGltf(Scene* scene)
 {
     GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
@@ -2588,6 +2888,12 @@ static bool LoadFinalizeGltf(Scene* scene)
     {
         SetLoadError(scene, "glTF buffer data is missing.");
         return false;
+    }
+    if (!data->m_CompressionDecoded)
+    {
+        if (!DecodeMeshoptViews(scene, data) || !DecodeDracoPrimitives(scene, data))
+            return false;
+        data->m_CompressionDecoded = true;
     }
     if (!ValidateGltf(scene))
         return false;
@@ -2615,6 +2921,12 @@ static void DestroyGltf(Scene* scene)
 {
     GltfData* data = (GltfData*)scene->m_OpaqueSceneData;
     cgltf_free(data->m_Data);
+    while (data->m_DecodedAccessors)
+    {
+        DecodedAccessor* decoded = data->m_DecodedAccessors;
+        data->m_DecodedAccessors = decoded->m_Next;
+        free(decoded);
+    }
     delete data;
 }
 
@@ -2638,6 +2950,8 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     memset(scene, 0, sizeof(Scene));
     GltfData* scenedata = new GltfData;
     scenedata->m_Data = data;
+    scenedata->m_DecodedAccessors = 0;
+    scenedata->m_CompressionDecoded = false;
     scenedata->m_LoadMaterialsOnly = importeroptions && importeroptions->m_LoadMaterialsOnly;
     scenedata->m_LoadMeshMetadata = importeroptions && importeroptions->m_LoadMeshMetadata;
     scenedata->m_SkipImageData = importeroptions && importeroptions->m_SkipImageData;
@@ -2649,7 +2963,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
 
     // Bound allocations and arithmetic before resolving data URIs. Full glTF
     // validation runs once, after all buffers have been resolved.
-    if (!ValidateGltfResourceLimits(scene, data))
+    if (!ValidateGltfResourceLimits(scene, data) || !ValidateMeshoptViews(scene, data))
     {
         ClearScene(scene);
         return scene;
@@ -2660,7 +2974,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     // It also avoids decoding geometry data URIs that are unused by metadata loads.
     result = scenedata->m_LoadMaterialsOnly && scenedata->m_SkipImageData
         ? cgltf_result_success
-        : ResolveBuffers(&options, data, 0);
+        : ResolveBuffers(&options, scenedata, 0);
     if (result != cgltf_result_success)
     {
         printf("Failed to load gltf buffers: %s (%d)\n", GetResultStr(result), result);
