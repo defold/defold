@@ -59,7 +59,7 @@
               (is (some? formats-list))
               (when formats-list
                 (is (= disabled (.isDisabled formats-list))))
-              (is (coll/any? #(= (if disabled "Source KTX2 format" "Formats") (.getText ^Label %))
+              (is (coll/any? #(= "Formats" (.getText ^Label %))
                              (.lookupAll content ".label")))
               (doseq [^Node checkbox (.lookupAll content ".check-box")]
                 (is (false? (.isDisabled checkbox)))))

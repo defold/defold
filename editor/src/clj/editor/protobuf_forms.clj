@@ -293,9 +293,7 @@
                                            :default (protobuf/default Graphics$PlatformProfile :keep-ktx2-format)
                                            :optional true}
                                           {:path [:formats]
-                                           :localization-key (if (:keep-ktx2-format selected-platform)
-                                                               "texture-profiles.profiles.platforms.formats.source"
-                                                               "texture-profiles.profiles.platforms.formats")
+                                           :localization-key "texture-profiles.profiles.platforms.formats"
                                            :type :2panel
                                            :disable (:keep-ktx2-format selected-platform false)
                                            :panel-key {:path [:format]
