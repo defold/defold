@@ -55,7 +55,7 @@ namespace dmGameSystem
 
     struct B2DBodyMeta
     {
-        dmGameObject::HInstance m_Instance;
+        dmGameObject::HGameObject m_Instance;
     };
 
     static dmOpaqueHandleContainer<uintptr_t> g_BodyHandles;
@@ -145,7 +145,7 @@ namespace dmGameSystem
         g_BodyHandles.Release(handle);
     }
 
-    static void RegisterBodyHandle(b2Body* body, dmGameObject::HInstance hinstance, HOpaqueHandle* out_handle)
+    static void RegisterBodyHandle(b2Body* body, dmGameObject::HGameObject instance, HOpaqueHandle* out_handle)
     {
         assert(body);
         EnsureBodyHandleCapacity();
@@ -174,12 +174,12 @@ namespace dmGameSystem
                 B2DBodyMeta* body_meta = g_BodyMeta.Get(*existing_handle);
                 if (body_meta)
                 {
-                    body_meta->m_Instance = hinstance;
+                    body_meta->m_Instance = instance;
                 }
                 else
                 {
                     B2DBodyMeta new_body_meta = {};
-                    new_body_meta.m_Instance = hinstance;
+                    new_body_meta.m_Instance = instance;
                     g_BodyMeta.Put(*existing_handle, new_body_meta);
                 }
 
@@ -195,25 +195,25 @@ namespace dmGameSystem
         g_BodyToHandle.Put(key, handle);
 
         B2DBodyMeta body_meta = {};
-        body_meta.m_Instance = hinstance;
+        body_meta.m_Instance = instance;
         g_BodyMeta.Put(handle, body_meta);
 
         *out_handle = handle;
     }
 
-    static void PushBodyInternal(lua_State* L, void* body, dmGameObject::HInstance hinstance)
+    static void PushBodyInternal(lua_State* L, void* body, dmGameObject::HGameObject instance)
     {
         B2DLuaBody* luabody = (B2DLuaBody*)lua_newuserdata(L, sizeof(B2DLuaBody));
 
-        RegisterBodyHandle((b2Body*)body, hinstance, &luabody->m_Handle);
+        RegisterBodyHandle((b2Body*)body, instance, &luabody->m_Handle);
 
         luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
         lua_setmetatable(L, -2);
     }
 
-    void PushBody(lua_State* L, void* body, dmGameObject::HInstance hinstance)
+    void PushBody(lua_State* L, void* body, dmGameObject::HGameObject instance)
     {
-        PushBodyInternal(L, body, hinstance);
+        PushBodyInternal(L, body, instance);
     }
 
     void PushBox2DVersion(lua_State* L)
@@ -376,7 +376,7 @@ namespace dmGameSystem
         return body_meta && body_meta->m_Instance ? dmGameObject::GetIdentifier(body_meta->m_Instance) : 0;
     }
 
-    dmGameObject::HInstance GetBodyInstance(b2Body* body)
+    dmGameObject::HGameObject GetBodyInstance(b2Body* body)
     {
         void* user_data = body->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
         return user_data ? CompCollisionObjectGetInstance(user_data) : dmGameObject::INVALID_GAME_OBJECT;

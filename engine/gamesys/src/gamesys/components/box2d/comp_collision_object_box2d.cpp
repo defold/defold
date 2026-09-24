@@ -159,7 +159,7 @@ namespace dmGameSystem
     struct DispatchContext
     {
         PhysicsContextBox2D*    m_PhysicsContext;
-        dmGameObject::HContext  m_GOContext;
+        dmGameObject::HContext  m_Regist;
         uint32_t                m_ComponentTypeIndex;
         bool                    m_Success;
     };
@@ -516,14 +516,14 @@ namespace dmGameSystem
             dmhash_t coll_name_hash = dmMessage::GetSocketNameHash(message->m_Sender.m_Socket);
 
             // Target collection which can be different than we are updating for.
-            dmGameObject::HCollection hcollection = dmGameObject::GetCollectionByHash(context->m_GOContext, coll_name_hash);
-            if (!hcollection) // if the collection has been removed
+            dmGameObject::HCollection collection = dmGameObject::GetCollectionByHash(context->m_Regist, coll_name_hash);
+            if (!collection) // if the collection has been removed
                 return;
 
             // NOTE! The collision world for the target collection is looked up using this worlds component index
             //       which is assumed to be the same as in the target collection.
             uint32_t component_type_index = context->m_ComponentTypeIndex;
-            CollisionWorldBox2D* world = (CollisionWorldBox2D*) dmGameObject::GetWorld(hcollection, component_type_index);
+            CollisionWorldBox2D* world = (CollisionWorldBox2D*) dmGameObject::GetWorld(collection, component_type_index);
 
             // Give that the assumption above holds, this assert will hold too.
             assert(world->m_ComponentTypeIndex == component_type_index);
@@ -566,7 +566,7 @@ namespace dmGameSystem
         dispatch_context.m_PhysicsContext = physics_context;
         dispatch_context.m_Success = true;
         dispatch_context.m_ComponentTypeIndex = world->m_ComponentTypeIndex;
-        dispatch_context.m_GOContext = dmGameObject::GetGameObjectContext(collection);
+        dispatch_context.m_Regist = dmGameObject::GetGameObjectContext(collection);
 
         dmMessage::HSocket physics_socket;
         physics_socket = dmPhysics::GetSocket2D(physics_context->m_Context);

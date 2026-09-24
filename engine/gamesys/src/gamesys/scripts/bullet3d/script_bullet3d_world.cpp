@@ -193,14 +193,14 @@ namespace dmGameSystem
         return index < 0 ? lua_gettop(L) + index + 1 : index;
     }
 
-    static dmGameObject::HInstance GetCollisionObjectOwner(btCollisionObject* object)
+    static dmGameObject::HGameObject GetCollisionObjectOwner(btCollisionObject* object)
     {
         if (!object || !object->getUserPointer())
         {
             return dmGameObject::INVALID_GAME_OBJECT;
         }
-        dmGameObject::HInstance hinstance = CompCollisionObjectGetInstance(object->getUserPointer());
-        return dmGameObject::IsValid(hinstance) ? hinstance : dmGameObject::INVALID_GAME_OBJECT;
+        dmGameObject::HGameObject instance = CompCollisionObjectGetInstance(object->getUserPointer());
+        return dmGameObject::IsValid(instance) ? instance : dmGameObject::INVALID_GAME_OBJECT;
     }
 
     static bool IsIgnoredObject(const Bullet3DQueryFilter* filter, const btCollisionObject* object)
@@ -979,12 +979,12 @@ namespace dmGameSystem
 
     static bool PushCollisionObjectResult(lua_State* L, btCollisionObject* object)
     {
-        dmGameObject::HInstance hinstance = GetCollisionObjectOwner(object);
-        if (!hinstance)
+        dmGameObject::HGameObject instance = GetCollisionObjectOwner(object);
+        if (!instance)
         {
             return false;
         }
-        PushBullet3DCollisionObject(L, object, hinstance);
+        PushBullet3DCollisionObject(L, object, instance);
         return true;
     }
 
@@ -1037,12 +1037,12 @@ namespace dmGameSystem
 
     static bool StoreAsyncCastResult(lua_State* L, const Bullet3DCastResult& result, Bullet3DAsyncCastResult* async_result)
     {
-        dmGameObject::HInstance hinstance = GetCollisionObjectOwner(result.m_Object);
-        if (!hinstance)
+        dmGameObject::HGameObject instance = GetCollisionObjectOwner(result.m_Object);
+        if (!instance)
         {
             return false;
         }
-        async_result->m_ObjectId = GetOrCreateBullet3DCollisionObjectId(L, result.m_Object, hinstance);
+        async_result->m_ObjectId = GetOrCreateBullet3DCollisionObjectId(L, result.m_Object, instance);
 
         async_result->m_Point = result.m_Point;
         async_result->m_Normal = result.m_Normal;

@@ -61,8 +61,8 @@ namespace dmGameSystem
     }
 
     b2BodyId*   CheckBody(struct lua_State* L, int index);
-    void        PushBody(struct lua_State* L, void* body, dmGameObject::HInstance hinstance);
-    dmGameObject::HInstance GetBodyInstance(b2BodyId body);
+    void        PushBody(struct lua_State* L, void* body, dmGameObject::HGameObject instance);
+    dmGameObject::HGameObject GetBodyInstance(b2BodyId body);
     b2WorldId*  CheckWorld(struct lua_State* L, int index);
     b2ShapeId*  CheckShapeId(struct lua_State* L, int index);
     b2ShapeId*  ToShapeId(struct lua_State* L, int index);

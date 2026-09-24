@@ -53,12 +53,12 @@ namespace dmGameSystem
     btCollisionObject*        ToBullet3DCollisionObject(lua_State* L, int index);
     bool                      IsBullet3DCollisionObjectValid(lua_State* L, int index);
     uint64_t                  CheckBullet3DCollisionObjectId(lua_State* L, int index);
-    uint64_t                  GetOrCreateBullet3DCollisionObjectId(lua_State* L, void* collision_object, dmGameObject::HInstance hinstance);
+    uint64_t                  GetOrCreateBullet3DCollisionObjectId(lua_State* L, void* collision_object, dmGameObject::HGameObject instance);
     btCollisionObject*        ToBullet3DCollisionObjectById(lua_State* L, uint64_t id);
     dmGameObject::HCollection GetBullet3DCollisionObjectCollection(lua_State* L, int index);
     dmhash_t                  GetBullet3DCollisionObjectInstanceId(lua_State* L, int index);
     dmGameObject::HCollection GetBullet3DCollisionObjectCollectionById(lua_State* L, uint64_t id);
-    void                      PushBullet3DCollisionObject(lua_State* L, void* collision_object, dmGameObject::HInstance hinstance);
+    void                      PushBullet3DCollisionObject(lua_State* L, void* collision_object, dmGameObject::HGameObject instance);
     void                      PushBullet3DCollisionObjectById(lua_State* L, uint64_t id);
     void                      ScriptBullet3DInvalidateCollisionObject(void* collision_object);
     void                      ScriptBullet3DInitializeCollisionObject(lua_State* L);

@@ -43,15 +43,15 @@ namespace dmGameSystem
 
     struct B2DLuaBody
     {
-        b2BodyId                m_Body;
-        dmGameObject::HInstance m_Instance;
+        b2BodyId                  m_Body;
+        dmGameObject::HGameObject m_Instance;
     };
 
-    void PushBody(lua_State* L, void* body, dmGameObject::HInstance hinstance)
+    void PushBody(lua_State* L, void* body, dmGameObject::HGameObject instance)
     {
         B2DLuaBody* luabody = (B2DLuaBody*) lua_newuserdata(L, sizeof(B2DLuaBody));
         luabody->m_Body     = *(b2BodyId*) body;
-        luabody->m_Instance = hinstance;
+        luabody->m_Instance = instance;
 
         luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
         lua_setmetatable(L, -2);
@@ -182,7 +182,7 @@ namespace dmGameSystem
         return dmGameObject::GetCollection(luabody->m_Instance);
     }
 
-    dmGameObject::HInstance GetBodyInstance(b2BodyId body)
+    dmGameObject::HGameObject GetBodyInstance(b2BodyId body)
     {
         void* user_data = b2Body_GetUserData(body);
         return user_data ? CompCollisionObjectGetInstance(user_data) : dmGameObject::INVALID_GAME_OBJECT;
