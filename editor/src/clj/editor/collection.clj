@@ -572,11 +572,11 @@
        :label id
        :icon (or (not-empty (:icon source-outline)) collection-common/collection-icon)
        :children (:children source-outline)}
-    (cond->
-      (resource/resource? source-resource)
-      (assoc :link source-resource
-             :outline-reference? true
-             :alt-outline source-outline))))
+      (cond->
+        (resource/resource? source-resource)
+        (assoc :link source-resource
+               :outline-reference? true
+               :alt-outline source-outline))))
 
 (g/defnode CollectionInstanceNode
   (inherits scene/SceneNode)

@@ -100,7 +100,7 @@
                                (if (some #(= (first selection) %) prev-selection)
                                  prev-selection
                                  selection)))
-                           
+
                            :else
                            identity)
         sel-filter-fn (comp toggle-filter-fn mode-filter-fn)
