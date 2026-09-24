@@ -127,6 +127,9 @@
     -fx-padding: 6px 8px;
     -fx-font-size: 13.5px;
     -md-text-fill: -df-text;
+    &.md-flow-root {
+        -fx-padding: 0;
+    }
     &.md-page-root {
         -fx-padding: 30px 30px;
         -fx-font-size: 15px;

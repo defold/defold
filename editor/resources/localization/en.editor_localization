@@ -2634,6 +2634,7 @@ form.label.material.fragment-program = Fragment Program
 form.help.material.fragment-program = The `.fp` shader that runs for each rasterized fragment. It typically samples textures and combines varying values and constants to produce the output color.
 form.label.material.attributes = Vertex Attributes
 form.help.material.attributes = Vertex inputs expected by the vertex program. **Semantic Type** identifies engine or component data, **Coordinate Space** controls supported semantic transformations, and **Value** supplies constant data when no matching component stream overrides it. **Step Function** selects per-vertex or per-instance delivery.
+form.label.material.attributes.name = Name
 form.label.material.attributes.semantic-type = Semantic Type
 form.label.material.attributes.step-function = Step Function
 form.label.material.attributes.coordinate-space = Coordinate Space

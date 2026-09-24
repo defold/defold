@@ -2,6 +2,34 @@
   -fx-font-size: 200%;
 }
 
+.cljfx-form-group-title {
+  -fx-font-size: 145%;
+  -fx-font-family: "Source Sans Pro Semibold";
+}
+
+.split-pane.cljfx-form-summary-split {
+  -fx-background-color: transparent;
+  -fx-background-insets: 0;
+  -fx-padding: 0;
+
+  & > .split-pane-divider {
+    // Drawn as part of the detail panel so the table's border stays the seam.
+    -fx-padding: 0 2px;
+    -fx-background-color: derive(-df-background-lightish, 2%);
+    -fx-border-color: -df-background-lighter;
+    -fx-border-width: 1px 0;
+  }
+}
+
+.cljfx-form-detail-panel {
+  -fx-background-color: derive(-df-background-lightish, 2%);
+  -fx-border-color: -df-background-lighter;
+  -fx-border-width: 1px 1px 1px 0;
+  -fx-border-radius: 0 2px 2px 0;
+  -fx-background-radius: 0 2px 2px 0;
+  -fx-padding: 10px;
+}
+
 .cljfx-form-separator {
   -fx-padding: 30 0;
   -fx-background-color: transparent;
@@ -17,7 +45,7 @@
   }
 }
 .cljfx-form-fields {
-  -fx-padding: 16px;
+  -fx-padding: 16px 0;
   -fx-hgap: 3px;
 }
 
@@ -68,7 +96,7 @@
 }
 
 .cljfx-form {
-  -fx-padding: 24px;
+  -fx-padding: 24px 20px;
 }
 
 .cljfx-form-combo-box {
