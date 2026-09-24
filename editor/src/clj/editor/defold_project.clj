@@ -1055,11 +1055,21 @@
                     (workspace/make-read-opts basis workspace :include-editor-dependencies true))
         load-opts (g/tx-cached-value! evaluation-context [:load-opts]
                     (make-load-opts-in-evaluation-context project evaluation-context))
-        node-load-infos (read-nodes [(pair node-id resource)]
-                          :evaluation-context evaluation-context
-                          :read-opts read-opts
-                          :force-read true
-                          :old-node-ids-by-proj-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context))
+        node-load-info (g/tx-cached-value! evaluation-context [::node-load-infos node-id]
+                         (let [node-load-infos (read-nodes [(pair node-id resource)]
+                                                 :evaluation-context evaluation-context
+                                                 :read-opts read-opts
+                                                 :force-read true
+                                                 :old-node-ids-by-proj-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context))]
+                           ;; Retain the reads, but materialize prerequisites through
+                           ;; the shared registry so overlapping loads use the same IDs.
+                           (swap! (:tx-data-context evaluation-context) update ::node-load-infos (fnil into {})
+                                  (map (juxt :node-id identity)) node-load-infos)
+                           (doseq [{prerequisite-id :node-id} node-load-infos
+                                   :when (not= node-id prerequisite-id)]
+                             (g/materialize-node! prerequisite-id evaluation-context))
+                           (get-in @(:tx-data-context evaluation-context) [::node-load-infos node-id])))
+        node-load-infos [node-load-info]
         {:keys [disk-sha256s-by-node-id node-id+source-value-pairs]} (node-load-infos->stored-disk-state node-load-infos)]
     (g/merge-evaluation-user-data!
       evaluation-context

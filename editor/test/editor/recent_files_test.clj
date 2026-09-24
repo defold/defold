@@ -34,7 +34,7 @@
                   workspace/get-view-type (fn [_workspace view-type-id _evaluation-context]
                                             {:id view-type-id})]
       (is (= [[::resource {:id :form}]]
-             (vec (recent-files/some-recent prefs ::workspace {:basis ::basis})))))
+             (vec (recent-files/some-recent prefs ::workspace {:state-atom (atom {:basis ::basis})})))))
 
     (is (= legacy-prefs-data
            (prefs/get prefs [:workflow :recent-files])))

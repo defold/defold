@@ -17,7 +17,6 @@
             [clojure.set :as set]
             [clojure.string :as str]
             [internal.cache :as c]
-            [internal.evaluation-context :as ec]
             [internal.graph :as ig]
             [internal.graph.error-values :as ie]
             [internal.graph.types :as gt]
@@ -85,9 +84,13 @@
 
 (defn evaluation-context-basis
   "Returns the current basis, including materializations performed in this
-  evaluation-context. The returned basis is an immutable snapshot."
+  evaluation-context. The returned basis is an immutable snapshot. The
+  evaluation-context must still be open."
   [evaluation-context]
-  (:basis evaluation-context))
+  (let [state-atom (:state-atom evaluation-context)
+        state (deref state-atom)]
+    (assert (not (:closed state)) "Evaluation context is closed.")
+    (:basis state)))
 
 ;;; ----------------------------------------
 ;;; Node type definition
@@ -453,12 +456,15 @@
 
   gt/Evaluation
   (produce-value [this label evaluation-context]
+    ;; We might have been materialized by earlier evaluation-context queries.
+    ;; Ensure we're seeing the latest version of ourselves.
     (let [node (ig/node-by-id-at (evaluation-context-basis evaluation-context) _node-id)]
       (if (and (:_materialize-fn node)
                (not (unjammable? (get-in @_node-type [:output label]))))
-        (let [materialize-node! (:materialize-node! evaluation-context)]
-          (materialize-node! _node-id evaluation-context)
-          (gt/produce-value (ig/node-by-id-at (evaluation-context-basis evaluation-context) _node-id) label evaluation-context))
+        (let [materialize-node! (:materialize-node! evaluation-context)
+              _ (materialize-node! _node-id evaluation-context)
+              materialized-node (ig/node-by-id-at (evaluation-context-basis evaluation-context) _node-id)]
+          (gt/produce-value materialized-node label evaluation-context))
         (let [beh (behavior _node-type label)]
           (assert beh (str "No such output, input, or property " label " on " (:name @_node-type)))
           ((:fn beh) (or node this) label evaluation-context)))))
@@ -501,38 +507,49 @@
 (defn- validate-evaluation-context-options [options]
   ;; :dry-run means no production functions will be called, useful speedup when tracing dependencies
   ;; :no-local-temp disables the non deterministic local caching of non :cached outputs, useful for stable results when debugging dependencies
-  (assert (coll/every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context :materialize-node! :node-id-generator :override-id-generator} (coll/keys options)) (str (coll/keys options)))
+  (assert (coll/every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context :materialize-node! :node-id-generator :override-id-generator :shell-node-id->materialize-info-atom :materializations :initial-materialization-invalidate-counters} (coll/keys options)) (str (coll/keys options)))
   (assert (not (and (some? (:cache options)) (nil? (:basis options))))))
 
 (defn default-evaluation-context
-  [basis cache initial-invalidate-counters]
+  [basis cache initial-invalidate-counters materializations]
   (assert (ig/graph? basis))
   (assert (c/cache? cache))
   (assert (map? initial-invalidate-counters))
-  (ec/make-context
-    {:basis basis
-     :cache cache ; cache from the system
-     :initial-invalidate-counters initial-invalidate-counters
-     :local (atom {}) ; local cache for :cached outputs produced during node-value, will likely populate system cache later on
-     :local-temp (atom {}) ; local (weak) cache for non-:cached outputs produced during node-value, never used to populate system cache
-     :hits (atom [])
-     :in-production #{}
-     :tx-data-context (atom {})}))
+  {:initial-basis basis
+   :initial-materializations materializations
+   :state-atom (atom {:basis basis
+                      :changes []
+                      :materializations materializations
+                      :user-data {}
+                      :invalidated-endpoints #{}})
+   :cache cache ; cache from the system
+   :initial-invalidate-counters initial-invalidate-counters
+   :local (atom {}) ; local cache for :cached outputs produced during node-value, will likely populate system cache later on
+   :local-temp (atom {}) ; local (weak) cache for non-:cached outputs produced during node-value, never used to populate system cache
+   :hits (atom [])
+   :in-production #{}
+   :tx-data-context (atom {})})
 
 (defn custom-evaluation-context
-  [options]
+  [{:keys [basis] :as options}]
   (validate-evaluation-context-options options)
-  (ec/make-context
-    (cond-> (assoc options
-                 :local (atom {})
-                 :hits (atom [])
-                 :in-production #{})
+  (cond-> (assoc (dissoc options :basis :materializations)
+            :initial-basis basis
+            :initial-materializations (:materializations options)
+            :state-atom (atom {:basis basis
+                               :changes []
+                               :materializations (:materializations options)
+                               :user-data {}
+                               :invalidated-endpoints #{}})
+            :local (atom {})
+            :hits (atom [])
+            :in-production #{})
 
-          (not (:no-local-temp options))
-          (assoc :local-temp (atom {}))
+    (not (:no-local-temp options))
+    (assoc :local-temp (atom {}))
 
-          (not (contains? options :tx-data-context))
-      (assoc :tx-data-context (atom {})))))
+    (not (contains? options :tx-data-context))
+    (assoc :tx-data-context (atom {}))))
 
 (defn pruned-evaluation-context
   "Selectively filters out cache entries from the supplied evaluation context.
@@ -1672,8 +1689,9 @@
         local-cache @(:local evaluation-context)
         local-cache-value (get local-cache cache-key ::not-found)]
     (if (identical? ::not-found local-cache-value)
-      (let [global-cache (:cache evaluation-context)
-            global-cache-value (if (contains? (:invalidated @(ec/state evaluation-context)) cache-key)
+      (let [invalidated-endpoints (:invalidated-endpoints @(:state-atom evaluation-context))
+            global-cache (:cache evaluation-context)
+            global-cache-value (if (contains? invalidated-endpoints cache-key)
                                  ::not-found
                                  (get global-cache cache-key ::not-found))]
         (if (identical? ::not-found global-cache-value)

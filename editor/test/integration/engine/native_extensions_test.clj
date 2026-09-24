@@ -66,12 +66,10 @@
 
 (deftest ^:native-extensions extension-resource-nodes-test
   (letfn [(platform-resources [project platform]
-            (let [resource-nodes (g/with-auto-evaluation-context evaluation-context
-                                   (native-extensions/extension-resource-nodes project evaluation-context platform))]
-              (->> resource-nodes
-                   (map (comp resource/proj-path
-                              #(g/node-value % :resource)))
-                   set)))]
+            (g/with-auto-evaluation-context evaluation-context
+              (into #{}
+                    (map (comp resource/proj-path #(g/node-value % :resource evaluation-context)))
+                    (native-extensions/extension-resource-nodes project evaluation-context platform))))]
     (testing "x86_64-macos"
       (with-clean-system
         (let [workspace (test-util/setup-workspace! "test/resources/extension_project")
@@ -115,10 +113,6 @@
 (defn- extender-resource-yaml [resources path]
   (yaml/load (extender-resource-content (extender-resource resources path))))
 
-(defn- make-extender-resources [project platform]
-  (g/with-auto-evaluation-context evaluation-context
-    (#'native-extensions/make-extender-resources project platform evaluation-context)))
-
 (def ^:private expected-editor-build-context
   {"baseVariant" "debug"
    "withSymbols" true})
@@ -127,30 +121,33 @@
   (testing "app manifest is synthesized with editor build options"
     (with-clean-system
       (let [workspace (test-util/setup-workspace! "test/resources/empty_project")
-            project (test-util/setup-project! workspace)
-            resources (make-extender-resources project "x86_64-macos")]
-        (is (= {"context" expected-editor-build-context}
-               (extender-resource-yaml resources "_app/app.manifest"))))))
+            project (test-util/setup-project! workspace)]
+        (g/with-auto-evaluation-context evaluation-context
+          (let [resources (#'native-extensions/make-extender-resources project "x86_64-macos" evaluation-context)]
+            (is (= {"context" expected-editor-build-context}
+                   (extender-resource-yaml resources "_app/app.manifest"))))))))
   (testing "configured app manifest is merged with editor build options"
     (with-clean-system
       (let [workspace (test-util/setup-workspace! "test/resources/extension_project")
             project (test-util/setup-project! workspace)
-            resources (make-extender-resources project "x86_64-macos")
             app-manifest-file (io/file (workspace/project-directory workspace) "game.appmanifest")
             app-manifest (yaml/load (slurp app-manifest-file))]
-        (is (= 1 (count (extender-resources resources "_app/app.manifest"))))
-        (is (= (assoc app-manifest "context" expected-editor-build-context)
-               (extender-resource-yaml resources "_app/app.manifest"))))))
+        (g/with-auto-evaluation-context evaluation-context
+          (let [resources (#'native-extensions/make-extender-resources project "x86_64-macos" evaluation-context)]
+            (is (= 1 (count (extender-resources resources "_app/app.manifest"))))
+            (is (= (assoc app-manifest "context" expected-editor-build-context)
+                   (extender-resource-yaml resources "_app/app.manifest"))))))))
   (testing "configured app manifest in flow style is merged as yaml data"
     (with-clean-system
       (let [workspace (test-util/setup-workspace! "test/resources/extension_project")
             project (test-util/setup-project! workspace)
             app-manifest (project/get-resource-node project "/game.appmanifest")]
         (test-util/set-code-editor-source! app-manifest "{\"platforms\": {\"wasm-web\": {\"context\": {}}}}\n")
-        (let [resources (make-extender-resources project "wasm-web")]
-          (is (= {"context" expected-editor-build-context
-                  "platforms" {"wasm-web" {"context" {}}}}
-                 (extender-resource-yaml resources "_app/app.manifest")))))))
+        (g/with-auto-evaluation-context evaluation-context
+          (let [resources (#'native-extensions/make-extender-resources project "wasm-web" evaluation-context)]
+            (is (= {"context" expected-editor-build-context
+                    "platforms" {"wasm-web" {"context" {}}}}
+                   (extender-resource-yaml resources "_app/app.manifest"))))))))
   (doseq [content ["true\n"
                    "null\n"
                    "context: true\n"]]
@@ -160,9 +157,10 @@
               project (test-util/setup-project! workspace)
               app-manifest (project/get-resource-node project "/game.appmanifest")]
           (test-util/set-code-editor-source! app-manifest content)
-          (let [resources (make-extender-resources project "x86_64-macos")]
-            (is (= content
-                   (extender-resource-content (extender-resource resources "_app/app.manifest"))))))))))
+          (g/with-auto-evaluation-context evaluation-context
+            (let [resources (#'native-extensions/make-extender-resources project "x86_64-macos" evaluation-context)]
+              (is (= content
+                     (extender-resource-content (extender-resource resources "_app/app.manifest")))))))))))
 
 (defn- blocking-async-build! [project prefs]
   @(app-view/async-build! project :prefs prefs))

@@ -14,8 +14,7 @@
 
 (ns internal.transaction
   "Internal functions that implement the transactional behavior."
-  (:require [internal.evaluation-context :as ec]
-            [internal.graph :as ig]
+  (:require [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [util.coll :as coll :refer [pair]]
@@ -145,17 +144,21 @@
   (let [evaluation-context
         (in/custom-evaluation-context
           {:basis (:basis ctx)
+           :shell-node-id->materialize-info-atom (:shell-node-id->materialize-info-atom ctx)
+           :materializations (:materializations ctx)
+           :initial-invalidate-counters (:initial-invalidate-counters ctx)
+           :initial-materialization-invalidate-counters (:initial-materialization-invalidate-counters ctx)
            :tx-data-context (:tx-data-context ctx)
            :node-id-generator (:node-id-generator ctx)
            :override-id-generator (:override-id-generator ctx)
            :materialize-node! materialize-node!})]
-    (swap! (ec/state evaluation-context) assoc
+    (swap! (:state-atom evaluation-context) assoc
            :user-data (:evaluation-user-data ctx)
            :applied-user-data (:evaluation-user-data ctx))
     evaluation-context))
 
 (defn- apply-evaluation-context [ctx evaluation-context]
-  (let [{:keys [changes user-data applied-user-data]} @(ec/state evaluation-context)
+  (let [{:keys [changes user-data applied-user-data]} @(:state-atom evaluation-context)
         user-data-changed (not (identical? user-data applied-user-data))
         ctx (cond-> (reduce (fn [ctx change]
                               (cond-> (-> (perform-change ctx change)
@@ -166,7 +169,7 @@
               user-data-changed
               (update :evaluation-user-data #(merge-with merge % user-data)))]
     (when (or (coll/not-empty changes) user-data-changed)
-      (swap! (ec/state evaluation-context) assoc :changes [] :applied-user-data user-data))
+      (swap! (:state-atom evaluation-context) assoc :changes [] :applied-user-data user-data))
     ctx))
 
 (defn- mark-input-activated
@@ -1675,7 +1678,7 @@
     (.-arc tx-step)))
 
 (def tx-report-keys
-  (cond-> [:basis :nodes-added :nodes-deleted :outputs-modified :label :sequence-label :undoable-changes :realized-changes :evaluation-user-data]
+  (cond-> [:basis :nodes-added :nodes-deleted :outputs-modified :label :sequence-label :undoable-changes :realized-changes :evaluation-user-data :materializations]
     (du/metrics-enabled?) (conj :metrics)))
 
 (defn finalize-update
@@ -1685,10 +1688,12 @@
              :tx-data-context-map (deref tx-data-context))))
 
 (defn new-transaction-context
-  [basis node-id-generator override-id-generator tx-data-context-map metrics-collector full-invalidation]
+  [basis node-id-generator override-id-generator tx-data-context-map metrics-collector full-invalidation shell-node-id->materialize-info-atom materializations]
   {:pre [(map? tx-data-context-map)]}
   {:basis basis
    :initial-basis basis
+   :shell-node-id->materialize-info-atom shell-node-id->materialize-info-atom
+   :materializations materializations
    :nodes-affected #{}
    :nodes-added []
    :nodes-deleted {}
@@ -1785,30 +1790,80 @@
 (defn materialize-shell [node-id]
   [(->MaterializeShellTXS node-id)])
 
-(defn transact-in-evaluation-context!
-  [evaluation-context tx-data]
-  (let [state (ec/state evaluation-context)]
-    (locking state
-      (let [ctx (-> (new-transaction-context (in/evaluation-context-basis evaluation-context)
-                                             (:node-id-generator evaluation-context)
-                                             (:override-id-generator evaluation-context)
-                                             {} nil false)
-                    (assoc :tx-data-context (:tx-data-context evaluation-context)
-                           :realized-changes []
-                           :evaluation-user-data (:user-data @state)))
-            {:keys [basis realized-changes outputs-modified evaluation-user-data] :as result}
-            (transact* ctx nil tx-data)]
-        (swap! state
-               (fn [state]
-                 (-> state
-                     (assoc :basis basis)
-                     (update :changes into realized-changes)
-                     (update :invalidated into outputs-modified)
-                     (update :user-data #(merge-with merge % evaluation-user-data)))))
-        (swap! (:local evaluation-context) #(reduce dissoc % outputs-modified))
-        (when-let [local-temp (:local-temp evaluation-context)]
-          (swap! local-temp #(reduce dissoc % outputs-modified)))
-        result))))
+(defn- perform-materialization [ctx {:keys [node-id changes user-data dependencies] :as materialize-info}]
+  (if (and (identical? materialize-info (get (:materializations ctx) node-id))
+           (not (in/unmaterialized-shell-node? (ig/node-by-id-at (:basis ctx) node-id))))
+    ctx
+    (let [ctx (reduce-kv (fn [ctx _node-id dependency]
+                           (perform-materialization ctx dependency))
+                         ctx
+                         dependencies)]
+      (-> (reduce perform-change ctx changes)
+          (assoc-in [:materializations node-id] materialize-info)
+          (update :evaluation-user-data #(merge-with merge % user-data))))))
+
+(defonce/type MaterializationTXC [materialize-info]
+  TransactionChange
+  (perform [_ ctx]
+    (perform-materialization ctx materialize-info))
+  (revert [_ _ctx]
+    (throw (UnsupportedOperationException. "Materializations are not undoable."))))
+
+(defn- evaluation-transaction-context [evaluation-context]
+  (let [{:keys [basis materializations user-data]} @(:state-atom evaluation-context)]
+    (-> (new-transaction-context basis
+                                 (:node-id-generator evaluation-context)
+                                 (:override-id-generator evaluation-context)
+                                 {} nil false
+                                 (:shell-node-id->materialize-info-atom evaluation-context)
+                                 materializations)
+        (assoc :tx-data-context (:tx-data-context evaluation-context)
+               :initial-invalidate-counters (:initial-invalidate-counters evaluation-context)
+               :initial-materialization-invalidate-counters (:initial-materialization-invalidate-counters evaluation-context)
+               :realized-changes []
+               :evaluation-user-data user-data))))
+
+(defn- apply-evaluation-transaction-result! [evaluation-context result]
+  (let [{:keys [basis realized-changes outputs-modified evaluation-user-data materializations]} result]
+    (swap! (:state-atom evaluation-context)
+           (fn [state]
+             (-> state
+                 (assoc :basis basis :materializations materializations)
+                 (update :changes into realized-changes)
+                 (update :invalidated-endpoints into outputs-modified)
+                 (update :user-data #(merge-with merge % evaluation-user-data)))))
+    (swap! (:local evaluation-context) #(reduce dissoc % outputs-modified))
+    (when-let [local-temp (:local-temp evaluation-context)]
+      (swap! local-temp #(reduce dissoc % outputs-modified))))
+  result)
+
+(defn transact-in-evaluation-context! [evaluation-context tx-data]
+  (let [shared (:shell-node-id->materialize-info-atom evaluation-context)
+        state (:state-atom evaluation-context)]
+    (locking shared
+      (locking state
+        (apply-evaluation-transaction-result!
+          evaluation-context
+          (transact* (evaluation-transaction-context evaluation-context) nil tx-data))))))
+
+(defn- reusable-materialization? [materialize-info node-id evaluation-context]
+  (and materialize-info
+       (identical? (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id)
+                   (get (:shell-nodes materialize-info) node-id))
+       (let [initial-counters (:initial-invalidate-counters evaluation-context)]
+         (or (nil? initial-counters)
+             (identical? initial-counters (:initial-invalidate-counters materialize-info))
+             (let [expected-counters
+                   (reduce-kv (fn [counters dependency-id dependency]
+                                (if (identical? dependency (get (:initial-materializations evaluation-context) dependency-id))
+                                  (merge-with max counters (get (:initial-materialization-invalidate-counters evaluation-context) dependency-id))
+                                  counters))
+                              (:initial-invalidate-counters materialize-info)
+                              (:completed-materializations materialize-info))]
+               (coll/every? (fn [endpoint]
+                              (= (get expected-counters endpoint 0)
+                                 (get initial-counters endpoint 0)))
+                            (:invalidated-endpoints materialize-info)))))))
 
 (defn materialize-node! [node-id evaluation-context]
   ;; Dependency tracing skips output functions and caches placeholder values.
@@ -1821,29 +1876,66 @@
                                     :local (atom {})
                                     :local-temp (atom {})
                                     :hits (atom #{})))
-        state (ec/state evaluation-context)]
-    (locking state
-      (when-let [materialize-fn (:_materialize-fn (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id))]
-        (let [context-atoms (into [state]
-                                  (keep evaluation-context)
-                                  [:local :local-temp :hits :tx-data-context])
-              previous-values (mapv deref context-atoms)]
-          (try
-            (let [tx-data [(materialize-shell node-id)
-                           (materialize-fn node-id evaluation-context)]]
-              (transact-in-evaluation-context! evaluation-context tx-data))
-            (catch Throwable error
-              ;; Failed loads must not leave staged disk state, node lookups or
-              ;; values from nested materializations in a reusable context.
-              (reduce-kv (fn [_ index context-atom]
-                           (reset! context-atom (previous-values index)))
-                         nil
-                         context-atoms)
-              (throw error))))))))
-
-(defn materialized-node-ids [changes]
-  ;; TODO(partial-project-loading): Why is it a set? Aren't these naturally distinct? Could we return an eduction instead?
-  (coll/into-> changes #{}
-    (keep (fn [change]
-            (when (instance? MaterializeShellTXC change)
-              (.-node-id ^MaterializeShellTXC change))))))
+        state (:state-atom evaluation-context)
+        shared (:shell-node-id->materialize-info-atom evaluation-context)]
+    ;; Serialize loads across contexts, including nested loads. Always acquire
+    ;; the shared lock before the context lock.
+    (locking shared
+      (locking state
+        (let [basis (in/evaluation-context-basis evaluation-context)
+              node (ig/node-by-id-at basis node-id)]
+          (when-let [materialize-fn (:_materialize-fn node)]
+            (let [context-atoms (into [shared state]
+                                      (keep evaluation-context)
+                                      [:local :local-temp :hits :tx-data-context])
+                  previous-values (mapv deref context-atoms)
+                  cached-info (get @shared node-id)
+                  initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
+              (try
+                (if (reusable-materialization? cached-info node-id evaluation-context)
+                  (let [change (->MaterializationTXC cached-info)]
+                    (apply-evaluation-transaction-result!
+                      evaluation-context
+                      (-> (evaluation-transaction-context evaluation-context)
+                          (perform-change change)
+                          (assoc :completed-action-count 1 :realized-changes [change])
+                          finalize-applied-changes)))
+                  (let [previous-state @state
+                        tx-data [(materialize-shell node-id)
+                                 (materialize-fn node-id evaluation-context)]
+                        result (transact-in-evaluation-context! evaluation-context tx-data)
+                        current-state @state
+                        changes (subvec (:changes current-state) (count (:changes previous-state)))
+                        materialize-info
+                        {:node-id node-id
+                         :shell-nodes (into {}
+                                            (keep (fn [change]
+                                                    (when (instance? MaterializeShellTXC change)
+                                                      (let [id (.-node-id ^MaterializeShellTXC change)]
+                                                        (pair id (ig/node-by-id-at basis id))))))
+                                            (:realized-changes result))
+                         :changes changes
+                         :dependencies (:materializations previous-state)
+                         :completed-materializations (:materializations current-state)
+                         :user-data (into {}
+                                          (remove (fn [[id data]] (= data (get (:user-data previous-state) id))))
+                                          (:user-data current-state))
+                         :invalidated-endpoints (:invalidated-endpoints current-state)
+                         :initial-invalidate-counters initial-invalidate-counters}]
+                    (swap! state
+                           (fn [state]
+                             (-> state
+                                 (assoc :changes (conj (:changes previous-state) (->MaterializationTXC materialize-info)))
+                                 (assoc-in [:materializations node-id] materialize-info))))
+                    (swap! shared into
+                           (map (fn [id] (pair id materialize-info)))
+                           (coll/keys (:shell-nodes materialize-info)))
+                    result))
+                (catch Throwable error
+                  ;; Publish only successful loads. Also roll back nested loads
+                  ;; that may refer to nodes belonging to the failed load.
+                  (reduce-kv (fn [_ index context-atom]
+                               (reset! context-atom (previous-values index)))
+                             nil
+                             context-atoms)
+                  (throw error))))))))))

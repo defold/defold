@@ -18,7 +18,6 @@
   (:require [clojure.tools.macro :as ctm]
             [cognitect.transit :as transit]
             [internal.cache :as c]
-            [internal.evaluation-context :as ec]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.low-memory :as low-memory]
@@ -312,7 +311,11 @@
         tx-data-context-map (or (:tx-data-context-map opts) {})
         metrics-collector (:metrics opts)
         full-invalidation (:full-invalidation opts false)]
-    (it/new-transaction-context basis node-id-generator override-id-generator tx-data-context-map metrics-collector full-invalidation)))
+    (assoc (it/new-transaction-context basis node-id-generator override-id-generator tx-data-context-map metrics-collector full-invalidation
+                                       (:shell-node-id->materialize-info-atom system)
+                                       (:materializations system))
+      :initial-invalidate-counters (:invalidate-counters system)
+      :initial-materialization-invalidate-counters (:materialization-invalidate-counters system))))
 
 (defn commit-tx-result!
   [tx-result transact-opts pre-tx-basis]
@@ -324,7 +327,10 @@
              (fn [system]
                (-> system
                    (is/merge-basis pre-tx-basis basis outputs-modified nodes-deleted undo-key label sequence-label undoable-changes (:full-invalidation transact-opts))
-                   (is/merge-user-data (:evaluation-user-data tx-result)))))))
+                   (is/merge-user-data (:evaluation-user-data tx-result))
+                   ;; Ordinary transactions can include edits beyond materialization.
+                   ;; Do not exempt their invalidations from conflict checking.
+                   (is/merge-materializations (:materializations tx-result) #{}))))))
   nil)
 
 (defn transact
@@ -1054,11 +1060,11 @@
   (is/user-data @*the-system* node-id key))
 
 (defn evaluation-user-data [evaluation-context node-id key]
-  (get-in (:user-data @(ec/state evaluation-context)) [node-id key]
+  (get-in (:user-data @(:state-atom evaluation-context)) [node-id key]
           (user-data node-id key)))
 
 (defn merge-evaluation-user-data! [evaluation-context values-by-key-by-node-id]
-  (swap! (ec/state evaluation-context) update :user-data
+  (swap! (:state-atom evaluation-context) update :user-data
          #(merge-with merge % values-by-key-by-node-id))
   nil)
 
@@ -1221,19 +1227,15 @@
 
 (defn update-system-from-evaluation-context!
   "Commits materializations and cache entries that remain valid in the system.
-  Replays realized changes without rerunning load functions or property setters."
+  Replays realized changes without rerunning load functions or property setters.
+  Closes the context and all contexts sharing its state. They must be discarded
+  after this call, even if their changes were incompatible with the system."
   [evaluation-context]
-  (let [state (ec/state evaluation-context)]
+  (let [state (:state-atom evaluation-context)]
     (locking state
-      (let [[previous-system updated-system] (swap-vals! *the-system* is/update-system-from-evaluation-context evaluation-context)]
-        (when (is/evaluation-context-compatible? previous-system evaluation-context)
-          (swap! state
-                 (fn [{:keys [basis changes invalidated] :as state}]
-                   (cond-> (assoc state :initial-basis basis :changes [] :user-data {})
-                     (coll/not-empty changes)
-                     (assoc :initial-invalidate-counters
-                            (merge (:initial-invalidate-counters evaluation-context)
-                                   (select-keys (:invalidate-counters updated-system) invalidated))))))))))
+      (assert (not (:closed @state)) "Evaluation context is closed.")
+      (swap! *the-system* is/update-system-from-evaluation-context evaluation-context)
+      (swap! state assoc :closed true)))
   nil)
 
 (defmacro with-auto-evaluation-context [ec & body]
@@ -2028,7 +2030,8 @@
   implementation along with the override-id that produced them."
   ([target-node-id collected-properties]
    (with-auto-evaluation-context evaluation-context
-     (restore-overridden-properties target-node-id collected-properties evaluation-context)))
+     (eager-tx-data
+       (restore-overridden-properties target-node-id collected-properties evaluation-context))))
   ([target-node-id collected-properties evaluation-context]
    (let [basis (ec-basis evaluation-context)]
      (for [node-id (ig/pre-traverse basis [target-node-id] ig/cascade-delete-sources)]
@@ -2121,7 +2124,7 @@
   "Check if a value is an evaluation context"
   [x]
   (and (map? x)
-       (contains? x :basis)
+       (contains? x :state-atom)
        (contains? x :in-production)
        (contains? x :local)
        (contains? x :hits)))
