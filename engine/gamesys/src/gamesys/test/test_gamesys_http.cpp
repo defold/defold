@@ -54,7 +54,7 @@ TEST_F(ComponentTest, HTTPRequest)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = ::Spawn(m_Factory, m_Collection, "/http/http_request.goc", dmHashString64("/http_request"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     // Upper bound, not a wait: the loop exits as soon as the script reports done, so a
     // generous budget costs nothing on a fast host. One second is not enough for the 8

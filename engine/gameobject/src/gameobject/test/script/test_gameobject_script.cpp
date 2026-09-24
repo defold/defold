@@ -137,7 +137,7 @@ TEST_F(ScriptTest, WorldStorageUsesConfiguredCapacity)
     ASSERT_NE((dmGameObject::CompScriptWorld*)0, script_world);
     ASSERT_EQ(1024U, script_world->m_Instances.Capacity());
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     ASSERT_EQ(1U, script_world->m_Instances.Size());
     ASSERT_EQ(1024U, script_world->m_Instances.Capacity());
 }
@@ -166,7 +166,7 @@ void TestScript01CollectionDispatch(dmMessage::Message *message_object, void* us
 TEST_F(ScriptTest, TestScript01)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "my_object01"));
 
@@ -228,7 +228,7 @@ TEST_F(ScriptTest, TestFailingScript03)
 {
     // Test update failure
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go3.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
@@ -243,14 +243,14 @@ TEST_F(ScriptTest, TestFailingScript04)
 {
     // Test update failure, lua update-identifier used for something else than function callback
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go4.goc");
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_EQ(0, go);
 }
 
 TEST_F(ScriptTest, TestFailingScript05)
 {
     // Test posting to missing component id
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go5.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "go5"));
     ASSERT_FALSE(dmGameObject::Init(m_Collection));
     dmGameObject::Delete(m_Collection, go, false);
@@ -439,7 +439,7 @@ TEST_F(ScriptTest, TestReload)
 TEST_F(ScriptTest, Null)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/null.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
@@ -463,7 +463,7 @@ TEST_F(ScriptTest, Null)
 TEST_F(ScriptTest, TestModule)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/main.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     dmGameObject::Init(m_Collection);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -483,7 +483,7 @@ TEST_F(ScriptTest, TestReloadModule)
                "end\n");
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/reload.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     dmGameObject::Init(m_Collection);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
@@ -507,7 +507,7 @@ TEST_F(ScriptTest, TestReloadModule)
 TEST_F(ScriptTest, TestURL)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/url.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_id"));
 
@@ -518,7 +518,7 @@ TEST_F(ScriptTest, TestURL)
 TEST_F(ScriptTest, TestURLNilId)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/url_nil_id.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "test_id"));
 
@@ -549,7 +549,7 @@ TEST_F(ScriptTest, TestInstanceCallback)
     lua_setglobal(L, REF_VALUE);
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/instance_ref.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
@@ -572,7 +572,7 @@ TEST_F(ScriptTest, TestInstanceCallback)
 
     ASSERT_EQ(go, dmGameObject::GetInstanceFromLua(L));
     ASSERT_EQ(go, dmGameObject::GetInstanceFromLua(L, script_instance_type_hash));
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetInstanceFromLua(L, dmHashString32("incorrect_type")));
+    ASSERT_EQ((dmGameObject::HInstance)0, dmGameObject::GetInstanceFromLua(L, dmHashString32("incorrect_type")));
 
     ASSERT_EQ(m_Collection, dmGameObject::GetCollection(dmGameObject::GetInstanceFromLua(L)));
 
@@ -593,7 +593,7 @@ TEST_F(ScriptTest, TestScriptMany)
     dmHashEnableReverseHash(true); // while debugging
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/many.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     char name[64];
     uint16_t component_index;
@@ -706,7 +706,7 @@ TEST_F(ScriptTest, TestInstanceContext)
     lua_setglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/instance_context.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     lua_getglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
@@ -728,11 +728,11 @@ TEST_F(ScriptTest, TestInstanceContext)
 TEST_F(ScriptTest, TestExists)
 {
     dmGameObject::HInstance go_null = dmGameObject::New(m_Collection, "/null.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_null);
+    ASSERT_NE(0, go_null);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go_null, "a"));
 
     dmGameObject::HInstance go_exists = dmGameObject::New(m_Collection, "/exists.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_exists);
+    ASSERT_NE(0, go_exists);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go_exists, "b"));
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -753,10 +753,10 @@ static void RunWorldToLocalPositionTest(
     lua_pushnumber(L, expected_local.getZ()); lua_setglobal(L, "EXPECTED_Z");
 
     dmGameObject::HInstance tester = dmGameObject::New(t->m_Collection, "/world_to_local_pos.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, tester);
+    ASSERT_NE((dmGameObject::HInstance)0, tester);
 
     dmGameObject::HInstance target = dmGameObject::New(t->m_Collection, "/null.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, target);
+    ASSERT_NE((dmGameObject::HInstance)0, target);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(t->m_Collection, target, "target"));
 
     ASSERT_TRUE(dmGameObject::Init(t->m_Collection));
@@ -806,10 +806,10 @@ static void RunWorldToLocalTransformTest(
     lua_pushnumber(L, expected_local_translation.getZ()); lua_setglobal(L, "EXPECTED_TZ");
 
     dmGameObject::HInstance tester = dmGameObject::New(t->m_Collection, "/world_to_local_transform.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, tester);
+    ASSERT_NE((dmGameObject::HInstance)0, tester);
 
     dmGameObject::HInstance target = dmGameObject::New(t->m_Collection, "/null.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, target);
+    ASSERT_NE((dmGameObject::HInstance)0, target);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(t->m_Collection, target, "target"));
 
     ASSERT_TRUE(dmGameObject::Init(t->m_Collection));

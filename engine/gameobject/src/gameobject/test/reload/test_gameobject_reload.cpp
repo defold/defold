@@ -278,7 +278,7 @@ void ReloadTest::CompReloadTargetOnReload(const dmGameObject::ComponentOnReloadP
 TEST_F(ReloadTest, TestComponentReload)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_reload.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ReloadTargetWorld* world = m_World;
     ReloadTargetComponent* component = m_World->m_Components[0];
@@ -314,7 +314,7 @@ TEST_F(ReloadTest, TestComponentReload)
 TEST_F(ReloadTest, TestComponentReloadScriptFail)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/component_reload_fail.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     dmResource::Result rr = dmResource::ReloadResource(m_Factory, "/component_reload_fail.scriptc", 0);
     ASSERT_EQ(dmResource::RESULT_OK, rr);
@@ -325,7 +325,7 @@ TEST_F(ReloadTest, TestComponentReloadScriptFail)
 TEST_F(ReloadTest, TestGameObjectReload)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/rt.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     dmGameObject::SetIdentifier(m_Collection, go, 1);
     ASSERT_EQ(go, dmGameObject::GetInstanceFromIdentifier(m_Collection, 1));
 

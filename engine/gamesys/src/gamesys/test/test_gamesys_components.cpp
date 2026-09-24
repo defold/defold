@@ -168,7 +168,7 @@ TEST_F(SoundTest, UpdateSoundResource)
 
     // Create gameobject
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     // Get hash of the sounddata resource
     dmhash_t soundata_hash = 0;
@@ -213,7 +213,7 @@ TEST_F(SoundTest, LuaCallback)
 
     // Create gameobject
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     // Update sound component with custom buffer from lua. See set_sound.script:update()
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -251,7 +251,7 @@ TEST_F(SoundTest, DelayedSoundStoppedBeforePlay)
 
     // Create gameobject
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     lua_State* L = scriptlibcontext.m_LuaState;
 
@@ -290,7 +290,7 @@ TEST_F(SoundTest, LuaSetSpeedToZero)
 
     const char* go_path = "/sound/set_speed_zero.goc";
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     EXPECT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "tests_done"));
 
@@ -341,7 +341,7 @@ TEST_P(ResourcePropTest, ResourceRefCounting)
 
         // Spawn a go with all supported component types
         dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+        ASSERT_NE(0, go);
 
         dmhash_t orig_res_hash;
         GetResourceProperty(go, comp_name, prop_name, &orig_res_hash);
@@ -409,7 +409,7 @@ TEST_F(ResourceComponentTest, ModelTexturePropertyAllTextureSlots)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, tex_path, &tex_res));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     char prop_buf[32];
     dmGameObject::PropertyOptions opt;
@@ -436,7 +436,7 @@ TEST_F(SpriteTest, TexturelessMaterial)
     const dmhash_t go_id = dmHashString64("/go");
     const dmhash_t sprite_id = dmHashString64("sprite");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/textureless.goc", go_id);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -461,13 +461,13 @@ TEST_F(SpriteTest, GoDeletion)
     dmGameObject::HInstance go1 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go1"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     dmGameObject::HInstance go2 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go2"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     dmGameObject::HInstance go3 = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go3"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go1);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go2);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go3);
+    ASSERT_NE(0, go1);
+    ASSERT_NE(0, go2);
+    ASSERT_NE(0, go3);
 
     // Spawn one go with a script that will initiate animations on the above sprites
     dmGameObject::HInstance go_animater = Spawn(m_Factory, m_Collection, "/sprite/sprite_property_anim.goc", dmHashString64("/go_animater"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_animater);
+    ASSERT_NE(0, go_animater);
 
     // 1st iteration:
     //  - go1 animation start
@@ -498,7 +498,7 @@ TEST_F(SpriteTest, FlipbookAnim)
 {
     // Spawn one go with a script that will initiate animations on the above sprites
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_flipbook_anim.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     lua_State* L = m_Scriptlibcontext.m_LuaState;
 
@@ -521,7 +521,7 @@ TEST_F(SpriteTest, FlipbookAnim)
 TEST_F(SpriteTest, FrameCount)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/frame_count_sprite_frame_count.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     WaitForTestsDone(100, false, 0);
 
@@ -533,7 +533,7 @@ TEST_F(SpriteTest, FrameCount)
 TEST_F(SpriteTest, GetSetSliceProperty)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_slice9.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -548,7 +548,7 @@ TEST_F(SpriteTest, Slice9FlipGeometry)
     const dmhash_t go_id = dmHashString64("/go");
     const dmhash_t sprite_id = dmHashString64("sprite");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_slice9.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     // Run script init before replacing the slice value used by its property test.
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -652,7 +652,7 @@ TEST_F(SpriteTest, RenderScriptMaterialOverrideGrowsVertexBuffer)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/attribute_stride.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
     dmRender::RenderListBegin(m_RenderContext);
@@ -692,7 +692,7 @@ TEST_F(SpriteTest, GetSetImagesByHash)
     ASSERT_EQ(dmResource::RESULT_OK, res);
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/image_get_set_image_by_hash.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -715,7 +715,7 @@ TEST_F(SpriteTest, SetImageThenPlayAnimationDoesNotLogErrors)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/atlas_valid_64x64.a.texturesetc", (void**) &atlas_resource));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/image_get_set_image_by_hash_noscript.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -759,7 +759,7 @@ TEST_F(SpriteTest, SetImageKeepsSharedAnimationWithoutLogging)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.t.texturesetc", (void**) &image_resource));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     ASSERT_EQ(shared_animation_id, GetHashProperty(go, sprite_comp_id, animation_prop_id));
 
     {
@@ -794,7 +794,7 @@ TEST_F(SpriteTest, SetImageFallsBackToFirstAnimationWithoutLogging)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.t.texturesetc", (void**) &image_resource));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     {
         GamesysErrorLogCapture log_capture;
@@ -841,7 +841,7 @@ TEST_F(SpriteTest, SetImageFallsBackToFirstTrimmedAnimationWithoutLogging)
     ASSERT_EQ((uint32_t*)0, image_resource->m_AnimationIds.Get(old_animation_id));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/cursor.goc", go_id, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     void* sprite_component = GetSpriteComponent(go, sprite_comp_id);
     ASSERT_NE((void*)0, sprite_component);
@@ -875,7 +875,7 @@ TEST_F(SpriteTest, SetImageFallsBackToFirstTrimmedAnimationWithoutLogging)
 TEST_F(SpriteTest, ScaleAffectsWorldSize)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/valid_sprite.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     // Let the sprite initialize
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -919,7 +919,7 @@ TEST_F(ParticleFxTest, PlayAnim)
 {
     // Spawn one go with a script that will initiate animations on the above sprites
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     bool tests_done = false;
     WaitForTestsDone(100, true, &tests_done);
@@ -939,7 +939,7 @@ TEST_F(ParticleFxTest, PlayAnim)
 TEST_F(ParticleFxTest, PlayAnimFromCoroutine)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_play_from_coroutine.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     bool tests_done = false;
     WaitForTestsDone(100, true, &tests_done);
@@ -959,7 +959,7 @@ TEST_F(ParticleFxTest, GetSetProperties)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/particlefx/particlefx_get_set_properties.materialc", (void**) &material));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/particlefx_get_set_properties.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmResource::Release(m_Factory, material);
@@ -985,7 +985,7 @@ TEST_F(ParticleFxTest, PlayWithOverridesAfterComponentStorageGrowth)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/valid_particlefx.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     dmGameObject::PropertyOptions options;
     ASSERT_TRUE(dmGameObject::AddPropertyOptionsKey(&options, dmHashString64("emitter")));
@@ -1018,8 +1018,8 @@ TEST_F(ParticleFxTest, FrustumCullsParticleEmitters)
 
     dmGameObject::HInstance go_inside = Spawn(m_Factory, m_Collection, "/particlefx/valid_particlefx.goc", dmHashString64("/go_inside"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     dmGameObject::HInstance go_outside = Spawn(m_Factory, m_Collection, "/particlefx/valid_particlefx.goc", dmHashString64("/go_outside"), 0, Point3(1000, 1000, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_inside);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_outside);
+    ASSERT_NE(0, go_inside);
+    ASSERT_NE(0, go_outside);
 
     dmMessage::URL receiver_inside;
     receiver_inside.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
@@ -1118,7 +1118,7 @@ TEST_F(WindowTest, MouseLock)
 
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/window/mouse_lock.goc", dmHashString64("/mouse_lock"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -1151,7 +1151,7 @@ TEST_F(WindowTest, Events)
 
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/window/window_events.goc", dmHashString64("/window_events"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -1293,9 +1293,9 @@ TEST_P(FactoryTest, Test)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmhash_t go_hash = dmHashString64("/go");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     if(go_pr)
     {
         dmResource::DeletePreloader(go_pr);
@@ -1625,9 +1625,9 @@ TEST_P(FactoryTest, IdHashTest)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmhash_t go_hash = dmHashString64("/go");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/factory/factory_hash_test.goc", go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -1661,7 +1661,7 @@ TEST_P(FactoryTest, Create)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmhash_t go_hash = dmHashString64("/go");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/factory/factory_create_test.goc", go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -1712,9 +1712,9 @@ TEST_P(FactoryRecursivePrototypeTest, RecursivePrototype)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmhash_t go_hash = dmHashString64("/go");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     if(go_pr)
     {
@@ -1798,9 +1798,9 @@ TEST_P(FactoryRecursivePrototypeTest, RecursivePrototypeCppCleanup)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmhash_t go_hash = dmHashString64("/go");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     if(go_pr)
     {
@@ -1904,9 +1904,9 @@ TEST_P(CollectionFactoryTest, Test)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmhash_t go_hash = dmHashString64("/go");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     if(go_pr)
     {
         dmResource::DeletePreloader(go_pr);
@@ -2201,9 +2201,9 @@ TEST_P(CollectionFactoryRecursivePrototypeTest, RecursivePrototype)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmhash_t go_hash = dmHashString64("/go");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     if(go_pr)
     {
@@ -2290,9 +2290,9 @@ TEST_P(CollectionFactoryRecursivePrototypeTest, RecursivePrototypeCppCleanup)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmhash_t go_hash = dmHashString64("/go");
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, param.m_GOPath, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     go = dmGameObject::GetInstanceFromIdentifier(m_Collection, go_hash);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     if(go_pr)
     {
@@ -2347,7 +2347,7 @@ TEST_P(DrawCountTest, DrawCount)
 
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
@@ -2382,7 +2382,7 @@ TEST_F(GamepadConnectedTest, TestGamepadConnectedInputEvent)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/input/connected_event_test.goc", dmHashString64("/gamepad_connected"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -2450,18 +2450,18 @@ TEST_F(CollisionObject2DTest, WakingCollisionObjectTest)
     dmhash_t hash_base_go = dmHashString64("/base-go");
     // place the base object so that the upper level of base is at Y = 0
     dmGameObject::HInstance base_go = Spawn(m_Factory, m_Collection, path_sleepy_go, hash_base_go, 0, Point3(50, -10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, base_go);
+    ASSERT_NE(0, base_go);
 
     // two dynamic 'body' objects will get spawned and placed apart
     const char* path_body_go = "/collision_object/body.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (10,10)
     dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body1_go, 0, Point3(10,10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, body1_go);
+    ASSERT_NE(0, body1_go);
     dmhash_t hash_body2_go = dmHashString64("/body2-go");
     // place this body standing on the base with its center at (50,10)
     dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body2_go, 0, Point3(50,10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, body2_go);
+    ASSERT_NE(0, body2_go);
 
 
     // iterate until the lua env signals the end of the test of error occurs
@@ -2502,7 +2502,7 @@ TEST_F(CollisionObject2DTest, PropertiesTest)
     dmhash_t hash_go = dmHashString64("/go");
     // place the base object so that the upper level of base is at Y = 0
     dmGameObject::HInstance properties_go = Spawn(m_Factory, m_Collection, path_go, hash_go, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, properties_go);
+    ASSERT_NE(0, properties_go);
 
     // iterate until the lua env signals the end of the test of error occurs
     bool tests_done = false;
@@ -2538,13 +2538,13 @@ TEST_F(Trigger2DTest, EventTriggerFalseTest)
     dmhash_t hash_trigger_go = dmHashString64("/trigger-go");
     // place this body standing on the base with its center at (20,5)
     dmGameObject::HInstance trigger_go = Spawn(m_Factory, m_Collection, path_trigger_go, hash_trigger_go, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, trigger_go);
+    ASSERT_NE(0, trigger_go);
 
     const char* path_body1_go = "/collision_object/eventtrigger_false_body1.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (5,5)
     dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, body1_go);
+    ASSERT_NE(0, body1_go);
 
     // iterate until the lua env signals the end of the test of error occurs
     bool tests_done = false;
@@ -2599,14 +2599,14 @@ TEST_P(GroupAndMask2DTest, GroupAndMaskTest )
     dmhash_t hash_body2_go = dmHashString64("/body2-go");
     // place this body standing on the base with its center at (20,5)
     dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, body2_go);
+    ASSERT_NE(0, body2_go);
 
     // two dynamic 'body' objects will get spawned and placed apart
     const char* path_body1_go = "/collision_object/groupmask_body1.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (5,5)
     dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, body1_go);
+    ASSERT_NE(0, body1_go);
 
     // iterate until the lua env signals the end of the test of error occurs
     bool tests_done = false;
@@ -2662,14 +2662,14 @@ TEST_P(GroupAndMask3DTest, GroupAndMaskTest)
     dmhash_t hash_body2_go = dmHashString64("/body2-go");
     // place this body standing on the base with its center at (20,5)
     dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body2_go, hash_body2_go, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, body2_go);
+    ASSERT_NE(0, body2_go);
 
     // two dynamic 'body' objects will get spawned and placed apart
     const char* path_body1_go = "/collision_object/groupmask_body1.goc";
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (5,5)
     dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body1_go, hash_body1_go, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, body1_go);
+    ASSERT_NE(0, body1_go);
 
     // iterate until the lua env signals the end of the test of error occurs
     bool tests_done = false;
@@ -2716,18 +2716,18 @@ TEST_F(VelocityThreshold2DTest, VelocityThresholdTest)
     dmhash_t hash_body1_go = dmHashString64("/body1-go");
     // place this body standing on the base with its center at (5,5)
     dmGameObject::HInstance body1_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body1_go, 0, Point3(5,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, body1_go);
+    ASSERT_NE(0, body1_go);
     dmhash_t hash_body2_go = dmHashString64("/body2-go");
     // place this body standing on the base with its center at (20,5)
     dmGameObject::HInstance body2_go = Spawn(m_Factory, m_Collection, path_body_go, hash_body2_go, 0, Point3(30,5, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, body2_go);
+    ASSERT_NE(0, body2_go);
 
     // a 'base' gameobject works as the base for other dynamic objects to stand on
     const char* path_sleepy_go = "/collision_object/velocity_threshold_base.goc";
     dmhash_t hash_base_go = dmHashString64("/base-go");
     // place the base object so that the upper level of base is at Y = 0
     dmGameObject::HInstance base_go = Spawn(m_Factory, m_Collection, path_sleepy_go, hash_base_go, 0, Point3(50, -10, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, base_go);
+    ASSERT_NE(0, base_go);
 
     // iterate until the lua env signals the end of the test of error occurs
     bool tests_done = false;
@@ -2782,7 +2782,7 @@ TEST_F(MiscComponentTest, DispatchBuffersTest)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/dispatch_buffers_test_dispatch_buffers_test.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     // Play particlefx
     dmMessage::URL receiver;
@@ -3113,7 +3113,7 @@ TEST_F(ParticleFxComponentTest, ParticleFXRenderScriptMaterialOverrideAttributeS
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/attribute_mismatch.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     dmMessage::URL receiver;
     receiver.m_Socket   = dmGameObject::GetMessageSocket(m_Collection);
@@ -3164,7 +3164,7 @@ TEST_F(MiscComponentTest, DispatchBuffersInstancingTest)
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/dispatch_buffers_instancing_test_dispatch_buffers_instancing_test.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
@@ -3240,7 +3240,7 @@ TEST_F(ComponentTest, GetSetCollisionShape)
     dmHashEnableReverseHash(true);
 
     dmGameObject::HInstance go_base = Spawn(m_Factory, m_Collection, "/collision_object/get_set_shape.goc", dmHashString64("/get_set_shape_go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_base);
+    ASSERT_NE(0, go_base);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -3250,7 +3250,7 @@ TEST_F(ComponentTest, GetSetErrorCollisionShape)
     dmHashEnableReverseHash(true);
 
     dmGameObject::HInstance go_base = Spawn(m_Factory, m_Collection, "/collision_object/get_set_error_shape.goc", dmHashString64("/get_set_error_shape_go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_base);
+    ASSERT_NE(0, go_base);
 
     ASSERT_FALSE(dmGameObject::Final(m_Collection));
 }

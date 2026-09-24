@@ -83,8 +83,8 @@ TEST_F(IdTest, TestIdentifier)
 {
     dmGameObject::HInstance go1 = dmGameObject::New(m_Collection, "/go.goc");
     dmGameObject::HInstance go2 = dmGameObject::New(m_Collection, "/go.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go1);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go2);
+    ASSERT_NE(0, go1);
+    ASSERT_NE(0, go2);
 
     ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go1));
     ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go2));
@@ -123,11 +123,11 @@ TEST_F(IdTest, TestHierarchies)
     dmhash_t sub1_id = dmHashString64("/sub/go1");
     dmhash_t sub2_id = dmHashString64("/sub/go2");
     dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, id);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
+    ASSERT_NE(0, instance);
     dmGameObject::HInstance sub1_instance = dmGameObject::GetInstanceFromIdentifier(collection, sub1_id);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, sub1_instance);
+    ASSERT_NE(0, sub1_instance);
     dmGameObject::HInstance sub2_instance = dmGameObject::GetInstanceFromIdentifier(collection, sub2_id);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, sub2_instance);
+    ASSERT_NE(0, sub2_instance);
     ASSERT_EQ(sub1_id, dmGameObject::GetAbsoluteIdentifier(instance, "sub/go1"));
     ASSERT_EQ(id, dmGameObject::GetAbsoluteIdentifier(sub1_instance, "/go"));
     ASSERT_EQ(sub2_id, dmGameObject::GetAbsoluteIdentifier(sub1_instance, "go2"));
@@ -139,7 +139,7 @@ TEST_F(IdTest, TestHierarchies)
 TEST_F(IdTest, TestGenerationChangesOnIdentifierReuse)
 {
     dmGameObject::HInstance go1 = dmGameObject::New(m_Collection, "/go.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go1);
+    ASSERT_NE(0, go1);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go1, "go1"));
 
     dmhash_t id = dmGameObject::GetIdentifier(go1);
@@ -149,10 +149,10 @@ TEST_F(IdTest, TestGenerationChangesOnIdentifierReuse)
 
     dmGameObject::Delete(m_Collection, go1, false);
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetInstanceFromIdentifier(m_Collection, id));
+    ASSERT_EQ(0, dmGameObject::GetInstanceFromIdentifier(m_Collection, id));
 
     dmGameObject::HInstance go2 = dmGameObject::New(m_Collection, "/go.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go2);
+    ASSERT_NE(0, go2);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go2, "go1"));
 
     uint32_t generation2 = dmGameObject::GetInstanceGeneration(go2);
@@ -168,7 +168,7 @@ TEST_F(IdTest, TestPackedHandlesAndStaleGameObject)
     const uint64_t instance_index_mask = (1ULL << 20) - 1;
     const uint64_t collection_index_mask = (1ULL << 12) - 1;
     dmGameObject::HInstance game_object = dmGameObject::New(m_Collection, 0);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, game_object);
+    ASSERT_NE(0, game_object);
     ASSERT_EQ((uint64_t)(m_Collection & 0xffff), (game_object >> 20) & collection_index_mask);
     ASSERT_NE(0U, (uint32_t)(game_object >> 32));
     ASSERT_EQ((uint32_t)(game_object >> 32), dmGameObject::GetInstanceGeneration(game_object));
@@ -194,7 +194,7 @@ TEST_F(IdTest, TestPackedHandlesAndStaleGameObject)
     ASSERT_FALSE(dmGameObject::IsValid(game_object));
 
     dmGameObject::HInstance replacement = dmGameObject::New(m_Collection, 0);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, replacement);
+    ASSERT_NE(0, replacement);
     ASSERT_EQ(index, (uint32_t)(replacement & instance_index_mask));
     ASSERT_NE((uint32_t)(game_object >> 32), (uint32_t)(replacement >> 32));
     ASSERT_FALSE(dmGameObject::IsValid(game_object));
@@ -253,7 +253,7 @@ TEST_F(IdTest, TestWrongCollectionAndStaleCollection)
     dmGameObject::PostUpdate(m_Register);
     ASSERT_FALSE(dmGameObject::IsValid(first_object));
     ASSERT_EQ(dmGameObject::INVALID_COLLECTION, dmGameObject::GetCollection(first_object));
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetInstanceFromIdentifier(first, shared_identifier));
+    ASSERT_EQ(0, dmGameObject::GetInstanceFromIdentifier(first, shared_identifier));
 
     dmGameObject::HCollection reused = dmGameObject::NewCollection("reused", m_Factory, m_Register, 4, 0);
     ASSERT_EQ(first_index, (uint16_t)reused);
@@ -371,10 +371,10 @@ TEST_F(IdTest, TestInvalidHandleDefaults)
     uint16_t component_index = 1;
     dmhash_t component_id = 1;
 
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::New(invalid_collection, 0));
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::Spawn(invalid_collection, 0, 0, 0, 0, dmVMath::Point3(), dmVMath::Quat::identity(), dmVMath::Vector3(1.0f)));
+    ASSERT_EQ(0, dmGameObject::New(invalid_collection, 0));
+    ASSERT_EQ(0, dmGameObject::Spawn(invalid_collection, 0, 0, 0, 0, dmVMath::Point3(), dmVMath::Quat::identity(), dmVMath::Vector3(1.0f)));
     ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::Spawn(invalid_collection, 0, 0, 0, 0, dmVMath::Point3(), dmVMath::Quat::identity(), dmVMath::Vector3(1.0f), &spawned));
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, spawned);
+    ASSERT_EQ(0, spawned);
     ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::GetComponentIndex(invalid_generation, 0, &component_index));
     ASSERT_EQ(0U, component_index);
     ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::GetComponentId(invalid_generation, 0, &component_id));
@@ -387,8 +387,8 @@ TEST_F(IdTest, TestInvalidHandleDefaults)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_INVALID_INSTANCE, dmGameObject::SetProperty(invalid_generation, 0, 0, property_options, dmGameObject::PropertyVar(1.0f)));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_INVALID_INSTANCE, dmGameObject::CancelAnimations(invalid_collection, invalid_generation, 0, 0));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_INVALID_INSTANCE, dmGameObject::CancelAnimations(m_Collection, invalid_generation, 0, 1));
-    ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::SetParent(invalid_generation, dmGameObject::INVALID_GAME_OBJECT));
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetParent(invalid_generation));
+    ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::SetParent(invalid_generation, 0));
+    ASSERT_EQ(0, dmGameObject::GetParent(invalid_generation));
     ASSERT_EQ(0xFFFFFFFFU, dmGameObject::GetComponentTypeIndex(invalid_collection, 0));
     ASSERT_EQ((dmGameObject::HComponentWorld)0, dmGameObject::GetWorld(invalid_collection, 0));
     ASSERT_EQ((void*)0, dmGameObject::GetContext(invalid_collection, 0));
@@ -435,7 +435,7 @@ TEST_F(IdTest, TestSceneTraversalRejectsStaleHandles)
     ASSERT_FALSE(dmGameObject::TraverseIterateNext(&children));
 
     dmGameObject::HInstance component_owner = dmGameObject::New(m_Collection, "/go.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, component_owner);
+    ASSERT_NE(0, component_owner);
 
     dmGameObject::SceneNode component_owner_node = {};
     component_owner_node.m_Type = dmGameObject::SCENE_NODE_TYPE_GAMEOBJECT;
@@ -493,7 +493,7 @@ TEST_F(IdTest, TestGameObjectsAcrossLegacyIndexBoundary)
         uint32_t identifier_index = dmGameObject::AcquireInstanceIndex(collection);
         ASSERT_EQ(i, identifier_index);
         dmGameObject::HInstance game_object = dmGameObject::New(collection, 0);
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, game_object);
+        ASSERT_NE(0, game_object);
         dmGameObject::AssignInstanceIndex(identifier_index, game_object);
         if (i == 0)
         {

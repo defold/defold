@@ -192,7 +192,7 @@ static dmGameObject::HInstance Spawn(dmResource::HFactory factory, dmGameObject:
 TEST_F(PropsTest, PropsDefault)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_default.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     SetProperties(m_Collection, go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
@@ -205,7 +205,7 @@ TEST_F(PropsTest, PropsDefault)
 TEST_F(PropsTest, PropsGO)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_go.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     SetProperties(m_Collection, go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
@@ -285,7 +285,7 @@ TEST_F(PropsTest, PropsSpawn)
     ASSERT_NE((dmGameObject::HPropertyContainer)0, properties);
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_spawn.goc", dmHashString64("test_id"), properties, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
+    ASSERT_NE(0, instance);
 
     dmGameObject::PropertyContainerDestroy(properties);
 }
@@ -294,7 +294,7 @@ TEST_F(PropsTest, PropsSpawnNoProperties)
 {
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/props_go.goc", dmHashString64("test_id"), 0, Point3(0.0f, 0.0f, 0.0f), Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
     // Script init is run in spawn which verifies the properties
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
+    ASSERT_NE(0, instance);
 }
 
 TEST_F(PropsTest, PropsFromLuaRejectsEmbeddedNullText)
@@ -332,7 +332,7 @@ TEST_F(PropsTest, PropsRelativeURL)
 TEST_F(PropsTest, PropsNopDefInInit)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/props_nop_def_in_init.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
     dmGameObject::Delete(m_Collection, go, false);

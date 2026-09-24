@@ -354,7 +354,7 @@ TEST_F(ReloadCollectionTest, TestCollectionReload)
 
     dmGameObject::HCollection old_collection = m_Collection;
     dmGameObject::HInstance old_game_object = dmGameObject::GetInstanceFromIdentifier(old_collection, dmHashString64("/go1"));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, old_game_object);
+    ASSERT_NE(0, old_game_object);
     dmResource::Result rr = dmResource::ReloadResource(m_Factory, "/test.collectionc", 0);
     ASSERT_EQ(dmResource::RESULT_OK, rr);
     m_Collection = dmGameObject::GetCollectionFromResource(collection_resource);
@@ -403,7 +403,7 @@ TEST_F(ReloadCollectionTest, TestCollectionReload)
 
     old_collection = m_Collection;
     old_game_object = dmGameObject::GetInstanceFromIdentifier(old_collection, dmHashString64("/go1"));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, old_game_object);
+    ASSERT_NE(0, old_game_object);
     rr = dmResource::ReloadResource(m_Factory, "/test.collectionc", 0);
     ASSERT_EQ(dmResource::RESULT_OK, rr);
     m_Collection = dmGameObject::GetCollectionFromResource(collection_resource);
@@ -439,7 +439,7 @@ TEST_F(ReloadCollectionTest, TestCollectionReloadCreateFailureRestoresStableHand
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance old_game_object = dmGameObject::GetInstanceFromIdentifier(m_Collection, dmHashString64("/go1"));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, old_game_object);
+    ASSERT_NE(0, old_game_object);
     ASSERT_TRUE(dmGameObject::IsValid(old_game_object));
 
     ResetWorldCounters(&m_Stats);
@@ -470,7 +470,7 @@ TEST_F(ReloadCollectionTest, TestCollectionReloadInitFailureRestoresStableHandle
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance old_game_object = dmGameObject::GetInstanceFromIdentifier(m_Collection, dmHashString64("/go1"));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, old_game_object);
+    ASSERT_NE(0, old_game_object);
     ASSERT_TRUE(dmGameObject::IsValid(old_game_object));
 
     ResetWorldCounters(&m_Stats);

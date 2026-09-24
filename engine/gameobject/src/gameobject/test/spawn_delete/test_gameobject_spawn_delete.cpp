@@ -211,7 +211,7 @@ public:
     }
 
     void NotNull(dmGameObject::HInstance instance) {
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
+        ASSERT_NE(0, instance);
     }
 
     dmGameObject::HInstance New(const char* prototype) {

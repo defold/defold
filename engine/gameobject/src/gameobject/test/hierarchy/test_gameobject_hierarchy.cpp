@@ -819,7 +819,7 @@ TEST_F(HierarchyTest, TestHierarchy9)
 
     dmGameObject::SetParent(child1, 0);
 
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetParent(child1));
+    ASSERT_EQ(0, dmGameObject::GetParent(child1));
     ASSERT_EQ(child1, dmGameObject::GetParent(child2));
 
     ASSERT_EQ(0U, dmGameObject::GetDepth(child1));
@@ -1135,7 +1135,7 @@ TEST_F(HierarchyTest, TestHierarchyFromScript)
     // Test 1: go.set_parent(child) - detaching
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetParent(child));
+    ASSERT_EQ(0, dmGameObject::GetParent(child));
     ASSERT_NEAR(-12.0f, dmGameObject::GetWorldPosition(child).getX(), EPSILON);
     ASSERT_NEAR( -4.0f, dmGameObject::GetWorldPosition(child).getY(), EPSILON);
     ASSERT_NEAR( -2.0f, dmGameObject::GetWorldPosition(child).getZ(), EPSILON);
@@ -1154,7 +1154,7 @@ TEST_F(HierarchyTest, TestHierarchyFromScript)
     // Test 4: go.set_parent() - default args should detach object that owns script
     dmGameObject::SetParent(controller, parent);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, dmGameObject::GetParent(controller));
+    ASSERT_EQ(0, dmGameObject::GetParent(controller));
 
     dmGameObject::Delete(m_Collection, controller, false);
     dmGameObject::Delete(m_Collection, parent, false);
@@ -1165,7 +1165,7 @@ TEST_F(HierarchyTest, TestEmptyInstance)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, 0x0);
 
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_EQ(dmGameObject::UNNAMED_IDENTIFIER, dmGameObject::GetIdentifier(go));
 

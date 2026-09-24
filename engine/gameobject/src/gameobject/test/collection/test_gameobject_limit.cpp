@@ -99,14 +99,14 @@ TEST_F(CollectionLimitTest, CreateAndHitLimitAndSetGetPosition)
     for (uint32_t i = 0; i < max_instances; ++i)
     {
         dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+        ASSERT_NE(0, go);
         instances.Push(go);
         dmGameObject::SetPosition(go, Point3((float)(i + 1), 0.0f, 0.0f));
     }
 
     // Next creation should fail (buffer full)
     dmGameObject::HInstance overflow = dmGameObject::New(m_Collection, "/go1.goc");
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, overflow);
+    ASSERT_EQ(0, overflow);
 
     // Verify we can read back what we wrote
     for (uint32_t i = 0; i < instances.Size(); ++i)

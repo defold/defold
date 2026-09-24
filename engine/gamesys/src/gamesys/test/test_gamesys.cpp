@@ -677,7 +677,7 @@ TEST_F(ResourceFolderTest, TestCreateTextureFromScript)
 
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture.goc", dmHashString64("/create_texture"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Test 1: create a 128x128 empty texture at "/test.texturec"
@@ -813,7 +813,7 @@ TEST_F(ResourceFolderTest, TestCreateTextureAsyncFromCoroutine)
     null_context->m_UseAsyncTextureLoad   = 1;
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_texture_async_from_coroutine.goc", dmHashString64("/create_texture_async_from_coroutine"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(UpdateAndWaitUntilDone(scriptlibcontext, m_Collection, &m_UpdateContext, false, "tests_done"));
 
@@ -843,7 +843,7 @@ TEST_F(ResourceFolderTest, TestCreateSoundDataFromScript)
     lua_setglobal(L, "sound_wav");
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/create_sound_data.goc", dmHashString64("/create_sound_data"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     int count = 0;
     bool tests_done = false;
@@ -874,7 +874,7 @@ TEST_F(ResourceFolderTest, TestResourceScriptBuffer)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_buffer.goc", dmHashString64("/script_buffer"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     DeleteInstance(m_Collection, go);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -895,7 +895,7 @@ TEST_F(ResourceFolderTest, TestResourceScriptRenderTarget)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_render_target.goc", dmHashString64("/script_render_target"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
@@ -915,7 +915,7 @@ TEST_F(ResourceFolderTest, TestResourceScriptAtlas)
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/script_atlas.goc", dmHashString64("/script_atlas"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
@@ -936,7 +936,7 @@ TEST_F(ResourceFolderTest, TestSetTextureFromScript)
 
     // Spawn the game object with the script we want to call
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/resource/set_texture.goc", dmHashString64("/set_texture"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     dmGameSystem::TextureSetResource* texture_set_res = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/resource/tile_valid.t.texturesetc", (void**) &texture_set_res));
@@ -1030,7 +1030,7 @@ TEST_P(ComponentTest, Test)
     const char* component_name = go_ddf->m_Components[0].m_Component;
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_name);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -1076,7 +1076,7 @@ TEST_P(ComponentTest, TestReloadFail)
     const char* temp_name = "tmp";
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_name);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(CopyResource(GetContentFolder(), component_name, temp_name));
     ASSERT_TRUE(UnlinkResource(GetContentFolder(), component_name));
@@ -1105,7 +1105,7 @@ TEST_P(ComponentTest, TestReloadFail)
 TEST_F(CameraComponentTest, CameraTest)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/camera/camera_info.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -1185,10 +1185,10 @@ TEST_F(CollectionProxyComponentTest, ConsumeInputInCollectionProxy)
     dmhash_t hash_go_consume_proxy = dmHashString64("/go_consume_proxy");
 
     dmGameObject::HInstance go_consume_yes = Spawn(m_Factory, m_Collection, path_consume_yes, hash_go_consume_yes, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_consume_yes);
+    ASSERT_NE(0, go_consume_yes);
 
     dmGameObject::HInstance go_consume_no = Spawn(m_Factory, m_Collection, path_consume_no, hash_go_consume_no, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_consume_no);
+    ASSERT_NE(0, go_consume_no);
 
     // Iteration 1: Let script send the "enable" message
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -1262,7 +1262,7 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionLoadInitialize)
     dmhash_t go_hash = dmHashString64("/go");
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     for (;;)
     {
@@ -1318,7 +1318,7 @@ TEST_F(CollectionProxyComponentTest, AmbientLightAccumulatesAcrossCollectionProx
 
     dmGameObject::HInstance proxy_go = Spawn(m_Factory, m_Collection, "/collection_proxy/ambient_light_root.goc", dmHashString64("/proxy"), 0,
                                               Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, proxy_go);
+    ASSERT_NE(0, proxy_go);
 
     CollectionProxyComponentRef proxy = GetCollectionProxyComponentRef(proxy_go, dmHashString64("collectionproxy"));
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyLoad(proxy.m_World, proxy.m_Component, 0, 0));
@@ -1386,7 +1386,7 @@ TEST_F(CollectionProxyComponentTest, ReleaseDynamicResourceFromAnotherCollection
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/collection_proxy/release_dynamic_resource_root.goc", dmHashString64("/go"), 0,
                                        Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     bool proxy_unloaded = false;
     for (uint32_t i = 0; i < 64 && !proxy_unloaded; ++i)
@@ -1408,7 +1408,7 @@ TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadApi)
     dmhash_t go_hash = dmHashString64("/go");
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     bool callback1_ready = false;
     bool callback2_error = false;
@@ -1458,10 +1458,10 @@ TEST_F(CollectionProxyComponentTest, CollectionProxyScriptLoadDeleteProxyWhileLo
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
     dmGameObject::HInstance proxy_go = Spawn(m_Factory, m_Collection, "/collection_proxy/script_load_cancel_proxy.goc", dmHashString64("/proxy"));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, proxy_go);
+    ASSERT_NE(0, proxy_go);
 
     dmGameObject::HInstance requester_go = Spawn(m_Factory, m_Collection, "/collection_proxy/script_load_cancel_requester.goc", dmHashString64("/requester"));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, requester_go);
+    ASSERT_NE(0, requester_go);
 
     // Let the requester script start collectionproxy.load() against the proxy object.
     // The requester must stay alive after the proxy is deleted, otherwise script instance
@@ -1522,7 +1522,7 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionRecursiveLoadIn
     dmhash_t proxy_component_hash = dmHashString64("collectionproxy");
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_path, go_hash, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     dmLogInfo("collectionproxy cpp cycle root spawned");
     UpdateAndPostUpdateCollection(m_Collection, &m_UpdateContext, m_Register);
@@ -1535,7 +1535,7 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionRecursiveLoadIn
     dmGameObject::HCollection level1_collection = GetCollectionByName(m_Register, "set_collection_cpp_cycle_level1");
     dmLogInfo("collectionproxy cpp cycle level1 loaded and initialized");
     dmGameObject::HInstance level1_go = dmGameObject::GetInstanceFromIdentifier(level1_collection, dmHashString64("/go"));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, level1_go);
+    ASSERT_NE(0, level1_go);
     CollectionProxyComponentRef level1_proxy = GetCollectionProxyComponentRef(level1_go, proxy_component_hash);
     dmLogInfo("collectionproxy cpp cycle level1 set_collection /collection_proxy/set_collection_cpp_cycle_level2.collectionc");
     ConfigureCollectionProxy(level1_proxy, "/collection_proxy/set_collection_cpp_cycle_level2.collectionc");
@@ -1544,7 +1544,7 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionRecursiveLoadIn
     dmGameObject::HCollection level2_collection = GetCollectionByName(m_Register, "set_collection_cpp_cycle_level2");
     dmLogInfo("collectionproxy cpp cycle level2 loaded and initialized");
     dmGameObject::HInstance level2_go = dmGameObject::GetInstanceFromIdentifier(level2_collection, dmHashString64("/go"));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, level2_go);
+    ASSERT_NE(0, level2_go);
     CollectionProxyComponentRef level2_proxy = GetCollectionProxyComponentRef(level2_go, proxy_component_hash);
     dmLogInfo("collectionproxy cpp cycle level2 set_collection /collection_proxy/set_collection_cpp_cycle_level3.collectionc");
     ConfigureCollectionProxy(level2_proxy, "/collection_proxy/set_collection_cpp_cycle_level3.collectionc");
@@ -1553,7 +1553,7 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionRecursiveLoadIn
     dmGameObject::HCollection level3_collection = GetCollectionByName(m_Register, "set_collection_cpp_cycle_level3");
     dmLogInfo("collectionproxy cpp cycle level3 loaded and initialized");
     dmGameObject::HInstance level3_go = dmGameObject::GetInstanceFromIdentifier(level3_collection, dmHashString64("/go"));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, level3_go);
+    ASSERT_NE(0, level3_go);
     CollectionProxyComponentRef level3_proxy = GetCollectionProxyComponentRef(level3_go, proxy_component_hash);
 
     // Establish the back-edge in C++ without loading it.
@@ -1580,7 +1580,7 @@ TEST_P(ComponentFailTest, Test)
     const char* go_name = GetParam();
 
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, go_name);
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_EQ(0, go);
 }
 
 void GetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_name, dmhash_t prop_name, dmhash_t* out_val) {

@@ -248,11 +248,11 @@ TEST_F(CollectionTest, Collection)
 
         dmhash_t go01ident = dmHashString64("/go1");
         dmGameObject::HInstance go01 = dmGameObject::GetInstanceFromIdentifier(coll, go01ident);
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go01);
+        ASSERT_NE(0, go01);
 
         dmhash_t go02ident = dmHashString64("/go2");
         dmGameObject::HInstance go02 = dmGameObject::GetInstanceFromIdentifier(coll, go02ident);
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go02);
+        ASSERT_NE(0, go02);
 
         dmGameObject::Init(coll);
         dmGameObject::Update(coll, &m_UpdateContext);
@@ -510,12 +510,12 @@ TEST_F(CollectionTest, CollectionInCollection)
 
         dmhash_t go01ident = dmHashString64("/go1");
         dmGameObject::HInstance go01 = dmGameObject::GetInstanceFromIdentifier(coll, go01ident);
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go01);
+        ASSERT_NE(0, go01);
         ASSERT_NEAR(dmGameObject::GetPosition(go01).getX(), 123.0f, 0.0000f);
 
         dmhash_t go02ident = dmHashString64("/go2");
         dmGameObject::HInstance go02 = dmGameObject::GetInstanceFromIdentifier(coll, go02ident);
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go02);
+        ASSERT_NE(0, go02);
         ASSERT_NEAR(dmGameObject::GetPosition(go02).getX(), 456.0f, 0.0000f);
 
         ASSERT_NE(go01, go02);
@@ -524,19 +524,19 @@ TEST_F(CollectionTest, CollectionInCollection)
 
         dmhash_t parent_sub1_ident = dmHashString64("/sub1/parent");
         dmGameObject::HInstance parent_sub1 = dmGameObject::GetInstanceFromIdentifier(coll, parent_sub1_ident);
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, parent_sub1);
+        ASSERT_NE(0, parent_sub1);
 
         dmhash_t child_sub1_ident = dmHashString64("/sub1/child");
         dmGameObject::HInstance child_sub1 = dmGameObject::GetInstanceFromIdentifier(coll, child_sub1_ident);
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, child_sub1);
+        ASSERT_NE(0, child_sub1);
 
         dmhash_t parent_sub2_ident = dmHashString64("/sub2/parent");
         dmGameObject::HInstance parent_sub2 = dmGameObject::GetInstanceFromIdentifier(coll, parent_sub2_ident);
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, parent_sub2);
+        ASSERT_NE(0, parent_sub2);
 
         dmhash_t child_sub2_ident = dmHashString64("/sub2/child");
         dmGameObject::HInstance child_sub2 = dmGameObject::GetInstanceFromIdentifier(coll, child_sub2_ident);
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, child_sub2);
+        ASSERT_NE(0, child_sub2);
 
         // Relative identifiers
         ASSERT_EQ(dmHashString64("/a"), dmGameObject::GetAbsoluteIdentifier(go01, "a"));
@@ -585,7 +585,7 @@ TEST_F(CollectionTest, DefaultValues)
     for (uint32_t i = 0; i < instance_count; ++i)
     {
         dmGameObject::HInstance instance = dmGameObject::GetInstanceHandle(collection, collection->m_Instances[collection->m_LevelIndices[0][i]]);
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, instance);
+        ASSERT_NE(0, instance);
         dmVMath::Point3 p = dmGameObject::GetPosition(instance);
         ASSERT_EQ(0.0f, p.getX());
         ASSERT_EQ(0.0f, p.getY());
@@ -617,10 +617,10 @@ TEST_F(CollectionTest, CollectionCapacity)
 
         dmhash_t go01ident = dmHashString64("/go1");
         dmGameObject::HInstance go01 = dmGameObject::GetInstanceFromIdentifier(coll, go01ident);
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go01);
+        ASSERT_NE(0, go01);
         dmhash_t go02ident = dmHashString64("/go2");
         dmGameObject::HInstance go02 = dmGameObject::GetInstanceFromIdentifier(coll, go02ident);
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go02);
+        ASSERT_NE(0, go02);
 
         dmGameObject::Init(coll);
         dmGameObject::Update(coll, &m_UpdateContext);

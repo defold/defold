@@ -117,7 +117,7 @@ static void RunPhysicsScriptTest(dmResource::HFactory factory, dmGameObject::HCo
 
     dmGameObject::HInstance go = Spawn(factory, collection, prototype_path, dmHashString64(instance_path), 0,
                                        Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     bool tests_done = false;
     uint32_t update_count = 0;
@@ -162,13 +162,13 @@ TEST_F(ComponentTest, JointTest)
     dmhash_t hash_go_joint_test_c = dmHashString64("/joint_test_c");
 
     dmGameObject::HInstance go_c = Spawn(m_Factory, m_Collection, path_joint_test_c, hash_go_joint_test_c, 0, Point3(0, -100, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_c);
+    ASSERT_NE(0, go_c);
 
     dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_joint_test_b, hash_go_joint_test_b, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_b);
+    ASSERT_NE(0, go_b);
 
     dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_joint_test_a, hash_go_joint_test_a, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_a);
+    ASSERT_NE(0, go_a);
 
     // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
     bool tests_done = false;
@@ -240,16 +240,16 @@ TEST_F(Bullet3DComponentTest, Bullet3DApiTest)
     ** where a mismatch can silently corrupt simulation state or revive stale userdata.
     */
     dmGameObject::HInstance rigid_body = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_rigid_body"), 0, Point3(10, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, rigid_body);
+    ASSERT_NE(0, rigid_body);
 
     dmGameObject::HInstance trigger = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_trigger.goc", dmHashString64("/bullet3d_trigger"), 0, Point3(20, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, trigger);
+    ASSERT_NE(0, trigger);
 
     dmGameObject::HInstance static_body = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_static.goc", dmHashString64("/bullet3d_static"), 0, Point3(200, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, static_body);
+    ASSERT_NE(0, static_body);
 
     dmGameObject::HInstance kinematic_body = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_kinematic.goc", dmHashString64("/bullet3d_kinematic"), 0, Point3(100, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, kinematic_body);
+    ASSERT_NE(0, kinematic_body);
 
     RunPhysicsScriptTest(m_Factory, m_Collection, &m_UpdateContext, m_ScriptContext, "/collision_object/bullet3d_test.goc", "/bullet3d_test");
 }
@@ -269,37 +269,37 @@ TEST_F(Bullet3DComponentTest, Bullet3DWorldQueryApiTest)
     ** native ordering, scaling and broadphase implementation details.
     */
     dmGameObject::HInstance compound = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_compound.goc", dmHashString64("/bullet3d_query_compound"), 0, Point3(-50, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, compound);
+    ASSERT_NE(0, compound);
 
     dmGameObject::HInstance hull = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_hull.goc", dmHashString64("/bullet3d_query_hull"), 0, Point3(-30, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, hull);
+    ASSERT_NE(0, hull);
 
     dmGameObject::HInstance near_box = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_static.goc", dmHashString64("/bullet3d_query_near"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, near_box);
+    ASSERT_NE(0, near_box);
 
     dmGameObject::HInstance filtered_box = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_filtered.goc", dmHashString64("/bullet3d_query_filtered"), 0, Point3(5, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, filtered_box);
+    ASSERT_NE(0, filtered_box);
 
     dmGameObject::HInstance far_box = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_static.goc", dmHashString64("/bullet3d_query_far"), 0, Point3(10, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, far_box);
+    ASSERT_NE(0, far_box);
 
     dmGameObject::HInstance trigger = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_trigger.goc", dmHashString64("/bullet3d_query_trigger"), 0, Point3(15, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, trigger);
+    ASSERT_NE(0, trigger);
 
     dmGameObject::HInstance contact_filtered = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_filtered.goc", dmHashString64("/bullet3d_query_contact_filtered"), 0, Point3(28.5f, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, contact_filtered);
+    ASSERT_NE(0, contact_filtered);
 
     dmGameObject::HInstance contact_a = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_kinematic.goc", dmHashString64("/bullet3d_query_contact_a"), 0, Point3(30, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, contact_a);
+    ASSERT_NE(0, contact_a);
 
     dmGameObject::HInstance contact_b = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_static.goc", dmHashString64("/bullet3d_query_contact_b"), 0, Point3(31.5f, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, contact_b);
+    ASSERT_NE(0, contact_b);
 
     dmGameObject::HInstance movable = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_static.goc", dmHashString64("/bullet3d_query_movable"), 0, Point3(50, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, movable);
+    ASSERT_NE(0, movable);
 
     dmGameObject::HInstance rotated = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_static.goc", dmHashString64("/bullet3d_query_rotated"), 0, Point3(70, 0, 0), Quat(0, 0, 0.38268343f, 0.92387953f), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, rotated);
+    ASSERT_NE(0, rotated);
 
     RunPhysicsScriptTest(m_Factory, m_Collection, &m_UpdateContext, m_ScriptContext, "/collision_object/bullet3d_query_test.goc", "/bullet3d_query_test");
 }
@@ -316,9 +316,9 @@ TEST_F(Bullet3DComponentTest, Bullet3DConstraintApiTest)
     ** or world references across component lifecycle changes.
     */
     dmGameObject::HInstance body_a = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_constraint_a"), 0, Point3(-5, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, body_a);
+    ASSERT_NE(0, body_a);
     dmGameObject::HInstance body_b = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_constraint_b"), 0, Point3(5, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, body_b);
+    ASSERT_NE(0, body_b);
 
     RunPhysicsScriptTest(m_Factory, m_Collection, &m_UpdateContext, m_ScriptContext, "/collision_object/bullet3d_constraint_test.goc", "/bullet3d_constraint_test");
 }
@@ -334,7 +334,7 @@ TEST_F(Bullet3DComponentTest, Bullet3DNativeScaleConversionTest)
     ** values that the higher-level Lua round-trip tests cannot detect.
     */
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_native_scale"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     uint32_t                      component_type = 0;
     dmGameObject::HComponent      component = 0;
@@ -415,8 +415,8 @@ TEST_F(Bullet3DComponentTest, Bullet3DAngularSpringScaleConversionTest)
     */
     dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_spring_scale_a"), 0, Point3(-1, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_rigid_body.goc", dmHashString64("/bullet3d_spring_scale_b"), 0, Point3(1, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_a);
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_b);
+    ASSERT_NE(0, go_a);
+    ASSERT_NE(0, go_b);
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -569,7 +569,7 @@ TEST_F(Bullet3DComponentTest, Bullet3DCollisionObjectHandleInvalidatedOnResource
     ** replacing its native body, so generation checks alone cannot prevent stale access.
     */
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_lifetime_test.goc", dmHashString64("/bullet3d_lifetime_reload"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -621,13 +621,13 @@ TEST_F(Bullet3DComponentTest, Bullet3DHandlesInvalidatedOnCollectionTeardown)
     ASSERT_NE(dmGameObject::INVALID_COLLECTION, collection);
 
     dmGameObject::HInstance go = Spawn(m_Factory, collection, "/collision_object/bullet3d_lifetime_test.goc", dmHashString64("/bullet3d_lifetime_teardown"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     ASSERT_TRUE(dmGameObject::Update(collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(collection));
 
     dmGameObject::HInstance primary_go = Spawn(m_Factory, m_Collection, "/collision_object/bullet3d_query_static.goc", dmHashString64("/bullet3d_lifetime_primary"), 0, Point3(100, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, primary_go);
+    ASSERT_NE(0, primary_go);
 
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
     lua_getglobal(L, "bullet3d_lifetime_ready");
@@ -701,10 +701,10 @@ TEST_F(ComponentTest, PhysicsListenerTest)
     dmhash_t hash_go_trigger = dmHashString64("/test_trigger");
 
     dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_b);
+    ASSERT_NE(0, go_b);
 
     dmGameObject::HInstance go_a = Spawn(m_Factory, m_Collection, path_test_trigger, hash_go_trigger, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_a);
+    ASSERT_NE(0, go_a);
 
     bool tests_done = false;
     while (!tests_done)
@@ -945,7 +945,7 @@ TEST_F(ComponentTest, PhysicsUpdateMassTest)
     dmhash_t hash_go_object = dmHashString64("/test_object");
 
     dmGameObject::HInstance go_b = Spawn(m_Factory, m_Collection, path_test_object, hash_go_object, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go_b);
+    ASSERT_NE(0, go_b);
 
     bool tests_done = false;
     while (!tests_done)

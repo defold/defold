@@ -110,7 +110,7 @@ static dmhash_t hash(const char* s)
 TEST_F(AnimTest, AnimateAndStop)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE((dmGameObject::HInstance)0, go);
 
     m_UpdateContext.m_DT = 0.25f;
     dmhash_t id = hash("position");
@@ -567,7 +567,7 @@ TEST_F(AnimTest, ScriptedRestart)
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/restart.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -580,7 +580,7 @@ TEST_F(AnimTest, ScriptedCancel)
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/cancel.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -592,7 +592,7 @@ TEST_F(AnimTest, ScriptedCancelAll)
 {
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/cancel_all.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -617,7 +617,7 @@ TEST_F(AnimTest, ScriptedChainOtherProp)
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/chain_other_prop.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     for (uint32_t i = 0; i < 12; ++i)
     {
@@ -630,7 +630,7 @@ TEST_F(AnimTest, ScriptedChainDelayBug)
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/chain_delay_bug.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     for (uint32_t i = 0; i < 12; ++i)
     {
@@ -647,10 +647,10 @@ TEST_F(AnimTest, ScriptedDemo)
     {
         dmSnPrintf(id, 8, "box%d", i + 1);
         dmGameObject::HInstance box = Spawn(m_Factory, m_Collection, "/demo_box.goc", hash(id), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-        ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, box);
+        ASSERT_NE(0, box);
     }
     dmGameObject::HInstance demo = Spawn(m_Factory, m_Collection, "/demo.goc", hash("demo"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, demo);
+    ASSERT_NE(0, demo);
 
     uint32_t frame_count = 1000;
     m_UpdateContext.m_DT = 0.25f;
@@ -666,7 +666,7 @@ TEST_F(AnimTest, ScriptedInvalidType)
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/invalid_type.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_EQ(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_EQ(0, go);
 }
 
 TEST_F(AnimTest, ScriptedDelayedCompositeCallback)
@@ -674,7 +674,7 @@ TEST_F(AnimTest, ScriptedDelayedCompositeCallback)
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/composite_delay.goc", hash("test"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -688,7 +688,7 @@ TEST_F(AnimTest, ScriptedCustomEasing)
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/custom_easing.goc", hash("custom_easing"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -701,7 +701,7 @@ TEST_F(AnimTest, ScriptedChainedEasing)
     m_UpdateContext.m_DT = 0.25f;
     dmGameObject::PropertyVar var(1.0f);
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/chained_easing.goc", hash("chained_easing"), 0, dmVMath::Point3(0, 0, 0), dmVMath::Quat(0, 0, 0, 1), dmVMath::Vector3(1, 1, 1));
-    ASSERT_NE(dmGameObject::INVALID_GAME_OBJECT, go);
+    ASSERT_NE(0, go);
 
     for (uint32_t i = 0; i < 20; ++i)
     {
