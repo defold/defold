@@ -1541,7 +1541,7 @@ public class Project implements AutoCloseable {
     private static LinkedHashSet<String> getDefaultShaderAdapters(Platform platform) {
         LinkedHashSet<String> adapters = new LinkedHashSet<>();
         if (platform.isMacOS()) {
-            adapters.add(ShaderCompilers.SHADER_ADAPTER_VULKAN);
+            adapters.add(ShaderCompilers.SHADER_ADAPTER_METAL);
         } else if (platform.matchesOS(OS.OS_ID_ANDROID)) {
             adapters.add(ShaderCompilers.SHADER_ADAPTER_VULKAN);
             adapters.add(ShaderCompilers.SHADER_ADAPTER_OPENGLES);

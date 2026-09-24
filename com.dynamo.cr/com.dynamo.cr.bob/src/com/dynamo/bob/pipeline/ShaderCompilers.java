@@ -77,7 +77,7 @@ public class ShaderCompilers {
     private static LinkedHashSet<GraphicsAdapter> getDefaultShaderAdapters(Platform platform) {
         LinkedHashSet<GraphicsAdapter> adapters = new LinkedHashSet<>();
         if (platform.isMacOS()) {
-            adapters.add(GraphicsAdapter.VULKAN);
+            adapters.add(GraphicsAdapter.METAL);
         } else if (platform.matchesOS(OS.OS_ID_ANDROID)) {
             adapters.add(GraphicsAdapter.VULKAN);
             adapters.add(GraphicsAdapter.OPENGLES);

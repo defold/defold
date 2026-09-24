@@ -327,7 +327,8 @@
 (defn set-setting-value [manifest setting value]
   (case (:setting setting)
     :check-box (reduce #(set-toggle-value %1 %2 value) manifest (:toggles setting))
-    :choice (let [{:keys [choices none]} setting
+    :choice (let [manifest (reduce #(set-toggle-value %1 %2 false) manifest (:cleanup-toggles setting))
+                  {:keys [choices none]} setting
                   enabled-toggles (if (= none value)
                                     nil
                                     (some (fn [[id toggles]]
@@ -617,6 +618,8 @@
    [:open-gl-metal "OpenGL & Metal"]
    [:open-gl-vulkan "OpenGL & Vulkan"]])
 
+;; Legacy macOS entries remain here so changing a choice can remove overrides
+;; written by older editors, including libraries now supplied by engine defaults.
 (def open-gl-osx-toggles
   (concat
     (libs-toggles vulkan-osx ["graphics" "platform"])
@@ -626,6 +629,7 @@
 (def explicit-vulkan-osx-toggles
   (concat
     (libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+    (exclude-libs-toggles vulkan-osx ["platform"])
     (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterVulkan"])
     (generic-contains-toggles vulkan-osx :frameworks ["Metal" "IOSurface" "QuartzCore"])))
 
@@ -652,13 +656,28 @@
     (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterOpenGL"])))
 
 (def graphics-setting-osx
-  (make-choice-setting
-    :open-gl (concat open-gl-osx-toggles exclude-metal-osx-toggles exclude-vulkan-osx-toggles)
-    :metal (concat metal-osx-toggles exclude-open-gl-osx-toggles exclude-vulkan-osx-toggles)
-    :vulkan (concat explicit-vulkan-osx-toggles exclude-open-gl-osx-toggles exclude-metal-osx-toggles)
-    :open-gl-metal (concat open-gl-osx-toggles metal-osx-toggles exclude-vulkan-osx-toggles)
-    :open-gl-vulkan (concat open-gl-osx-toggles explicit-vulkan-osx-toggles exclude-metal-osx-toggles)
-    :vulkan))
+  (let [open-gl (concat
+                  (libs-toggles vulkan-osx ["graphics"])
+                  (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterOpenGL"])
+                  (generic-contains-toggles vulkan-osx :frameworks ["OpenGL"]))
+        vulkan (concat
+                 (libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+                 (exclude-libs-toggles vulkan-osx ["platform"])
+                 (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterVulkan"]))]
+    (assoc
+      ;; Match the combined choice first, before its subsets. Metal and its
+      ;; frameworks/platform library are provided by the engine defaults.
+      (make-choice-setting
+        :open-gl-vulkan (concat open-gl vulkan exclude-metal-osx-toggles)
+        :vulkan (concat vulkan exclude-metal-osx-toggles)
+        :open-gl (concat open-gl exclude-metal-osx-toggles)
+        :open-gl-metal open-gl
+        :metal)
+      ;; Clear both previous choices and redundant entries written by older
+      ;; editors before writing the minimal overrides for the new selection.
+      :cleanup-toggles (concat open-gl-osx-toggles explicit-vulkan-osx-toggles
+                               metal-osx-toggles exclude-metal-osx-toggles
+                               exclude-open-gl-osx-toggles exclude-vulkan-osx-toggles))))
 
 (def open-gl-ios-toggles [])
 
@@ -771,6 +790,22 @@
           manifest
           (conj windows :win32)))
 
+(defn- migrate-macos-vulkan-platform [manifest]
+  ;; platform_vulkan replaces the new default platform library. Keep old
+  ;; explicit Vulkan manifests recognizable and link only the selected variant.
+  (reduce (fn [manifest platform]
+            (let [context (get-in-guarded manifest :platforms map? platform map? :context map?)
+                  excluded (:excludeLibs context)
+                  libraries (mapcat #(let [v (get context %)] (when (vector? v) v)) [:libs :engineLibs])]
+              (if (and (or (nil? excluded) (vector? excluded))
+                       (some #{"platform_vulkan"} libraries)
+                       (not-any? #{"platform" "platform_vulkan"} excluded))
+                (assoc-in manifest [:platforms platform :context :excludeLibs]
+                          (conj (or excluded []) "platform"))
+                manifest)))
+          manifest
+          (conj macos :osx)))
+
 ;; Older 2D-only manifests exclude Bullet archives but predate its separate
 ;; script library and registration symbol.
 (defn- migrate-bullet3d-context [context]
@@ -817,6 +852,7 @@
         (when-not (g/error? manifest)
           (let [migrated-manifest (-> manifest
                                       migrate-windows-library-names
+                                      migrate-macos-vulkan-platform
                                       migrate-bullet3d-exclusions)]
             (when-not (= manifest migrated-manifest)
               ;; Prevent the project loader from caching the original lines as save-data.

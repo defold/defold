@@ -79,6 +79,14 @@ When invoking `scripts/build.py`, pass `--with-asan`, `--with-hwasan`, `--with-u
 matching `WITH_*` cache options, such as `WITH_ASAN=ON`. The graphics toggles
 such as `--with-vulkan` continue to map to `WITH_VULKAN`.
 
+macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
+include Vulkan as an additional adapter. iOS and the iOS simulator still default
+to OpenGL ES; pass `--with-metal` (or `WITH_METAL=ON`) to include Metal as an
+additional adapter on those platforms. This option has no effect on macOS or
+other platforms. App manifest graphics selections
+control the bundled adapters and Bob's shader formats: Metal uses MSL, while
+Vulkan uses SPIR-V.
+
 `WITH_HWASAN=ON` enables HWAddressSanitizer for `arm64-android`, including shared
 libc++ linkage. It cannot be combined with other sanitizers. See the
 [Android HWASan workflow](../mobile/README_ANDROID.md#hwasan-android-14-arm64)
