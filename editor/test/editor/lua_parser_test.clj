@@ -16,21 +16,15 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
-            [dynamo.graph :as g]
             [editor.lua-parser :as lp]
-            [editor.workspace :as workspace]
-            [integration.test-util :as test-util]
             [support.test-support :as test-support]
             [util.fn :as fn])
   (:import [org.apache.commons.lang3 RandomStringUtils]))
 
-(defn- lua-info
-  ([code]
-   (g/with-auto-or-fake-evaluation-context evaluation-context
-     (lp/lua-info (:basis evaluation-context) nil fn/constantly-true code)))
-  ([workspace valid-resource-kind? code]
-   (g/with-auto-or-fake-evaluation-context evaluation-context
-     (lp/lua-info (:basis evaluation-context) workspace valid-resource-kind? code))))
+(set! *warn-on-reflection* true)
+
+(defn- lua-info [code]
+  (lp/lua-info code fn/constantly-true))
 
 (deftest test-require
   (testing "bare require function call"
@@ -131,7 +125,7 @@
 (defn- soil-once [code]
   (let [split (rand-int (count code))
         before (subs code 0 split)
-        dirt (RandomStringUtils/random (rand-int 5) ".+-,;|!<>")
+        dirt (RandomStringUtils/random (int (rand-int 5)) ".+-,;|!<>")
         after (subs code (+ split (rand-int (- (count code) split))))]
     (str before dirt after)))
 
@@ -168,18 +162,17 @@
 (def ^:private valid-resource-kind?
   (partial contains? #{"atlas" "font" "material" "texture" "tile_source" "render_target"}))
 
-(defn- src->properties [workspace src]
-  (:script-properties (lua-info workspace valid-resource-kind? src)))
+(defn- src->properties [src]
+  (:script-properties (lp/lua-info src valid-resource-kind?)))
 
 (deftest test-properties
   (test-support/with-clean-system
-    (let [workspace (test-util/setup-workspace!)
-          resolve-workspace-resource (partial workspace/resolve-workspace-resource workspace)]
+    (do
       (is (= [{:name "test"
                :type :script-property-type-number
                :value 1.1
                :status :ok}]
-             (src->properties workspace "go.property(\"test\", 1.1)")))
+             (src->properties "go.property(\"test\", 1.1)")))
 
       (is (= [{:type :script-property-type-boolean :value true}
               {:type :script-property-type-boolean :value false}
@@ -212,27 +205,26 @@
               {:type :script-property-type-vector4 :value [1.0 2.0 3.0 4.0]}
               {:type :script-property-type-quat :value [0.0 0.0 0.0]}
               {:type :script-property-type-quat :value [0.0 0.0 90.0]}
-              {:type :script-property-type-resource :resource-kind "atlas" :value nil}
-              {:type :script-property-type-resource :resource-kind "atlas" :value nil}
-              {:type :script-property-type-resource :resource-kind "atlas" :value (resolve-workspace-resource "/absolute/path/to/resource.atlas")}
-              {:type :script-property-type-resource :resource-kind "font" :value nil}
-              {:type :script-property-type-resource :resource-kind "font" :value nil}
-              {:type :script-property-type-resource :resource-kind "font" :value (resolve-workspace-resource "/absolute/path/to/resource.font")}
-              {:type :script-property-type-resource :resource-kind "material" :value nil}
-              {:type :script-property-type-resource :resource-kind "material" :value nil}
-              {:type :script-property-type-resource :resource-kind "material" :value (resolve-workspace-resource "/absolute/path/to/resource.material")}
-              {:type :script-property-type-resource :resource-kind "texture" :value nil}
-              {:type :script-property-type-resource :resource-kind "texture" :value nil}
-              {:type :script-property-type-resource :resource-kind "texture" :value (resolve-workspace-resource "/absolute/path/to/resource.png")}
-              {:type :script-property-type-resource :resource-kind "tile_source" :value nil}
-              {:type :script-property-type-resource :resource-kind "tile_source" :value nil}
-              {:type :script-property-type-resource :resource-kind "tile_source" :value (resolve-workspace-resource "/absolute/path/to/resource.tilesource")}
-              {:type :script-property-type-resource :resource-kind "render_target" :value nil}
-              {:type :script-property-type-resource :resource-kind "render_target" :value nil}
-              {:type :script-property-type-resource :resource-kind "render_target" :value (resolve-workspace-resource "/absolute/path/to/resource.render_target")}]
+              {:type :script-property-type-resource :resource-kind "atlas" :value ""}
+              {:type :script-property-type-resource :resource-kind "atlas" :value ""}
+              {:type :script-property-type-resource :resource-kind "atlas" :value "/absolute/path/to/resource.atlas"}
+              {:type :script-property-type-resource :resource-kind "font" :value ""}
+              {:type :script-property-type-resource :resource-kind "font" :value ""}
+              {:type :script-property-type-resource :resource-kind "font" :value "/absolute/path/to/resource.font"}
+              {:type :script-property-type-resource :resource-kind "material" :value ""}
+              {:type :script-property-type-resource :resource-kind "material" :value ""}
+              {:type :script-property-type-resource :resource-kind "material" :value "/absolute/path/to/resource.material"}
+              {:type :script-property-type-resource :resource-kind "texture" :value ""}
+              {:type :script-property-type-resource :resource-kind "texture" :value ""}
+              {:type :script-property-type-resource :resource-kind "texture" :value "/absolute/path/to/resource.png"}
+              {:type :script-property-type-resource :resource-kind "tile_source" :value ""}
+              {:type :script-property-type-resource :resource-kind "tile_source" :value ""}
+              {:type :script-property-type-resource :resource-kind "tile_source" :value "/absolute/path/to/resource.tilesource"}
+              {:type :script-property-type-resource :resource-kind "render_target" :value ""}
+              {:type :script-property-type-resource :resource-kind "render_target" :value ""}
+              {:type :script-property-type-resource :resource-kind "render_target" :value "/absolute/path/to/resource.render_target"}]
              (map #(select-keys % [:value :type :resource-kind])
                   (src->properties
-                    workspace
                     (string/join "\n" ["go.property(\"test\", true)"
                                        "go.property(\"test\", false)"
                                        "go.property(\"test\", 1)"
@@ -284,23 +276,23 @@
                                        "go.property(\"test\", resource.render_target('/absolute/path/to/resource.render_target'))"])))))
 
       (is (= []
-             (src->properties workspace "foo.property(\"test\", true)")))
+             (src->properties "foo.property(\"test\", true)")))
       (is (= []
-             (src->properties workspace "go.property")))
+             (src->properties "go.property")))
       (is (= [{:status :invalid-args}]
-             (src->properties workspace "go.property()")))
+             (src->properties "go.property()")))
       (is (= [{:status :invalid-value
                :name "test"}]
-             (src->properties workspace "go.property(\"test\")")))
+             (src->properties "go.property(\"test\")")))
       (is (= [{:status :invalid-args}]
-             (src->properties workspace "go.property(\"\", 0.0)")))
+             (src->properties "go.property(\"\", 0.0)")))
       (is (= [{:status :ok
                :name "test"
                :type :script-property-type-text
                :value "foo"}]
-             (src->properties workspace "go.property(\"test\", \"foo\")")))
+             (src->properties "go.property(\"test\", \"foo\")")))
       (is (= [{:status :invalid-location
                :name "nested"
                :type :script-property-type-boolean
                :value false}]
-             (src->properties workspace "function init() go.property('nested', false) end"))))))
+             (src->properties "function init() go.property('nested', false) end"))))))

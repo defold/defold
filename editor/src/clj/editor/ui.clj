@@ -66,11 +66,11 @@
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.collections FXCollections ListChangeListener ObservableList]
            [javafx.css Styleable]
-           [javafx.event ActionEvent Event EventDispatcher EventHandler EventTarget]
+           [javafx.event ActionEvent Event EventDispatchChain EventDispatcher EventHandler EventTarget]
            [javafx.fxml FXMLLoader]
            [javafx.geometry Point2D]
            [javafx.scene Cursor Group Node Parent Scene]
-           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control CustomMenuItem Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control CustomMenuItem Label Labeled ListView Menu MenuBar MenuButton MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel SeparatorMenuItem Tab TabPane TabPane$TabDragPolicy TableView TextArea TextField TextInputControl Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane GridPane HBox Pane Priority]
@@ -1375,6 +1375,92 @@
   ([^Node node name env selection-provider dynamics adapters]
    (user-data! node ::context (handler/->context name env selection-provider dynamics adapters))))
 
+(defn- select-adjacent-tab! [^TabPane tab-pane ^long delta]
+  (let [selection-model (.getSelectionModel tab-pane)
+        tabs (.getTabs tab-pane)
+        tab-count (long (.size tabs))]
+    (loop [attempts 0
+           tab-index (long (.getSelectedIndex selection-model))]
+      (when (< attempts tab-count)
+        (let [tab-index (long (mod (+ tab-index delta) tab-count))]
+          (if (.isDisable ^Tab (.get tabs tab-index))
+            (recur (inc attempts) tab-index)
+            (do
+              (.select selection-model tab-index)
+              (.requestFocus tab-pane))))))))
+
+(defn- focused-tab-pane
+  ^TabPane [^Stage main-stage]
+  (when-let [focused-node (some-> main-stage .getScene focus-owner)]
+    (closest-node-of-type TabPane focused-node)))
+
+(handler/defhandler :window.tab.select-next :global
+  (active? [^Stage main-stage] (some? (focused-tab-pane main-stage)))
+  (enabled? [^Stage main-stage]
+    (< 1 (.size (.getTabs (focused-tab-pane main-stage)))))
+  (run [^Stage main-stage]
+    (select-adjacent-tab! (focused-tab-pane main-stage) 1)))
+
+(handler/defhandler :window.tab.select-previous :global
+  (active? [^Stage main-stage] (some? (focused-tab-pane main-stage)))
+  (enabled? [^Stage main-stage]
+    (< 1 (.size (.getTabs (focused-tab-pane main-stage)))))
+  (run [^Stage main-stage]
+    (select-adjacent-tab! (focused-tab-pane main-stage) -1)))
+
+(defn- move-selected-tab! [^TabPane tab-pane ^long delta]
+  (let [tabs (.getTabs tab-pane)
+        from-index (.getSelectedIndex (.getSelectionModel tab-pane))
+        to-index (+ from-index delta)
+        ^Tab/1 reordered-tabs (.toArray tabs ^Tab/1 (make-array Tab (.size tabs)))
+        from-tab (aget reordered-tabs from-index)]
+    (aset reordered-tabs from-index (aget reordered-tabs to-index))
+    (aset reordered-tabs to-index from-tab)
+    (.setAll tabs reordered-tabs)))
+
+(defn- tab-pane-reorderable? [^TabPane tab-pane]
+  (= TabPane$TabDragPolicy/REORDER (.getTabDragPolicy tab-pane)))
+
+(handler/defhandler :window.tab.move-left :global
+  (active? [^Stage main-stage] (some? (focused-tab-pane main-stage)))
+  (enabled? [^Stage main-stage]
+    (let [tab-pane (focused-tab-pane main-stage)]
+      (and (tab-pane-reorderable? tab-pane)
+           (pos? (.getSelectedIndex (.getSelectionModel tab-pane))))))
+  (run [^Stage main-stage]
+    (move-selected-tab! (focused-tab-pane main-stage) -1)))
+
+(handler/defhandler :window.tab.move-right :global
+  (active? [^Stage main-stage] (some? (focused-tab-pane main-stage)))
+  (enabled? [^Stage main-stage]
+    (let [tab-pane (focused-tab-pane main-stage)]
+      (and (tab-pane-reorderable? tab-pane)
+           (< (.getSelectedIndex (.getSelectionModel tab-pane))
+              (dec (.size (.getTabs tab-pane)))))))
+  (run [^Stage main-stage]
+    (move-selected-tab! (focused-tab-pane main-stage) 1)))
+
+(defn init-tab-pane! [^TabPane tab-pane]
+  (let [original-event-dispatcher (.getEventDispatcher tab-pane)]
+    (.setEventDispatcher
+      tab-pane
+      (reify EventDispatcher
+        (dispatchEvent [_ event tail]
+          ;; Disable shortcuts from TabPaneSkin's input map
+          (if (and (= KeyEvent/KEY_PRESSED (.getEventType event))
+                   (let [^KeyEvent event event
+                         key-code (.getCode event)]
+                     (and (.isControlDown event)
+                          (not (.isAltDown event))
+                          (not (.isMetaDown event))
+                          (or (= KeyCode/TAB key-code)
+                              (and (not (.isShiftDown event))
+                                   (or (= KeyCode/PAGE_UP key-code)
+                                       (= KeyCode/PAGE_DOWN key-code)))))))
+            (.dispatchEvent ^EventDispatchChain tail event)
+            (.dispatchEvent original-event-dispatcher event tail))))))
+  tab-pane)
+
 (defn context
   [^Node node]
   (cond
@@ -2588,7 +2674,8 @@
                     (long (* 1e9 (/ 1 (double fps))))
                     0)
          unfocused-interval (max interval unfocused-timer-interval)]
-     {:last last
+     {:start start
+      :last last
       :timer (proxy [AnimationTimer] []
                (handle [^long now]
                  (profiler/profile "timer" name
@@ -2951,15 +3038,26 @@
 
   The supplied function will only be invoked if the node is a part of the
   rendered tree (i.e. it and its parents are visible, the node is on a showing
-  window)
+  window). Becoming visible also queues a refresh without waiting for a timer tick.
+
+  Returns a function that stops the timer and removes its listeners.
 
   Args:
     node    target Node
     fps     timer fps
     name    timer name, a string
-    f       0-arg function"
+    f       function receiving elapsed time in seconds"
   [^Node node fps name f]
-  (let [timer (->timer fps name (fn [_ _ _] (f)))
+  (let [running (volatile! false)
+
+        timer
+        (->timer fps name
+                 (fn [_ elapsed-time _]
+                   ;; A callback may already be queued when the node
+                   ;; is hidden or the timer is disposed.
+                   (when @running
+                     (f elapsed-time))))
+
         tree-visible-property (NodeHelper/treeVisibleProperty node)
         tree-showing-property (-> node
                                   (.sceneProperty)
@@ -2970,10 +3068,23 @@
                            #(and (.getValue tree-showing-property)
                                  (.get tree-visible-property))
                            (into-array Observable [tree-showing-property tree-visible-property]))
-        ^ChangeListener on-running-changed (fn [_ _ tree-visible]
-                                             (if tree-visible
-                                               (do (f) (timer-start! timer))
-                                               (timer-stop! timer)))
+
+        ^ChangeListener on-running-changed
+        (fn [_ _ tree-visible]
+          (vreset! running tree-visible)
+          (if-not tree-visible
+            (timer-stop! timer)
+            (let [now (System/nanoTime)]
+              ;; Do not catch up on ticks missed
+              ;; while the node was hidden.
+              (reset! (:last timer) now)
+              ;; JavaFX may still be walking the
+              ;; children while visibility changes.
+              (run-later
+                (when @running
+                  (f (* (- now (long (:start timer))) 1e-9))))
+              (timer-start! timer))))
+
         key (Object.)
         node-properties (.getProperties node)]
     (when (.get running-property)
@@ -2984,6 +3095,7 @@
     ;; don't keep the dispose-fn referenced
     (.put node-properties key running-property)
     (fn dispose-node-timer! []
+      (vreset! running false)
       (.remove node-properties key)
       (.removeListener running-property on-running-changed)
       (timer-stop! timer))))

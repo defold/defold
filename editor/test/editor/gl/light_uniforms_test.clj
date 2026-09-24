@@ -236,10 +236,8 @@
 
 (deftest bind-preview-lights-for-shader-skips-shaders-without-preview-light-uniforms-test
   (let [request-object-call-count (atom 0)
-        test-shader (shader/make-shader
-                      ::no-preview-lights
-                      "void main() { gl_Position = vec4(0.0); }"
-                      "void main() { gl_FragColor = vec4(1.0); }")]
+        shader-request-data (shader/make-shader-request-data [] [] {} nil)
+        test-shader (shader/make-shader-lifecycle ::no-preview-lights shader-request-data [] {})]
     (with-redefs [scene-cache/request-object! (fn [& _]
                                                 (swap! request-object-call-count inc)
                                                 (throw (ex-info "Should not request shader object." {})))]

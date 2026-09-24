@@ -150,7 +150,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessage.Builder<B>> extend
                     }
                 }
             } else if (isResource && value instanceof String) {
-                boolean isOptional = fieldDescriptor.isOptional();
+                boolean isOptional = !fieldDescriptor.isRequired() && !fieldDescriptor.isRepeated();
                 String resValue =  (String) value;
                 // We don't require optional fields to be filled
                 // if such a field has no value - just ignore it

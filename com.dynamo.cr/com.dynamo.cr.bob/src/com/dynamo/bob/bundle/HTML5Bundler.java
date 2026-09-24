@@ -64,7 +64,6 @@ public class HTML5Bundler implements IBundler {
     // changes when it rewrites their line endings. A .gitattributes in the bundle root also
     // covers every subdirectory. See issue #10006.
     private static final String GitAttributesContent = "* -text\n";
-    private static int SplitFileSegmentSize = 2 * 1024 * 1024;
     private static String SplitFileSHA1 = "";
 
     // previously it was hardcoded in dmloader.js
@@ -137,7 +136,7 @@ public class HTML5Bundler implements IBundler {
 
         // Check if game has configured a Facebook App ID
         String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
-        properties.put("DEFOLD_HAS_FACEBOOK_APP_ID", facebookAppId != null ? "true" : "false");
+        properties.put("DEFOLD_HAS_FACEBOOK_APP_ID", Boolean.toString(facebookAppId != null));
 
         String engineArgumentsString = projectProperties.getStringValue("html5", "engine_arguments", null);
         List<String> engineArguments = BundleHelper.createArrayFromString(engineArgumentsString);
@@ -164,7 +163,7 @@ public class HTML5Bundler implements IBundler {
         }
 
         // When running "Build HTML and Launch" we need to ignore the archive location prefix/suffix.
-        Boolean localLaunch = project.option("local-launch", "false").equals("true");
+        boolean localLaunch = project.option("local-launch", "false").equals("true");
         if (localLaunch) {
             properties.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", "archive");
             properties.put("DEFOLD_ARCHIVE_LOCATION_SUFFIX", "");
@@ -196,7 +195,7 @@ public class HTML5Bundler implements IBundler {
         properties.put("DEFOLD_HAS_WASM_PTHREAD_ENGINE", architectures.contains(Platform.WasmPthreadWeb));
     }
 
-    class SplitFile {
+    static class SplitFile {
         private File source;
         private Project project;
         private MessageDigest sha1;
@@ -236,7 +235,8 @@ public class HTML5Bundler implements IBundler {
                 input = new BufferedInputStream(new FileInputStream(source));
                 long remaining = source.length();
                 while (0 < remaining) {
-                    int thisRead = (int)Math.min(SplitFileSegmentSize, remaining);
+                    int splitFileSegmentSize = 2 * 1024 * 1024;
+                    int thisRead = (int)Math.min(splitFileSegmentSize, remaining);
 
                     byte[] readBuffer = new byte[thisRead];
                     long bytesRead = input.read(readBuffer, 0, thisRead);
@@ -265,11 +265,11 @@ public class HTML5Bundler implements IBundler {
             generator.writeNumber(source.length());
             if(this.sha1 != null) {
                 generator.writeFieldName("sha1");
-                String sha1 = new BigInteger(1, this.sha1.digest()).toString(16);
+                StringBuilder sha1 = new StringBuilder(new BigInteger(1, this.sha1.digest()).toString(16));
                 while (sha1.length() < 40) {
-                    sha1 = "0" + sha1;
+                    sha1.insert(0, "0");
                 }
-                generator.writeString(sha1);
+                generator.writeString(sha1.toString());
             }
             generator.writeFieldName("pieces");
             generator.writeStartArray();
@@ -343,11 +343,11 @@ public class HTML5Bundler implements IBundler {
                 n = is.read(buffer);
             }
             is.close();
-            String sha1 = new BigInteger(1, md.digest()).toString(16);
+            StringBuilder sha1 = new StringBuilder(new BigInteger(1, md.digest()).toString(16));
             while (sha1.length() < 40) {
-                sha1 = "0" + sha1;
+                sha1.insert(0, "0");
             }
-            return sha1;
+            return sha1.toString();
         } catch (IOException e) {
             return null;
         } catch (NoSuchAlgorithmException e) {

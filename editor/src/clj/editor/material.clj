@@ -190,7 +190,7 @@
   ;; and line numbers here.
   (let [shader-proj-path (resource/proj-path shader-resource)]
     (try
-      (shader-gen/transpile-shader-source shader-proj-path shader-source ^long max-page-count glsl-es-default-precision-float glsl-es-default-precision-int)
+      (shader-gen/transpile-shader-source shader-proj-path shader-source ^long max-page-count glsl-es-default-precision-float glsl-es-default-precision-int :language-glsl-sm120)
       (catch Exception exception
         (let [ex-data (ex-data exception)]
           (if-not (shader-gen/shader-transpile-ex-data? ex-data)
@@ -608,10 +608,9 @@
 (defn- legacy-texture->sampler [name]
   (assoc default-pb-sampler :name name))
 
-(defn load-material [project self resource material-desc]
+(defn load-material [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id material-desc :source-value}]
   {:pre [(map? material-desc)]} ; Material$MaterialDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)
         attributes->editable-attributes #(mapv attribute->editable-attribute %)]
     (concat
       (g/connect project :default-sampler-filter-modes self :default-sampler-filter-modes)
@@ -635,7 +634,7 @@
   :samplers if we encounter them. Ignores :textures that already have
   :samplers with the same name. Also ensures that there are no duplicate
   entries in the :samplers list, based on :name."
-  [material-desc]
+  [_read-opts _owner-resource material-desc]
   ;; Material$MaterialDesc in map format.
   (let [existing-samplers (:samplers material-desc)
         samplers-created-from-textures (map legacy-texture->sampler (:textures material-desc))

@@ -241,12 +241,6 @@
                     (local-scale-from-transform (or world-transform geom/Identity4d)))]
     (Math/max (double sdf-scale) sdf-min-scale)))
 
-(defn- native-sdf-limit
-  ^double [^double padding ^double width]
-  (/ (- (* 0.75 255.0)
-        (* (/ (double FontRenderer/DEFAULT_SDF_EDGE_VALUE) padding) width))
-     255.0))
-
 (defn- add-sdf-screen-scale
   "Annotate text entries with :sdf-screen-scale when rendering SDF fonts."
   [render-args font-data text-entries]
@@ -1371,23 +1365,19 @@
 
 (defn- make-native-renderer-spec
   ^NativeRendererSpec [font font-desc font-map type use-font-layout use-rich-text runtime-generation]
-  (let [render-params (FontRenderer$Params.)
+  (let [font-desc-pb (protobuf/map->pb Font$FontDesc font-desc)
+        render-params (FontRenderer$Params.)
         measure-params (FontRenderer$Params.)
         output-bitmap (= :defold type)
         shadow-blur (double (:shadow-blur font-desc))
-        outline-width (double (:outline-width font-desc))
-        sdf-padding (+ (double FontRenderer/DEFAULT_SDF_BASE_PADDING)
-                       outline-width
-                       shadow-blur)]
+        outline-width (double (:outline-width font-desc))]
     (set! (.-size render-params) (float (:size font-desc)))
     (set! (.-cacheWidth render-params) (int (:cache-width font-map)))
     (set! (.-cacheHeight render-params) (int (:cache-height font-map)))
     (set! (.-cacheCellPadding render-params) (int (:glyph-padding font-map)))
-    (set! (.-sdfSpread render-params) (float sdf-padding))
-    (set! (.-sdfOutline render-params) (float (native-sdf-limit sdf-padding outline-width)))
-    (set! (.-sdfShadow render-params) (float (if (zero? shadow-blur)
-                                              1.0
-                                              (native-sdf-limit sdf-padding shadow-blur))))
+    (set! (.-sdfSpread render-params) (Fontc/GetFontMapSdfSpread font-desc-pb))
+    (set! (.-sdfOutline render-params) (Fontc/GetFontMapSdfOutline font-desc-pb))
+    (set! (.-sdfShadow render-params) (Fontc/GetFontMapSdfShadow font-desc-pb))
     (set! (.-outlineWidth render-params) (float outline-width))
     (set! (.-shadowBlur render-params) (float shadow-blur))
     (set! (.-shadowX render-params) (float (:shadow-x font-desc)))
@@ -1430,7 +1420,7 @@
                             supported-codepoints
                             supported-codepoint-array
                             use-rich-text
-                            (vec (FontStyles/compileStyles (protobuf/map->pb Font$FontDesc font-desc)))))))
+                            (vec (FontStyles/compileStyles font-desc-pb))))))
 
 (defn- font-compilation-error [node-id font ^Exception error]
   (let [message (.getMessage error)]
@@ -1575,7 +1565,7 @@
   (doto (BMFont.)
     (.parse input-stream)))
 
-(defn load-bitmap-font-source [_project self resource]
+(defn load-bitmap-font-source [{:keys [resolve-resource-fn workspace]} {:keys [owner-resource resource] self :node-id}]
   (let [[^BMFont bm-font disk-sha256] (resource/read-source-value+sha256-hex resource read-bm-font)]
     (let [;; this weird dance stolen from Fontc.java
           texture-file-name (-> bm-font
@@ -1585,12 +1575,11 @@
                                 (Paths/get (into-array String []))
                                 (.getFileName)
                                 (.toString))
-          texture-resource (workspace/resolve-resource resource texture-file-name)]
+          texture-resource (resolve-resource-fn owner-resource texture-file-name)]
       (concat
         (g/set-property self :texture texture-resource)
         (when disk-sha256
-          (let [workspace (resource/workspace resource)]
-            (workspace/set-disk-sha256 workspace self disk-sha256)))))))
+          (workspace/set-disk-sha256 workspace self disk-sha256))))))
 
 (g/defnode TrueTypeFontSourceNode
   (inherits resource-node/ResourceNode)
@@ -1601,7 +1590,7 @@
               (resource-io/with-error-translation resource _node-id :runtime-generation-build-target
                 (pipeline/make-source-bytes-build-target _node-id resource))))))
 
-(defn load-true-type-font-source [project self _resource]
+(defn load-true-type-font-source [{:keys [project]} {self :node-id}]
   (g/connect project :settings self :project-settings))
 
 (g/defnode OpenTypeFontSourceNode
@@ -2010,10 +1999,9 @@
                                              :native-renderer-spec (:native-renderer-spec font-map)}))
   (output preview-text g/Str :cached produce-preview-text))
 
-(defn load-font [project self resource font-desc]
+(defn load-font [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id font-desc :source-value}]
   {:pre [(map? font-desc)]} ; Font$FontDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (into
       [(g/connect project :use-font-layout self :use-font-layout)
        (g/connect project :use-rich-text self :use-rich-text)
@@ -2047,7 +2035,7 @@
         cache-height :cache-height
         render-mode :render-mode))))
 
-(defn sanitize-font [{:keys [characters extra-characters] :as font-desc}]
+(defn sanitize-font [_read-opts _owner-resource {:keys [characters extra-characters] :as font-desc}]
   {:pre [(map? font-desc)]} ; Font$FontDesc in map format.
   ;; In a previous file format, we would always include all printable ASCII
   ;; characters in the font, and the user could specify :extra-characters to

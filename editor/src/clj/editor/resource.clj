@@ -33,7 +33,8 @@
             [util.text-util :as text-util])
   (:import [clojure.lang PersistentHashMap]
            [com.defold.editor Editor]
-           [java.io Closeable File FilterInputStream IOException InputStream]
+           [com.dynamo.bob.util PathUtil]
+           [java.io Closeable File FilterInputStream InputStream]
            [java.net URI]
            [java.nio.file FileSystem FileSystems]
            [java.util.zip ZipEntry ZipFile]
@@ -127,6 +128,10 @@
   (and (resource? value)
        (overridable? value)))
 
+(defn editable-resource? [value]
+  (and (resource? value)
+       (editable? value)))
+
 (defn openable-resource? [value]
   ;; A resource is considered openable if its kind can be opened. Typically this
   ;; is a resource that is part of the project and is not a directory. Note
@@ -190,11 +195,13 @@
        (or (.isFile value)
            (not (.exists value)))))
 
-(s/def ::proj-path-pattern
-  (s/and string?
-         #(string/starts-with? % "/")
-         #(not (string/ends-with? % "/"))))
+(defn proj-path? [value]
+  (and (string? value)
+       (string/starts-with? value "/")
+       (or (= 1 (count value))
+           (not (string/ends-with? value "/")))))
 
+(s/def ::proj-path-pattern proj-path?)
 (s/def ::proj-path-patterns (s/every ::proj-path-pattern :kind vector?))
 (s/def ::proj-path-pred ifn?)
 (s/def ::project-directory project-directory?)
@@ -349,25 +356,18 @@
 
 (defn make-proj-path-patterns-pred-raw
   "Returns a predicate that takes a proj-path and returns true if it starts with
-  or matches one of the listed proj-paths."
+  or matches one of the listed proj-path-patterns. Patterns may contain
+  wildcards. The matching rules are shared with Bob, see
+  PathUtil.makeProjPathPredicate."
   [proj-path-patterns]
   {:pre [(or (nil? proj-path-patterns)
              (s/assert ::proj-path-patterns proj-path-patterns))]
    :post [(s/assert ::proj-path-pred %)]}
   (if (zero? (count proj-path-patterns))
     fn/constantly-false
-    (fn matched-proj-path? [^String proj-path]
-      (let [proj-path-length (.length proj-path)]
-        (boolean
-          (coll/some
-            (fn [^String pattern]
-              ;; Make sure a "/dir" pattern matches "/dir" and "/dir/entry",
-              ;; but not "/dire".
-              (and (string/starts-with? proj-path pattern)
-                   (let [pattern-length (.length pattern)]
-                     (or (= pattern-length proj-path-length)
-                         (= \/ (.charAt proj-path pattern-length))))))
-            proj-path-patterns))))))
+    (let [pred (PathUtil/makeProjPathPredicate proj-path-patterns)]
+      (fn matched-proj-path? [^String proj-path]
+        (.test pred proj-path)))))
 
 (def ^:private make-proj-path-patterns-pred-fn
   (fn/memoize

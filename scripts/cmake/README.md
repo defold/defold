@@ -79,6 +79,14 @@ When invoking `scripts/build.py`, pass `--with-asan`, `--with-hwasan`, `--with-u
 matching `WITH_*` cache options, such as `WITH_ASAN=ON`. The graphics toggles
 such as `--with-vulkan` continue to map to `WITH_VULKAN`.
 
+macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
+include Vulkan as an additional adapter. iOS and the iOS simulator still default
+to OpenGL ES; pass `--with-metal` (or `WITH_METAL=ON`) to include Metal as an
+additional adapter on those platforms. This option has no effect on macOS or
+other platforms. App manifest graphics selections
+control the bundled adapters and Bob's shader formats: Metal uses MSL, while
+Vulkan uses SPIR-V.
+
 `WITH_HWASAN=ON` enables HWAddressSanitizer for `arm64-android`, including shared
 libc++ linkage. It cannot be combined with other sanitizers. See the
 [Android HWASan workflow](../mobile/README_ANDROID.md#hwasan-android-14-arm64)
@@ -86,12 +94,18 @@ for building and repacking an APK for Android 14 or newer.
 
 ## Invocation
 
-After `install_ext`, run `./scripts/build.py --platform=<platform> build_ext`
-before the first engine build. This builds source dependencies (currently
-Bullet) with the same platform toolchain and installs them into
-`tmp/dynamo_home/ext`. Re-run it when those sources or the toolchain change.
-Its persistent CMake cache lives under `external/build/<platform>` and is
+Run `./scripts/build.py --platform=<platform> install_ext` before the first
+engine build, with the platform SDK already set up. It installs the prepackaged
+dependencies, then builds Bullet, Basis Universal, LZ4, and,
+on iOS, GLFW with the same platform toolchain and installs them into
+`tmp/dynamo_home/ext`. Run `install_ext` again when those sources or the toolchain
+change. Its persistent CMake cache lives under `external/build/<platform>` and is
 separate from the engine build to keep normal rebuilds fast.
+
+Both `arm64-ios` and `arm64_sim-ios` always build GLFW from source during `install_ext`.
+Their `install_ext` package lists do not include a prebuilt GLFW archive.
+`install_ext` builds the library before `build_engine` consumes it, and the
+platform SDK includes the resulting library.
 
 `scripts/build.py build_engine` configures from the top-level `CMakeLists.txt`,
 with one CMake cache under `engine/build/<platform>`. Each engine library still
@@ -102,7 +116,7 @@ For local shorthand, the host platform, release-with-debug-symbols build type,
 and tests are all defaulted:
 
 ```bash
-./scripts/build.py --platform=arm64-macos build_ext
+./scripts/build.py --platform=arm64-macos install_ext
 cmake -S . -B engine/build/arm64-macos
 cmake --build engine/build/arm64-macos --target all build_tests install
 cmake --build engine/build/arm64-macos --target run_tests
@@ -175,6 +189,48 @@ When `BUILD_TESTS=ON`, CMake generates the unit test targets during configure:
 `all` target and are only built when requested through `build_tests`,
 `run_tests`, or a direct `test_*`/`run_*` target.
 
+Pass `RUNTIME_DEPENDS <content-target> ...` to `defold_register_test_target`
+for generated assets that are only needed when running a test. `build_tests`
+and all test runners prepare these assets, while a direct binary build can
+compile without waiting for them. Generated headers and sources must remain
+compile dependencies. Xcode and Visual Studio solution test executables retain
+runtime dependencies because Run schemes and startup projects build the
+executable directly. iOS app targets also need these assets for the post-build
+step that copies them into the app bundle.
+
+Gamesys test content builds use up to two Bob processes with Ninja. Two
+dependency chains keep queued content visible to Ninja's scheduler so it starts
+alongside compilation. Their target dependencies preserve independent folder
+rebuilds, and separate folder targets avoid waiting for unrelated engine
+libraries. In CI, detected through `GITHUB_WORKFLOW`, each process uses two Bob
+worker threads by default so content builds leave CPU capacity for compilation.
+Set `-DDEFOLD_GAMESYS_BOB_THREADS=<count>` to change this positive CI limit.
+Local builds use Bob's default thread count. Each chain stages the source tree
+once and reuses it between folders, clearing Bob's build metadata before each
+invocation. Folder outputs and extracted tools remain isolated. Other generators
+use one chain and one source copy to bound JVM memory use.
+
+Native desktop `run_tests` builds its prerequisites, then runs up to two test
+commands concurrently. Set
+`-DDEFOLD_TEST_JOBS=1` to serialize them, or choose another positive worker
+limit. Tests use the `shared` resource group by default, so existing network
+tests and HTTP servers still run one at a time. Independently runnable font,
+sound, texture-codec, gameobject and headless gamesys tests use separate groups.
+Gameobject tests use module-local content and process-local message sockets.
+The headless gamesys suites use null device backends and share a group because
+their resource reload tests modify staged files; gamesys HTTP tests remain in
+the `shared` group. The scheduler only starts a command when its group is free,
+so queued tests do not occupy worker slots.
+The long macOS sound suite has priority to overlap with shared tests. A group
+lock covers the entire command, including server startup and cleanup, and also
+protects individually requested `run_*` targets. `RUN_GROUP <name>` opts a test
+into another group after checking its files, ports and devices are independent.
+`RUN_PRIORITY <integer>` gives long-running tests higher dispatch priority.
+Individual targets still run only the requested test. Output is grouped by
+completed command; a failure stops queued tests and lets active tests finish.
+Device runners, other generators and `run_tests_sequential` retain their
+existing execution order.
+
 ## Solution generation
 
 You can generate a solution for a platform with:
@@ -194,6 +250,20 @@ passed after the `--` separator.
 
 Note that for e.g. Android, the CMakeLists.txt _is_ the solution.
 
+
+## Windows CI linking and signing
+
+Windows CI, detected through `GITHUB_WORKFLOW`, links executables and DLLs with
+`/INCREMENTAL:NO`. Clean CI builds cannot reuse incremental link databases;
+this also avoids CMake's incremental manifest resource/relink passes. Debug
+symbols remain enabled. Local Windows builds keep CMake's incremental-link
+defaults for Debug and RelWithDebInfo.
+
+For signed Windows engine binaries, CI also reports the linker's elapsed time
+separately from signing. Each signing report includes time waiting for the
+shared gcloud lock, authentication, token retrieval, the combined signing and
+timestamp operation, and the total signing duration. These timings help identify
+which stage dominates the end of the build.
 
 ## Folder structures
 

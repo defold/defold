@@ -1,0 +1,11 @@
+#version 140
+
+in vec4 position;
+in mat3 custom_mat3;
+in mat2 custom_mat2;
+
+void main()
+{
+    vec2 position2 = custom_mat2 * position.xy;
+    gl_Position = vec4(custom_mat3 * vec3(position2, position.z), 1.0);
+}

@@ -161,7 +161,7 @@ namespace dmShaderc
         , m_TargetPlatform(SHADER_COMPILER_PLATFORM_DEFAULT)
         , m_RemoveUnusedVariables(true)
         , m_No420PackExtension(true)
-        , m_GlslEmitUboAsPlainUniforms(true)
+        , m_GlslEmitUboAsPlainUniforms(false)
         , m_GlslEs(false)
         , m_ExternalCompilerPath(0)
         , m_ExternalCompilerArgs(0)

@@ -79,6 +79,14 @@ _CMAKE_FEATURE_LIST_OPTIONS = {
 JAVA_RUNTIME_FLAGS = '--sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED'
 MINIMUM_PYTHON_VERSION = (3, 12)
 
+EDITOR_RELEASE_BUNDLES = (
+    'Defold-arm64-macos.dmg',
+    'Defold-x86_64-macos.dmg',
+    'Defold-x86_64-win32.zip',
+    'Defold-x86_64-linux.tar.gz',
+    'Defold-x86_64-linux.zip',
+)
+
 def get_legacy_private_target_platforms():
     try:
         import build_vendor
@@ -155,6 +163,7 @@ def get_default_target_platforms():
     return BASE_PLATFORMS
 
 PACKAGES_ALL=[
+    sdk.ANDROID_PACKAGE,
     "protobuf-35.1",
     "junit-4.6",
     "jsign-4.2",
@@ -183,10 +192,10 @@ PACKAGES_HOST=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1"]
 
+# Both iOS targets build GLFW from source in build_ext.
 PACKAGES_IOS_SIMULATOR=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
-    "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
@@ -199,7 +208,6 @@ PACKAGES_IOS_64=[
     "luajit-2.1.0-3e223cb",
     "tremolo-b0cb4d1",
     "moltenvk-1474891",
-    "glfw-2.7.1",
     "box2d-3.1.0",
     "box2d_defold-2.2.1",
     "opus-1.5.2",
@@ -238,6 +246,7 @@ PACKAGES_MACOS_X86_64=[
     "zipalign"]
 
 PACKAGES_MACOS_ARM64=[
+    "dawn-6bab1bd",
     "protobuf-35.1",
     "luajit-2.1.0-3e223cb",
     "vpx-1.7.0",
@@ -354,7 +363,6 @@ PACKAGES_ANDROID=[
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-a4a2f5"]
-PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_64=[
     "luajit-2.1.0-3e223cb",
@@ -368,7 +376,6 @@ PACKAGES_ANDROID_64=[
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-a4a2f5"]
-PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_ANDROID_X86_64=[
     "luajit-2.1.0-3e223cb",
@@ -382,7 +389,6 @@ PACKAGES_ANDROID_X86_64=[
     "SheenBidi-2.9.0",
     "libunibreak-6.1",
     "SkriBidi-a4a2f5"]
-PACKAGES_ANDROID_X86_64.append(sdk.ANDROID_PACKAGE)
 
 PACKAGES_EMSCRIPTEN=[
     "glfw-2.7.1",
@@ -429,27 +435,6 @@ SDK_PIPELINE_TOOL_PLATFORMS = (
     'x86_64-win32'
 )
 
-BOB_TOOL_PACKAGE_PREFIXES = (
-    'aapt2-',
-    'apkc-',
-    'glslang-',
-    'gltf-validator-',
-    'lipo-',
-    'luajit-',
-    'ogg-',
-    'spirv-tools-',
-    'strip_android-',
-    'tint-',
-)
-
-BOB_TOOL_PACKAGES = ('codesign_allocate', 'strip', 'zipalign')
-
-BOB_EXTRA_PLATFORM_PACKAGES = {
-    'armv7-android': ["vkquality-1.1-2642a0d"],
-    'arm64-android': [sdk.ANDROID_PACKAGE, "vkquality-1.1-2642a0d"],
-    'x86_64-android': ["vkquality-1.1-2642a0d"]
-}
-
 DMSDK_PACKAGES_ALL="vectormathlibrary-r1649".split()
 
 CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
@@ -468,23 +453,30 @@ if os.environ.get('TERM','') in ('cygwin',):
     if 'WD' in os.environ:
         SHELL= '%s\\bash.exe' % os.environ['WD'] # the binary directory
 
-ENGINE_LIBS = "testmain dlib jni texc modelc shaderc ddf platform graphics font particle lua hid input physics resource extension script render rig gameobject gui sound liveupdate crash gamesys tools record profiler engine sdk".split()
-HOST_LIBS = "testmain dlib jni texc modelc shaderc".split()
-
-EXTERNAL_WAF_LIBS = "glfw opus".split()
-EXTERNAL_CMAKE_LIBS = "box2d box2d_v2 vkquality skribidi".split()
-EXTERNAL_LIBS = EXTERNAL_WAF_LIBS + EXTERNAL_CMAKE_LIBS
+EXTERNAL_LIBS = "glfw opus box2d box2d_v2 vkquality harfbuzz sheenbidi libunibreak skribidi dawn".split()
 EXTERNAL_PACKAGE_VERSIONS = {
+    "glfw": "2.7.1",
+    "opus": "1.5.2",
     "box2d": "3.1.0",
     "box2d_v2": "2.2.1",
     "vkquality": "1.1-2642a0d",
+    "harfbuzz": "13.2.1",
+    "sheenbidi": "2.9.0",
+    "libunibreak": "6.1",
     "skribidi": "a4a2f5",
+    "dawn": "6bab1bd",
 }
 EXTERNAL_PACKAGE_NAMES = {
     "box2d_v2": "box2d_defold",
+    "sheenbidi": "SheenBidi",
     "skribidi": "SkriBidi",
 }
 EXTERNAL_PACKAGES_WITH_COMMON_ARCHIVE = {
+    "opus",
+    "box2d",
+    "harfbuzz",
+    "sheenbidi",
+    "libunibreak",
     "skribidi",
 }
 
@@ -592,7 +584,6 @@ class Configuration(object):
                  keep_bob_uncompressed = False,
                  codesign = False,
                  skip_docs = False,
-                 incremental = False,
                  skip_builtins = False,
                  skip_bob_light = False,
                  disable_ccache = False,
@@ -604,7 +595,7 @@ class Configuration(object):
                  set_version = None,
                  channel = None,
                  engine_artifacts = None,
-                 waf_options = [],
+                 build_options = [],
                  save_env_path = None,
                  private_repo = None,
                  private_platform = None,
@@ -651,7 +642,6 @@ class Configuration(object):
         self.keep_bob_uncompressed = keep_bob_uncompressed
         self.codesign = codesign
         self.skip_docs = skip_docs
-        self.incremental = incremental
         self.skip_builtins = skip_builtins
         self.skip_bob_light = skip_bob_light
         self.disable_ccache = disable_ccache
@@ -664,7 +654,7 @@ class Configuration(object):
         self.set_version = set_version
         self.channel = channel
         self.engine_artifacts = engine_artifacts
-        self.waf_options = waf_options
+        self.build_options = build_options
         self.save_env_path = save_env_path
         self.private_repo = private_repo
         self.private_platform = private_platform
@@ -716,8 +706,8 @@ class Configuration(object):
             if not private_root:
                 raise RuntimeError('make_solution: x86_64-xbone requires a configured private Xbox repo. Run add_private_repo with --platform=x86_64-xbone first.')
 
-        build_type = self._find_cmake_build_type(self.waf_options)
-        build_tests = 'OFF' if '--skip-build-tests' in self.waf_options else 'ON'
+        build_type = self._find_cmake_build_type(self.build_options)
+        build_tests = 'OFF' if '--skip-build-tests' in self.build_options else 'ON'
         build_home = self._platform_build_home(tp)
 
         # Android guidance
@@ -1015,36 +1005,6 @@ class Configuration(object):
         else:
             self._extract_tgz(file, path)
 
-    def _is_bob_tool_package(self, package):
-        return package in BOB_TOOL_PACKAGES or package.startswith(BOB_TOOL_PACKAGE_PREFIXES)
-
-    def install_bob_tool_packages(self):
-        def make_package_path(root, platform, package):
-            return join(root, 'packages', package) + '-%s.tar.gz' % platform
-
-        installed_packages = set()
-        for platform in BOB_TOOL_PLATFORMS:
-            packages = [package for package in PLATFORM_PACKAGES.get(platform, []) if self._is_bob_tool_package(package)]
-            packages.extend(BOB_EXTRA_PLATFORM_PACKAGES.get(platform, []))
-            if not packages:
-                continue
-            print("Installing Bob tool packages for %s" % platform)
-            for package in packages:
-                package_path = make_package_path(self.defold_root, platform, package)
-                if package_path in installed_packages:
-                    continue
-                self._extract_tgz(package_path, self.ext)
-                installed_packages.add(package_path)
-
-        for platform, packages in BOB_EXTRA_PLATFORM_PACKAGES.items():
-            print("Installing Bob extra packages for %s" % platform)
-            for package in packages:
-                package_path = make_package_path(self.defold_root, platform, package)
-                if package_path in installed_packages:
-                    continue
-                self._extract_tgz(package_path, self.ext)
-                installed_packages.add(package_path)
-
     def _copy(self, src, dst):
         self._log('Copying %s -> %s' % (src, dst))
         shutil.copy(src, dst)
@@ -1053,9 +1013,9 @@ class Configuration(object):
         self._log('Copying %s -> %s' % (src, dst))
         shutil.copytree(src, dst)
 
-    def _download(self, url):
+    def _download(self, url, cache_root=None):
         self._log('Downloading %s' % (url))
-        path = http_cache.download(url, lambda count, total: self._log('Downloading %s %.2f%%' % (url, 100 * count / float(total))))
+        path = http_cache.download(url, lambda count, total: self._log('Downloading %s %.2f%%' % (url, 100 * count / float(total))), cache_root=cache_root)
         if not path:
             self._log('Downloading %s failed' % (url))
         return path
@@ -1064,14 +1024,6 @@ class Configuration(object):
         if self.package_path is None:
             print("No package path provided. Use either --package-path option or DM_PACKAGES_URL environment variable")
             sys.exit(1)
-
-    def install_waf(self):
-        def make_package_path(root, platform, package):
-            return join(root, 'packages', package) + '-%s.tar.gz' % platform
-        print("Installing waf")
-        waf_package = "waf-2.1.9"
-        waf_path = make_package_path(self.defold_root, 'common', waf_package)
-        self._extract_tgz(waf_path, self.ext)
 
     def _install_python_packages(self, packages):
         target = join(self.ext, 'lib', 'python')
@@ -1118,9 +1070,6 @@ class Configuration(object):
         def make_private_package_paths(platform, packages):
             return [make_private_package_path(platform, package) for package in packages]
 
-        if self._build_engine_with_waf():
-            self.install_waf()
-
         print("Installing common packages")
         for p in PACKAGES_ALL:
             self._extract_tgz(make_package_path(self.defold_root, 'common', p), self.ext)
@@ -1144,7 +1093,10 @@ class Configuration(object):
         installed_packages = set()
 
         for platform in other_platforms:
-            packages = [package for package in PLATFORM_PACKAGES.get(platform, []) if package not in PACKAGES_HOST]
+            # Bob Light packages LuaJIT for every desktop host directly from ext.
+            packages = [package for package in PLATFORM_PACKAGES.get(platform, [])
+                        if package not in PACKAGES_HOST or
+                        (platform in BOB_TOOL_PLATFORMS and package.startswith('luajit-'))]
             package_paths = make_package_paths(self.defold_root, platform, packages)
             print("Installing %s packages " % platform)
             for path in package_paths:
@@ -1179,6 +1131,7 @@ class Configuration(object):
         self._install_python_packages([
             'Markdown==3.3.7',
             'Pygments==2.12.0',
+            'Pillow==11.3.0',
             'boto3==1.36.3',
             'protobuf==7.35.1',
             'PyYAML==6.0.3',
@@ -1202,6 +1155,8 @@ class Configuration(object):
         proto_path = os.path.join(self.dynamo_home, 'share', 'proto')
         if not os.path.exists(proto_path):
             os.makedirs(proto_path)
+
+        self.build_ext()
 
     def get_local_or_remote_file(self, path):
         if os.path.isdir(self.package_path): # is is a local path?
@@ -1318,21 +1273,6 @@ class Configuration(object):
 
         output = run.command(args)
         self._log(output)
-
-    def verify_sdk(self):
-        was_verbose = self.verbose
-        self.verbose = True
-        self.check_sdk()
-
-        def _test_compiler_cmd(self, prefix, verbose):
-            return '%s %s/ext/bin/waf --prefix=%s distclean configure build --skip-tests --skip-build-tests %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, verbose and '-v' or '')
-
-        args = _test_compiler_cmd(self, self.dynamo_home, was_verbose)
-        args = args.split()
-        self._log('Testing compiler for platform %s' % (target_platform))
-        cwd = join(self.defold_root, 'engine/sdk/test/toolchain')
-        plf_args = ['--platform=%s' % target_platform]
-        run.env_command(self._form_env(), args + plf_args + self._waf_forward_options(), cwd = cwd)
 
     def install_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
@@ -1732,51 +1672,14 @@ class Configuration(object):
             print ("Wrote %s, %s" % (path, sig_path))
 
     def generate_global_compile_commands_json(self):
-        # Generates a "global" compile_commands.json file in the root directory that can be
-        # used for example by EasyClangComplete in Sublime Text to get better code completion.
-        #
-        # Since the engine is built up using sub projects/libs, we generate compile_commands.json
-        # files for each of these libraries during a regular build, and collect them and concat
-        # them into one big "general"/project wide file here instead.
-        #
-        # Format of the compile_commands.json file is:
-        # >  [
-        # >     {
-        # >       "file": <file that would be compiled>
-        # >       "command": <compile command would be used on the file>,
-        # >       "directory": <build directory>,
-        # >     },
-        # >  ]
-        #
-        # The method to concat them all is quite simple but seems to work just fine;
-        #   - loop over engine library directories and find the compile_commands.json
-        #     file in the build subdir, that should have been generated during build_engine
-        #   - take all the contents of the file except the starting and ending square brackets
-        #     and copy it over into the output json
-        #
-
         self._log("Generating global compile_commands.json")
-
-        # Put the output json in the defold root since its where EasyClangComplete would look for it
-        output_path = os.path.join(self.defold_root, 'compile_commands.json')
-
-        result_config = []
-        # We loop over engine/<subdirs> and look for engine/<subdir>/build/compile_commands.json
-        engine_path = os.path.join(self.defold_root, 'engine')
-        for engine_subpath in os.listdir(engine_path):
-            potential_json_path = os.path.join(engine_path, engine_subpath, "build", "compile_commands.json")
-
-            if os.path.exists(potential_json_path):
-                self._log("Adding %s" % potential_json_path)
-
-                with open(potential_json_path, 'r') as input_file:
-                    sub_config = json.load(input_file)
-                    for elem in sub_config:
-                        result_config.append(elem)
-                    input_file.close()
-        with open(output_path, 'w') as output_file:
-            json.dump(result_config, output_file)
-            output_file.close()
+        commands = []
+        for platform in dict.fromkeys((self.host, self.target_platform)):
+            path = join(self._cmake_top_build_dir(platform), 'compile_commands.json')
+            with open(path) as input_file:
+                commands.extend(json.load(input_file))
+        with open(join(self.defold_root, 'compile_commands.json'), 'w') as output_file:
+            json.dump(commands, output_file)
 
     def build_builtins(self):
         with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
@@ -1794,11 +1697,15 @@ class Configuration(object):
         run.shell_command("%s %s" % (strip, path))
         return True
 
+    def _bob_archive_artifacts(self):
+        manifest = join(self.defold_root, 'com.dynamo.cr', 'com.dynamo.cr.bob', 'archive-artifacts.json')
+        with open(manifest) as f:
+            return json.load(f)
+
     def archive_engine(self):
         sha1 = self._git_sha1()
         full_archive_path = join(sha1, 'engine', self.target_platform).replace('\\', '/')
         share_archive_path = join(sha1, 'engine', 'share').replace('\\', '/')
-        java_archive_path = join(sha1, 'engine', 'share', 'java').replace('\\', '/')
         dynamo_home = self.dynamo_home
         self.full_archive_path = full_archive_path
 
@@ -1866,12 +1773,10 @@ class Configuration(object):
             self.upload_to_archive(join(dynamo_home, 'share', zip_arch), '%s/%s' % (share_archive_path, zip_arch))
 
         if self.target_platform in ['x86_64-linux']:
-            # NOTE: It's arbitrary for which platform we archive dlib.jar. Currently set to linux 64-bit
-            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
-            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'modelimporter.jar'), '%s/modelimporter.jar' % (java_archive_path))
-            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'fontrenderer.jar'), '%s/fontrenderer.jar' % (java_archive_path))
-            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'texturecompiler.jar'), '%s/texturecompiler.jar' % (java_archive_path))
-            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'shaderc.jar'), '%s/shaderc.jar' % (java_archive_path))
+            # Archive the platform-independent JARs once, from the Linux build.
+            for path in self._bob_archive_artifacts():
+                if path.startswith('share/java/') and path.endswith('.jar'):
+                    self.upload_to_archive(join(dynamo_home, path), join(sha1, 'engine', path).replace('\\', '/'))
 
         if 'android' in self.target_platform:
             files = [
@@ -1918,7 +1823,7 @@ class Configuration(object):
                 supported_tests['x86_64-win32'].append(self.target_platform)
 
         if build_ios.is_ios_test_platform(self.target_platform):
-            strict_ios_tests = not self.skip_tests and '--skip-build-tests' not in self.waf_options
+            strict_ios_tests = not self.skip_tests and '--skip-build-tests' not in self.build_options
             try:
                 can_run_ios_tests = build_ios.can_run_tests_for_platform(
                     self.target_platform,
@@ -1962,14 +1867,6 @@ class Configuration(object):
 
         return True
 
-    def _get_build_flags(self):
-        supports_tests = self._can_run_tests()
-        skip_tests = '--skip-tests' if self.skip_tests or not supports_tests else ''
-        codesign = '--codesign' if self.codesign else ''
-        disable_ccache = '--disable-ccache' if self.disable_ccache else ''
-        generate_compile_commands = '--generate-compile-commands' if self.generate_compile_commands else ''
-        return {'skip_tests':skip_tests, 'codesign':codesign, 'disable_ccache':disable_ccache, 'generate_compile_commands':generate_compile_commands, 'prefix':None}
-
     def get_base_platforms(self):
         # Base platforms is the platforms to build the base libs for.
         # The base libs are the libs needed to build bob, i.e. contains compiler code.
@@ -2006,40 +1903,6 @@ class Configuration(object):
 # <- Gen source files
 # ------------------------------------------------------------
 
-    def _build_engine_with_waf(self):
-        return '--with-waf' in self.waf_options
-
-    def _waf_forward_options(self):
-        return [option for option in self.waf_options if option != '--with-waf']
-
-    def _build_engine_cmd_waf(self, skip_tests, codesign, disable_ccache, generate_compile_commands, prefix, incremental = None):
-        prefix = prefix and prefix or self.dynamo_home
-        incremental = self.incremental if incremental is None else incremental
-        commands = "build install"
-        if not incremental:
-            commands = "distclean configure " + commands
-        return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, codesign, disable_ccache, generate_compile_commands, commands)
-
-    def _has_waf_configure_state(self, cwd):
-        return os.path.exists(join(cwd, 'build', 'c4che', '_cache.py'))
-
-    def _build_engine_lib_waf(self, args, lib, platform, skip_tests, directory):
-        skip_build_tests = []
-        if skip_tests and '--skip-build-tests' not in self.waf_options:
-            skip_build_tests.append('--skip-tests')
-            skip_build_tests.append('--skip-build-tests')
-        cwd = join(self.defold_root, '%s/%s' % (directory, lib))
-        waf_args = list(args)
-        # Propagate the ``--with-waf`` flag so that waf sees it and can
-        # skip the CMake check.  The flag is added only when the build
-        # configuration requested a pure‑Waf build.
-        if self._build_engine_with_waf():
-            waf_args.append('--with-waf')
-        if not self._has_waf_configure_state(cwd) and 'configure' not in waf_args and 'build' in waf_args:
-            waf_args.insert(waf_args.index('build'), 'configure')
-        plf_args = ['--platform=%s' % platform]
-        run.env_command(self._form_env(), waf_args + plf_args + self._waf_forward_options() + skip_build_tests, cwd = cwd)
-
     def _find_cmake_build_type(self, options):
         for x in options:
             if '--opt-level=' in x:
@@ -2055,15 +1918,15 @@ class Configuration(object):
         feature_flags = dict((feature, 'OFF') for feature in _CMAKE_FEATURE_FLAG_MAP.values())
         feature_lists = {}
         index = 0
-        while index < len(self.waf_options):
-            option = self.waf_options[index]
+        while index < len(self.build_options):
+            option = self.build_options[index]
             if not option.startswith('--with-'):
                 feature_option = None
                 feature_name = None
                 for prefix in _CMAKE_FEATURE_LIST_OPTIONS:
-                    if option == prefix and index + 1 < len(self.waf_options):
+                    if option == prefix and index + 1 < len(self.build_options):
                         feature_option = prefix
-                        feature_name = self.waf_options[index + 1]
+                        feature_name = self.build_options[index + 1]
                         index += 1
                         break
                     if option.startswith(prefix + '='):
@@ -2231,6 +2094,7 @@ class Configuration(object):
 
         defines = configure_state.get('defines', {})
         for key in ('CMAKE_BUILD_TYPE',
+                    'CMAKE_EXPORT_COMPILE_COMMANDS',
                     'CMAKE_INSTALL_PREFIX',
                     'CMAKE_GENERATOR_INSTANCE',
                     'CMAKE_SYSTEM_VERSION',
@@ -2389,8 +2253,8 @@ class Configuration(object):
         build_home = self._platform_build_home(platform)
         builddir = self._cmake_top_build_dir(platform)
 
-        build_type = self._find_cmake_build_type(self.waf_options)
-        build_tests = (not skip_tests) and '--skip-build-tests' not in self.waf_options and self._can_run_tests()
+        build_type = self._find_cmake_build_type(self.build_options)
+        build_tests = (not skip_tests) and '--skip-build-tests' not in self.build_options and self._can_run_tests()
         supports_tests = build_tests
 
         # Keep CMake build directories persistent so repeated builds can be
@@ -2399,7 +2263,7 @@ class Configuration(object):
         if not os.path.exists(builddir):
             os.makedirs(builddir)
 
-        is_verbose = self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
+        is_verbose = self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options)
         test = '' if (self.skip_tests or not supports_tests) else 'run_tests'
         build_test = 'build_tests' if build_tests else ''
         cmake_build_tests = 'ON' if build_tests else 'OFF'
@@ -2421,6 +2285,7 @@ class Configuration(object):
             f'-DCMAKE_BUILD_TYPE={build_type}',
             f'-DTARGET_PLATFORM={platform}',
             f'-DBUILD_TESTS={cmake_build_tests}',
+            f'-DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL={"ON" if self.generate_compile_commands else "OFF"}',
             f'-DDEFOLD_ENGINE_LIB_SET={lib_set}',
             f'-DDEFOLD_BUILD_HOME:PATH={build_home}',
             f'-DDEFOLD_SDK_ROOT:PATH={self.dynamo_home}',
@@ -2535,13 +2400,6 @@ class Configuration(object):
 
             self.build_tracker.end_command(log_cmd_tests)
 
-    def _build_engine_lib(self, args, lib, platform, skip_tests = False, directory = 'engine'):
-        self.build_tracker.start_component(lib, platform)
-
-        self._build_engine_lib_waf(args, lib, platform, skip_tests, directory)
-
-        self.build_tracker.end_component(lib, platform)
-
 # For now gradle right in
 # - 'com.dynamo.cr/com.dynamo.cr.bob'
 # - 'com.dynamo.cr/com.dynamo.cr.test'
@@ -2574,14 +2432,6 @@ class Configuration(object):
 
             self.build_tracker.end_component('bob_plugin_%s' % plugin_name, self.host)
 
-    def _run_bob_copy_script(self):
-        """Run com.dynamo.cr.bob/scripts/copy.sh via POSIX sh.
-
-        Use sh (not bash): on Windows, `bash` in PATH is often WSL's stub (no distro).
-        Git for Windows provides sh.exe. Avoid shell=True so cmd.exe is not used."""
-        bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        run.env_command(self._form_env(), ['sh', 'scripts/copy.sh'], cwd=bob_dir)
-
     def build_bob_light(self):
         self.build_tracker.start_component('bob_light', self.host)
         log_cmd_build = 'Gradle build bob_light'
@@ -2593,6 +2443,8 @@ class Configuration(object):
 
             gradle = self.get_gradle_wrapper()
             gradle_args = ['-Ptarget-platform=%s' % self.target_platform]
+            if self.channel:
+                gradle_args.append('-Pchannel=%s' % self.channel)
             if self.verbose:
                 gradle_args += ['--info']
 
@@ -2619,63 +2471,35 @@ class Configuration(object):
 
         host = self.host
         target_platform = self.target_platform
-        with_waf = self._build_engine_with_waf()
-        if with_waf:
-            cmd = self._build_engine_cmd_waf(**self._get_build_flags(), incremental = self.incremental)
-            args = cmd.split()
-            self._log('Building engine libs with Waf fallback (--with-waf)')
-        else:
-            args = []
-            self._log('Building engine libs with top-level CMake (incremental by default)')
+        self._log('Building engine libs with top-level CMake (incremental by default)')
 
         # Make sure we build these for the host platform for the toolchain (bob light)
-        if with_waf:
-            host_lib_skip_tests = host != target_platform
-            for lib in HOST_LIBS:
-                self._build_engine_lib(args, lib, host, skip_tests = host_lib_skip_tests)
-        else:
-            self.build_tracker.start_component('cmake_host_libs', host)
-            self._build_engine_libs_cmake('host_libs', 'host', host, skip_tests = True, allow_compatible_configure = host == target_platform)
-            self.build_tracker.end_component('cmake_host_libs', host)
+        self.build_tracker.start_component('cmake_host_libs', host)
+        self._build_engine_libs_cmake('host_libs', 'host', host, skip_tests = True, allow_compatible_configure = host == target_platform)
+        self.build_tracker.end_component('cmake_host_libs', host)
 
         if not self.skip_bob_light:
             # We must build bob-light, which builds content during the engine build
             self.build_bob_light()
 
-        if with_waf:
-            for lib in ENGINE_LIBS:
-                if host == target_platform and lib in HOST_LIBS:
-                    continue
-                if not build_private.is_library_supported(target_platform, lib):
-                    continue
-                self._build_engine_lib(args, lib, target_platform)
-        else:
-            reuse_builddir = host == target_platform
-            target_lib_set = 'all' if reuse_builddir else 'target'
-            self.build_tracker.start_component('cmake_engine_libs', target_platform)
-            self._build_engine_libs_cmake(
-                'engine_libs',
-                target_lib_set,
-                target_platform,
-                skip_tests = self.skip_tests,
-                reuse_builddir = reuse_builddir,
-                use_existing_bob_light = True)
-            self.build_tracker.end_component('cmake_engine_libs', target_platform)
+        reuse_builddir = host == target_platform
+        target_lib_set = 'all' if reuse_builddir else 'target'
+        self.build_tracker.start_component('cmake_engine_libs', target_platform)
+        self._build_engine_libs_cmake(
+            'engine_libs',
+            target_lib_set,
+            target_platform,
+            skip_tests = self.skip_tests,
+            reuse_builddir = reuse_builddir,
+            use_existing_bob_light = True)
+        self.build_tracker.end_component('cmake_engine_libs', target_platform)
 
-        if with_waf:
-            self._build_engine_lib(args, 'extender', target_platform, directory = 'share')
         if not self.skip_docs:
             self.build_docs(incremental = True)
         if not self.skip_builtins:
             self.build_builtins()
         if self.generate_compile_commands:
             self.generate_global_compile_commands_json()
-        if '--static-analyze' in self.waf_options:
-            scan_output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
-            report_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'report'))
-            run.command(self.get_python() + ['./scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
-            print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
-            shutil.rmtree(scan_output_dir)
 
         self._log("Write platform.sdks.json")
         write_merged_platform_sdks(self.defold_root, self.target_platform, join(self.dynamo_home, "platform.sdks.json"))
@@ -2687,10 +2511,15 @@ class Configuration(object):
     def build_ext(self):
         self.check_sdk()
 
-        platform = self.target_platform
+        # Cross-builds also need host dependencies for tools such as texc.
+        self._build_ext_platform(self.host)
+        if self.target_platform != self.host:
+            self._build_ext_platform(self.target_platform)
+
+    def _build_ext_platform(self, platform):
         source_dir = join(self.defold_root, 'external')
         build_dir = join(source_dir, 'build', platform)
-        build_type = self._find_cmake_build_type(self.waf_options)
+        build_type = self._find_cmake_build_type(self.build_options)
         configure_args = [
             'cmake', '-S', source_dir, '-B', build_dir, '-GNinja',
             '-DCMAKE_BUILD_TYPE=%s' % build_type,
@@ -2700,7 +2529,7 @@ class Configuration(object):
             '-DCMAKE_INSTALL_MESSAGE=LAZY',
         ]
         build_args = ['cmake', '--build', build_dir]
-        if self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options):
+        if self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options):
             build_args.append('--verbose')
         install_args = ['cmake', '--install', build_dir, '--config', build_type]
 
@@ -2725,21 +2554,15 @@ class Configuration(object):
                 self.fatal("Unknown external package '%s'. Expected one of: %s" % (self.external_package, ', '.join(EXTERNAL_LIBS)))
             libs = [self.external_package]
 
-        waf_libs = [lib for lib in libs if lib in EXTERNAL_WAF_LIBS]
-        if waf_libs:
-            flags = self._get_build_flags()
-            flags['prefix'] = join(self.defold_root, 'packages')
-            cmd = self._build_engine_cmd_waf(**flags)
-            # Some of these libraries vendor an upstream CMakeLists.txt next to our wscript
-            # (e.g. external/box2d_v2). Without --with-waf the CMake library guard in
-            # waf_dynamo mistakes them for migrated libraries and aborts the build.
-            args = cmd.split() + ['--with-waf', 'package']
-            for lib in waf_libs:
-                self._build_engine_lib(args, lib, platform=self.target_platform, directory='external')
-
-        for lib in [lib for lib in libs if lib in EXTERNAL_CMAKE_LIBS]:
+        for lib in libs:
+            if lib == 'glfw' and self.target_platform not in BASE_PLATFORMS and not self.external_package:
+                self._log("Skipping glfw for unsupported platform: %s" % self.target_platform)
+                continue
             if lib == 'vkquality' and self.target_platform not in ('armv7-android', 'arm64-android', 'x86_64-android') and not self.external_package:
                 self._log("Skipping vkquality for non-Android platform: %s" % self.target_platform)
+                continue
+            if lib == 'dawn' and self.target_platform not in ('arm64-macos', 'arm64-linux', 'x86_64-linux', 'x86_64-win32') and not self.external_package:
+                self._log("Skipping dawn for unsupported platform: %s" % self.target_platform)
                 continue
             self._build_external_lib_cmake(lib, self.target_platform)
 
@@ -2759,12 +2582,21 @@ class Configuration(object):
         if not os.path.exists(join(source_dir, 'CMakeLists.txt')):
             self.fatal("CMake external package '%s' is missing CMakeLists.txt" % lib)
 
+        # The shared CMake toolchain needs host protoc even when the package
+        # itself has no protobuf sources. Bootstrap it before install_ext.
+        protoc = 'protoc.exe' if self.host.endswith('-win32') else 'protoc'
+        if not os.path.exists(join(self.ext, 'bin', self.host, protoc)):
+            protobuf_package = next(package for package in PLATFORM_PACKAGES[self.host]
+                                    if package.startswith('protobuf-'))
+            protobuf_path = join(self.defold_root, 'packages', '%s-%s.tar.gz' % (protobuf_package, self.host))
+            self._extract_tgz(protobuf_path, self.ext)
+
         if os.path.exists(install_dir):
             shutil.rmtree(install_dir)
         os.makedirs(build_dir, exist_ok=True)
         os.makedirs(package_dir, exist_ok=True)
 
-        build_type = self._find_cmake_build_type(self.waf_options)
+        build_type = self._find_cmake_build_type(self.build_options)
         configure_args = [
             'cmake',
             '-S', source_dir,
@@ -2775,9 +2607,10 @@ class Configuration(object):
             '-DDEFOLD_EXTERNAL_PLATFORM=%s' % platform,
             '-DDEFOLD_SDK_ROOT=%s' % self.dynamo_home,
             '-DDEFOLD_EXTERNAL_INSTALL_PREFIX=%s' % install_dir,
+            '-DBUILD_TESTS=OFF',
         ]
         build_args = ['cmake', '--build', build_dir, '--target', 'install']
-        if self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options):
+        if self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options):
             build_args.append('--verbose')
 
         self.build_tracker.start_component(lib, platform)
@@ -2828,126 +2661,17 @@ class Configuration(object):
         for p in glob(join(self.dynamo_home, 'share', 'java', 'plugins', '*.jar')):
             self.upload_to_archive(p, '%s/plugins/%s' % (full_archive_path, basename(p)))
 
-    def copy_local_bob_artefacts(self):
-        texc_name = format_lib('texc_shared', self.host)
-        modelc_name = format_lib('modelc_shared', self.host)
-        fontc_name = format_lib('fontc_shared', self.host)
-        shaderc_name = format_lib('shaderc_shared', self.host)
-        luajit_dir = tempfile.mkdtemp()
-        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        missing = {}
-        def add_missing(plf, txt):
-            txts = []
-            txts = missing.setdefault(plf, txts)
-            txts = txts.append(txt)
-
-        for plf in [['x86_64-win32', 'x86_64-win32'],
-                    ['x86_64-linux', 'x86_64-linux'],
-                    ['arm64-linux', 'arm64-linux'],
-                    ['x86_64-macos', 'x86_64-macos'],
-                    ['arm64-macos', 'arm64-macos']]:
-            luajit_package = [pkg for pkg in PLATFORM_PACKAGES[plf[0]] if "luajit" in pkg]
-            luajit_path = join(cwd, '../../packages/%s-%s.tar.gz' % (luajit_package[0], plf[0]))
-            if not os.path.exists(luajit_path):
-                add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
-            else:
-                self._extract(luajit_path, luajit_dir)
-                for name in ('luajit-64'):
-                    luajit_exe = format_exes(name, plf[0])[0]
-                    src = join(luajit_dir, 'bin/%s/%s' % (plf[0], luajit_exe))
-                    if not os.path.exists(src):
-                        continue
-                    tgt_dir = join(cwd, 'libexec/%s' % plf[1])
-                    self._mkdirs(tgt_dir)
-                    self._copy(src, join(tgt_dir, luajit_exe))
-
-        # Any shared libraries that we depend on
-        macos_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in [] for plf in [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']]])
-        linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']]])
-        js_files = {}
-        android_files = {'share/java/classes.dex': 'lib/classes.dex',
-                         'ext/share/java/android.jar': 'lib/android.jar', # this should be the stripped one
-                         'ext/share/vkquality/assets/vkqualitydata.vkq': 'lib/vkquality/vkqualitydata.vkq',
-                         'ext/lib/armv7-android/libvkquality.so': 'libexec/armv7-android/libvkquality.so',
-                         'ext/lib/arm64-android/libvkquality.so': 'libexec/arm64-android/libvkquality.so',
-                         'ext/lib/x86_64-android/libvkquality.so': 'libexec/x86_64-android/libvkquality.so'}
-
-        switch_files = {}
-
-        # bob loads these natively on whichever desktop platform it runs on, so it needs
-        # all of them and not just the host's. scripts/copy.sh takes them out of
-        # $DYNAMO_HOME/archive/$SHA1; without an archive they come straight from the
-        # engine builds in $DYNAMO_HOME instead.
-        desktop_native_files = {}
-        for plf in ('x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32'):
-            for lib in ('texc', 'modelc', 'shaderc', 'fontc'):
-                name = format_lib('%s_shared' % lib, plf)
-                desktop_native_files['lib/%s/%s' % (plf, name)] = 'lib/%s/%s' % (plf, name)
-
-        # This dict is being built up and will eventually be used for copying in the end
-        # - "type" - what the files are needed for, for error reporting
-        #   - pairs of src-file -> dst-file
-        artefacts = {'generic': {'share/java/dlib.jar': 'lib/dlib.jar',
-                                 'share/java/fontrenderer.jar': 'lib/fontrenderer.jar',
-                                 'share/java/modelimporter.jar': 'lib/modelimporter.jar',
-                                 'share/java/shaderc.jar': 'lib/shaderc.jar',
-                                 'share/java/texturecompiler.jar': 'lib/texturecompiler.jar',
-                                 'share/builtins.zip': 'lib/builtins.zip',
-                                 'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name),
-                                 'lib/%s/%s' % (self.host, modelc_name): 'lib/%s/%s' % (self.host, modelc_name),
-                                 'lib/%s/%s' % (self.host, fontc_name): 'lib/%s/%s' % (self.host, fontc_name),
-                                 'lib/%s/%s' % (self.host, shaderc_name): 'lib/%s/%s' % (self.host, shaderc_name)},
-                     'desktop-natives': desktop_native_files,
-                     'android-bundling': android_files,
-                     'win32-bundling': {},
-                     'web-bundling': js_files,
-                     'ios-bundling': {},
-                     'osx-bundling': macos_files,
-                     'linux-bundling': linux_files,
-                     'switch-bundling': switch_files}
-        # Add dmengine to 'artefacts' procedurally
-        for type, plfs in {'android-bundling': [['armv7-android', 'armv7-android'], ['arm64-android', 'arm64-android'], ['x86_64-android', 'x86_64-android']],
-                           'win32-bundling': [['x86_64-win32', 'x86_64-win32']],
-                           'web-bundling': [['wasm-web', 'wasm-web'], ['wasm_pthread-web', 'wasm_pthread-web']],
-                           'ios-bundling': [['arm64-ios', 'arm64-ios'], ['arm64_sim-ios', 'arm64_sim-ios']],
-                           'osx-bundling': [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']],
-                           'linux-bundling': [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']],
-                           'switch-bundling': [['arm64-nx64', 'arm64-nx64']]}.items():
-            # plfs is pairs of src-platform -> dst-platform
-            for plf in plfs:
-                exes = format_exes('dmengine', plf[1]) + format_exes('dmengine_release', plf[1])
-                artefacts[type].update(dict([['bin/%s/%s' % (plf[0], exe), 'libexec/%s/%s' % (plf[1], exe)] for exe in exes]))
-        # Perform the actual copy, or list which files are missing
-        for type, files in artefacts.items():
-            m = []
-            for src, dst in files.items():
-                src_path = join(self.dynamo_home, src)
-                if not os.path.exists(src_path):
-                    m.append(src_path)
-                else:
-                    dst_path = join(cwd, dst)
-                    self._mkdirs(os.path.dirname(dst_path))
-                    self._copy(src_path, dst_path)
-            if m:
-                add_missing(type, m)
-        if missing:
-            print('*** NOTE! There are missing artefacts.')
-            print(json.dumps(missing, indent=2))
-
     def build_bob(self):
+        """Build Bob using the cross-platform tools already installed by install_ext."""
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
-
-        sha1 = self._git_sha1()
-        self.install_bob_tool_packages()
-        self._run_bob_copy_script()
-        if not os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            self.copy_local_bob_artefacts()
 
         env = self._form_env()
 
         gradle = self.get_gradle_wrapper()
         gradle_args = ['-Ptarget-platform=%s' % self.target_platform]
+        if self.channel:
+            gradle_args.append('-Pchannel=%s' % self.channel)
         if self.verbose:
             gradle_args += ['--info']
 
@@ -3079,9 +2803,9 @@ class Configuration(object):
         docs_dir = join(self.defold_root, 'engine/docs')
         builddir = join(docs_dir, 'build')
         platform = self.target_platform
-        build_type = self._find_cmake_build_type(self.waf_options)
+        build_type = self._find_cmake_build_type(self.build_options)
         docs_run_tests = 'OFF' if self.skip_tests or self.target_platform != self.host else 'ON'
-        is_verbose = self.verbose or ('-v' in self.waf_options) or ('--verbose' in self.waf_options)
+        is_verbose = self.verbose or ('-v' in self.build_options) or ('--verbose' in self.build_options)
 
         if incremental is None:
             incremental = True
@@ -3452,7 +3176,7 @@ class Configuration(object):
         # Used by www.defold.com/download
         # For example;
         #   redirect: /editor2/channels/stable/Defold-x86_64-macos.dmg -> /archive/<sha1>/stable/Defold-x86_64-macos.dmg
-        for name in ['Defold-arm64-macos.dmg', 'Defold-x86_64-macos.dmg', 'Defold-x86_64-win32.zip', 'Defold-x86_64-linux.tar.gz', 'Defold-x86_64-linux.zip']:
+        for name in EDITOR_RELEASE_BUNDLES:
             key_name = 'editor2/channels/%s/%s' % (self.channel, name)
             redirect = '%s/%s/%s/editor2/%s' % (editor_archive_path, release_sha1, self.channel, name)
             self._log('Creating link from %s -> %s' % (key_name, redirect))
@@ -3487,6 +3211,23 @@ class Configuration(object):
         body += "date = %s" % datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return body
 
+    def _set_release_output(self, published):
+        output_path = os.environ.get('GITHUB_OUTPUT')
+        if output_path:
+            with open(output_path, 'a') as output:
+                output.write('published=%s\n' % ('true' if published else 'false'))
+
+    def _validate_editor_release(self, release):
+        # Require the exact objects that the update pointer and download links will
+        # reference, not bundles archived under another commit or channel.
+        editor_prefix = '%s/%s/%s/editor2/' % (urlparse(self.get_archive_path()).path.rstrip('/'),
+                                             release['sha1'], self.channel)
+        paths = {file['path'] for file in release['files']}
+        missing = [name for name in EDITOR_RELEASE_BUNDLES if editor_prefix + name not in paths]
+        if missing:
+            raise RuntimeError('Cannot publish %s to %s: missing editor bundles in %s: %s' %
+                               (release['sha1'], self.channel, editor_prefix, ', '.join(missing)))
+
     def release(self):
         """ This step creates a tag using the channel name
         * It will update the webpage on d.defold.com (or DM_ARCHIVE_PATH)
@@ -3503,24 +3244,28 @@ class Configuration(object):
             self._log('Running git fetch to get latest tags and refs...')
             run.shell_command('git fetch')
 
-        # Create or update the tag for engine releases
+        # The CI release job holds the channel lock for this check and all publication
+        # below. Public channel metadata must be checked before even moving the tag.
+        release_sha1 = self._git_sha1()
+        if not build_private.is_repo_private() and release_to_github.is_stale_release(self, release_sha1):
+            self._set_release_output(False)
+            return
+
         prerelease = self.channel in ('alpha', 'beta')
         tag_name = None
         if self.channel in ('stable', 'beta', 'alpha'):
-            tag_name = self.create_tag()
-            self.push_tag(tag_name)
+            tag_name = self.compose_tag_name(self.version, self.channel)
 
-        if tag_name is not None:
-            pattern = self._get_tag_pattern_from_tag_name(self.channel, tag_name)
-            releases = s3.get_tagged_releases(self.get_archive_path(), pattern, num_releases=1)
-        else:
-            releases = [s3.get_single_release(self.get_archive_path(), self.version, self._git_sha1())]
+        # Validate the checked-out build before moving any tags or channel pointers.
+        # Selecting artifacts by SHA does not require fetching historical tags.
+        releases = [s3.get_single_release(self.get_archive_path(), tag_name or self.version, release_sha1)]
 
-        if not releases:
+        if not releases[0]['files']:
             self._log('Unable to find any releases')
             sys.exit(1)
 
-        release_sha1 = releases[0]['sha1']
+        if not build_private.is_repo_private():
+            self._validate_editor_release(releases[0])
 
         if sys.stdin.isatty():
             sys.stdout.write('Release %s with SHA1 %s to channel %s? [y/n]: ' % (self.version, release_sha1, self.channel))
@@ -3528,6 +3273,9 @@ class Configuration(object):
             response = sys.stdin.readline()
             if response[0] != 'y':
                 return
+
+        if tag_name:
+            self.push_tag(self.create_tag())
 
         # Only release the web pages for the public repo
         if not build_private.is_repo_private():
@@ -3539,6 +3287,8 @@ class Configuration(object):
             body = self._get_github_release_body()
             release_name = 'v%s - %s' % (self.version, self.channel or self.channel)
             release_to_github.release(self, tag_name, release_sha1, releases[0], release_name=release_name, body=body, prerelease=prerelease)
+
+        self._set_release_output(True)
 
         # Release to steam for stable only
         # if tag_name and (self.channel == 'stable'):
@@ -3608,6 +3358,7 @@ class Configuration(object):
 # ------------------------------------------------------------
 
     def sync_archive(self):
+        """Download Bob's engine inputs; the editor downloads its archives separately."""
         u = urlparse(self.get_archive_path())
         bucket_name = u.hostname
         bucket = s3.get_bucket(bucket_name)
@@ -3624,25 +3375,25 @@ class Configuration(object):
 
         futures = []
         sha1 = self._git_sha1()
-        # Only s3 is supported (scp is deprecated)
-        # The pattern is used to filter out:
-        # * Editor files
-        # * Defold SDK files
-        # * launcher files, used to launch editor2
-        # * rarely used platforms: armv7-android, wasm_pthread-web,
-        #   x86_64-android and arm64_sim-ios
-        # * arm64-linux vanilla engines (keep native compiler libraries)
-        # * headless builds
-        pattern = re.compile(
+        # Keep the public download list aligned with Gradle's packaging inputs.
+        bob_artifacts = {'engine/' + path for path in self._bob_archive_artifacts()}
+
+        # Preserve the existing download filters within private-platform folders,
+        # which are absent from the public manifest.
+        private_excludes = re.compile(
             r'(^|/)editor(2)*/|/defoldsdk\.zip$|/launcher(\.exe)*$'
             r'|/(armv7-android|wasm_pthread-web|x86_64-android|arm64_sim-ios)(/|$)|headless'
             r'|/arm64-linux/(stripped/)?(lib)?dmengine[^/]*$'
         )
-        prefix = s3.get_archive_prefix(self.get_archive_path(), self._git_sha1())
-        for obj_summary in bucket.objects.filter(Prefix=prefix):
-            rel = os.path.relpath(obj_summary.key, prefix)
+        prefix = s3.get_archive_prefix(self.get_archive_path(), sha1).replace('\\', '/').rstrip('/') + '/'
+        for obj_summary in bucket.objects.filter(Prefix=prefix + 'engine/'):
+            rel = obj_summary.key[len(prefix):]
+            parts = rel.split('/')
+            private_artifact = (len(parts) >= 3 and parts[0] == 'engine' and
+                                parts[1] not in BASE_PLATFORMS and parts[1] != 'share' and
+                                not private_excludes.search(rel))
 
-            if not pattern.search(rel):
+            if not rel.endswith('/') and (rel in bob_artifacts or private_artifact):
                 p = os.path.join(local_dir, sha1, rel)
                 self._mkdirs(os.path.dirname(p))
                 f = Future(self.thread_pool, download, bucket.Object(obj_summary.key), p)
@@ -4035,20 +3786,18 @@ if __name__ == '__main__':
 Commands:
 distclean        - Removes DYNAMO_HOME and engine/external build caches
 clean            - Remove generated engine build outputs without removing DYNAMO_HOME
-install_ext      - Install external packages
-build_ext        - Build and install source dependencies with CMake (currently Bullet)
+install_ext      - Install prepackaged dependencies, then build and install source dependencies
 build_external   - Build external packages, optionally filtered with --package
 install_release_dependencies - Install Python dependencies required by release
 install_sdk      - Install sdk
-install_waf      - Install waf
-sync_archive     - Sync engine artifacts from S3
+sync_archive     - Download engine artifacts needed by Bob from S3
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor
 test_editor2     - Test editor
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
-build_bob        - Build bob with native libraries included for cross platform deployment
+build_bob        - Build bob with native libraries for cross platform deployment (requires install_ext)
 test_bob         - Test bob using an existing com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar
 build_bob_light  - Build a lighter version of bob (mostly used for test content during builds)
 archive_bob      - Archive bob to path specified with --archive-path
@@ -4066,9 +3815,8 @@ Multiple commands can be specified
 
 CMake shorthand defaults from build.py shell: CMAKE_GENERATOR=Ninja, omitted --platform uses the host platform, CMAKE_BUILD_TYPE=RelWithDebInfo, and BUILD_TESTS=ON.
 Use -- --opt-level=0 for Debug, -- --skip-build-tests to skip building tests, or --skip-tests to skip running tests.
-Use --with-waf to build engine libs through the Waf fallback path and include Waf in install_ext during the CMake transition.
 
-To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
+To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
 '''
     parser = optparse.OptionParser(usage)
 
@@ -4120,11 +3868,6 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       default = False,
                       help = 'skip building docs when building the engine. Default is false')
 
-    parser.add_option('--incremental', dest='incremental',
-                      action = 'store_true',
-                      default = False,
-                      help = 'skip reconfigure/distclean when building with Waf. Top-level CMake build_engine is incremental by default')
-
     parser.add_option('--skip-builtins', dest='skip_builtins',
                       action = 'store_true',
                       default = False,
@@ -4170,7 +3913,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
 
     parser.add_option('--channel', dest='channel',
                       default = None,
-                      help = 'Editor release channel (stable, beta, ...)')
+                      help = 'Release channel (stable, beta, alpha, ...)')
 
     parser.add_option('--engine-artifacts', dest='engine_artifacts',
                       default = 'auto',
@@ -4251,19 +3994,12 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       default = False,
                       help = 'Emit extra wasm-web analysis artifacts such as source maps and separate DWARF')
 
-    parser.add_option('--with-waf', dest='with_waf',
-                      action = 'store_true',
-                      default = False,
-                      help = 'Build engine libs with the Waf fallback path instead of the top-level CMake path')
-
     options, all_args = parser.parse_args()
 
     args = list(filter(lambda x: x[:2] != '--', all_args))
-    waf_options = list(filter(lambda x: x[:2] == '--', all_args))
+    build_options = list(filter(lambda x: x[:2] == '--', all_args))
     if options.size_analyze:
-        waf_options.append('--size-analyze')
-    if options.with_waf:
-        waf_options.append('--with-waf')
+        build_options.append('--size-analyze')
 
     if len(args) == 0:
         parser.error('No command specified')
@@ -4313,7 +4049,6 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       keep_bob_uncompressed = options.keep_bob_uncompressed,
                       codesign = options.codesign,
                       skip_docs = options.skip_docs,
-                      incremental = options.incremental,
                       skip_builtins = options.skip_builtins,
                       skip_bob_light = options.skip_bob_light,
                       disable_ccache = options.disable_ccache,
@@ -4325,7 +4060,7 @@ To pass on arbitrary options to waf/CMake: build.py OPTIONS COMMANDS -- BUILD_OP
                       set_version = options.set_version,
                       channel = options.channel,
                       engine_artifacts = options.engine_artifacts,
-                      waf_options = waf_options,
+                      build_options = build_options,
                       save_env_path = options.save_env_path,
                       private_repo = options.private_repo,
                       private_platform = private_platform,

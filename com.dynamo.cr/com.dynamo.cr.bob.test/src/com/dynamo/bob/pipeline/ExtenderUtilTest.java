@@ -17,6 +17,8 @@ package com.dynamo.bob.pipeline;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
@@ -167,10 +169,10 @@ public class ExtenderUtilTest {
             List<ExtenderResource> androidResources = ExtenderUtil.getExtensionSources(r8Project, Platform.Arm64Android, null);
             List<ExtenderResource> linuxResources = ExtenderUtil.getExtensionSources(r8Project, Platform.X86_64Linux, null);
             ExtenderResource appRules = findResource(androidResources, ExtenderUtil.r8KeepRulesPath);
-            assertTrue(appRules != null);
+            assertNotNull(appRules);
             assertEquals("-keep class com.dynamo.android.DefoldActivity { *; }\n", new String(appRules.getContent(), StandardCharsets.UTF_8));
-            assertTrue(findResource(androidResources, "_app/dmengine.keep") == null);
-            assertTrue(findResource(linuxResources, ExtenderUtil.r8KeepRulesPath) == null);
+            assertNull(findResource(androidResources, "_app/dmengine.keep"));
+            assertNull(findResource(linuxResources, ExtenderUtil.r8KeepRulesPath));
         } finally {
             r8Project.dispose();
         }
@@ -186,9 +188,9 @@ public class ExtenderUtilTest {
             assertFalse(ExtenderUtil.hasNativeExtensions(r8Project, Platform.X86_64Linux));
             List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(r8Project, Platform.Arm64Android, null);
             ExtenderResource appRules = findResource(resources, ExtenderUtil.r8KeepRulesPath);
-            assertTrue(appRules != null);
+            assertNotNull(appRules);
             assertEquals("-keep class example.Custom\n", new String(appRules.getContent(), StandardCharsets.UTF_8));
-            assertTrue(findResource(resources, "_app/dmengine.keep") == null);
+            assertNull(findResource(resources, "_app/dmengine.keep"));
         } finally {
             r8Project.dispose();
         }
@@ -202,7 +204,7 @@ public class ExtenderUtilTest {
             assertFalse(ExtenderUtil.hasNativeExtensions(r8Project));
             assertFalse(ExtenderUtil.hasNativeExtensions(r8Project, Platform.Arm64Android));
             List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(r8Project, Platform.Arm64Android, null);
-            assertTrue(findResource(resources, ExtenderUtil.r8KeepRulesPath) == null);
+            assertNull(findResource(resources, ExtenderUtil.r8KeepRulesPath));
         } finally {
             r8Project.dispose();
         }
@@ -229,9 +231,9 @@ public class ExtenderUtilTest {
             assertFalse(ExtenderUtil.hasNativeExtensions(r8Project));
             assertTrue(ExtenderUtil.hasNativeExtensions(r8Project, Platform.Arm64Android));
             assertFalse(ExtenderUtil.hasNativeExtensions(r8Project, Platform.X86_64Linux));
-            assertTrue(findResource(
+            assertNull(findResource(
                     ExtenderUtil.getExtensionSources(r8Project, Platform.X86_64Linux, null),
-                    ExtenderUtil.r8KeepRulesPath) == null);
+                    ExtenderUtil.r8KeepRulesPath));
             try {
                 ExtenderUtil.getExtensionSources(r8Project, Platform.Arm64Android, null);
                 throw new AssertionError("Expected missing R8 rules to fail");
@@ -240,6 +242,33 @@ public class ExtenderUtilTest {
             }
         } finally {
             r8Project.dispose();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testLegacyMacOSVulkanPlatformMigratesBeforeUpload() throws Exception {
+        project.getProjectProperties().putStringValue("osx", "privacymanifest", "");
+        for (String platform : List.of("osx", "arm64-osx", "x86_64-osx")) {
+            for (String key : List.of("libs", "engineLibs")) {
+                String yaml = "platforms:\n  " + platform + ":\n    context:\n"
+                        + "      " + key + ": [graphics_vulkan, platform_vulkan, MoltenVK, custom]\n"
+                        + "      excludeLibs: [graphics_metal]\n";
+                byte[] original = yaml.getBytes(StandardCharsets.UTF_8);
+                createFile(fileSystem, "legacy-macos.appmanifest", original);
+                project.getProjectProperties().putStringValue("native_extension", "app_manifest", "legacy-macos.appmanifest");
+                byte[] migrated = findResource(ExtenderUtil.getExtensionSources(project, Platform.Arm64MacOS, null),
+                        ExtenderUtil.appManifestPath).getContent();
+                Map<String, Object> expected = new Yaml().load(yaml);
+                Map<String, Object> platforms = (Map<String, Object>) expected.get("platforms");
+                Map<String, Object> context = (Map<String, Object>) ((Map<String, Object>) platforms.get(platform)).get("context");
+                context.put("excludeLibs", List.of("graphics_metal", "platform"));
+                assertEquals(expected, new Yaml().load(new String(migrated, StandardCharsets.UTF_8)));
+                assertArrayEquals(original, project.getResource("legacy-macos.appmanifest").getContent());
+                createFile(fileSystem, "legacy-macos.appmanifest", migrated);
+                assertArrayEquals(migrated, findResource(ExtenderUtil.getExtensionSources(project, Platform.Arm64MacOS, null),
+                        ExtenderUtil.appManifestPath).getContent());
+            }
         }
     }
 
@@ -259,14 +288,14 @@ public class ExtenderUtilTest {
                 "dmbedtls_noasan", "dmbedtls_noasan", "dmbedtls_noasan", "dmbedtls_noasan",
                 "dmbedtls", "dmbedtls_noasan", "font_render", "gameobject",
                 "physics", "libbox2d_defold", "libopus.lib", "vpx", "vulkan-1", "libcustom.lib", null, 42);
-        String manifestYaml = "context:\n    libs: " + libraries + "\nplatforms:\n";
+        StringBuilder manifestYaml = new StringBuilder("context:\n    libs: " + libraries + "\nplatforms:\n");
         for (String platform : List.of("win32", "x86-win32", "x86_64-win32", "common", "x86_64-linux")) {
-            manifestYaml += "    " + platform + ":\n        context:\n";
+            manifestYaml.append("    ").append(platform).append(":\n        context:\n");
             for (String key : List.of("excludeLibs", "libs", "engineLibs", "symbols")) {
-                manifestYaml += "            " + key + ": " + libraries + "\n";
+                manifestYaml.append("            ").append(key).append(": ").append(libraries).append("\n");
             }
         }
-        byte[] originalContent = manifestYaml.getBytes(StandardCharsets.UTF_8);
+        byte[] originalContent = manifestYaml.toString().getBytes(StandardCharsets.UTF_8);
         createFile(fileSystem, "legacy-windows.appmanifest", originalContent);
         project.getProjectProperties().putStringValue("native_extension", "app_manifest", "legacy-windows.appmanifest");
 
@@ -274,7 +303,7 @@ public class ExtenderUtilTest {
                 ExtenderUtil.getExtensionSources(project, Platform.X86_64Win32, null), ExtenderUtil.appManifestPath);
         byte[] migratedContent = uploadedResource.getContent();
         Map<String, Object> manifest = new Yaml().load(new String(migratedContent, StandardCharsets.UTF_8));
-        Map<String, Object> original = new Yaml().load(manifestYaml);
+        Map<String, Object> original = new Yaml().load(manifestYaml.toString());
         Map<String, Object> platforms = (Map<String, Object>) manifest.get("platforms");
         Map<String, Object> originalPlatforms = (Map<String, Object>) original.get("platforms");
         for (String platform : List.of("win32", "x86-win32", "x86_64-win32")) {
@@ -302,6 +331,10 @@ public class ExtenderUtilTest {
                 "# Preserve comments and formatting\nplatforms: {win32: {context: {libs: [font_render, dmbedtls, libcustom.lib]}}}\n",
                 "platforms: [",
                 "platforms: {win32: {context: {libs: libmbedtls.lib}}, x86-win32: null, x86_64-win32: {context: {libs: [null, 42, libcustom.lib]}}}",
+                "platforms: {osx: {context: {libs: [platform_vulkan], excludeLibs: [platform_vulkan]}}}",
+                "platforms: {osx: {context: {libs: [graphics_metal]}}}",
+                "platforms: {osx: {context: {libs: [platform_vulkan], excludeLibs: invalid}}}",
+                "platforms: {arm64-ios: {context: {libs: [platform_vulkan]}}}",
                 "", "null", "[]", "not a map", "platforms: null")) {
             byte[] originalContent = manifestYaml.getBytes(StandardCharsets.UTF_8);
             createFile(fileSystem, "unchanged.appmanifest", originalContent);

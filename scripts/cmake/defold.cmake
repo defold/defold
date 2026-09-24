@@ -167,10 +167,12 @@ endforeach()
 # optimised configuration flags after CMake has enabled the language
 # toolchains. This keeps asserts enabled in Release/RelWithDebInfo/MinSizeRel
 # builds.
-if(NOT DEFINED CMAKE_PROJECT_TOP_LEVEL_INCLUDES)
-  set(CMAKE_PROJECT_TOP_LEVEL_INCLUDES "")
+if(NOT DEFINED CMAKE_PROJECT_INCLUDE)
+  set(CMAKE_PROJECT_INCLUDE "")
 endif()
-list(APPEND CMAKE_PROJECT_TOP_LEVEL_INCLUDES "${DEFOLD_CMAKE_DIR}/defold_post_project.cmake")
+# TOP_LEVEL_INCLUDES runs before language initialization, when the default
+# compiler flags do not exist yet. Use the hook at the end of project().
+list(APPEND CMAKE_PROJECT_INCLUDE "${DEFOLD_CMAKE_DIR}/defold_post_project.cmake")
 
 defold_log("DEFOLD_HOME: ${DEFOLD_HOME}")
 defold_log("DEFOLD_SDK_ROOT: ${DEFOLD_SDK_ROOT}")
@@ -202,11 +204,11 @@ if(NOT TARGET defold_sdk)
   add_library(defold_sdk INTERFACE)
 endif()
 
+# Resolve test selection before checking test-only tool dependencies.
+include(features)
+
 # verify our list of tools (e.g. java, ninja etc)
 include(tools)
-
-# list of toggleable features
-include(features)
 
 # platform specific includes, lib paths, defines etc...
 include(platform)
@@ -226,9 +228,8 @@ defold_log("DEFOLD_BUILD_HOME: ${DEFOLD_BUILD_HOME}")
 # Prefer colored diagnostics from compilers that support it
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
-# Export compilation database for tooling (clangd, IDEs)
-# -- currently set to off, as it currently interferes with the Waf option
-set(CMAKE_EXPORT_COMPILE_COMMANDS OFF)
+# Export compilation database for tooling (clangd, IDEs) when requested.
+option(CMAKE_EXPORT_COMPILE_COMMANDS "Export compilation database" OFF)
 
 # Common paths
 set(DEFOLD_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/include")
@@ -378,8 +379,7 @@ link_libraries(defold_sdk)
 set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}" CACHE PATH "Install prefix" FORCE)
 defold_log("Install prefix set to DEFOLD_SDK_ROOT: ${CMAKE_INSTALL_PREFIX}")
 
-# CMake libraries may be built before every Waf library has populated its
-# dmsdk compatibility headers. Mirror Waf's dmsdk_add_files convention here.
+# Install compatibility headers even when only a subset of libraries is built.
 foreach(_DEFOLD_DMSDK_DIR IN LISTS _DEFOLD_DMSDK_DIRS)
   file(GLOB_RECURSE _DEFOLD_DMSDK_HEADERS CONFIGURE_DEPENDS
        RELATIVE "${_DEFOLD_DMSDK_DIR}"

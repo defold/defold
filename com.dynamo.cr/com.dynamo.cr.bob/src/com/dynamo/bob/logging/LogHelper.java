@@ -60,8 +60,9 @@ public class LogHelper {
 
     /**
      * Enable or disable verbose logging
-     * @param enable Set to true to enable verbose logging
+     * @param enabled Set to true to enable verbose logging
      */
+    @SuppressWarnings("JavadocReference")
     public static void setVerboseLogging(boolean enabled) {
         setLogLevel(enabled ? Level.FINE : Level.INFO);
     }

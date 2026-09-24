@@ -11,7 +11,7 @@ defold_log("functions_platform.cmake:")
 # - A private platform may explicitly select its platform library
 # - Web targets -> platform
 # - GLFW3 desktop targets (macOS, Linux, Win32):
-#     - If WITH_VULKAN=ON OR platform in {arm64-macos,x86_64-macos}
+#     - If WITH_VULKAN=ON
 #       -> platform_vulkan
 #     - Else -> platform
 # - Other targets -> platform
@@ -40,13 +40,13 @@ function(defold_target_link_platform target platform)
 
         list(FIND _glfw3_platforms "${platform}" _idx)
         if(NOT _idx EQUAL -1)
-            # Vulkan if requested or on macOS
+            # Vulkan if requested
             set(_WITH_VULKAN OFF)
             if(DEFINED WITH_VULKAN AND WITH_VULKAN)
                 set(_WITH_VULKAN ON)
             endif()
 
-            if(_WITH_VULKAN OR platform STREQUAL "arm64-macos" OR platform STREQUAL "x86_64-macos")
+            if(_WITH_VULKAN)
                 set(_plat_lib platform_vulkan)
             else()
                 set(_plat_lib platform)

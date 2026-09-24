@@ -735,6 +735,32 @@ namespace dmGraphics
     };
 
     /*#
+     * Cubemap faces
+     *
+     * The six face values are contiguous, zero-based, and may be used as array indices.
+     * `CUBEMAP_FACE_COUNT` is the number of cubemap faces and is not a valid face.
+     * @enum
+     * @name CubeMapFace
+     * @member CUBEMAP_FACE_POSITIVE_X Positive X face (array index 0)
+     * @member CUBEMAP_FACE_NEGATIVE_X Negative X face (array index 1)
+     * @member CUBEMAP_FACE_POSITIVE_Y Positive Y face (array index 2)
+     * @member CUBEMAP_FACE_NEGATIVE_Y Negative Y face (array index 3)
+     * @member CUBEMAP_FACE_POSITIVE_Z Positive Z face (array index 4)
+     * @member CUBEMAP_FACE_NEGATIVE_Z Negative Z face (array index 5)
+     * @member CUBEMAP_FACE_COUNT Number of cubemap faces
+     */
+    enum CubeMapFace
+    {
+        CUBEMAP_FACE_POSITIVE_X = 0,
+        CUBEMAP_FACE_NEGATIVE_X = 1,
+        CUBEMAP_FACE_POSITIVE_Y = 2,
+        CUBEMAP_FACE_NEGATIVE_Y = 3,
+        CUBEMAP_FACE_POSITIVE_Z = 4,
+        CUBEMAP_FACE_NEGATIVE_Z = 5,
+        CUBEMAP_FACE_COUNT      = 6,
+    };
+
+    /*#
      * Texture filtering modes.
      * Controls how texels are sampled when scaling or rotating textures
      * @enum
@@ -968,6 +994,16 @@ namespace dmGraphics
 
     struct RenderTargetCreationParams
     {
+        RenderTargetCreationParams()
+        : m_SampleCount(0)
+        , m_TextureType(TEXTURE_TYPE_2D)
+        , m_ColorBufferLoadOps()
+        , m_ColorBufferStoreOps()
+        , m_ColorBufferClearValue()
+        , m_DepthTexture(false)
+        , m_StencilTexture(false)
+        {}
+
         TextureCreationParams m_ColorBufferCreationParams[MAX_BUFFER_COLOR_ATTACHMENTS];
         TextureCreationParams m_DepthBufferCreationParams;
         TextureCreationParams m_StencilBufferCreationParams;
@@ -977,6 +1013,7 @@ namespace dmGraphics
         // Requested render target sample count. Adapters normalize this to a supported
         // power-of-two value shared by all attachments.
         uint32_t              m_SampleCount;
+        TextureType           m_TextureType;
         AttachmentOp          m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp          m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float                 m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
@@ -984,6 +1021,19 @@ namespace dmGraphics
 
         uint8_t               m_DepthTexture   : 1;
         uint8_t               m_StencilTexture : 1;
+    };
+
+    /*#
+     * Render target binding parameters.
+     * @struct
+     * @name RenderTargetBindingParams
+     * @member m_TransientBufferTypes [type:uint32_t] BufferType bit mask identifying attachments whose contents may be discarded after the render pass
+     * @member m_CubeMapFace [type:dmGraphics::CubeMapFace] Cubemap face to bind. For non-cubemap render targets this must remain `CUBEMAP_FACE_POSITIVE_X`, which is also the zero-initialized default
+     */
+    struct RenderTargetBindingParams
+    {
+        uint32_t    m_TransientBufferTypes;
+        CubeMapFace m_CubeMapFace;
     };
 
     /*#
@@ -1635,12 +1685,13 @@ namespace dmGraphics
     void DeleteRenderTarget(HContext context, HRenderTarget render_target);
 
     /*#
+     * Bind a render target with generic binding parameters.
      * @name SetRenderTarget
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param render_target [type:dmGraphics::HRenderTarget]
-     * @param transient_buffer_types [type:uint32_t]
+     * @param params [type:dmGraphics::RenderTargetBindingParams]
      */
-    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
+    void SetRenderTarget(HContext context, HRenderTarget render_target, const RenderTargetBindingParams& params);
 
     /*#
      * @name GetRenderTargetTexture
@@ -1668,6 +1719,14 @@ namespace dmGraphics
      * @return sample_count [type:uint32_t] the effective, adapter-conformed sample count
      */
     uint32_t GetRenderTargetSampleCount(HContext context, HRenderTarget render_target);
+
+    /*#
+     * @name GetRenderTargetTextureType
+     * @param context [type:dmGraphics::HContext] Graphics context
+     * @param render_target [type:dmGraphics::HRenderTarget]
+     * @return texture_type [type:dmGraphics::TextureType] render target texture type
+     */
+    TextureType GetRenderTargetTextureType(HContext context, HRenderTarget render_target);
 
     /*#
      * @name SetRenderTargetSize
