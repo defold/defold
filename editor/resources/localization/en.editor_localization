@@ -2626,6 +2626,8 @@ form.label.liveupdate.liveupdate.supported-versions = Supported Engine Versions
 form.help.liveupdate.liveupdate.supported-versions = Additional engine version strings that may mount this Live Update manifest. Enter them as a comma-separated list. The build engine version is always included. Mounting fails with `ENGINE_VERSION_MISMATCH` when the running engine matches none of them.
 
 form.label.material = Material
+form.label.material.programs = Programs
+form.label.material.render-settings = Render Settings
 form.label.material.name = Name
 form.help.material.name = Internal name embedded in this Material resource. A Render resource assigns its own identifier when it includes the material; that separate identifier is used by APIs such as `render.enable_material()`.
 form.label.material.vertex-program = Vertex Program
@@ -2667,6 +2669,7 @@ form.label.material.vertex-space = Vertex Space
 form.help.material.vertex-space = Controls whether vertices reach the vertex program in **World** or **Local** object space. **World** is mandatory for Sprite, Tile Map, ParticleFX, Label, and GUI components. **Local** requires the shader to apply the world transform and supports GPU-skinned or instanced models.
 form.label.material.max-page-count = Max Atlas Pages
 form.help.material.max-page-count = Maximum paged-atlas pages supported by this material's fallback samplers on graphics APIs without texture arrays. It must cover every assigned paged atlas. This is not a general texture-array layer limit and does not page an atlas by itself; use `0` for ordinary textures.
+form.table-2panel.select-row = Select a row to edit it.
 
 form.label.compute = Compute
 form.label.compute.compute-program = Program

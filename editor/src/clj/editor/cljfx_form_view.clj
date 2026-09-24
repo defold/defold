@@ -1298,7 +1298,13 @@
   (-> state
       (assoc :selected-indices [index])
       (assoc :focus-request {:path path
-                             :n (inc (get-in state [:focus-request :n] 0))})))
+                             :n (inc (:focus-request-seq state 0))})
+      (update :focus-request-seq (fnil inc 0))))
+
+(defmethod handle-event :2panel-focus-applied [{:keys [state-path focus-request ui-state]}]
+  (let [request-path (conj state-path :focus-request)]
+    (when (= focus-request (get-in ui-state request-path))
+      {:set-ui-state (update-in ui-state state-path dissoc :focus-request)})))
 
 (defmethod handle-event :2panel-summary-added [{:keys [value default-row key-path on-value-changed state-path ui-state]}]
   (let [new-value (conj (vec value) default-row)]
@@ -1315,29 +1321,6 @@
     [[:dispatch (assoc on-value-changed :fx/event new-value)]
      [:set-ui-state (assoc-in ui-state (conj state-path :selected-indices)
                               (if (neg? next-index) [] [next-index]))]]))
-
-(defn- summary-table-column [column localization-state state-path]
-  {:fx/type fx.table-column/lifecycle
-   :reorderable false
-   :sortable false
-   :min-width 60
-   :pref-width (:pref-width column 100)
-   :text (get-label-text localization-state column)
-   :cell-value-factory (fn [[index item]] [index item])
-   ;; The :describe form is needed for cells to dispatch map events.
-   :cell-factory {:fx/cell-type :table-cell
-                  :describe (fn [[index item]]
-                              (let [value (if-let [value-fn (:value-fn column)]
-                                            (value-fn item)
-                                            (get-in item (:path column)))
-                                    label (if (some? value) (display-value-text column value) "")]
-                                (cond-> {:text label
-                                         :on-mouse-clicked {:event-type :2panel-summary-cell-clicked
-                                                            :index index
-                                                            :path (:path column)
-                                                            :state-path state-path}}
-                                  (not (string/blank? label))
-                                  (assoc :tooltip {:fx/type fx.tooltip/lifecycle :text label}))))}})
 
 (def ^:private prop-table-selected-indices
   ;; Replacing the table items clears its selection, so the items are part of
@@ -1360,7 +1343,7 @@
                          fx.lifecycle/scalar)
      :focus-request (fx/make-prop
                       (fx.mutator/setter
-                        (fn [^Node node token]
+                        (fn [^Node node [token map-event-handler state-path]]
                           (when token
                             ;; Composite inputs focus their first control, and
                             ;; choice boxes also open their list.
@@ -1368,8 +1351,20 @@
                                   target (or combo (.lookup node ".text-field") node)]
                               (fxui/focus-when-on-scene! target)
                               (when combo
-                                (fx/run-later (.show ^ComboBoxBase combo)))))))
+                                (fx/run-later (.show ^ComboBoxBase combo)))
+                              (fx/run-later
+                                (map-event-handler {:event-type :2panel-focus-applied
+                                                    :state-path state-path
+                                                    :focus-request token}))))))
                       fx.lifecycle/scalar)}))
+
+(ui/defc focus-request-input-view
+  {:compose [{:fx/type fxui/ext-map-event-handler}]}
+  [{:keys [desc focus-request state-path map-event-handler]}]
+  {:fx/type ext-with-focus-request-props
+   :props {:grid-pane-column 2
+           :focus-request (when focus-request [focus-request map-event-handler state-path])}
+   :desc desc})
 
 (defn- summary-table-input [{:keys [value summary-columns full-width localization-state state-path state
                                    on-value-changed default-row key-path]}]
@@ -1390,11 +1385,11 @@
       :style-class "cljfx-table-view-wrapper"
       :children [{:fx/type fxui/ext-with-advance-events
                   :desc {:fx/type fx.ext.table-view/with-selection-props
-                  :props {:selection-mode :single
-                          prop-table-selected-indices [(vec (:selected-indices state)) value]
-                          :on-selected-indices-changed {:event-type :table-select
-                                                        :state-path state-path}}
-                  :desc {:fx/type fx.table-view/lifecycle
+                         :props {:selection-mode :single
+                                 prop-table-selected-indices [(vec (:selected-indices state)) value]
+                                 :on-selected-indices-changed {:event-type :table-select
+                                                               :state-path state-path}}
+                         :desc {:fx/type fx.table-view/lifecycle
                          :style-class ["table-view" "cljfx-table-view"]
                          :editable false
                          :max-width (if full-width ##Inf large-field-width)
@@ -1402,7 +1397,29 @@
                          :fixed-cell-size line-height
                          :pref-height (+ line-height 11 (* line-height (max 1 (count value))))
                          :column-resize-policy custom-table-resize-policy
-                         :columns (mapv #(summary-table-column % localization-state state-path) summary-columns)
+                         :columns (mapv (fn [column]
+                                          {:fx/type fx.table-column/lifecycle
+                                           :reorderable false
+                                           :sortable false
+                                           :min-width 60
+                                           :pref-width (:pref-width column 100)
+                                           :text (get-label-text localization-state column)
+                                           :cell-value-factory (fn [[index item]] [index item])
+                                           ;; The :describe form lets cells dispatch map events.
+                                           :cell-factory {:fx/cell-type :table-cell
+                                                          :describe (fn [[index item]]
+                                                                      (let [value (if-let [value-fn (:value-fn column)]
+                                                                                    (value-fn item)
+                                                                                    (get-in item (:path column)))
+                                                                            label (if (some? value) (display-value-text column value) "")]
+                                                                        (cond-> {:text label
+                                                                                 :on-mouse-clicked {:event-type :2panel-summary-cell-clicked
+                                                                                                    :index index
+                                                                                                    :path (:path column)
+                                                                                                    :state-path state-path}}
+                                                                          (not (string/blank? label))
+                                                                          (assoc :tooltip {:fx/type fx.tooltip/lifecycle :text label}))))}})
+                                        summary-columns)
                          :items (into [] (map-indexed vector) value)
                          :context-menu {:fx/type fx.context-menu/lifecycle
                                         :items [{:fx/type fx.menu-item/lifecycle
@@ -1424,7 +1441,7 @@
                   :disable (nil? selected-index)
                   :on-action remove-event
                   :image "icons/32/Icons_M_11_minus.png"
-                       :fit-size 16}]}]))
+                  :fit-size 16}]}]))
 
 (defn- selected-item-field-views
   "Returns the label, optional reset button and input descs for a field of the
@@ -1600,10 +1617,10 @@
                                                {:fx/type fx.column-constraints/lifecycle
                                                 :hgrow :always}]
                           :children (cond-> [label-view
-                                             {:fx/type ext-with-focus-request-props
-                                              :props {:grid-pane-column 2
-                                                      :focus-request (when (= (:path item-field) (:path focus-request))
-                                                                       focus-request)}
+                                             {:fx/type focus-request-input-view
+                                              :focus-request (when (= (:path item-field) (:path focus-request))
+                                                               focus-request)
+                                              :state-path (conj state-path :key)
                                               :desc (cond-> input-view
                                                       (= :choicebox (:type item-field))
                                                       (assoc :pref-width 240))}]
@@ -1631,7 +1648,7 @@
                             [selected-item-fields]
                             [{:fx/type fx.label/lifecycle
                               :opacity 0.6
-                              :text "Select a row to edit it."}])}]}
+                              :text (localization-state (localization/message "form.table-2panel.select-row"))}])}]}
       buttons]}))
 
 ;; endregion
@@ -1713,21 +1730,6 @@
               (assoc :grid-pane/column-span 3
                      :grid-pane/hgrow :always))))))
 
-(defn- help-icon-view [help project]
-  (fxui/apply-tooltip
-    {:fx/type fx.label/lifecycle
-     :style-class ["label" "cljfx-form-help-icon"]
-     :graphic {:fx/type fxui/icon-graphic
-               :type :icon/circle-question
-               :size 14}}
-    {:fx/type fxui/tooltip
-     :content-display :graphic-only
-     :style {:-fx-padding 0}
-     :graphic {:fx/type markdown/view
-               :content help
-               :max-width 350.0
-               :project project}}))
-
 (defn- section-view [{:keys [title title-style-class help help-icon fields values ui-state resource-string-converter visible localization-state project]}]
   (let [title-view {:fx/type fx.label/lifecycle
                     :style-class (cond-> ["label" "cljfx-form-title"]
@@ -1743,7 +1745,20 @@
                          {:fx/type fx.h-box/lifecycle
                           :spacing 6
                           :alignment :center-left
-                          :children [title-view (help-icon-view help project)]}
+                          :children [title-view
+                                     (fxui/apply-tooltip
+                                       {:fx/type fx.label/lifecycle
+                                        :style-class ["label" "cljfx-form-help-icon"]
+                                        :graphic {:fx/type fxui/icon-graphic
+                                                  :type :icon/circle-question
+                                                  :size 14}}
+                                       {:fx/type fxui/tooltip
+                                        :content-display :graphic-only
+                                        :style {:-fx-padding 0}
+                                        :graphic {:fx/type markdown/view
+                                                  :content help
+                                                  :max-width 350.0
+                                                  :project project}})]}
                          title-view))
 
                  (and help (not help-icon))

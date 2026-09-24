@@ -336,34 +336,10 @@
                     (when (render-program-utils/editable-constant-type? (or type (:default type-field))) value))
         :pref-width 180}])))
 
-(defn- sampler-form-with-summary [localization-key path-key]
-  (let [form (render-program-utils/gen-form-data-samplers localization-key path-key)
-        fields (-> form :panel-form :sections first :fields)
-        summary-paths #{[:wrap-u] [:wrap-v] [:filter-min] [:filter-mag]}]
-    (assoc (table-2panel-form form localization-key)
-      :summary-columns
-      (into []
-            (comp (filter #(summary-paths (:path %)))
-                  (map #(assoc % :pref-width (if (= :choicebox (:type %)) 95 110))))
-            fields))))
-
-(defn- attribute-summary-columns []
-  (let [fields-by-path (into {} (map (juxt :path identity)) vertex-attribute-fields)
-        column (fn [path pref-width]
-                 (let [field (fields-by-path path)]
-                   (assoc field :pref-width pref-width
-                          :value-fn #(get-in % path (:default field)))))]
-    [(column [:semantic-type] 130)
-     (column [:vector-type] 90)
-     (column [:data-type] 90)
-     {:path [:values] :localization-key "material.attributes.value" :type :vec4
-      :value-fn #(when-not (graphics/engine-provided-attribute? %) (:values %))
-      :pref-width 180}]))
-
 (def ^:private form-data
   {:navigation false
    :sections
-   [{:label "Programs"
+   [{:localization-key "material.programs"
      :title-style-class "cljfx-form-group-title"
      :help-icon true
      :fields
@@ -384,7 +360,17 @@
      [(table-2panel-form
         {:path [:attributes]
          :localization-key "material.attributes"
-         :summary-columns (attribute-summary-columns)
+         :summary-columns (let [fields-by-path (into {} (map (juxt :path identity)) vertex-attribute-fields)
+                                column (fn [path pref-width]
+                                         (let [field (fields-by-path path)]
+                                           (assoc field :pref-width pref-width
+                                                  :value-fn #(get-in % path (:default field)))))]
+                            [(column [:semantic-type] 130)
+                             (column [:vector-type] 90)
+                             (column [:data-type] 90)
+                             {:path [:values] :localization-key "material.attributes.value" :type :vec4
+                              :value-fn #(when-not (graphics/engine-provided-attribute? %) (:values %))
+                              :pref-width 180}])
          :panel-key {:path [:name]
                      :type :string
                      :default "new_attribute"}
@@ -424,8 +410,16 @@
     {:localization-key "material.samplers"
      :title-style-class "cljfx-form-group-title"
      :help-icon true
-     :fields [(sampler-form-with-summary "material.samplers" :samplers)]}
-    {:label "Render Settings"
+     :fields [(let [form (render-program-utils/gen-form-data-samplers "material.samplers" :samplers)
+                    fields (-> form :panel-form :sections first :fields)
+                    summary-paths #{[:wrap-u] [:wrap-v] [:filter-min] [:filter-mag]}]
+                (assoc (table-2panel-form form "material.samplers")
+                  :summary-columns
+                  (into []
+                        (comp (filter #(summary-paths (:path %)))
+                              (map #(assoc % :pref-width (if (= :choicebox (:type %)) 95 110))))
+                        fields)))]}
+    {:localization-key "material.render-settings"
      :title-style-class "cljfx-form-group-title"
      :help-icon true
      :fields
