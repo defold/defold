@@ -35,5 +35,7 @@ profiles {
     mipmaps: false
     max_texture_size: 8192
     premultiply_alpha: false
+    recompress: true
+    regenerate_mipmaps: true
   }
 }
