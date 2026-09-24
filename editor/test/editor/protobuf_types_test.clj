@@ -17,15 +17,40 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
             [support.test-support :refer [with-clean-system]]
-            [util.coll :as coll]))
+            [util.coll :as coll])
+  (:import [com.dynamo.graphics.proto Graphics$TextureProfiles]))
 
 (def ^:private project-path "test/resources/all_types_project")
+
+(deftest keep-ktx2-format-profile-edit
+  (test-util/with-loaded-project project-path
+    (let [node (test-util/resource-node project "/test.texture_profiles")
+          {:keys [sections form-ops]} (g/node-value node :form-data)
+          profiles-field (coll/first-where #(= [:profiles] (:path %)) (:fields (first sections)))
+          platforms-field (first (get-in profiles-field [:panel-form :sections 0 :fields]))
+          field (coll/first-where #(= [:keep-ktx2-format] (:path %))
+                                  (get-in platforms-field [:panel-form :sections 0 :fields]))
+          path [:profiles 0 :platforms 0 :keep-ktx2-format]]
+      (is (= :boolean (:type field)))
+      (is (false? (:default field)))
+      (is (= "texture-profiles.profiles.platforms.keep-ktx2-format" (:localization-key field)))
+      (is (false? (g/node-value node :dirty)))
+      (g/transact ((:set form-ops) (:user-data form-ops) path true))
+      (is (true? (g/node-value node :dirty)))
+      (is (true? (get-in (->> (g/node-value node :save-value)
+                              (protobuf/map->pb Graphics$TextureProfiles)
+                              .toByteArray
+                              (protobuf/bytes->map-with-defaults Graphics$TextureProfiles))
+                         path)))
+      (g/transact ((:clear form-ops) (:user-data form-ops) path))
+      (is (false? (g/node-value node :dirty))))))
 
 (deftest test-load
   (with-clean-system

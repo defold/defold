@@ -285,7 +285,12 @@
                                       :default (ffirst os-values)}
                           :panel-form {:sections
                                        [{:fields
-                                         [{:path [:formats]
+                                         [{:path [:keep-ktx2-format]
+                                           :type :boolean
+                                           :localization-key "texture-profiles.profiles.platforms.keep-ktx2-format"
+                                           :default (protobuf/default Graphics$PlatformProfile :keep-ktx2-format)
+                                           :optional true}
+                                          {:path [:formats]
                                            :localization-key "texture-profiles.profiles.platforms.formats"
                                            :type :2panel
                                            :panel-key {:path [:format]
