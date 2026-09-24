@@ -26,8 +26,8 @@
     (try
       (spit file source)
       (let [{:keys [exit out err]} (shell/sh (Bob/getHostExeOnce "glslang" nil)
-                                           "-S" (if (string/ends-with? path ".vp") "vert" "frag")
-                                           (.getAbsolutePath file))]
+                                             "-S" (if (string/ends-with? path ".vp") "vert" "frag")
+                                             (.getAbsolutePath file))]
         (is (zero? exit) (str path "\n" out err)))
       (finally (.delete file)))))
 
@@ -104,4 +104,4 @@
     (is (some? namespace))
     (is (= "view_proj"
            (string/replace (str namespace ".view_proj")
-                                   (re-pattern (:strip-resource-binding-namespace-regex-str combined)) "")))))
+                           (re-pattern (:strip-resource-binding-namespace-regex-str combined)) "")))))
