@@ -230,8 +230,11 @@ public final class GltfContainer {
     private static final int MAX_EXTERNAL_URI_CHARACTERS = 8192;
     private static final int MAX_DATA_URI_METADATA_CHARACTERS = 1024;
     private static final long MAX_DATA_URI_BASE64_CHARACTERS = ((MAX_IMAGE_BYTES + 2L) / 3L) * 4L;
+    private static final int MAX_RESOURCE_PATH_SEGMENT_BYTES = 255;
+    private static final int MAX_IMAGE_PATH_NAME_BYTES = MAX_RESOURCE_PATH_SEGMENT_BYTES - ".png".length();
+    private static final int MAX_MATERIAL_PATH_NAME_BYTES = MAX_RESOURCE_PATH_SEGMENT_BYTES - ".material".length();
     // Leave room for the .model suffix when a mesh is copied out.
-    private static final int MAX_MESH_PATH_NAME_BYTES = 255 - ".model".length();
+    private static final int MAX_MESH_PATH_NAME_BYTES = MAX_RESOURCE_PATH_SEGMENT_BYTES - ".model".length();
 
     private final IResource sourceResource;
     private final List<GltfResource> resources;
@@ -508,9 +511,12 @@ public final class GltfContainer {
         var models = Arrays.stream(scene.models)
                 .filter(model -> !model.nameIsGenerated && !isBlank(model.name))
                 .toArray(Modelimporter.Model[]::new);
-        List<String> pathNames = meshPathNames(models);
-        for (int modelOrdinal = 0; modelOrdinal < models.length; ++modelOrdinal) {
-            Modelimporter.Model model = models[modelOrdinal];
+        var pathNameCandidates = new ArrayList<PathNameCandidate>(models.length);
+        for (var model : models) {
+            pathNameCandidates.add(new PathNameCandidate(model.index, model.name));
+        }
+        Map<Integer, String> pathNames = resourcePathNames(pathNameCandidates, MAX_MESH_PATH_NAME_BYTES);
+        for (var model : models) {
             int primitiveCount = model.meshes == null ? 0 : model.meshes.length;
             long vertexCount = 0;
             if (model.meshes != null) {
@@ -547,56 +553,59 @@ public final class GltfContainer {
                 }
                 modelDesc.addMaterials(binding);
             }
-            String path = "meshes/" + pathNames.get(modelOrdinal);
+            String path = "meshes/" + pathNames.get(model.index);
             meshes.add(new MeshMetadata(path, model.index, model.name, model.nameIsGenerated,
                     primitiveCount, (int)vertexCount, modelDesc.build()));
         }
         return meshes;
     }
 
-    private static List<String> meshPathNames(Modelimporter.Model[] models) {
-        var pathNames = new ArrayList<String>(models.length);
-        for (Modelimporter.Model model : models) {
-            String name = model.name;
-            if (!isPortableFilenameSegment(name)) {
-                name = "Mesh " + model.index;
+    private record PathNameCandidate(int index, String name) {}
+
+    private static Map<Integer, String> resourcePathNames(List<PathNameCandidate> candidates,
+                                                          int maxPathNameBytes) {
+        var names = new LinkedHashMap<Integer, String>();
+        var occurrenceCounts = new LinkedHashMap<String, Integer>();
+        var maxNameBytesByComparisonName = new LinkedHashMap<String, Integer>();
+        for (var candidate : candidates) {
+            String name = sanitizeResourceName(candidate.name());
+            if (name == null) {
+                continue;
             }
-            pathNames.add(name);
+            names.put(candidate.index(), name);
+            String comparisonName = resourcePathComparisonName(name);
+            occurrenceCounts.put(comparisonName, occurrenceCounts.getOrDefault(comparisonName, 0) + 1);
+            maxNameBytesByComparisonName.put(
+                    comparisonName,
+                    Math.max(maxNameBytesByComparisonName.getOrDefault(comparisonName, 0), utf8Length(name)));
         }
 
-        while (true) {
-            var ordinalsByName = new LinkedHashMap<String, List<Integer>>();
-            for (int ordinal = 0; ordinal < pathNames.size(); ++ordinal) {
-                String comparisonName = meshPathComparisonName(pathNames.get(ordinal));
-                var ordinals = ordinalsByName.get(comparisonName);
-                if (ordinals == null) {
-                    ordinals = new ArrayList<Integer>();
-                    ordinalsByName.put(comparisonName, ordinals);
-                }
-                ordinals.add(ordinal);
-            }
-
-            boolean foundCollision = false;
-            for (List<Integer> ordinals : ordinalsByName.values()) {
-                if (ordinals.size() < 2) {
-                    continue;
-                }
-                foundCollision = true;
-                for (int ordinal : ordinals) {
-                    Modelimporter.Model model = models[ordinal];
-                    String suffixedName = pathNames.get(ordinal) + " [" + model.index + "]";
-                    pathNames.set(ordinal, utf8Length(suffixedName) <= MAX_MESH_PATH_NAME_BYTES
-                            ? suffixedName
-                            : "Mesh " + model.index);
-                }
-            }
-            if (!foundCollision) {
-                return pathNames;
+        var portableComparisonNames = new LinkedHashSet<String>();
+        for (var entry : occurrenceCounts.entrySet()) {
+            int maxOccurrenceDigits = Integer.toString(entry.getValue() - 1).length();
+            if (maxNameBytesByComparisonName.get(entry.getKey()) + 1 + maxOccurrenceDigits <= maxPathNameBytes) {
+                portableComparisonNames.add(entry.getKey());
             }
         }
+
+        var pathNames = new LinkedHashMap<Integer, String>();
+        var occurrences = new LinkedHashMap<String, Integer>();
+        int unnamedOccurrence = 0;
+        for (var candidate : candidates) {
+            String name = names.get(candidate.index());
+            String comparisonName = name == null ? null : resourcePathComparisonName(name);
+            if (!portableComparisonNames.contains(comparisonName)) {
+                pathNames.put(candidate.index(), Integer.toString(unnamedOccurrence++));
+                continue;
+            }
+            int occurrence = occurrences.getOrDefault(comparisonName, 0);
+            occurrences.put(comparisonName, occurrence + 1);
+            pathNames.put(candidate.index(), name + "_" + occurrence);
+        }
+        return pathNames;
     }
 
-    private static String meshPathComparisonName(String name) {
+    private static String resourcePathComparisonName(String name) {
         String normalizedName = Normalizer.normalize(name, Normalizer.Form.NFC);
         return Normalizer.normalize(normalizedName.toLowerCase(Locale.ROOT), Normalizer.Form.NFC);
     }
@@ -615,36 +624,53 @@ public final class GltfContainer {
         return true;
     }
 
-    private static boolean isPortableFilenameSegment(String name) {
-        if (name == null || name.isEmpty() || ".".equals(name) || "..".equals(name)) {
-            return false;
-        }
-        if (utf8Length(name) > MAX_MESH_PATH_NAME_BYTES) {
-            return false;
+    private static String sanitizeResourceName(String name) {
+        if (isBlank(name)) {
+            return null;
         }
 
-        int firstCodePoint = name.codePointAt(0);
-        int finalCodePoint = name.codePointBefore(name.length());
-        if (Character.isWhitespace(firstCodePoint) || Character.isSpaceChar(firstCodePoint)
-                || finalCodePoint == '.' || Character.isWhitespace(finalCodePoint)
-                || Character.isSpaceChar(finalCodePoint)) {
-            return false;
+        String normalizedName = Normalizer.normalize(name, Normalizer.Form.NFC);
+        int leadingWhitespaceEnd = 0;
+        while (leadingWhitespaceEnd < normalizedName.length()) {
+            int codePoint = normalizedName.codePointAt(leadingWhitespaceEnd);
+            if (!Character.isWhitespace(codePoint) && !Character.isSpaceChar(codePoint)) {
+                break;
+            }
+            leadingWhitespaceEnd += Character.charCount(codePoint);
+        }
+        int trailingDotsAndWhitespaceStart = normalizedName.length();
+        while (trailingDotsAndWhitespaceStart > leadingWhitespaceEnd) {
+            int codePoint = normalizedName.codePointBefore(trailingDotsAndWhitespaceStart);
+            if (codePoint != '.' && !Character.isWhitespace(codePoint) && !Character.isSpaceChar(codePoint)) {
+                break;
+            }
+            trailingDotsAndWhitespaceStart -= Character.charCount(codePoint);
         }
 
-        for (int offset = 0; offset < name.length();) {
-            int codePoint = name.codePointAt(offset);
+        var result = new StringBuilder(normalizedName.length());
+        boolean previousReplacement = false;
+        for (int offset = 0; offset < normalizedName.length();) {
+            int codePoint = normalizedName.codePointAt(offset);
             int characterType = Character.getType(codePoint);
-            if (Character.isISOControl(codePoint) || characterType == Character.FORMAT
+            if (offset < leadingWhitespaceEnd || offset >= trailingDotsAndWhitespaceStart
+                    || Character.isISOControl(codePoint) || characterType == Character.FORMAT
                     || characterType == Character.SURROGATE || codePoint == '/'
                     || codePoint == '\\' || codePoint == '<' || codePoint == '>'
                     || codePoint == ':' || codePoint == '"' || codePoint == '|'
                     || codePoint == '?' || codePoint == '*') {
-                return false;
+                if (!previousReplacement) {
+                    result.append('_');
+                    previousReplacement = true;
+                }
+            } else {
+                result.appendCodePoint(codePoint);
+                previousReplacement = false;
             }
             offset += Character.charCount(codePoint);
         }
 
-        String deviceName = name;
+        String sanitizedName = result.toString();
+        String deviceName = sanitizedName;
         int extensionSeparator = deviceName.indexOf('.');
         if (extensionSeparator >= 0) {
             deviceName = deviceName.substring(0, extensionSeparator);
@@ -653,9 +679,9 @@ public final class GltfContainer {
         if ("CON".equals(deviceName) || "PRN".equals(deviceName)
                 || "AUX".equals(deviceName) || "NUL".equals(deviceName)
                 || "CLOCK$".equals(deviceName)) {
-            return false;
+            return "_" + sanitizedName;
         }
-        return !deviceName.matches("(?:COM|LPT)[1-9]");
+        return deviceName.matches("(?:COM|LPT)[1-9]") ? "_" + sanitizedName : sanitizedName;
     }
 
     private static int utf8Length(String value) {
@@ -673,11 +699,19 @@ public final class GltfContainer {
         if (scene.dynamicMaterials != null) {
             Collections.addAll(dynamicMaterials, scene.dynamicMaterials);
         }
+        var pathNameCandidates = new ArrayList<PathNameCandidate>();
+        for (Modelimporter.Material material : scene.materials) {
+            if (!dynamicMaterials.contains(material)) {
+                pathNameCandidates.add(new PathNameCandidate(
+                        material.index, material.nameIsGenerated ? null : material.name));
+            }
+        }
+        Map<Integer, String> pathNames = resourcePathNames(pathNameCandidates, MAX_MATERIAL_PATH_NAME_BYTES);
         for (Modelimporter.Material material : scene.materials) {
             if (dynamicMaterials.contains(material)) {
                 continue;
             }
-            String path = String.format("materials/%d.material", material.index);
+            String path = "materials/" + pathNames.get(material.index) + ".material";
             assets.add(new MaterialAsset(path, material, GltfMaterialResource.createMaterialDesc(material),
                     samplerBindings(material, imagePaths)));
         }
@@ -691,11 +725,19 @@ public final class GltfContainer {
             return imagePaths;
         }
 
+        var pathNameCandidates = new ArrayList<PathNameCandidate>();
+        for (var image : scene.images) {
+            if (!isExternalImage(image)) {
+                pathNameCandidates.add(new PathNameCandidate(
+                        image.index, image.nameIsGenerated ? null : imageResourceName(image.name)));
+            }
+        }
+        Map<Integer, String> pathNames = resourcePathNames(pathNameCandidates, MAX_IMAGE_PATH_NAME_BYTES);
         Map<Integer, ResolvedImage> resolvedImages = new LinkedHashMap<Integer, ResolvedImage>();
         ExtractionBudget extractionBudget = new ExtractionBudget();
         for (Modelimporter.Image image : scene.images) {
             try {
-                if (image.uri != null && !image.uri.isEmpty() && !isDataUri(image.uri)) {
+                if (isExternalImage(image)) {
                     imagePaths.put(image.index, "/" + resolveExternalResourcePath(sourcePath, image.uri));
                     continue;
                 }
@@ -706,7 +748,7 @@ public final class GltfContainer {
                 String mimeType = resolvedImage.mimeType == null
                         ? mimeTypeForExtension(extension)
                         : resolvedImage.mimeType;
-                String path = String.format("images/%d.%s", image.index, extension);
+                String path = "images/" + pathNames.get(image.index) + "." + extension;
                 imagePaths.put(image.index, path);
                 resolvedImages.put(image.index, new ResolvedImage(resolvedImage.uri, mimeType,
                         resolvedImage.sourceKind, resolvedImage.content, resolvedImage.location));
@@ -732,6 +774,23 @@ public final class GltfContainer {
                     textureMetadata(scene, image.index, imagePaths), resolvedImage.location));
         }
         return imagePaths;
+    }
+
+    private static boolean isExternalImage(Modelimporter.Image image) {
+        return image.uri != null && !image.uri.isEmpty() && !isDataUri(image.uri);
+    }
+
+    private static String imageResourceName(String name) {
+        if (name == null) {
+            return null;
+        }
+        String lowerCaseName = name.toLowerCase(Locale.ROOT);
+        for (String extension : List.of(".jpeg", ".png", ".jpg")) {
+            if (lowerCaseName.endsWith(extension)) {
+                return name.substring(0, name.length() - extension.length());
+            }
+        }
+        return name;
     }
 
     private static Map<String, SamplerBinding> samplerBindings(

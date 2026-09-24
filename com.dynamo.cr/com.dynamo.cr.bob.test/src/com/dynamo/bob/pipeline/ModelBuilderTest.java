@@ -142,20 +142,20 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
                 "mesh: \"/virtual.gltf\"\n" +
                 "materials {\n" +
                 "  name: \"VirtualMaterial\"\n" +
-                "  material: \"/virtual.gltf/materials/0.material\"\n" +
+                "  material: \"/virtual.gltf/materials/VirtualMaterial_0.material\"\n" +
                 "  textures {\n" +
                 "    sampler: \"PbrMetallicRoughness_baseColorTexture\"\n" +
-                "    texture: \"/virtual.gltf/images/0.png\"\n" +
+                "    texture: \"/virtual.gltf/images/VirtualImage_0.png\"\n" +
                 "  }\n" +
                 "}\n";
 
         Model model = getMessage(build("/virtual.model", modelSource), Model.class);
-        assertEquals(ResourceUtil.minifyPath("/virtual.gltf/materials/0.materialc"),
+        assertEquals(ResourceUtil.minifyPath("/virtual.gltf/materials/VirtualMaterial_0.materialc"),
                 model.getMaterials(0).getMaterial());
-        assertEquals("/virtual.gltf/images/0.texturec",
+        assertEquals("/virtual.gltf/images/VirtualImage_0.texturec",
                 model.getMaterials(0).getTextures(0).getTexture());
-        assertTrue(getFileSystem().get("build/virtual.gltf/materials/0.materialc").exists());
-        assertTrue(getFileSystem().get("build/virtual.gltf/images/0.texturec").exists());
+        assertTrue(getFileSystem().get("build/virtual.gltf/materials/VirtualMaterial_0.materialc").exists());
+        assertTrue(getFileSystem().get("build/virtual.gltf/images/VirtualImage_0.texturec").exists());
     }
 
     @Test
@@ -170,7 +170,7 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         addFile("/defold-pbr/shaders/pbr.vp", "void main() {}\n");
         addFile("/defold-pbr/shaders/pbr.fp", "void main() {}\n");
 
-        var names = List.of("Shared [2]", "Shared [3]");
+        var names = List.of("Shared_0", "Shared_1");
         for (int index = 0; index < names.size(); ++index) {
             var mesh = getProject().getResource("/meshes.gltf/meshes/" + names.get(index));
             var outputs = build("/copied" + index + ".model", new String(mesh.getContent(), StandardCharsets.UTF_8));

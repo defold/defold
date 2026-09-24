@@ -132,16 +132,16 @@
               {:mesh "/models/robot.gltf"
                :materials
                {"Chrome"
-                {:material "/models/robot.gltf/materials/1.material"
+                {:material "/models/robot.gltf/materials/Chrome_0.material"
                  :textures
                  {"PbrMetallicRoughness_metallicRoughnessTexture"
-                  "/models/robot.gltf/images/1.png"}}
+                  "/models/robot.gltf/images/ChromeMetallicRoughness_0.png"}}
 
                 "Paint"
-                {:material "/models/robot.gltf/materials/0.material"
+                {:material "/models/robot.gltf/materials/Paint_0.material"
                  :textures
                  {"PbrMetallicRoughness_baseColorTexture"
-                  "/models/robot.gltf/images/0.png"}}}}]
+                  "/models/robot.gltf/images/PaintAlbedo_0.png"}}}}]
           (is (= {:mesh "/builtins/assets/gltf/cube.gltf"
                   :materials
                   {"default"
@@ -193,10 +193,10 @@
                   {:mesh "/models/two_meshes.gltf"
                    :materials
                    {"Chrome"
-                    {:material "/models/two_meshes.gltf/materials/1.material"
+                    {:material "/models/two_meshes.gltf/materials/Chrome_0.material"
                      :textures
                      {"PbrMetallicRoughness_metallicRoughnessTexture"
-                      "/models/two_meshes.gltf/images/1.png"}}}}]
+                      "/models/two_meshes.gltf/images/ChromeMetallicRoughness_0.png"}}}}]
               (with-redefs [dialogs/make-confirmation-dialog
                             (fn [_localization _props]
                               (swap! dialog-call-count inc)
@@ -283,9 +283,9 @@
               model-node (test-util/resource-node project "/robot.model")]
           (with-redefs [dialogs/make-confirmation-dialog (fn [_ _] true)]
             (edit-property! model-node :mesh (workspace/find-resource workspace "/models/robot.gltf")))
-          (is (= {"Chrome" {:material "/models/robot.gltf/materials/1.material"
-                            :textures {"PbrMetallicRoughness_metallicRoughnessTexture" "/textures/albedo map.png"}}
-                  "Paint" {:material "/models/robot.gltf/materials/0.material"
-                           :textures {"PbrMetallicRoughness_baseColorTexture" "/textures/albedo map.png"}}}
+          (is (= {"Chrome" {:material "/models/robot.gltf/materials/Chrome_0.material"
+                             :textures {"PbrMetallicRoughness_metallicRoughnessTexture" "/textures/albedo map.png"}}
+                  "Paint" {:material "/models/robot.gltf/materials/Paint_0.material"
+                            :textures {"PbrMetallicRoughness_baseColorTexture" "/textures/albedo map.png"}}}
                  (material-bindings model-node)))
           (is (nil? (workspace/find-resource workspace "/models/robot.gltf/images"))))))))

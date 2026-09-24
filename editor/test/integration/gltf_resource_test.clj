@@ -145,18 +145,18 @@
       (with-gltf-project origin (string/replace (gltf-content "Paint") "albedo.png" "../albedo.png")
         (fn [_project-path workspace _project]
           (let [source (workspace/find-resource workspace "/models/robot.gltf")
-                material (workspace/find-resource workspace "/models/robot.gltf/materials/0.material")
-                mesh (workspace/find-resource workspace "/models/robot.gltf/meshes/Body")]
+                material (workspace/find-resource workspace "/models/robot.gltf/materials/Paint_0.material")
+                mesh (workspace/find-resource workspace "/models/robot.gltf/meshes/Body_0")]
             (is (= #{"/models/robot.gltf/materials" "/models/robot.gltf/meshes"}
                    (proj-paths (resource/children source))))
             (is (= :file (resource/source-type source)))
             (is (resource/openable? source))
             (is (= "robot.gltf" (resource/resource-name source)))
             (is (resource/openable? mesh))
-            (is (= "robot.gltf : Body" (resource/resource-name mesh)))
+            (is (= "Body_0" (resource/resource-name mesh)))
             (is (= "icons/32/Icons_27-AT-Mesh.png" (workspace/resource-icon mesh)))
             (is (resource/read-only? material))
-            (is (= "Paint [0].material" (resource/resource-name material)))
+            (is (= "Paint_0.material" (resource/resource-name material)))
             (is (not (resource/save-tracked? material)))
             (is (string/includes? (slurp material) "name: \"Paint\""))
             (is (thrown? Exception (io/output-stream material)))
@@ -180,7 +180,7 @@
           (let [container-file (if (= :file origin)
                                  (io/file project-path "models/robot.gltf")
                                  (test-support/library-file (io/file project-path) (URI/create "file:/gltf-resource-test") ""))
-                mesh-path "/models/robot.gltf/meshes/Body"
+                mesh-path "/models/robot.gltf/meshes/Body_0"
                 mesh-node (test-util/resource-node project mesh-path)
                 old-snapshot (g/node-value workspace :resource-snapshot)]
             (test-support/touch-until-new-mtime container-file)
@@ -195,7 +195,7 @@
   (with-gltf-project :file (gltf-content "Paint")
     (fn [project-path workspace project]
       (let [source-file (io/file project-path "models/robot.gltf")
-            mesh-path "/models/robot.gltf/meshes/Body"
+            mesh-path "/models/robot.gltf/meshes/Body_0"
             mesh-node (test-util/resource-node project mesh-path)
             old-scene (g/node-value mesh-node :scene)]
         (is (not (g/error-value? old-scene)))
@@ -216,7 +216,7 @@
           (is (not (g/error-value? scene)))
           (is (not= (:aabb old-scene) (:aabb scene))))))))
 
-(deftest embedded-resource-names-are-safe-filenames
+(deftest embedded-resource-names-match-paths
   (doseq [origin [:file :zip]]
     (testing origin
       (with-gltf-project origin (-> (embedded-gltf-content "Paint/Chrome")
@@ -224,8 +224,8 @@
                                    (string/replace "albedo.png" "../albedo.png"))
         (fn [_project-path workspace _project]
           (doseq [[path expected-name original-name]
-                  [["/models/robot.gltf/materials/0.material" "Paint_Chrome [0].material" "Paint/Chrome"]
-                   ["/models/robot.gltf/images/0.png" "Albedo_Chrome [0].png" "Albedo/Chrome"]]]
+                  [["/models/robot.gltf/materials/Paint_Chrome_0.material" "Paint_Chrome_0.material" "Paint/Chrome"]
+                   ["/models/robot.gltf/images/Albedo_Chrome_0.png" "Albedo_Chrome_0.png" "Albedo/Chrome"]]]
             (let [resource (workspace/find-resource workspace path)]
               (is (= expected-name (resource/resource-name resource)))
               (is (= original-name (:name (gltf/asset-info resource)))))))))))
@@ -239,11 +239,11 @@
                         (reset! choices (proj-paths items))
                         nil)]
           (resource-dialog/make workspace nil {:ext "material"})
-          (is (contains? @choices "/models/robot.gltf/materials/0.material"))
+          (is (contains? @choices "/models/robot.gltf/materials/Paint_0.material"))
           (resource-dialog/make workspace nil {:ext "png"})
-          (is (contains? @choices "/models/robot.gltf/images/0.png"))
+          (is (contains? @choices "/models/robot.gltf/images/Albedo_0.png"))
           (resource-dialog/make workspace nil {:ext "model"})
-          (is (not (contains? @choices "/models/robot.gltf/meshes/Body"))))))))
+          (is (not (contains? @choices "/models/robot.gltf/meshes/Body_0"))))))))
 
 (deftest external-images-refresh-without-reloading-the-container
   (doseq [origin [:file :zip]]
@@ -335,16 +335,19 @@
   (with-gltf-project :file (gltf-content "Paint")
     (fn [project-path workspace _project]
       (let [source-file (io/file project-path "models/robot.gltf")
-            material-path "/models/robot.gltf/materials/0.material"]
+            paint-path "/models/robot.gltf/materials/Paint_0.material"
+            chrome-path "/models/robot.gltf/materials/Chrome_0.material"
+            restored-path "/models/robot.gltf/materials/Restored_0.material"]
         (test-support/write-until-new-mtime source-file (gltf-content "Chrome"))
         (workspace/resource-sync! workspace)
-        (is (string/includes? (slurp (workspace/find-resource workspace material-path)) "name: \"Chrome\""))
+        (is (nil? (workspace/find-resource workspace paint-path)))
+        (is (string/includes? (slurp (workspace/find-resource workspace chrome-path)) "name: \"Chrome\""))
         (test-support/write-until-new-mtime source-file "{")
         (log/without-logging (workspace/resource-sync! workspace))
-        (is (nil? (workspace/find-resource workspace material-path)))
+        (is (nil? (workspace/find-resource workspace chrome-path)))
         (test-support/write-until-new-mtime source-file (gltf-content "Restored"))
         (workspace/resource-sync! workspace)
-        (is (string/includes? (slurp (workspace/find-resource workspace material-path)) "name: \"Restored\""))))))
+        (is (string/includes? (slurp (workspace/find-resource workspace restored-path)) "name: \"Restored\""))))))
 
 (deftest moving-a-container-moves-its-embedded-references
   (doseq [[renamed-resource-path target-source-path] [["/models/robot.gltf" "/models/renamed.gltf"]
@@ -355,7 +358,7 @@
           (let [changes (atom nil)
                 source-path "/models/robot.gltf"
                 source-node (test-util/resource-node project source-path)
-                old-material (workspace/find-resource workspace (str source-path "/materials/0.material"))]
+                old-material (workspace/find-resource workspace (str source-path "/materials/Paint_0.material"))]
             (g/node-value source-node :node-outline)
             (workspace/prepend-resource-listener! workspace 1
                                                   (reify resource/ResourceListener
@@ -365,16 +368,16 @@
                                   "renamed" test-util/localization)
             (let [moves (mapv #(mapv resource/proj-path %) (:moved @changes))]
               (is (= (count moves) (count (set moves))))
-              (doseq [suffix ["" "/materials/0.material" "/images/0.png" "/meshes/Body"]]
+              (doseq [suffix ["" "/materials/Paint_0.material" "/images/Albedo_0.png" "/meshes/Body_0"]]
                 (is (contains? (set moves) [(str source-path suffix) (str target-source-path suffix)]))))
             (is (= source-node (test-util/resource-node project target-source-path)))
             (is (not (resource/exists? old-material)))
-            (is (resource/exists? (workspace/find-resource workspace (str target-source-path "/materials/0.material"))))
+            (is (resource/exists? (workspace/find-resource workspace (str target-source-path "/materials/Paint_0.material"))))
             (let [links (into []
                               (comp (mapcat :children) (keep :link))
                               (:children (g/node-value source-node :node-outline)))]
-              (is (= #{(str target-source-path "/materials/0.material")
-                       (str target-source-path "/images/0.png")}
+              (is (= #{(str target-source-path "/materials/Paint_0.material")
+                       (str target-source-path "/images/Albedo_0.png")}
                      (proj-paths links))))))))))
 
 (deftest declared-image-selection-does-not-depend-on-file-existence
@@ -446,8 +449,8 @@
         (let [links (into []
                           (comp (mapcat :children) (keep :link))
                           (:children (g/node-value source-node :node-outline)))]
-          (is (= #{(str renamed-path "/materials/0.material")
-                   (str renamed-path "/images/0.png")}
+          (is (= #{(str renamed-path "/materials/Paint_0.material")
+                   (str renamed-path "/images/Albedo_0.png")}
                  (proj-paths links)))
           (doseq [link links]
             (is (resource/exists? link))))))))

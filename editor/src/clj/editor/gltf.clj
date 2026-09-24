@@ -14,7 +14,6 @@
 
 (ns editor.gltf
   (:require [clojure.java.io :as io]
-            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.defold-project :as project]
@@ -32,7 +31,6 @@
            [com.google.protobuf ByteString]
            [java.io FileNotFoundException IOException]
            [java.util Map]
-           [org.apache.commons.io FilenameUtils]
            [org.apache.commons.io.input BoundedInputStream]))
 
 (set! *warn-on-reflection* true)
@@ -339,22 +337,13 @@
           (fn [groups ^GltfContainer$Asset asset]
             (let [path (.getPath asset)
                   group (subs path 0 (.indexOf ^String path "/"))
-                  {:keys [index kind name] :as info} (gltf-asset-info asset)
+                  {:keys [kind] :as info} (gltf-asset-info asset)
                   ^GltfContainer$ImageLocation location (when (instance? GltfContainer$ImageAsset asset)
                                                           (.getLocation ^GltfContainer$ImageAsset asset))
                   content (when-not location
                             (ByteString/copyFrom (.getContent asset)))
-                  resource-name (if (= :mesh kind)
-                                  (str (resource/resource-name source) " : " (FilenameUtils/getName path))
-                                  (format "%s [%d].%s"
-                                          (-> name
-                                              (string/replace #"[\\/:*?\"<>|\p{Cntrl}]" "_")
-                                              string/trim)
-                                          index
-                                          (FilenameUtils/getExtension path)))
                   child (resource/make-resource-entry source
                                                       {:path path
-                                                       :name resource-name
                                                        :ext (when (= :mesh kind) "gltf-mesh")
                                                        :content content
                                                        :data {:asset info}})

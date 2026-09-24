@@ -36,7 +36,6 @@
       (doseq [source-path ["/game.project" "/builtins/materials/sprite.material"]]
         (let [source (workspace/find-resource workspace source-path)
               entry (resource/make-resource-entry source {:path "entry.txt"
-                                                         :name "Entry label.txt"
                                                          :content (ByteString/copyFromUtf8 "embedded")})
               restored (g/read-graph (g/write-graph entry (core/write-handlers)) (core/read-handlers))]
           (is (= "embedded" (slurp restored)))
@@ -45,7 +44,7 @@
           (is (resource/read-only? restored))
           (is (nil? (resource/abs-path restored)))
           (is (thrown? java.io.IOException (spit restored "replacement")))
-          (is (= "Entry label.txt" (resource/resource-name restored)))
+          (is (= "entry.txt" (resource/resource-name restored)))
           (is (= (str source-path "/entry.txt") (resource/proj-path restored)))
           (is (= (resource/openable? entry) (resource/openable? restored)))
           (is (= (path/as-path source) (path/as-path restored))))))))

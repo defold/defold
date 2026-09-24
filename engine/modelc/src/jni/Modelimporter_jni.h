@@ -49,6 +49,7 @@ struct AabbJNI {
 struct ImageJNI {
     jclass cls;
     jfieldID name;
+    jfieldID nameIsGenerated;
     jfieldID uri;
     jfieldID mimeType;
     jfieldID buffer;
@@ -159,6 +160,7 @@ struct IridescenceJNI {
 struct MaterialJNI {
     jclass cls;
     jfieldID name;
+    jfieldID nameIsGenerated;
     jfieldID index;
     jfieldID isSkinned;
     jfieldID pbrMetallicRoughness;

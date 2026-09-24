@@ -112,17 +112,17 @@
       proj-paths)))
 
 (def ^:private expected-mesh-resource-names
-  #{"mymesh"
-    "Shared [2]"
-    "Shared [3]"
-    "Mesh 5"})
+  #{"mymesh_0"
+    "Shared_0"
+    "Shared_1"
+    "bad_name_0"})
 
-(defn- expected-tree-proj-paths [source-proj-path]
+(defn- expected-tree-proj-paths [source-proj-path material-resource-name]
   (into #{source-proj-path
           (str source-proj-path "/images")
-          (str source-proj-path "/images/0.png")
+          (str source-proj-path "/images/Albedo_0.png")
           (str source-proj-path "/materials")
-          (str source-proj-path "/materials/0.material")
+          (str source-proj-path "/materials/" material-resource-name)
           (str source-proj-path "/meshes")}
         (map #(str source-proj-path "/meshes/" %))
         expected-mesh-resource-names))
@@ -135,29 +135,28 @@
       (fs/create-file! (io/file models-directory "robot.glb") (glb-content "GlbPaint"))
       (with-clean-system
         (let [workspace (test-util/setup-workspace! project-path)]
-          (doseq [[source-proj-path material-label]
-                  [["/models/robot.gltf" "GltfPaint [0].material"]
-                   ["/models/robot.glb" "GlbPaint [0].material"]]]
+          (doseq [[source-proj-path material-resource-name]
+                  [["/models/robot.gltf" "GltfPaint_0.material"]
+                   ["/models/robot.glb" "GlbPaint_0.material"]]]
             (testing source-proj-path
               (let [source-resource (workspace/find-resource workspace source-proj-path)
-                    image-resource (workspace/find-resource workspace (str source-proj-path "/images/0.png"))
-                    material-resource (workspace/find-resource workspace (str source-proj-path "/materials/0.material"))
+                    image-resource (workspace/find-resource workspace (str source-proj-path "/images/Albedo_0.png"))
+                    material-resource (workspace/find-resource workspace
+                                                               (str source-proj-path "/materials/" material-resource-name))
                     meshes-resource (workspace/find-resource workspace (str source-proj-path "/meshes"))]
                 (is (some? source-resource))
-                (is (= "Albedo [0].png" (resource/resource-name image-resource)))
-                (is (= material-label (resource/resource-name material-resource)))
+                (is (= "Albedo_0.png" (resource/resource-name image-resource)))
+                (is (= material-resource-name (resource/resource-name material-resource)))
                 (is (some? meshes-resource))
                 (when (and source-resource meshes-resource)
                   (let [mesh-resources (resource/children meshes-resource)
                         ^TreeItem source-tree-item (asset-browser/tree-item source-resource)
                         ^TreeItem meshes-tree-item (asset-browser/tree-item meshes-resource)]
                     (is (false? (.isLeaf source-tree-item)))
-                    (is (= (expected-tree-proj-paths source-proj-path)
+                    (is (= (expected-tree-proj-paths source-proj-path material-resource-name)
                            (tree-item-proj-paths source-tree-item)))
                     (is (false? (.isLeaf meshes-tree-item)))
-                    (is (= (into #{}
-                                 (map #(str (resource/resource-name source-resource) " : " %))
-                                 expected-mesh-resource-names)
+                    (is (= expected-mesh-resource-names
                            (into #{} (map resource/resource-name) mesh-resources)))
                     (is (= (count expected-mesh-resource-names)
                            (count mesh-resources)))
@@ -180,7 +179,7 @@
     (with-open [_deleter (test-util/make-directory-deleter project-path)]
       (fs/create-file! source-file (glb-content "Paint/Chrome"))
       (fs/create-file! (io/file project-path "robot.model")
-                       "mesh: \"/robot.glb\"\nmaterials { name: \"Paint/Chrome\" material: \"/robot.glb/materials/0.material\" }\n")
+                       "mesh: \"/robot.glb\"\nmaterials { name: \"Paint/Chrome\" material: \"/robot.glb/materials/Paint_Chrome_0.material\" }\n")
       (with-clean-system
         (let [workspace (test-util/setup-workspace! project-path)]
           (f workspace (test-util/setup-project! workspace) source-file))))))
@@ -193,13 +192,13 @@
                              {}))
     @copied-files))
 
-(deftest copying-an-embedded-material-preserves-its-name-and-content
+(deftest copying-an-embedded-material-preserves-its-resource-name-and-content
   (with-glb-project
     (fn [workspace _project _source-file]
-      (let [material (workspace/find-resource workspace "/robot.glb/materials/0.material")
+      (let [material (workspace/find-resource workspace "/robot.glb/materials/Paint_Chrome_0.material")
             ^File exported (first (copy-selection! [material]))]
         (with-open [_deleter (test-util/make-directory-deleter (.getParentFile exported))]
-          (is (= "Paint_Chrome [0].material" (resource/resource-name material) (.getName exported)))
+          (is (= "Paint_Chrome_0.material" (resource/resource-name material) (.getName exported)))
           (is (= (slurp material) (slurp exported))))))))
 
 (deftest embedded-meshes-can-be-copied
@@ -208,11 +207,11 @@
       (doseq [[paths copyable]
               [[[] false]
                [["/robot.glb"] true]
-               [["/robot.glb/materials/0.material"] true]
+               [["/robot.glb/materials/Paint_Chrome_0.material"] true]
                [["/robot.glb/meshes"] true]
-               [["/robot.glb/meshes/Shared [2]"] true]
-               [["/robot.glb" "/robot.glb/materials/0.material"] true]
-               [["/robot.glb/materials/0.material" "/robot.glb/meshes/Shared [2]"] true]]]
+               [["/robot.glb/meshes/Shared_0"] true]
+               [["/robot.glb" "/robot.glb/materials/Paint_Chrome_0.material"] true]
+               [["/robot.glb/materials/Paint_Chrome_0.material" "/robot.glb/meshes/Shared_0"] true]]]
         (let [selection (mapv #(workspace/find-resource workspace %) paths)]
           (is (= copyable
                  (test-util/handler-enabled? :edit.copy
@@ -232,19 +231,19 @@
             (let [model-desc (protobuf/read-map-without-defaults ModelProto$ModelDesc exported-file)]
               (is (= "/robot.glb" (:mesh model-desc)))
               (is (= [{:name "Paint/Chrome"
-                       :material "/robot.glb/materials/0.material"
+                       :material "/robot.glb/materials/Paint_Chrome_0.material"
                        :textures [{:sampler "PbrMetallicRoughness_baseColorTexture"
-                                   :texture "/robot.glb/images/0.png"}]}]
+                                   :texture "/robot.glb/images/Albedo_0.png"}]}]
                      (:materials model-desc)))
               (io/copy exported-file (io/file project-directory (.getName exported-file)))))
           (doseq [extension ["vp" "fp"]]
             (fs/create-file! (io/file project-directory (str "defold-pbr/shaders/pbr." extension))
                              "void main() {}\n"))
           (workspace/resource-sync! workspace)
-          (doseq [[index name mesh-name] [[0 "mymesh" "mymesh"]
-                                         [2 "Shared [2]" "Shared"]
-                                         [3 "Shared [3]" "Shared"]
-                                         [5 "Mesh 5" "bad/name"]]]
+          (doseq [[index name mesh-name] [[0 "mymesh_0" "mymesh"]
+                                         [2 "Shared_0" "Shared"]
+                                         [3 "Shared_1" "Shared"]
+                                         [5 "bad_name_0" "bad/name"]]]
             (testing name
               (let [node (test-util/resource-node project (str "/" name ".model"))
                     save-value (g/node-value node :save-value)]
@@ -262,7 +261,7 @@
                                                "\"name\":\"mymesh\"" "\"name\":\"Shared\""))]
       (with-glb-project
         (fn [workspace project source-file]
-          (let [mesh (workspace/find-resource workspace "/robot.glb/meshes/Shared [0]")
+          (let [mesh (workspace/find-resource workspace "/robot.glb/meshes/Shared_0")
                 project-directory (.getParentFile ^File source-file)]
             (doseq [extension ["vp" "fp"]]
               (fs/create-file! (io/file project-directory (str "defold-pbr/shaders/pbr." extension))
@@ -290,7 +289,7 @@
 (deftest an-unreferenced-mesh-has-a-read-only-preview
   (with-glb-project
     (fn [workspace project _source-file]
-      (let [mesh (workspace/find-resource workspace "/robot.glb/meshes/Shared [2]")
+      (let [mesh (workspace/find-resource workspace "/robot.glb/meshes/Shared_0")
             node (test-util/resource-node project (resource/proj-path mesh))
             scene (g/node-value node :scene)]
         (is (resource/editor-openable-resource? mesh))
@@ -306,7 +305,7 @@
       (let [model (test-util/resource-node project "/robot.model")]
         (fs/delete-file! source-file)
         (workspace/resource-sync! workspace)
-        (is (nil? (workspace/find-resource workspace "/robot.glb/materials/0.material")))
+        (is (nil? (workspace/find-resource workspace "/robot.glb/materials/Paint_Chrome_0.material")))
         (is (g/error-value? (g/node-value model :scene)))))))
 
 (deftest pbr-library-notification-follows-imports-and-dependencies

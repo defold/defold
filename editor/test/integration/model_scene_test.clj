@@ -58,11 +58,15 @@
 
 (def ^:private preview-material-specs
   [{:base-color-factor [0.25 0.5 0.75 1.0]
+    :image-resource-name "PaintAlbedo_0.png"
     :index 0
-    :name "Shared"}
+    :name "Shared"
+    :material-resource-name "Shared_0.material"}
    {:base-color-factor [0.75 0.5 0.25 1.0]
+    :image-resource-name "ChromeAlbedo_0.png"
     :index 1
-    :name "Shared"}])
+    :name "Shared"
+    :material-resource-name "Shared_1.material"}])
 
 (defn- preview-scene-json [buffer-json]
   (str "{"
@@ -223,10 +227,17 @@
                 (is (not (g/error? scene)))
                 (is (= #{0 1} (into #{} (map key) user-data-by-material-index)))
 
-                (doseq [{:keys [base-color-factor index name]} preview-material-specs]
+                (doseq [{:keys [base-color-factor
+                                image-resource-name
+                                index
+                                material-resource-name
+                                name]}
+                        preview-material-specs]
                   (testing name
-                    (let [material-node-id (test-util/resource-node project (str source-proj-path "/materials/" index ".material"))
-                          image-node-id (test-util/resource-node project (str source-proj-path "/images/" index ".png"))
+                    (let [material-node-id (test-util/resource-node project
+                                                                    (str source-proj-path "/materials/" material-resource-name))
+                          image-node-id (test-util/resource-node project
+                                                                 (str source-proj-path "/images/" image-resource-name))
                           preview-binding-node-id (some-> (first (g/outputs (g/now) material-node-id :shader)) gt/target-id)
                           expected-shader (g/node-value material-node-id :shader)
                           expected-gpu-texture (g/node-value image-node-id :gpu-texture)

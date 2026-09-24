@@ -692,7 +692,7 @@
   ^InputStream [{:keys [content]}]
   (.newInput ^ByteString content))
 
-(defonce/record EmbeddedResource [source project-path name ext source-type children content data editable loaded]
+(defonce/record EmbeddedResource [source project-path ext source-type children content data editable loaded]
   Resource
   (children [_this] children)
   (ext [_this] ext)
@@ -704,7 +704,7 @@
   (path [_this] (subs project-path 1))
   (abs-path [_this] nil)
   (proj-path [_this] project-path)
-  (resource-name [_this] name)
+  (resource-name [_this] (FilenameUtils/getName project-path))
   (workspace [_this] (workspace source))
   (resource-hash [_this] (hash project-path))
   (openable? [this]
@@ -747,7 +747,7 @@
   (transit/write-handler
     (constantly "embedded-resource")
     (fn [resource]
-      (cond-> (select-keys resource [:source :project-path :name :ext :source-type :children :content :data :editable :loaded])
+      (cond-> (select-keys resource [:source :project-path :ext :source-type :children :content :data :editable :loaded])
         (instance? ByteString (:content resource)) (update :content #(.toByteArray ^ByteString %))))))
 
 (defmethod print-method EmbeddedResource [resource ^java.io.Writer w]
@@ -755,16 +755,16 @@
 
 (defn make-resource-entry
   "Creates a read-only entry in a physical file or ZIP entry. Content is ByteString or nil.
-  File/path coercion retains the physical origin; abs-path is nil for entries."
-  [source {:keys [path name ext content children data]}]
+  Resource names are path basenames. File/path coercion retains the physical origin;
+  abs-path is nil for entries."
+  [source {:keys [path ext content children data]}]
   {:pre [(or (file-resource? source) (zip-resource? source))
          (= :file (source-type source))
          (not (string/starts-with? path "/"))
          (or (nil? content) (instance? ByteString content))]}
-  (let [filename (FilenameUtils/getName ^String path)]
-    (->EmbeddedResource source (str (proj-path source) "/" path)
-                        (or name filename) (or ext (FilenameUtils/getExtension filename))
-                        (if children :folder :file) children content data (editable? source) (loaded? source))))
+  (->EmbeddedResource source (str (proj-path source) "/" path)
+                      (or ext (FilenameUtils/getExtension ^String path))
+                      (if children :folder :file) children content data (editable? source) (loaded? source)))
 
 (defmulti expand
   "Expands a source Resource using only its input stream, dispatched by extension.
