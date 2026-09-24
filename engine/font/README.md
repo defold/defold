@@ -37,6 +37,10 @@ failing on assertions, missing captures or likeness below 98%.
 Options and reproduction commands remain in HTML; stdout prints them only for
 failed cases.
 
+Linux CI uploads the standalone HTML report even when the tests fail. Download
+the `build-reports-<platform>-<attempt>` artifact from the engine job's Build
+Reports summary or the workflow run's artifacts. Reports are retained for 14 days.
+
 Generate every supported image in one executable, without comparison/reporting:
 
 ```sh
