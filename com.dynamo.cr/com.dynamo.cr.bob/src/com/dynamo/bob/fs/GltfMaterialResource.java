@@ -113,6 +113,9 @@ public class GltfMaterialResource extends GltfResource {
         putTextureView(result, "PbrMaterial_normalTexture", material.normalTexture);
         putTextureView(result, "PbrMaterial_occlusionTexture", material.occlusionTexture);
         putTextureView(result, "PbrMaterial_emissiveTexture", material.emissiveTexture);
+        Modelimporter.Volume volume = material.volume;
+        putTextureView(result, "PbrVolume_thicknessTexture",
+                volume == null ? null : volume.thicknessTexture);
         return result;
     }
 

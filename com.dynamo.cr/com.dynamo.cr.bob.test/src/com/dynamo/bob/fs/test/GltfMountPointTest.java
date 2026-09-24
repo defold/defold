@@ -551,6 +551,41 @@ public class GltfMountPointTest {
     }
 
     @Test
+    public void testGeneratedPbrVolumeMaterial() throws Exception {
+        String source = withoutMaterialTextureSlots(gltf("external.png"), false)
+                .replace("\"asset\":{\"version\":\"2.0\"},",
+                         "\"asset\":{\"version\":\"2.0\"},\"extensionsUsed\":[\"KHR_materials_transmission\",\"KHR_materials_volume\"],")
+                .replace("\"name\":\"Paint\",",
+                         "\"name\":\"Paint\",\"extensions\":{"
+                                 + "\"KHR_materials_transmission\":{\"transmissionFactor\":1.0},"
+                                 + "\"KHR_materials_volume\":{\"thicknessFactor\":2.0,"
+                                 + "\"attenuationColor\":[0.1,0.5,0.9],\"attenuationDistance\":1.5,"
+                                 + "\"thicknessTexture\":{\"index\":1}}},");
+        fileSystem.addFile("models/volume.gltf", source.getBytes(StandardCharsets.UTF_8));
+        fileSystem.addMountPoint(mountPoint);
+
+        GltfMaterialResource resource = (GltfMaterialResource)fileSystem.get(
+                "models/volume.gltf/materials/0.material");
+        MaterialDesc material = resource.getMaterialDesc();
+        assertEquals(1, material.getSamplersCount());
+        assertEquals("PbrVolume_thicknessTexture", material.getSamplers(0).getName());
+        assertEquals(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE, material.getSamplers(0).getWrapU());
+        assertEquals(MaterialDesc.WrapMode.WRAP_MODE_MIRRORED_REPEAT, material.getSamplers(0).getWrapV());
+        assertEquals(MaterialDesc.FilterModeMin.FILTER_MODE_MIN_NEAREST_MIPMAP_NEAREST,
+                material.getSamplers(0).getFilterMin());
+        assertEquals(MaterialDesc.FilterModeMag.FILTER_MODE_MAG_NEAREST, material.getSamplers(0).getFilterMag());
+        assertEquals(1, resource.getSamplerBindings().size());
+        assertSamplerBinding(resource.getSamplerBindings(), "PbrVolume_thicknessTexture",
+                0, 1, 1, "images/1.png");
+
+        Modelimporter.Material sourceMaterial = resource.getSourceMaterial();
+        assertEquals(1.0f, sourceMaterial.transmission.transmissionFactor, 0.0f);
+        assertEquals(2.0f, sourceMaterial.volume.thicknessFactor, 0.0f);
+        assertArrayEquals(new float[] { 0.1f, 0.5f, 0.9f }, sourceMaterial.volume.attenuationColor, 0.0f);
+        assertEquals(1.5f, sourceMaterial.volume.attenuationDistance, 0.0f);
+    }
+
+    @Test
     public void testMaterialSamplerBindingsFollowNativeTextureGraph() throws Exception {
         fileSystem.addMountPoint(mountPoint);
         GltfMaterialResource resource = (GltfMaterialResource)fileSystem.get(

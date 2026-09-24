@@ -171,7 +171,7 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testGLTFValidatorRequiresTangentSpaceForClearcoat() throws IOException {
+    public void testGLTFValidatorAllowsGeneratedClearcoatTangents() throws IOException {
         String source = """
                 {
                     "asset": {"version": "2.0"},
@@ -195,10 +195,23 @@ public class MeshSetBuilderTest extends AbstractProtoBuilderTest {
                 """;
         for (boolean hasNormalMap : new boolean[] {false, true}) {
             String gltf = source.formatted(hasNormalMap ? "\"normalTexture\": {\"index\": 0}," : "");
+            for (String suffix : new String[] {"gltf", "glb"}) {
+                byte[] content = suffix.equals("glb") ? makeGlb(gltf) : gltf.getBytes(StandardCharsets.UTF_8);
+                GLTFValidator.ValidateResult result = GLTFValidator.validateGltf(content, suffix, false);
+                assertTrue(result.errors().toString(), result.result());
+            }
+        }
+
+        String gltf = source.formatted("");
+        for (String unsupported : new String[] {
+                gltf.replace("\"NORMAL\": 1,", ""),
+                gltf.replace("\"TEXCOORD_0\"", "\"TEXCOORD_2\""),
+                gltf.replace("\"material\": 0", "\"mode\": 1, \"material\": 0")
+        }) {
             GLTFValidator.ValidateResult result = GLTFValidator.validateGltf(
-                    gltf.getBytes(StandardCharsets.UTF_8), "gltf", false);
-            assertEquals(hasNormalMap, result.result());
-            assertEquals(!hasNormalMap, result.errors().stream().anyMatch(
+                    unsupported.getBytes(StandardCharsets.UTF_8), "gltf", false);
+            assertFalse(result.result());
+            assertTrue(result.errors().toString(), result.errors().stream().anyMatch(
                     error -> "MESH_PRIMITIVE_NO_TANGENT_SPACE".equals(error.code())));
         }
     }

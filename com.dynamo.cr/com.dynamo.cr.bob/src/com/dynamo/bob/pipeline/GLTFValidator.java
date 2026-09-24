@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -37,6 +39,28 @@ public class GLTFValidator {
     // Skip external validation of textures, since we don't support those yet.
     private static boolean isTextureRelatedPointer(String pointer) {
         return pointer.startsWith("/images/") || pointer.startsWith("/textures/");
+    }
+
+    // Modelc can derive missing clearcoat tangents from the normal map's UVs.
+    // Keep other missing tangent-space errors fatal, including unsupported UV
+    // sets/topologies and materials whose tangent space cannot be recovered.
+    private static boolean canGenerateClearcoatTangents(JsonNode source, String pointer) {
+        Matcher primitivePointer = Pattern.compile("/meshes/(\\d+)/primitives/(\\d+)/material").matcher(pointer);
+        if (!primitivePointer.matches()) {
+            return false;
+        }
+        JsonNode primitive = source.path("meshes").path(Integer.parseInt(primitivePointer.group(1)))
+                .path("primitives").path(Integer.parseInt(primitivePointer.group(2)));
+        JsonNode material = source.path("materials").path(primitive.path("material").asInt(-1));
+        JsonNode normalTexture = material.path("extensions").path("KHR_materials_clearcoat").path("clearcoatNormalTexture");
+        JsonNode transform = normalTexture.path("extensions").path("KHR_texture_transform");
+        int texcoord = transform.has("texCoord") ? transform.get("texCoord").asInt() : normalTexture.path("texCoord").asInt();
+        int mode = primitive.has("mode") ? primitive.get("mode").asInt() : 4;
+        JsonNode attributes = primitive.path("attributes");
+        return normalTexture.has("index") && !material.has("normalTexture")
+                && (mode == 4 || mode == 5) && texcoord >= 0 && texcoord <= 1
+                && attributes.has("POSITION") && attributes.has("NORMAL")
+                && !attributes.has("TANGENT") && attributes.has("TEXCOORD_" + texcoord);
     }
 
     public static record ValidateError(String message, String pointer, String code) {}
@@ -87,6 +111,7 @@ public class GLTFValidator {
 
         JsonNode issues = root.get("issues");
         JsonNode messages = issues.get("messages");
+        JsonNode source = null;
         for (JsonNode msgNode : messages) {
             JsonNode severityNode = msgNode.get("severity");
             JsonNode messageNode = msgNode.get("message");
@@ -98,6 +123,17 @@ public class GLTFValidator {
 
                 if (isTextureRelatedPointer(pointer)) {
                     continue;
+                }
+
+                if ("MESH_PRIMITIVE_NO_TANGENT_SPACE".equals(code)) {
+                    if (source == null) {
+                        try (InputStream stream = Files.newInputStream(Path.of(path))) {
+                            source = mapper.readTree(ModelUtil.readModelSource(stream).json());
+                        }
+                    }
+                    if (canGenerateClearcoatTangents(source, pointer)) {
+                        continue;
+                    }
                 }
 
                 ValidateError err = new ValidateError(messageNode.asText(), pointer, code);
