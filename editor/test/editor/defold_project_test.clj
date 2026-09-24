@@ -257,7 +257,8 @@
                   a1 (project/get-resource-node project "/a1.type_a")
                   a2 (project/get-resource-node project "/a2.type_a")
                   b (project/get-resource-node project "/b.type_b")
-                  evaluation-context (g/make-evaluation-context)]
+                  evaluation-context (g/make-evaluation-context)
+                  competing-context (g/make-evaluation-context)]
               (is (coll/empty? @loaded))
               (is (= [] (g/node-value project :save-data evaluation-context)))
               (is (= [] (g/node-value project :dirty-save-data evaluation-context)))
@@ -274,6 +275,9 @@
               (is (nil? (g/user-data a1 :source-value)))
               (is (= {:b "/b.type_b"} (g/node-value a1 :source-value evaluation-context)))
               (is (= [] (g/node-value project :save-data)))
+              (g/materialize-node! (if follow-prerequisites b a1) competing-context)
+              (is (= (if follow-prerequisites ["/b.type_b" "/a1.type_a"] ["/a1.type_a"]) @loaded))
+              (g/update-system-from-evaluation-context! competing-context)
               (g/update-system-from-evaluation-context! evaluation-context)
               (is (= (count @loaded) (count (g/node-value project :save-data))))
               (is (resource-node/loaded? (g/now) a1))

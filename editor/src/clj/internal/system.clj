@@ -14,7 +14,6 @@
 
 (ns internal.system
   (:require [internal.cache :as c]
-            [internal.evaluation-context :as ec]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
@@ -163,6 +162,8 @@
   (-> system
       (update :cache c/cache-invalidate outputs-modified)
       (update :user-data remove-deleted-user-data (coll/keys nodes-deleted))
+      (update :materializations #(reduce dissoc % (coll/keys nodes-deleted)))
+      (update :materialization-invalidate-counters #(reduce dissoc % (coll/keys nodes-deleted)))
       (update :invalidate-counters bump-invalidate-counters outputs-modified)))
 
 (defn- ensure-no-concurrent-modifications!
@@ -181,6 +182,20 @@
     system
     (assoc system :graph (update post-tx-basis :tx-id util/safe-inc))))
 
+(defn merge-materializations [system materializations outputs-modified]
+  (if (identical? (:materializations system) materializations)
+    system
+    (let [invalidate-counters (select-keys (:invalidate-counters system) outputs-modified)]
+      (reduce-kv (fn [system node-id info]
+                   (if (or (identical? info (get (:materializations system) node-id))
+                           (nil? (ig/node-by-id-at (basis system) node-id)))
+                     system
+                     (-> system
+                         (assoc-in [:materializations node-id] info)
+                         (assoc-in [:materialization-invalidate-counters node-id] invalidate-counters))))
+                 system
+                 materializations))))
+
 (defn- replay-changes
   [system transaction-changes change-fn]
   (let [ctx (it/new-transaction-context
@@ -189,7 +204,9 @@
               (override-id-generator system)
               {}
               nil
-              false)
+              false
+              (:shell-node-id->materialize-info-atom system)
+              (:materializations system))
         pre-tx-basis (:basis ctx)
         ctx (reduce (fn [ctx transaction-change]
                       (-> ctx
@@ -202,7 +219,8 @@
     (ensure-no-concurrent-modifications! system pre-tx-basis post-tx-basis)
     (-> system
         (commit-basis pre-tx-basis post-tx-basis)
-        (commit-transaction-effects outputs-modified nodes-deleted))))
+        (commit-transaction-effects outputs-modified nodes-deleted)
+        (merge-materializations (:materializations tx-result) outputs-modified))))
 
 (defn undo-action
   [system undo-key]
@@ -268,7 +286,10 @@
    :override-id-generator (integer-counter)
    :cache (make-cache configuration)
    :invalidate-counters {}
-   :user-data {}})
+   :user-data {}
+   :shell-node-id->materialize-info-atom (atom {})
+   :materializations {}
+   :materialization-invalidate-counters {}})
 
 (defn- register-undoable-changes
   [system undo-key label sequence-label undoable-changes]
@@ -292,8 +313,11 @@
 (defn default-evaluation-context [system]
   (-> (in/default-evaluation-context (basis system)
                                      (system-cache system)
-                                     (:invalidate-counters system))
-      (assoc :node-id-generator (node-id-generator system)
+                                     (:invalidate-counters system)
+                                     (:materializations system))
+      (assoc :initial-materialization-invalidate-counters (:materialization-invalidate-counters system)
+             :shell-node-id->materialize-info-atom (:shell-node-id->materialize-info-atom system)
+             :node-id-generator (node-id-generator system)
              :override-id-generator (override-id-generator system)
              :materialize-node! it/materialize-node!)))
 
@@ -310,6 +334,9 @@
   ;; we're using the system basis & cache.
   [system {options-basis :basis options-cache :cache :as options}]
   (let [options (assoc options
+                  :initial-materialization-invalidate-counters (:materialization-invalidate-counters system)
+                  :shell-node-id->materialize-info-atom (:shell-node-id->materialize-info-atom system)
+                  :materializations (:materializations system)
                   :node-id-generator (node-id-generator system)
                   :override-id-generator (override-id-generator system)
                   :materialize-node! it/materialize-node!)]
@@ -388,27 +415,49 @@
                 (update :cache c/cache-encache safe-cache-misses (in/evaluation-context-basis evaluation-context))))))))
     system))
 
+(defn- materialization-invalidate-counters [system evaluation-context]
+  ;; Account for canonical loads already installed by a competing context.
+  ;; Later edits still have larger counters and remain conflicts.
+  (let [{:keys [changes materializations]} @(:state-atom evaluation-context)
+        initial-counters (:initial-invalidate-counters evaluation-context)
+        initial-materializations (:initial-materializations evaluation-context)]
+    (if (coll/empty? changes)
+      initial-counters
+      (reduce-kv (fn [counters node-id info]
+                   (if (and (not (identical? info (get initial-materializations node-id)))
+                            (identical? info (get (:materializations system) node-id)))
+                     (merge-with max counters (get (:materialization-invalidate-counters system) node-id))
+                     counters))
+                 initial-counters
+                 materializations))))
+
 (defn evaluation-context-compatible? [system evaluation-context]
-  (let [{:keys [initial-basis changes invalidated]} @(ec/state evaluation-context)
+  (let [{:keys [changes invalidated-endpoints materializations]} @(:state-atom evaluation-context)
+        initial-basis (:initial-basis evaluation-context)
         initial-invalidate-counters (:initial-invalidate-counters evaluation-context)
-        invalidate-counters (:invalidate-counters system)
-        current-basis (basis system)]
+        invalidate-counters (:invalidate-counters system)]
     (and initial-invalidate-counters
          (not (full-invalidation-since? initial-invalidate-counters invalidate-counters))
          (or (coll/empty? changes)
-             (and (coll/not-any?
-                    #(endpoint-invalidated-since? % initial-invalidate-counters invalidate-counters)
-                    invalidated)
-                  (coll/not-any?
-                    (fn [node-id]
-                      (when-let [original-node (ig/node-by-id-at initial-basis node-id)]
-                        (not (identical? original-node (ig/node-by-id-at current-basis node-id)))))
-                    (it/materialized-node-ids changes)))))))
+             (let [expected-invalidate-counters (materialization-invalidate-counters system evaluation-context)
+                   current-basis (basis system)]
+               (and (coll/not-any?
+                      #(endpoint-invalidated-since? % expected-invalidate-counters invalidate-counters)
+                      invalidated-endpoints)
+                    (coll/not-any?
+                      (fn [[node-id info]]
+                        (when-not (identical? info (get (:materializations system) node-id))
+                          (coll/any? (fn [[shell-id original-node]]
+                                       (and (ig/node-by-id-at initial-basis shell-id)
+                                            (not (identical? original-node (ig/node-by-id-at current-basis shell-id)))))
+                                     (:shell-nodes info))))
+                      materializations)))))))
 
 (defn update-system-from-evaluation-context [system evaluation-context]
   (if-not (evaluation-context-compatible? system evaluation-context)
     system
-    (let [{:keys [changes user-data]} @(ec/state evaluation-context)
+    (let [{:keys [changes user-data]} @(:state-atom evaluation-context)
+          expected-invalidate-counters (materialization-invalidate-counters system evaluation-context)
           original-invalidate-counters (:invalidate-counters system)
           system (cond-> system
                    (coll/not-empty changes) (replay-changes changes it/perform-change))
@@ -418,7 +467,8 @@
       (-> system
           (update :user-data #(merge-with merge % user-data))
           (assoc :invalidate-counters original-invalidate-counters)
-          (update-cache-from-evaluation-context evaluation-context)
+          (update-cache-from-evaluation-context
+            (assoc evaluation-context :initial-invalidate-counters expected-invalidate-counters))
           (assoc :invalidate-counters invalidate-counters)))))
 
 (defn user-data [system node-id key]
@@ -445,4 +495,7 @@
    :override-id-generator (AtomicLong. (.longValue ^AtomicLong (:override-id-generator system)))
    :cache (:cache system)
    :user-data (:user-data system)
-   :invalidate-counters (:invalidate-counters system)})
+   :invalidate-counters (:invalidate-counters system)
+   :shell-node-id->materialize-info-atom (atom {})
+   :materializations (:materializations system)
+   :materialization-invalidate-counters (:materialization-invalidate-counters system)})

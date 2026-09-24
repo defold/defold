@@ -61,7 +61,8 @@
         (g/update-system-from-evaluation-context! evaluation-context)
         (is (not (in/unmaterialized-shell-node? (g/node-by-id (g/now) node-id))))
         (is (= 12 (g/node-value node-id :result)))
-        (g/update-system-from-evaluation-context! evaluation-context)
+        (is (thrown-with-msg? AssertionError #"Evaluation context is closed"
+                              (g/update-system-from-evaluation-context! evaluation-context)))
         (is (= 1 @calls))))))
 
 (deftest materialization-in-property-setter-test
@@ -117,7 +118,7 @@
       (let [evaluation-context (g/make-evaluation-context)]
         (is (thrown-with-msg? ExceptionInfo #"load failed" (g/node-value node-id :result evaluation-context)))
         (is (in/unmaterialized-shell-node? (g/node-by-id (g/ec-basis evaluation-context) node-id)))
-        (g/update-system-from-evaluation-context! evaluation-context)
+        (is (= {} (:user-data @(:state-atom evaluation-context))))
         (is (nil? (g/user-data node-id :source-value)))
         (reset! fail false)
         (is (= 9 (g/node-value node-id :result evaluation-context)))
@@ -153,7 +154,7 @@
         (g/update-system-from-evaluation-context! evaluation-context)
         (is (nil? (g/node-by-id (g/now) node-id)))))))
 
-(deftest evaluation-context-can-commit-more-than-once-test
+(deftest committed-evaluation-context-is-closed-test
   (with-clean-system
     (let [[a b] (g/take-node-ids 2)
           materialize-fn (fn [self _evaluation-context] (g/set-property self :value 17))]
@@ -161,14 +162,40 @@
         (concat
           (g/add-node (g/construct-shell ShellTestNode materialize-fn {:_node-id a}))
           (g/add-node (g/construct-shell ShellTestNode materialize-fn {:_node-id b}))))
-      (let [evaluation-context (g/make-evaluation-context)]
-        (doseq [node-id [a b]]
-          (is (= 17 (g/node-value node-id :result evaluation-context)))
-          (g/update-system-from-evaluation-context! evaluation-context)
-          (is (not (in/unmaterialized-shell-node? (g/node-by-id (g/now) node-id)))))))))
+      (let [evaluation-context (g/make-evaluation-context)
+            derived-context (assoc evaluation-context :tracer nil)
+            initial-basis (g/ec-basis evaluation-context)]
+        (is (g/evaluation-context? evaluation-context))
+        (is (not (contains? evaluation-context :basis)))
+        (is (= 17 (g/node-value a :result derived-context)))
+        (is (identical? initial-basis (:initial-basis evaluation-context)))
+        (is (not (identical? initial-basis (g/ec-basis evaluation-context))))
+        (is (identical? (g/ec-basis evaluation-context) (g/ec-basis derived-context)))
+        (g/update-system-from-evaluation-context! derived-context)
+        (doseq [context [evaluation-context derived-context]]
+          (is (thrown-with-msg? AssertionError #"Evaluation context is closed"
+                                (g/node-value b :result context)))
+          (is (thrown-with-msg? AssertionError #"Evaluation context is closed"
+                                (g/update-system-from-evaluation-context! context))))
+        (is (in/unmaterialized-shell-node? (g/node-by-id (g/now) b)))
+        (g/with-auto-evaluation-context fresh-context
+          (is (= 17 (g/node-value b :result fresh-context))))))))
 
 (g/defnode SharedMaterializationState
   (property values g/Any (default {})))
+
+(deftest restore-overridden-properties-keeps-evaluation-in-context-test
+  (with-clean-system
+    (with-redefs [g/node-key (fn [node-id evaluation-context]
+                               (g/node-value node-id :identity evaluation-context))]
+      (let [source (g/make-node! ShellTestNode :identity "source")]
+        (g/transact (g/override source))
+        (let [override-node-id (first (g/overrides source))]
+          (g/transact (g/set-property override-node-id :value 7))
+          (let [collected-properties (g/collect-overridden-properties override-node-id)]
+            (g/transact (g/set-property override-node-id :value 19))
+            (g/transact (g/restore-overridden-properties override-node-id collected-properties))
+            (is (= 7 (g/node-value override-node-id :value)))))))))
 
 (deftest concurrent-materialization-preserves-shared-state-test
   (with-clean-system
@@ -297,3 +324,266 @@
                        (g/connect @child :result parent :dependency))))
               [:create :connect]))))
       (is (= 37 (g/node-value parent :result))))))
+
+(g/defnode ShellWithChild
+  (property child g/NodeID))
+
+(deftest competing-contexts-share-materialization-test
+  (doseq [commit-before-second-evaluation [false true]]
+    (with-clean-system
+      (let [shell (first (g/take-node-ids 1))
+            calls (atom 0)]
+        (g/transact
+          (g/add-node
+            (g/construct-shell ShellWithChild
+                               (fn [self evaluation-context]
+                                 (swap! calls inc)
+                                 (let [child (first (g/take-node-ids 1))]
+                                   (g/merge-evaluation-user-data! evaluation-context {self {:source-value :loaded}})
+                                   [(g/add-node (g/construct ShellTestNode :_node-id child :value 42))
+                                    (g/set-property self :child child)]))
+                               {:_node-id shell})))
+        (let [first-context (g/make-evaluation-context)
+              second-context (g/make-evaluation-context)
+              child (g/node-value shell :child first-context)]
+          (when commit-before-second-evaluation
+            (g/update-system-from-evaluation-context! first-context))
+          (is (= child (g/node-value shell :child second-context)))
+          (is (= 42 (g/node-value child :result second-context)))
+          (is (= :loaded (g/evaluation-user-data second-context shell :source-value)))
+          (when-not commit-before-second-evaluation
+            (g/update-system-from-evaluation-context! first-context))
+          (g/update-system-from-evaluation-context! second-context)
+          (is (= child (g/node-value shell :child)))
+          (is (= 42 (g/node-value child :result)))
+          (is (= 1 @calls)))))))
+
+(deftest shared-materialization-retains-prerequisites-test
+  (doseq [load-prerequisite-first [false true]]
+    (with-clean-system
+      (let [[parent prerequisite] (g/take-node-ids 2)
+            calls (atom [])]
+        (g/transact
+          [(g/add-node
+             (g/construct-shell ShellWithChild
+                                (fn [self evaluation-context]
+                                  (swap! calls conj self)
+                                  (g/set-property self :child (g/node-value prerequisite :child evaluation-context)))
+                                {:_node-id parent}))
+           (g/add-node
+             (g/construct-shell ShellWithChild
+                                (fn [self _evaluation-context]
+                                  (swap! calls conj self)
+                                  (let [child (first (g/take-node-ids 1))]
+                                    [(g/add-node (g/construct ShellTestNode :_node-id child :value 37))
+                                     (g/set-property self :child child)]))
+                                {:_node-id prerequisite}))])
+        (let [first-context (g/make-evaluation-context)
+              second-context (g/make-evaluation-context)
+              third-context (g/make-evaluation-context)]
+          (when load-prerequisite-first
+            (g/node-value prerequisite :child first-context))
+          (let [child (g/node-value parent :child first-context)]
+            (is (= child (g/node-value parent :child second-context)))
+            (is (= 37 (g/node-value child :result second-context)))
+            (is (= child (g/node-value prerequisite :child third-context)))
+            (g/update-system-from-evaluation-context! third-context)
+            (g/update-system-from-evaluation-context! second-context)
+            (g/update-system-from-evaluation-context! first-context)
+            (is (= child (g/node-value parent :child)))
+            (is (= 37 (g/node-value child :result)))
+            (is (= {parent 1 prerequisite 1} (frequencies @calls)))))))))
+
+(deftest simultaneous-contexts-materialize-once-test
+  (with-clean-system
+    (let [shell (first (g/take-node-ids 1))
+          calls (atom 0)
+          entered (promise)
+          release (promise)]
+      (g/transact
+        (g/add-node
+          (g/construct-shell ShellWithChild
+                             (fn [self _evaluation-context]
+                               (swap! calls inc)
+                               (deliver entered true)
+                               (when (= ::timeout (deref release 10000 ::timeout))
+                                 (throw (ex-info "Timed out waiting to finish load" {})))
+                               (let [child (first (g/take-node-ids 1))]
+                                 [(g/add-node (g/construct ShellTestNode :_node-id child :value 11))
+                                  (g/set-property self :child child)]))
+                             {:_node-id shell})))
+      (let [first-context (g/make-evaluation-context)
+            second-context (g/make-evaluation-context)
+            first-result (future (g/node-value shell :child first-context))]
+        (try
+          (is (= true (deref entered 10000 ::timeout)))
+          (let [started (promise)
+                second-result (future
+                                (deliver started true)
+                                (g/node-value shell :child second-context))]
+            (is (= true (deref started 10000 ::timeout)))
+            (deliver release true)
+            (let [child (deref first-result 10000 ::timeout)]
+              (is (g/node-id? child))
+              (is (= child (deref second-result 10000 ::timeout)))
+              (g/update-system-from-evaluation-context! second-context)
+              (g/update-system-from-evaluation-context! first-context)
+              (is (= 11 (g/node-value child :result)))
+              (is (= 1 @calls))))
+          (finally
+            (deliver release true)))))))
+
+(deftest shared-materialization-does-not-overwrite-later-edit-test
+  (with-clean-system
+    (let [shell (first (g/take-node-ids 1))]
+      (g/transact
+        (g/add-node
+          (g/construct-shell ShellTestNode
+                             (fn [self _evaluation-context] (g/set-property self :value 1))
+                             {:_node-id shell})))
+      (let [first-context (g/make-evaluation-context)
+            second-context (g/make-evaluation-context)]
+        (is (= 1 (g/node-value shell :result first-context)))
+        (is (= 1 (g/node-value shell :result second-context)))
+        (g/update-system-from-evaluation-context! first-context)
+        (g/transact (g/set-property shell :value 99))
+        (g/update-system-from-evaluation-context! second-context)
+        (is (= 99 (g/node-value shell :result)))))))
+
+(deftest shared-materialization-can-replay-into-explicit-old-basis-test
+  (with-clean-system
+    (let [shell (first (g/take-node-ids 1))
+          calls (atom 0)]
+      (g/transact
+        (g/add-node
+          (g/construct-shell ShellTestNode
+                             (fn [self _evaluation-context]
+                               (swap! calls inc)
+                               (g/set-property self :value 5))
+                             {:_node-id shell})))
+      (let [old-basis (g/now)]
+        (is (= 5 (g/node-value shell :result)))
+        (let [evaluation-context (g/make-evaluation-context {:basis old-basis})]
+          (is (= 5 (g/node-value shell :result evaluation-context)))
+          (is (= 1 @calls)))))))
+
+(deftest failed-outer-materialization-rolls-back-shared-records-test
+  (doseq [preload-child [false true]]
+    (with-clean-system
+      (let [[parent child] (g/take-node-ids 2)
+            fail (atom true)
+            child-calls (atom 0)]
+        (g/transact
+          [(g/add-node
+             (g/construct-shell ShellTestNode
+                                (fn [self evaluation-context]
+                                  (let [value (g/node-value child :result evaluation-context)]
+                                    (when @fail
+                                      (throw (ex-info "outer load failed" {})))
+                                    (g/set-property self :value value)))
+                                {:_node-id parent}))
+           (g/add-node
+             (g/construct-shell ShellTestNode
+                                (fn [self _evaluation-context]
+                                  (swap! child-calls inc)
+                                  (g/set-property self :value 23))
+                                {:_node-id child}))])
+        (let [first-context (g/make-evaluation-context)
+              second-context (g/make-evaluation-context)]
+          (when preload-child
+            (g/node-value child :result second-context))
+          (is (thrown-with-msg? ExceptionInfo #"outer load failed"
+                                (g/node-value parent :result first-context)))
+          (is (in/unmaterialized-shell-node? (g/node-by-id (g/ec-basis first-context) child)))
+          (reset! fail false)
+          (is (= 23 (g/node-value parent :result second-context)))
+          (is (= 23 (g/node-value parent :result first-context)))
+          (is (= (if preload-child 1 2) @child-calls))
+          (g/update-system-from-evaluation-context! second-context)
+          (g/update-system-from-evaluation-context! first-context)
+          (is (= 23 (g/node-value parent :result))))))))
+
+(deftest cloned-systems-have-independent-materializations-test
+  (with-clean-system
+    (let [shell (first (g/take-node-ids 1))
+          calls (atom 0)]
+      (g/transact
+        (g/add-node
+          (g/construct-shell ShellTestNode
+                             (fn [self _evaluation-context]
+                               (g/set-property self :value (swap! calls inc)))
+                             {:_node-id shell})))
+      (let [clone (atom (g/clone-system))]
+        (is (= 1 (g/node-value shell :result)))
+        (binding [g/*the-system* clone]
+          (is (= 2 (g/node-value shell :result))))
+        (is (= 1 (g/node-value shell :result)))
+        (is (= 2 @calls))))))
+
+(deftest shared-committed-materialization-does-not-resurrect-deleted-node-test
+  (with-clean-system
+    (let [shell (first (g/take-node-ids 1))]
+      (g/transact
+        (g/add-node
+          (g/construct-shell ShellTestNode
+                             (fn [self _evaluation-context] (g/set-property self :value 1))
+                             {:_node-id shell})))
+      (let [evaluation-context (g/make-evaluation-context)]
+        (is (= 1 (g/node-value shell :result evaluation-context)))
+        (is (= 1 (g/node-value shell :result)))
+        (g/transact (g/delete-node shell))
+        (g/update-system-from-evaluation-context! evaluation-context)
+        (is (nil? (g/node-by-id (g/now) shell)))))))
+
+(deftest shared-materialization-survives-prerequisite-commit-test
+  (with-clean-system
+    (let [[parent prerequisite] (g/take-node-ids 2)
+          calls (atom 0)]
+      (g/transact
+        [(g/add-node
+           (g/construct-shell ShellWithChild
+                              (fn [self evaluation-context]
+                                (swap! calls inc)
+                                (let [value (g/node-value prerequisite :result evaluation-context)
+                                      child (first (g/take-node-ids 1))]
+                                  [(g/add-node (g/construct ShellTestNode :_node-id child :value value))
+                                   (g/set-property self :child child)]))
+                              {:_node-id parent}))
+         (g/add-node
+           (g/construct-shell ShellTestNode
+                              (fn [self _evaluation-context] (g/set-property self :value 17))
+                              {:_node-id prerequisite}))])
+      (let [first-context (g/make-evaluation-context)
+            child (g/node-value parent :child first-context)]
+        (is (= 17 (g/node-value prerequisite :result)))
+        (let [second-context (g/make-evaluation-context)]
+          (is (= child (g/node-value parent :child second-context)))
+          (is (= 1 @calls))
+          (g/update-system-from-evaluation-context! second-context)
+          (g/update-system-from-evaluation-context! first-context)
+          (is (= 17 (g/node-value child :result))))))))
+
+(deftest shared-materialization-preserves-nested-transaction-order-test
+  (with-clean-system
+    (let [[parent prerequisite child consumer] (g/take-node-ids 4)]
+      (g/transact
+        [(g/add-node (g/construct ShellConsumer :_node-id consumer))
+         (g/add-node
+           (g/construct-shell ShellTestNode
+                              (fn [_self _evaluation-context]
+                                [(g/add-node (g/construct ShellTestNode :_node-id child :value 11))
+                                 (g/set-property consumer :source prerequisite)])
+                              {:_node-id parent}))
+         (g/add-node
+           (g/construct-shell ShellTestNode
+                              (fn [self _evaluation-context]
+                                (g/connect child :result self :dependency))
+                              {:_node-id prerequisite}))])
+      (let [first-context (g/make-evaluation-context)
+            second-context (g/make-evaluation-context)]
+        (g/materialize-node! parent first-context)
+        (g/materialize-node! parent second-context)
+        (is (= 11 (g/node-value consumer :value second-context)))
+        (g/update-system-from-evaluation-context! first-context)
+        (g/update-system-from-evaluation-context! second-context)
+        (is (= 11 (g/node-value consumer :value)))))))

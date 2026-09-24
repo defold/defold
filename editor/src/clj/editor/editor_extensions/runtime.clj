@@ -422,32 +422,36 @@
             (fx/on-fx-thread
               (try
                 (g/update-system-from-evaluation-context! (:evaluation-context execution-context))
-                (future/complete! materializations-committed nil)
+                (future/complete! materializations-committed
+                  (assoc execution-context :evaluation-context (g/make-evaluation-context)))
                 (catch Throwable error
                   (future/fail! materializations-committed error))))
-            (-> (future/then-async materializations-committed
-                  (fn [_]
-                    (future/wrap (apply (.-f suspend) execution-context (.-args suspend)))))
-                ;; treat thrown Exceptions as error signals to the scripts
-                (future/catch (fn [e]
-                                (if (instance? OrphanedThread e)
-                                  (throw e)
-                                  e)))
-                (future/then-async
-                  (fn [result]
-                    (if-not (refresh-context? result)
-                      (invoke-suspending-impl execution-context runtime co (vm/wrap-userdata result))
-                      (let [refreshed-context (future/make)]
-                        (fx/on-fx-thread
-                          (try
-                            (g/update-system-from-evaluation-context! (:evaluation-context execution-context))
-                            (future/complete! refreshed-context
-                              (assoc execution-context :evaluation-context (g/make-evaluation-context)))
-                            (catch Throwable error
-                              (future/fail! refreshed-context error))))
-                        (future/then-async refreshed-context
-                          (fn [new-context]
-                            (invoke-suspending-impl new-context runtime co (vm/wrap-userdata result)))))))))))
+            (future/then-async materializations-committed
+              (fn [execution-context]
+                (-> (try
+                      (future/wrap (apply (.-f suspend) execution-context (.-args suspend)))
+                      (catch Throwable error
+                        (future/failed error)))
+                    ;; treat thrown Exceptions as error signals to the scripts
+                    (future/catch (fn [e]
+                                    (if (instance? OrphanedThread e)
+                                      (throw e)
+                                      e)))
+                    (future/then-async
+                      (fn [result]
+                        (if-not (refresh-context? result)
+                          (invoke-suspending-impl execution-context runtime co (vm/wrap-userdata result))
+                          (let [refreshed-context (future/make)]
+                            (fx/on-fx-thread
+                              (try
+                                (g/update-system-from-evaluation-context! (:evaluation-context execution-context))
+                                (future/complete! refreshed-context
+                                  (assoc execution-context :evaluation-context (g/make-evaluation-context)))
+                                (catch Throwable error
+                                  (future/fail! refreshed-context error))))
+                            (future/then-async refreshed-context
+                              (fn [new-context]
+                                (invoke-suspending-impl new-context runtime co (vm/wrap-userdata result)))))))))))))
         (future/failed (LuaError. ^String (->clj runtime coerce/to-string (.arg lua-success+rest-varargs 2))))))))
 
 (defn stdout
