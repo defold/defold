@@ -338,7 +338,6 @@
                                         (get-in scene-render-data [:renderables pass/outline]))]
                   (assert-read-only-property mesh-node-id :index 0)
                   (assert-read-only-property mesh-node-id :name "Body")
-                  (assert-read-only-property mesh-node-id :name-generated false)
                   (assert-read-only-property mesh-node-id :primitive-count 2)
                   (assert-read-only-property mesh-node-id :vertex-count 6)
                   (assert-selected-property app-view mesh-node-id :primitive-count 2)
@@ -364,22 +363,16 @@
                         (into [] (map-indexed vector) texture-outlines)]
                   (let [texture-node-id (:node-id texture-outline)
                         expected-values
-                        (nth [{:basisu false
-                               :image-index 0
-                               :mag-filter 9729
-                               :min-filter 9729
+                        (nth [{:mag-filter "Linear"
+                               :min-filter "Linear"
                                :name "PaintAlbedoTexture"
-                               :sampler-index 0
-                               :wrap-s 10497
-                               :wrap-t 10497}
-                              {:basisu false
-                               :image-index 1
-                               :mag-filter 9728
-                               :min-filter 9728
+                               :wrap-s "Repeat"
+                               :wrap-t "Repeat"}
+                              {:mag-filter "Nearest"
+                               :min-filter "Nearest"
                                :name "ChromeAlbedoTexture"
-                               :sampler-index 1
-                               :wrap-s 33071
-                               :wrap-t 33648}]
+                               :wrap-s "Clamp to Edge"
+                               :wrap-t "Mirrored Repeat"}]
                              texture-index)]
                     (doseq [[property-key expected-value] expected-values]
                       (assert-read-only-property texture-node-id property-key expected-value))))

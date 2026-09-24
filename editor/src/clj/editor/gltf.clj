@@ -238,14 +238,38 @@
 
 (defn- texture-metadata [textures]
   (mapv (fn [^GltfContainer$TextureMetadata texture]
-          {:index (.index texture)
-           :name (.name texture)
-           :sampler-index (.samplerIndex texture)
-           :min-filter (.minFilter texture)
-           :mag-filter (.magFilter texture)
-           :wrap-s (.wrapS texture)
-           :wrap-t (.wrapT texture)
-           :basisu (.basisu texture)})
+          (let [min-filter (.minFilter texture)
+                mag-filter (.magFilter texture)
+                wrap-s (.wrapS texture)
+                wrap-t (.wrapT texture)]
+            {:index (.index texture)
+             :name (.name texture)
+             :sampler-index (.samplerIndex texture)
+             :min-filter (case min-filter
+                           0 "Linear"
+                           9728 "Nearest"
+                           9729 "Linear"
+                           9984 "Nearest Mipmap Nearest"
+                           9985 "Linear Mipmap Nearest"
+                           9986 "Nearest Mipmap Linear"
+                           9987 "Linear Mipmap Linear"
+                           (format "Unknown (%d)" min-filter))
+             :mag-filter (case mag-filter
+                           0 "Linear"
+                           9728 "Nearest"
+                           9729 "Linear"
+                           (format "Unknown (%d)" mag-filter))
+             :wrap-s (case wrap-s
+                       10497 "Repeat"
+                       33071 "Clamp to Edge"
+                       33648 "Mirrored Repeat"
+                       (format "Unknown (%d)" wrap-s))
+             :wrap-t (case wrap-t
+                       10497 "Repeat"
+                       33071 "Clamp to Edge"
+                       33648 "Mirrored Repeat"
+                       (format "Unknown (%d)" wrap-t))
+             :basisu (.basisu texture)}))
         textures))
 
 (defn- gltf-asset-info

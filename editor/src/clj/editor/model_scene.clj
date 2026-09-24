@@ -928,7 +928,8 @@
   (property name g/Str
             (dynamic read-only? (g/constantly true)))
   (property name-generated g/Bool
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic visible (g/constantly false)))
   (property primitive-count g/Int
             (dynamic read-only? (g/constantly true)))
   (property vertex-count g/Int
@@ -1001,28 +1002,34 @@
                                             [:resource :image-resource])))
             (dynamic read-only? (g/constantly true)))
   (property image-index g/Int
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic visible (g/constantly false)))
   (property image-name g/Str
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic visible (g/constantly false)))
   (property uri g/Str
             (dynamic read-only? (g/constantly true))
-            (dynamic visible (g/fnk [uri] (not (string/blank? uri)))))
+            (dynamic visible (g/constantly false)))
   (property mime-type g/Str
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic visible (g/constantly false)))
   (property source-kind g/Str
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic visible (g/constantly false)))
   (property sampler-index g/Int
+            (dynamic read-only? (g/constantly true))
+            (dynamic visible (g/constantly false)))
+  (property min-filter g/Str
             (dynamic read-only? (g/constantly true)))
-  (property min-filter g/Int
+  (property mag-filter g/Str
             (dynamic read-only? (g/constantly true)))
-  (property mag-filter g/Int
+  (property wrap-s g/Str
             (dynamic read-only? (g/constantly true)))
-  (property wrap-s g/Int
-            (dynamic read-only? (g/constantly true)))
-  (property wrap-t g/Int
+  (property wrap-t g/Str
             (dynamic read-only? (g/constantly true)))
   (property basisu g/Bool
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic visible (g/constantly false)))
 
   (display-order [:index :name :image :image-index :image-name :uri :mime-type :source-kind
                   :sampler-index :min-filter :mag-filter :wrap-s :wrap-t :basisu])
