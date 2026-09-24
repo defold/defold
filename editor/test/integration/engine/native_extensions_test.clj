@@ -164,6 +164,53 @@
             (is (= content
                    (extender-resource-content (extender-resource resources "_app/app.manifest"))))))))))
 
+;; Verifies that opening a 1.13.1 2D-only manifest upgrades its Bullet3D exclusions
+;; and that Cmd+B uploads those exclusions, preventing missing Bullet linker symbols.
+(deftest ^:native-extensions legacy-bullet3d-app-manifest-migration-test
+  (test-util/with-temp-project-content
+    {"/game.project"
+     [{:path ["project" "title"]
+       :value "Empty project"}
+      {:path ["native_extension" "app_manifest"]
+       :value "/legacy.appmanifest"}]
+
+     "/legacy.appmanifest"
+     ["context:"
+      "  excludeLibs: [LinearMath, BulletDynamics, BulletCollision]"
+      "  excludeSymbols: []"
+      "platforms:"
+      "  arm64-osx:"
+      "    context:"
+      "      excludeLibs: [physics, LinearMath, BulletDynamics, BulletCollision]"
+      "      excludeSymbols: []"
+      "      libs: [physics_2d_defold]"
+      "  x86_64-win32:"
+      "    context:"
+      "      excludeLibs: [physics, libLinearMath, libBulletDynamics, libBulletCollision]"
+      "      excludeSymbols: []"
+      "  x86_64-linux:"
+      "    context:"
+      "      excludeLibs: [BulletDynamics]"]}
+    (let [manifest-node (project/get-resource-node project "/legacy.appmanifest")
+          manifest (g/node-value manifest-node :manifest)
+          upload (extender-resource-yaml (make-extender-resources project "arm64-macos") "_app/app.manifest")]
+      (is (true? (:dirty (g/node-value manifest-node :save-data))))
+      (doseq [platform [nil :arm64-osx :x86_64-win32]]
+        (let [context (if-not platform
+                        (:context manifest)
+                        (get-in manifest [:platforms platform :context]))
+              upload-context (if-not platform
+                               (get upload "context")
+                               (get-in upload ["platforms" (name platform) "context"]))]
+          (is (= 1 (get (frequencies (:excludeLibs context)) "script_bullet3d")))
+          (is (= ["ScriptBullet3DExt"] (:excludeSymbols context)))
+          (is (contains? (set (get upload-context "excludeLibs")) "script_bullet3d"))
+          (is (contains? (set (get upload-context "excludeSymbols")) "ScriptBullet3DExt"))))
+      (is (= ["BulletDynamics"]
+             (get-in manifest [:platforms :x86_64-linux :context :excludeLibs])))
+      (is (= ["physics_2d_defold"]
+             (get-in upload ["platforms" "arm64-osx" "context" "libs"]))))))
+
 (defn- blocking-async-build! [project prefs]
   @(app-view/async-build! project :prefs prefs))
 
