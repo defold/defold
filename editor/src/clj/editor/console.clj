@@ -685,7 +685,7 @@
 (defn- repaint-console-view! [view-node workspace on-region-click! elapsed-time]
   (let [{:keys [clear entries]} (dequeue-pending! 1024)]
     (when (or clear (seq entries))
-      (g/let-ec [basis (:basis evaluation-context)
+      (g/let-ec [basis (g/ec-basis evaluation-context)
                  resource-map (g/raw-property-value basis workspace :resource-map)
                  ^LayoutInfo prev-layout (g/node-value view-node :layout evaluation-context)
                  prev-lines (g/node-value view-node :lines evaluation-context)

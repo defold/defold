@@ -38,7 +38,7 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)]
+              (let [basis (g/ec-basis evaluation-context)]
                 (testing "Connections."
                   (is (= [(gt/->Arc source-node-id :property-output target-node-id :regular-input)]
                          (g/outputs basis source-node-id :property-output)))
@@ -56,7 +56,7 @@
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)]
+              (let [basis (g/ec-basis evaluation-context)]
                 (testing "Connections."
                   (is (coll/empty? (g/outputs basis source-node-id :property-output)))
                   (is (coll/empty? (g/inputs basis target-node-id :regular-input))))
@@ -96,7 +96,7 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)]
+              (let [basis (g/ec-basis evaluation-context)]
                 (testing "Connections."
                   (is (= [(gt/->Arc source-node-id :property-output target-node-id :array-input)]
                          (g/outputs basis source-node-id :property-output)))
@@ -114,7 +114,7 @@
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)]
+              (let [basis (g/ec-basis evaluation-context)]
                 (testing "Connections."
                   (is (coll/empty? (g/outputs basis source-node-id :property-output)))
                   (is (coll/empty? (g/inputs basis target-node-id :array-input))))
@@ -228,7 +228,7 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)]
+              (let [basis (g/ec-basis evaluation-context)]
                 (testing "Connections."
                   (is (= [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)]
                          (g/outputs basis first-source-node-id :property-output)))
@@ -264,7 +264,7 @@
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)]
+              (let [basis (g/ec-basis evaluation-context)]
                 (testing "Connections."
                   (is (= [(gt/->Arc first-source-node-id :property-output target-node-id :array-input)]
                          (g/outputs basis first-source-node-id :property-output)))
@@ -330,7 +330,7 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)]
+              (let [basis (g/ec-basis evaluation-context)]
                 (testing "Explicit connections."
                   (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)] (vec (g/explicit-outputs basis initial-source-node-id :property-output))))
                   (is (= [(gt/->Arc shadowing-source-node-id :property-output first-order-override-target-node-id :regular-input)] (vec (g/explicit-outputs basis shadowing-source-node-id :property-output))))
@@ -367,7 +367,7 @@
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)]
+              (let [basis (g/ec-basis evaluation-context)]
                 (testing "Explicit connections."
                   (is (= [(gt/->Arc initial-source-node-id :property-output original-target-node-id :regular-input)] (vec (g/explicit-outputs basis initial-source-node-id :property-output))))
                   (is (coll/empty? (g/explicit-outputs basis shadowing-source-node-id :property-output)))
@@ -444,7 +444,7 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)]
+              (let [basis (g/ec-basis evaluation-context)]
                 (testing "Explicit connections."
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-one-node-id :property-output))))
                   (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-two-node-id :property-output))))
@@ -489,7 +489,7 @@
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)]
+              (let [basis (g/ec-basis evaluation-context)]
                 (testing "Explicit connections."
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-one-node-id :property-output))))
                   (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-two-node-id :property-output))))
@@ -577,7 +577,7 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)]
+              (let [basis (g/ec-basis evaluation-context)]
                 (testing "Explicit connections."
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-one-node-id :property-output))))
                   (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-two-node-id :property-output))))
@@ -632,7 +632,7 @@
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)]
+              (let [basis (g/ec-basis evaluation-context)]
                 (testing "Explicit connections."
                   (is (= [(gt/->Arc initial-source-one-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-one-node-id :property-output))))
                   (is (= [(gt/->Arc initial-source-two-node-id :property-output original-target-node-id :array-input)] (vec (g/explicit-outputs basis initial-source-two-node-id :property-output))))

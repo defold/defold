@@ -96,7 +96,7 @@
             (let [project (test-util/setup-project! workspace)]
               (test-util/clear-cached-save-data! project)
               (g/with-auto-evaluation-context evaluation-context
-                (let [basis (:basis evaluation-context)]
+                (let [basis (g/ec-basis evaluation-context)]
                   (doseq [proj-path loadable-resource-proj-paths]
                     (let [resource (workspace/find-resource basis workspace proj-path)
                           resource-node (project/get-resource-node project resource evaluation-context)

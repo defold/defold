@@ -166,7 +166,7 @@
     evaluation-context    the evaluation context"
   [workspace node-id evaluation-context]
   (g/materialize-node! node-id evaluation-context)
-  (let [current-state (workspace/node-attachments (:basis evaluation-context) workspace)]
+  (let [current-state (workspace/node-attachments (g/ec-basis evaluation-context) workspace)]
     (reify IReduceInit
       (reduce [_ rf init]
         (loop [node-id node-id
@@ -174,17 +174,18 @@
           (let [acc (rf acc node-id)]
             (if (reduced? acc)
               @acc
-              (if-let [alternative-fn (:alternative (clojure.core/get current-state (g/node-type* (:basis evaluation-context) node-id)))]
+              (if-let [alternative-fn (:alternative (clojure.core/get current-state (g/node-type* (g/ec-basis evaluation-context) node-id)))]
                 (some-> (alternative-fn node-id evaluation-context) (recur acc))
                 acc))))))))
 
 (defn- get-list-definition
   "Internal. Returns either a tuple of node-id + list definition map or nil if
   it does not exist"
-  [workspace node-id list-kw {:keys [basis] :as evaluation-context}]
-  (let [current-state (workspace/node-attachments basis workspace)]
+  [workspace node-id list-kw evaluation-context]
+  (let [basis (g/ec-basis evaluation-context)
+        current-state (workspace/node-attachments basis workspace)]
     (coll/some
-      #(some->> (list-kw (:lists (clojure.core/get current-state (g/node-type* (:basis evaluation-context) %)))) (coll/pair %))
+      #(some->> (list-kw (:lists (clojure.core/get current-state (g/node-type* (g/ec-basis evaluation-context) %)))) (coll/pair %))
       (alternatives workspace node-id evaluation-context))))
 
 (defn- require-list-definition
@@ -200,8 +201,9 @@
 
 (defn list-kws
   "Return a set of all list keywords defined for a node"
-  [workspace node-id {:keys [basis] :as evaluation-context}]
-  (let [current-state (workspace/node-attachments basis workspace)]
+  [workspace node-id evaluation-context]
+  (let [basis (g/ec-basis evaluation-context)
+        current-state (workspace/node-attachments basis workspace)]
     (coll/into-> (alternatives workspace node-id evaluation-context) #{}
       (keep #(:lists (clojure.core/get current-state (g/node-type* basis %))))
       (mapcat keys))))
@@ -298,8 +300,9 @@
   (let [[node-id list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
     (list-definition-get list-definition node-id evaluation-context)))
 
-(defn- clear-tx [{:keys [basis] :as evaluation-context} workspace node-id list-kw]
-  (let [[node-id list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
+(defn- clear-tx [evaluation-context workspace node-id list-kw]
+  (let [basis (g/ec-basis evaluation-context)
+        [node-id list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
     (assert (list-definition-editable? list-definition node-id evaluation-context))
     (coll/mapcat
       #(g/delete-node (g/override-root basis %))
@@ -313,8 +316,9 @@
   [workspace node-id list-kw]
   (g/expand-ec clear-tx workspace node-id list-kw))
 
-(defn- remove-tx [{:keys [basis] :as evaluation-context} workspace node-id list-kw child-node-id]
-  (let [[node-id list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
+(defn- remove-tx [evaluation-context workspace node-id list-kw child-node-id]
+  (let [basis (g/ec-basis evaluation-context)
+        [node-id list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
     (assert (list-definition-editable? list-definition node-id evaluation-context))
     (let [children (list-definition-get list-definition node-id evaluation-context)]
       (assert (coll/some #(= child-node-id %) children))
@@ -356,7 +360,7 @@
   Returns a function suitable for use as a :get parameter to [[register]]"
   [child-node-type]
   (fn get-nodes-by-type [node evaluation-context]
-    (let [basis (:basis evaluation-context)]
+    (let [basis (g/ec-basis evaluation-context)]
       (coll/into-> (g/explicit-inputs basis node :nodes) []
         (map gt/source-id)
         (filter #(= child-node-type (g/node-type* basis %)))))))
@@ -367,7 +371,7 @@
 
   This function is suitable for use as a :get parameter to [[register]]"
   [node evaluation-context]
-  (let [basis (:basis evaluation-context)]
+  (let [basis (g/ec-basis evaluation-context)]
     (if (g/override? basis node)
       (g/node-value node :nodes evaluation-context)
       (mapv gt/source-id (g/explicit-inputs basis node :nodes)))))

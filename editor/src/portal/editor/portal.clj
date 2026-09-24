@@ -65,7 +65,7 @@
 
 (defn- proj-path-node-id [^String proj-path evaluation-context]
   (when (resource/proj-path? proj-path)
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           project (project basis)]
       (project/get-resource-node project proj-path evaluation-context))))
 
@@ -198,11 +198,11 @@
 
 (defn- can-nav-node-id? [value evaluation-context]
   (and (g/node-id? value)
-       (g/node-exists? (:basis evaluation-context) value)))
+       (g/node-exists? (g/ec-basis evaluation-context) value)))
 
 (defn- try-nav-node-id [node-id evaluation-context]
   (when (g/node-id? node-id)
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           node (g/node-by-id basis node-id)]
       (when node
         (let [node-type (g/node-type node)

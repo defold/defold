@@ -161,7 +161,7 @@
   (make-uri-string (g/raw-property-value basis workspace :root)))
 
 (defn- maybe-resource [project uri evaluation-context]
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         workspace (g/node-value project :workspace evaluation-context)]
     (when-let [proj-path (workspace/as-proj-path basis workspace (.getPath (URI. uri)))]
       (workspace/find-resource basis workspace proj-path))))
@@ -423,7 +423,7 @@
     jsonrpc
     "initialize"
     (lsp.async/with-auto-evaluation-context evaluation-context
-      (let [basis (:basis evaluation-context)
+      (let [basis (g/ec-basis evaluation-context)
             uri (root-uri basis (g/node-value project :workspace evaluation-context))
             title ((g/node-value project :settings evaluation-context) ["project" "title"])]
         {:processId (.pid (ProcessHandle/current))
@@ -509,7 +509,7 @@
     (try
       (let [launcher (:launcher server)
             directory (lsp.async/with-auto-evaluation-context evaluation-context
-                        (let [basis (:basis evaluation-context)
+                        (let [basis (g/ec-basis evaluation-context)
                               workspace (g/node-value project :workspace evaluation-context)]
                           (workspace/project-directory basis workspace)))
             connection (<! (a/thread (try (launch launcher directory) (catch Throwable e e))))]

@@ -83,6 +83,12 @@
 (defn- type? [x] (and (extends? Type (class x)) x))
 (defn- named? [x] (instance? Named x))
 
+(defn evaluation-context-basis
+  "Returns the current basis, including materializations performed in this
+  evaluation-context. The returned basis is an immutable snapshot."
+  [evaluation-context]
+  (:basis evaluation-context))
+
 ;;; ----------------------------------------
 ;;; Node type definition
 (declare node-type-resolve value-type-resolve)
@@ -447,12 +453,12 @@
 
   gt/Evaluation
   (produce-value [this label evaluation-context]
-    (let [node (ig/node-by-id-at (:basis evaluation-context) _node-id)]
+    (let [node (ig/node-by-id-at (evaluation-context-basis evaluation-context) _node-id)]
       (if (and (:_materialize-fn node)
                (not (unjammable? (get-in @_node-type [:output label]))))
         (let [materialize-node! (:materialize-node! evaluation-context)]
           (materialize-node! _node-id evaluation-context)
-          (gt/produce-value (ig/node-by-id-at (:basis evaluation-context) _node-id) label evaluation-context))
+          (gt/produce-value (ig/node-by-id-at (evaluation-context-basis evaluation-context) _node-id) label evaluation-context))
         (let [beh (behavior _node-type label)]
           (assert beh (str "No such output, input, or property " label " on " (:name @_node-type)))
           ((:fn beh) (or node this) label evaluation-context)))))
@@ -555,7 +561,7 @@
       :local (atom filtered-local))))
 
 (defn- validate-evaluation-context [evaluation-context]
-  (assert (some? (:basis evaluation-context)))
+  (assert (some? (evaluation-context-basis evaluation-context)))
   (assert (some? (:in-production evaluation-context)))
   (assert (some? (:local evaluation-context)))
   (assert (some? (:hits evaluation-context))))
@@ -584,7 +590,7 @@
     (when (and (unmaterialized-shell-node? node)
                (not (unjammable? (get (all-properties (gt/node-type node)) label))))
       ((:materialize-node! evaluation-context) node-id evaluation-context))
-    (let [node (ig/node-by-id-at (:basis evaluation-context) node-id)
+    (let [node (ig/node-by-id-at (evaluation-context-basis evaluation-context) node-id)
           node-type (gt/node-type node)]
       (when-let [behavior (property-behavior node-type label)]
         ((:fn behavior) node label evaluation-context)))))
@@ -1418,7 +1424,7 @@
 
 (defn pull-first-input-value
   [node input-label evaluation-context]
-  (let [basis (:basis evaluation-context)]
+  (let [basis (evaluation-context-basis evaluation-context)]
     (when-let [arc (first (ig/arcs-by-target basis (gt/node-id node) input-label))]
       (let [upstream-node (ig/node-by-id-at basis (gt/source-id arc))]
         (gt/produce-value upstream-node (gt/source-label arc) evaluation-context)))))
@@ -1434,7 +1440,7 @@
 
 (defn pull-input-values
   [node input-label evaluation-context]
-  (let [basis (:basis evaluation-context)]
+  (let [basis (evaluation-context-basis evaluation-context)]
     (mapv (fn [arc]
             (let [upstream-node (ig/node-by-id-at basis (gt/source-id arc))]
               (gt/produce-value upstream-node (gt/source-label arc) evaluation-context)))
@@ -1513,7 +1519,7 @@
                   (pair
                     argument
                     (condp = argument
-                      label `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label)
+                      label `(gt/get-property ~node-sym (evaluation-context-basis ~evaluation-context-sym) ~label)
                       (let [argument-annotations (get annotations argument)]
                         (fnk-argument-form description label argument argument-annotations node-sym node-id-sym evaluation-context-sym))))))
               arguments)
@@ -1527,7 +1533,7 @@
 (defn- collect-raw-property-value-form
   [property-label-sym node-sym node-id-sym evaluation-context-sym]
   (with-tracer-calls-form node-id-sym property-label-sym evaluation-context-sym :raw-property
-    (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~property-label-sym))))
+    (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (evaluation-context-basis ~evaluation-context-sym) ~property-label-sym))))
 
 (defn- collect-property-value-form
   [description property-label node-sym node-id-sym evaluation-context-sym]
@@ -1576,7 +1582,7 @@
     (desc-has-property? description argument)
     (if (= output argument)
       (with-tracer-calls-form node-id-sym argument evaluation-context-sym :raw-property
-        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~argument)))
+        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (evaluation-context-basis ~evaluation-context-sym) ~argument)))
       (collect-property-value-form description argument node-sym node-id-sym evaluation-context-sym))
 
     (desc-has-multivalued-input? description argument)
@@ -1620,7 +1626,7 @@
 (defn- check-jammed-form [description label node-sym node-id-sym label-sym evaluation-context-sym forms]
   (if (unjammable? (get-in description [:output label]))
     forms
-    `(or (output-jammer ~node-sym ~node-id-sym ~label-sym (:basis ~evaluation-context-sym))
+    `(or (output-jammer ~node-sym ~node-id-sym ~label-sym (evaluation-context-basis ~evaluation-context-sym))
          ~forms)))
 
 (defn- property-has-default-getter? [description label] (not (get-in description [:property label :value])))
@@ -1636,7 +1642,7 @@
       forms)))
 
 (defn- node-type-name [node-id evaluation-context]
-  (let [basis (:basis evaluation-context)
+  (let [basis (evaluation-context-basis evaluation-context)
         node (ig/node-by-id-at basis node-id)]
     (type-name (gt/node-type node))))
 
@@ -1898,7 +1904,7 @@
 
   gt/Evaluation
   (produce-value [this output evaluation-context]
-    (let [basis (:basis evaluation-context)]
+    (let [basis (evaluation-context-basis evaluation-context)]
       (cond
         (= :_node-id output)
         (trace-expr-result node-id output evaluation-context :raw-property node-id)

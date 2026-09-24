@@ -286,7 +286,7 @@
   (property collection-desc g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (:basis evaluation-context)
+                   (let [basis (g/ec-basis evaluation-context)
                          project (project/get-project basis)
                          workspace (project/workspace project evaluation-context)
                          proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)]

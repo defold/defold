@@ -392,7 +392,7 @@
 
 (g/defnk produce-tile-source-outline [_node-id child-outlines ^:unsafe _evaluation-context]
   ;; Node types are immutable, and child-outlines tracks the node ids examined.
-  (let [{coll-outlines true anim-outlines false} (group-by #(g/node-instance? (:basis _evaluation-context) CollisionGroupNode (:node-id %)) child-outlines)]
+  (let [{coll-outlines true anim-outlines false} (group-by #(g/node-instance? (g/ec-basis _evaluation-context) CollisionGroupNode (:node-id %)) child-outlines)]
     {:node-id _node-id
      :node-outline-key "Tile Source"
      :label (localization/message "outline.tile-source")

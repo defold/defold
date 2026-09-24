@@ -81,7 +81,7 @@
 
           editable-code-resource-node-ids
           (g/with-auto-evaluation-context evaluation-context
-            (let [basis (:basis evaluation-context)]
+            (let [basis (g/ec-basis evaluation-context)]
               (into []
                     (comp (filter resource/editable?)
                           (map #(project/get-resource-node project % evaluation-context))

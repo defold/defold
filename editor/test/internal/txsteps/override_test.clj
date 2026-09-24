@@ -317,7 +317,7 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)]
+              (let [basis (g/ec-basis evaluation-context)]
                 (is (= :owner-property-value
                        (g/raw-property-value basis owner-node-id :property)
                        (g/node-value owner-node-id :property-output evaluation-context)))
@@ -334,7 +334,7 @@
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)
+              (let [basis (g/ec-basis evaluation-context)
                     [first-order-override-owner-node-id :as overrides-of-owner-node-id] (g/overrides basis owner-node-id)
                     [first-order-override-directly-owned-node-id :as overrides-of-directly-owned-node-id] (g/overrides basis directly-owned-node-id)
                     [first-order-override-indirectly-owned-node-id :as overrides-of-indirectly-owned-node-id] (g/overrides basis indirectly-owned-node-id)]
@@ -403,7 +403,7 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)]
+              (let [basis (g/ec-basis evaluation-context)]
                 (is (= :owner-property-value
                        (g/raw-property-value basis owner-node-id :property)
                        (g/node-value owner-node-id :property-output evaluation-context)))
@@ -420,7 +420,7 @@
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)
+              (let [basis (g/ec-basis evaluation-context)
                     [first-order-override-owner-node-id :as overrides-of-owner-node-id] (g/overrides basis owner-node-id)
                     [first-order-override-directly-owned-node-id :as overrides-of-directly-owned-node-id] (g/overrides basis directly-owned-node-id)
                     [first-order-override-indirectly-owned-node-id :as overrides-of-indirectly-owned-node-id] (g/overrides basis indirectly-owned-node-id)]
@@ -497,7 +497,7 @@
           ensure-before!
           (fn ensure-before! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)]
+              (let [basis (g/ec-basis evaluation-context)]
                 (is (= :owner-property-value
                        (g/raw-property-value basis owner-node-id :property)
                        (g/node-value owner-node-id :property-output evaluation-context)))
@@ -514,7 +514,7 @@
           ensure-after!
           (fn ensure-after! []
             (g/with-auto-evaluation-context evaluation-context
-              (let [basis (:basis evaluation-context)
+              (let [basis (g/ec-basis evaluation-context)
                     [first-order-override-owner-node-id :as overrides-of-owner-node-id] (g/overrides basis owner-node-id)
                     [first-order-override-directly-owned-node-id :as overrides-of-directly-owned-node-id] (g/overrides basis directly-owned-node-id)
                     [first-order-override-indirectly-owned-node-id :as overrides-of-indirectly-owned-node-id] (g/overrides basis indirectly-owned-node-id)]

@@ -213,7 +213,7 @@
                                            {1 proj-path-or-opts-map}
                                            proj-path-or-opts-map))
                                        (rt/->clj rt created-resources-coercer lua-created-resources))
-          basis (:basis evaluation-context)
+          basis (g/ec-basis evaluation-context)
           workspace (project/workspace project evaluation-context)
           project-dir (workspace/project-directory basis workspace)
           resource-types (resource/resource-types-by-type-ext basis workspace :editable)
@@ -250,7 +250,7 @@
           (future/then (fn [_] (reload-resources!)))
           (future/then
             (fn [_]
-              (g/let-ec [basis (:basis evaluation-context)
+              (g/let-ec [basis (g/ec-basis evaluation-context)
                          invalid-proj-paths
                          (coll/into-> created-resource-infos []
                            (keep (fn [{proj-path 1}]
@@ -264,7 +264,7 @@
 (defn- make-ext-create-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-create-directory [{:keys [rt evaluation-context]} lua-proj-path]
     (let [^String proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)
-          basis (:basis evaluation-context)
+          basis (g/ec-basis evaluation-context)
           workspace (project/workspace project evaluation-context)
           root-path (-> (workspace/project-directory basis workspace)
                         (path/real))
@@ -282,7 +282,7 @@
 
 (defn- make-ext-delete-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-delete-directory [{:keys [rt evaluation-context]} lua-proj-path]
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)
           workspace (project/workspace project evaluation-context)
           root-path (-> (workspace/project-directory basis workspace)
@@ -329,7 +329,7 @@
 
 (defn- make-ext-resource-attributes-fn [project]
   (rt/lua-fn ext-resource-attributes [{:keys [rt evaluation-context]} lua-resource-path]
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           proj-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)
           workspace (project/workspace project evaluation-context)]
       (if-let [resource (workspace/find-resource basis workspace proj-path)]
@@ -494,7 +494,7 @@
   (rt/suspendable-varargs-lua-fn open-resource [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [resource-path]
            {:keys [view args]} :rest} (rt/->clj rt open-resource-args-coercer varargs)
-          resource (workspace/find-resource (:basis evaluation-context) workspace resource-path)]
+          resource (workspace/find-resource (g/ec-basis evaluation-context) workspace resource-path)]
       (if-not (and resource (resource/exists? resource) (resource/openable? resource))
         (throw (LuaError. (format "Resource '%s' could not be opened" resource-path)))
         (if-not view
@@ -794,7 +794,7 @@
       (lsp.async/with-auto-evaluation-context evaluation-context
         (let [sync-hash (script-annotations/sync-hash script-annotations evaluation-context)
               workspace (g/node-value project :workspace evaluation-context)
-              project-root (g/raw-property-value (:basis evaluation-context) workspace :root)]
+              project-root (g/raw-property-value (g/ec-basis evaluation-context) workspace :root)]
           (lsp/set-servers!
             lsp
             (-> ext-language-servers
@@ -1078,7 +1078,7 @@
                                                   strings"
   [project kind & {:keys [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!] :as opts}]
   {:pre [web-server prefs localization reload-resources! display-output! save! open-resource! fetch-libraries! invoke-bob!]}
-  (g/let-ec [basis (:basis evaluation-context)
+  (g/let-ec [basis (g/ec-basis evaluation-context)
              lsp (lsp/get-lsp basis)
              script-annotations (project/script-annotations project evaluation-context)
              extensions (g/node-value project :editor-extensions evaluation-context)

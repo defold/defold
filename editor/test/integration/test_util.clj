@@ -1610,14 +1610,14 @@
      (first-subnode-of-type resource-node-id subnode-type evaluation-context)))
   ([resource-node-id subnode-type evaluation-context]
    (or (some (fn [{:keys [node-id]}]
-               (when (g/node-instance? (:basis evaluation-context) subnode-type node-id)
+               (when (g/node-instance? (g/ec-basis evaluation-context) subnode-type node-id)
                  node-id))
              (tree-seq :children :children
                        (g/valid-node-value resource-node-id :node-outline evaluation-context)))
        (throw (ex-info "No subnode matches the specified node type."
                        {:subnode-type (:k subnode-type)
-                        :node-type (g/node-type-kw (:basis evaluation-context) resource-node-id)
-                        :proj-path (resource/resource->proj-path (resource-node/as-resource-original (:basis evaluation-context) resource-node-id))})))))
+                        :node-type (g/node-type-kw (g/ec-basis evaluation-context) resource-node-id)
+                        :proj-path (resource/resource->proj-path (resource-node/as-resource-original (g/ec-basis evaluation-context) resource-node-id))})))))
 
 (defn- get-setting-impl [form-data setting-path evaluation-context]
   (let [user-data (:user-data (:form-ops form-data))

@@ -47,17 +47,17 @@
             {:_node-id node-id
              :identity "shell"})))
       (let [evaluation-context (g/make-evaluation-context)
-            shell (g/node-by-id (:basis evaluation-context) node-id)]
+            shell (g/node-by-id (g/ec-basis evaluation-context) node-id)]
         (is (= "shell" (g/node-value node-id :identity evaluation-context)))
         (is (zero? @calls))
-        (is (thrown? ExceptionInfo (gt/get-property shell (:basis evaluation-context) :value)))
+        (is (thrown? ExceptionInfo (gt/get-property shell (g/ec-basis evaluation-context) :value)))
         (is (thrown? ExceptionInfo (gt/assigned-properties shell)))
         (is (= 12 (g/node-value node-id :result evaluation-context)))
         (is (= 12 (g/node-value node-id :result evaluation-context)))
         (is (= 1 @calls))
         (is (in/unmaterialized-shell-node? (g/node-by-id (g/now) node-id)))
         (is (nil? (g/node-by-id (g/now) child-id)))
-        (is (not (in/unmaterialized-shell-node? (g/node-by-id (:basis evaluation-context) node-id))))
+        (is (not (in/unmaterialized-shell-node? (g/node-by-id (g/ec-basis evaluation-context) node-id))))
         (g/update-system-from-evaluation-context! evaluation-context)
         (is (not (in/unmaterialized-shell-node? (g/node-by-id (g/now) node-id))))
         (is (= 12 (g/node-value node-id :result)))
@@ -116,7 +116,7 @@
             {:_node-id node-id})))
       (let [evaluation-context (g/make-evaluation-context)]
         (is (thrown-with-msg? ExceptionInfo #"load failed" (g/node-value node-id :result evaluation-context)))
-        (is (in/unmaterialized-shell-node? (g/node-by-id (:basis evaluation-context) node-id)))
+        (is (in/unmaterialized-shell-node? (g/node-by-id (g/ec-basis evaluation-context) node-id)))
         (g/update-system-from-evaluation-context! evaluation-context)
         (is (nil? (g/user-data node-id :source-value)))
         (reset! fail false)

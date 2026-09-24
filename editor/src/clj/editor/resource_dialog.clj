@@ -50,7 +50,7 @@
   ;; Dependencies are files that this file depends on. I.e. the atlas this sprite uses.
   (g/with-auto-evaluation-context evaluation-context
     (when-some [resource-node-id (project/get-resource-node project filter-value evaluation-context)]
-      (let [basis (:basis evaluation-context)
+      (let [basis (g/ec-basis evaluation-context)
 
             resource-nodes-we-depend-on
             (into #{}
@@ -98,7 +98,7 @@
   ;; Referencing files are files that depend on this file. I.e. the four sprites that refer to this atlas.
   (g/with-auto-evaluation-context evaluation-context
     (when-some [resource-node-id (project/get-resource-node project filter-value evaluation-context)]
-      (let [basis (:basis evaluation-context)
+      (let [basis (g/ec-basis evaluation-context)
 
             resource-nodes-that-depend-on-us
 

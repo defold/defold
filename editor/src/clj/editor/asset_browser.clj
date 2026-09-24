@@ -584,7 +584,7 @@
             (select-resource! asset-browser resource))))))
   (options [workspace user-data localization evaluation-context]
     (when (not user-data)
-      (let [basis (:basis evaluation-context)
+      (let [basis (g/ec-basis evaluation-context)
 
             base-columns
             (mapv #(mapv localization/message %)

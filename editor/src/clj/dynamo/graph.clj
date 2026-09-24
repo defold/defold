@@ -46,6 +46,8 @@
 
 (namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order property-statics])
 
+(namespaces/import-fn internal.node/evaluation-context-basis ec-basis)
+
 (namespaces/import-vars [internal.graph connected? dependencies node-ids pre-traverse successors])
 
 (namespaces/import-vars [internal.system endpoint-invalidated-since? evaluation-context-invalidate-counters full-invalidation-since?])
@@ -1352,7 +1354,7 @@
      (node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
    (when (some? node-id)
-     (let [basis (:basis evaluation-context)
+     (let [basis (ec-basis evaluation-context)
            node (ig/node-by-id-at basis node-id)]
        (in/node-value node label evaluation-context)))))
 
@@ -1366,7 +1368,7 @@
    (let [value (node-value node-id label evaluation-context)]
      (if-not (error? value)
        value
-       (let [node-type-kw (node-type-kw (:basis evaluation-context) node-id)]
+       (let [node-type-kw (node-type-kw (ec-basis evaluation-context) node-id)]
          (throw
            (ex-info
              (format "Evaluation produced an ErrorValue from %s on %s %d."
@@ -1385,7 +1387,7 @@
      (maybe-node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
    (when (some? node-id)
-     (let [basis (:basis evaluation-context)
+     (let [basis (ec-basis evaluation-context)
            node (ig/node-by-id-at basis node-id)]
        (when (some-> node gt/node-type (in/behavior label))
          (let [value (in/node-value node label evaluation-context)]
@@ -1955,8 +1957,8 @@
   for nodes that return a non-nil node-key. Usually this only happens for
   ResourceNodes, but this also enables us to restore overridden properties on
   nodes produced by the resource :load-fn."
-  (fn [node-id {:keys [basis] :as _evaluation-context}]
-    (if-some [node-type-kw (node-type-kw basis node-id)]
+  (fn [node-id evaluation-context]
+    (if-some [node-type-kw (node-type-kw (ec-basis evaluation-context) node-id)]
       node-type-kw
       (throw (ex-info (str "Unknown node id: " node-id)
                       {:node-id node-id})))))
@@ -1966,8 +1968,8 @@
 (defn overridden-properties
   "Returns a map of overridden prop-keywords to property values. Values will be
   produced by property value functions if possible."
-  [node-id {:keys [basis] :as evaluation-context}]
-  (if-let [node (node-by-id basis node-id)]
+  [node-id evaluation-context]
+  (if-let [node (node-by-id (ec-basis evaluation-context) node-id)]
     (let [node-type (gt/node-type node)]
       (into {}
             (map (fn [[prop-kw raw-prop-value]]
@@ -1989,33 +1991,34 @@
   ([source-node-id]
    (with-auto-evaluation-context evaluation-context
      (collect-overridden-properties source-node-id evaluation-context)))
-  ([source-node-id {:keys [basis] :as evaluation-context}]
-   (persistent!
-     (reduce
-       (fn [properties-by-override-node-key override-node-id]
-         (or (when-some [override-id (override-id basis override-node-id)]
-               (when-some [node-key (node-key override-node-id evaluation-context)]
-                 (let [override-node-key [override-id node-key]
-                       overridden-properties (overridden-properties override-node-id evaluation-context)]
-                   (if (contains? properties-by-override-node-key override-node-key)
-                     (let [node-type-kw (node-type-kw basis override-node-id)]
-                       (throw
-                         (ex-info
-                           (format "Duplicate node key `%s` from %s"
-                                   node-key
-                                   node-type-kw)
-                           {:node-key node-key
-                            :node-type node-type-kw
-                            :source-node-id source-node-id
-                            :override-node-id override-node-id
-                            :override-node-key override-node-key
-                            :properties-by-override-node-key (persistent! properties-by-override-node-key)})))
-                     (when (seq overridden-properties)
-                       (assoc! properties-by-override-node-key
-                         override-node-key overridden-properties))))))
-             properties-by-override-node-key))
-       (transient {})
-       (ig/pre-traverse basis [source-node-id] ig/cascade-delete-sources)))))
+  ([source-node-id evaluation-context]
+   (let [basis (ec-basis evaluation-context)]
+     (persistent!
+       (reduce
+         (fn [properties-by-override-node-key override-node-id]
+           (or (when-some [override-id (override-id basis override-node-id)]
+                 (when-some [node-key (node-key override-node-id evaluation-context)]
+                   (let [override-node-key [override-id node-key]
+                         overridden-properties (overridden-properties override-node-id evaluation-context)]
+                     (if (contains? properties-by-override-node-key override-node-key)
+                       (let [node-type-kw (node-type-kw basis override-node-id)]
+                         (throw
+                           (ex-info
+                             (format "Duplicate node key `%s` from %s"
+                                     node-key
+                                     node-type-kw)
+                             {:node-key node-key
+                              :node-type node-type-kw
+                              :source-node-id source-node-id
+                              :override-node-id override-node-id
+                              :override-node-key override-node-key
+                              :properties-by-override-node-key (persistent! properties-by-override-node-key)})))
+                       (when (seq overridden-properties)
+                         (assoc! properties-by-override-node-key
+                           override-node-key overridden-properties))))))
+               properties-by-override-node-key))
+         (transient {})
+         (ig/pre-traverse basis [source-node-id] ig/cascade-delete-sources))))))
 
 (defn restore-overridden-properties
   "Restores collected-properties obtained from the collect-overridden-properties
@@ -2026,14 +2029,15 @@
   ([target-node-id collected-properties]
    (with-auto-evaluation-context evaluation-context
      (restore-overridden-properties target-node-id collected-properties evaluation-context)))
-  ([target-node-id collected-properties {:keys [basis] :as evaluation-context}]
-   (for [node-id (ig/pre-traverse basis [target-node-id] ig/cascade-delete-sources)]
-     (when-some [override-id (override-id basis node-id)]
-       (when-some [node-key (node-key node-id evaluation-context)]
-         (let [override-node-key [override-id node-key]
-               overridden-properties (collected-properties override-node-key)]
-           (for [[prop-kw prop-value] overridden-properties]
-             (set-property node-id prop-kw prop-value))))))))
+  ([target-node-id collected-properties evaluation-context]
+   (let [basis (ec-basis evaluation-context)]
+     (for [node-id (ig/pre-traverse basis [target-node-id] ig/cascade-delete-sources)]
+       (when-some [override-id (override-id basis node-id)]
+         (when-some [node-key (node-key node-id evaluation-context)]
+           (let [override-node-key [override-id node-key]
+                 overridden-properties (collected-properties override-node-key)]
+             (for [[prop-kw prop-value] overridden-properties]
+               (set-property node-id prop-kw prop-value)))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Boot, initialization, and facade

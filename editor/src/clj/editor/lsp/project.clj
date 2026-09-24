@@ -34,7 +34,7 @@
 (def ^:private ^:const completion-item-kind-reference 18)
 
 (defn- uri->resource [project uri evaluation-context]
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         workspace (g/node-value project :workspace evaluation-context)]
     (when-let [proj-path (workspace/as-proj-path basis workspace (.getPath (URI. uri)))]
       (workspace/find-resource basis workspace proj-path))))
@@ -76,7 +76,7 @@
 (defn- complete-urls [project owner-root-ids socket line character url-content evaluation-context]
   (if (coll/empty? owner-root-ids)
     []
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           replacement-start (- character (count url-content))]
       (->> (g/node-value project :nodes-by-resource-path evaluation-context)
            (e/mapcat (fn [[_ node-id]]
@@ -115,7 +115,7 @@
 
 (defn- completion-owner-root-ids [project resource-node-id resource evaluation-context]
   (resource-node/materialize-resource-types! #{"collection" "go"} evaluation-context)
-  (let [basis (:basis evaluation-context)]
+  (let [basis (g/ec-basis evaluation-context)]
     (owning-game-object-node-ids
       basis
       (if (= "script" (resource/type-ext resource))

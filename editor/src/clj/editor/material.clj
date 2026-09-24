@@ -584,7 +584,7 @@
 
 (defmulti handle-sampler-names-changed
   (fn [evaluation-context target-node old-name-index new-name-index sampler-renames sampler-deletions]
-    (let [basis (:basis evaluation-context)]
+    (let [basis (g/ec-basis evaluation-context)]
       (g/node-type-kw basis target-node))))
 
 (defmethod handle-sampler-names-changed :default [_ _ _ _ _ _])
@@ -602,7 +602,7 @@
                 (map gt/target-id)
                 (distinct)
                 (mapcat #(handle-sampler-names-changed evaluation-context % old-name-index new-name-index renames deletions)))
-              (g/outputs (:basis evaluation-context) self label))))))
+              (g/outputs (g/ec-basis evaluation-context) self label))))))
 
 (g/defnode MaterialNode
   (inherits resource-node/ResourceNode)

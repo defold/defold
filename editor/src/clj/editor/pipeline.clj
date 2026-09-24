@@ -196,38 +196,39 @@
 (def ^:private cheap-batch-size 500)
 (def ^:private expensive-batch-size 5)
 
-(defn decorate-build-exception [exception stage node-id resource-path {:keys [basis] :as evaluation-context}]
-  (try
-    (let [{:keys [owner-resource-node-id node-debug-label-path] :as node-debug-info}
-          (node-util/node-debug-info node-id evaluation-context)]
-      (ex-info (format "Failed to %s %s %s."
-                       (name stage)
-                       (if (= owner-resource-node-id node-id)
-                         "resource"
-                         "node")
-                       (string/join " -> "
-                                    (map #(str \' % \')
-                                         node-debug-label-path)))
-               (assoc node-debug-info
-                 :ex-type ::decorated-build-exception
-                 :node-id node-id
-                 :proj-path (or (some->> owner-resource-node-id
-                                         (resource-node/as-resource basis)
-                                         (resource/proj-path))
-                                resource-path))
-               exception))
-    (catch Throwable error
-      (try
-        (if (coll/not-empty resource-path)
-          (ex-info (format "Failed for resource '%s'." resource-path)
-                   {:node-id node-id
-                    :proj-path resource-path
-                    :stage stage
-                    :error error}
-                   exception)
-          exception)
-        (catch Throwable _
-          exception)))))
+(defn decorate-build-exception [exception stage node-id resource-path evaluation-context]
+  (let [basis (g/ec-basis evaluation-context)]
+    (try
+      (let [{:keys [owner-resource-node-id node-debug-label-path] :as node-debug-info}
+            (node-util/node-debug-info node-id evaluation-context)]
+        (ex-info (format "Failed to %s %s %s."
+                         (name stage)
+                         (if (= owner-resource-node-id node-id)
+                           "resource"
+                           "node")
+                         (string/join " -> "
+                                      (map #(str \' % \')
+                                           node-debug-label-path)))
+                 (assoc node-debug-info
+                   :ex-type ::decorated-build-exception
+                   :node-id node-id
+                   :proj-path (or (some->> owner-resource-node-id
+                                           (resource-node/as-resource basis)
+                                           (resource/proj-path))
+                                  resource-path))
+                 exception))
+      (catch Throwable error
+        (try
+          (if (coll/not-empty resource-path)
+            (ex-info (format "Failed for resource '%s'." resource-path)
+                     {:node-id node-id
+                      :proj-path resource-path
+                      :stage stage
+                      :error error}
+                     exception)
+            exception)
+          (catch Throwable _
+            exception))))))
 
 (defn decorated-build-exception? [exception]
   (= ::decorated-build-exception (:ex-type (ex-data exception))))

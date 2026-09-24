@@ -41,7 +41,7 @@
 (defn view-render [view point user-data]
   (update view :fb assoc point user-data))
 
-(defmulti render (fn [evaluation-context node-id view] (g/node-type* (:basis evaluation-context) node-id)))
+(defmulti render (fn [evaluation-context node-id view] (g/node-type* (g/ec-basis evaluation-context) node-id)))
 
 (defrecord Mesh [vertices]
   types/GeomCloud

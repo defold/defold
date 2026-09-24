@@ -213,9 +213,9 @@
 (defn materialize-resource-types!
   "Loads containers needed by queries that follow references in reverse."
   [type-exts evaluation-context]
-  (coll/run!-> (g/node-ids (:basis evaluation-context))
+  (coll/run!-> (g/node-ids (g/ec-basis evaluation-context))
     (fn [node-id]
-      (when-let [resource (as-resource-original (:basis evaluation-context) node-id)]
+      (when-let [resource (as-resource-original (g/ec-basis evaluation-context) node-id)]
         (when (and (contains? type-exts (resource/type-ext resource))
                    (resource/loaded? resource))
           (g/materialize-node! node-id evaluation-context))))))
@@ -300,7 +300,7 @@
   (let [sha256-or-error (g/node-value resource-node-id :sha256 evaluation-context)]
     (if-not (g/error? sha256-or-error)
       sha256-or-error
-      (let [basis (:basis evaluation-context)
+      (let [basis (g/ec-basis evaluation-context)
             resource (resource basis resource-node-id)
             proj-path (resource/proj-path resource)]
         (throw (ex-info (str "Failed to calculate sha256 hash of resource: " proj-path)

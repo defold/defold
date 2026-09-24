@@ -295,7 +295,7 @@
                    (concat
                      (when-some [old-source (g/node-value self :source-id evaluation-context)]
                        (g/delete-node old-source))
-                     (let [basis (:basis evaluation-context)
+                     (let [basis (g/ec-basis evaluation-context)
                            new-resource (:resource new-value)
                            resource-type (some-> new-resource resource/resource-type)
                            project (project/get-project basis)
@@ -534,7 +534,7 @@
           (add-referenced-component! go-id resource select-fn))))))
 
 (defn- selection->game-object [selection evaluation-context]
-  (let [basis (:basis evaluation-context)]
+  (let [basis (g/ec-basis evaluation-context)]
     (g/override-root basis (handler/adapt-single selection GameObjectNode evaluation-context))))
 
 (handler/defhandler :edit.add-referenced-component :workbench
@@ -645,7 +645,7 @@
   (active? [selection evaluation-context] (selection->game-object selection evaluation-context))
   (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))
   (options [selection user-data evaluation-context]
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           self (selection->game-object selection evaluation-context)
           workspace (:workspace (g/node-value self :resource evaluation-context))]
       (add-embedded-component-options basis self workspace user-data))))
@@ -711,7 +711,7 @@
     (let [type-name (rt/->clj rt coerce/string lua-type)]
       (if (= ext-referenced-component-type type-name)
         [(dissoc attachment "type") ReferencedComponent]
-        (let [basis (:basis evaluation-context)
+        (let [basis (g/ec-basis evaluation-context)
               resource-types (resource/resource-types-by-type-ext basis workspace :editable)
               resource-type (resource-types type-name)]
           (if (and resource-type (embeddable-component-resource-type? basis resource-type workspace))
@@ -724,7 +724,7 @@
     (throw (LuaError. "type is required"))))
 
 (defmethod ext-graph/create-extra-nodes ::EmbeddedComponent [evaluation-context rt project workspace attachment parent-node-id node-id]
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         owner-resource (resource-node/owner-resource basis parent-node-id)
         component-ext (rt/->clj rt coerce/string (attachment "type"))
         resource-types (resource/resource-types-by-type-ext basis workspace :editable)
@@ -779,7 +779,7 @@
       :add {EmbeddedComponent attach-embedded-component
             ReferencedComponent attach-referenced-component}
       :get attachment/nodes-getter
-      :read-only? #(g/override? (:basis %2) %1))
+      :read-only? #(g/override? (g/ec-basis %2) %1))
     (attachment/define-alternative workspace EmbeddedComponent embedded-component-attachment-alternative)
     (resource-node/register-ddf-resource-type workspace
       :ext "go"
