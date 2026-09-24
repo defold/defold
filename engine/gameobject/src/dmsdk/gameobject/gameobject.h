@@ -654,7 +654,8 @@ namespace dmGameObject
      * @return generation [type:uint32_t] Generation counter for the instance.
      * @note Deprecated. The instance generation is an implementation detail.
      */
-    DM_DEPRECATED("The instance generation is an implementation detail") uint32_t GetGeneration(HInstance instance);
+    DM_DEPRECATED("The instance generation is an implementation detail")
+    uint32_t GetGeneration(HInstance instance);
 
     /*#
      * Set instance identifier. Must be unique within the collection.

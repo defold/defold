@@ -105,7 +105,8 @@ namespace dmEngine
      * @return context [type:dmGameObject::HContext] The borrowed engine-owned game object context. The caller must not release it.
      * @note Deprecated. Use GetGameObjectContext instead.
      */
-    DM_DEPRECATED("Use dmEngine::GetGameObjectContext instead") dmGameObject::HContext GetGameObjectRegister(dmExtension::AppParams* app_params);
+    DM_DEPRECATED("Use dmEngine::GetGameObjectContext instead")
+    dmGameObject::HContext GetGameObjectRegister(dmExtension::AppParams* app_params);
 
     /*# get the hid context
      * @name GetHIDContext
