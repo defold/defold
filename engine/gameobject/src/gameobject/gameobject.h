@@ -189,6 +189,13 @@ namespace dmGameObject
     uint32_t GetInstanceGeneration(HInstance instance);
 
     /**
+     * Test whether an instance handle identifies a live game object.
+     * @param instance Game object instance
+     * @return True if the instance is live
+     */
+    bool IsValid(HInstance instance);
+
+    /**
      * Get component index from component identifier. This function has complexity O(n), where n is the number of components of the instance.
      * @param instance Instance
      * @param component_id Component id

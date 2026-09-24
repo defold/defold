@@ -659,9 +659,9 @@ namespace dmGameObject
      * @name GetGeneration
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
      * @return generation [type:uint32_t] Generation counter for the instance.
-     * @note Deprecated. Use IsValid to test whether an instance is still alive.
+     * @note Deprecated. The instance generation is an implementation detail.
      */
-    DM_GAMEOBJECT_DEPRECATED("Use dmGameObject::IsValid instead") uint32_t GetGeneration(HInstance instance);
+    DM_GAMEOBJECT_DEPRECATED("The instance generation is an implementation detail") uint32_t GetGeneration(HInstance instance);
 
     /*#
      * Set instance identifier. Must be unique within the collection.
@@ -694,13 +694,6 @@ namespace dmGameObject
      * @return instance [type: dmGameObject::HInstance] Instance, or dmGameObject::INVALID_GAME_OBJECT if the collection or identifier is not found.
      */
     HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier);
-
-    /*# test whether a game-object handle identifies a live object
-     * @name IsValid
-     * @param instance [type: dmGameObject::HInstance] Game-object handle.
-     * @return valid [type: bool] True if the handle identifies a live game object.
-     */
-    bool IsValid(HInstance instance);
 
     /*#
      * Get component id from component index.

@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include <dmsdk/dlib/hashtable.h>
+#include <gameobject/gameobject.h>
 #include <gameobject/script.h>
 #include <script/script.h>
 
