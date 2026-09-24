@@ -1790,8 +1790,22 @@ form.help.project.android.push_icon_large_xxhdpi = **xxhdpi** デバイス（3�
 form.label.project.android.push_icon_large_xxxhdpi = プッシュ通知用ラージアイコンXXXHDPI
 form.help.project.android.push_icon_large_xxxhdpi = **xxxhdpi** デバイス（4倍の密度）で大きな通知アイコンとして使用される PNG 画像です。この密度においては、**Push Icon Large**(プッシュ通知用ラージアイコン)の設定よりも優先されます。
 
+form.label.project.html5 = HTML5
+form.help.project.html5 = HTML5 関連設定
 
+form.help.project.ios.app_icon_76x76 = iPadのホーム画面アイコンに使用される、正方形の **76 × 76 px PNG** 画像です。これを省略した場合、Defoldは設定されたiOS用アイコンのうち最大のもの—または組み込みのアイコン—をこのサイズに拡大縮小して使用します。
+form.help.project.ios.app_icon_120x120 = iPhoneのホーム画面用2倍サイズアイコンとして使用される、正方形の **120 × 120 px PNG** 画像です。これを省略した場合、Defoldは設定されたiOS用アイコンのうち最大のもの—または組み込みのアイコン—をこのサイズに拡大縮小して使用します。
+form.help.project.ios.app_icon_152x152 = iPadのホーム画面用2倍サイズアイコンとして使用される、正方形の **152 × 152 px PNG** 画像です。指定がない場合、Defoldは設定されたiOS用アイコンのうち最大のもの—または組み込みのアイコン—をこのサイズに拡大縮小して使用します。
+form.help.project.ios.app_icon_167x167 = iPad Proのホーム画面用2倍サイズアイコンに使用される、正方形の **167 × 167 px PNG** 画像です。これを省略した場合、Defoldは設定されたiOSアイコンのうち最大のもの—または組み込みのアイコン—をこのサイズに拡大縮小して使用します。
+form.help.project.ios.app_icon_180x180 = iPhoneのホーム画面用3倍サイズアイコンとして使用される、正方形の **180 × 180 px PNG** 画像です。これを省略した場合、Defoldは設定されたiOS用アイコンのうち最大のもの—または組み込みのアイコン—をこのサイズに拡大・縮小して使用します。
+form.label.project.ios.icons_asset = アイコンアセット
+form.help.project.ios.icons_asset = App Store用アイコンを含むiOSアイコン一式を収めたXcodeアイコンカタログ（`Assets.car`）を作成しました。汎用iOSデバイス向けにビルドすると、Defoldによってアプリケーションバンドルにコピーされます。
+form.help.project.ios.launch_screen = コンパイル済みのXcode起動画面ディレクトリ（`.storyboardc`）を含めてください。ソースの`.storyboard`ではありません。また、そのファイルが参照している画像はすべて**Bundle Resources**(バンドルリソース)に追加してください。
+form.label.project.ios.pre_renderered_icons = プレレンダラーアイコン
+form.help.project.ios.pre_renderered_icons = レガシーな `UIPrerenderedIcon` メタデータを制御します。iOS 6以前では、完成済みのアイコン画像に対してこれを有効にすることで、自動的に適用される光沢効果を防ぐことができます。
 
+form.label.project.osx = OSX
+form.help.project.osx = Mac OSX 関連の設定
 
 
 
@@ -1852,6 +1866,12 @@ form.label.project.sound.max_sound_buffers = 最大サウンドバッファ
 
 
 
+form.label.project.display.width = 幅
+form.help.project.display.width = アプリケーションウィンドウのピクセル単位幅、およびデフォルトの論理レンダリング幅です。
+form.label.project.display.height = 高さ
+form.help.project.display.height = アプリケーションウィンドウのピクセル単位高さ、およびデフォルトの論理レンダリングの高さです。
+form.label.project.display.high_dpi = 高画素密度
+form.help.project.display.high_dpi = 対応するディスプレイ上で、より高解像度のバックバッファを作成し、グラフィックを鮮明に表示します。**幅**と**高さ**は、スクリプトやプロパティで使用される論理解像度のまま維持されます。
 form.label.project.display.samples = サンプル
 form.help.project.display.samples = レンダリングされたエッジを滑らかにするために使用されるアンチエイリアスサンプルの数。`0` に設定するとアンチエイリアスが無効になります。
 form.label.project.display.fullscreen = フルスクリーン
@@ -1912,18 +1932,82 @@ form.help.gamepads.driver = 特定のゲームパッドモデルをDefoldの入�
 
 
 
+form.label.sound = サウンド
+form.label.sound.sound = サウンド
+form.help.sound.sound = このコンポーネントによって再生される音声リソースです。サポートされているリソースの形式は WAV、Ogg Vorbis、または Ogg Opus です。Ogg Opus を使用する場合、アプリケーションのマニフェストでオプションのデコーダーを指定する必要があります。
+form.label.sound.looping = ループ
+form.help.sound.looping = **Loop Count**(ループ回数)に従って音を繰り返します。無効にすると、音は1回だけ再生されます。
+form.label.sound.loopcount = ループ数
+form.help.sound.loopcount = 最初の再生後の繰り返し回数です。`0`に設定すると、明示的に停止されるまでループします。有効な値の範囲は `0` から`127`です。**Loop**が有効な場合のみ使用されます。
+form.label.sound.group = グループ
+form.help.sound.group = サウンドを名前付きのミキサーグループにルーティングし、サウンドAPIでそのレベルを制御できるようにします。
+form.label.sound.gain = ゲイン
+form.help.sound.gain = 負ではないコンポーネントゲインです。`0.0`は無音、`1.0`はユニティゲインとなります。リニアゲインにおいて`1.0`を超える値を指定すると信号は増幅され、再生、グループ、およびマスターの各ゲインが組み合わさった結果、クリッピングが発生する可能性があります。
+form.label.sound.pan = パン
+form.help.sound.pan = ステレオ位置。左端の `-1.0` から中央の `0.0` を経て、右端の `1.0` まで。
+form.label.sound.speed = 再生速度
+form.help.sound.speed = コンポーネントの再生速度倍率は `0.0` ～ `50.0` の範囲に制限されます。`1.0` が通常速度です。この値は再生開始時に指定された速度に乗算され、その結果得られる速度もサポートされている範囲内に制限されます。
 
 
+form.label.liveupdate.liveupdate = ライブアップデート
+form.label.liveupdate.liveupdate.mode = モード
+form.help.liveupdate.liveupdate.mode = バンドル時に**Publish Live Update Content**(ライブアップデートコンテンツの公開)が有効な場合、除外されたリソースに使用するパブリッシャーを選択します。**Zip**はアーカイブを作成し、**Folder**(フォルダ)はコンパイル済みの各ファイルをステージングし、**Amazon**はそれらをS3にアップロードします。
+form.label.liveupdate.amazon = Amazon
+form.label.liveupdate.liveupdate.amazon-credential-profile = 認証情報プロファイル
+form.help.liveupdate.liveupdate.amazon-credential-profile = アップロードに使用するAWS認証情報プロファイルです。エディターは、`AWS_SHARED_CREDENTIALS_FILE`、次に`AWS_CREDENTIAL_PROFILES_FILE`によって指定されたファイルの内、最初に存在が確認できたものを読み込みます。それらがない場合は `~/.aws/credentials` を代替使用します。パスが未設定または存在しない場合はスキップされます。
+form.label.liveupdate.liveupdate.amazon-bucket = バケット
+form.help.liveupdate.liveupdate.amazon-bucket = 公開時に除外されたLive Update(ライブアップデート)リソースを受け取るAmazon S3バケットの名前です。選択したプロファイルには、このバケットへの確認および書き込み権限が必要です。また、ゲームクライアントが公開されたコンテンツをダウンロードできるよう、別途読み取りアクセス権限も設定してください。
+form.label.liveupdate.liveupdate.amazon-prefix = プレフィックス
+form.help.liveupdate.liveupdate.amazon-prefix = 各リソースハッシュの前に付与する必要があるS3オブジェクトキーのプレフィックス、例えば`my-game/liveupdate`のようになります。単一のバケット内でプロジェクトやリリースを区別するために、それぞれ異なるプレフィックスを使用してください。
+form.label.liveupdate.zip = Zip
+form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = バンドルフォルダに保存
+form.help.liveupdate.liveupdate.save-zip-in-bundle-folder = バンドル処理後、生成されたLive Update Zipアーカイブをアプリケーションバンドルの出力先へ移動します。このオプションを有効にすると、最終的な保存先として**Output Directory**(出力ディレクトリ)の設定よりもこちらが優先されます。
+form.label.liveupdate.liveupdate.zip-filepath = 出力ディレクトリ
+form.help.liveupdate.liveupdate.zip-filepath = 生成されたライブアップデート Zipアーカイブが書き出されるディレクトリです。相対パスはプロジェクトルートを基準として解決されます。プロジェクトルートを使用する場合は、空欄のままにしてください。最終的な保存先としては、**Save in Bundle Folder**（Bundle Folderに保存）の設定が優先されます。
+form.label.liveupdate.liveupdate.zip-filename = ファイル名
+form.help.liveupdate.liveupdate.zip-filename = 生成されるライブアップデートZipアーカイブの名前です。拡張子 `.zip` が省略された場合は自動的に付加されます。自動生成された名前を使用する場合は、空欄のままにしてください。
+form.title.liveupdate.liveupdate.zip-filepath = Zip出力ディレクトリを選択
+form.title.liveupdate.liveupdate.publickey = マニフェスト公開鍵を選択
+form.label.liveupdate.liveupdate.privatekey = 秘密鍵
+form.help.liveupdate.liveupdate.privatekey = 非推奨です。マニフェストの秘密鍵は使用されなくなっており、この設定を行うとプロジェクトで致命的なエラーが発生します。以前は、Live Updateマニフェストに署名するために、検証用公開鍵と対になるPKCS \#8 DERエンコード形式のRSA秘密鍵を指定するものでした。秘密鍵は機密として厳重に管理する必要があります。
+form.title.liveupdate.liveupdate.privatekey = マニフェストの秘密鍵を選択
+form.label.liveupdate.liveupdate.supported-versions = サポートされているエンジンのバージョン
+form.help.liveupdate.liveupdate.supported-versions = このライブアップデート・マニフェストをマウント可能な、追加のエンジンバージョン文字列です。カンマ区切りのリストとして入力してください。ビルド時のエンジンバージョンは常に含まれます。実行中のエンジンがいずれにも一致しない場合、マウントは `ENGINE_VERSION_MISMATCH` エラーで失敗します。
 
+form.label.material.vertex-program = 頂点プログラム
+form.help.material.vertex-program = 各頂点に対して1回実行される `.vp` シェーダーです。このシェーダーは最終的なクリップ空間での位置を生成する必要があり、フラグメントプログラム(fragment program)へ varying（補間）値を渡すことも可能です。
+form.label.material.fragment-program = フラグメントプログラム
+form.help.material.fragment-program = ラスタライズされた各フラグメントに対して実行される `.fp` シェーダーです。通常、テクスチャのサンプリングや、varying（補間）値と定数の合成を行い、出力色を生成します。
+form.label.material.attributes = 頂点属性
+form.help.material.attributes = 頂点プログラム(Vertex Program)が期待する頂点入力です。「セマンティクス・タイプ（Semantic Type）」はエンジンやコンポーネントのデータを識別し、「座標空間（Coordinate Space）」はサポートされるセマンティクスの変換を制御します。また、「値（Value）」は、一致するコンポーネント・ストリームによる上書きがない場合に定数データを提供します。「ステップ関数（Step Function）」は、頂点単位またはインスタンス単位でのデータ供給を選択します。
+form.label.material.attributes.semantic-type = セマンティックタイプ
+form.label.material.attributes.step-function = ステップ関数
+form.label.material.attributes.coordinate-space = 座標空間
+form.label.material.attributes.data-type = データタイプ
+form.label.material.attributes.vector-type = ベクトルタイプ
 form.label.material.attributes.value = 値
 form.label.material.attributes.normalize = 正規化
 form.label.material.vertex-constants = 頂点定数
+form.help.material.vertex-constants = 頂点プログラム(Vertex Program)に渡されるユニフォーム(Uniform)値です。各 `Name` は、シェーダーで使用されるユニフォームと完全に一致している必要があります。組み込み型は変換行列や時間などの値を提供し、ユーザー定義型は初期値を提供します。この初期値は、コンポーネントAPIやレンダー定数バッファによって上書き可能です。コンポーネントごとの値が指定されると、バッチが分割される場合があります。
+form.label.material.fragment-constants = フラグメント定数
+form.help.material.fragment-constants = フラグメントプログラム(fragment program)に渡されるユニフォーム(Uniform)値です。各 `Name` は、シェーダーで使用されるユニフォームと完全に一致している必要があります。組み込み型はエンジンデータを提供し、ユーザー定義型は初期値を提供します。この初期値は、コンポーネントAPIやレンダー定数バッファによって上書き可能です。コンポーネントごとの値は、バッチ分割の原因となる場合があります。
+form.label.material.samplers = サンプラー
+form.help.material.samplers = シェーダーで使用されるテクスチャサンプリング(Texture sampling)設定です。各 `Name` は、サンプラーユニフォームと完全に一致している必要があります。ラップモードはテクスチャ範囲外の座標を処理し、フィルタリングと異方性フィルタリングはテクセルの選択を制御します。テクスチャは、コンポーネントスロットまたはレンダースクリプトのバインディングから供給されます。設定されていないサンプラーは、サポートされている場合、プロジェクトのデフォルトのフィルタリング設定を使用します。
+form.label.material.tags = タグ
+form.help.material.tags = このマテリアルで描画されるコンポーネントを選択するために、レンダー述語（render predicates）が使用する識別子です。複数のタグを含む述語は、それらすべてのタグを持つオブジェクトにのみ一致します。各マテリアルには、最大32個のタグを設定できます。
 
+form.help.compute.samplers = `.cp` プログラムで宣言されたサンプラーユニフォームのサンプリング設定です。これらはストレージイメージには適用されません。**Name** はサンプラーユニフォームと完全に一致している必要があります。また、ディスパッチの前に、レンダースクリプトとは別にテクスチャをバインドしてください。
 
 # Quick Help
 
+quick-help.open-asset = アセットを開く
+quick-help.reopen-closed-file = 閉じたファイルを再度開く
+quick-help.search-in-files = ファイル内検索
+quick-help.build-and-run-project = プロジェクトをビルドして実行
+quick-help.start-or-attach-debugger = デバッガーを起動またはアタッチする
 
 # Error Messages
+error.engine.url-not-reported-before-exit = エンジンがサービスURLを報告する前に終了しました。
 error.engine.url-not-reported-in-time = 15秒以内にエンジンサービスのURLが報告されませんでした。ゲームはまだ実行中である可能性があります。
 error.assigned-image-has-internal-errors = 割り当てられた画像に内部エラーがあります。
 error.sampler-not-defined-in-material = マテリアル内で「{sampler}」が定義されていません。ラベルのコンテキストメニューから「オーバーライドの解除(Clear Override)」コマンドを使用して、このプロパティを削除してください。シェーダーにそのサンプラーが必要な場合は、マテリアルに不足しているサンプラーを追加してください。
@@ -1958,6 +2042,13 @@ error.render-target.depth-stencil-height-must-be-greater-than-zero-if-width-is =
 error.render-target.depth-stencil-width-must-be-greater-than-zero-if-height-is = 不適切な深度(depth)/ステンシルアタッチメント(stencil attachment)：高さは0より大きいが、幅が0です。
 error.collision-object-shape-dimensions-must-be-greater-than-zero = すべての寸法は0より大きくなければなりません。
 error.collision-object-has-no-shapes = 衝突オブジェクト(Collision Object)に形状がありません。
+error.collision-object-mesh-shape-scene-required = メッシュまたはハル形状(Hull shape)として、glTFまたはGLBシーンを選択してください。
+error.collision-object-mesh-shape-no-named-meshes = 選択されたシーンには、名前の付いたメッシュが含まれていません。
+error.collision-object-mesh-shape-mesh-required = シーンからメッシュを選択してください。
+error.collision-object-mesh-shape-mesh-missing = 選択されたシーンにおいて、メッシュ「{mesh}」は存在しないか、または曖昧です。
+error.collision-object-mesh-shape-triangle-topology-required = 選択されたメッシュには、三角形以外のプリミティブが含まれています。
+error.collision-object-mesh-shape-empty = 選択されたメッシュには三角形が含まれていません。
+error.collision-object-hull-shape-empty = 選択されたメッシュには頂点が含まれていません。
 error.collision-shape-conflict = 埋め込みシェイプ(embedded shapes)を、参照されているコリジョンシェイプ(Collision Shape)と組み合わせることはできません。いずれか一方を削除してください。
 error.collision-object-shape-not-supported-in-physics = {physics} 物理演算(physics)では、{shape} 形状(shapes)はサポートされていません。
 error.texture-profiles.format-not-supported-by-texture-compressor = テクスチャ形式(Texture format)は、テクスチャ圧縮ツール(texture compressor)でサポートされていません。
@@ -1994,10 +2085,16 @@ error.material-does-not-support-paged-atlases = マテリアルはペ​​ー�
 error.material-max-page-count-insufficient = 選択された {property} のページ数に対して、そのマテリアルの「最大ページ数(Max Page Count)」が不足しています。
 error.model-unsupported-file-format = {property}「{resource}」は、サポートされていない形式 {format} です。Defoldは、{property} に対して {supported_formats} 形式のファイルのみをサポートしています。
 error.model-load-failed = ファイル「{file}」の読み込みに失敗しました\: {error}
+error.model-mesh-selection-file-type = メッシュは、glTF および GLB シーンでのみ利用可能です。
+error.model-mesh-selection-name-required = 選択されたメッシュインデックスには、メッシュ名がありません。
+error.model-mesh-selection-missing = シーン内にメッシュ「{mesh}」が見つかりませんでした。
 error.animation-not-found = "{property}" 内に "{animation}" が見つかりませんでした。
 error.buffer-syntax-error = バッファファイルに構文エラーがあります。
 error.editor-extension-compilation-failed = エディター拡張をコンパイルできませんでした。
 error.font-bitmap-generation-failed = フォントからビットマップを生成できませんでした。{error}
+error.font.style-not-found = フォントスタイル ''{style}'' は存在しません。
+error.font.invalid-style-name = スタイル名は一意かつ空であってはなりません。「default」は予約されています。
+error.font.authored-default-style = デフォルトのスタイルは生成されるものであり、マークアップを含めることはできません。
 error.font.rich-text-outline-and-shadow-not-supported-by-bmfont = リッチテキストのアウトラインおよびシャドウタグは、BMFontフォントではサポートされていません。
 error.font.no-reserved-data-for-rich-text-outlines = このフォントにはリッチテキストのアウトライン用データが含まれていないため、アウトラインは描画されません。
 error.font.bitmap-shadow-blur-includes-outline = このビットマップフォントの影のぼかし処理にはアウトラインも含まれますが、アウトラインタグを使用せずに影を適用したリッチテキストは、くっきりと描画されます。
