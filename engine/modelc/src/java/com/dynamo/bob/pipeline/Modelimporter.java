@@ -92,6 +92,7 @@ public class Modelimporter {
     };
     public static class Image {
         public String name;
+        public boolean nameIsGenerated = false;
         public String uri;
         public String mimeType;
         public Buffer buffer;
@@ -187,6 +188,7 @@ public class Modelimporter {
     };
     public static class Material {
         public String name;
+        public boolean nameIsGenerated = false;
         public int index = 0;
         public byte isSkinned = 0;
         public PbrMetallicRoughness pbrMetallicRoughness;

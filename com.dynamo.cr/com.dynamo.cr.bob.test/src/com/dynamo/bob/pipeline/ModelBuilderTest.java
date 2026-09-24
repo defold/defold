@@ -17,6 +17,7 @@ package com.dynamo.bob.pipeline;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 
@@ -141,20 +142,67 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
                 "mesh: \"/virtual.gltf\"\n" +
                 "materials {\n" +
                 "  name: \"VirtualMaterial\"\n" +
-                "  material: \"/virtual.gltf/materials/0.material\"\n" +
+                "  material: \"/virtual.gltf/materials/VirtualMaterial_0.material\"\n" +
                 "  textures {\n" +
                 "    sampler: \"PbrMetallicRoughness_baseColorTexture\"\n" +
-                "    texture: \"/virtual.gltf/images/0.png\"\n" +
+                "    texture: \"/virtual.gltf/images/VirtualImage_0.png\"\n" +
                 "  }\n" +
                 "}\n";
 
         Model model = getMessage(build("/virtual.model", modelSource), Model.class);
-        assertEquals(ResourceUtil.minifyPath("/virtual.gltf/materials/0.materialc"),
+        assertEquals(ResourceUtil.minifyPath("/virtual.gltf/materials/VirtualMaterial_0.materialc"),
                 model.getMaterials(0).getMaterial());
-        assertEquals("/virtual.gltf/images/0.texturec",
+        assertEquals("/virtual.gltf/images/VirtualImage_0.texturec",
                 model.getMaterials(0).getTextures(0).getTexture());
-        assertTrue(getFileSystem().get("build/virtual.gltf/materials/0.materialc").exists());
-        assertTrue(getFileSystem().get("build/virtual.gltf/images/0.texturec").exists());
+        assertTrue(getFileSystem().get("build/virtual.gltf/materials/VirtualMaterial_0.materialc").exists());
+        assertTrue(getFileSystem().get("build/virtual.gltf/images/VirtualImage_0.texturec").exists());
+    }
+
+    @Test
+    public void testCopiedMeshesBuildAsModels() throws Exception {
+        String primitive = "{\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1}]}";
+        String source = GLTF.replace(primitive, primitive + "," + primitive + ","
+                + primitive.replace("{\"primitives", "{\"name\":\"Shared\",\"primitives") + ","
+                + primitive.replace("{\"primitives", "{\"name\":\"Shared\",\"primitives"))
+                .replace("\"indices\":1", "\"indices\":1,\"material\":0");
+        addFile("/meshes.gltf", source);
+        getFileSystem().addMountPoint(new GltfMountPoint(getFileSystem()));
+        addFile("/defold-pbr/shaders/pbr.vp", "void main() {}\n");
+        addFile("/defold-pbr/shaders/pbr.fp", "void main() {}\n");
+
+        var names = List.of("Shared_0", "Shared_1");
+        for (int index = 0; index < names.size(); ++index) {
+            var mesh = getProject().getResource("/meshes.gltf/meshes/" + names.get(index));
+            var outputs = build("/copied" + index + ".model", new String(mesh.getContent(), StandardCharsets.UTF_8));
+            var model = getMessage(outputs, Model.class);
+            assertEquals(index + 2, model.getMeshIndex());
+            assertEquals(ResourceUtil.minifyPath("/meshes.gltf/materials/0.materialc"), model.getMaterials(0).getMaterial());
+            var meshSet = MeshSet.parseFrom(getFileSystem().get("build/meshes.meshsetc").getContent());
+            assertEquals(2, meshSet.getRawModelsCount());
+            assertEquals(1, meshSet.getRawModels(index).getMeshesCount());
+        }
+    }
+
+    @Test
+    public void testDuplicateMeshNameWithDefaultIndex() throws Exception {
+        var primitive = "{\"primitives\":[{\"attributes\":{\"POSITION\":0},\"indices\":1}]}";
+        var namedPrimitive = primitive.replace("{\"primitives", "{\"name\":\"Shared\",\"primitives");
+        addFile("/duplicates.gltf", GLTF.replace(primitive, namedPrimitive + "," + namedPrimitive));
+
+        for (var indexField : List.of("", "mesh_index: 0\n")) {
+            var outputs = build("/selected.model",
+                    "mesh: \"/duplicates.gltf\"\nmesh_name: \"Shared\"\n" + indexField);
+            assertEquals(0, getMessage(outputs, Model.class).getMeshIndex());
+        }
+    }
+
+    @Test
+    public void testWholeSceneWithDefaultIndex() throws Exception {
+        addFile("/scene.gltf", GLTF);
+        for (var indexField : List.of("", "mesh_index: 0\n")) {
+            var outputs = build("/whole.model", "mesh: \"/scene.gltf\"\n" + indexField);
+            assertEquals(-1, getMessage(outputs, Model.class).getMeshIndex());
+        }
     }
 
     @Test

@@ -58,11 +58,15 @@
 
 (def ^:private preview-material-specs
   [{:base-color-factor [0.25 0.5 0.75 1.0]
+    :image-resource-name "PaintAlbedo_0.png"
     :index 0
-    :name "Shared"}
+    :name "Shared"
+    :material-resource-name "Shared_0.material"}
    {:base-color-factor [0.75 0.5 0.25 1.0]
+    :image-resource-name "ChromeAlbedo_0.png"
     :index 1
-    :name "Shared"}])
+    :name "Shared"
+    :material-resource-name "Shared_1.material"}])
 
 (defn- preview-scene-json [buffer-json]
   (str "{"
@@ -70,7 +74,7 @@
        "\"scene\":0,"
        "\"scenes\":[{\"nodes\":[0]}],"
        "\"nodes\":[{\"mesh\":0,\"name\":\"PreviewNode\"}],"
-       "\"meshes\":[{\"primitives\":["
+       "\"meshes\":[{\"name\":\"Body\",\"primitives\":["
        "{\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":1},\"indices\":2,\"material\":0},"
        "{\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":1},\"indices\":2,\"material\":1}]}],"
        "\"buffers\":[" buffer-json "],"
@@ -223,10 +227,17 @@
                 (is (not (g/error? scene)))
                 (is (= #{0 1} (into #{} (map key) user-data-by-material-index)))
 
-                (doseq [{:keys [base-color-factor index name]} preview-material-specs]
+                (doseq [{:keys [base-color-factor
+                                image-resource-name
+                                index
+                                material-resource-name
+                                name]}
+                        preview-material-specs]
                   (testing name
-                    (let [material-node-id (test-util/resource-node project (str source-proj-path "/materials/" index ".material"))
-                          image-node-id (test-util/resource-node project (str source-proj-path "/images/" index ".png"))
+                    (let [material-node-id (test-util/resource-node project
+                                                                    (str source-proj-path "/materials/" material-resource-name))
+                          image-node-id (test-util/resource-node project
+                                                                 (str source-proj-path "/images/" image-resource-name))
                           preview-binding-node-id (some-> (first (g/outputs (g/now) material-node-id :shader)) gt/target-id)
                           expected-shader (g/node-value material-node-id :shader)
                           expected-gpu-texture (g/node-value image-node-id :gpu-texture)
@@ -257,7 +268,7 @@
                       (is (= [0] (vec (:texture-units actual-gpu-texture))))
 
                       (doseq [[node-id property] [[material-node-id :fragment-program]
-                                                [preview-binding-node-id :material]]]
+                                                  [preview-binding-node-id :material]]]
                         (testing (str "Preview fallback with missing " property)
                           (test-util/with-prop [node-id property nil]
                             (is (nil? (g/node-value preview-binding-node-id :material-scene-info)))
@@ -286,11 +297,7 @@
             (testing source-proj-path
               (let [source-node-id (test-util/open-tab! project app-view source-proj-path)
                     source-outline (g/node-value source-node-id :node-outline)
-                    groups (:children source-outline)
-                    meshes-group (nth groups 0)
-                    materials-group (nth groups 1)
-                    textures-group (nth groups 2)
-                    mesh-outline (get-in meshes-group [:children 0])
+                    [meshes-group materials-group textures-group :as groups] (:children source-outline)
                     material-outlines (:children materials-group)
                     texture-outlines (:children textures-group)]
                 (is (= (str "preview." (resource/type-ext (g/node-value source-node-id :resource)))
@@ -298,7 +305,7 @@
                 (is (= "icons/32/Icons_27-AT-Mesh.png" (:icon source-outline)))
                 (is (= ["Meshes" "Materials" "Textures"]
                        (mapv (comp test-util/localization :label) groups)))
-                (is (= ["Mesh 0"] (mapv :label (:children meshes-group))))
+                (is (= ["Body"] (mapv :label (:children meshes-group))))
                 (is (= ["Shared [0]" "Shared [1]"] (mapv :label material-outlines)))
                 (is (= ["PaintAlbedoTexture" "ChromeAlbedoTexture"]
                        (mapv :label texture-outlines)))
@@ -308,7 +315,7 @@
                   (is (g/node-id? node-id))
                   (is (true? read-only)))
 
-                (let [mesh-node-id (:node-id mesh-outline)
+                (let [mesh-node-id (get-in meshes-group [:children 0 :node-id])
                       preview-scene (g/node-value source-node-id :scene)
                       mesh-model-scene (nth (:children preview-scene) 1)
                       scene-render-data
@@ -320,14 +327,13 @@
                          :local-camera (camera/make-camera)})
                       mesh-picking-renderables
                       (coll/filterv-> (get-in scene-render-data [:renderables pass/opaque-selection])
-                                     #(= mesh-node-id (:picking-node-id %)))
+                                      #(= mesh-node-id (:picking-node-id %)))
                       mesh-outline-renderable
                       (coll/first-where #(and (= mesh-node-id (:node-id %))
                                               (= :self-selected (:selected %)))
                                         (get-in scene-render-data [:renderables pass/outline]))]
                   (assert-read-only-property mesh-node-id :index 0)
-                  (assert-read-only-property mesh-node-id :name "Mesh 0")
-                  (assert-read-only-property mesh-node-id :name-generated true)
+                  (assert-read-only-property mesh-node-id :name "Body")
                   (assert-read-only-property mesh-node-id :primitive-count 2)
                   (assert-read-only-property mesh-node-id :vertex-count 6)
                   (assert-selected-property app-view mesh-node-id :primitive-count 2)
@@ -353,22 +359,16 @@
                         (into [] (map-indexed vector) texture-outlines)]
                   (let [texture-node-id (:node-id texture-outline)
                         expected-values
-                        (nth [{:basisu false
-                               :image-index 0
-                               :mag-filter 9729
-                               :min-filter 9729
+                        (nth [{:mag-filter "Linear"
+                               :min-filter "Linear"
                                :name "PaintAlbedoTexture"
-                               :sampler-index 0
-                               :wrap-s 10497
-                               :wrap-t 10497}
-                              {:basisu false
-                               :image-index 1
-                               :mag-filter 9728
-                               :min-filter 9728
+                               :wrap-s "Repeat"
+                               :wrap-t "Repeat"}
+                              {:mag-filter "Nearest"
+                               :min-filter "Nearest"
                                :name "ChromeAlbedoTexture"
-                               :sampler-index 1
-                               :wrap-s 33071
-                               :wrap-t 33648}]
+                               :wrap-s "Clamp to Edge"
+                               :wrap-t "Mirrored Repeat"}]
                              texture-index)]
                     (doseq [[property-key expected-value] expected-values]
                       (assert-read-only-property texture-node-id property-key expected-value))))

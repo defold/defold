@@ -434,8 +434,35 @@ public class ExtenderUtil {
         return modified;
     }
 
-    // Complete legacy Bullet3D exclusions and update Windows engine library
-    // names before upload, including projects never opened in the editor.
+    @SuppressWarnings("unchecked")
+    private static boolean migrateMacOSVulkanPlatform(Object contextValue) {
+        if (!(contextValue instanceof Map<?, ?>)) {
+            return false;
+        }
+        Map<String, Object> context = (Map<String, Object>) contextValue;
+        Object excluded = context.get("excludeLibs");
+        if (excluded != null && !(excluded instanceof List<?>)) {
+            return false;
+        }
+        List<?> exclusions = excluded == null ? List.of() : (List<?>) excluded;
+        if (exclusions.contains("platform") || exclusions.contains("platform_vulkan")) {
+            return false;
+        }
+        for (String key : List.of("libs", "engineLibs")) {
+            Object libraries = context.get(key);
+            if (libraries instanceof List<?> && ((List<?>) libraries).contains("platform_vulkan")) {
+                // The Vulkan platform variant replaces the default platform library.
+                List<Object> migrated = new ArrayList<>(exclusions);
+                migrated.add("platform");
+                context.put("excludeLibs", migrated);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Complete legacy Bullet3D exclusions, Windows library names, and macOS
+    // Vulkan platform selection before upload, even without opening the editor.
     private static byte[] migrateAppManifest(byte[] content) {
         Object manifestValue;
         try {
@@ -456,6 +483,11 @@ public class ExtenderUtil {
                 if (platformValue instanceof Map<?, ?>) {
                     Object context = ((Map<?, ?>) platformValue).get("context");
                     modified |= addBullet3DCompatibilityExclusions(context);
+                    if ("osx".equals(platform.getKey())
+                            || "arm64-osx".equals(platform.getKey())
+                            || "x86_64-osx".equals(platform.getKey())) {
+                        modified |= migrateMacOSVulkanPlatform(context);
+                    }
                     if ("win32".equals(platform.getKey())
                             || "x86-win32".equals(platform.getKey())
                             || "x86_64-win32".equals(platform.getKey())) {

@@ -77,6 +77,7 @@ namespace dmModelImporter
     struct Image // gltf
     {
         const char* m_Name;
+        bool        m_NameIsGenerated;
         const char* m_Uri;      // not set if buffer is set
         const char* m_MimeType; // valid when buffer is set
         Buffer*     m_Buffer;
@@ -205,6 +206,7 @@ namespace dmModelImporter
     struct Material
     {
         const char* m_Name;
+        bool        m_NameIsGenerated;
 
         // Defold
         uint32_t    m_Index;        // The index into the scene.materials array

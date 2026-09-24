@@ -68,6 +68,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
     {
         SETUP_CLASS(ImageJNI, "Image");
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(nameIsGenerated, "Z");
         GET_FLD_TYPESTR(uri, "Ljava/lang/String;");
         GET_FLD_TYPESTR(mimeType, "Ljava/lang/String;");
         GET_FLD(buffer, "Buffer");
@@ -178,6 +179,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
     {
         SETUP_CLASS(MaterialJNI, "Material");
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(nameIsGenerated, "Z");
         GET_FLD_TYPESTR(index, "I");
         GET_FLD_TYPESTR(isSkinned, "B");
         GET_FLD(pbrMetallicRoughness, "PbrMetallicRoughness");
@@ -398,6 +400,7 @@ jobject C2J_CreateImage(JNIEnv* env, TypeInfos* types, const Image* src) {
     if (src == 0) return 0;
     jobject obj = env->AllocObject(types->m_ImageJNI.cls);
     dmJNI::SetString(env, obj, types->m_ImageJNI.name, src->m_Name);
+    dmJNI::SetBoolean(env, obj, types->m_ImageJNI.nameIsGenerated, src->m_NameIsGenerated);
     dmJNI::SetString(env, obj, types->m_ImageJNI.uri, src->m_Uri);
     dmJNI::SetString(env, obj, types->m_ImageJNI.mimeType, src->m_MimeType);
     dmJNI::SetObjectDeref(env, obj, types->m_ImageJNI.buffer, C2J_CreateBuffer(env, types, src->m_Buffer));
@@ -553,6 +556,7 @@ jobject C2J_CreateMaterial(JNIEnv* env, TypeInfos* types, const Material* src) {
     if (src == 0) return 0;
     jobject obj = env->AllocObject(types->m_MaterialJNI.cls);
     dmJNI::SetString(env, obj, types->m_MaterialJNI.name, src->m_Name);
+    dmJNI::SetBoolean(env, obj, types->m_MaterialJNI.nameIsGenerated, src->m_NameIsGenerated);
     dmJNI::SetUInt(env, obj, types->m_MaterialJNI.index, src->m_Index);
     dmJNI::SetUByte(env, obj, types->m_MaterialJNI.isSkinned, src->m_IsSkinned);
     dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.pbrMetallicRoughness, C2J_CreatePbrMetallicRoughness(env, types, src->m_PbrMetallicRoughness));
@@ -1435,6 +1439,7 @@ bool J2C_CreateAabb(JNIEnv* env, TypeInfos* types, jobject obj, Aabb* out) {
 bool J2C_CreateImage(JNIEnv* env, TypeInfos* types, jobject obj, Image* out) {
     if (out == 0) return false;
     out->m_Name = dmJNI::GetString(env, obj, types->m_ImageJNI.name);
+    out->m_NameIsGenerated = dmJNI::GetBoolean(env, obj, types->m_ImageJNI.nameIsGenerated);
     out->m_Uri = dmJNI::GetString(env, obj, types->m_ImageJNI.uri);
     out->m_MimeType = dmJNI::GetString(env, obj, types->m_ImageJNI.mimeType);
     {
@@ -1754,6 +1759,7 @@ bool J2C_CreateIridescence(JNIEnv* env, TypeInfos* types, jobject obj, Iridescen
 bool J2C_CreateMaterial(JNIEnv* env, TypeInfos* types, jobject obj, Material* out) {
     if (out == 0) return false;
     out->m_Name = dmJNI::GetString(env, obj, types->m_MaterialJNI.name);
+    out->m_NameIsGenerated = dmJNI::GetBoolean(env, obj, types->m_MaterialJNI.nameIsGenerated);
     out->m_Index = dmJNI::GetUInt(env, obj, types->m_MaterialJNI.index);
     out->m_IsSkinned = dmJNI::GetUByte(env, obj, types->m_MaterialJNI.isSkinned);
     {

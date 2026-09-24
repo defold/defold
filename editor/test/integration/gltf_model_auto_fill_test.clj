@@ -63,12 +63,10 @@
          "{\"name\":\"Paint\",\"pbrMetallicRoughness\":{\"baseColorTexture\":{\"index\":0}}},"
          "{\"name\":\"Chrome\",\"pbrMetallicRoughness\":{\"metallicRoughnessTexture\":{\"index\":1}}}]}")))
 
-(defn- coalesced-property [node-id prop-kw]
-  (get-in (properties/coalesce [(g/node-value node-id :_properties)])
-          [:properties prop-kw]))
-
 (defn- edit-property! [node-id prop-kw value]
-  (properties/set-values! (coalesced-property node-id prop-kw) [value]))
+  (-> (properties/coalesce [(g/node-value node-id :_properties)])
+      (get-in [:properties prop-kw])
+      (properties/set-values! [value])))
 
 (defn- material-bindings [model-node-id]
   (into (sorted-map)
@@ -132,16 +130,16 @@
               {:mesh "/models/robot.gltf"
                :materials
                {"Chrome"
-                {:material "/models/robot.gltf/materials/1.material"
+                {:material "/models/robot.gltf/materials/Chrome_0.material"
                  :textures
                  {"PbrMetallicRoughness_metallicRoughnessTexture"
-                  "/models/robot.gltf/images/1.png"}}
+                  "/models/robot.gltf/images/ChromeMetallicRoughness_0.png"}}
 
                 "Paint"
-                {:material "/models/robot.gltf/materials/0.material"
+                {:material "/models/robot.gltf/materials/Paint_0.material"
                  :textures
                  {"PbrMetallicRoughness_baseColorTexture"
-                  "/models/robot.gltf/images/0.png"}}}}]
+                  "/models/robot.gltf/images/PaintAlbedo_0.png"}}}}]
           (is (= {:mesh "/builtins/assets/gltf/cube.gltf"
                   :materials
                   {"default"
@@ -182,21 +180,21 @@
           (testing "source selection offers all materials and mesh selection offers its own"
             (let [dialog-call-count (atom 0)
                   all-meshes-state (assoc generated-state :mesh "/models/two_meshes.gltf"
-                                                         :materials
-                                                         (into (sorted-map)
-                                                               (map (fn [[name binding]]
-                                                                      [name (-> binding
-                                                                                (update :material #(string/replace % "robot.gltf" "two_meshes.gltf"))
-                                                                                (update :textures update-vals #(string/replace % "robot.gltf" "two_meshes.gltf")))]))
-                                                               (:materials generated-state)))
+                                          :materials
+                                          (into (sorted-map)
+                                                (map (fn [[name binding]]
+                                                       [name (-> binding
+                                                                 (update :material #(string/replace % "robot.gltf" "two_meshes.gltf"))
+                                                                 (update :textures update-vals #(string/replace % "robot.gltf" "two_meshes.gltf")))]))
+                                                (:materials generated-state)))
                   selected-mesh-state
                   {:mesh "/models/two_meshes.gltf"
                    :materials
                    {"Chrome"
-                    {:material "/models/two_meshes.gltf/materials/1.material"
+                    {:material "/models/two_meshes.gltf/materials/Chrome_0.material"
                      :textures
                      {"PbrMetallicRoughness_metallicRoughnessTexture"
-                      "/models/two_meshes.gltf/images/1.png"}}}}]
+                      "/models/two_meshes.gltf/images/ChromeMetallicRoughness_0.png"}}}}]
               (with-redefs [dialogs/make-confirmation-dialog
                             (fn [_localization _props]
                               (swap! dialog-call-count inc)
@@ -224,11 +222,11 @@
                        :name-generated false
                        :primitive-count 1
                        :vertex-count 3}]
-                     (:meshes (gltf/metadata-descriptors multi-mesh-gltf-resource))))
+                     (:meshes (gltf/metadata-descriptors multi-mesh-gltf-resource (partial workspace/resolve-workspace-resource workspace)))))
               (is (= 1 (test-util/prop model-node-id :mesh-index)))
               (is (= selected-mesh-state (model-state model-node-id)))
               (is (nil? (get-in (g/node-value model-node-id :_properties)
-                               [:properties :__material__0 :error])))
+                                [:properties :__material__0 :error])))
 
               (with-redefs [dialogs/make-confirmation-dialog (fn [_ _] true)]
                 (edit-property! model-node-id :mesh-index -1))
@@ -265,3 +263,27 @@
 
               (g/redo! :undo/global)
               (is (= generated-state (model-state model-node-id))))))))))
+
+(deftest auto-fill-preserves-external-image-references
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_deleter (test-util/make-directory-deleter project-path)]
+      (fs/create-file! (io/file project-path "robot.model") "mesh: \"/builtins/assets/gltf/cube.gltf\"\n")
+      (fs/create-file!
+        (io/file project-path "models/robot.gltf")
+        (string/replace
+          (gltf-content "[0]" "[{\"mesh\":0}]"
+                        "[{\"primitives\":[{\"attributes\":{\"POSITION\":0,\"TEXCOORD_0\":1},\"indices\":2,\"material\":0}]}]")
+          #"data:image/png;base64,[^\"]+"
+          "../textures/albedo%20map.png"))
+      (with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)
+              project (test-util/setup-project! workspace)
+              model-node (test-util/resource-node project "/robot.model")]
+          (with-redefs [dialogs/make-confirmation-dialog (fn [_ _] true)]
+            (edit-property! model-node :mesh (workspace/find-resource workspace "/models/robot.gltf")))
+          (is (= {"Chrome" {:material "/models/robot.gltf/materials/Chrome_0.material"
+                            :textures {"PbrMetallicRoughness_metallicRoughnessTexture" "/textures/albedo map.png"}}
+                  "Paint" {:material "/models/robot.gltf/materials/Paint_0.material"
+                           :textures {"PbrMetallicRoughness_baseColorTexture" "/textures/albedo map.png"}}}
+                 (material-bindings model-node)))
+          (is (nil? (workspace/find-resource workspace "/models/robot.gltf/images"))))))))
