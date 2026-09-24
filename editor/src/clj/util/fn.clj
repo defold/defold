@@ -19,6 +19,7 @@
   (:require [internal.java :as java]
             [util.coll :as coll :refer [pair]])
   (:import [clojure.lang ArityException Compiler Fn IFn IHashEq IPending MultiFn]
+           [com.github.benmanes.caffeine.cache Cache]
            [java.lang.reflect Method]))
 
 (set! *warn-on-reflection* true)
@@ -202,6 +203,39 @@
          1 (memoize-one opts ifn)
          2 (memoize-two opts ifn)
          (memoize-any opts ifn arity))))))
+
+(defmacro defn-cached
+  "Defines a function backed by a supplied Caffeine cache.
+
+  Uses regular defn syntax and requires its attr-map to contain a :cache
+  expression. The cache expression is evaluated once when the function is
+  defined. Function arguments are used as the cache key."
+  [name & fn-tail]
+  (assert (symbol? name) "defn-cached requires a function name")
+  (let [[doc-string fn-tail] (if (string? (first fn-tail))
+                               [(first fn-tail) (next fn-tail)]
+                               [nil fn-tail])
+        attr-map (first fn-tail)
+        fn-tail (next fn-tail)]
+    (assert (map? attr-map) "defn-cached requires an attr-map")
+    (assert (contains? attr-map :cache) "defn-cached requires the attr-map to define a :cache key")
+    (let [cache-expression (:cache attr-map)
+          defined-name (with-meta name (merge (meta name)
+                                              (when doc-string {:doc doc-string})
+                                              (dissoc attr-map :cache)))
+          cache-symbol (with-meta (gensym "cache__") {:tag Cache})]
+      `(def ~defined-name
+         (let [~cache-symbol ~cache-expression
+               uncached-fn# (fn ~@fn-tail)
+               nil-value# (Object.)]
+           (fn [& args#]
+             (let [args# (vec args#)
+                   value# (.get ~cache-symbol args#
+                                (fn [args#]
+                                  (let [value# (apply uncached-fn# args#)]
+                                    (if (nil? value#) nil-value# value#))))]
+               (when-not (identical? nil-value# value#)
+                 value#))))))))
 
 (defn- as-late-bound-fn
   [fn-or-promise timeout-ms]

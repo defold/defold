@@ -17,38 +17,10 @@
             [dynamo.graph :as g]
             [editor.form :as form]
             [editor.material]
-            [editor.pipeline.shader-gen :as shader-gen]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]
-            [util.fn :as fn]))
-
-(deftest shader-transpilation-is-memoized
-  (let [transpile-shader-source-cached (var-get (ns-resolve 'editor.material 'transpile-shader-source-cached))
-        transpile-count (atom 0)]
-    (fn/clear-memoized! transpile-shader-source-cached)
-    (try
-      (with-redefs [shader-gen/transpile-shader-source
-                    (fn [_shader-proj-path shader-source & args]
-                      (swap! transpile-count inc)
-                      (if (= "invalid source" shader-source)
-                        (throw (Exception. "Invalid shader source."))
-                        args))]
-        (is (= (transpile-shader-source-cached "/test.vp" "source" 0 "mediump" "highp" :language-glsl-sm120)
-               (transpile-shader-source-cached "/test.vp" "source" 0 "mediump" "highp" :language-glsl-sm120)))
-        (is (= 1 @transpile-count))
-
-        (transpile-shader-source-cached "/test.vp" "different source" 0 "mediump" "highp" :language-glsl-sm120)
-        (is (= 2 @transpile-count))
-
-        (is (thrown? Exception
-                     (transpile-shader-source-cached "/test.vp" "invalid source" 0 "mediump" "highp" :language-glsl-sm120)))
-        (is (thrown? Exception
-                     (transpile-shader-source-cached "/test.vp" "invalid source" 0 "mediump" "highp" :language-glsl-sm120)))
-        (is (= 4 @transpile-count)))
-      (finally
-        (fn/clear-memoized! transpile-shader-source-cached)))))
+            [integration.test-util :as test-util]))
 
 (defn- prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))

@@ -17,11 +17,13 @@
             [editor.graphics.types :as graphics.types]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
-            [util.eduction :as e])
+            [util.eduction :as e]
+            [util.fn :as fn])
   (:import [com.dynamo.bob CompileExceptionError]
            [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ResourceType Shaderc$ResourceTypeInfo Shaderc$ShaderPrecision Shaderc$ShaderResource Shaderc$ShaderStage]
            [com.dynamo.bob.pipeline.shader SPIRVReflector]
-           [com.dynamo.graphics.proto Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderDataType]))
+           [com.dynamo.graphics.proto Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderDataType]
+           [com.github.benmanes.caffeine.cache Caffeine]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -173,13 +175,16 @@
           0))
     0))
 
-(defn transpile-shader-source
+(fn/defn-cached transpile-shader-source
   "Compiles a single shader source file, for example, a .vp or a .fp file into an
   augmented-shader-info map with the transpiled shader source and various
   reflection info. The precision strings should be either \"highp\" or \"mediump\".
   The target-language selects SM120 for editor previews or SM330 for
   development and tests. Both targets expose uniform-buffer members as ordinary
   uniforms for editor binding."
+  {:cache (-> (Caffeine/newBuilder)
+              (.maximumSize 64)
+              (.build))}
   [^String shader-path ^String shader-source max-page-count float-precision-str int-precision-str target-language]
   {:pre [(string? shader-path)
          (pos? (count shader-path))

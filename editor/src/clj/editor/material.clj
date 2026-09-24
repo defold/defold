@@ -35,7 +35,6 @@
             [internal.graph.types :as gt]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
-            [util.fn :as fn]
             [util.murmur :as murmur]
             [util.num :as num])
   (:import [com.dynamo.bob.pipeline MaterialBuilder]
@@ -184,9 +183,6 @@
     :constant-type-worldview-inverse :world-view-inv
     :constant-type-worldviewproj-inverse :world-view-proj-inv))
 
-(def ^:private transpile-shader-source-cached
-  (fn/memoize {:limit 8} #'shader-gen/transpile-shader-source))
-
 (defn- transpile-shader-source
   [shader-resource-node-id shader-resource ^String shader-source max-page-count glsl-es-default-precision-float glsl-es-default-precision-int]
   ;; TODO(instancing): The shader-source has been preprocessed and will contain
@@ -194,7 +190,7 @@
   ;; and line numbers here.
   (let [shader-proj-path (resource/proj-path shader-resource)]
     (try
-      (transpile-shader-source-cached shader-proj-path shader-source ^long max-page-count glsl-es-default-precision-float glsl-es-default-precision-int :language-glsl-sm120)
+      (shader-gen/transpile-shader-source shader-proj-path shader-source ^long max-page-count glsl-es-default-precision-float glsl-es-default-precision-int :language-glsl-sm120)
       (catch Exception exception
         (let [ex-data (ex-data exception)]
           (if-not (shader-gen/shader-transpile-ex-data? ex-data)
