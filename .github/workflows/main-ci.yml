@@ -266,7 +266,8 @@ jobs:
         if: runner.os == 'macOS'
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
-          xcode-version: "27.1.0-beta"
+          # The runner reports build 27A9269 as 27.1.0/GM, despite the beta app path.
+          xcode-version: "27.1.0"
       - name: "Install Rosetta for Intel macOS tests"
         if: matrix.platform == 'x86_64-macos'
         run: sudo softwareupdate --install-rosetta --agree-to-license
