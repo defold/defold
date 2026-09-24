@@ -233,19 +233,24 @@ public class Ktx2TextureGeneratorTest {
         assertEquals(255, result.imageDatas.get(1)[3] & 0xff);
     }
 
+    // Bob discovers this class in the test jar, so it must have a public no-arg constructor.
+    public static class MipIndexCompressor extends TextureCompressorUncompressed {
+        private final List<Integer> levels = new ArrayList<>();
+
+        @Override
+        public String getName() { return "Ktx2MipIndexTest"; }
+
+        @Override
+        public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input) {
+            levels.add(params.getMipMapLevel());
+            return super.compress(preset, params, input);
+        }
+    }
+
     @Test
     public void compressorsReceiveOutputMipIndices() throws Exception {
-        List<Integer> levels = new ArrayList<>();
-        TextureCompressorUncompressed compressor = new TextureCompressorUncompressed() {
-            @Override
-            public String getName() { return "Ktx2MipIndexTest"; }
-
-            @Override
-            public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input) {
-                levels.add(params.getMipMapLevel());
-                return super.compress(preset, params, input);
-            }
-        };
+        MipIndexCompressor compressor = new MipIndexCompressor();
+        List<Integer> levels = compressor.levels;
         TextureCompression.registerCompressor(compressor);
         TextureProfile.Builder profile = profile(false, true, false, 0, false, false).toBuilder();
         profile.getPlatformsBuilder(0).getFormatsBuilder(0)
