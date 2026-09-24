@@ -1118,7 +1118,7 @@
           (g/fnk [^:unsafe _evaluation-context nodes]
             ;; We use unsafe evaluation context to get child node types: these
             ;; should never change
-            (let [basis (:basis _evaluation-context)]
+            (let [basis (g/ec-basis _evaluation-context)]
               (into {}
                     (comp
                       (filter #(g/node-instance? basis EmitterNode %))
@@ -1133,7 +1133,7 @@
           (g/fnk [^:unsafe _evaluation-context _node-id child-outlines]
             ;; We use unsafe evaluation context to get child node types: these
             ;; should never change
-            (let [basis (:basis _evaluation-context)
+            (let [basis (g/ec-basis _evaluation-context)
                   outlines (group-by #(g/node-instance? basis ModifierNode (:node-id %)) child-outlines)
                   mod-outlines (get outlines true [])
                   emitter-outlines (get outlines false [])]

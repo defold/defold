@@ -33,7 +33,7 @@
             (set (fn [evaluation-context self old-value new-value]
                    (if new-value
                      (g/connect new-value :contents self :source)
-                     (when-let [old-source (some-> (first (g/inputs (:basis evaluation-context) self :source))
+                     (when-let [old-source (some-> (first (g/inputs (g/ec-basis evaluation-context) self :source))
                                                    gt/source-id)]
                        (g/disconnect old-source :contents self :source))))))
 

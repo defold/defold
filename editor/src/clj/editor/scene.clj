@@ -1435,7 +1435,7 @@
    (g/with-auto-evaluation-context evaluation-context
      (active-scene-view app-view evaluation-context)))
   ([app-view evaluation-context]
-   (let [basis (:basis evaluation-context)
+   (let [basis (g/ec-basis evaluation-context)
          view (g/node-value app-view :active-view evaluation-context)]
      (when (and view (g/node-instance? basis SceneView view))
        view))))
@@ -1502,7 +1502,7 @@
                           (cond-> (.z max-p) zero-z inc)]))))
 
 (defn- aabb-framing-info [view-node-id aabb evaluation-context]
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         camera-node-id (view->camera basis view-node-id)
         viewport (g/node-value view-node-id :viewport evaluation-context)
         start-camera (g/node-value camera-node-id :local-camera evaluation-context)
@@ -1554,7 +1554,7 @@
 (defn- camera-animating?
   [app-view evaluation-context]
   (when-some [active-scene-view (active-scene-view app-view evaluation-context)]
-    (some-> (view->camera (:basis evaluation-context) active-scene-view)
+    (some-> (view->camera (g/ec-basis evaluation-context) active-scene-view)
             (g/node-value :animating evaluation-context))))
 
 (handler/defhandler :scene.realign-camera :global
@@ -1564,7 +1564,7 @@
   (run [app-view]
     (g/with-auto-evaluation-context evaluation-context
       (when-let [scene-view (active-scene-view app-view evaluation-context)]
-        (when-let [camera (view->camera (:basis evaluation-context) scene-view)]
+        (when-let [camera (view->camera (g/ec-basis evaluation-context) scene-view)]
           (c/realign-camera camera true evaluation-context))))))
 
 (handler/defhandler :scene.set-camera-type :global
@@ -1580,7 +1580,7 @@
   (run [app-view user-data]
     (g/with-auto-evaluation-context evaluation-context
       (when-some [view (active-scene-view app-view evaluation-context)]
-        (c/set-camera-type! (view->camera (:basis evaluation-context) view) (:camera-type user-data)))))
+        (c/set-camera-type! (view->camera (g/ec-basis evaluation-context) view) (:camera-type user-data)))))
   (options [user-data]
     (when-not user-data
       [{:label (localization/message "command.scene.set-camera-type.option.orthographic")
@@ -1601,10 +1601,10 @@
   (run [app-view]
     (g/with-auto-evaluation-context evaluation-context
       (when-let [scene-view (active-scene-view app-view evaluation-context)]
-        (when-let [camera (view->camera (:basis evaluation-context) scene-view)]
+        (when-let [camera (view->camera (g/ec-basis evaluation-context) scene-view)]
           (c/realign-camera camera true evaluation-context)))))
   (state [app-view evaluation-context]
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           scene-view (active-scene-view app-view evaluation-context)]
       (c/camera-2d? (view->camera basis scene-view) evaluation-context))))
 
@@ -1613,14 +1613,14 @@
   (active? [app-view evaluation-context]
     (active-scene-view app-view evaluation-context))
   (enabled? [app-view evaluation-context]
-    (and (not (let [basis (:basis evaluation-context)
+    (and (not (let [basis (g/ec-basis evaluation-context)
                     scene-view (active-scene-view app-view evaluation-context)]
                 (c/camera-2d? (view->camera basis scene-view) evaluation-context)))
          (not (camera-animating? app-view evaluation-context))))
   (run [app-view]
     (g/with-auto-evaluation-context evaluation-context
       (when-some [view (active-scene-view app-view evaluation-context)]
-        (c/set-camera-type! (view->camera (:basis evaluation-context) view)
+        (c/set-camera-type! (view->camera (g/ec-basis evaluation-context) view)
                             (case (g/node-value view :camera-type evaluation-context)
                               :orthographic :perspective
                               :perspective :orthographic)))))
@@ -1632,12 +1632,12 @@
 (handler/defhandler :scene.free-camera.activate :workbench
   (enabled? [app-view evaluation-context]
     (when-let [scene-view (active-scene-view app-view evaluation-context)]
-      (when-let [camera (view->camera (:basis evaluation-context) scene-view)]
+      (when-let [camera (view->camera (g/ec-basis evaluation-context) scene-view)]
         (contains? (g/node-value camera :movements-enabled evaluation-context) :look))))
   (run [app-view]
     (g/with-auto-evaluation-context evaluation-context
       (when-let [scene-view (active-scene-view app-view evaluation-context)]
-        (let [camera (view->camera (:basis evaluation-context) scene-view)
+        (let [camera (view->camera (g/ec-basis evaluation-context) scene-view)
               image-view (g/node-value scene-view :image-view evaluation-context)]
           (when (and camera image-view)
             (c/start-free-cam-mode! image-view camera)))))))
@@ -1736,7 +1736,7 @@
 
 (defn input-dispatch-context [view-id]
   (g/with-auto-evaluation-context evaluation-context
-    {:input-handlers (g/inputs (:basis evaluation-context) view-id :input-handlers)
+    {:input-handlers (g/inputs (g/ec-basis evaluation-context) view-id :input-handlers)
      :user-data (g/node-value view-id :selected-tool-renderables evaluation-context)
      :mouse-binding-context (g/node-value view-id :mouse-binding-context evaluation-context)}))
 
@@ -1754,7 +1754,7 @@
 
 (defn update-tick-handlers [view-id input-state dt]
   (g/with-auto-evaluation-context evaluation-context
-    (let [update-tick-handlers (g/inputs (:basis evaluation-context) view-id :update-tick-handlers)]
+    (let [update-tick-handlers (g/inputs (g/ec-basis evaluation-context) view-id :update-tick-handlers)]
       (reduce (fn [input-state arc]
                 (when input-state
                   (let [node-id (gt/source-id arc)
@@ -2444,9 +2444,9 @@
              _ (when-not (and (<= 1 width 4096) (<= 1 height 4096))
                  (throw (http-server/error (http-server/response 400 "Invalid dimensions\n"))))
              workspace (project/workspace project evaluation-context)
-             resource (or (workspace/find-resource (:basis evaluation-context) workspace (str "/" (:path (:path-params request))))
+             resource (or (workspace/find-resource (g/ec-basis evaluation-context) workspace (str "/" (:path (:path-params request))))
                           (throw (http-server/error http-server/not-found)))
-             resource-type (resource/lookup-resource-type (:basis evaluation-context) workspace resource)
+             resource-type (resource/lookup-resource-type (g/ec-basis evaluation-context) workspace resource)
              resource-node (or (project/get-resource-node project resource evaluation-context)
                                (throw (http-server/error (http-server/response 422 "Resource is not loaded\n"))))
              view-type (or (coll/first-where #(= :scene (:id %)) (:view-types resource-type))

@@ -137,7 +137,7 @@
   [drop-fn root-id select-fn action]
   (let [{:keys [^DragEvent event string gesture-target world-pos world-dir]} action]
     (ui/request-focus! gesture-target)
-    (g/let-ec [basis (:basis evaluation-context)
+    (g/let-ec [basis (g/ec-basis evaluation-context)
                op-seq (gensym)
                env (-> gesture-target (ui/node-contexts false evaluation-context) first :env)
                {:keys [selection workspace]} env

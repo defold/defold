@@ -552,7 +552,7 @@
 (defn adapt [selection t evaluation-context]
   (if (empty? selection)
     selection
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           _ (assert (ig/graph? basis))
           selection (if (g/node-type? t)
                       (adapt selection Long evaluation-context)

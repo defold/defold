@@ -104,7 +104,7 @@
   node id, while a folder path resolves to folder resource."
   [unresolved-editor-lookup project evaluation-context]
   (if (string? unresolved-editor-lookup)
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           workspace (project/workspace project evaluation-context)
           resource (workspace/find-resource basis workspace unresolved-editor-lookup)]
       (when-not resource
@@ -129,15 +129,15 @@
   Folder resources and defective nodes are rejected with LuaError."
   [unresolved-editor-lookup project evaluation-context]
   (let [node-id (unresolved-editor-lookup->node-id unresolved-editor-lookup project evaluation-context)]
-    (when (g/defective? (:basis evaluation-context) node-id)
+    (when (g/defective? (g/ec-basis evaluation-context) node-id)
       (throw (LuaError. (if (string? unresolved-editor-lookup)
                           (str "Cannot edit defective resource: " unresolved-editor-lookup)
                           (str "Cannot edit defective node of type "
-                               (name (g/node-type-kw (:basis evaluation-context) node-id)))))))
+                               (name (g/node-type-kw (g/ec-basis evaluation-context) node-id)))))))
     node-id))
 
 (defn node-id->type-keyword [node-id evaluation-context]
-  (g/node-type-kw (:basis evaluation-context) node-id))
+  (g/node-type-kw (g/ec-basis evaluation-context) node-id))
 
 ;; region get
 
@@ -154,7 +154,7 @@
   (let [unresolved-editor-lookup (rt/->clj rt unresolved-editor-lookup-or-empty-string-coercer lua-value)]
     (when-not (= unresolved-editor-lookup "")
       (let [resource (if (string? unresolved-editor-lookup)
-                       (let [basis (:basis evaluation-context)
+                       (let [basis (g/ec-basis evaluation-context)
                              workspace (project/workspace project evaluation-context)]
                          (workspace/resolve-workspace-resource basis workspace unresolved-editor-lookup))
                        (g/node-value (editor-lookup->node-id unresolved-editor-lookup) :resource evaluation-context))
@@ -395,7 +395,7 @@
   (let [resource (g/node-value node-id :resource evaluation-context)]
     (and (some? resource)
          (-> evaluation-context
-             :basis
+             g/ec-basis
              (resource/lookup-resource-type (resource/workspace resource) resource)
              :textual?))))
 
@@ -495,7 +495,7 @@
       "children" #(mapv resource/proj-path (resource/children editor-lookup))
       nil)
     (let [node-id (editor-lookup->node-id editor-lookup)
-          {:keys [basis]} evaluation-context
+          basis (g/ec-basis evaluation-context)
           node-type (g/node-type* basis node-id)
           workspace (project/workspace project evaluation-context)]
       (or (coll/some #((ext-property-getter (:k (g/node-type* basis %))) % property evaluation-context)
@@ -525,7 +525,7 @@
     (let [node-id (editor-lookup->node-id editor-lookup)
           ancestors (editor-lookup->ancestors editor-lookup)
           workspace (project/workspace project evaluation-context)
-          explicit-type-name (node-types/->name (g/node-type* (:basis evaluation-context) node-id))]
+          explicit-type-name (node-types/->name (g/node-type* (g/ec-basis evaluation-context) node-id))]
       (-> (e/distinct
             (e/concat
               (when ancestors ["parent"])
@@ -905,7 +905,7 @@
         (attachment->set-tx-steps child-node-id rt project evaluation-context))))
 
 (defmethod init-attachment :editor.gui/LayerNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
-  (let [layers-node (gui-attachment/scene-node->layers-node (:basis evaluation-context) parent-node-id)]
+  (let [layers-node (gui-attachment/scene-node->layers-node (g/ec-basis evaluation-context) parent-node-id)]
     (concat
       (g/set-property child-node-id :child-index (gui-attachment/next-child-index layers-node evaluation-context))
       (-> attachment
@@ -921,7 +921,7 @@
         (FilenameUtils/getBaseName (rt/->clj rt coerce/string lua-material-str))
         resource-key)
       (-> evaluation-context
-          :basis
+          g/ec-basis
           (container-node-fn parent-node-id)
           (g/node-value :name-counts evaluation-context)))))
 
@@ -979,7 +979,7 @@
   The returned attachment might be modified, typically stripped of the type key"
   (fn extract-node-type-dispatch-fn [_rt _attachment workspace node-id list-kw evaluation-context]
     (let [node-id (attachment/list-node-id workspace node-id list-kw evaluation-context)]
-      [(g/node-type-kw (:basis evaluation-context) node-id) list-kw])))
+      [(g/node-type-kw (g/ec-basis evaluation-context) node-id) list-kw])))
 
 (defmethod extract-node-type :default [rt attachment workspace node-id list-kw evaluation-context]
   (let [possible-node-types (attachment/child-node-types workspace node-id list-kw evaluation-context)
@@ -1001,7 +1001,7 @@
     rt
     project
     parent-node-id
-    (g/node-type* (:basis evaluation-context) child-node-id)
+    (g/node-type* (g/ec-basis evaluation-context) child-node-id)
     child-node-id
     (reduce-kv
       (fn [acc property _]
@@ -1014,7 +1014,7 @@
 
 (defmulti create-extra-nodes
   (fn create-extra-nodes-dispatch-fn [evaluation-context _rt _project _workspace _attachment _parent-node-id node-id]
-    (g/node-type-kw (:basis evaluation-context) node-id)))
+    (g/node-type-kw (g/ec-basis evaluation-context) node-id)))
 
 (defmethod create-extra-nodes :default [_evaluation-context _rt _project _workspace _attachment _parent-node-id _node-id])
 

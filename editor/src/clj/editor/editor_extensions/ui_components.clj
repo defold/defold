@@ -339,7 +339,7 @@
 
 (defn- construct-image [^String s workspace]
   (if (string/starts-with? s "/")
-    (when-let [resource (workspace/find-resource (:basis (lifecycle-evaluation-context)) workspace s)]
+    (when-let [resource (workspace/find-resource (g/ec-basis (lifecycle-evaluation-context)) workspace s)]
       (when (resource/exists? resource)
         (Image. (io/input-stream resource) #_background-loading true)))
     (when-let [^URI uri (try (URI. s) (catch URISyntaxException _))]

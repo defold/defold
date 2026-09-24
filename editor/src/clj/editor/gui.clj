@@ -529,7 +529,7 @@
 
 (defn- gui-node-attach-fn [target source]
   (g/with-auto-evaluation-context evaluation-context
-    (let [node-tree (node->node-tree (:basis evaluation-context) target)
+    (let [node-tree (node->node-tree (g/ec-basis evaluation-context) target)
           taken-ids (g/node-value node-tree :id-counts evaluation-context)
           next-index (gui-attachment/next-child-index target evaluation-context)]
       (concat
@@ -707,7 +707,7 @@
        (validation/prop-error :fatal node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))))
 
 (defmulti update-gui-resource-reference (fn [gui-resource-type evaluation-context node-id _old-name _new-name]
-                                          [(g/node-type-kw (:basis evaluation-context) node-id) gui-resource-type]))
+                                          [(g/node-type-kw (g/ec-basis evaluation-context) node-id) gui-resource-type]))
 (defmethod update-gui-resource-reference :default [_ _evaluation-context _node-id _old-name _new-name] nil)
 
 ;; used by (property x (set (partial ...)), thus evaluation-context in signature
@@ -718,7 +718,7 @@
   (assert (string? new-name))
   (when (and (not (empty? old-name))
              (not (empty? new-name)))
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           owner-gui-scene (core/scope-of-type basis gui-resource-node-id GuiSceneNode)]
       ;; Note: We can be without an owner-gui-scene if the gui resource isn't
       ;; attached yet. For example, if it is on the clipboard and about to be
@@ -744,7 +744,7 @@
                     (update-gui-resource-reference gui-resource-type evaluation-context gui-node old-name new-name)))))))))
 
 (defn- update-gui-resource-reference-impl [rename-fn evaluation-context node-id prop-kw old-name new-name]
-  (let [basis (:basis evaluation-context)]
+  (let [basis (g/ec-basis evaluation-context)]
     (assert (g/property-value-origin? basis node-id :layout->prop->override))
     (concat
       (when (g/property-value-origin? basis node-id prop-kw)
@@ -1099,7 +1099,7 @@
   (let [kv-count (count prop-kws-and-values)]
     (when (pos? kv-count)
       (assert (even? kv-count))
-      (let [basis (:basis evaluation-context)
+      (let [basis (g/ec-basis evaluation-context)
             node (g/node-by-id basis node-id)
             prop->value-delay (delay (prop->value-for-specific-layout node-id layout-name evaluation-context))
 
@@ -1121,7 +1121,7 @@
     (layout-property-clears-tx-data
       layout-name node-id
       (if-let [changes-fn (-> evaluation-context
-                              :basis
+                              g/ec-basis
                               (g/node-by-id node-id)
                               (g/node-property-dynamic prop-kw :edit-type evaluation-context)
                               :changes-fn)]
@@ -1240,7 +1240,7 @@
                                        layer-names (:layer-names basic-gui-scene-info)]
                                    (wrap-layout-property-edit-type layer (optional-gui-resource-choicebox layer-names (partial sort-by layer->index))))))
             (dynamic error (g/fnk [^:unsafe _evaluation-context _node-id layer basic-gui-scene-info]
-                             (let [basis (:basis _evaluation-context)
+                             (let [basis (g/ec-basis _evaluation-context)
                                    layer-names (:layer-names basic-gui-scene-info)]
                                (validate-layer basis true _node-id layer-names layer))))
             (dynamic label (properties/label-dynamic :gui :layer))
@@ -1377,7 +1377,7 @@
             ;; originals here.
             (let [current-layout (:current-layout trivial-gui-scene-info)]
               (when (coll/not-empty current-layout)
-                (let [basis (:basis _evaluation-context)]
+                (let [basis (g/ec-basis _evaluation-context)]
                   (loop [node-id _node-id
                          layout-names (:layout-names trivial-gui-scene-info)
                          prop->value (get layout->prop->override current-layout)]
@@ -1453,7 +1453,7 @@
   (input child-build-errors g/Any :array)
   (output build-errors-gui-node g/Any
           (g/fnk [^:unsafe _evaluation-context _node-id basic-gui-scene-info id id-counts layer]
-            (let [basis (:basis _evaluation-context)
+            (let [basis (g/ec-basis _evaluation-context)
                   layer-names (:layer-names basic-gui-scene-info)]
               (g/package-errors
                 _node-id
@@ -1518,51 +1518,53 @@
                                      :clear-fn clear-fn)}))))))))
 
 (defn- transfer-overrides-plan
-  [override-transfer-type source-layout-name source-prop-infos-by-prop-kw target-node-id+layout-names {:keys [basis] :as evaluation-context}]
+  [override-transfer-type source-layout-name source-prop-infos-by-prop-kw target-node-id+layout-names evaluation-context]
   {:pre [(not (coll/empty? target-node-id+layout-names))]}
-  (when-let [target-infos
-             (coll/not-empty
-               (coll/into-> target-node-id+layout-names []
-                 (keep (fn [[target-node-id target-layout-name]]
-                         (when-let [target-prop-infos-by-prop-kw (transfer-overrides-target-properties target-node-id target-layout-name evaluation-context)]
-                           (cond-> {:target-node-id target-node-id
-                                    :target-prop-infos-by-prop-kw target-prop-infos-by-prop-kw}
-                                   (or (not= "" source-layout-name)
-                                       (not= "" target-layout-name))
-                                   (assoc :target-aspect
-                                          [(localization/message "override.aspect.layout" {"layout" (if (= "" target-layout-name)
-                                                                                                      (localization/message "gui.layout.default")
-                                                                                                      target-layout-name)})
-                                           (localization/message "override.aspect.layout.kind")])))))))]
-    (properties/transfer-overrides-plan basis override-transfer-type source-prop-infos-by-prop-kw target-infos)))
+  (let [basis (g/ec-basis evaluation-context)]
+    (when-let [target-infos
+               (coll/not-empty
+                 (coll/into-> target-node-id+layout-names []
+                   (keep (fn [[target-node-id target-layout-name]]
+                           (when-let [target-prop-infos-by-prop-kw (transfer-overrides-target-properties target-node-id target-layout-name evaluation-context)]
+                             (cond-> {:target-node-id target-node-id
+                                      :target-prop-infos-by-prop-kw target-prop-infos-by-prop-kw}
+                               (or (not= "" source-layout-name)
+                                   (not= "" target-layout-name))
+                               (assoc :target-aspect
+                                 [(localization/message "override.aspect.layout" {"layout" (if (= "" target-layout-name)
+                                                                                             (localization/message "gui.layout.default")
+                                                                                             target-layout-name)})
+                                  (localization/message "override.aspect.layout.kind")])))))))]
+      (properties/transfer-overrides-plan basis override-transfer-type source-prop-infos-by-prop-kw target-infos))))
 
 (defmethod properties/pull-up-overrides-plan-alternatives ::GuiNode
-  [source-node-id source-prop-infos-by-prop-kw {:keys [basis] :as evaluation-context}]
-  (when-let [trivial-gui-scene-info (g/maybe-node-value source-node-id :trivial-gui-scene-info evaluation-context)]
-    (let [source-layout-name (or (:current-layout trivial-gui-scene-info) "")
+  [source-node-id source-prop-infos-by-prop-kw evaluation-context]
+  (let [basis (g/ec-basis evaluation-context)]
+    (when-let [trivial-gui-scene-info (g/maybe-node-value source-node-id :trivial-gui-scene-info evaluation-context)]
+      (let [source-layout-name (or (:current-layout trivial-gui-scene-info) "")
 
-          original-node-ids
-          (iterate #(g/override-original basis %)
-                   (g/override-original basis source-node-id))
+            original-node-ids
+            (iterate #(g/override-original basis %)
+                     (g/override-original basis source-node-id))
 
-          pull-up-overrides-to-default-layout-plan
-          (when (not= "" source-layout-name)
-            (transfer-overrides-plan :pull-up-overrides source-layout-name source-prop-infos-by-prop-kw [[source-node-id ""]] evaluation-context))
+            pull-up-overrides-to-default-layout-plan
+            (when (not= "" source-layout-name)
+              (transfer-overrides-plan :pull-up-overrides source-layout-name source-prop-infos-by-prop-kw [[source-node-id ""]] evaluation-context))
 
-          source-node-layout-transfer-overrides-plans
-          (if pull-up-overrides-to-default-layout-plan
-            [pull-up-overrides-to-default-layout-plan]
-            [])]
+            source-node-layout-transfer-overrides-plans
+            (if pull-up-overrides-to-default-layout-plan
+              [pull-up-overrides-to-default-layout-plan]
+              [])]
 
-      (coll/into->
-        original-node-ids source-node-layout-transfer-overrides-plans
-        (take-while some?)
-        (keep (fn [original-node-id]
-                (transfer-overrides-plan :pull-up-overrides source-layout-name source-prop-infos-by-prop-kw [[original-node-id source-layout-name]] evaluation-context)))))))
+        (coll/into->
+          original-node-ids source-node-layout-transfer-overrides-plans
+          (take-while some?)
+          (keep (fn [original-node-id]
+                  (transfer-overrides-plan :pull-up-overrides source-layout-name source-prop-infos-by-prop-kw [[original-node-id source-layout-name]] evaluation-context))))))))
 
 (defmethod properties/push-down-overrides-plan-alternatives ::GuiNode
-  [source-node-id source-prop-infos-by-prop-kw {:keys [basis] :as evaluation-context}]
-  (when-let [override-node-ids (coll/not-empty (g/overrides basis source-node-id))]
+  [source-node-id source-prop-infos-by-prop-kw evaluation-context]
+  (when-let [override-node-ids (coll/not-empty (g/overrides (g/ec-basis evaluation-context) source-node-id))]
     (when-let [trivial-gui-scene-info (g/maybe-node-value source-node-id :trivial-gui-scene-info evaluation-context)]
       (let [source-layout-name (or (:current-layout trivial-gui-scene-info) "")
             target-node-id+layout-names (e/map #(pair % source-layout-name) override-node-ids)
@@ -1793,49 +1795,51 @@
     :texture-size
     :manual-size))
 
-(defn- size-mode-property-changes-fn [{:keys [basis] :as evaluation-context} self _prop-kw old-value new-value]
-  (coll/merge
-    {:size-mode new-value}
-    (when-some [texture (coll/not-empty (g/node-value self :texture evaluation-context))]
-      (cond
-        ;; Clear existing :manual-size override when switching
-        ;; from :size-mode-manual to :size-mode-auto with a
-        ;; texture assigned.
-        (and (= :manual-size (visible-size-property-label old-value texture))
-             (g/property-overridden? basis self :manual-size)
-             (let [effective-new-value
-                   (or new-value
-                       (let [original-node-id (g/override-original basis self)]
-                         (g/node-value original-node-id :size-mode evaluation-context)))]
-               (= :texture-size (visible-size-property-label effective-new-value texture))))
-        {:manual-size nil}
+(defn- size-mode-property-changes-fn [evaluation-context self _prop-kw old-value new-value]
+  (let [basis (g/ec-basis evaluation-context)]
+    (coll/merge
+      {:size-mode new-value}
+      (when-some [texture (coll/not-empty (g/node-value self :texture evaluation-context))]
+        (cond
+          ;; Clear existing :manual-size override when switching
+          ;; from :size-mode-manual to :size-mode-auto with a
+          ;; texture assigned.
+          (and (= :manual-size (visible-size-property-label old-value texture))
+               (g/property-overridden? basis self :manual-size)
+               (let [effective-new-value
+                     (or new-value
+                         (let [original-node-id (g/override-original basis self)]
+                           (g/node-value original-node-id :size-mode evaluation-context)))]
+                 (= :texture-size (visible-size-property-label effective-new-value texture))))
+          {:manual-size nil}
 
-        ;; Use the size of the assigned texture as :manual-size
-        ;; when the user switches from :size-mode-auto to
-        ;; :size-mode-manual.
-        (and (= :size-mode-auto old-value)
-             (= :size-mode-manual new-value))
-        (let [costly-gui-scene-info (g/node-value self :costly-gui-scene-info evaluation-context)
-              texture-infos (:texture-infos costly-gui-scene-info)
-              texture-info (get texture-infos texture)]
-          (when-some [anim-data (:anim-data texture-info)]
-            (let [texture-size [(float (:width anim-data)) (float (:height anim-data)) protobuf/float-zero]]
-              {:manual-size texture-size})))))))
+          ;; Use the size of the assigned texture as :manual-size
+          ;; when the user switches from :size-mode-auto to
+          ;; :size-mode-manual.
+          (and (= :size-mode-auto old-value)
+               (= :size-mode-manual new-value))
+          (let [costly-gui-scene-info (g/node-value self :costly-gui-scene-info evaluation-context)
+                texture-infos (:texture-infos costly-gui-scene-info)
+                texture-info (get texture-infos texture)]
+            (when-some [anim-data (:anim-data texture-info)]
+              (let [texture-size [(float (:width anim-data)) (float (:height anim-data)) protobuf/float-zero]]
+                {:manual-size texture-size}))))))))
 
-(defn- texture-property-changes-fn [{:keys [basis] :as evaluation-context} self _prop-kw old-value new-value]
+(defn- texture-property-changes-fn [evaluation-context self _prop-kw old-value new-value]
   ;; Clear any existing :manual-size override when
   ;; assigning a texture will hide the :manual-size
   ;; property.
-  (let [size-mode (g/node-value self :size-mode evaluation-context)]
+  (let [basis (g/ec-basis evaluation-context)
+        size-mode (g/node-value self :size-mode evaluation-context)]
     (cond-> {:texture new-value}
-            (and (= :manual-size (visible-size-property-label size-mode old-value))
-                 (g/property-overridden? basis self :manual-size)
-                 (let [effective-new-value
-                       (or new-value
-                           (let [original-node-id (g/override-original basis self)]
-                             (g/node-value original-node-id :texture evaluation-context)))]
-                   (= :texture-size (visible-size-property-label size-mode effective-new-value))))
-            (assoc :manual-size nil))))
+      (and (= :manual-size (visible-size-property-label size-mode old-value))
+           (g/property-overridden? basis self :manual-size)
+           (let [effective-new-value
+                 (or new-value
+                     (let [original-node-id (g/override-original basis self)]
+                       (g/node-value original-node-id :texture evaluation-context)))]
+             (= :texture-size (visible-size-property-label size-mode effective-new-value))))
+      (assoc :manual-size nil))))
 
 (g/defnode ShapeNode
   (inherits VisualNode)
@@ -2316,7 +2320,7 @@
 
 (defn- contains-resource?
   [project gui-scene resource evaluation-context]
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         workspace (project/workspace project evaluation-context)
         acc-fn (fn [target-node]
                  (->> (g/node-value target-node :node-msgs evaluation-context)
@@ -2333,7 +2337,7 @@
                                                   :ext "gui"
                                                   :dialog-accept-fn (fn [r]
                                                                       (g/with-auto-evaluation-context evaluation-context
-                                                                        (let [basis (:basis evaluation-context)
+                                                                        (let [basis (g/ec-basis evaluation-context)
                                                                               gui-scene (node->gui-scene basis _node-id)
                                                                               project (project/get-project basis)]
                                                                           (not (contains-resource? project gui-scene r evaluation-context)))))
@@ -2351,7 +2355,7 @@
                                                     v)))
                                        template-overrides)}))
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (:basis evaluation-context)
+                   (let [basis (g/ec-basis evaluation-context)
                          project (project/get-project basis)
                          current-scene (g/node-feeding-into basis self :template-resource)]
                      (concat
@@ -2638,7 +2642,7 @@
             (dynamic label (properties/label-dynamic :gui.resource :texture))
             (dynamic tooltip (properties/tooltip-dynamic :gui.resource :texture))
             (dynamic edit-type (g/fnk [^:unsafe _evaluation-context _node-id]
-                                 (let [basis (:basis _evaluation-context)
+                                 (let [basis (g/ec-basis _evaluation-context)
                                        project (project/get-project basis)
                                        workspace (project/workspace project _evaluation-context)
                                        exts (workspace/resource-kind-extensions workspace :atlas _evaluation-context)]
@@ -4085,7 +4089,7 @@
       :type-infos))
 
 (defn- add-handler-options [node evaluation-context]
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         node (g/override-root basis node)
         scene (node->gui-scene basis node)
         node-options (cond
@@ -4619,7 +4623,7 @@
                             (pair resource-kind resource-kind-info)))
                         (gui-resource-kind-registry-from-resource-types
                           (g/node-value gui-scene :resource-types evaluation-context)))]
-            (let [target-node (gui-resource-kind-node (:basis evaluation-context) gui-scene resource-kind)
+            (let [target-node (gui-resource-kind-node (g/ec-basis evaluation-context) gui-scene resource-kind)
                   name-counts (g/node-value target-node :name-counts evaluation-context)
                   name (id/gen base-name name-counts)]
               (add-gui-resource-kind-entry gui-scene target-node resource-kind-info resource name)))
@@ -4703,33 +4707,35 @@
           :gui-node-type-registry base-node-type-registry
           :gui-resource-kind-registry (sorted-map))))))
 
-(defn- attach-to-gui-scene-txs [{:keys [basis]} attach-fn scene-container-node-fn scene-node item-node]
-  (attach-fn scene-node (scene-container-node-fn basis scene-node) item-node))
+(defn- attach-to-gui-scene-txs [evaluation-context attach-fn scene-container-node-fn scene-node item-node]
+  (attach-fn scene-node (scene-container-node-fn (g/ec-basis evaluation-context) scene-node) item-node))
 
 (defn- attach-to-gui-scene-fn [scene-container-node-fn attach-fn]
   (partial g/expand-ec attach-to-gui-scene-txs attach-fn scene-container-node-fn))
 
-(defn- gui-scene-layers-getter [scene-node {:keys [basis] :as evaluation-context}]
-  (let [layer-nodes (attachment/nodes-getter (gui-attachment/scene-node->layers-node basis scene-node) evaluation-context)]
+(defn- gui-scene-layers-getter [scene-node evaluation-context]
+  (let [basis (g/ec-basis evaluation-context)
+        layer-nodes (attachment/nodes-getter (gui-attachment/scene-node->layers-node basis scene-node) evaluation-context)]
     (vec (sort-by #(g/raw-property-value basis % :child-index) layer-nodes))))
 
 (defn- reorder-gui-scene-layers [reordered-layer-node-ids]
   (coll/mapcat-indexed #(g/set-property %2 :child-index %1) reordered-layer-node-ids))
 
-(defn- gui-scene-materials-getter [scene-node {:keys [basis] :as evaluation-context}]
-  (attachment/nodes-getter (gui-attachment/scene-node->materials-node basis scene-node) evaluation-context))
+(defn- gui-scene-materials-getter [scene-node evaluation-context]
+  (attachment/nodes-getter (gui-attachment/scene-node->materials-node (g/ec-basis evaluation-context) scene-node) evaluation-context))
 
-(defn- gui-scene-particlefxs-getter [scene-node {:keys [basis] :as evaluation-context}]
-  (attachment/nodes-getter (gui-attachment/scene-node->particlefx-resources-node basis scene-node) evaluation-context))
+(defn- gui-scene-particlefxs-getter [scene-node evaluation-context]
+  (attachment/nodes-getter (gui-attachment/scene-node->particlefx-resources-node (g/ec-basis evaluation-context) scene-node) evaluation-context))
 
-(defn- gui-scene-texture-nodes-getter [scene-node {:keys [basis] :as evaluation-context}]
-  (attachment/nodes-getter (gui-attachment/scene-node->textures-node basis scene-node) evaluation-context))
+(defn- gui-scene-texture-nodes-getter [scene-node evaluation-context]
+  (attachment/nodes-getter (gui-attachment/scene-node->textures-node (g/ec-basis evaluation-context) scene-node) evaluation-context))
 
-(defn- gui-scene-layouts-getter [scene-node {:keys [basis] :as evaluation-context}]
-  (attachment/nodes-getter (gui-attachment/scene-node->layouts-node basis scene-node) evaluation-context))
+(defn- gui-scene-layouts-getter [scene-node evaluation-context]
+  (attachment/nodes-getter (gui-attachment/scene-node->layouts-node (g/ec-basis evaluation-context) scene-node) evaluation-context))
 
-(defn- gui-scene-fonts-getter [scene-node {:keys [basis]}]
-  (let [fonts-node (gui-attachment/scene-node->fonts-node basis scene-node)]
+(defn- gui-scene-fonts-getter [scene-node evaluation-context]
+  (let [basis (g/ec-basis evaluation-context)
+        fonts-node (gui-attachment/scene-node->fonts-node basis scene-node)]
     ;; NOTE: we use :names instead of :nodes to get a list of fonts because it
     ;; excludes the internal fallback font
     (mapv gt/source-id (g/explicit-inputs basis fonts-node :names))))
@@ -4749,22 +4755,24 @@
   (let [nodes (g/node-value parent-node :nodes evaluation-context)]
     (vec (sort-by #(g/node-value % :child-index evaluation-context) nodes))))
 
-(defn- template-nodes-getter [template-node {:keys [basis] :as evaluation-context}]
+(defn- template-nodes-getter [template-node evaluation-context]
   ;; We need to use g/node-value instead of raw props and explicit arcs because
   ;; scene and gui nodes might be override nodes from templates: those don't
   ;; have explicit arcs.
-  (if-let [scene-node (g/node-feeding-into basis template-node :template-resource)]
+  (if-let [scene-node (g/node-feeding-into (g/ec-basis evaluation-context) template-node :template-resource)]
     (gui-scene-nodes-getter scene-node evaluation-context)
     []))
 
-(defn- attach-gui-node-to-gui-scene [{:keys [basis]} scene-node gui-node]
-  (let [node-tree (gui-attachment/scene-node->node-tree basis scene-node)]
+(defn- attach-gui-node-to-gui-scene [evaluation-context scene-node gui-node]
+  (let [basis (g/ec-basis evaluation-context)
+        node-tree (gui-attachment/scene-node->node-tree basis scene-node)]
     (attach-gui-node node-tree node-tree gui-node)))
 
 (def ^:private add-attachment-to-gui-scene-node (partial g/expand-ec attach-gui-node-to-gui-scene))
 
-(defn- attach-gui-node-to-gui-node [{:keys [basis]} parent-gui-node gui-node]
-  (let [node-tree (node->node-tree basis parent-gui-node)]
+(defn- attach-gui-node-to-gui-node [evaluation-context parent-gui-node gui-node]
+  (let [basis (g/ec-basis evaluation-context)
+        node-tree (node->node-tree basis parent-gui-node)]
     (attach-gui-node node-tree parent-gui-node gui-node)))
 
 (def ^:private add-attachment-to-gui-node (partial g/expand-ec attach-gui-node-to-gui-node))
@@ -4805,8 +4813,9 @@
     (g/connect entry-node :name resource-kind-node :names)
     (g/connect resource-kind-node :name-counts entry-node :name-counts)))
 
-(defn- attach-gui-resource-kind-entry-to-gui-scene [{:keys [basis]} resource-kind gui-scene-node entry-node]
-  (let [resources-node (gui-resource-kind-node basis gui-scene-node resource-kind)
+(defn- attach-gui-resource-kind-entry-to-gui-scene [evaluation-context resource-kind gui-scene-node entry-node]
+  (let [basis (g/ec-basis evaluation-context)
+        resources-node (gui-resource-kind-node basis gui-scene-node resource-kind)
         attach-fn (g/raw-property-value basis resources-node :attach-fn)]
     (attach-fn gui-scene-node resources-node entry-node)))
 
@@ -4904,9 +4913,9 @@
       (attachment/register
         workspace GuiSceneNode (:attachment-property info)
         :add {(:node-type info) (partial g/expand-ec attach-gui-resource-kind-entry-to-gui-scene resource-kind)}
-        :get (fn get-gui-resource-kind-entries [gui-scene-node {:keys [basis] :as evaluation-context}]
+        :get (fn get-gui-resource-kind-entries [gui-scene-node evaluation-context]
                (attachment/nodes-getter
-                 (gui-resource-kind-node basis gui-scene-node resource-kind)
+                 (gui-resource-kind-node (g/ec-basis evaluation-context) gui-scene-node resource-kind)
                  evaluation-context))))))
 
 (node-types/register-node-type-name! BoxNode "gui-node-type-box")
@@ -4916,7 +4925,7 @@
 (node-types/register-node-type-name! ParticleFXNode "gui-node-type-particlefx")
 
 (defn- gui-node-nodes-read-only? [gui-node-id evaluation-context]
-  (g/override? (:basis evaluation-context) gui-node-id))
+  (g/override? (g/ec-basis evaluation-context) gui-node-id))
 
 (defn register-resource-types [workspace]
   (concat
@@ -4987,11 +4996,11 @@
             (g/set-property neighbour-node-id :child-index node-index)))))))
 
 (defn- selection->gui-node [selection evaluation-context]
-  (let [basis (:basis evaluation-context)]
+  (let [basis (g/ec-basis evaluation-context)]
     (g/override-root basis (handler/adapt-single selection GuiNode evaluation-context))))
 
 (defn- selection->layer-node [selection evaluation-context]
-  (let [basis (:basis evaluation-context)]
+  (let [basis (g/ec-basis evaluation-context)]
     (g/override-root basis (handler/adapt-single selection LayerNode evaluation-context))))
 
 (handler/defhandler :edit.reorder-up :workbench
@@ -4999,14 +5008,14 @@
     (or (selection->gui-node selection evaluation-context)
         (selection->layer-node selection evaluation-context)))
   (enabled? [selection evaluation-context]
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           selected-node-id (g/override-root basis (handler/selection->node-id selection evaluation-context))
           parent (core/scope basis selected-node-id)
           node-child-index (g/node-value selected-node-id :child-index evaluation-context)
           first-index (transduce (map second) min Long/MAX_VALUE (g/node-value parent :child-indices evaluation-context))]
       (< first-index node-child-index)))
   (run [selection]
-    (g/let-ec [basis (:basis evaluation-context)
+    (g/let-ec [basis (g/ec-basis evaluation-context)
                selected (g/override-root basis (handler/selection->node-id selection evaluation-context))]
       (move-child-node! selected -1))))
 
@@ -5015,14 +5024,14 @@
     (or (selection->gui-node selection evaluation-context)
         (selection->layer-node selection evaluation-context)))
   (enabled? [selection evaluation-context]
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           selected-node-id (g/override-root basis (handler/selection->node-id selection evaluation-context))
           parent (core/scope basis selected-node-id)
           node-child-index (g/node-value selected-node-id :child-index evaluation-context)
           last-index (transduce (map second) max 0 (g/node-value parent :child-indices evaluation-context))]
       (< node-child-index last-index)))
   (run [selection]
-    (g/let-ec [basis (:basis evaluation-context)
+    (g/let-ec [basis (g/ec-basis evaluation-context)
                selected (g/override-root basis (handler/selection->node-id selection evaluation-context))]
       (move-child-node! selected 1))))
 
@@ -5031,7 +5040,7 @@
    (g/with-auto-evaluation-context evaluation-context
      (resource->gui-scene project resource evaluation-context)))
   ([project resource evaluation-context]
-   (let [basis (:basis evaluation-context)
+   (let [basis (g/ec-basis evaluation-context)
          res-node (when resource
                     (project/get-resource-node project resource evaluation-context))]
      (when (and res-node (g/node-instance? basis GuiSceneNode res-node))
@@ -5189,7 +5198,7 @@
 (ext-graph/register-property-getter!
   ::GuiNode
   (fn GuiNode-getter [node-id property evaluation-context]
-    (let [{:keys [basis]} evaluation-context
+    (let [basis (g/ec-basis evaluation-context)
           node (g/node-by-id basis node-id)
           node-type (g/node-type node)
           last-colon-index (str/last-index-of property \:)
@@ -5203,7 +5212,7 @@
               (when-let [converter (-> edit-type-id ext-graph/edit-type-id->value-converter :to)]
                 #(converter value))))))))
   (fn GuiNode-lister [node-id evaluation-context]
-    (let [{:keys [basis]} evaluation-context
+    (let [basis (g/ec-basis evaluation-context)
           node (g/node-by-id basis node-id)
           node-type (g/node-type node)
           property-name->prop-kw (node-type->layout-property-names node-type)
@@ -5223,7 +5232,7 @@
 (ext-graph/register-property-setter!
   ::GuiNode
   (fn GuiNode-setter [node-id property rt project evaluation-context]
-    (let [{:keys [basis]} evaluation-context
+    (let [basis (g/ec-basis evaluation-context)
           node (g/node-by-id basis node-id)
           node-type (g/node-type node)
           last-colon-index (str/last-index-of property \:)
@@ -5243,7 +5252,7 @@
 (ext-graph/register-property-resetter!
   ::GuiNode
   (fn GuiNode-resetter [node-id property evaluation-context]
-    (let [{:keys [basis]} evaluation-context
+    (let [basis (g/ec-basis evaluation-context)
           node (g/node-by-id basis node-id)
           node-type (g/node-type node)]
       (when-let [last-colon-index (str/last-index-of property \:)]
@@ -5255,8 +5264,9 @@
                 (when (contains? prop-kw->override prop-kw)
                   #(layout-property-clear-in-specific-layout evaluation-context layout-name node-id prop-kw))))))))))
 
-(defn- init-gui-node-attachment [{:keys [basis] :as evaluation-context} rt project parent-node-id child-node-type child-node-id attachment node-id-base-name-fn]
-  (let [workspace (project/workspace project evaluation-context)
+(defn- init-gui-node-attachment [evaluation-context rt project parent-node-id child-node-type child-node-id attachment node-id-base-name-fn]
+  (let [basis (g/ec-basis evaluation-context)
+        workspace (project/workspace project evaluation-context)
         resource-types (resource/resource-types-by-type-ext basis workspace :editable)
         gui-node-type-registry (gui-node-type-registry-from-resource-types resource-types)
         {:keys [type defaults]} (registered-node-type-info gui-node-type-registry child-node-type)

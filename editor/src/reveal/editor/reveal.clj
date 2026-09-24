@@ -100,8 +100,9 @@
       (r/as e (r/raw-string (or cause class) {:fill :error})))
     (r/stream v)))
 
-(defn- node-id-sf [{:keys [basis] :as ec} node-id]
-  (let [type-sym (symbol (:k (g/node-type* basis node-id)))]
+(defn- node-id-sf [ec node-id]
+  (let [basis (g/ec-basis ec)
+        type-sym (symbol (:k (g/node-type* basis node-id)))]
     (r/horizontal
       (r/raw-string
         (if (g/node-instance? basis resource-node/ResourceNode node-id)
@@ -116,7 +117,7 @@
 
 (defn- node-children-fn [ec node-id]
   (fn []
-    (let [{:keys [basis]} ec
+    (let [basis (g/ec-basis ec)
           node-type-def @(g/node-type* basis node-id)
           override-original (g/override-original basis node-id)
           children (->> [:input :property :output]
@@ -135,8 +136,9 @@
                                 (node-id-sf ec override-original))
                       :children (node-children-fn ec override-original)})))))
 
-(defn- label-tree-node [{:keys [basis] :as ec} node-id label]
-  (let [[v e :as v-or-e] (node-value-or-err ec node-id label)
+(defn- label-tree-node [ec node-id label]
+  (let [basis (g/ec-basis ec)
+        [v e :as v-or-e] (node-value-or-err ec node-id label)
         inputs (g/inputs basis node-id label)
         outputs (g/outputs basis node-id label)
         related-node (fn [relation rel-node-id related-label]
@@ -174,7 +176,7 @@
 (r/defaction ::defold:node-tree [x ann]
   (when-some [node-id (as-node-id x ann)]
     (let [ec (or (::evaluation-context ann) (make-evaluation-context))]
-      (when (g/node-by-id (:basis ec) node-id)
+      (when (g/node-by-id (g/ec-basis ec) node-id)
         (fn []
           {:fx/type r/tree-view
            :branch? :children
@@ -187,7 +189,7 @@
 (defn- render-endpoint [ec root-endpoint endpoint]
   (let [node-id (g/endpoint-node-id endpoint)
         label (g/endpoint-label endpoint)
-        cached (contains? (g/cached-outputs (g/node-type* (:basis ec) node-id)) label)]
+        cached (contains? (g/cached-outputs (g/node-type* (g/ec-basis ec) node-id)) label)]
     (r/horizontal
       (r/raw-string (str label) {:fill (if cached :object :keyword)})
       (r/raw-string " of " {:fill :util})
@@ -222,7 +224,7 @@
 (r/defaction ::defold:predecessors [x ann]
   (when-some [endpoint (as-endpoint x ann)]
     (let [ec (make-evaluation-context)
-          basis (:basis ec)
+          basis (g/ec-basis ec)
           endpoint-predecessors (fn/memoize #(endpoint-predecessors basis %))]
       (when (endpoint-predecessors endpoint)
         (fn []
@@ -238,7 +240,7 @@
 (r/defaction ::defold:successors [x ann]
   (when-some [endpoint (as-endpoint x ann)]
     (let [ec (make-evaluation-context)
-          basis (:basis ec)]
+          basis (g/ec-basis ec)]
       (when (endpoint-successors basis endpoint)
         (fn []
           {:fx/type r/tree-view

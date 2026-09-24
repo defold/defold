@@ -100,7 +100,7 @@
                    basis target-id target-label))
 
 (defn data->index-setter [evaluation-context self new-value old-sources-input-label add-resource-node-fn]
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         owner-resource (resource-node/owner-resource basis self)
         load-opts (g/tx-cached-value! evaluation-context [:load-opts]
                     (project/make-load-opts (project/get-project basis)))]
@@ -110,7 +110,7 @@
           (sort-by val new-value))))
 
 (defn connect-referenced-resources-tx-data [evaluation-context self new-value old-sources-input-label resource-connections]
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         project (project/get-project basis)]
     (into (disconnect-connected-nodes-tx-data basis self old-sources-input-label resource-connections)
           (mapcat (fn [resource]
@@ -307,7 +307,7 @@
   (property prototype-desc g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (:basis evaluation-context)
+                   (let [basis (g/ec-basis evaluation-context)
                          project (project/get-project basis)
                          workspace (project/workspace project evaluation-context)
                          proj-path->resource (workspace/make-proj-path->resource-fn workspace evaluation-context)]

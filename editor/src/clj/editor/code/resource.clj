@@ -192,7 +192,7 @@
 
   (property modified-lines types/Lines (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (:basis evaluation-context)
+                   (let [basis (g/ec-basis evaluation-context)
                          lsp (lsp/get-lsp basis)]
                      (if-some [[resource source-value disk-sha256] (init-disk-state self evaluation-context)]
                        (do

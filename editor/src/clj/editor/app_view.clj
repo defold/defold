@@ -488,7 +488,7 @@
   (ui/set-style! tab-pane "inactive" (not active)))
 
 (defn- on-active-tab-changed! [app-view prefs ^Tab new-active-tab is-in-active-tab-pane]
-  (g/let-ec [basis (:basis evaluation-context)
+  (g/let-ec [basis (g/ec-basis evaluation-context)
              ^Tab old-active-tab (g/node-value app-view :active-tab evaluation-context)
              ^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
              ^Scene app-scene (g/node-value app-view :scene evaluation-context)
@@ -1152,7 +1152,7 @@
               cause (ex-root-cause error)
               cause-ex-data (ex-data cause)
               ex-type (:ex-type cause-ex-data)
-              basis (:basis evaluation-context)
+              basis (g/ec-basis evaluation-context)
               localization (workspace/localization (project/workspace project evaluation-context) evaluation-context)]
           (case ex-type
             :task-cancelled
@@ -2231,7 +2231,7 @@
   (ui/refresh scene evaluation-context))
 
 (defn- refresh-views! [app-view evaluation-context]
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         auto-pulls (g/node-value app-view :auto-pulls evaluation-context)]
     (doseq [[node-id label] auto-pulls]
       (profiler/profile "view" (:name @(g/node-type* basis node-id))
@@ -2251,7 +2251,7 @@
   (scene-cache/prune-context! nil))
 
 (defn- save-scene-camera-prefs! [prefs view resource]
-  (g/let-ec [camera (some-> (:basis evaluation-context)
+  (g/let-ec [camera (some-> (g/ec-basis evaluation-context)
                             (scene/view->camera view)
                             (g/node-value :local-camera evaluation-context))
              path-key (resource/resource->proj-path resource)]
@@ -2579,7 +2579,7 @@
                                     (when-let [resource-node (some-> (g/node-value view :view-data evaluation-context)
                                                                      second
                                                                      :resource-node)]
-                                      (let [resource (resource-node/resource (:basis evaluation-context) resource-node)]
+                                      (let [resource (resource-node/resource (g/ec-basis evaluation-context) resource-node)]
                                         (recent-files/add! prefs resource view-type)
                                         (when (= :scene (:id view-type))
                                           (save-scene-camera-prefs! prefs view resource))))))}]
@@ -2641,7 +2641,7 @@
 
 (defn make-open-resource-plan
   [app-view prefs project resource opts evaluation-context]
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         workspace (resource/workspace resource)
         resource-type (resource/resource-type resource)
         resource-node (or (project/get-resource-node project resource evaluation-context)
@@ -2884,7 +2884,7 @@
       localization)))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         prefs-data-per-tab-per-tab-pane (recent-files/get-open-tabs prefs)
         selected-tab-index-by-tab-pane-index (prefs/get prefs [:workflow :last-selected-tabs :tab-selection-by-pane])]
     (coll/into-> prefs-data-per-tab-per-tab-pane []
@@ -3284,7 +3284,7 @@
 (handler/defhandler :edit.show-overrides :global
   (enabled? [selection project evaluation-context]
     (let [node-id (select-possibly-overridable-resource-node selection project evaluation-context)]
-      (and node-id (pos? (count (g/overrides (:basis evaluation-context) node-id))))))
+      (and node-id (pos? (count (g/overrides (g/ec-basis evaluation-context) node-id))))))
   (run [selection search-results-view project app-view localization]
     (show-override-inspector!
       app-view
@@ -3322,7 +3322,7 @@
     (if user-data
       (properties/can-transfer-overrides? (:transfer-overrides-plan user-data))
       (if-let [node-id (handler/selection->node-id selection evaluation-context)]
-        (let [basis (:basis evaluation-context)]
+        (let [basis (g/ec-basis evaluation-context)]
           (and (not (coll/empty? (g/overrides basis node-id)))
                (not (coll/empty? (g/overridden-properties node-id evaluation-context)))))
         false)))

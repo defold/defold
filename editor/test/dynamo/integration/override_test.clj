@@ -422,7 +422,7 @@
             (value (g/fnk [in-reference] in-reference))
             (set (fn [evaluation-context node-id old-value new-value]
                    (concat
-                     (g/disconnect-sources (:basis evaluation-context) node-id :in-reference)
+                     (g/disconnect-sources (g/ec-basis evaluation-context) node-id :in-reference)
                      (let [node-store (g/graph-value :node-store)
                            src-id (get node-store new-value)]
                        (if src-id
@@ -514,7 +514,7 @@
             (value (g/fnk [template-resource source-overrides]
                      {:resource template-resource :overrides source-overrides}))
             (set (fn [evaluation-context self old-value new-value]
-                   (let [basis (:basis evaluation-context)
+                   (let [basis (g/ec-basis evaluation-context)
                          current-scene (g/node-feeding-into basis self :template-resource)]
                      (concat
                        (if current-scene
@@ -549,7 +549,7 @@
   (property name g/Str)
   (property nodes g/Any
             (set (fn [evaluation-context self _ new-value]
-                   (let [basis (:basis evaluation-context)
+                   (let [basis (g/ec-basis evaluation-context)
                          current-tree (g/node-feeding-into basis self :node-tree)]
                      (concat
                        (if current-tree
@@ -741,7 +741,7 @@
   (property id g/Str)
   (property component g/Any
             (set (fn [evaluation-context self old-value new-value]
-                   (let [basis (:basis evaluation-context)]
+                   (let [basis (g/ec-basis evaluation-context)]
                      (concat
                        (if-let [instance (g/node-value self :instance evaluation-context)]
                          (g/delete-node instance)

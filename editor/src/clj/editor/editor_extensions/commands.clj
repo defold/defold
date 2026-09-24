@@ -127,7 +127,7 @@
                                      (g/make-evaluation-context))]
           (try
             (when-let [view (g/node-value app-view :active-view evaluation-context)]
-              (when (g/node-kw-instance? (:basis evaluation-context) expected-type view)
+              (when (g/node-kw-instance? (g/ec-basis evaluation-context) expected-type view)
                 (cont assoc :active_view (editor-lookup-userdata view))))
             (finally
               (when-not (:evaluation-context env)

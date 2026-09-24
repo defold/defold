@@ -481,7 +481,7 @@ ordinary paths."
          (file-resource basis workspace proj-path)))))
 
 (defn make-proj-path->resource-fn [workspace evaluation-context]
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         workspace-node (g/node-by-id basis workspace)
         project-path (g/raw-property-value* basis workspace-node :root)
         editable-proj-path? (g/raw-property-value* basis workspace-node :editable-proj-path?)
@@ -1043,7 +1043,7 @@ ordinary paths."
   (property opened-files g/Any)
   (property resource-snapshot g/Any (default resource-watch/empty-snapshot)
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (:basis evaluation-context)
+                   (let [basis (g/ec-basis evaluation-context)
                          editable-proj-path? (g/raw-property-value basis self :editable-proj-path?)
                          unloaded-proj-path? (g/raw-property-value basis self :unloaded-proj-path?)
                          project-directory-pathname (g/raw-property-value basis self :root)]

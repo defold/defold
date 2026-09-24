@@ -119,7 +119,7 @@
           "file"
           (if-let [resource (when project
                               (g/with-auto-evaluation-context evaluation-context
-                                (let [basis (:basis evaluation-context)
+                                (let [basis (g/ec-basis evaluation-context)
                                       workspace (project/workspace project evaluation-context)]
                                   (when-let [proj-path (workspace/as-proj-path basis workspace resolved-url)]
                                     (workspace/find-resource basis workspace proj-path)))))]

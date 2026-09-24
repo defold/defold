@@ -33,7 +33,7 @@
   (property render-resource resource/Resource ; Required protobuf field.
             (value (gu/passthrough resource))
             (set (fn [evaluation-context self old-value new-value]
-                   (let [project (project/get-project (:basis evaluation-context))
+                   (let [project (project/get-project (g/ec-basis evaluation-context))
                          connections [[:resource :resource]
                                       [:build-targets :dep-build-targets]]]
                      (concat

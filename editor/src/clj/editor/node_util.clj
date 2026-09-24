@@ -34,8 +34,8 @@
   ([node-id]
    (g/with-auto-evaluation-context evaluation-context
      (node-qualifier-label node-id evaluation-context)))
-  ([node-id {:keys [basis] :as evaluation-context}]
-   (when-some [node (g/node-by-id basis node-id)]
+  ([node-id evaluation-context]
+   (when-some [node (g/node-by-id (g/ec-basis evaluation-context) node-id)]
      (let [node-type (g/node-type node)]
        (or (when (in/behavior node-type :url)
              (let [value (in/node-value node :url evaluation-context)]
@@ -56,8 +56,9 @@
   ([node-id]
    (g/with-auto-evaluation-context evaluation-context
      (node-debug-label node-id evaluation-context)))
-  ([node-id {:keys [basis] :as evaluation-context}]
-   (let [node (g/node-by-id basis node-id)
+  ([node-id evaluation-context]
+   (let [basis (g/ec-basis evaluation-context)
+         node (g/node-by-id basis node-id)
          node-type (g/node-type node)]
      (or (when (in/inherits? node-type resource/ResourceNode)
            (let [resource (resource-node/resource basis node-id)]
@@ -85,8 +86,9 @@
   ([node-id]
    (g/with-auto-evaluation-context evaluation-context
      (node-debug-label-path node-id evaluation-context)))
-  ([node-id {:keys [basis] :as evaluation-context}]
-   (let [project-node-id (g/graph-value basis :project-id)]
+  ([node-id evaluation-context]
+   (let [basis (g/ec-basis evaluation-context)
+         project-node-id (g/graph-value basis :project-id)]
      (->> node-id
           (iterate #(core/owner-node-id basis %))
           (take-while #(some-> % (not= project-node-id)))
@@ -97,8 +99,9 @@
   ([node-id]
    (g/with-auto-evaluation-context evaluation-context
      (node-debug-info node-id evaluation-context)))
-  ([node-id {:keys [basis] :as evaluation-context}]
-   (let [node-type-kw (g/node-type-kw basis node-id)
+  ([node-id evaluation-context]
+   (let [basis (g/ec-basis evaluation-context)
+         node-type-kw (g/node-type-kw basis node-id)
          node-debug-label-path (node-debug-label-path node-id evaluation-context)
          owner-resource-node-id (try
                                   (resource-node/owner-resource-node-id basis node-id)

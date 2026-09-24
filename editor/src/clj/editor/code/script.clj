@@ -400,7 +400,7 @@
 
 (g/defnk produce-script-property-entries [^:unsafe _evaluation-context _this _node-id deleted? name resource-kind type value]
   (when-not deleted?
-    (let [basis (:basis _evaluation-context)
+    (let [basis (g/ec-basis _evaluation-context)
           project (project/get-project basis)
           workspace (project/workspace project _evaluation-context)
           prop-kw (properties/user-name->key name)
@@ -468,7 +468,7 @@
             (set (fn [evaluation-context self _old-value new-value]
                    ;; When assigning a resource property, we must make sure the
                    ;; assigned resource is built and included in the game.
-                   (let [basis (:basis evaluation-context)
+                   (let [basis (g/ec-basis evaluation-context)
                          project (project/get-project basis)]
                      (concat
                        (g/disconnect-sources basis self :resource)
@@ -574,7 +574,7 @@
               (update :display-order into (map prop->key) script-properties))))
 
 (g/defnk produce-script-build-targets [^:unsafe _evaluation-context _node-id resource lines lua-preprocessors script-properties original-resource-property-build-targets]
-  (let [basis (:basis _evaluation-context)
+  (let [basis (g/ec-basis _evaluation-context)
         project (project/get-project basis)]
     (script-compilation/build-targets
       _node-id
@@ -588,7 +588,7 @@
       _evaluation-context)))
 
 (g/defnk produce-lua-build-targets [^:unsafe _evaluation-context _node-id resource lines lua-preprocessors]
-  (let [basis (:basis _evaluation-context)
+  (let [basis (g/ec-basis _evaluation-context)
         project (project/get-project basis)]
     (script-compilation/build-targets
       _node-id
@@ -660,7 +660,7 @@
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [resource (g/node-value self :resource evaluation-context)
-                         basis (:basis evaluation-context)
+                         basis (g/ec-basis evaluation-context)
                          source-value (g/node-value self :source-value evaluation-context)
                          lsp (lsp/get-lsp basis)
                          workspace (resource/workspace resource)
@@ -675,7 +675,7 @@
             (default [])
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self old-value new-value]
-                   (let [basis (:basis evaluation-context)
+                   (let [basis (g/ec-basis evaluation-context)
                          project (project/get-project basis)]
                      (concat
                        (update-script-properties evaluation-context self old-value new-value)

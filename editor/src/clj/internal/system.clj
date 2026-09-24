@@ -374,7 +374,7 @@
               (update :cache c/cache-hit evaluation-context-hits)
 
               (coll/not-empty evaluation-context-misses)
-              (update :cache c/cache-encache evaluation-context-misses (:basis evaluation-context)))
+              (update :cache c/cache-encache evaluation-context-misses (in/evaluation-context-basis evaluation-context)))
             (let [invalidated-during-node-value? #(endpoint-invalidated-since? % initial-invalidate-counters invalidate-counters)
                   safe-cache-hits (coll/into-> evaluation-context-hits []
                                     (remove invalidated-during-node-value?))
@@ -385,7 +385,7 @@
                 (update :cache c/cache-hit safe-cache-hits)
 
                 (coll/not-empty safe-cache-misses)
-                (update :cache c/cache-encache safe-cache-misses (:basis evaluation-context))))))))
+                (update :cache c/cache-encache safe-cache-misses (in/evaluation-context-basis evaluation-context))))))))
     system))
 
 (defn evaluation-context-compatible? [system evaluation-context]

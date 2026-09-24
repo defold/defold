@@ -1789,7 +1789,7 @@
   [evaluation-context tx-data]
   (let [state (ec/state evaluation-context)]
     (locking state
-      (let [ctx (-> (new-transaction-context (:basis evaluation-context)
+      (let [ctx (-> (new-transaction-context (in/evaluation-context-basis evaluation-context)
                                              (:node-id-generator evaluation-context)
                                              (:override-id-generator evaluation-context)
                                              {} nil false)
@@ -1823,7 +1823,7 @@
                                     :hits (atom #{})))
         state (ec/state evaluation-context)]
     (locking state
-      (when-let [materialize-fn (:_materialize-fn (ig/node-by-id-at (:basis evaluation-context) node-id))]
+      (when-let [materialize-fn (:_materialize-fn (ig/node-by-id-at (in/evaluation-context-basis evaluation-context) node-id))]
         (let [context-atoms (into [state]
                                   (keep evaluation-context)
                                   [:local :local-temp :hits :tx-data-context])

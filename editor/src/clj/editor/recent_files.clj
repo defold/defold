@@ -57,7 +57,7 @@
     (prefs/set! prefs k (conj-history-item (get-recent-files prefs) item))))
 
 (defn- project-path+view-type-id->resource+view-type [workspace evaluation-context [project-path view-type-id]]
-  (when-let [res (workspace/find-resource (:basis evaluation-context) workspace project-path)]
+  (when-let [res (workspace/find-resource (g/ec-basis evaluation-context) workspace project-path)]
     (when (resource/openable? res)
       (when-let [view-type (workspace/get-view-type workspace view-type-id evaluation-context)]
         [res view-type]))))

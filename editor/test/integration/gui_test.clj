@@ -1651,7 +1651,7 @@
   (make-displayed-layout->node->data
     gui-scene-node-id
     (fn data-fn [gui-node-id evaluation-context]
-      (let [node-type (g/node-type* (:basis evaluation-context) gui-node-id)
+      (let [node-type (g/node-type* (g/ec-basis evaluation-context) gui-node-id)
             prop-labels (g/declared-property-labels node-type)
             prop->default (in/defaults node-type)]
         (coll/into-> prop-labels (sorted-map)

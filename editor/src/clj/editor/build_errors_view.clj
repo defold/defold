@@ -42,7 +42,7 @@
   (conj PersistentQueue/EMPTY item))
 
 (defn- openable-resource [evaluation-context node-id]
-  (let [basis (:basis evaluation-context)]
+  (let [basis (g/ec-basis evaluation-context)]
     (when-let [owner-resource-node-id (resource-node/owner-resource-node-id basis node-id)]
       (when-some [resource (g/node-value owner-resource-node-id :resource evaluation-context)]
         (when (resource/openable-resource? resource)
@@ -56,7 +56,7 @@
 
 (defn- parent-resource [evaluation-context errors origin-override-depth origin-override-id]
   (or (when-some [node-id (node-id-at-override-depth origin-override-depth (:_node-id (first errors)))]
-        (let [basis (:basis evaluation-context)]
+        (let [basis (g/ec-basis evaluation-context)]
           (when (or (nil? origin-override-id)
                     (not= origin-override-id (g/override-id basis node-id)))
             (openable-resource evaluation-context node-id))))
@@ -88,7 +88,7 @@
   (some-> error :user-data :cursor-range))
 
 (defn- missing-resource-node? [evaluation-context node-id]
-  (and (g/node-instance? (:basis evaluation-context) resource/ResourceNode node-id)
+  (and (g/node-instance? (g/ec-basis evaluation-context) resource/ResourceNode node-id)
        (some? (g/node-value node-id :resource evaluation-context))
        (if-some [output-jammers (g/node-value node-id :_output-jammers evaluation-context)]
          (resource-io/file-not-found-error? (first (vals output-jammers)))
@@ -103,7 +103,7 @@
                                  :_node-id)
                            root-cause)
         error (assoc (first errors) :message message)
-        basis (:basis evaluation-context)
+        basis (g/ec-basis evaluation-context)
         [origin-node-id origin-override-depth] (find-override-value-origin basis (:_node-id error) (:_label error) 0)
         origin-override-id (when (some? origin-node-id) (g/override-id basis origin-node-id))
         outline-node-id (error-outline-node-id basis errors origin-override-depth)
@@ -214,7 +214,7 @@
 (defn- find-outline-node [resource-node-id error-node-id]
   (or (when error-node-id
         (g/with-auto-evaluation-context evaluation-context
-          (let [basis (:basis evaluation-context)
+          (let [basis (g/ec-basis evaluation-context)
                 error-node (g/node-by-id basis error-node-id)]
             (when (and (some? error-node)
                        (g/node-instance*? outline/OutlineNode error-node))

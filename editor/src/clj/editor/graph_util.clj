@@ -34,7 +34,7 @@
   {:pre [(keyword? prop-kw)]}
   (fn immutable-property-set-fn [evaluation-context node-id old-value new-value]
     (when (some? old-value)
-      (let [basis (:basis evaluation-context)
+      (let [basis (g/ec-basis evaluation-context)
             node-type-kw (g/node-type-kw basis node-id)]
         (throw (ex-info (format "Unable to reassign immutable property %s on %s %d."
                                 prop-kw

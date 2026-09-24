@@ -168,7 +168,7 @@
         render-progress! (progress/until-done render-progress!)
         provided-evaluation-context (some? evaluation-context)
         evaluation-context (or evaluation-context (g/make-evaluation-context))
-        basis (:basis evaluation-context)
+        basis (g/ec-basis evaluation-context)
         prev-out System/out
         prev-err System/err
         log-output-stream (or log-output-stream

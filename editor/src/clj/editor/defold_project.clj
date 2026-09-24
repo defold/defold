@@ -84,7 +84,7 @@
 (def resource-node-type (comp resource-type->node-type resource/resource-type))
 
 (defn- make-load-opts-in-evaluation-context [project evaluation-context]
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         workspace (g/raw-property-value basis project :workspace)
         code-preprocessor (workspace/code-preprocessors workspace evaluation-context)
         script-intelligence (g/node-value project :script-intelligence evaluation-context)
@@ -389,7 +389,7 @@
 
 (defn- get-transpiler-tx-data-fn! [evaluation-context]
   (g/tx-cached-value! evaluation-context [:transpiler-tx-data-fn]
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           code-transpilers (code-transpilers basis)]
       (code.transpilers/make-resource-load-tx-data-fn code-transpilers evaluation-context))))
 
@@ -721,7 +721,7 @@
                         :render-progress!
                         :resource-metrics}
                       (coll/keys read-nodes-opts))]}
-  (let [basis (if evaluation-context (:basis evaluation-context) (g/now))
+  (let [basis (if evaluation-context (g/ec-basis evaluation-context) (g/now))
 
         workspace
         (some-> new-node-id+resource-pairs
@@ -998,7 +998,7 @@
      (get-resource-node project path-or-resource evaluation-context)))
   ([project path-or-resource evaluation-context]
    (when-let [resource (cond
-                         (string? path-or-resource) (workspace/find-resource (:basis evaluation-context) (g/node-value project :workspace evaluation-context) path-or-resource)
+                         (string? path-or-resource) (workspace/find-resource (g/ec-basis evaluation-context) (g/node-value project :workspace evaluation-context) path-or-resource)
                          (resource/resource? path-or-resource) path-or-resource
                          :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
      ;; This is frequently called from property setters, where we don't have a
@@ -1048,7 +1048,7 @@
           resources)))
 
 (defn- materialize-resource-node [project node-id evaluation-context]
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         resource (resource-node/resource basis node-id)
         workspace (resource/workspace resource)
         read-opts (g/tx-cached-value! evaluation-context [:read-opts]
@@ -1288,7 +1288,7 @@
 (defn select
   [project resource-node node-ids open-resource-nodes evaluation-context]
   (assert (every? some? node-ids) "Attempting to select nil values")
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         node-ids (if (seq node-ids)
                    (-> node-ids distinct vec)
                    [resource-node])
@@ -1335,7 +1335,7 @@
                   (:transfer-overrides plan))))
 
         old-evaluation-context (g/make-evaluation-context)
-        old-basis (:basis old-evaluation-context)
+        old-basis (g/ec-basis old-evaluation-context)
         old-node-ids-by-proj-path (g/valid-node-value project :nodes-by-resource-path old-evaluation-context)
         new-node-id+resource-pairs (make-node-id+resource-pairs (:new plan))
         workspace (workspace project old-evaluation-context)
@@ -1519,7 +1519,7 @@
               restore-properties-tx-data)))))
 
     (du/measuring process-metrics :update-selection
-      (g/let-ec [basis (:basis evaluation-context)
+      (g/let-ec [basis (g/ec-basis evaluation-context)
                  old->new (into {}
                                 (map (fn [[p n]]
                                        [(old-node-ids-by-proj-path p) n]))
@@ -1550,7 +1550,7 @@
                :transaction-metrics @transaction-metrics}))))
 
 (defn reload-plugins! [project touched-resources]
-  (g/let-ec [basis (:basis evaluation-context)
+  (g/let-ec [basis (g/ec-basis evaluation-context)
              workspace (workspace project evaluation-context)
              localization (workspace/localization workspace evaluation-context)
              code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
@@ -1798,11 +1798,11 @@
 
 (defn resolve-path-or-resource [project path-or-resource evaluation-context]
   (if (string? path-or-resource)
-    (workspace/resolve-workspace-resource (:basis evaluation-context) (workspace project evaluation-context) path-or-resource)
+    (workspace/resolve-workspace-resource (g/ec-basis evaluation-context) (workspace project evaluation-context) path-or-resource)
     path-or-resource))
 
 (defn disconnect-resource-node [evaluation-context project path-or-resource consumer-node connections]
-  (let [basis (:basis evaluation-context)
+  (let [basis (g/ec-basis evaluation-context)
         resource (resolve-path-or-resource project path-or-resource evaluation-context)
         node (get-resource-node project resource evaluation-context)]
     (disconnect-from-inputs basis node consumer-node connections)))
@@ -1859,7 +1859,7 @@
                       system, such nodes can't be used for `g/node-value` calls"
   [evaluation-context project path-or-resource consumer-node connections]
   (when-some [resource (resolve-path-or-resource project path-or-resource evaluation-context)]
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           tx-data-context-atom (:tx-data-context evaluation-context)
           existing-resource-node-id (get-resource-node project resource evaluation-context)
           [node-id creation-tx-data] (if existing-resource-node-id
@@ -1887,7 +1887,7 @@
             (let [transpiler-tx-data-fn (get-transpiler-tx-data-fn! evaluation-context)
                   load-opts (g/tx-cached-value! evaluation-context [:load-opts]
                               (make-load-opts-in-evaluation-context project evaluation-context))
-                  [node-id+source-value-pairs load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded (:basis evaluation-context) node-id resource transpiler-tx-data-fn load-opts)]
+                  [node-id+source-value-pairs load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded (g/ec-basis evaluation-context) node-id resource transpiler-tx-data-fn load-opts)]
               (g/merge-evaluation-user-data!
                 evaluation-context
                 (coll/into-> node-id+source-value-pairs {}
@@ -1971,12 +1971,12 @@
 
 (defn- cached-build-target-output? [node-id label evaluation-context]
   (case label
-    (:build-targets) (project-resource-node? (:basis evaluation-context) node-id)
+    (:build-targets) (project-resource-node? (g/ec-basis evaluation-context) node-id)
     false))
 
 (defn- cached-save-data-output? [node-id label evaluation-context]
   (case label
-    (:save-data :save-value) (project-file-resource-node? (:basis evaluation-context) node-id)
+    (:save-data :save-value) (project-file-resource-node? (g/ec-basis evaluation-context) node-id)
     false))
 
 (defn- cacheable-save-data-endpoints
@@ -2034,7 +2034,7 @@
       populated-project)))
 
 (defn resource-setter [evaluation-context self old-value new-value & connections]
-  (let [project (get-project (:basis evaluation-context))]
+  (let [project (get-project (g/ec-basis evaluation-context))]
     (concat
       (when old-value (disconnect-resource-node evaluation-context project old-value self connections))
       (when new-value (:tx-data (connect-resource-node evaluation-context project new-value self connections))))))

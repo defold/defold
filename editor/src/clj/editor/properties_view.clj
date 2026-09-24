@@ -108,7 +108,7 @@
 (handler/defhandler :edit.show-overrides :property
   (active? [evaluation-context selection]
     (when-let [node-id (handler/selection->node-id selection evaluation-context)]
-      (pos? (count (g/overrides (:basis evaluation-context) node-id)))))
+      (pos? (count (g/overrides (g/ec-basis evaluation-context) node-id)))))
   (run [property selection search-results-view app-view workspace]
     (g/let-ec [localization (workspace/localization workspace evaluation-context)
                node-id (handler/selection->node-id selection evaluation-context)]
@@ -152,7 +152,7 @@
     (or (some? user-data)
         (and (= 1 (count (:original-values property)))
              (if-let [node-id (handler/selection->node-id selection evaluation-context)]
-               (not (coll/empty? (g/overrides (:basis evaluation-context) node-id)))
+               (not (coll/empty? (g/overrides (g/ec-basis evaluation-context) node-id)))
                false))))
   (enabled? [user-data]
     (if user-data

@@ -35,7 +35,7 @@
                      (g/set-property self :value-piece (str (first input)))))))
   (property source-resource resource/Resource
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [project (project/get-project (:basis evaluation-context))]
+                   (let [project (project/get-project (g/ec-basis evaluation-context))]
                      (:tx-data (project/connect-resource-node evaluation-context project new-value self [[:value :value-input]]))))))
   (input project-node-id g/NodeID)
   (input value-input g/Str))
@@ -132,7 +132,7 @@
           (g/with-auto-evaluation-context evaluation-context
             (is (= "t" (g/node-value a1 :value-piece evaluation-context)))
             (is (= 2 @load-counter))
-            (is (not (resource-node/loaded? (:basis evaluation-context) (project/get-resource-node project "/a2.type_a" evaluation-context))))
+            (is (not (resource-node/loaded? (g/ec-basis evaluation-context) (project/get-resource-node project "/a2.type_a" evaluation-context))))
             (is (= "t" (g/node-value (project/get-resource-node project "/a2.type_a" evaluation-context) :value-piece evaluation-context))))
           (is (= 3 @load-counter))
           (is (= 2 (count @seen-read-opts)))
@@ -268,8 +268,8 @@
                      (into #{} (map (comp resource/proj-path :resource))
                            (g/node-value project :save-data evaluation-context))))
               (is (= (if follow-prerequisites ["/b.type_b" "/a1.type_a"] ["/a1.type_a"]) @loaded))
-              (is (= follow-prerequisites (resource-node/loaded? (:basis evaluation-context) b)))
-              (is (not (resource-node/loaded? (:basis evaluation-context) a2)))
+              (is (= follow-prerequisites (resource-node/loaded? (g/ec-basis evaluation-context) b)))
+              (is (not (resource-node/loaded? (g/ec-basis evaluation-context) a2)))
               (is (not (resource-node/loaded? (g/now) a1)))
               (is (nil? (g/user-data a1 :source-value)))
               (is (= {:b "/b.type_b"} (g/node-value a1 :source-value evaluation-context)))

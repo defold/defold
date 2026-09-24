@@ -1383,7 +1383,7 @@
 (defn- handle-rename-key-pressed [view-node text rename-cursor-range swap-state ^KeyEvent e]
   (when (= KeyCode/ENTER (.getCode e))
     (.consume e)
-    (g/let-ec [lsp (lsp/get-lsp (:basis evaluation-context))]
+    (g/let-ec [lsp (lsp/get-lsp (g/ec-basis evaluation-context))]
       (swap-state assoc :done true)
       (lsp/rename
         lsp
@@ -1396,14 +1396,14 @@
                 (when (identical? rename-cursor-range (get-property view-node :rename-cursor-range evaluation-context))
                   (let [resource->view (coll/into-> (get-property view-node :open-views evaluation-context) {}
                                          (keep (fn [[view {:keys [resource]}]]
-                                                 (when (g/node-kw-instance? (:basis evaluation-context) ::CodeEditorView view)
+                                                 (when (g/node-kw-instance? (g/ec-basis evaluation-context) ::CodeEditorView view)
                                                    (pair resource view)))))
                         project (get-property view-node :project evaluation-context)]
                     (into (set-properties view-node nil {:rename-cursor-range nil})
                           (mapcat
                             (fn [[resource ascending-cursor-ranges-and-replacements]]
                               (when-let [resource-node (project/get-resource-node project resource evaluation-context)]
-                                (when (g/node-instance? (:basis evaluation-context) r/CodeEditorResourceNode resource-node)
+                                (when (g/node-instance? (g/ec-basis evaluation-context) r/CodeEditorResourceNode resource-node)
                                   (if-let [view-node (resource->view resource)]
                                     (set-properties
                                       view-node nil
@@ -1862,7 +1862,7 @@
       (when-let [completion (get-property view-node :completions-selection evaluation-context)]
         (when-let [index (::index (meta completion))]
           (when-not (::resolved (meta completion))
-            (let [lsp (lsp/get-lsp (:basis evaluation-context))]
+            (let [lsp (lsp/get-lsp (g/ec-basis evaluation-context))]
               (lsp/resolve-completion!
                 lsp completion
                 (fn [resolved-completion]
@@ -1951,7 +1951,7 @@
                   ;; we have no choices, either refresh everything or only LSP
                   (let [resource-node (get-property view-node :resource-node evaluation-context)
                         resource (g/node-value resource-node :resource evaluation-context)
-                        lsp (lsp/get-lsp (:basis evaluation-context))
+                        lsp (lsp/get-lsp (g/ec-basis evaluation-context))
                         context (cond
                                   typed
                                   {:trigger-kind :trigger-character
@@ -2947,7 +2947,7 @@
             x (.getX event)
             y (.getY event)
             resource-node (get-property view-node :resource-node evaluation-context)
-            lsp (lsp/get-lsp (:basis evaluation-context))]
+            lsp (lsp/get-lsp (g/ec-basis evaluation-context))]
         (-> (data/mouse-moved (get-property view-node :lines evaluation-context)
                               (get-property view-node :cursor-ranges evaluation-context)
                               (get-property view-node :visible-regions evaluation-context)
@@ -3135,7 +3135,7 @@
   (run [view-node]
     (g/with-auto-evaluation-context evaluation-context
       (let [resource-node (get-property view-node :resource-node)
-            lsp (lsp/get-lsp (:basis evaluation-context))
+            lsp (lsp/get-lsp (g/ec-basis evaluation-context))
             resource (g/node-value resource-node :resource)
             cursor (data/CursorRange->Cursor (first (get-property view-node :cursor-ranges)))]
         (lsp/prepare-rename
@@ -3304,7 +3304,7 @@
               (vec (sort-by key (into [] (mapcat :edits) responses))))))))))
 
 (defn async-format-on-save! [view-nodes done!]
-  (g/let-ec [basis (:basis evaluation-context)
+  (g/let-ec [basis (g/ec-basis evaluation-context)
              pending
              (into []
                    (keep
@@ -3343,7 +3343,7 @@
       (resource/file-resource? (g/node-value resource-node :resource evaluation-context))))
   (run [view-node]
     (g/let-ec [resource-node (get-property view-node :resource-node evaluation-context)
-               lsp (lsp/get-lsp (:basis evaluation-context))
+               lsp (lsp/get-lsp (g/ec-basis evaluation-context))
                resource (g/node-value resource-node :resource evaluation-context)
                indent-type (get-property view-node :indent-type evaluation-context)
                lines (get-property view-node :lines evaluation-context)
@@ -3415,7 +3415,7 @@
   (run [view-node]
     (g/with-auto-evaluation-context evaluation-context
       (let [resource-node (get-property view-node :resource-node evaluation-context)
-            lsp (lsp/get-lsp (:basis evaluation-context))
+            lsp (lsp/get-lsp (g/ec-basis evaluation-context))
             resource (g/node-value resource-node :resource evaluation-context)
             localization (get-property view-node :localization evaluation-context)]
         (if-not (lsp/has-language-servers-running-for-resource? lsp resource)

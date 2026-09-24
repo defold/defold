@@ -82,7 +82,7 @@
 (defn- shell! [commands project state]
   (let [{:keys [reload-resources! rt]} state
         root (lsp.async/with-auto-evaluation-context evaluation-context
-               (let [basis (:basis evaluation-context)
+               (let [basis (g/ec-basis evaluation-context)
                      workspace (project/workspace project evaluation-context)]
                  (workspace/project-directory basis workspace)))]
     (-> (await-all-sequentially

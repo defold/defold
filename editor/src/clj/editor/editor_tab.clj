@@ -74,7 +74,7 @@
   [^Tab editor-tab evaluation-context]
   {:post [(or (nil? %)
               (and (g/node-id? %)
-                   (g/node-instance? (:basis evaluation-context) resource/ResourceNode %)))]}
+                   (g/node-instance? (g/ec-basis evaluation-context) resource/ResourceNode %)))]}
   (some-> (view-node-id editor-tab)
           (g/node-value :view-data evaluation-context)
           second

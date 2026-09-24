@@ -36,7 +36,7 @@
                                    :settings
                                    settings-core/resolve-resource-settings
                                    :default
-                                   #(workspace/resolve-resource (:basis _evaluation-context) resource %))))
+                                   #(workspace/resolve-resource (g/ec-basis _evaluation-context) resource %))))
               (catch Exception e
                 (g/->error _node-id :meta-info :fatal resource (.getMessage e) (ex-data e)))))))
 

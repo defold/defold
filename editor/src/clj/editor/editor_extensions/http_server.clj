@@ -15,6 +15,7 @@
 (ns editor.editor-extensions.http-server
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.graph :as graph]
             [editor.editor-extensions.runtime :as rt]
@@ -113,7 +114,7 @@
 
 (defn- make-ext-resource-response-fn [workspace]
   (rt/varargs-lua-fn ext-resource-response [{:keys [rt evaluation-context]} varargs]
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           {:keys [status headers resource-path] :or {status 200}} (rt/->clj rt resource-response-args-coercer varargs)]
       (let [resource (workspace/resolve-workspace-resource basis workspace resource-path)]
         (-> (http-server/response status headers resource)

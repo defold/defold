@@ -128,7 +128,7 @@
 
 (defn restore-breakpoints! [project prefs]
   (g/with-auto-evaluation-context evaluation-context
-    (let [basis (:basis evaluation-context)
+    (let [basis (g/ec-basis evaluation-context)
           workspace (project/workspace project evaluation-context)
           breakpoints (keep (fn [breakpoint]
                               (when-some [resource (workspace/find-resource basis workspace (:proj-path breakpoint))]

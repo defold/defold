@@ -1469,7 +1469,7 @@
 
 (defn- active-tile-map [app-view evaluation-context]
   (when-let [resource-node (g/node-value app-view :active-resource-node evaluation-context)]
-    (when (g/node-instance? (:basis evaluation-context) TileMapNode resource-node)
+    (when (g/node-instance? (g/ec-basis evaluation-context) TileMapNode resource-node)
       resource-node)))
 
 (defn- active-scene-view
