@@ -112,28 +112,28 @@ jobs:
             codesign: true
           - name: "bld-eng-darwin (x86_64-macos)"
             platform: x86_64-macos
-            runner: macos-26
+            runner: xcode-27
             timeout: 30
             engine_args: "--skip-builtins --skip-docs"
             dotnet: true
             codesign: true
           - name: "bld-eng-darwin (arm64-macos)"
             platform: arm64-macos
-            runner: macos-26
+            runner: xcode-27
             timeout: 30
             engine_args: "--skip-builtins --skip-docs"
             dotnet: true
             codesign: true
           - name: "bld-eng-darwin (arm64-ios, true)"
             platform: arm64-ios
-            runner: macos-26
+            runner: xcode-27
             timeout: 30
             engine_args: "--skip-tests --skip-builtins --skip-docs"
             dotnet: true
             codesign: true
           - name: "bld-eng-darwin (arm64_sim-ios, true)"
             platform: arm64_sim-ios
-            runner: macos-26
+            runner: xcode-27
             timeout: 30
             engine_args: "--skip-tests --skip-builtins --skip-docs"
             dotnet: true
@@ -266,7 +266,10 @@ jobs:
         if: runner.os == 'macOS'
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
-          xcode-version: "26.5.0"
+          xcode-version: "27.1.0-beta"
+      - name: "Install Rosetta for Intel macOS tests"
+        if: matrix.platform == 'x86_64-macos'
+        run: sudo softwareupdate --install-rosetta --agree-to-license
       - &step_java
         name: "Install Java"
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1

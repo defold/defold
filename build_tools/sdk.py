@@ -50,18 +50,19 @@ VERSION_EDITOR_JDK="25.0.4.1+1"
 
 # A list of minimum versions here: https://developer.apple.com/support/xcode/
 
-VERSION_XCODE="26.5" # we also use this to match version on Github Actions
+VERSION_XCODE="27.1" # Also used to name the packaged toolchain
 VERSION_XCODE_CLANG="21.0.0"
-VERSION_MACOSX="26.5"
-VERSION_IPHONEOS="26.5"
-VERSION_IPHONESIMULATOR="26.5"
+VERSION_MACOSX="27.0"
+VERSION_IPHONEOS="27.1"
+VERSION_IPHONESIMULATOR="27.1"
 MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 VERSION_IPHONEOS_MIN="15.0"
-VERSION_MACOSX_MIN="10.15"
+VERSION_MACOSX_MIN="12.0"
 
+# Xcode 27.1 ships Swift 6.4 but retains the swift-6.2 runtime library directory.
 SWIFT_VERSION="6.2"
 
 VERSION_LINUX_CLANG="20.1.8"
