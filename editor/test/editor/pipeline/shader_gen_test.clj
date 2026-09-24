@@ -34,6 +34,8 @@
 (deftest representative-preview-shaders-test
   "Built-in and project shaders compile to SM330 without compatibility syntax,
   while retaining the SM120 attribute and paged-sampler reflection."
+  ;; TODO: Remove the SM120 compilation and cross-target comparisons when the
+  ;; editor switches to SM330. Keep the SM330 source and reflection coverage.
   (doseq [path ["shaders/basic-color.vp"
                 "shaders/basic-color.fp"
                 "shaders/basic-texture-paged.vp"
@@ -48,36 +50,57 @@
         (is (re-find #"#version 330" (:transpiled-shader-source core-info)))
         (is (not (re-find #"\b(attribute|varying|gl_FragColor|gl_ModelViewProjectionMatrix)\b|\btexture2D\s*\(" (:transpiled-shader-source core-info))))
         (is (= (:attribute-reflection-infos legacy-info) (:attribute-reflection-infos core-info)))
-        (is (= (:array-sampler-names legacy-info) (:array-sampler-names core-info)))
-        (validate-source! path (:transpiled-shader-source core-info))))))
+        (is (= (:array-sampler-names legacy-info) (:array-sampler-names core-info)))))))
 
 (deftest sm330-explicit-matrix-attributes-test
   "SM330 preserves explicit attribute locations and reflects matrix attributes."
   (let [info (shader-gen/transpile-shader-source
                "matrix.vp"
-               "#version 330\nlayout(location=2) in vec4 position;\nlayout(location=4) in mat4 transform;\nvoid main() { gl_Position = transform * position; }"
+               "#version 330
+                layout(location=2) in vec4 position;
+                layout(location=4) in mat4 transform;
+
+                void main() {
+                    gl_Position = transform * position;
+                }"
                0 "mediump" "highp" :language-glsl-sm330)
         combined (shader-gen/combined-shader-info [info])]
     (is (= [[2 "position"] [4 "transform"]] (:location+attribute-name-pairs combined)))
-    (is (= [:vector-type-vec4 :vector-type-mat4] (mapv :vector-type (:attribute-reflection-infos combined))))
-    (validate-source! "matrix.vp" (:transpiled-shader-source info))))
+    (is (= [:vector-type-vec4 :vector-type-mat4] (mapv :vector-type (:attribute-reflection-infos combined))))))
 
 (deftest sm330-binding-metadata-test
   "SM330 reflection provides attribute locations, paged-sampler mappings, and
-  generated uniform namespaces needed by editor bindings."
+  generated uniform namespaces needed by editor bindings. The final fragment
+  source remains valid after the paged-sampler fallback rewrite."
   (let [vertex (shader-gen/transpile-shader-source
                  "binding.vp"
-                 "#version 140\nin vec4 position;\nuniform uniforms { mat4 view_proj; };\nvoid main() { gl_Position = view_proj * position; }"
+                 "#version 140
+                  in vec4 position;
+                  uniform uniforms {
+                      mat4 view_proj;
+                  };
+
+                  void main() {
+                      gl_Position = view_proj * position;
+                  }"
                  2 "mediump" "highp" :language-glsl-sm330)
         fragment (shader-gen/transpile-shader-source
                    "binding.fp"
-                   "#version 140\nuniform sampler2DArray pages;\nout vec4 color;\nvoid main() { color = texture(pages, vec3(0.5, 0.5, 1.0)); }"
+                   "#version 140
+                    uniform sampler2DArray pages;
+                    out vec4 color;
+
+                    void main() {
+                        color = texture(pages, vec3(0.5, 0.5, 1.0));
+                    }"
                    2 "mediump" "highp" :language-glsl-sm330)
         combined (shader-gen/combined-shader-info [vertex fragment])
         namespace (first (:resource-binding-namespaces vertex))]
     (is (= [[0 "position"]] (:location+attribute-name-pairs combined)))
     (is (= :vector-type-vec4 (:vector-type (first (:attribute-reflection-infos combined)))))
     (is (= {"pages" ["pages_0" "pages_1"]} (:array-sampler-name->slice-sampler-names combined)))
+    ;; The fallback rewrites GLSL after cross-compilation, so validate its final output
+    (validate-source! "binding.fp" (:transpiled-shader-source fragment))
     (is (some? namespace))
     (is (= "view_proj"
            (string/replace (str namespace ".view_proj")

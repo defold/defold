@@ -45,18 +45,18 @@ public class ShaderProgramBuilderEditorTest {
     public void plainUniformsAndReflection() throws Exception {
         // Both editor targets emit plain uniforms while preserving attribute and UBO reflection.
         for (ShaderDesc.Language language : new ShaderDesc.Language[]{ShaderDesc.Language.LANGUAGE_GLSL_SM120, ShaderDesc.Language.LANGUAGE_GLSL_SM330}) {
-            var result = compile(VERTEX, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, language);
+            ShaderUtil.Common.GLSLCompileResult result = compile(VERTEX, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, language);
             assertTrue(result.source.contains(language == ShaderDesc.Language.LANGUAGE_GLSL_SM330 ? "#version 330" : "#version 120"));
             assertFalse(result.source, result.source.matches("(?s).*uniform\\s+\\w+\\s*\\{.*"));
             assertTrue(result.source, result.source.contains("uniform vertex_uniforms"));
             assertTrue(result.source.contains("offsets[2]"));
-            var input = result.reflector.getInputs().get(0);
+            Shaderc.ShaderResource input = result.reflector.getInputs().get(0);
             assertEquals("position", input.name);
             assertEquals(0, input.location);
             assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4, ShaderProgramBuilder.resourceTypeToShaderDataType(input.type));
-            var ubo = result.reflector.getUBOs().get(0);
+            Shaderc.ShaderResource ubo = result.reflector.getUBOs().get(0);
             assertTrue(result.source.contains("_" + ubo.id));
-            var members = result.reflector.getTypes().stream().filter(t -> t.name.equals("vertex_uniforms")).findFirst().get().members;
+            Shaderc.ResourceMember[] members = result.reflector.getTypes().stream().filter(t -> t.name.equals("vertex_uniforms")).findFirst().get().members;
             assertEquals("view_proj", members[0].name);
             assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4, ShaderProgramBuilder.resourceTypeToShaderDataType(members[0].type));
             assertEquals("offsets", members[1].name);
@@ -67,10 +67,10 @@ public class ShaderProgramBuilderEditorTest {
     @Test
     public void runtimeSm330RetainsUniformBlocks() throws Exception {
         // Runtime SM330 compilation retains UBOs unless plain uniforms are explicitly requested.
-        var module = new ShaderCompilePipeline.ShaderModuleDesc();
+        ShaderCompilePipeline.ShaderModuleDesc module = new ShaderCompilePipeline.ShaderModuleDesc();
         module.source = VERTEX;
         module.type = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
-        var pipeline = new ShaderCompilePipeline("runtime-sm330");
+        ShaderCompilePipeline pipeline = new ShaderCompilePipeline("runtime-sm330");
         try {
             ShaderCompilePipeline.createShaderPipeline(pipeline, module, new ShaderCompilePipeline.Options());
             String source = new String(pipeline.crossCompile(module.type, ShaderDesc.Language.LANGUAGE_GLSL_SM330).data);
@@ -92,7 +92,7 @@ public class ShaderProgramBuilderEditorTest {
             void main() { color = texture(pages, uv) * texture(ordinary, uv.xy); }
             """;
         for (ShaderDesc.Language language : new ShaderDesc.Language[]{ShaderDesc.Language.LANGUAGE_GLSL_SM120, ShaderDesc.Language.LANGUAGE_GLSL_SM330}) {
-            var result = compile(fragment, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, language);
+            ShaderUtil.Common.GLSLCompileResult result = compile(fragment, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, language);
             assertArrayEquals(new String[]{"pages"}, result.arraySamplers);
             assertFalse(result.source.contains("sampler2DArray"));
             assertTrue(result.source, result.source.contains("sampler2D pages_0;"));
@@ -118,7 +118,7 @@ public class ShaderProgramBuilderEditorTest {
                 gl_Position = view_proj * position;
             }
             """;
-        var result = compile(vertex,
+        ShaderUtil.Common.GLSLCompileResult result = compile(vertex,
             ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM330);
         assertTrue(result.source.contains("#version 330"));
         assertTrue(result.source.contains("in vec4 position"));
