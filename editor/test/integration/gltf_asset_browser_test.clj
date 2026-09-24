@@ -188,8 +188,8 @@
   (let [copied-files (atom nil)]
     (with-redefs-fn {#'asset-browser/copy #(reset! copied-files %)}
       #(test-util/handler-run :edit.copy
-                             [(handler/->context :asset-browser {:selection selection})]
-                             {}))
+                              [(handler/->context :asset-browser {:selection selection})]
+                              {}))
     @copied-files))
 
 (deftest copying-an-embedded-material-preserves-its-resource-name-and-content
@@ -241,9 +241,9 @@
                              "void main() {}\n"))
           (workspace/resource-sync! workspace)
           (doseq [[index name mesh-name] [[0 "mymesh_0" "mymesh"]
-                                         [2 "Shared_0" "Shared"]
-                                         [3 "Shared_1" "Shared"]
-                                         [5 "bad_name_0" "bad/name"]]]
+                                          [2 "Shared_0" "Shared"]
+                                          [3 "Shared_1" "Shared"]
+                                          [5 "bad_name_0" "bad/name"]]]
             (testing name
               (let [node (test-util/resource-node project (str "/" name ".model"))
                     save-value (g/node-value node :save-value)]
@@ -252,7 +252,7 @@
                 (is (= [index] (into [] (keep :mesh-index) (:children (g/node-value node :scene)))))
                 (with-open [_build (test-util/build! node)]
                   (is (= index (:mesh-index (protobuf/bytes->map-with-defaults ModelProto$Model
-                                                                             (test-util/node-build-output node))))))))))))))
+                                                                               (test-util/node-build-output node))))))))))))))
 
 (deftest copied-mesh-zero-with-duplicate-names-survives-reload
   (let [original-scene-json scene-json]
@@ -377,8 +377,8 @@
                 (fs/create-parent-directories! archive)
                 (with-open [out (ZipOutputStream. (io/output-stream archive))]
                   (doseq [[path content] [["game.project" "[library]\ninclude_dirs = defold-pbr\n"]
-                                         [(shader-paths 0) "void main() {}"]
-                                         [(shader-paths 1) "void main() {}"]]]
+                                          [(shader-paths 0) "void main() {}"]
+                                          [(shader-paths 1) "void main() {}"]]]
                     (.putNextEntry out (ZipEntry. path))
                     (.write out (.getBytes ^String content StandardCharsets/UTF_8))
                     (.closeEntry out)))

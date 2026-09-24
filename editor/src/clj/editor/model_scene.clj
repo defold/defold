@@ -222,23 +222,23 @@
             (let [attribute-buffers
                   (cond-> {:semantic-type-position [positions]}
 
-                          (pos? normal-count)
-                          (assoc :semantic-type-normal [normals])
+                    (pos? normal-count)
+                    (assoc :semantic-type-normal [normals])
 
-                          (pos? tangent-count)
-                          (assoc :semantic-type-tangent [tangents])
+                    (pos? tangent-count)
+                    (assoc :semantic-type-tangent [tangents])
 
-                          (pos? color-count)
-                          (assoc :semantic-type-color [colors])
+                    (pos? color-count)
+                    (assoc :semantic-type-color [colors])
 
-                          (or (pos? texcoord0-count)
-                              (pos? texcoord1-count))
-                          (assoc :semantic-type-texcoord (cond-> [(when (pos? texcoord0-count) texcoord0s)]
-                                                                 (pos? texcoord1-count) (conj texcoord1s))))]
+                    (or (pos? texcoord0-count)
+                        (pos? texcoord1-count))
+                    (assoc :semantic-type-texcoord (cond-> [(when (pos? texcoord0-count) texcoord0s)]
+                                                     (pos? texcoord1-count) (conj texcoord1s))))]
               (cond-> {:attribute-buffers attribute-buffers}
 
-                      (not (neg? max-index))
-                      (assoc :index-buffer indices)))))))))
+                (not (neg? max-index))
+                (assoc :index-buffer indices)))))))))
 
 (defn- render-mesh-opaque [^GL2 gl render-args renderables]
   (let [renderable (first renderables)
@@ -853,10 +853,10 @@
                                    (and scene-aabb (seq augmented-model-scenes))
                                    (assoc-in [0 :aabb] scene-aabb))]
       (cond-> (assoc scene
-        :node-id new-node-id
-        :node-outline-key new-node-outline-key
-        :finalize-claim-fn finalize-claim-scene ; We may have one or more TransformedAttributeBufferLifecycles after this, so we must assign them unique request-ids per instance.
-        :children augmented-model-scenes)
+                :node-id new-node-id
+                :node-outline-key new-node-outline-key
+                :finalize-claim-fn finalize-claim-scene ; We may have one or more TransformedAttributeBufferLifecycles after this, so we must assign them unique request-ids per instance.
+                :children augmented-model-scenes)
         scene-aabb (assoc :aabb scene-aabb)))))
 
 (defn make-material-name->material-scene-info
@@ -1064,8 +1064,7 @@
 (defn- create-gltf-metadata-item-tx
   "Creates a metadata item and optionally connects its mesh selection information."
   [group-node model-scene-node node-type properties scene-info-output-label]
-  (g/make-nodes (g/node-id->graph-id group-node)
-    [item-node [node-type properties]]
+  (g/make-nodes [item-node [node-type properties]]
     (g/connect item-node :_node-id group-node :nodes)
     (g/connect item-node :node-outline group-node :child-outlines)
     (if-not scene-info-output-label
@@ -1076,8 +1075,7 @@
   "Creates a glTF outline group for non-empty descriptors."
   [model-scene-node kind node-type descriptors property-keys scene-info-output-label]
   (when-not (coll/empty? descriptors)
-    (g/make-nodes (g/node-id->graph-id model-scene-node)
-      [group-node [GltfMetadataGroupNode :kind kind]]
+    (g/make-nodes [group-node [GltfMetadataGroupNode :kind kind]]
       (g/connect group-node :_node-id model-scene-node :nodes)
       (g/connect group-node :node-outline model-scene-node :child-outlines)
       (into []
@@ -1138,7 +1136,7 @@
                   ^:try shader
                   ^:try vertex-space]
             (when (coll/every? #(and % (not (g/error-value? %)))
-                              [material-index gpu-textures material-attribute-infos shader vertex-space])
+                               [material-index gpu-textures material-attribute-infos shader vertex-space])
               {:gpu-textures gpu-textures
                :material-attribute-infos material-attribute-infos
                :material-index material-index
@@ -1150,21 +1148,19 @@
 (defn- create-gltf-preview-texture-binding-tx
   "Connects a texture resource to a glTF preview material sampler."
   [material-binding {:keys [sampler texture]}]
-  (g/make-nodes (g/node-id->graph-id material-binding)
-    [texture-binding [GltfPreviewTextureBinding
-                      :sampler sampler
-                      :texture texture]]
+  (g/make-nodes [texture-binding [GltfPreviewTextureBinding
+                                  :sampler sampler
+                                  :texture texture]]
     (g/connect texture-binding :_node-id material-binding :nodes)
     (g/connect texture-binding :texture-binding-info material-binding :texture-binding-infos)))
 
 (defn- create-gltf-preview-material-binding-tx
   "Creates a material binding and its texture bindings for the glTF scene preview."
   [model-scene-node {:keys [material material-index name textures]}]
-  (g/make-nodes (g/node-id->graph-id model-scene-node)
-    [material-binding [GltfPreviewMaterialBinding
-                       :material material
-                       :material-index material-index
-                       :name name]]
+  (g/make-nodes [material-binding [GltfPreviewMaterialBinding
+                                   :material material
+                                   :material-index material-index
+                                   :name name]]
     (g/connect material-binding :_node-id model-scene-node :nodes)
     (g/connect material-binding :material-scene-info model-scene-node :material-scene-infos)
     (into []
@@ -1284,7 +1280,7 @@
           (keep #(gltf/uri->proj-path source-path %)))]
     (if include-editor-dependencies
       (coll/into-> (resource/children source-resource)
-          (into external-buffer-proj-paths (gltf/external-image-paths source-resource))
+        (into external-buffer-proj-paths (gltf/external-image-paths source-resource))
         resource/xform-recursive-resources
         (filter #(#{:material :image} (:kind (gltf/asset-info %))))
         (map resource/proj-path))

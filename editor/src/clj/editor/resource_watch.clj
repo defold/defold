@@ -121,8 +121,8 @@
 
 (defn- make-directory-snapshot [workspace ^File mount-root ^File root editable-proj-path? unloaded-proj-path?]
   (let [{:keys [tree versions]} (resource/load-directory-resources workspace mount-root root
-                                                                (partial file-resource-filter mount-root)
-                                                                editable-proj-path? unloaded-proj-path?)]
+                                                                   (partial file-resource-filter mount-root)
+                                                                   editable-proj-path? unloaded-proj-path?)]
     {:resources tree
      :status-map (coll/into-> versions {}
                    (map (fn [[proj-path version]]
@@ -183,9 +183,9 @@
           lib-results (library/cached project-directory library-uris)
           new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-results)
           snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
-                                            (make-directory-snapshot workspace project-directory project-directory editable-proj-path? unloaded-proj-path?)
-                                            (make-debugger-snapshot workspace)
-                                            (make-library-snapshots new-library-snapshot-cache lib-results)))]
+                                             (make-directory-snapshot workspace project-directory project-directory editable-proj-path? unloaded-proj-path?)
+                                             (make-debugger-snapshot workspace)
+                                             (make-library-snapshots new-library-snapshot-cache lib-results)))]
       {:snapshot snapshot
        :snapshot-cache new-library-snapshot-cache})))
 
@@ -218,8 +218,8 @@
             (let [old-source-type (resource/source-type (get old-map path))
                   new-source-type (resource/source-type (get new-map path))]
               (cond-> acc
-                      (not= old-source-type new-source-type)
-                      (update new-source-type conj path)))))
+                (not= old-source-type new-source-type)
+                (update new-source-type conj path)))))
 
         added-paths (into changed-from-folder-to-file (set/difference new-paths old-paths))
         removed-paths (into changed-from-file-to-folder (set/difference old-paths new-paths))

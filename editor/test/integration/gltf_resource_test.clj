@@ -208,7 +208,7 @@
             (json/write-str
               (-> (json/read-str (gltf-content "Paint") :key-fn keyword)
                   (assoc-in [:buffers 0 :uri] (str "data:application/octet-stream;base64,"
-                                                  (.encodeToString (Base64/getEncoder) geometry-bytes)))
+                                                   (.encodeToString (Base64/getEncoder) geometry-bytes)))
                   (assoc-in [:accessors 0 :max] [2 1 0])))))
         (workspace/resource-sync! workspace)
         (is (= mesh-node (test-util/resource-node project mesh-path)))
@@ -220,8 +220,8 @@
   (doseq [origin [:file :zip]]
     (testing origin
       (with-gltf-project origin (-> (embedded-gltf-content "Paint/Chrome")
-                                   (string/replace "\"Albedo\"" "\"Albedo/Chrome\"")
-                                   (string/replace "albedo.png" "../albedo.png"))
+                                    (string/replace "\"Albedo\"" "\"Albedo/Chrome\"")
+                                    (string/replace "albedo.png" "../albedo.png"))
         (fn [_project-path workspace _project]
           (doseq [[path expected-name original-name]
                   [["/models/robot.gltf/materials/Paint_Chrome_0.material" "Paint_Chrome_0.material" "Paint/Chrome"]
@@ -351,7 +351,7 @@
 
 (deftest moving-a-container-moves-its-embedded-references
   (doseq [[renamed-resource-path target-source-path] [["/models/robot.gltf" "/models/renamed.gltf"]
-                                                     ["/models" "/renamed/robot.gltf"]]]
+                                                      ["/models" "/renamed/robot.gltf"]]]
     (testing renamed-resource-path
       (with-gltf-project :file (embedded-gltf-content "Paint")
         (fn [_project-path workspace project]
@@ -412,7 +412,7 @@
         (is (= (vec (repeat 5 "/models/albedo.png"))
                (preview-texture-paths (test-util/resource-node project source-path))))
         (test-support/write-until-new-mtime source-file
-                                          (string/replace (gltf-content "Paint") "albedo.png" "other.png"))
+                                            (string/replace (gltf-content "Paint") "albedo.png" "other.png"))
         (workspace/resource-sync! workspace)
         (is (= (vec (repeat 5 "/models/other.png"))
                (preview-texture-paths (test-util/resource-node project source-path))))))))
@@ -475,9 +475,8 @@
                 (is (g/error-value? (g/node-value image-node :content-generator)))
                 (is (g/error-value? (g/node-value image-node :size))))
               (doseq [color [0xff336699 0xffcc8844]]
-                (let [bytes (png-bytes color)]
-                  (test-support/write-until-new-mtime buffer-file
-                                                    (byte-array (into [0 0 0 0] bytes))))
+                (test-support/write-until-new-mtime buffer-file
+                                                    (byte-array (into [0 0 0 0] (png-bytes color))))
                 (workspace/resource-sync! workspace)
                 (let [image-node (test-util/resource-node project image-path)
                       generator (g/node-value image-node :content-generator)]
@@ -510,12 +509,12 @@
           (doseq [color [0xff336699 0xffcc8844]]
             (let [image-bytes (png-bytes color)
                   json-bytes (.getBytes (json/write-str
-                                         {:asset {:version "2.0"}
-                                          :buffers [{:byteLength (alength image-bytes)}]
-                                          :bufferViews [{:buffer 0 :byteLength (alength image-bytes)}]
-                                          :images [{:bufferView 0 :mimeType "image/png"}]}
-                                         :escape-slash false)
-                                       StandardCharsets/UTF_8)
+                                          {:asset {:version "2.0"}
+                                           :buffers [{:byteLength (alength image-bytes)}]
+                                           :bufferViews [{:buffer 0 :byteLength (alength image-bytes)}]
+                                           :images [{:bufferView 0 :mimeType "image/png"}]}
+                                          :escape-slash false)
+                                        StandardCharsets/UTF_8)
                   json-length (bit-and (+ (alength json-bytes) 3) -4)
                   binary-length (bit-and (+ (alength image-bytes) 3) -4)
                   length (+ 28 json-length binary-length)

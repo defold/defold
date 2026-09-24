@@ -25,14 +25,14 @@
 
 (defn file-not-found-error [node-id label severity resource]
   (let [symlink-target-pathname (when (resource/symlink? resource)
-                                (some-> resource path/symlink-target path/absolute str))
+                                  (some-> resource path/symlink-target path/absolute str))
         path (resource/proj-path resource)
         message (if symlink-target-pathname
                   (localization/message "error.resource-is-a-broken-symlink" {"resource" path "path" symlink-target-pathname})
                   (localization/message "error.resource-not-found" {"resource" path}))
         user-data (cond-> {:type :file-not-found
                            :resource resource}
-                          symlink-target-pathname (assoc :symlink-target-pathname symlink-target-pathname))]
+                    symlink-target-pathname (assoc :symlink-target-pathname symlink-target-pathname))]
     (g/->error node-id label severity nil message user-data)))
 
 (defn file-not-found-error? [error]

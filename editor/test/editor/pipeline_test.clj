@@ -90,8 +90,8 @@
 
 (defn- content [artifact]
   (-> artifact
-    (content-bytes)
-    (String. "UTF-8")))
+      (content-bytes)
+      (String. "UTF-8")))
 
 (defn- pipeline-build! [project build-targets]
   (let [[workspace build-results]
@@ -166,11 +166,11 @@
             dep-1          (make-asserting-build-target workspace "1" called! {})
             dep-2          (make-asserting-build-target workspace "2" called! {})
             dep-3          (make-asserting-build-target workspace "3" called!
-                             {(:resource dep-2) (:resource dep-2)} dep-2)
+                                                        {(:resource dep-2) (:resource dep-2)} dep-2)
             build-targets  [(make-asserting-build-target workspace "4" called!
-                              {(:resource dep-1) (:resource dep-1)
-                               (:resource dep-3) (:resource dep-3)}
-                              dep-1 dep-3)]
+                                                         {(:resource dep-1) (:resource dep-1)
+                                                          (:resource dep-3) (:resource dep-3)}
+                                                         dep-1 dep-3)]
             build-results  (pipeline-build! project build-targets)]
         (is (= 4 @build-fn-calls))
         (is (= #{"1" "2" "3" "4"} (set (map content (:artifacts build-results)))))))))
@@ -201,7 +201,7 @@
           (is (= {:tile-set (-> tile-set-target :resource resource/proj-path)
                   :default-animation "gurka"
                   :material (-> material-target :resource resource/proj-path)}
-                (select-keys pb-data [:tile-set :default-animation :material]))))))))
+                 (select-keys pb-data [:tile-set :default-animation :material]))))))))
 
 (defrecord TestResource [workspace proj-path]
   resource/Resource

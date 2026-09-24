@@ -272,11 +272,11 @@
              (properties/visible? outline-property))
     (let [ext-edit-type (:ext-edit-type outline-property)
           outline-property (cond-> outline-property
-                                   ext-edit-type
-                                   (assoc :edit-type ext-edit-type)
+                             ext-edit-type
+                             (assoc :edit-type ext-edit-type)
 
-                                   (not (contains? outline-property :prop-kw))
-                                   (assoc :prop-kw prop-kw))]
+                             (not (contains? outline-property :prop-kw))
+                             (assoc :prop-kw prop-kw))]
       (when (edit-type-id->value-converter (properties/property-edit-type-id outline-property))
         outline-property))))
 

@@ -666,7 +666,7 @@
                  (let [node-id (gt/source-id arc)]
                    (when-not (g/defective? basis node-id)
                      (let [resource (resource-node/resource basis node-id)
-                         proj-path (resource/proj-path resource)]
+                           proj-path (resource/proj-path resource)]
                        (when-some [uncached-save-data-outputs (not-empty (uncached-save-data-outputs basis cache node-id))]
                          (pair proj-path uncached-save-data-outputs)))))))
          (g/inputs basis project :save-data))))

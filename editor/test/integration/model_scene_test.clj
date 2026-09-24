@@ -268,7 +268,7 @@
                       (is (= [0] (vec (:texture-units actual-gpu-texture))))
 
                       (doseq [[node-id property] [[material-node-id :fragment-program]
-                                                [preview-binding-node-id :material]]]
+                                                  [preview-binding-node-id :material]]]
                         (testing (str "Preview fallback with missing " property)
                           (test-util/with-prop [node-id property nil]
                             (is (nil? (g/node-value preview-binding-node-id :material-scene-info)))
@@ -297,11 +297,7 @@
             (testing source-proj-path
               (let [source-node-id (test-util/open-tab! project app-view source-proj-path)
                     source-outline (g/node-value source-node-id :node-outline)
-                    groups (:children source-outline)
-                    meshes-group (nth groups 0)
-                    materials-group (nth groups 1)
-                    textures-group (nth groups 2)
-                    mesh-outline (get-in meshes-group [:children 0])
+                    [meshes-group materials-group textures-group :as groups] (:children source-outline)
                     material-outlines (:children materials-group)
                     texture-outlines (:children textures-group)]
                 (is (= (str "preview." (resource/type-ext (g/node-value source-node-id :resource)))
@@ -319,7 +315,7 @@
                   (is (g/node-id? node-id))
                   (is (true? read-only)))
 
-                (let [mesh-node-id (:node-id mesh-outline)
+                (let [mesh-node-id (get-in meshes-group [:children 0 :node-id])
                       preview-scene (g/node-value source-node-id :scene)
                       mesh-model-scene (nth (:children preview-scene) 1)
                       scene-render-data
@@ -331,7 +327,7 @@
                          :local-camera (camera/make-camera)})
                       mesh-picking-renderables
                       (coll/filterv-> (get-in scene-render-data [:renderables pass/opaque-selection])
-                                     #(= mesh-node-id (:picking-node-id %)))
+                                      #(= mesh-node-id (:picking-node-id %)))
                       mesh-outline-renderable
                       (coll/first-where #(and (= mesh-node-id (:node-id %))
                                               (= :self-selected (:selected %)))

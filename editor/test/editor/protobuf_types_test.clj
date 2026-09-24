@@ -66,13 +66,13 @@
                                                           "/test.tilemap"
                                                           "/test.wav"]
    "/test.collectionfactory" ["/test.collection"]
-   "/test.collectionproxy" ["/test.collection"]   
+   "/test.collectionproxy" ["/test.collection"]
    "/test.collisionobject" ["/test.tilemap"]
    "/test.cubemap" ["/builtins/graphics/particle_blob.png"]
    "/test.gltf" []
    "/test.gltf/meshes/Cube.001_0" []
    "/test.gltf/materials/default_0.material" ["/defold-pbr/shaders/pbr.fp"
-                                               "/defold-pbr/shaders/pbr.vp"]
+                                              "/defold-pbr/shaders/pbr.vp"]
    "/test.display_profiles" []
    "/test.factory" ["/test2.go"]
    "/test.font" ["/builtins/fonts/vera_mo_bd.ttf"

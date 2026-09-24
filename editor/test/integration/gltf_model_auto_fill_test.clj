@@ -63,12 +63,10 @@
          "{\"name\":\"Paint\",\"pbrMetallicRoughness\":{\"baseColorTexture\":{\"index\":0}}},"
          "{\"name\":\"Chrome\",\"pbrMetallicRoughness\":{\"metallicRoughnessTexture\":{\"index\":1}}}]}")))
 
-(defn- coalesced-property [node-id prop-kw]
-  (get-in (properties/coalesce [(g/node-value node-id :_properties)])
-          [:properties prop-kw]))
-
 (defn- edit-property! [node-id prop-kw value]
-  (properties/set-values! (coalesced-property node-id prop-kw) [value]))
+  (-> (properties/coalesce [(g/node-value node-id :_properties)])
+      (get-in [:properties prop-kw])
+      (properties/set-values! [value])))
 
 (defn- material-bindings [model-node-id]
   (into (sorted-map)
@@ -182,13 +180,13 @@
           (testing "source selection offers all materials and mesh selection offers its own"
             (let [dialog-call-count (atom 0)
                   all-meshes-state (assoc generated-state :mesh "/models/two_meshes.gltf"
-                                                         :materials
-                                                         (into (sorted-map)
-                                                               (map (fn [[name binding]]
-                                                                      [name (-> binding
-                                                                                (update :material #(string/replace % "robot.gltf" "two_meshes.gltf"))
-                                                                                (update :textures update-vals #(string/replace % "robot.gltf" "two_meshes.gltf")))]))
-                                                               (:materials generated-state)))
+                                          :materials
+                                          (into (sorted-map)
+                                                (map (fn [[name binding]]
+                                                       [name (-> binding
+                                                                 (update :material #(string/replace % "robot.gltf" "two_meshes.gltf"))
+                                                                 (update :textures update-vals #(string/replace % "robot.gltf" "two_meshes.gltf")))]))
+                                                (:materials generated-state)))
                   selected-mesh-state
                   {:mesh "/models/two_meshes.gltf"
                    :materials
@@ -228,7 +226,7 @@
               (is (= 1 (test-util/prop model-node-id :mesh-index)))
               (is (= selected-mesh-state (model-state model-node-id)))
               (is (nil? (get-in (g/node-value model-node-id :_properties)
-                               [:properties :__material__0 :error])))
+                                [:properties :__material__0 :error])))
 
               (with-redefs [dialogs/make-confirmation-dialog (fn [_ _] true)]
                 (edit-property! model-node-id :mesh-index -1))
@@ -284,8 +282,8 @@
           (with-redefs [dialogs/make-confirmation-dialog (fn [_ _] true)]
             (edit-property! model-node :mesh (workspace/find-resource workspace "/models/robot.gltf")))
           (is (= {"Chrome" {:material "/models/robot.gltf/materials/Chrome_0.material"
-                             :textures {"PbrMetallicRoughness_metallicRoughnessTexture" "/textures/albedo map.png"}}
+                            :textures {"PbrMetallicRoughness_metallicRoughnessTexture" "/textures/albedo map.png"}}
                   "Paint" {:material "/models/robot.gltf/materials/Paint_0.material"
-                            :textures {"PbrMetallicRoughness_baseColorTexture" "/textures/albedo map.png"}}}
+                           :textures {"PbrMetallicRoughness_baseColorTexture" "/textures/albedo map.png"}}}
                  (material-bindings model-node)))
           (is (nil? (workspace/find-resource workspace "/models/robot.gltf/images"))))))))

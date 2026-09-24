@@ -36,7 +36,7 @@
       (doseq [source-path ["/game.project" "/builtins/materials/sprite.material"]]
         (let [source (workspace/find-resource workspace source-path)
               entry (resource/make-resource-entry source {:path "entry.txt"
-                                                         :content (ByteString/copyFromUtf8 "embedded")})
+                                                          :content (ByteString/copyFromUtf8 "embedded")})
               restored (g/read-graph (g/write-graph entry (core/write-handlers)) (core/read-handlers))]
           (is (= "embedded" (slurp restored)))
           (with-open [^java.io.InputStream connection (http-server/->connection (:body (http-server/response 200 restored)))]

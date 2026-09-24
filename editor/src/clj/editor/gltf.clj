@@ -139,7 +139,7 @@
                      (into []
                            (keep (fn [{:keys [sampler image-path]}]
                                    (when-let [texture-resource (or (resource-by-asset-path image-path)
-                                                                  (resolve-resource image-path))]
+                                                                   (resolve-resource image-path))]
                                      {:sampler sampler
                                       :texture texture-resource})))
                            sampler-bindings)})))))
@@ -150,7 +150,7 @@
   [source-resource resolve-resource]
   (let [asset-resources (asset-resources source-resource)
         image-descriptors (into (mapv #(assoc % :image (resolve-resource (:path %)))
-                                     (get-in source-resource [:data :external-images]))
+                                      (get-in source-resource [:data :external-images]))
                                 (comp (filter #(= :image (:kind (asset-info %))))
                                       (map #(assoc (asset-info %) :image %)))
                                 asset-resources)
@@ -346,8 +346,8 @@
           (g/expand-ec
             (fn [evaluation-context]
               (:tx-data (project/connect-resource-node evaluation-context project
-                                                      (resolve-resource-fn resource (:buffer-path resource))
-                                                      node-id [[:resource :backing-resource]])))))))
+                                                       (resolve-resource-fn resource (:buffer-path resource))
+                                                       node-id [[:resource :backing-resource]])))))))
 
 (defn- embedded-image-dependencies [_read-opts resource _source-value]
   [(:buffer-path resource)])

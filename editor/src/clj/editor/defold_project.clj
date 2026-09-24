@@ -268,10 +268,10 @@
              :owner-resource resource
              :resource resource
              :resource-type resource-type}
-            read-error (assoc :read-error read-error)
-            source-value (assoc :source-value source-value)
-            disk-sha256 (assoc :disk-sha256 disk-sha256)
-            dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths))))
+      read-error (assoc :read-error read-error)
+      source-value (assoc :source-value source-value)
+      disk-sha256 (assoc :disk-sha256 disk-sha256)
+      dependency-proj-paths (assoc :dependency-proj-paths dependency-proj-paths))))
 
 (defn- sort-node-ids-for-loading-impl
   ([node-ids in-progress queue queued batch node-id->dependency-node-ids]
@@ -512,9 +512,9 @@
 
                             (cond-> [save-data-endpoint+cached-value]
 
-                                    is-save-value-output-cached
-                                    (conj (pair (g/endpoint node-id :save-value)
-                                                (or read-error source-value))))))))
+                              is-save-value-output-cached
+                              (conj (pair (g/endpoint node-id :save-value)
+                                          (or read-error source-value))))))))
               node-load-infos)]
 
     (g/cache-output-values! endpoint+cached-value-pairs)
@@ -1256,10 +1256,10 @@
   (reduce (fn [m [old new]]
             (if-let [v (get m old)]
               (-> m
-                (dissoc old)
-                (assoc new (val-fn [new v])))
+                  (dissoc old)
+                  (assoc new (val-fn [new v])))
               m))
-    m key-m))
+          m key-m))
 
 (def ^:private make-resource-nodes-by-path-map
   (partial into {} (map (juxt (comp resource/proj-path second) first))))
@@ -1543,7 +1543,7 @@
                                        (and (resource/file-resource? parent)
                                             (#{"gltf" "glb"} (resource/ext parent)))
                                        (recur (resource/parent-proj-path parent-path)))))))
-                added-resources)
+                          added-resources)
            (notifications/show
              notifications
              {:id ::pbr-library
@@ -1668,20 +1668,20 @@
   (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
                                                              (let [selected-node-id-set (set all-selected-node-ids)]
                                                                (->> all-selections
-                                                                 (map (fn [[key vals]] [key (filterv selected-node-id-set vals)]))
-                                                                 (into {})))))
+                                                                    (map (fn [[key vals]] [key (filterv selected-node-id-set vals)]))
+                                                                    (into {})))))
   (output selected-node-properties-by-resource-node g/Any :cached (g/fnk [all-selected-node-properties all-selections]
                                                                     (let [props (->> all-selected-node-properties
-                                                                                  (map (fn [p] [(:node-id p) p]))
-                                                                                  (into {}))]
+                                                                                     (map (fn [p] [(:node-id p) p]))
+                                                                                     (into {}))]
                                                                       (->> all-selections
-                                                                        (map (fn [[key vals]] [key (vec (keep props vals))]))
-                                                                        (into {})))))
+                                                                           (map (fn [[key vals]] [key (vec (keep props vals))]))
+                                                                           (into {})))))
   (output sub-selections-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-sub-selections]
-                                                               (let [selected-node-id-set (set all-selected-node-ids)]
-                                                                 (->> all-sub-selections
-                                                                   (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
-                                                                   (into {})))))
+                                                          (let [selected-node-id-set (set all-selected-node-ids)]
+                                                            (->> all-sub-selections
+                                                                 (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
+                                                                 (into {})))))
   (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv :save-value save-data)))
   (output dirty-save-data g/Any :cached (g/fnk [save-data]
@@ -1695,15 +1695,15 @@
   (output use-font-layout g/Bool (g/fnk [use-font-layout] (true? use-font-layout)))
   (output use-rich-text g/Bool (g/fnk [use-rich-text] (not (false? use-rich-text))))
   (output display-width g/Num (g/fnk [settings]
-                                 (double (or (get settings ["display" "width"]) 0))))
+                                (double (or (get settings ["display" "width"]) 0))))
   (output display-height g/Num (g/fnk [settings]
-                                  (double (or (get settings ["display" "height"]) 0))))
+                                 (double (or (get settings ["display" "height"]) 0))))
   (output render-clear-color g/Any (g/fnk [settings]
                                      (vector-of :double
-                                       (get settings ["render" "clear_color_red"] 0.0)
-                                       (get settings ["render" "clear_color_green"] 0.0)
-                                       (get settings ["render" "clear_color_blue"] 0.0)
-                                       (get settings ["render" "clear_color_alpha"] 1.0))))
+                                                (get settings ["render" "clear_color_red"] 0.0)
+                                                (get settings ["render" "clear_color_green"] 0.0)
+                                                (get settings ["render" "clear_color_blue"] 0.0)
+                                                (get settings ["render" "clear_color_alpha"] 1.0))))
   (output exclude-gles-sm100 g/Any (g/fnk [settings] (get settings ["shader" "exclude_gles_sm100"])))
   (output glsl-es-default-precision-float g/Any (g/fnk [settings] (get settings ["shader" "glsl_es_default_precision_float"])))
   (output glsl-es-default-precision-int g/Any (g/fnk [settings] (get settings ["shader" "glsl_es_default_precision_int"])))
@@ -1752,8 +1752,8 @@
 
 (defn project-title [project]
   (some-> project
-    (settings)
-    (get ["project" "title"])))
+          (settings)
+          (get ["project" "title"])))
 
 (defn- disconnect-from-inputs [basis src tgt connections]
   (let [outputs (set (g/output-labels (g/node-type* basis src)))
@@ -1949,7 +1949,7 @@
              (let [node-id (gt/source-id arc)]
                (when-not (g/defective? basis node-id)
                  (let [node-type (g/node-type* basis node-id)
-                     output-cached? (g/cached-outputs node-type)]
+                       output-cached? (g/cached-outputs node-type)]
                    (eduction
                      (filter output-cached?)
                      (map #(g/endpoint node-id %))

@@ -533,18 +533,18 @@
       (FileResource. workspace root abs-path project-path name ext source-type editable loaded children))))
 
 (core/register-write-handler!
- FileResource
- (transit/write-handler
-  (constantly "file-resource")
-  (fn [^FileResource r]
-    {:workspace (:workspace r)
-     :abs-path (:abs-path r)
-     :project-path (:project-path r)
-     :name (:name r)
-     :ext (:ext r)
-     :source-type (:source-type r)
-     :editable (:editable r)
-     :children (:children r)})))
+  FileResource
+  (transit/write-handler
+    (constantly "file-resource")
+    (fn [^FileResource r]
+      {:workspace (:workspace r)
+       :abs-path (:abs-path r)
+       :project-path (:project-path r)
+       :name (:name r)
+       :ext (:ext r)
+       :source-type (:source-type r)
+       :editable (:editable r)
+       :children (:children r)})))
 
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]
   (.write w (format "{:FileResource %s}" (pr-str (proj-path file-resource)))))
@@ -668,22 +668,22 @@
 (core/register-record-type! ZipResource)
 
 (core/register-read-handler!
- "zip-resource"
- (transit/read-handler
-  (fn [{:keys [workspace ^String zip-uri name path zip-entry children]}]
-    (ZipResource. workspace (URI. zip-uri) name path zip-entry children))))
+  "zip-resource"
+  (transit/read-handler
+    (fn [{:keys [workspace ^String zip-uri name path zip-entry children]}]
+      (ZipResource. workspace (URI. zip-uri) name path zip-entry children))))
 
 (core/register-write-handler!
- ZipResource
- (transit/write-handler
-  (constantly "zip-resource")
-  (fn [^ZipResource r]
-    {:workspace (:workspace r)
-     :zip-uri   (.toString ^URI (:zip-uri r))
-     :name      (:name r)
-     :path      (:path r)
-     :zip-entry (:zip-entry r)
-     :children  (:children r)})))
+  ZipResource
+  (transit/write-handler
+    (constantly "zip-resource")
+    (fn [^ZipResource r]
+      {:workspace (:workspace r)
+       :zip-uri   (.toString ^URI (:zip-uri r))
+       :name      (:name r)
+       :path      (:path r)
+       :zip-entry (:zip-entry r)
+       :children  (:children r)})))
 
 (defmethod print-method ZipResource [zip-resource ^java.io.Writer w]
   (.write w (format "{:ZipResource %s}" (pr-str (proj-path zip-resource)))))
@@ -976,8 +976,8 @@
   [resource read-fn]
   (with-open [^InputStream input-stream
               (cond-> (io/input-stream resource)
-                      (file-resource? resource)
-                      (digest/make-digest-input-stream "SHA-256"))]
+                (file-resource? resource)
+                (digest/make-digest-input-stream "SHA-256"))]
     (let [source-value (read-fn input-stream)
           disk-sha256 (digest/completed-stream->hex input-stream)]
       (pair source-value disk-sha256))))
@@ -994,13 +994,13 @@
 (def ^:private ext->style-class
   ;; TODO: make extension-spine use :icon-class
   (let [config {"design" ["spinemodel" "spinescene"]}]
-   (->> (for [[kind extensions] config
-              :let [style-class (str "resource-kind-" kind)]
-              ext extensions
-              el [ext style-class]]
-          el)
-        seq
-        PersistentHashMap/createWithCheck)))
+    (->> (for [[kind extensions] config
+               :let [style-class (str "resource-kind-" kind)]
+               ext extensions
+               el [ext style-class]]
+           el)
+         seq
+         PersistentHashMap/createWithCheck)))
 
 (def icon-class->style-class
   (coll/pair-map-by identity #(str "resource-kind-" (name %)) [:design :property :script]))

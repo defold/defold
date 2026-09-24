@@ -150,8 +150,7 @@
     (mapv path->resource roots)))
 
 (defn- temp-resource-file! [^File dir resource]
-  (let [{:keys [export-name-fn]} (resource/resource-type resource)
-        target (File. dir ^String (export-name-fn resource))]
+  (let [target (File. dir ^String ((:export-name-fn (resource/resource-type resource)) resource))]
     (if (= :file (resource/source-type resource))
       (with-open [in (io/input-stream resource)
                   out (io/output-stream target)]
@@ -374,26 +373,26 @@
 (handler/defhandler :edit.paste :asset-browser
   (enabled? [selection] (paste? (.hasFiles (Clipboard/getSystemClipboard)) selection))
   (run [selection workspace asset-browser localization]
-       (let [tree-view (g/node-value asset-browser :tree-view)
-             resource (first selection)
-             src-files (.getFiles (Clipboard/getSystemClipboard))
-             dest-path (.toPath (io/file (resource/abs-path resource)))]
-         (if-let [conflicting-file (some #(let [src-path (.toPath ^File %)]
-                                            (when (and (.startsWith dest-path src-path)
-                                                       (not= dest-path src-path))
-                                              %))
-                                         src-files)]
-           (let [res-proj-path (resource/proj-path resource)
-                 dest-proj-path (resource/file->proj-path (workspace/project-directory workspace) conflicting-file)]
-             (notifications/show!
-               (workspace/notifications workspace)
-               {:type :error
-                :id ::asset-circular-paste
-                :message (localization/message
-                           "notification.asset-browser.circular-paste.error"
-                           {"source" dest-proj-path
-                            "target" res-proj-path})}))
-           (paste! workspace resource src-files (partial select-files! workspace tree-view) localization)))))
+    (let [tree-view (g/node-value asset-browser :tree-view)
+          resource (first selection)
+          src-files (.getFiles (Clipboard/getSystemClipboard))
+          dest-path (.toPath (io/file (resource/abs-path resource)))]
+      (if-let [conflicting-file (some #(let [src-path (.toPath ^File %)]
+                                         (when (and (.startsWith dest-path src-path)
+                                                    (not= dest-path src-path))
+                                           %))
+                                      src-files)]
+        (let [res-proj-path (resource/proj-path resource)
+              dest-proj-path (resource/file->proj-path (workspace/project-directory workspace) conflicting-file)]
+          (notifications/show!
+            (workspace/notifications workspace)
+            {:type :error
+             :id ::asset-circular-paste
+             :message (localization/message
+                        "notification.asset-browser.circular-paste.error"
+                        {"source" dest-proj-path
+                         "target" res-proj-path})}))
+        (paste! workspace resource src-files (partial select-files! workspace tree-view) localization)))))
 
 (defn- moved-files
   [^File src-file ^File dest-file files]
@@ -436,8 +435,8 @@
                                ext (resource/ext resource)]
                            (pair resource-file
                                  (io/file parent (cond-> new-base-name
-                                                         (and (not dir) (seq ext))
-                                                         (str "." ext))))))
+                                                   (and (not dir) (seq ext))
+                                                   (str "." ext))))))
                        resources)]
     (when-not (some #(resource-watch/reserved-proj-path?
                        project-directory
@@ -549,7 +548,7 @@
         (and (= :asset-browser selection-context)
              (= (count selection) 1)
              (some? (some-> (handler/adapt-single selection resource/Resource evaluation-context)
-                      resource/abs-path)))))
+                            resource/abs-path)))))
   (enabled? [] (disk-availability/available?))
   (run [selection user-data asset-browser app-view prefs workspace project localization]
     (let [project-directory (workspace/project-directory workspace)
@@ -612,8 +611,8 @@
                                   (distinct)
                                   (remove predefined-categories))
             columns (cond-> base-columns
-                            (not (coll/empty? unlisted-categories))
-                            (conj unlisted-categories))]
+                      (not (coll/empty? unlisted-categories))
+                      (conj unlisted-categories))]
         (with-meta
           (localization/natural-sort-by-label @localization all-items)
           {:layout :grid :columns columns})))))
@@ -821,13 +820,13 @@
     (when-let [^TreeCell cell (target (.getTarget e))]
       (when (and (not (.isEmpty cell))
                  (.hasFiles db))
-       (let [tgt-resource (-> cell (.getTreeItem) (.getValue))]
-         (when (allow-resource-move? tgt-resource (.getFiles db))
-           ;; Allow move only if the drag source was also the tree view.
-           (if (= (.getTreeView cell) (.getGestureSource e))
-             (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
-             (.acceptTransferModes e (into-array TransferMode [TransferMode/COPY])))
-           (.consume e)))))))
+        (let [tgt-resource (-> cell (.getTreeItem) (.getValue))]
+          (when (allow-resource-move? tgt-resource (.getFiles db))
+            ;; Allow move only if the drag source was also the tree view.
+            (if (= (.getTreeView cell) (.getGestureSource e))
+              (.acceptTransferModes e TransferMode/COPY_OR_MOVE)
+              (.acceptTransferModes e (into-array TransferMode [TransferMode/COPY])))
+            (.consume e)))))))
 
 (defn- drag-move-files [dragged-pairs]
   (into [] (mapcat (fn [[src tgt]]
@@ -937,18 +936,18 @@
       (.addEventFilter DragEvent/DRAG_OVER (ui/event-handler e (ui/handle-tree-view-scroll-on-drag! tree-view e)))
       (.setEventDispatcher
         (ui/event-dispatcher event tail
-           ;; by default, TreeView handles F2 as an edit operation. We override
-           ;; the dispatcher here to bubble up the F2 key presses so they are
-           ;; still handled upstream (e.g. if we use F2 shortcut for rename,
-           ;; which is a default)
-           (if (instance? KeyEvent event)
-             (let [^KeyEvent event event]
-               (if (and (= KeyCode/F2 (.getCode event))
-                        (or (= KeyEvent/KEY_PRESSED (.getEventType event))
-                            (= KeyEvent/KEY_RELEASED (.getEventType event))))
-                 event
-                 (.dispatchEvent original-dispatcher event tail)))
-             (.dispatchEvent original-dispatcher event tail))))
+          ;; by default, TreeView handles F2 as an edit operation. We override
+          ;; the dispatcher here to bubble up the F2 key presses so they are
+          ;; still handled upstream (e.g. if we use F2 shortcut for rename,
+          ;; which is a default)
+          (if (instance? KeyEvent event)
+            (let [^KeyEvent event event]
+              (if (and (= KeyCode/F2 (.getCode event))
+                       (or (= KeyEvent/KEY_PRESSED (.getEventType event))
+                           (= KeyEvent/KEY_RELEASED (.getEventType event))))
+                event
+                (.dispatchEvent original-dispatcher event tail)))
+            (.dispatchEvent original-dispatcher event tail))))
       (.setOnDragDetected detected-handler)
       (ui/register-context-menu ::resource-menu)
       (ui/context! :asset-browser {:workspace workspace :asset-browser asset-browser :localization localization} selection-provider))))
