@@ -806,6 +806,45 @@
           manifest
           (conj macos :osx)))
 
+;; Older 2D-only manifests exclude Bullet archives but predate its separate
+;; script library and registration symbol.
+(defn- migrate-bullet3d-context [context]
+  (if-not (and (map? context)
+               (vector? (:excludeLibs context))
+               (or (nil? (:excludeSymbols context))
+                   (vector? (:excludeSymbols context)))
+               (= #{"LinearMath" "BulletDynamics" "BulletCollision"}
+                  (into #{}
+                        (keep (fn [library]
+                                (when (string? library)
+                                  (second (re-matches #"(?:lib)?(LinearMath|BulletDynamics|BulletCollision)(?:\.lib)?" library)))))
+                        (:excludeLibs context))))
+    context
+    (cond-> context
+      (not (contains? (set (:excludeLibs context)) "script_bullet3d"))
+      (update :excludeLibs conj "script_bullet3d")
+
+      (not (contains? (set (:excludeSymbols context)) "ScriptBullet3DExt"))
+      (update :excludeSymbols (fnil conj []) "ScriptBullet3DExt"))))
+
+(defn- migrate-bullet3d-exclusions [manifest]
+  (if-not (map? manifest)
+    manifest
+    (cond-> manifest
+      (contains? manifest :context)
+      (update :context migrate-bullet3d-context)
+
+      (map? (:platforms manifest))
+      (update :platforms
+              (fn [platforms]
+                (reduce-kv (fn [platforms platform platform-value]
+                             (if-not (and (map? platform-value)
+                                          (contains? platform-value :context))
+                               platforms
+                               (update-in platforms [platform :context] migrate-bullet3d-context)))
+                           platforms
+                           platforms))))))
+
 (defn- load-app-manifest [_load-opts {self :node-id}]
   (g/expand-ec
     (fn [evaluation-context]
@@ -813,7 +852,8 @@
         (when-not (g/error? manifest)
           (let [migrated-manifest (-> manifest
                                       migrate-windows-library-names
-                                      migrate-macos-vulkan-platform)]
+                                      migrate-macos-vulkan-platform
+                                      migrate-bullet3d-exclusions)]
             (when-not (= manifest migrated-manifest)
               ;; Prevent the project loader from caching the original lines as save-data.
               (g/flag-nodes-as-migrated! evaluation-context [self])

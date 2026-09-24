@@ -77,7 +77,8 @@
               (is (true? (:dirty save-data)))
               (is (= manifest (-> original
                                   (#'app-manifest/migrate-windows-library-names)
-                                  (#'app-manifest/migrate-macos-vulkan-platform))))
+                                  (#'app-manifest/migrate-macos-vulkan-platform)
+                                  (#'app-manifest/migrate-bullet3d-exclusions))))
               (resource-node/save-data-content save-data)))]
       (test-util/with-temp-project-content
         {"/current.appmanifest" (data/string->lines migrated-content)}
@@ -102,9 +103,12 @@
      "/invalid.appmanifest"
      ["platforms: ["]
 
+     "/scalar.appmanifest"
+     ["true"]
+
      "/malformed.appmanifest"
      ["platforms: {win32: {context: {libs: libmbedtls.lib}}, x86-win32: null, x86_64-win32: {context: {libs: [null, 42, libcustom.lib]}}}"]}
-    (doseq [proj-path ["/empty.appmanifest" "/current.appmanifest" "/invalid.appmanifest" "/malformed.appmanifest"]]
+    (doseq [proj-path ["/empty.appmanifest" "/current.appmanifest" "/invalid.appmanifest" "/scalar.appmanifest" "/malformed.appmanifest"]]
       (let [manifest-node (test-util/resource-node project proj-path)
             save-data (g/node-value manifest-node :save-data)]
         (is (false? (:dirty save-data)))
