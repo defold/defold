@@ -103,9 +103,9 @@ namespace dmEngine
      * @name GetGameObjectRegister
      * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppFinalize
      * @return context [type:dmGameObject::HContext] The borrowed engine-owned game object context. The caller must not release it.
-     * @note Deprecated. Use GetGameObjectContext instead.
+     * @note Deprecated since Defold 1.14.1. Use GetGameObjectContext instead.
      */
-    DM_DEPRECATED("Use dmEngine::GetGameObjectContext instead")
+    DM_DEPRECATED("Deprecated since Defold 1.14.1; use dmEngine::GetGameObjectContext instead")
     dmGameObject::HContext GetGameObjectRegister(dmExtension::AppParams* app_params);
 
     /*# get the hid context

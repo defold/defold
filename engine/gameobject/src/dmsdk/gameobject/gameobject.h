@@ -97,9 +97,9 @@ namespace dmGameObject
      * Deprecated alias for HContext. Use HContext instead.
      * @typedef
      * @name HRegister
-     * @note Deprecated. Use HContext instead.
+     * @note Deprecated since Defold 1.14.1. Use HContext instead.
      */
-    typedef DM_DEPRECATED("Use dmGameObject::HContext instead") HContext HRegister;
+    typedef DM_DEPRECATED("Deprecated since Defold 1.14.1; use dmGameObject::HContext instead") HContext HRegister;
 
     /*#
      * Opaque gameobject collection handle.
@@ -652,9 +652,9 @@ namespace dmGameObject
      * @name GetGeneration
      * @param instance [type:dmGameObject::HInstance] Gameobject instance
      * @return generation [type:uint32_t] Generation counter for the instance.
-     * @note Deprecated. The instance generation is an implementation detail.
+     * @note Deprecated since Defold 1.14.1. The instance generation is an implementation detail.
      */
-    DM_DEPRECATED("The instance generation is an implementation detail")
+    DM_DEPRECATED("Deprecated since Defold 1.14.1; the instance generation is an implementation detail")
     uint32_t GetGeneration(HInstance instance);
 
     /*#
