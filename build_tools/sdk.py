@@ -60,6 +60,7 @@ MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 VERSION_IPHONEOS_MIN="15.0"
+# Xcode 27.1 Deployment Targets changed https://developer.apple.com/xcode/system-requirements
 VERSION_MACOSX_MIN="12.0"
 
 # Xcode 27.1 ships Swift 6.4 but retains the swift-6.2 runtime library directory.
