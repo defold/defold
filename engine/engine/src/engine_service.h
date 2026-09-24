@@ -49,12 +49,12 @@ namespace dmEngineService
     uint16_t GetPort(HEngineService engine_service);
     dmWebServer::HServer GetWebServer(HEngineService engine_service);
 
-    void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HContext gocontext);
+    void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HContext regist);
 
     struct ResourceHandlerParams
     {
         dmResource::HFactory      m_Factory;
-        dmGameObject::HContext    m_GOContext;
+        dmGameObject::HContext    m_Regist;
     };
 
     struct EngineState

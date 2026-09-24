@@ -569,7 +569,7 @@ namespace dmEngineService
         dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
 
         ResourceHandlerParams* params = (ResourceHandlerParams*)context;
-        if (!params->m_Factory || !params->m_GOContext)
+        if (!params->m_Factory || !params->m_Regist)
         {
             dmWebServer::SetStatusCode(request, 500);
             SendText(request, "Profiler state is not initialized");
@@ -638,8 +638,8 @@ namespace dmEngineService
     static void HttpGameObjectRequestCallback(void* context, dmWebServer::Request* request)
     {
         ResourceHandlerParams* params = (ResourceHandlerParams*)context;
-        dmGameObject::HContext gocontext = params->m_GOContext;
-        if (!gocontext)
+        dmGameObject::HContext regist = params->m_Regist;
+        if (!regist)
         {
             dmWebServer::SetStatusCode(request, 500);
             SendText(request, "Profiler state is not initialized");
@@ -647,7 +647,7 @@ namespace dmEngineService
         }
 
         dmGameObject::SceneNode root;
-        if (!dmGameObject::TraverseGetRoot(gocontext, &root))
+        if (!dmGameObject::TraverseGetRoot(regist, &root))
         {
             dmWebServer::SetStatusCode(request, 500);
             SendText(request, "Failed to get root node");
@@ -788,8 +788,8 @@ namespace dmEngineService
     static void HttpSceneGraphRequestCallback(void* context, dmWebServer::Request* request)
     {
         ResourceHandlerParams* params = (ResourceHandlerParams*)context;
-        dmGameObject::HContext gocontext = params->m_GOContext;
-        if (!gocontext)
+        dmGameObject::HContext regist = params->m_Regist;
+        if (!regist)
         {
             dmWebServer::SetStatusCode(request, 500);
             SendText(request, "Profiler state is not initialized");
@@ -797,7 +797,7 @@ namespace dmEngineService
         }
 
         dmGameObject::SceneNode root;
-        if (!dmGameObject::TraverseGetRoot(gocontext, &root))
+        if (!dmGameObject::TraverseGetRoot(regist, &root))
         {
             dmWebServer::SetStatusCode(request, 500);
             SendText(request, "Failed to get root node");
@@ -835,12 +835,12 @@ namespace dmEngineService
         }
     }
 
-    void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HContext gocontext)
+    void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HContext regist)
     {
         dmWebServer::HandlerParams resource_params;
         resource_params.m_Handler = HttpResourceRequestCallback;
         engine_service->m_ResourceHandlerParams.m_Factory = factory;
-        engine_service->m_ResourceHandlerParams.m_GOContext = gocontext;
+        engine_service->m_ResourceHandlerParams.m_Regist = regist;
         resource_params.m_Userdata = &engine_service->m_ResourceHandlerParams;
         AddProfilerHandler(engine_service->m_WebServer, "/resources_data", &resource_params);
 

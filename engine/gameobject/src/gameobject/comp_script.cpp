@@ -81,8 +81,8 @@ namespace dmGameObject
 
         if (script_world->m_Collection == 0x0)
         {
-            GetInstanceFromHandle(params.m_Instance, &script_world->m_Collection);
-            assert(script_world->m_Collection != 0x0);
+            if (GetInstanceFromHandle(params.m_Instance, &script_world->m_Collection) == 0x0)
+                return CREATE_RESULT_UNKNOWN_ERROR;
         }
 
         HScriptInstance script_instance = NewScriptInstance(script_world, script, params.m_Instance, params.m_ComponentIndex);

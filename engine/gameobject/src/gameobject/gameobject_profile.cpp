@@ -247,13 +247,13 @@ static void IterateComponentChildren(SceneNodeIterator* it, SceneNode* node)
 
 // ********************************************************************************************
 
-bool TraverseGetRoot(HContext gocontext, SceneNode* node)
+bool TraverseGetRoot(HContext regist, SceneNode* node)
 {
-    DM_MUTEX_SCOPED_LOCK(gocontext->m_Mutex);
-    if (gocontext->m_Collections.Empty())
+    DM_MUTEX_SCOPED_LOCK(regist->m_Mutex);
+    if (regist->m_Collections.Empty())
         return false;
 
-    Collection* collection = gocontext->m_Collections[0];
+    Collection* collection = regist->m_Collections[0];
     node->m_Node = (uint64_t)collection->m_HCollection;
     node->m_Type = SCENE_NODE_TYPE_COLLECTION;
     node->m_Collection = collection->m_HCollection;

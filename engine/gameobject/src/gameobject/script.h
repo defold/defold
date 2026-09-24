@@ -31,7 +31,7 @@ namespace dmGameObject
      */
     struct ScriptInstanceGameObjectResolver
     {
-        HInstance (*m_GetInstance)(void* script_instance);
+        HGameObject (*m_GetInstance)(void* script_instance);
     };
 
     extern const char META_TABLE_GET_GAME_OBJECT[];

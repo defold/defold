@@ -90,16 +90,16 @@ namespace dmGameObject
     // Invalid index for collection-local game object storage.
     const uint32_t INVALID_INSTANCE_INDEX = 0xffffffff;
 
-    inline uint16_t NextCollectionGeneration(uint16_t generation)
+    inline uint16_t WrapIncrementU16(uint16_t value)
     {
-        generation++;
-        return generation == 0 ? 1 : generation;
+        value++;
+        return value == 0 ? 1 : value;
     }
 
-    inline uint32_t NextGameObjectGeneration(uint32_t generation)
+    inline uint32_t WrapIncrementU32(uint32_t value)
     {
-        generation++;
-        return generation == 0 ? 1 : generation;
+        value++;
+        return value == 0 ? 1 : value;
     }
 
     // NOTE: Actual size of Instance is sizeof(Instance) + sizeof(uintptr_t) * m_UserDataCount
@@ -202,6 +202,16 @@ namespace dmGameObject
 
     struct Collection;
 
+    // Registry slots retain their generation counters when reused so stale
+    // collection and instance handles do not resolve to newly allocated objects.
+    struct CollectionRegistrySlot
+    {
+        Collection* m_Collection;          // Live collection, or 0 when the slot is free.
+        uint32_t    m_InstanceGeneration;  // Last issued instance generation. Retained when the slot is reused.
+        uint16_t    m_Generation;          // Generation of the current or most recent collection handle.
+        uint16_t    m_NextFree;            // Next slot in the free list, or INVALID_COLLECTION_INDEX.
+    };
+
     struct Context
     {
         uint32_t                    m_ComponentTypeCount;
@@ -211,6 +221,10 @@ namespace dmGameObject
 
         // All collections. Protected by m_Mutex
         dmArray<Collection*>        m_Collections;
+
+        // Generational collection handle registry. Protected by m_Mutex
+        dmArray<CollectionRegistrySlot> m_CollectionRegistry;
+        uint16_t                        m_FirstFreeCollection;
         // Default capacity of collections
         uint32_t                    m_DefaultCollectionCapacity;
         uint32_t                    m_DefaultInputStackCapacity;
@@ -226,7 +240,7 @@ namespace dmGameObject
     const uint32_t MAX_HIERARCHICAL_DEPTH = 128;
     struct Collection
     {
-        Collection(dmResource::HFactory factory, HContext gocontext, uint32_t max_instances, uint32_t max_input_stack_entries);
+        Collection(dmResource::HFactory factory, HContext regist, uint32_t max_instances, uint32_t max_input_stack_entries);
 
         // Resource factory
         dmResource::HFactory     m_Factory;
@@ -265,10 +279,10 @@ namespace dmGameObject
         dmArray<Matrix4>         m_WorldTransforms;
 
         // Identifier to game-object handle mapping
-        dmHashTable64<HInstance> m_IDToInstance;
+        dmHashTable64<HGameObject> m_IDToInstance;
 
         // Stack keeping track of which instance has the input focus
-        dmArray<HInstance>       m_InputFocusStack;
+        dmArray<HGameObject>     m_InputFocusStack;
 
         // Array of dynamically created resources (i.e runtime-only resources)
         dmArray<dmhash_t>        m_DynamicResources;
@@ -312,9 +326,9 @@ namespace dmGameObject
     Instance* GetInstanceFromIdentifier(Collection* collection, dmhash_t identifier);
 
     Collection* GetCollectionFromHandle(HCollection collection);
-    HInstance   GetInstanceHandle(Collection* collection, const Instance* instance);
-    Instance*   GetInstanceFromHandle(HInstance hinstance, Collection** out_collection = 0);
-    Instance*   GetInstanceFromHandle(Collection* collection, HInstance hinstance);
+    HGameObject GetInstanceHandle(Collection* collection, const Instance* instance);
+    Instance*   GetInstanceFromHandle(HGameObject hinstance, Collection** out_collection = 0);
+    Instance*   GetInstanceFromHandle(Collection* collection, HGameObject hinstance);
     dmhash_t    GetAbsoluteIdentifier(Instance* instance, const char* identifier);
 
     PropertyResult GetProperty(Collection* collection, Instance* instance, dmhash_t component_id, dmhash_t property_id, PropertyOptions options, PropertyDesc& out_value);
@@ -339,7 +353,7 @@ namespace dmGameObject
     Instance* GetParent(Collection* collection, Instance* instance);
     bool IsBone(Instance* instance);
 
-    void CancelAnimations(Collection* collection, HInstance hinstance);
+    void CancelAnimations(Collection* collection, HGameObject instance);
     void ReleaseInstanceIndex(uint32_t index, HCollection collection);
     Result SetIdentifier(Collection* collection, Instance* instance, const char* identifier);
     void ReleaseIdentifier(Collection* collection, Instance* instance);

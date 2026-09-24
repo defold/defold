@@ -66,11 +66,18 @@ namespace dmGameObject
     const uint32_t INVALID_INSTANCE_POOL_INDEX = 0xffffffff;
 
     /*#
-     * Opaque gameobject instance handle
+     * Opaque gameobject handle
+     * @typedef
+     * @name HGameObject
+     */
+    typedef uint64_t HGameObject;
+
+    /*#
+     * Source-compatibility name for HGameObject
      * @typedef
      * @name HInstance
      */
-    typedef uint64_t HInstance;
+    typedef HGameObject HInstance;
 
     /*#
      * Script handle
@@ -112,9 +119,9 @@ namespace dmGameObject
 
     /*# invalid game object handle
      * @constant
-     * @name dmGameObject::INVALID_GAME_OBJECT [type: dmGameObject::HInstance]
+     * @name dmGameObject::INVALID_GAME_OBJECT [type: dmGameObject::HGameObject]
      */
-    const HInstance INVALID_GAME_OBJECT = 0;
+    const HGameObject INVALID_GAME_OBJECT = 0;
 
     /*# invalid collection handle
      * @constant
@@ -590,11 +597,11 @@ namespace dmGameObject
      * Retrieve a collection by socket name hash
      * Note: in native extensions, the context can be retrieved during init using dmEngine::GetGameObjectContext(dmExtension::AppParams *params)
      * @name GetCollectionByHash
-     * @param gocontext [type: dmGameObject::HContext] Game object system context
+     * @param regist [type: dmGameObject::HContext] Game object system context
      * @param socket_name [type: dmhash_t] The socket name
      * @return collection [type: dmGameObject::HCollection] The collection if successful, or dmGameObject::INVALID_COLLECTION otherwise.
      */
-    HCollection GetCollectionByHash(HContext gocontext, dmhash_t socket_name);
+    HCollection GetCollectionByHash(HContext regist, dmhash_t socket_name);
 
     /*#
      * Create a new gameobject instance
@@ -1227,7 +1234,7 @@ namespace dmGameObject
     /*#
      * Gets the top node of the whole game (the main collection)
      * @name TraverseGetRoot
-     * @param gocontext [type:dmGameObject::HContext] the full gameobject context
+     * @param regist [type:dmGameObject::HContext] the full gameobject context
      * @param node [type:dmGameObject::SceneNode*] the node to inspect
      * @return result [type:bool] True if successful
      *
@@ -1248,15 +1255,15 @@ namespace dmGameObject
      *     }
      * }
      *
-     * bool OutputScene(HContext gocontext) {
+     * bool OutputScene(HContext regist) {
      *     dmGameObject::SceneNode root;
-     *     if (!dmGameObject::TraverseGetRoot(gocontext, &root))
+     *     if (!dmGameObject::TraverseGetRoot(regist, &root))
      *         return false;
      *     OutputNode(&node);
      * }
      *```
      */
-    bool TraverseGetRoot(HContext gocontext, SceneNode* node);
+    bool TraverseGetRoot(HContext regist, SceneNode* node);
 
     /*#
      * Get a scene node iterator for the nodes' children

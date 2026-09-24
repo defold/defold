@@ -104,10 +104,10 @@ namespace dmGameObject
     bool    ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module);
     void    DeleteScript(HScript script);
 
-    HScriptInstance NewScriptInstance(CompScriptWorld* script_world, HScript script, HInstance hinstance, uint16_t component_index);
+    HScriptInstance NewScriptInstance(CompScriptWorld* script_world, HScript script, HInstance instance, uint16_t component_index);
     void            DeleteScriptInstance(HScriptInstance script_instance);
 
-    PropertyResult PropertiesToLuaTable(HInstance hinstance, HScript script, const HProperties properties, lua_State* L, int index);
+    PropertyResult PropertiesToLuaTable(HInstance instance, HScript script, const HProperties properties, lua_State* L, int index);
 }
 
 #endif //__GAMEOBJECTSCRIPT_H__

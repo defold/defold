@@ -37,16 +37,16 @@ namespace dmGameObject
         return resource ? resource->m_Collection : INVALID_COLLECTION;
     }
 
-    static dmResource::Result AcquireResources(const char* name, dmResource::HFactory factory, dmGameObject::HContext gocontext, dmGameObjectDDF::CollectionDesc* collection_desc, const char* filename, CollectionResource* collection_resource, HCollection* out_hcollection)
+    static dmResource::Result AcquireResources(const char* name, dmResource::HFactory factory, dmGameObject::HContext regist, dmGameObjectDDF::CollectionDesc* collection_desc, const char* filename, CollectionResource* collection_resource, HCollection* out_hcollection)
     {
         // NOTE: Be careful about control flow. See below with dmMutex::Unlock, return, etc
         dmResource::Result res = dmResource::RESULT_OK;
         *out_hcollection = INVALID_COLLECTION;
 
         uint32_t created_instances = 0;
-        uint32_t default_capacity = dmGameObject::GetCollectionDefaultCapacity(gocontext);
+        uint32_t default_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
 
-        HCollection hcollection = NewCollection(collection_desc->m_Name, factory, gocontext, default_capacity, collection_desc);
+        HCollection hcollection = NewCollection(collection_desc->m_Name, factory, regist, default_capacity, collection_desc);
         if (hcollection == 0)
         {
             dmLogError("AcquireResources NewCollection RESULT_OUT_OF_RESOURCES");
@@ -270,14 +270,14 @@ bail:
 
     static dmResource::Result ResCollectionCreate(const dmResource::ResourceCreateParams* params)
     {
-        Context* gocontext = (Context*) params->m_Context;
+        Context* regist = (Context*) params->m_Context;
         dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) params->m_PreloadData;
 
         CollectionResource* resource = new CollectionResource;
         resource->m_Collection = INVALID_COLLECTION;
 
         HCollection hcollection;
-        dmResource::Result res = AcquireResources(collection_desc->m_Name, params->m_Factory, gocontext, collection_desc, params->m_Filename, resource, &hcollection);
+        dmResource::Result res = AcquireResources(collection_desc->m_Name, params->m_Factory, regist, collection_desc, params->m_Filename, resource, &hcollection);
         dmDDF::FreeMessage(collection_desc);
 
         if (res != dmResource::RESULT_OK)
@@ -317,7 +317,7 @@ bail:
         CollectionResource* resource = (CollectionResource*)ResourceDescriptorGetResource(params->m_Resource);
         HCollection prev_hcollection = resource->m_Collection;
         Collection* prev_collection = GetCollectionFromHandle(prev_hcollection);
-        Context* gocontext = (Context*) params->m_Context;
+        Context* regist = (Context*) params->m_Context;
         bool was_initialized = IsCollectionInitialized(prev_collection);
 
         if (was_initialized)
@@ -327,7 +327,7 @@ bail:
         dmGameObject::DetachCollection(prev_collection, false);
 
         HCollection new_hcollection;
-        dmResource::Result res = AcquireResources(collection_desc->m_Name, params->m_Factory, gocontext, collection_desc, params->m_Filename, resource, &new_hcollection);
+        dmResource::Result res = AcquireResources(collection_desc->m_Name, params->m_Factory, regist, collection_desc, params->m_Filename, resource, &new_hcollection);
         Collection* new_collection = 0;
         if (dmResource::RESULT_OK == res)
         {
