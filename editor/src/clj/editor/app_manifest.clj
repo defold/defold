@@ -812,14 +812,14 @@
         context (get-in manifest path)
         obsolete #{"graphics" "graphics_metal" "graphics_vulkan" "platform_vulkan" "MoltenVK"
                    "GraphicsAdapterOpenGL" "GraphicsAdapterMetal" "GraphicsAdapterVulkan"}]
-    (if (map? context)
+    (if-not (map? context)
+      manifest
       (assoc-in manifest path
                 (reduce (fn [context key]
-                          (if (vector? (get context key))
-                            (update context key #(into [] (remove obsolete) %))
-                            context))
-                        context [:libs :engineLibs :excludeLibs :symbols :excludeSymbols]))
-      manifest)))
+                          (if-not (vector? (get context key))
+                            context
+                            (update context key #(into [] (remove obsolete) %))))
+                        context [:libs :engineLibs :excludeLibs :symbols :excludeSymbols])))))
 
 ;; Older 2D-only manifests exclude Bullet archives but predate its separate
 ;; script library and registration symbol.

@@ -809,10 +809,18 @@
         (is (nil? (g/node-value manifest :use-rich-text)))))))
 
 (deftest simulator-graphics-migration-test
-  (let [manifest {:platforms {:arm64_sim-ios {:context {:libs ["graphics_metal" "custom"]
-                                                       :excludeLibs ["graphics_metal"]
-                                                       :excludeSymbols ["GraphicsAdapterMetal"]}}
-                              :arm64-ios {:context {:excludeLibs ["graphics_metal"]}}}}
+  (let [manifest
+        {:platforms
+         {:arm64_sim-ios
+          {:context
+           {:libs ["graphics_metal" "custom"]
+            :excludeLibs ["graphics_metal"]
+            :excludeSymbols ["GraphicsAdapterMetal"]}}
+
+          :arm64-ios
+          {:context
+           {:excludeLibs ["graphics_metal"]}}}}
+
         migrated (#'app-manifest/migrate-simulator-graphics manifest)]
     (is (= ["custom"] (get-in migrated [:platforms :arm64_sim-ios :context :libs])))
     (is (= [] (get-in migrated [:platforms :arm64_sim-ios :context :excludeLibs])))
