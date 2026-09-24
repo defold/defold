@@ -67,22 +67,6 @@ namespace dmGameObject
      */
     HInstance GetInstanceFromLua(lua_State* L, uint32_t script_instance_type_hash);
 
-    /**
-     * Get the current game object collection from the lua state, if any.
-     * @param L lua-state
-     * @return current game object collection
-     */
-    HCollection GetCollectionFromLua(lua_State* L);
-
-    /**
-     * Get the current game object collection from a script instance of the specified type.
-     * The script instance type must provide a ScriptInstanceGameObjectResolver in META_TABLE_GET_GAME_OBJECT.
-     * @param L lua-state
-     * @param script_instance_type_hash script instance user type
-     * @return current game object collection
-     */
-    HCollection GetCollectionFromLua(lua_State* L, uint32_t script_instance_type_hash);
-
 }
 
 #endif // DM_GAMEOBJECT_SCRIPT_H

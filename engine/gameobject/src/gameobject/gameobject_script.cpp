@@ -711,16 +711,6 @@ namespace dmGameObject
         return ResolveInstanceFromLua(L, script_instance_type_hash);
     }
 
-    HCollection GetCollectionFromLua(lua_State* L)
-    {
-        return GetCollection(ResolveInstanceFromLua(L, 0));
-    }
-
-    HCollection GetCollectionFromLua(lua_State* L, uint32_t script_instance_type_hash)
-    {
-        return GetCollection(ResolveInstanceFromLua(L, script_instance_type_hash));
-    }
-
     Result PostScriptMessage(const dmDDF::Descriptor* payload_descriptor, const uint8_t* payload, uint32_t payload_size, const dmMessage::URL* sender, const dmMessage::URL* receiver, int function_ref, bool unref_function_after_call)
     {
         dmArray<uint8_t> msg_buffer;

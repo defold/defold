@@ -83,7 +83,7 @@ static void PostSetParent(dmGameObject::HCollection collection, dmGameObject::HI
 
 static int Lua_Spawn(lua_State* L) {
     const char* prototype = luaL_checkstring(L, 1);
-    dmGameObject::HCollection collection = dmGameObject::GetCollectionFromLua(L);
+    dmGameObject::HCollection collection = dmGameObject::GetCollection(dmGameObject::GetInstanceFromLua(L));
     dmGameObject::AcquireInstanceIndex(collection);
     dmhash_t id = dmGameObject::CreateInstanceId();
     dmResource::HFactory factory = dmGameObject::GetFactory(collection);

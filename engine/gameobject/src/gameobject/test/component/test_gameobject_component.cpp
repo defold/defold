@@ -525,7 +525,7 @@ static int LuaTestCompType(lua_State* L)
 
     dmGameObject::HComponent component = 0;
     dmMessage::URL receiver;
-    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollectionFromLua(L), "a", &component, &receiver, 0);
+    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(dmGameObject::GetInstanceFromLua(L)), "a", &component, &receiver, 0);
     assert(*(uintptr_t*)component == 1);
 
     assert(top == lua_gettop(L));
@@ -565,7 +565,7 @@ static int LuaTestGetComponentFromLua(lua_State* L)
 
     void* component = 0;
     dmMessage::URL receiver; // needed for error output
-    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollectionFromLua(L), component_ext, (void**)&component, &receiver, 0);
+    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(dmGameObject::GetInstanceFromLua(L)), component_ext, (void**)&component, &receiver, 0);
 
     // If it fails, it will not return here
 
