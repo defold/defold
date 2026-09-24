@@ -341,9 +341,10 @@ namespace dmRender
         te.m_Tail = -1;
 
         te.m_FaceColor = dmGraphics::PackRGBA(Vector4(params.m_FaceColor.getXYZ(), params.m_FaceColor.getW() * font_map->m_Alpha));
-        const float outline_alpha = params.m_OutlineColor.getW() * (text_layout && text_layout->m_UseRichText ? 1.0f : font_map->m_OutlineAlpha);
-        te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(params.m_OutlineColor.getXYZ(), outline_alpha));
-        te.m_ShadowColor = dmGraphics::PackRGBA(params.m_ShadowColor);
+        te.m_OutlineAlpha = params.m_OutlineColor.getW() * (text_layout && text_layout->m_UseRichText ? 1.0f : font_map->m_OutlineAlpha);
+        te.m_ShadowAlpha = params.m_ShadowColor.getW();
+        te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(params.m_OutlineColor.getXYZ(), 1.0f));
+        te.m_ShadowColor = dmGraphics::PackRGBA(Vector4(params.m_ShadowColor.getXYZ(), 1.0f));
         te.m_RenderOrder = params.m_RenderOrder;
         te.m_Width = params.m_Width;
         te.m_Height = params.m_Height;
@@ -456,6 +457,8 @@ namespace dmRender
         config.m_Transform = te.m_Transform;
         config.m_OutlineColor = dmGraphics::UnpackRGBA(te.m_OutlineColor);
         config.m_ShadowColor = dmGraphics::UnpackRGBA(te.m_ShadowColor);
+        config.m_OutlineColor.setW(te.m_OutlineAlpha);
+        config.m_ShadowColor.setW(te.m_ShadowAlpha);
         config.m_FaceColor[0] = face_color.getX();
         config.m_FaceColor[1] = face_color.getY();
         config.m_FaceColor[2] = face_color.getZ();

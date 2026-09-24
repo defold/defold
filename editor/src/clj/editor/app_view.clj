@@ -2515,6 +2515,21 @@
         (g/connect view :view-dirty app-view :open-dirty-views)
         (g/connect view :view-sidebar-panes app-view :open-sidebar-panes)))
     (editor-tab/set-view-node-id! tab view)
+
+    ;; Hidden tab content must not resize its scene viewport and GL surfaces.
+    (.bind (.managedProperty (.getContent tab)) (.selectedProperty tab))
+
+    ;; Render selected scenes at their current size before the first visible frame.
+    ;; Waiting for the refresh timer would briefly stretch the old scene image.
+    (when (= :scene (:id view-type))
+      (ui/observe (.selectedProperty tab)
+                  (fn [_ _ selected]
+                    (when selected
+                      (when-let [content-parent (.getParent (.getContent tab))]
+                        (.applyCss content-parent)
+                        (.layout content-parent)
+                        (refresh-scene-view! view 0))))))
+
     (.add tabs tab)
     (ui/add-styles! tab style-classes)
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)

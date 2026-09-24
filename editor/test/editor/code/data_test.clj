@@ -20,7 +20,8 @@
             [clojure.test.check.properties :as prop]
             [editor.code.data :as data :refer [->Cursor ->CursorRange ->Rect]]
             [editor.code.lang.json :as json]
-            [editor.code.script :as script])
+            [editor.code.script :as script]
+            [util.defonce :as defonce])
   (:import (java.io IOException)
            (java.nio CharBuffer)))
 
@@ -49,7 +50,40 @@
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
-  (char-width [_this _character] char-width))
+  (char-width [_this _character] char-width)
+  ;; Shape nothing: complex runs measure like any other text.
+  data/ComplexTextMetrics
+  (complex-text-width [_this text] (* char-width (count text)))
+  (complex-text-col->x [_this _text col] (* char-width (long col)))
+  (complex-text-x->col [_this _text x] (long (/ (double x) char-width)))
+  (complex-text-x->character-col [_this _text x] (long (/ (double x) char-width)))
+  (complex-text-selection-spans [_this _text start-offset end-offset]
+    [[(* char-width (long start-offset)) (* char-width (long end-offset))]]))
+
+(defonce/record ComplexGlyphMetrics [^double line-height ^double char-width ^double ascent]
+  data/GlyphMetrics
+  (ascent [_this] ascent)
+  (line-height [_this] line-height)
+  (char-width [_this _character] char-width)
+  data/ComplexTextMetrics
+  (complex-text-width [_this _text] 100.0)
+  (complex-text-col->x [_this _text _col] 0.0)
+  (complex-text-x->col [_this _text _x] 3)
+  (complex-text-x->character-col [_this _text _x] 2)
+  (complex-text-selection-spans [_this _text _start-offset _end-offset] [[10.0 20.0] [30.0 40.0]]))
+
+(defonce/record EmptySpansGlyphMetrics [^double line-height ^double char-width ^double ascent]
+  data/GlyphMetrics
+  (ascent [_this] ascent)
+  (line-height [_this] line-height)
+  (char-width [_this _character] char-width)
+  data/ComplexTextMetrics
+  (complex-text-width [_this _text] 100.0)
+  (complex-text-col->x [_this _text col] (* col 5.0))
+  (complex-text-x->col [_this _text _x] 3)
+  (complex-text-x->character-col [_this _text _x] 2)
+  ;; Combining marks can produce no selection spans.
+  (complex-text-selection-spans [_this _text _start-offset _end-offset] []))
 
 (defn layout-info
   ([] (layout-info nil))
@@ -57,8 +91,174 @@
   ([lines glyph-metrics]
    (data/layout-info 800.0 600.0 800.0 0.0 0.0 lines 30.0 5.0 glyph-metrics 4 false)))
 
+(deftest complex-text-ranges-test
+  (doseq [text ["العربية" "ไทย"]]
+    (is (= [[1 (inc (count text))]]
+           (data/complex-text-ranges (str "x" text "y")))))
+
+  ;; Keep neutrals inside a directional run so bidi can reorder the phrase.
+  (let [phrase "مرحبا بك"]
+    (is (= [[1 (inc (count phrase))]]
+           (data/complex-text-ranges (str "\"" phrase "\"")))))
+  (is (= [[0 7]] (data/complex-text-ranges "ไทย ไทย")))
+
+  ;; Tabs and ASCII letters bound shaped ranges.
+  (is (= [[2 5]] (data/complex-text-ranges "a ไทย b")))
+  (is (= [[0 3] [4 7]] (data/complex-text-ranges "ไทย\tไทย")))
+
+  ;; Embedded digits stay in a run; leading and trailing digits do not.
+  (is (= [[0 10]] (data/complex-text-ranges "ไทย 12 ไทย")))
+  (is (= [[0 3]] (data/complex-text-ranges "ไทย 12")))
+  (is (= [[3 6]] (data/complex-text-ranges "12 ไทย")))
+
+  ;; Quotes keep adjacent literals separate.
+  (is (= [[1 4] [9 12]] (data/complex-text-ranges "\"ไทย\" : \"ไทย\"")))
+
+  ;; Combining marks include their ASCII base.
+  (is (= [[0 2]] (data/complex-text-ranges "e\u0301")))
+  (is (= [[1 3]] (data/complex-text-ranges "xe\u0301x")))
+
+  ;; Whitespace is never treated as that base.
+  (is (= [[1 2]] (data/complex-text-ranges "\t\u0301")))
+  (is (= [[1 2]] (data/complex-text-ranges " \u0301")))
+
+  ;; Shape surrogate pairs together.
+  (is (= [[1 3]] (data/complex-text-ranges "a\uD83D\uDE00b")))
+
+  (is (= [] (data/complex-text-ranges "plain Latin text"))))
+
 (defn- word-boundary-before-index? [line index]
   (#'data/word-boundary-before-index? line index))
+
+(deftest complex-text-character-hover-test
+  (let [line "\"ไทย\""
+        layout (layout-info [line] (->ComplexGlyphMetrics 14.0 9.0 6.0))
+        x (+ (.x (.canvas layout)) 50.0)]
+    (is (= [[1 4]] (data/complex-text-ranges line)))
+    (is (= 4 (data/x->col layout x line)))
+    (is (= 3 (data/x->character-col layout x line)))))
+
+(defonce/record FarCaretGlyphMetrics [^double line-height ^double char-width ^double ascent]
+  data/GlyphMetrics
+  (ascent [_this] ascent)
+  (line-height [_this] line-height)
+  (char-width [_this _character] char-width)
+  data/ComplexTextMetrics
+  (complex-text-width [_this _text] 100.0)
+  ;; Simulate a bidi caret far from the pointer.
+  (complex-text-col->x [_this _text _col] 5000.0)
+  (complex-text-x->col [_this _text _x] 3)
+  (complex-text-x->character-col [_this _text _x] 2)
+  (complex-text-selection-spans [_this _text _start-offset _end-offset] [[10.0 20.0]]))
+
+(deftest drag-selection-scroll-follows-mouse-test
+  (let [lines ["ab\"\u0e44\u0e17\u0e22\"cd"]
+        cursor-ranges [(c 0 0)]
+        layout (data/layout-info 800.0 600.0 6000.0 0.0 0.0 lines 30.0 5.0 (->FarCaretGlyphMetrics 14.0 9.0 6.0) 4 false)
+        canvas-rect (.canvas layout)
+        gesture-start (#'data/gesture-info :cursor-range-selection :primary 1 40.0 7.0
+                                           :reference-cursor-range (c 0 0))
+        drag-to (fn [x y]
+                  (data/mouse-moved lines cursor-ranges nil layout nil gesture-start nil x y))]
+
+    (testing "The pointer inside the canvas does not scroll"
+      (let [props (drag-to (+ (.x canvas-rect) 100.0) 7.0)]
+        (is (contains? props :cursor-ranges))
+        (is (not (contains? props :scroll-x)))
+        (is (not (contains? props :scroll-y)))))
+
+    (testing "The pointer dragged past an edge scrolls towards it"
+      (let [props (drag-to (+ (.x canvas-rect) (.w canvas-rect) 10.0) 7.0)]
+        (is (contains? props :cursor-ranges))
+        (is (neg? ^double (:scroll-x props)))))))
+
+(deftest line-width-complex-test
+  (let [layout (layout-info ["x"] (->ComplexGlyphMetrics 14.0 9.0 6.0))
+        width (fn [line] (data/line-width (.glyph layout) (.tab-stops layout) line))]
+    ;; A shaped run replaces its characters' advances in the document width.
+    (is (= 54.0 (width "abcdef")))
+    (is (= 154.0 (width "ab\"ไทย\"cd")))))
+
+(deftest merge-rects-test
+  ;; RTL runs hand back spans out of order, and touching spans must join.
+  (is (= [(->Rect 10.0 0.0 15.0 14.0)
+          (->Rect 30.0 0.0 10.0 14.0)]
+         (#'data/merge-rects [(->Rect 30.0 0.0 10.0 14.0)
+                              (->Rect 10.0 0.0 10.0 14.0)
+                              (->Rect 20.0 0.0 5.0 14.0)]))))
+
+(deftest cursor-range-rects-test
+  (let [glyph-metrics (->ComplexGlyphMetrics 14.0 9.0 6.0)
+        line "ab\"\u0e44\u0e17\u0e22\"cd"
+        lines [line ""]
+        layout (layout-info lines glyph-metrics)
+        canvas (.canvas layout)
+        left (.x canvas)
+        right (+ (.x canvas) (.w canvas))
+        rects (fn [cursor-range] (data/cursor-range-rects layout lines cursor-range))]
+    (is (= [[3 6]] (data/complex-text-ranges line)))
+
+    (let [ascii-lines ["abcdef"]
+          ascii-layout (layout-info ascii-lines glyph-metrics)]
+      (is (= [(->Rect (+ (.x (.canvas ascii-layout)) 9.0) 0.0 18.0 14.0)]
+             (data/cursor-range-rects ascii-layout ascii-lines (cr [0 1] [0 3])))))
+
+    ;; Shaped spans are relative to the run's origin.
+    (is (= [(->Rect (+ left 9.0) 0.0 18.0 14.0)
+            (->Rect (+ left 37.0) 0.0 10.0 14.0)
+            (->Rect (+ left 57.0) 0.0 10.0 14.0)]
+           (rects (cr [0 1] [0 5]))))
+
+    (is (= [(->Rect (+ left 37.0) 0.0 10.0 14.0)
+            (->Rect (+ left 57.0) 0.0 10.0 14.0)]
+           (rects (cr [0 4] [0 5]))))
+
+    ;; Boundary carets cannot stand in for the run's visual edges.
+    (is (= [(->Rect left 0.0 27.0 14.0)]
+           (rects (cr [0 0] [0 3]))))
+    (is (= [(->Rect (+ left 127.0) 0.0 18.0 14.0)]
+           (rects (cr [0 6] [0 8]))))
+
+    ;; Merge the final span with the strip past the line.
+    (is (= [(->Rect (+ left 9.0) 0.0 18.0 14.0)
+            (->Rect (+ left 37.0) 0.0 10.0 14.0)
+            (->Rect (+ left 57.0) 0.0 10.0 14.0)
+            (->Rect (+ left 127.0) 0.0 (- right (+ left 127.0)) 14.0)
+            (->Rect left 14.0 0.0 14.0)]
+           (rects (cr [0 1] [1 0])))))
+
+  ;; The caret at the end of an RTL run is not the line's visual end.
+  (let [glyph-metrics (->ComplexGlyphMetrics 14.0 9.0 6.0)
+        line "ab\"\u0e44\u0e17\u0e22"
+        lines [line ""]
+        layout (layout-info lines glyph-metrics)
+        canvas (.canvas layout)
+        left (.x canvas)
+        right (+ (.x canvas) (.w canvas))]
+    (is (= [[3 6]] (data/complex-text-ranges line)))
+    (is (= [(->Rect (+ left 37.0) 0.0 10.0 14.0)
+            (->Rect (+ left 57.0) 0.0 10.0 14.0)
+            (->Rect (+ left 127.0) 0.0 (- right (+ left 127.0)) 14.0)
+            (->Rect left 14.0 0.0 14.0)]
+           (data/cursor-range-rects layout lines (cr [0 4] [1 0])))))
+
+  (let [glyph-metrics (->ComplexGlyphMetrics 14.0 9.0 6.0)
+        line "ab\"\u0e44\u0e17\u0e22\"cd"
+        lines ["" line]
+        layout (layout-info lines glyph-metrics)
+        left (.x (.canvas layout))]
+    (is (= [(->Rect left 14.0 27.0 14.0)
+            (->Rect (+ left 37.0) 14.0 10.0 14.0)
+            (->Rect (+ left 57.0) 14.0 10.0 14.0)]
+           (subvec (data/cursor-range-rects layout lines (cr [0 0] [1 5])) 1))))
+
+  ;; Zero-width selections still need a fallback rect.
+  (let [glyph-metrics (->EmptySpansGlyphMetrics 14.0 9.0 6.0)
+        line "ab\"ไทย\"cd"
+        lines [line]
+        layout (layout-info lines glyph-metrics)]
+    (is (= [[3 6]] (data/complex-text-ranges line)))
+    (is (= 1 (count (data/cursor-range-rects layout lines (cr [0 4] [0 5])))))))
 
 (deftest word-boundary-before-index-test
   (is (true? (word-boundary-before-index? "word" 0)))
@@ -456,6 +656,24 @@
     (is (= [(c 2 0)] (data/move-cursors [(c 1 0)] #'data/cursor-down ["a" "b" "c"])))
     (is (= [(c 0 0)] (data/move-cursors [(c 0 1)] #'data/cursor-left ["ab"])))
     (is (= [(c 0 2)] (data/move-cursors [(c 0 1)] #'data/cursor-right ["ab"]))))
+
+  (testing "Steps over a surrogate pair as one code point"
+    (is (= [(c 0 1)] (data/move-cursors [(c 0 3)] #'data/cursor-left ["a💜"])))
+    (is (= [(c 0 3)] (data/move-cursors [(c 0 1)] #'data/cursor-right ["a💜"]))))
+
+  ;; The arrow keys are bound to the grapheme variants, not cursor-left/right.
+  (testing "Arrow keys step over a whole grapheme cluster"
+    (is (= [(c 0 0)] (data/move-cursors [(c 0 2)] #'data/cursor-left-grapheme ["รี"])))
+    (is (= [(c 0 2)] (data/move-cursors [(c 0 0)] #'data/cursor-right-grapheme ["รี"])))
+    (is (= [(c 0 1)] (data/move-cursors [(c 0 3)] #'data/cursor-left-grapheme ["a💜b"])))
+    (is (= [(c 0 3)] (data/move-cursors [(c 0 1)] #'data/cursor-right-grapheme ["a💜b"])))
+    (is (= [(c 0 2)] (data/move-cursors [(c 1 0)] #'data/cursor-left-grapheme ["ab" "cd"])))
+    (is (= [(c 1 0)] (data/move-cursors [(c 0 2)] #'data/cursor-right-grapheme ["ab" "cd"]))))
+
+  ;; The word scan can stop inside a cluster; these inputs make it do so.
+  (testing "Word movement snaps off a mid-cluster stop"
+    (is (= [(c 0 3)] (data/move-cursors [(c 0 7)] #'data/cursor-prev-word ["ab 💜💜"])))
+    (is (= [(c 0 2)] (data/move-cursors [(c 0 5)] #'data/cursor-prev-word ["💜💜 ab"]))))
 
   (testing "Out-of-bounds movement"
     (is (= [(c 0 0)] (data/move-cursors [(c 0 0)] #'data/cursor-up ["a" "b" "c"])))
@@ -910,7 +1128,29 @@
               :lines ["onetwo"]}
              (delete ["one"
                       "two"]
-                     [(c 0 3)]))))
+                     [(c 0 3)])))
+      (is (= {:cursor-ranges [(c 0 1)]
+              :invalidated-row 0
+              :lines ["a"]}
+             (backspace ["a💜"]
+                        [(c 0 3)])))
+
+      ;; Backspace peels one combining mark; forward delete takes the cluster.
+      (is (= {:cursor-ranges [(c 0 1)]
+              :invalidated-row 0
+              :lines ["ร"]}
+             (backspace ["รี"]
+                        [(c 0 2)])))
+      (is (= {:cursor-ranges [(c 0 0)]
+              :invalidated-row 0
+              :lines [""]}
+             (delete ["รี"]
+                     [(c 0 0)])))
+      (is (= {:cursor-ranges [(c 0 1)]
+              :invalidated-row 0
+              :lines ["a"]}
+             (delete ["a💜"]
+                     [(c 0 1)]))))
 
     (testing "Multiple cursors"
       (is (= {:cursor-ranges [(c 0 1) (c 0 2)]

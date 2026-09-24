@@ -77,7 +77,7 @@ public class ShaderCompilers {
     private static LinkedHashSet<GraphicsAdapter> getDefaultShaderAdapters(Platform platform) {
         LinkedHashSet<GraphicsAdapter> adapters = new LinkedHashSet<>();
         if (platform.isMacOS()) {
-            adapters.add(GraphicsAdapter.VULKAN);
+            adapters.add(GraphicsAdapter.METAL);
         } else if (platform.matchesOS(OS.OS_ID_ANDROID)) {
             adapters.add(GraphicsAdapter.VULKAN);
             adapters.add(GraphicsAdapter.OPENGLES);
@@ -258,7 +258,7 @@ public class ShaderCompilers {
                     }
 
                     if (arrayTextureFallbackRequired) {
-                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult.data), compileOptions.maxPageCount);
+                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult.data), compileOptions.maxPageCount, shaderLanguage);
                         if (variantCompileResult != null && variantCompileResult.arraySamplers.length > 0) {
                             crossCompileResult.data = variantCompileResult.source.getBytes();
                             variantTextureArray = true;

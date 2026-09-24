@@ -223,6 +223,8 @@ static uint32_t CreateFontVectorVertexData(HFontMap font_map,
     config.m_Layout = layout;
     config.m_OutlineColor = dmGraphics::UnpackRGBA(te.m_OutlineColor);
     config.m_ShadowColor = dmGraphics::UnpackRGBA(te.m_ShadowColor);
+    config.m_OutlineColor.setW(te.m_OutlineAlpha);
+    config.m_ShadowColor.setW(te.m_ShadowAlpha);
     for (uint32_t i = 0; i < 4; ++i)
         config.m_FaceColor[i] = face_color[i];
     config.m_SdfEdge = 0.75f;

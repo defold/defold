@@ -86,8 +86,8 @@ The benefit is that we can use the same build system for all platforms, which ma
 
 Currently includes `Bullet 3D` and `glfw`.
 
-Bullet is built and installed into `${DYNAMO_HOME}/ext` with
-`./scripts/build.py build_ext` before the engine build. Libraries still built
+Bullet is built and installed into `${DYNAMO_HOME}/ext` by `install_ext`, after
+installing prepackaged dependencies. Libraries still built
 with `build_external`, such as GLFW, produce archives under `defold/packages`.
 
 See the [readme](../../external/README.md) for more detailed info.

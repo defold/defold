@@ -8,11 +8,11 @@ official `3.25` tag (`2c204c49e56ed15ec5fcfa71d199ab6d6570b3f5`). The
 Build and install the source dependencies for one platform:
 
 ```sh
-./scripts/build.py --platform=arm64-macos build_ext
+./scripts/build.py --platform=arm64-macos install_ext
 ```
 
 This uses the regular Defold CMake toolchain, including configured console
 platforms, and installs headers and libraries into `tmp/dynamo_home/ext`.
-Run it after `install_ext` and before the first engine build, and again when
+Run it with the platform SDK set up before the first engine build, and again when
 the Bullet sources or toolchain change. The CMake build directory is retained
 for incremental rebuilds. Normal engine builds use the installed libraries.

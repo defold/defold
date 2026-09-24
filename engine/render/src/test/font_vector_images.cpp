@@ -284,6 +284,8 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     entry.m_FaceColor = dmGraphics::PackRGBA(dmVMath::Vector4(1, 1, 1, c.m_FaceAlpha));
     entry.m_OutlineColor = dmGraphics::PackRGBA(dmVMath::Vector4(0, 0, 1, 1));
     entry.m_ShadowColor = dmGraphics::PackRGBA(dmVMath::Vector4(0, 1, 0, 1));
+    entry.m_OutlineAlpha = 1.0f;
+    entry.m_ShadowAlpha = 1.0f;
     dmArray<dmRender::FontDefaultVertex> vertices;
     vertices.SetCapacity(TextLayoutGetGlyphCount(layout) * 18);
     vertices.SetSize(vertices.Capacity());

@@ -128,7 +128,6 @@ install(FILES
   "${RENDER_SRC_DIR}/render/font/font_renderer.h"
   DESTINATION include/render/font)
 install(DIRECTORY "${RENDER_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
-install(FILES "${RENDER_SRC_DIR}/waf_render.py" DESTINATION lib/python)
 install(FILES
   "${RENDER_PROTO_ROOT}/render/material_ddf.proto"
   "${RENDER_PROTO_ROOT}/render/render_ddf.proto"

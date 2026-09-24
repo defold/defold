@@ -1,0 +1,90 @@
+name: PR - Release notes
+
+on:
+  workflow_run:
+    workflows: [PR - Release notes review]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: write
+  issues: read
+
+jobs:
+  check-review:
+    name: Check review decision
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    outputs:
+      pull_request: ${{ steps.review.outputs.pull_request }}
+      approved: ${{ steps.review.outputs.approved }}
+    steps:
+      - name: Check current review decision
+        id: review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROJECT_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN || github.token }}
+          REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          artifact_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${REVIEW_RUN_ID}/artifacts" \
+            --jq '.artifacts[] | select(.name == "release-notes-review" and .expired == false) | .id')
+          if [[ -z "$artifact_id" ]]; then
+            exit 0
+          fi
+          gh run download "$REVIEW_RUN_ID" --name release-notes-review --dir approval \
+            --repo "$GITHUB_REPOSITORY"
+          PR_NUMBER=$(python3 - <<'PY'
+          import re
+          with open('approval/pr_number', 'r', encoding='utf-8') as source:
+              number = source.read(16).strip()
+          if not re.fullmatch(r'[0-9]{1,10}', number):
+              raise SystemExit('Invalid pull request number in review artifact')
+          print(number)
+          PY
+          )
+          echo "pull_request=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          decision=$(GH_TOKEN="$PROJECT_TOKEN" gh api graphql \
+            -f query='query($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { pullRequest(number: $number) { isDraft state reviewDecision } } }' \
+            -f owner="${GITHUB_REPOSITORY%/*}" -f repo="${GITHUB_REPOSITORY#*/}" -F number="$PR_NUMBER" \
+            --jq '.data.repository.pullRequest | select(.isDraft == false and .state == "OPEN") | .reviewDecision')
+          if [[ "$decision" == APPROVED ]]; then
+            echo 'approved=true' >> "$GITHUB_OUTPUT"
+          fi
+
+  check-release-notes:
+    name: Release notes
+    needs: check-review
+    if: ${{ needs.check-review.outputs.approved == 'true' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    concurrency:
+      group: release-notes-${{ needs.check-review.outputs.pull_request }}
+      cancel-in-progress: true
+    steps:
+      - name: Download release notes scripts
+        # gh and Python are preinstalled. Fetch only these files at the trusted
+        # workflow commit; no checkout, git history, actions or packages to install.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p scripts build_tools
+          download_pids=()
+          for source_file in scripts/check_release_notes.py scripts/releasenotes_github_projectv2.py build_tools/github.py; do
+            gh api -H 'Accept: application/vnd.github.raw+json' \
+              "repos/${GITHUB_REPOSITORY}/contents/${source_file}?ref=${GITHUB_SHA}" > "$source_file" &
+            download_pids+=("$!")
+          done
+          for download_pid in "${download_pids[@]}"; do
+            wait "$download_pid"
+          done
+      - name: Check release notes
+        env:
+          # Same project access as the generator. The fallback can still read skip labels.
+          GITHUB_TOKEN: ${{ secrets.SERVICES_GITHUB_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.check-review.outputs.pull_request }}
+        run: python3 scripts/check_release_notes.py --pull-request "$PR_NUMBER" --repository "${GITHUB_REPOSITORY#*/}" --comment
