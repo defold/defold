@@ -17,19 +17,12 @@
 
 #include <stdint.h>
 #include <dmsdk/dlib/array.h>
+#include <dmsdk/dlib/deprecated.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/message.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/hid/hid.h>
-
-#if defined(_MSC_VER)
-#define DM_GAMEOBJECT_DEPRECATED(message) __declspec(deprecated(message))
-#elif defined(__GNUC__) || defined(__clang__)
-#define DM_GAMEOBJECT_DEPRECATED(message) __attribute__((deprecated(message)))
-#else
-#define DM_GAMEOBJECT_DEPRECATED(message)
-#endif
 
 // Winuser.h defines MAX_TOUCH_COUNT to 256, which clashes with dmHID::MAX_TOUCH_COUNT.
 #ifdef MAX_TOUCH_COUNT
@@ -106,7 +99,7 @@ namespace dmGameObject
      * @name HRegister
      * @note Deprecated. Use HContext instead.
      */
-    typedef DM_GAMEOBJECT_DEPRECATED("Use dmGameObject::HContext instead") HContext HRegister;
+    typedef DM_DEPRECATED("Use dmGameObject::HContext instead") HContext HRegister;
 
     /*#
      * Opaque gameobject collection handle.
@@ -661,7 +654,7 @@ namespace dmGameObject
      * @return generation [type:uint32_t] Generation counter for the instance.
      * @note Deprecated. The instance generation is an implementation detail.
      */
-    DM_GAMEOBJECT_DEPRECATED("The instance generation is an implementation detail") uint32_t GetGeneration(HInstance instance);
+    DM_DEPRECATED("The instance generation is an implementation detail") uint32_t GetGeneration(HInstance instance);
 
     /*#
      * Set instance identifier. Must be unique within the collection.
@@ -1410,7 +1403,5 @@ namespace dmGameObject
      */
     bool TraverseIteratePropertiesNext(SceneNodePropertyIterator* it);
 }
-
-#undef DM_GAMEOBJECT_DEPRECATED
 
 #endif // DMSDK_GAMEOBJECT_H

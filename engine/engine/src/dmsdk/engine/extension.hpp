@@ -16,6 +16,7 @@
 #define DMSDK_ENGINE_EXTENSION_HPP
 
 #include <dmsdk/dlib/configfile.h>
+#include <dmsdk/dlib/deprecated.h>
 #include <dmsdk/dlib/webserver.h>
 #include <dmsdk/extension/extension.h>
 #include <dmsdk/gameobject/gameobject.h>
@@ -104,15 +105,7 @@ namespace dmEngine
      * @return context [type:dmGameObject::HContext] The borrowed engine-owned game object context. The caller must not release it.
      * @note Deprecated. Use GetGameObjectContext instead.
      */
-#if defined(_MSC_VER)
-#define DM_ENGINE_DEPRECATED_GAME_OBJECT_REGISTER __declspec(deprecated("Use dmEngine::GetGameObjectContext instead"))
-#elif defined(__GNUC__) || defined(__clang__)
-#define DM_ENGINE_DEPRECATED_GAME_OBJECT_REGISTER __attribute__((deprecated("Use dmEngine::GetGameObjectContext instead")))
-#else
-#define DM_ENGINE_DEPRECATED_GAME_OBJECT_REGISTER
-#endif
-    DM_ENGINE_DEPRECATED_GAME_OBJECT_REGISTER dmGameObject::HContext GetGameObjectRegister(dmExtension::AppParams* app_params);
-#undef DM_ENGINE_DEPRECATED_GAME_OBJECT_REGISTER
+    DM_DEPRECATED("Use dmEngine::GetGameObjectContext instead") dmGameObject::HContext GetGameObjectRegister(dmExtension::AppParams* app_params);
 
     /*# get the hid context
      * @name GetHIDContext
