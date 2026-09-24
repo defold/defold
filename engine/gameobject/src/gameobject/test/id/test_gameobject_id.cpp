@@ -213,12 +213,12 @@ TEST_F(IdTest, TestPackedHandlesAndStaleGameObject)
 
 TEST_F(IdTest, TestGenerationRolloverHelpers)
 {
-    ASSERT_EQ(1U, dmGameObject::NextCollectionGeneration(0));
-    ASSERT_EQ(2U, dmGameObject::NextCollectionGeneration(1));
-    ASSERT_EQ(1U, dmGameObject::NextCollectionGeneration(UINT16_MAX));
-    ASSERT_EQ(1U, dmGameObject::NextGameObjectGeneration(0));
-    ASSERT_EQ(2U, dmGameObject::NextGameObjectGeneration(1));
-    ASSERT_EQ(1U, dmGameObject::NextGameObjectGeneration(UINT32_MAX));
+    ASSERT_EQ(1U, dmGameObject::WrapIncrementU16(0));
+    ASSERT_EQ(2U, dmGameObject::WrapIncrementU16(1));
+    ASSERT_EQ(1U, dmGameObject::WrapIncrementU16(UINT16_MAX));
+    ASSERT_EQ(1U, dmGameObject::WrapIncrementU32(0));
+    ASSERT_EQ(2U, dmGameObject::WrapIncrementU32(1));
+    ASSERT_EQ(1U, dmGameObject::WrapIncrementU32(UINT32_MAX));
 }
 
 TEST_F(IdTest, TestWrongCollectionAndStaleCollection)
@@ -265,45 +265,6 @@ TEST_F(IdTest, TestWrongCollectionAndStaleCollection)
     dmGameObject::DeleteCollection(reused);
     dmGameObject::DeleteCollection(second);
     dmGameObject::PostUpdate(m_Register);
-}
-
-TEST_F(IdTest, TestCollectionGenerationSurvivesContextDestruction)
-{
-    dmGameObject::HContext first_context = dmGameObject::NewContext();
-    dmGameObject::Initialize(first_context, m_ScriptContext);
-    dmGameObject::ComponentTypeCreateCtx component_create_ctx = {};
-    component_create_ctx.m_Script = m_ScriptContext;
-    component_create_ctx.m_Register = first_context;
-    component_create_ctx.m_Factory = m_Factory;
-    dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
-    dmGameObject::SortComponentTypes(first_context);
-    dmGameObject::HCollection first_collection = dmGameObject::NewCollection("context_lifecycle", m_Factory, first_context, 1, 0);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, first_collection);
-    dmGameObject::HInstance first_instance = dmGameObject::New(first_collection, 0);
-    ASSERT_TRUE(dmGameObject::IsValid(first_instance));
-
-    const uint16_t collection_index = (uint16_t)first_collection;
-    const uint16_t collection_generation = (uint16_t)(first_collection >> 16);
-    dmGameObject::DeleteContext(first_context);
-    ASSERT_EQ((dmGameObject::HContext)0, dmGameObject::GetGameObjectContext(first_collection));
-    ASSERT_FALSE(dmGameObject::IsValid(first_instance));
-
-    dmGameObject::HContext second_context = dmGameObject::NewContext();
-    dmGameObject::Initialize(second_context, m_ScriptContext);
-    component_create_ctx.m_Register = second_context;
-    dmGameObject::CreateRegisteredComponentTypes(&component_create_ctx);
-    dmGameObject::SortComponentTypes(second_context);
-    dmGameObject::HCollection second_collection = dmGameObject::NewCollection("context_lifecycle", m_Factory, second_context, 1, 0);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, second_collection);
-    ASSERT_EQ(collection_index, (uint16_t)second_collection);
-    ASSERT_NE(collection_generation, (uint16_t)(second_collection >> 16));
-    ASSERT_EQ(second_context, dmGameObject::GetGameObjectContext(second_collection));
-    dmGameObject::HInstance second_instance = dmGameObject::New(second_collection, 0);
-    ASSERT_TRUE(dmGameObject::IsValid(second_instance));
-    ASSERT_NE(first_instance, second_instance);
-    ASSERT_FALSE(dmGameObject::IsValid(first_instance));
-
-    dmGameObject::DeleteContext(second_context);
 }
 
 TEST_F(IdTest, TestInvalidHandleDefaults)

@@ -715,8 +715,8 @@ TEST(ComponentApi, CreateDestroyType)
     dmScript::ContextParams script_context_params = {};
     dmScript::HContext script_context = dmScript::NewContext(script_context_params);
     dmScript::Initialize(script_context);
-    dmGameObject::HContext gocontext = dmGameObject::NewContext();
-    dmGameObject::Initialize(gocontext, script_context);
+    dmGameObject::HContext regist = dmGameObject::NewContext();
+    dmGameObject::Initialize(regist, script_context);
 
 
     dmResource::Result resource_result = dmResource::RegisterType(factory, "testc", 0, 0, ResourceTypeTestResourceCreate, 0, ResourceTypeTestResourceDestroy, 0);
@@ -726,8 +726,8 @@ TEST(ComponentApi, CreateDestroyType)
 
     dmHashTable64<void*> resource_contexts;
     resource_contexts.SetCapacity(7,16);
-    resource_contexts.Put(dmHashString64("goc"), gocontext);
-    resource_contexts.Put(dmHashString64("collectionc"), gocontext);
+    resource_contexts.Put(dmHashString64("goc"), regist);
+    resource_contexts.Put(dmHashString64("collectionc"), regist);
     resource_contexts.Put(dmHashString64("scriptc"), script_context);
     resource_contexts.Put(dmHashString64("luac"), &module_context);
     resource_result = dmResource::RegisterTypes(factory, &resource_contexts);
@@ -747,7 +747,7 @@ TEST(ComponentApi, CreateDestroyType)
     dmGameObject::ComponentTypeCreateCtx component_create_ctx = {};
     component_create_ctx.m_Impl = &component_create_ctx_impl;
     component_create_ctx.m_Factory = factory;
-    component_create_ctx.m_Register = gocontext;
+    component_create_ctx.m_Register = regist;
     component_create_ctx.m_Script = 0;
 
     ////////////////////////////////////////////
@@ -772,7 +772,7 @@ TEST(ComponentApi, CreateDestroyType)
 
     free((void*)g_ComponentApiTestContext.m_CreateContext);
     ContextRegistryDestroy(context_registry);
-    dmGameObject::DeleteContext(gocontext);
+    dmGameObject::DeleteContext(regist);
     dmScript::Finalize(script_context);
     dmScript::DeleteContext(script_context);
     dmResource::DeleteFactory(factory);

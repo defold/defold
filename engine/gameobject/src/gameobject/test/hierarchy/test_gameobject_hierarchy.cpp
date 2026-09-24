@@ -1250,9 +1250,9 @@ static void TraverseHierarchy(dmGameObject::SceneNode* node, TestHierarchyCtx* c
     }
 }
 
-static void SetProperties(dmGameObject::HCollection collection, dmGameObject::HInstance instance)
+static void SetProperties(dmGameObject::HInstance instance)
 {
-    dmGameObject::Collection* collection_ptr = dmGameObject::GetCollectionFromHandle(collection);
+    dmGameObject::Collection* collection_ptr = dmGameObject::GetCollectionFromHandle(dmGameObject::GetCollection(instance));
     dmGameObject::Instance* instance_ptr = dmGameObject::GetInstanceFromHandle(collection_ptr, instance);
     dmGameObject::Prototype::Component* components = instance_ptr->m_Prototype->m_Components;
     uint32_t count = instance_ptr->m_Prototype->m_ComponentCount;
@@ -1298,10 +1298,10 @@ TEST_F(HierarchyTest, TestIterateHierarchy)
     dmGameObject::SetPosition(child1, Point3(1,2,3));
     dmGameObject::SetPosition(child3, Point3(2,2,2));
 
-    SetProperties(m_Collection, parent);
-    SetProperties(m_Collection, child1);
-    SetProperties(m_Collection, child2);
-    SetProperties(m_Collection, child3);
+    SetProperties(parent);
+    SetProperties(child1);
+    SetProperties(child2);
+    SetProperties(child3);
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 

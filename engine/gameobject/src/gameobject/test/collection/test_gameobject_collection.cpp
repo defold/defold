@@ -138,11 +138,6 @@ protected:
         return result;
     }
 
-    void ReleaseCollectionResource(dmGameObject::CollectionResource* resource)
-    {
-        dmResource::Release(m_Factory, resource);
-    }
-
     static dmResource::FResourceCreate    ACreate;
     static dmResource::FResourceDestroy   ADestroy;
     static dmGameObject::ComponentCreate  AComponentCreate;
@@ -259,7 +254,7 @@ TEST_F(CollectionTest, Collection)
 
         ASSERT_NE(go01, go02);
 
-        ReleaseCollectionResource(resource);
+        dmResource::Release(m_Factory, resource);
 
         dmGameObject::PostUpdate(m_Register);
     }
@@ -329,7 +324,7 @@ TEST_F(CollectionTest, CollectionSpawning)
         output.Clear();
     }
 
-    ReleaseCollectionResource(resource);
+    dmResource::Release(m_Factory, resource);
     dmGameObject::PostUpdate(m_Register);
 }
 
@@ -410,7 +405,7 @@ TEST_F(CollectionTest, CollectionSpawningResults)
     ASSERT_TRUE(result == dmGameObject::RESULT_IDENTIFIER_IN_USE);
     ASSERT_EQ(output.Size(), 0u);
     
-    ReleaseCollectionResource(resource);
+    dmResource::Release(m_Factory, resource);
     dmGameObject::PostUpdate(m_Register);
 }
 
@@ -441,8 +436,8 @@ TEST_F(CollectionTest, PostCollection)
         ret = dmGameObject::Update(coll2, &m_UpdateContext);
         ASSERT_TRUE(ret);
 
-        ReleaseCollectionResource(resource1);
-        ReleaseCollectionResource(resource2);
+        dmResource::Release(m_Factory, resource1);
+        dmResource::Release(m_Factory, resource2);
 
         dmGameObject::PostUpdate(m_Register);
     }
@@ -549,7 +544,7 @@ TEST_F(CollectionTest, CollectionInCollection)
         bool ret = dmGameObject::Update(coll, &m_UpdateContext);
         ASSERT_TRUE(ret);
 
-        ReleaseCollectionResource(resource);
+        dmResource::Release(m_Factory, resource);
 
         dmGameObject::PostUpdate(m_Register);
     }
@@ -596,7 +591,7 @@ TEST_F(CollectionTest, DefaultValues)
         ASSERT_EQ(0.0f, r.getZ());
         ASSERT_EQ(1.0f, r.getW());
     }
-    ReleaseCollectionResource(resource);
+    dmResource::Release(m_Factory, resource);
 
     dmGameObject::PostUpdate(m_Register);
 }
@@ -626,7 +621,7 @@ TEST_F(CollectionTest, CollectionCapacity)
         dmGameObject::Update(coll, &m_UpdateContext);
         ASSERT_NE(go01, go02);
 
-        ReleaseCollectionResource(resource);
+        dmResource::Release(m_Factory, resource);
         dmGameObject::PostUpdate(m_Register);
     }
 
@@ -656,7 +651,7 @@ TEST_F(CollectionTest, CreateCallback)
     ASSERT_EQ(dmResource::RESULT_OK, r);
     ASSERT_NE(dmGameObject::INVALID_COLLECTION, coll);
 
-    ReleaseCollectionResource(resource);
+    dmResource::Release(m_Factory, resource);
 
     dmGameObject::PostUpdate(m_Register);
 }

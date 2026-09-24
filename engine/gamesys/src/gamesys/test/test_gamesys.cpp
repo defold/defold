@@ -100,9 +100,9 @@ CollectionProxyComponentRef GetCollectionProxyComponentRef(dmGameObject::HInstan
     return proxy_ref;
 }
 
-dmGameObject::HCollection GetCollectionByName(dmGameObject::HContext gocontext, const char* name)
+dmGameObject::HCollection GetCollectionByName(dmGameObject::HContext regist, const char* name)
 {
-    dmGameObject::HCollection collection = dmGameObject::GetCollectionByHash(gocontext, dmHashString64(name));
+    dmGameObject::HCollection collection = dmGameObject::GetCollectionByHash(regist, dmHashString64(name));
     EXPECT_NE(dmGameObject::INVALID_COLLECTION, collection);
     return collection;
 }
@@ -118,11 +118,11 @@ void ConfigureCollectionProxy(CollectionProxyComponentRef proxy, const char* col
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::CompCollectionProxyEnable(proxy.m_World, proxy.m_Component));
 }
 
-void UpdateAndPostUpdateCollection(dmGameObject::HCollection collection, dmGameObject::UpdateContext* update_context, dmGameObject::HContext gocontext)
+void UpdateAndPostUpdateCollection(dmGameObject::HCollection collection, dmGameObject::UpdateContext* update_context, dmGameObject::HContext regist)
 {
     ASSERT_TRUE(dmGameObject::Update(collection, update_context));
     ASSERT_TRUE(dmGameObject::PostUpdate(collection));
-    dmGameObject::PostUpdate(gocontext);
+    dmGameObject::PostUpdate(regist);
 }
 
 TEST_P(ResourceTest, Test)
