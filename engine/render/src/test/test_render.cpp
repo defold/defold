@@ -2032,6 +2032,7 @@ TEST_F(dmRenderTest, MarkupOutlineLayerOnlyCoversSpan)
     te.m_Transform = Matrix4::identity();
     te.m_FaceColor = COLOR_WHITE_RGBA;
     te.m_OutlineColor = COLOR_WHITE_RGBA;
+    te.m_OutlineAlpha = 1.0f;
     te.m_ShadowColor = COLOR_TRANSPARENT_RGBA;
     te.m_Width = settings.m_Width;
     te.m_Leading = settings.m_Leading;
@@ -2087,7 +2088,9 @@ TEST_F(dmRenderTest, MarkupWithoutEffectTagsSuppressesBaseEffects)
     te.m_Transform = Matrix4::identity();
     te.m_FaceColor = COLOR_WHITE_RGBA;
     te.m_OutlineColor = dmGraphics::PackRGBA(Vector4(1.0f, 1.0f, 1.0f, 0.5f));
+    te.m_OutlineAlpha = 0.5f;
     te.m_ShadowColor = dmGraphics::PackRGBA(Vector4(1.0f, 1.0f, 1.0f, 0.5f));
+    te.m_ShadowAlpha = 0.5f;
     te.m_Width = settings.m_Width;
     te.m_Leading = settings.m_Leading;
     te.m_Align = dmRender::TEXT_ALIGN_LEFT;
@@ -2166,6 +2169,7 @@ TEST_F(dmRenderTest, MarkupOutlineColorOverridesBaseOutlineColor)
     te.m_Transform = Matrix4::identity();
     te.m_FaceColor = COLOR_WHITE_RGBA;
     te.m_OutlineColor = 0xffff0000u;
+    te.m_OutlineAlpha = 1.0f;
     te.m_ShadowColor = COLOR_TRANSPARENT_RGBA;
     te.m_Width = settings.m_Width;
     te.m_Leading = settings.m_Leading;
@@ -2211,6 +2215,7 @@ TEST_F(dmRenderTest, MarkupOutlineSizeZeroDisablesAndOversizeClamps)
     te.m_Transform = Matrix4::identity();
     te.m_FaceColor = COLOR_WHITE_RGBA;
     te.m_OutlineColor = COLOR_WHITE_RGBA;
+    te.m_OutlineAlpha = 1.0f;
     te.m_ShadowColor = COLOR_TRANSPARENT_RGBA;
     te.m_Width = settings.m_Width;
     te.m_Leading = settings.m_Leading;
@@ -2268,6 +2273,7 @@ TEST_F(dmRenderTest, MarkupCrispShadowOnlyCoversSpan)
     te.m_FaceColor = COLOR_WHITE_RGBA;
     te.m_OutlineColor = COLOR_TRANSPARENT_RGBA;
     te.m_ShadowColor = dmGraphics::PackRGBA(Vector4(1.0f, 1.0f, 1.0f, 0.5f));
+    te.m_ShadowAlpha = 0.5f;
     te.m_Width = settings.m_Width;
     te.m_Leading = settings.m_Leading;
     te.m_Align = dmRender::TEXT_ALIGN_LEFT;
@@ -2320,7 +2326,9 @@ TEST_F(dmRenderTest, MarkupBitmapShadowDoesNotRevealUntaggedOutline)
     te.m_Transform = Matrix4::identity();
     te.m_FaceColor = COLOR_WHITE_RGBA;
     te.m_OutlineColor = COLOR_WHITE_RGBA;
+    te.m_OutlineAlpha = 1.0f;
     te.m_ShadowColor = COLOR_WHITE_RGBA;
+    te.m_ShadowAlpha = 1.0f;
     te.m_Width = settings.m_Width;
     te.m_Leading = settings.m_Leading;
     te.m_Align = dmRender::TEXT_ALIGN_LEFT;
@@ -2375,11 +2383,106 @@ TEST_F(dmRenderTest, DrawTextPreservesNodeShadowAlpha)
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
     dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, params);
     ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
-    const Vector4 queued_shadow_color = dmGraphics::UnpackRGBA(m_Context->m_TextContext.m_TextEntries[0].m_ShadowColor);
-    ASSERT_NEAR(0.5f, queued_shadow_color.getW(), 1.0f / 255.0f);
+    ASSERT_EQ(0.5f, m_Context->m_TextContext.m_TextEntries[0].m_ShadowAlpha);
 
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
     m_SystemFontMap->m_ShadowAlpha = old_shadow_alpha;
+}
+
+TEST_F(dmRenderTest, DrawTextPreservesEffectAlphaAboveOne)
+{
+    const struct
+    {
+        float m_NodeAlpha;
+        float m_FontAlpha;
+        uint8_t m_ExpectedAlpha;
+    } cases[] = {
+        { 4.0f, 0.25f, 255 },
+        { 4.0f, 0.375f, 255 },
+        { 4.0f, 0.5f, 255 },
+        { 2.0f, 0.25f, 127 },
+        { 0.5f, 0.5f, 63 },
+    };
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        TextRenderStyle style = {};
+        style.m_Flags = TEXT_RENDER_STYLE_OUTLINE_WIDTH | TEXT_RENDER_STYLE_OUTLINE_ALPHA | TEXT_RENDER_STYLE_SHADOW_ALPHA;
+        style.m_OutlineWidth = 4.0f;
+        style.m_OutlineAlpha = style.m_ShadowAlpha = cases[i].m_FontAlpha;
+        FontCollectionSetNamedStyle(collection, dmHashString64("default"), style, 0, 0);
+        m_SystemFontMap->m_OutlineAlpha = m_SystemFontMap->m_ShadowAlpha = cases[i].m_FontAlpha;
+
+        // The default style is also used by GUI and labels without inline markup.
+        TextLayoutSettings settings = {};
+        settings.m_Size = 16.0f;
+        settings.m_Leading = 1.0f;
+        settings.m_UseBaseStyle = 1;
+        settings.m_BaseStyle = dmHashString64("default");
+        HTextLayout layout = CreateTextLayout(m_SystemFontMap, "A", settings);
+
+        dmRender::DrawTextParams params;
+        params.m_Text = "A";
+        params.m_TextLayout = layout;
+        params.m_OutlineColor = Vector4(0.0f, 0.0f, 1.0f, cases[i].m_NodeAlpha);
+        params.m_ShadowColor = Vector4(0.0f, 1.0f, 0.0f, cases[i].m_NodeAlpha);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+        dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, params);
+        ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
+
+        FontGlyphVertex vertices[6];
+        const dmRender::TextEntry& entry = m_Context->m_TextContext.m_TextEntries[0];
+        ASSERT_EQ(DM_ARRAY_SIZE(vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, "A", entry, 1.0f, 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices)));
+        EXPECT_EQ(cases[i].m_ExpectedAlpha, vertices[0].m_OutlineColor[3]);
+        EXPECT_EQ(cases[i].m_ExpectedAlpha, vertices[0].m_ShadowColor[3]);
+        TextLayoutRelease(layout);
+    }
+}
+
+TEST_F(dmRenderTest, DrawTextPreservesEffectAlphaOverrides)
+{
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    TextRenderStyle style = {};
+    style.m_Flags = TEXT_RENDER_STYLE_OUTLINE_WIDTH | TEXT_RENDER_STYLE_OUTLINE_ALPHA | TEXT_RENDER_STYLE_SHADOW_ALPHA;
+    style.m_OutlineWidth = 4.0f;
+    style.m_OutlineAlpha = style.m_ShadowAlpha = 0.125f;
+    FontCollectionSetNamedStyle(collection, dmHashString64("default"), style, 0, 0);
+    m_SystemFontMap->m_OutlineAlpha = m_SystemFontMap->m_ShadowAlpha = 0.0f;
+    m_SystemFontMap->m_LayerMask = FONT_RENDER_LAYER_FACE;
+
+    const char source[] = "A<outline alpha=0><shadow alpha=0.25>B</shadow></outline><outline alpha=0.25><shadow alpha=0>C</shadow></outline>D";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 16.0f;
+    settings.m_Leading = 1.0f;
+    settings.m_UseBaseStyle = 1;
+    settings.m_BaseStyle = dmHashString64("default");
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(collection, markup, &settings, &layout));
+
+    dmRender::DrawTextParams params;
+    params.m_Text = source;
+    params.m_TextLayout = layout;
+    params.m_OutlineColor = params.m_ShadowColor = Vector4(1.0f, 1.0f, 1.0f, 4.0f);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
+    dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, params);
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
+
+    FontGlyphVertex vertices[24];
+    const dmRender::TextEntry& entry = m_Context->m_TextContext.m_TextEntries[0];
+    ASSERT_EQ(DM_ARRAY_SIZE(vertices), dmRender::CreateFontVertexData(m_SystemFontMap, 0, source, entry, 1.0f, 1.0f, 1.0f, vertices, DM_ARRAY_SIZE(vertices)));
+    const uint8_t outline[] = { 127, 0, 255, 127 };
+    const uint8_t shadow[] = { 127, 255, 0, 127 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(outline); ++i)
+    {
+        EXPECT_EQ(outline[i], vertices[i * 6].m_OutlineColor[3]);
+        EXPECT_EQ(shadow[i], vertices[i * 6].m_ShadowColor[3]);
+    }
+    TextLayoutRelease(layout);
+    MarkupDestroy(markup);
 }
 
 TEST_F(dmRenderTest, DrawTextOnlyAppliesBaseOutlineAlphaToLegacyText)
@@ -2406,15 +2509,13 @@ TEST_F(dmRenderTest, DrawTextOnlyAppliesBaseOutlineAlphaToLegacyText)
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
     dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, params);
     ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
-    Vector4 queued_outline_color = dmGraphics::UnpackRGBA(m_Context->m_TextContext.m_TextEntries[0].m_OutlineColor);
-    ASSERT_NEAR(0.5f, queued_outline_color.getW(), 1.0f / 255.0f);
+    ASSERT_EQ(0.5f, m_Context->m_TextContext.m_TextEntries[0].m_OutlineAlpha);
 
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
     params.m_TextLayout = 0;
     dmRender::DrawText(m_Context, m_SystemFontMap, 0, 0, params);
     ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
-    queued_outline_color = dmGraphics::UnpackRGBA(m_Context->m_TextContext.m_TextEntries[0].m_OutlineColor);
-    ASSERT_EQ(0.0f, queued_outline_color.getW());
+    ASSERT_EQ(0.0f, m_Context->m_TextContext.m_TextEntries[0].m_OutlineAlpha);
 
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
     m_SystemFontMap->m_OutlineAlpha = old_outline_alpha;
@@ -2443,6 +2544,7 @@ TEST_F(dmRenderTest, MarkupShadowUsesFontBlurWhenOmitted)
     te.m_FaceColor = COLOR_WHITE_RGBA;
     te.m_OutlineColor = COLOR_TRANSPARENT_RGBA;
     te.m_ShadowColor = COLOR_WHITE_RGBA;
+    te.m_ShadowAlpha = 1.0f;
     te.m_Width = settings.m_Width;
     te.m_Leading = settings.m_Leading;
     te.m_Align = dmRender::TEXT_ALIGN_LEFT;
@@ -2491,6 +2593,7 @@ TEST_F(dmRenderTest, MarkupShadowBlurClampsToBakedCapacity)
     te.m_FaceColor = COLOR_WHITE_RGBA;
     te.m_OutlineColor = COLOR_TRANSPARENT_RGBA;
     te.m_ShadowColor = COLOR_WHITE_RGBA;
+    te.m_ShadowAlpha = 1.0f;
     te.m_Width = settings.m_Width;
     te.m_Leading = settings.m_Leading;
     te.m_Align = dmRender::TEXT_ALIGN_LEFT;
@@ -2687,7 +2790,9 @@ TEST_F(dmRenderTest, MarkupDecorationInheritsOutlineAndShadowLayers)
     te.m_Transform = Matrix4::identity();
     te.m_FaceColor = COLOR_WHITE_RGBA;
     te.m_OutlineColor = COLOR_WHITE_RGBA;
+    te.m_OutlineAlpha = 1.0f;
     te.m_ShadowColor = COLOR_WHITE_RGBA;
+    te.m_ShadowAlpha = 1.0f;
     te.m_Width = settings.m_Width;
     te.m_Leading = settings.m_Leading;
     te.m_Align = dmRender::TEXT_ALIGN_LEFT;

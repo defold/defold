@@ -35,17 +35,17 @@
                       (if (= "invalid source" shader-source)
                         (throw (Exception. "Invalid shader source."))
                         args))]
-        (is (= (transpile-shader-source-cached "/test.vp" "source" 0 "mediump" "highp")
-               (transpile-shader-source-cached "/test.vp" "source" 0 "mediump" "highp")))
+        (is (= (transpile-shader-source-cached "/test.vp" "source" 0 "mediump" "highp" :language-glsl-sm120)
+               (transpile-shader-source-cached "/test.vp" "source" 0 "mediump" "highp" :language-glsl-sm120)))
         (is (= 1 @transpile-count))
 
-        (transpile-shader-source-cached "/test.vp" "different source" 0 "mediump" "highp")
+        (transpile-shader-source-cached "/test.vp" "different source" 0 "mediump" "highp" :language-glsl-sm120)
         (is (= 2 @transpile-count))
 
         (is (thrown? Exception
-                     (transpile-shader-source-cached "/test.vp" "invalid source" 0 "mediump" "highp")))
+                     (transpile-shader-source-cached "/test.vp" "invalid source" 0 "mediump" "highp" :language-glsl-sm120)))
         (is (thrown? Exception
-                     (transpile-shader-source-cached "/test.vp" "invalid source" 0 "mediump" "highp")))
+                     (transpile-shader-source-cached "/test.vp" "invalid source" 0 "mediump" "highp" :language-glsl-sm120)))
         (is (= 4 @transpile-count)))
       (finally
         (fn/clear-memoized! transpile-shader-source-cached)))))
