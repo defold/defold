@@ -416,11 +416,12 @@
 
 (defn- try-parse-compiler-error-causes
   [project evaluation-context log ext-manifest-file]
-  (->> (parse-compilation-log log project ext-manifest-file)
-       (distinct)
-       (map parsed-compilation-entry->ErrorInfoProvider)
-       (map (partial error-info-provider->cause project evaluation-context))
-       (not-empty)))
+  (not-empty
+    (into []
+          (comp (distinct)
+                (map parsed-compilation-entry->ErrorInfoProvider)
+                (map (partial error-info-provider->cause project evaluation-context)))
+          (parse-compilation-log log project ext-manifest-file))))
 
 (defn- generic-extension-error-causes [project evaluation-context log]
   ;; This is a catch-all that simply dumps the entire log output into the Build
