@@ -32,10 +32,7 @@
       (finally (.delete file)))))
 
 (deftest representative-preview-shaders-test
-  "Built-in and project shaders compile to SM330 without compatibility syntax,
-  while retaining the SM120 attribute and paged-sampler reflection."
-  ;; TODO: Remove the SM120 compilation and cross-target comparisons when the
-  ;; editor switches to SM330. Keep the SM330 source and reflection coverage.
+  "Built-in and project shaders compile to SM330 without compatibility syntax."
   (doseq [path ["shaders/basic-color.vp"
                 "shaders/basic-color.fp"
                 "shaders/basic-texture-paged.vp"
@@ -45,12 +42,10 @@
                 "test_project/materials/test_attributes.fp"]]
     (testing path
       (let [source (slurp (io/resource path))
-            legacy-info (shader-gen/transpile-shader-source path source 2 "mediump" "highp" :language-glsl-sm120)
             core-info (shader-gen/transpile-shader-source path source 2 "mediump" "highp" :language-glsl-sm330)]
         (is (re-find #"#version 330" (:transpiled-shader-source core-info)))
         (is (not (re-find #"\b(attribute|varying|gl_FragColor|gl_ModelViewProjectionMatrix)\b|\btexture2D\s*\(" (:transpiled-shader-source core-info))))
-        (is (= (:attribute-reflection-infos legacy-info) (:attribute-reflection-infos core-info)))
-        (is (= (:array-sampler-names legacy-info) (:array-sampler-names core-info)))))))
+        (validate-source! path (:transpiled-shader-source core-info))))))
 
 (deftest sm330-explicit-matrix-attributes-test
   "SM330 preserves explicit attribute locations and reflects matrix attributes."

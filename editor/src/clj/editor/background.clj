@@ -18,12 +18,12 @@
             [editor.geom :as geom]
             [editor.gl.pass :as pass]
             [editor.render-util :as render-util])
-  (:import [com.jogamp.opengl GL2]
+  (:import [com.jogamp.opengl GL3]
            [editor.types Region]))
 
 (set! *warn-on-reflection* true)
 
-(defn render-background [^GL2 gl render-args renderables count]
+(defn render-background [^GL3 gl render-args renderables count]
   (let [viewport ^Region (:viewport render-args)
         x0 (.left viewport)
         x1 (.right viewport)

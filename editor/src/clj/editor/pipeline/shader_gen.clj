@@ -109,8 +109,6 @@
 
 (defn- transpile-target-pb-shader-language
   ^Graphics$ShaderDesc$Language [target-language]
-  ;; TODO: We need both shader targets during preparation. Later PRs will use
-  ;; SM330 for editor rendering instead of SM120.
   (shader-language->pb-shader-language target-language))
 
 (defn- decorate-transpile-error
@@ -177,8 +175,7 @@
   "Compiles a single shader source file, for example, a .vp or a .fp file into an
   augmented-shader-info map with the transpiled shader source and various
   reflection info. The precision strings should be either \"highp\" or \"mediump\".
-  The target-language selects SM120 for editor previews or SM330 for
-  development and tests. Both targets expose uniform-buffer members as ordinary
+  Editor previews use SM330 and expose uniform-buffer members as ordinary
   uniforms for editor binding."
   [^String shader-path ^String shader-source max-page-count float-precision-str int-precision-str target-language]
   {:pre [(string? shader-path)

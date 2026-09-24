@@ -38,7 +38,7 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.gamesys.proto Camera$CameraDesc Camera$OrthoZoomMode]
-           [com.jogamp.opengl GL GL2]
+           [com.jogamp.opengl GL GL3]
            [javax.vecmath Matrix4d Quat4d Vector3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -284,7 +284,7 @@
             (recur (rest renderables) (conj-camera-outline! vbuf world-translation inv-view-matrix inv-view-proj-matrix mesh-scale cr cg cb)))))
       (persistent! vbuf))))
 
-(defn- render-frustum-outlines [^GL2 gl render-args renderables ^long renderable-count]
+(defn- render-frustum-outlines [^GL3 gl render-args renderables ^long renderable-count]
   (assert (contains? #{pass/outline pass/selection} (:pass render-args)))
   (let [vertex-buffer (gen-outline-vertex-buffer render-args renderables renderable-count)
         outline-vertex-binding (vtx/use-with ::frustum-outline vertex-buffer outline-shader)]

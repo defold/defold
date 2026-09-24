@@ -54,7 +54,7 @@
             [util.digestable :as digestable])
   (:import [com.dynamo.bob CompileExceptionError]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet Tile$Animation Tile$ConvexHull Tile$Playback Tile$TileSet]
-           [com.jogamp.opengl GL2]
+           [com.jogamp.opengl GL3]
            [editor.types AABB]
            [javax.vecmath Point3d]))
 
@@ -247,7 +247,7 @@
        (not-empty)))
 
 (defn render-animation
-  [^GL2 gl render-args renderables n]
+  [^GL3 gl render-args renderables n]
   (let [{:keys [camera viewport pass]} render-args
         [sx sy sz] (camera/scale-factor camera viewport)]
     (condp = pass
@@ -433,13 +433,13 @@
               (range (* rows cols))))))
 
 (defn- render-tiles
-  [^GL2 gl render-args node-id gpu-texture tile-source-attributes uv-transforms scale-factor]
+  [^GL3 gl render-args node-id gpu-texture tile-source-attributes uv-transforms scale-factor]
   (let [vbuf (gen-tiles-vbuf tile-source-attributes uv-transforms scale-factor)
         vb (vtx/use-with node-id vbuf tile-shader)
         gpu-texture (texture/set-params gpu-texture texture-params)]
     (gl/with-gl-bindings gl render-args [tile-shader vb gpu-texture]
       (shader/set-uniform tile-shader gl "texture_sampler" 0)
-      (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (count vbuf)))))
 
 (defn gen-tile-outlines-vbuf
   [tile-source-attributes convex-hulls scale]
@@ -462,11 +462,11 @@
               (range (* rows cols))))))
 
 (defn- render-tile-outlines
-  [^GL2 gl render-args node-id tile-source-attributes convex-hulls scale-factor]
+  [^GL3 gl render-args node-id tile-source-attributes convex-hulls scale-factor]
   (let [vbuf (gen-tile-outlines-vbuf tile-source-attributes convex-hulls scale-factor)
         vb (vtx/use-with node-id vbuf color-shader)]
     (gl/with-gl-bindings gl render-args [color-shader vb]
-      (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count vbuf)))))
+      (gl/gl-draw-arrays gl GL3/GL_LINES 0 (count vbuf)))))
 
 (defn conj-hull-outline!
   [vbuf points rgba]
@@ -504,13 +504,13 @@
              (for [y (range rows) x (range cols)] [x y])))))
 
 (defn- render-hulls
-  [^GL2 gl render-args node-id tile-set-attributes convex-hulls scale-factor]
+  [^GL3 gl render-args node-id tile-set-attributes convex-hulls scale-factor]
   (when (seq convex-hulls)
     (let [vbuf (gen-hulls-vbuf tile-set-attributes convex-hulls scale-factor)
           vb (vtx/use-with node-id vbuf color-shader)]
       (gl/with-gl-bindings gl render-args [color-shader vb]
         (shader/set-uniform tile-shader gl "texture_sampler" 0)
-        (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count vbuf))))))
+        (gl/gl-draw-arrays gl GL3/GL_LINES 0 (count vbuf))))))
 
 (defn- render-tile-source
   [gl render-args renderables n]
@@ -860,7 +860,7 @@
       (+ x (* (- rows y 1) cols)))))
 
 (defn- render-tool
-  [^GL2 gl render-args renderables n]
+  [^GL3 gl render-args renderables n]
   (let [{:keys [user-data]} (first renderables)
         {:keys [node-id tile-source-attributes active-tile collision-group-node->group selected-collision-group-node]} user-data
         {:keys [width height]} tile-source-attributes
@@ -892,7 +892,7 @@
                        (conj! [x1 y0 0.0 r g b a])))))
           vb (vtx/use-with node-id vbuf color-shader)]
       (gl/with-gl-bindings gl render-args [color-shader vb]
-        (gl/gl-draw-arrays gl (if is-outline GL2/GL_LINES GL2/GL_TRIANGLES) 0 (count vbuf))))))
+        (gl/gl-draw-arrays gl (if is-outline GL3/GL_LINES GL3/GL_TRIANGLES) 0 (count vbuf))))))
 
 (g/defnk produce-tool-renderables
   [_node-id active-tile tile-source-attributes convex-hulls collision-group-node->group selected-collision-group-node]

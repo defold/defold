@@ -40,7 +40,7 @@
   (:import [com.dynamo.bob.pipeline MaterialBuilder]
            [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace]
-           [com.jogamp.opengl GL2]
+           [com.jogamp.opengl GL3]
            [editor.gl.shader ShaderLifecycle]
            [javax.vecmath Matrix4d Vector4d]))
 
@@ -190,7 +190,7 @@
   ;; and line numbers here.
   (let [shader-proj-path (resource/proj-path shader-resource)]
     (try
-      (shader-gen/transpile-shader-source shader-proj-path shader-source ^long max-page-count glsl-es-default-precision-float glsl-es-default-precision-int :language-glsl-sm120)
+      (shader-gen/transpile-shader-source shader-proj-path shader-source ^long max-page-count glsl-es-default-precision-float glsl-es-default-precision-int :language-glsl-sm330)
       (catch Exception exception
         (let [ex-data (ex-data exception)]
           (if-not (shader-gen/shader-transpile-ex-data? ex-data)
@@ -462,27 +462,27 @@
                           :set set-form-op
                           :clear protobuf-forms-util/clear-form-op}))))
 
-(def ^:private wrap-mode->gl {:wrap-mode-repeat GL2/GL_REPEAT
-                              :wrap-mode-mirrored-repeat GL2/GL_MIRRORED_REPEAT
-                              :wrap-mode-clamp-to-edge GL2/GL_CLAMP_TO_EDGE})
+(def ^:private wrap-mode->gl {:wrap-mode-repeat GL3/GL_REPEAT
+                              :wrap-mode-mirrored-repeat GL3/GL_MIRRORED_REPEAT
+                              :wrap-mode-clamp-to-edge GL3/GL_CLAMP_TO_EDGE})
 
 (defn- filter-mode-min->gl [filter-min default-tex-params]
   (case filter-min
-    :filter-mode-min-default (or (:min-filter default-tex-params) GL2/GL_NEAREST_MIPMAP_LINEAR)
-    :filter-mode-min-nearest GL2/GL_NEAREST
-    :filter-mode-min-linear GL2/GL_LINEAR
-    :filter-mode-min-nearest-mipmap-nearest GL2/GL_NEAREST_MIPMAP_NEAREST
-    :filter-mode-min-nearest-mipmap-linear GL2/GL_NEAREST_MIPMAP_LINEAR
-    :filter-mode-min-linear-mipmap-nearest GL2/GL_LINEAR_MIPMAP_NEAREST
-    :filter-mode-min-linear-mipmap-linear GL2/GL_LINEAR_MIPMAP_LINEAR
-    GL2/GL_NEAREST_MIPMAP_LINEAR))
+    :filter-mode-min-default (or (:min-filter default-tex-params) GL3/GL_NEAREST_MIPMAP_LINEAR)
+    :filter-mode-min-nearest GL3/GL_NEAREST
+    :filter-mode-min-linear GL3/GL_LINEAR
+    :filter-mode-min-nearest-mipmap-nearest GL3/GL_NEAREST_MIPMAP_NEAREST
+    :filter-mode-min-nearest-mipmap-linear GL3/GL_NEAREST_MIPMAP_LINEAR
+    :filter-mode-min-linear-mipmap-nearest GL3/GL_LINEAR_MIPMAP_NEAREST
+    :filter-mode-min-linear-mipmap-linear GL3/GL_LINEAR_MIPMAP_LINEAR
+    GL3/GL_NEAREST_MIPMAP_LINEAR))
 
 (defn- filter-mode-mag->gl [filter-mag default-tex-params]
   (case filter-mag
-    :filter-mode-mag-default (or (:mag-filter default-tex-params) GL2/GL_LINEAR)
-    :filter-mode-mag-nearest GL2/GL_NEAREST
-    :filter-mode-mag-linear GL2/GL_LINEAR
-    GL2/GL_LINEAR))
+    :filter-mode-mag-default (or (:mag-filter default-tex-params) GL3/GL_LINEAR)
+    :filter-mode-mag-nearest GL3/GL_NEAREST
+    :filter-mode-mag-linear GL3/GL_LINEAR
+    GL3/GL_LINEAR))
 
 (def ^:private default-pb-sampler
   (protobuf/make-map-without-defaults Material$MaterialDesc$Sampler
