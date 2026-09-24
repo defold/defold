@@ -1713,48 +1713,69 @@
               (assoc :grid-pane/column-span 3
                      :grid-pane/hgrow :always))))))
 
-(defn- section-view [{:keys [title title-style-class help fields values ui-state resource-string-converter visible localization-state project]}]
-  {:fx/type fx.v-box/lifecycle
-   :visible visible
-   :managed visible
-   :children (cond-> []
+(defn- help-icon-view [help project]
+  (fxui/apply-tooltip
+    {:fx/type fx.label/lifecycle
+     :style-class ["label" "cljfx-form-help-icon"]
+     :graphic {:fx/type fxui/icon-graphic
+               :type :icon/circle-question
+               :size 14}}
+    {:fx/type fxui/tooltip
+     :content-display :graphic-only
+     :style {:-fx-padding 0}
+     :graphic {:fx/type markdown/view
+               :content help
+               :max-width 350.0
+               :project project}}))
 
-               :always
-               (conj {:fx/type fx.label/lifecycle
-                      :style-class (cond-> ["label" "cljfx-form-title"]
-                                     title-style-class (conj title-style-class))
-                      :text title})
+(defn- section-view [{:keys [title title-style-class help help-icon fields values ui-state resource-string-converter visible localization-state project]}]
+  (let [title-view {:fx/type fx.label/lifecycle
+                    :style-class (cond-> ["label" "cljfx-form-title"]
+                                   title-style-class (conj title-style-class))
+                    :text title}]
+    {:fx/type fx.v-box/lifecycle
+     :visible visible
+     :managed visible
+     :children (cond-> []
 
-               help
-               (conj {:fx/type markdown/flow-view :content help :project project})
+                 :always
+                 (conj (if (and help help-icon)
+                         {:fx/type fx.h-box/lifecycle
+                          :spacing 6
+                          :alignment :center-left
+                          :children [title-view (help-icon-view help project)]}
+                         title-view))
 
-               :always
-               (conj {:fx/type fx.grid-pane/lifecycle
-                      :style-class "cljfx-form-fields"
-                      :vgap line-spacing
-                      :column-constraints [{:fx/type fx.column-constraints/lifecycle
-                                            :min-width 150
-                                            :max-width 150}
-                                           {:fx/type fx.column-constraints/lifecycle
-                                            :min-width line-height
-                                            :max-width line-height}
-                                           {:fx/type fx.column-constraints/lifecycle
-                                            :hgrow :always
-                                            :min-width 200
-                                            :max-width large-field-width}]
-                      :children (first
-                                  (reduce
-                                    (fn [[acc row] field]
-                                      [(into acc (make-row values
-                                                           ui-state
-                                                           resource-string-converter
-                                                           row
-                                                           field
-                                                           localization-state
-                                                           project))
-                                       (if (:visible field) (inc row) row)])
-                                    [[] 0]
-                                    fields))}))})
+                 (and help (not help-icon))
+                 (conj {:fx/type fx.label/lifecycle :text help})
+
+                 :always
+                 (conj {:fx/type fx.grid-pane/lifecycle
+                        :style-class "cljfx-form-fields"
+                        :vgap line-spacing
+                        :column-constraints [{:fx/type fx.column-constraints/lifecycle
+                                              :min-width 150
+                                              :max-width 150}
+                                             {:fx/type fx.column-constraints/lifecycle
+                                              :min-width line-height
+                                              :max-width line-height}
+                                             {:fx/type fx.column-constraints/lifecycle
+                                              :hgrow :always
+                                              :min-width 200
+                                              :max-width large-field-width}]
+                        :children (first
+                                    (reduce
+                                      (fn [[acc row] field]
+                                        [(into acc (make-row values
+                                                             ui-state
+                                                             resource-string-converter
+                                                             row
+                                                             field
+                                                             localization-state
+                                                             project))
+                                         (if (:visible field) (inc row) row)])
+                                      [[] 0]
+                                      fields))}))}))
 
 ;; region filtering
 

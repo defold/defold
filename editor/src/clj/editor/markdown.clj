@@ -697,18 +697,6 @@
                 (.parse content))]
     (.render (.build (.extensions (HtmlRenderer/builder) extensions)) doc)))
 
-(defn flow-view
-  "Cljfx component that renders markdown inline, without a scroll pane
-
-  Supported props:
-    :content          required, markdown string
-    :project          optional, see `view`"
-  [{:keys [content project]}]
-  (or (some-> (children-section-view (Jsoup/parseBodyFragment (markdown->html content))
-                                     {:paragraph true :project project})
-              (fxui/add-style-classes "md-root" "md-flow-root"))
-      {:fx/type fx.region/lifecycle}))
-
 (defn view
   "Cljfx component that defines a markdown viewer
 

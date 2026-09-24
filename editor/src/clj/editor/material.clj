@@ -365,6 +365,7 @@
    :sections
    [{:label "Programs"
      :title-style-class "cljfx-form-group-title"
+     :help-icon true
      :fields
      [{:path [:name]
        :localization-key "material.name"
@@ -378,6 +379,7 @@
        :type :resource :filter "fp" :max-width 800}]}
     {:localization-key "material.attributes"
      :title-style-class "cljfx-form-group-title"
+     :help-icon true
      :fields
      [(table-2panel-form
         {:path [:attributes]
@@ -413,15 +415,19 @@
         "material.attributes")]}
     {:localization-key "material.vertex-constants"
      :title-style-class "cljfx-form-group-title"
+     :help-icon true
      :fields [(constant-form-with-summary "material.vertex-constants" :vertex-constants)]}
     {:localization-key "material.fragment-constants"
      :title-style-class "cljfx-form-group-title"
+     :help-icon true
      :fields [(constant-form-with-summary "material.fragment-constants" :fragment-constants)]}
     {:localization-key "material.samplers"
      :title-style-class "cljfx-form-group-title"
+     :help-icon true
      :fields [(sampler-form-with-summary "material.samplers" :samplers)]}
     {:label "Render Settings"
      :title-style-class "cljfx-form-group-title"
+     :help-icon true
      :fields
      [{:path [:tags]
        :localization-key "material.tags"
