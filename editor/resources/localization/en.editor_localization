@@ -2572,6 +2572,7 @@ form.label.texture-profiles.profiles.platforms = Platforms
 form.label.texture-profiles.profiles.platforms.keep-ktx2-format = Keep KTX2 Format
 form.help.texture-profiles.profiles.platforms.keep-ktx2-format = Keeps the source KTX2 compression format instead of using Formats. Reuses encoded data when possible. Orientation, alpha, resizing, and mipmap processing can require lossy re-encoding into the same format. Other image types still use Formats. Applies when texture compression is enabled; runtime format support is the project's responsibility.
 form.label.texture-profiles.profiles.platforms.formats = Formats
+form.label.texture-profiles.profiles.platforms.formats.source = Source KTX2 format
 form.label.texture-profiles.profiles.platforms.formats.format = Format
 form.label.texture-profiles.profiles.platforms.formats.compressor = Compressor
 form.label.texture-profiles.profiles.platforms.formats.compressor-preset = Compressor Preset

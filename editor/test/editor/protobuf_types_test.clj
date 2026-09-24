@@ -15,17 +15,22 @@
 (ns editor.protobuf-types-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.cljfx-form-view :as cljfx-form-view]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll])
-  (:import [com.dynamo.graphics.proto Graphics$TextureProfiles]))
+  (:import [com.dynamo.graphics.proto Graphics$TextureProfiles]
+           [javafx.scene Node]
+           [javafx.scene.control Label ListView ScrollPane]
+           [javafx.scene.layout AnchorPane]))
 
 (def ^:private project-path "test/resources/all_types_project")
 
@@ -36,13 +41,36 @@
           profiles-field (coll/first-where #(= [:profiles] (:path %)) (:fields (first sections)))
           platforms-field (first (get-in profiles-field [:panel-form :sections 0 :fields]))
           field (coll/first-where #(= [:keep-ktx2-format] (:path %))
-                                  (get-in platforms-field [:panel-form :sections 0 :fields]))
-          path [:profiles 0 :platforms 0 :keep-ktx2-format]]
+                                  (get-in ((:panel-form-fn platforms-field) nil) [:sections 0 :fields]))
+          path [:profiles 0 :platforms 0 :keep-ktx2-format]
+          original-formats (get-in (g/node-value node :save-value) [:profiles 0 :platforms 0 :formats])
+          parent (AnchorPane.)
+          view-node (cljfx-form-view/make-form-view-node! parent node nil nil nil test-util/localization)
+          check-formats-disabled!
+          (fn [disabled]
+            (let [rendered (promise)]
+              (g/node-value view-node :form-view)
+              (ui/run-later (deliver rendered true))
+              @rendered)
+            (let [content (.getContent ^ScrollPane (.lookup parent "ScrollPane"))
+                  ^ListView formats-list (coll/first-where
+                                          #(= [[0 :texture-format-rgba]] (vec (.getItems ^ListView %)))
+                                          (.lookupAll content ".list-view"))]
+              (is (some? formats-list))
+              (when formats-list
+                (is (= disabled (.isDisabled formats-list))))
+              (is (coll/any? #(= (if disabled "Source KTX2 format" "Formats") (.getText ^Label %))
+                             (.lookupAll content ".label")))
+              (doseq [^Node checkbox (.lookupAll content ".check-box")]
+                (is (false? (.isDisabled checkbox)))))
+            (is (= original-formats (get-in (g/node-value node :save-value) [:profiles 0 :platforms 0 :formats]))))]
       (is (= :boolean (:type field)))
       (is (false? (:default field)))
       (is (= "texture-profiles.profiles.platforms.keep-ktx2-format" (:localization-key field)))
       (is (false? (g/node-value node :dirty)))
+      (check-formats-disabled! false)
       (g/transact ((:set form-ops) (:user-data form-ops) path true))
+      (check-formats-disabled! true)
       (is (true? (g/node-value node :dirty)))
       (is (true? (get-in (->> (g/node-value node :save-value)
                               (protobuf/map->pb Graphics$TextureProfiles)
@@ -50,6 +78,7 @@
                               (protobuf/bytes->map-with-defaults Graphics$TextureProfiles))
                          path)))
       (g/transact ((:clear form-ops) (:user-data form-ops) path))
+      (check-formats-disabled! false)
       (is (false? (g/node-value node :dirty))))))
 
 (deftest test-load
