@@ -379,9 +379,11 @@ TEST(ModelCompression, UnusedFallbackUriIsNotResolved)
 
 TEST(ModelCompression, MixedFallbackBufferStillRequiresOrdinaryData)
 {
+    // Leave the index view uncompressed so it still requires the shared fallback
+    // buffer. Match a single token to support both LF and CRLF fixture checkouts.
     Scene* scene = LoadModifiedCompressionJson("box/glTF-Meshopt/Box-embedded.gltf",
-                                               "\n  ],\n  \"buffers\": [",
-                                               ",\n    {\"buffer\":1,\"byteLength\":4}\n  ],\n  \"buffers\": [");
+                                               "\"EXT_meshopt_compression\":",
+                                               "\"unused_meshopt_compression\":");
     ASSERT_NE((Scene*)0, scene);
     ASSERT_EQ((char*)0, scene->m_LoadError);
     ASSERT_TRUE(NeedsResolve(scene));
