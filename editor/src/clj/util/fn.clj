@@ -219,15 +219,21 @@
         fn-tail (next fn-tail)]
     (assert (map? attr-map) "defn-cached requires an attr-map")
     (assert (contains? attr-map :cache) "defn-cached requires the attr-map to define a :cache key")
-    (let [cache-expression (:cache attr-map)
+    (let [arities (if (vector? (first fn-tail))
+                    [fn-tail]
+                    fn-tail)
+          arglists (apply list (mapv first arities))
+          cache-expression (:cache attr-map)
           defined-name (with-meta name (merge (meta name)
                                               (when doc-string {:doc doc-string})
+                                              {:arglists (list 'quote arglists)}
                                               (dissoc attr-map :cache)))
           cache-symbol (with-meta (gensym "cache__") {:tag Cache})]
       `(def ~defined-name
          (let [~cache-symbol ~cache-expression
                uncached-fn# (fn ~@fn-tail)
                nil-value# (Object.)]
+           ^{::cached-cache ~cache-symbol}
            (fn [& args#]
              (let [args# (vec args#)
                    value# (.get ~cache-symbol args#
@@ -236,6 +242,13 @@
                                     (if (nil? value#) nil-value# value#))))]
                (when-not (identical? nil-value# value#)
                  value#))))))))
+
+(defn clear-cached!
+  "Clears all results cached by a function defined using defn-cached."
+  [cached-fn]
+  (if-let [^Cache cache (::cached-cache (meta cached-fn))]
+    (.invalidateAll cache)
+    (throw (IllegalArgumentException. "The function was not defined using defn-cached."))))
 
 (defn- as-late-bound-fn
   [fn-or-promise timeout-ms]

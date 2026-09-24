@@ -133,6 +133,7 @@
    (into [prefix value] suffixes)))
 
 (deftest defn-cached-test
+  (fn/clear-cached! cached-test-fn)
   (reset! defn-cached-call-count 0)
   (let [value (random-uuid)
         argument {:value value}
@@ -158,7 +159,17 @@
     (is (= 5 @defn-cached-call-count)))
 
   (is (= "A cached function used by defn-cached-test."
-         (:doc (meta #'cached-test-fn)))))
+         (:doc (meta #'cached-test-fn))))
+  (is (= '([{:keys [value]}] [prefix value & suffixes])
+         (:arglists (meta #'cached-test-fn))))
+
+  (let [argument {:value (random-uuid)}
+        first-result (cached-test-fn argument)]
+    (is (nil? (fn/clear-cached! cached-test-fn)))
+    (is (not (identical? first-result (cached-test-fn argument)))))
+
+  (is (thrown? IllegalArgumentException
+               (fn/clear-cached! identity))))
 
 (deftest memoize-test
   (testing "Returns unique instances"
