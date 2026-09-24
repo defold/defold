@@ -78,6 +78,7 @@
               (is (= manifest (-> original
                                   (#'app-manifest/migrate-windows-library-names)
                                   (#'app-manifest/migrate-macos-vulkan-platform)
+                                  (#'app-manifest/migrate-simulator-graphics)
                                   (#'app-manifest/migrate-bullet3d-exclusions))))
               (resource-node/save-data-content save-data)))]
       (test-util/with-temp-project-content
@@ -502,7 +503,7 @@
   (testing "Metal-only iOS includes Metal and excludes OpenGL/Vulkan"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :metal)]
       (is (= :metal (app-manifest/get-setting-value manifest app-manifest/graphics-setting-ios)))
-      (doseq [platform [:arm64-ios :arm64_sim-ios]]
+      (doseq [platform [:arm64-ios]]
         (let [context (get-in manifest [:platforms platform :context])]
           (is (some #{"graphics_metal"} (:libs context)))
           (is (some #{"GraphicsAdapterMetal"} (:symbols context)))
@@ -515,7 +516,7 @@
         (is (some #{"MoltenVK"} (:excludeLibs context)))
         (is (some #{"GraphicsAdapterOpenGL"} (:excludeSymbols context)))
         (is (some #{"GraphicsAdapterVulkan"} (:excludeSymbols context))))))
-  (testing "Vulkan-only iOS keeps the simulator OpenGL fallback"
+  (testing "Vulkan-only iOS leaves the simulator Metal default unchanged"
     (let [manifest (app-manifest/set-setting-value {} app-manifest/graphics-setting-ios :vulkan)
           arm64-context (get-in manifest [:platforms :arm64-ios :context])
           simulator-context (get-in manifest [:platforms :arm64_sim-ios :context])]
@@ -530,7 +531,8 @@
       (is (not-any? #{"graphics_vulkan"} (:libs simulator-context)))
       (is (not-any? #{"GraphicsAdapterVulkan"} (:symbols simulator-context)))
       (is (not-any? #{"graphics_metal"} (:libs simulator-context)))
-      (is (not-any? #{"GraphicsAdapterMetal"} (:symbols simulator-context)))))
+      (is (not-any? #{"GraphicsAdapterMetal"} (:symbols simulator-context)))
+      (is (nil? simulator-context))))
   (testing "Generic graphics changes do not clear iOS graphics"
     (let [manifest (-> {}
                        (app-manifest/set-setting-value app-manifest/graphics-setting-ios :metal)
@@ -805,3 +807,15 @@
         (g/set-property! manifest :manifest
                          {:platforms {:arm64-osx {:context {:libs ["font_richtext_null"]}}}})
         (is (nil? (g/node-value manifest :use-rich-text)))))))
+
+(deftest simulator-graphics-migration-test
+  (let [manifest {:platforms {:arm64_sim-ios {:context {:libs ["graphics_metal" "custom"]
+                                                       :excludeLibs ["graphics_metal"]
+                                                       :excludeSymbols ["GraphicsAdapterMetal"]}}
+                              :arm64-ios {:context {:excludeLibs ["graphics_metal"]}}}}
+        migrated (#'app-manifest/migrate-simulator-graphics manifest)]
+    (is (= ["custom"] (get-in migrated [:platforms :arm64_sim-ios :context :libs])))
+    (is (= [] (get-in migrated [:platforms :arm64_sim-ios :context :excludeLibs])))
+    (is (= [] (get-in migrated [:platforms :arm64_sim-ios :context :excludeSymbols])))
+    (is (= (get-in manifest [:platforms :arm64-ios]) (get-in migrated [:platforms :arm64-ios])))
+    (is (= migrated (#'app-manifest/migrate-simulator-graphics migrated)))))
