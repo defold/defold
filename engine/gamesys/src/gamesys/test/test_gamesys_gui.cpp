@@ -652,7 +652,7 @@ TEST_F(FontTest, TrueTypeFontsUseRuntimeGeneration)
     ASSERT_NE((void*)0, font_map_2);
 
     // Font effects differ in render parameters; both TTF resources retain the
-    // source font and generate their vector glyph data on demand.
+    // source font and generate their SDF glyph data on demand.
     ASSERT_TRUE(font_1->m_IsDynamic);
     ASSERT_TRUE(font_2->m_IsDynamic);
 
