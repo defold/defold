@@ -68,8 +68,8 @@ namespace dmScript
      * static int get_position(lua_State* L)
      * {
      *     DM_LUA_STACK_CHECK(L, 3);
-     *     dmGameObject::HInstance hinstance = dmScript::CheckGOInstance(L, 1);
-     *     dmVMath::Point3 position = dmGameObject::GetPosition(hinstance);
+     *     dmGameObject::HInstance instance = dmScript::CheckGOInstance(L, 1);
+     *     dmVMath::Point3 position = dmGameObject::GetPosition(instance);
      *     lua_pushnumber(L, position.getX());
      *     lua_pushnumber(L, position.getY());
      *     lua_pushnumber(L, position.getZ());

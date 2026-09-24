@@ -172,7 +172,7 @@ namespace dmGameSystem
     }
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
-                                                dmGameObject::HContext gocontext,
+                                                dmGameObject::HContext regist,
                                                 dmRender::HRenderContext render_context,
                                                 PhysicsContext* physics_context,
                                                 SpriteContext* sprite_context,
@@ -226,7 +226,7 @@ namespace dmGameSystem
     component_type.m_ReadsTransforms = set_reads_transforms;\
     component_type.m_InstanceHasUserData = (uint32_t)true;\
     component_type.m_UpdateOrderPrio = prio;\
-    go_result = dmGameObject::RegisterComponentType(gocontext, component_type);\
+    go_result = dmGameObject::RegisterComponentType(regist, component_type);\
     if (go_result != dmGameObject::RESULT_OK)\
         return go_result;
 

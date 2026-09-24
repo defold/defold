@@ -45,49 +45,49 @@ extern "C"
 
 namespace dmScript {
     dmGameObject::HInstance CheckGOInstance(lua_State* L) {
-        dmGameObject::HInstance hinstance = dmGameObject::GetInstanceFromLua(L);
-        if (hinstance == 0) {
+        dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
+        if (instance == 0) {
             luaL_error(L, "no instance could be found in the current script environment");
         }
-        return hinstance;
+        return instance;
     }
 
     // Inspired by the internal function dmGameObject::ResolveInstance
     // Modified to support both gameobject/gui scripts
     dmGameObject::HInstance CheckGOInstance(lua_State* L, int instance_arg)
     {
-        dmGameObject::HInstance hinstance = CheckGOInstance(L);
+        dmGameObject::HInstance instance = CheckGOInstance(L);
 
         if (!lua_isnil(L, instance_arg)) {
-            dmGameObject::HCollection hcollection = dmGameObject::GetCollection(hinstance);
+            dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
             dmMessage::URL receiver;
             dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
-            if (receiver.m_Socket != dmGameObject::GetMessageSocket(hcollection))
+            if (receiver.m_Socket != dmGameObject::GetMessageSocket(collection))
             {
                 luaL_error(L, "function called can only access instances within the same collection.");
             }
 
-            hinstance = dmGameObject::GetInstanceFromIdentifier(hcollection, receiver.m_Path);
-            if (!hinstance)
+            instance = dmGameObject::GetInstanceFromIdentifier(collection, receiver.m_Path);
+            if (!instance)
             {
                 luaL_error(L, "Instance %s not found", lua_tostring(L, instance_arg));
                 return 0; // Actually never reached
             }
         }
-        return hinstance;
+        return instance;
     }
 
     dmGameObject::HCollection CheckCollection(lua_State* L)
     {
-        dmGameObject::HInstance hinstance = CheckGOInstance(L);
-        return dmGameObject::GetCollection(hinstance);
+        dmGameObject::HInstance instance = CheckGOInstance(L);
+        return dmGameObject::GetCollection(instance);
     }
 
     void GetComponentFromLua(lua_State* L, int index, const char* component_type, dmGameObject::HComponentWorld* out_world, dmGameObject::HComponent* component, dmMessage::URL* url)
     {
-        dmGameObject::HInstance hinstance = CheckGOInstance(L);
-        dmGameObject::HCollection hcollection = dmGameObject::GetCollection(hinstance);
-        dmGameObject::GetComponentFromLua(L, index, hcollection, component_type, component, url, out_world);
+        dmGameObject::HInstance instance = CheckGOInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+        dmGameObject::GetComponentFromLua(L, index, collection, component_type, component, url, out_world);
     }
 }
 

@@ -307,16 +307,16 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
             CollectionProxyComponent* proxy = &proxy_world->m_Components[i];
-            dmGameObject::HCollection hcollection = GetCollection(proxy);
+            dmGameObject::HCollection collection = GetCollection(proxy);
 
             if (proxy->m_CollectionResPath)
             {
                 free(proxy->m_CollectionResPath);
             }
-            if (hcollection != 0)
+            if (collection != 0)
             {
                 if (proxy_world->m_Components[i].m_Initialized)
-                    dmGameObject::Final(hcollection);
+                    dmGameObject::Final(collection);
                 dmResource::Release(factory, proxy->m_CollectionResource);
             }
         }
@@ -413,8 +413,8 @@ namespace dmGameSystem
                     proxy->m_Preloader = 0;
                 }
             }
-            dmGameObject::HCollection hcollection = GetCollection(proxy);
-            if (hcollection != 0)
+            dmGameObject::HCollection collection = GetCollection(proxy);
+            if (collection != 0)
             {
                 DM_PROPERTY_ADD_U32(rmtp_CollectionProxyLoaded, 1);
                 if (proxy->m_DelayedEnable != proxy->m_Enabled)
@@ -452,7 +452,7 @@ namespace dmGameSystem
                         break;
                     }
 
-                    if (!dmGameObject::Update(hcollection, &uc))
+                    if (!dmGameObject::Update(collection, &uc))
                         result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
                 }
                 else
@@ -475,10 +475,10 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
             CollectionProxyComponent* proxy = &proxy_world->m_Components[i];
-            dmGameObject::HCollection hcollection = GetCollection(proxy);
-            if (hcollection != 0 && proxy->m_Enabled)
+            dmGameObject::HCollection collection = GetCollection(proxy);
+            if (collection != 0 && proxy->m_Enabled)
             {
-                if (!dmGameObject::Render(hcollection))
+                if (!dmGameObject::Render(collection))
                     result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
         }
@@ -492,12 +492,12 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
             CollectionProxyComponent* proxy = &proxy_world->m_Components[i];
-            dmGameObject::HCollection hcollection = GetCollection(proxy);
-            if (hcollection != 0)
+            dmGameObject::HCollection collection = GetCollection(proxy);
+            if (collection != 0)
             {
                 if (proxy->m_Enabled)
                 {
-                    if (!dmGameObject::PostUpdate(hcollection))
+                    if (!dmGameObject::PostUpdate(collection))
                         result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
                 }
             }
@@ -644,12 +644,12 @@ namespace dmGameSystem
 
     static dmGameObject::Result CompCollectionProxyInitializeInternal(HCollectionProxyComponent proxy, dmMessage::Message* message)
     {
-        dmGameObject::HCollection hcollection = GetCollection(proxy);
-        if (hcollection != 0)
+        dmGameObject::HCollection collection = GetCollection(proxy);
+        if (collection != 0)
         {
             if (proxy->m_Initialized == 0)
             {
-                dmGameObject::Init(hcollection);
+                dmGameObject::Init(collection);
                 proxy->m_Initialized = 1;
             }
             else
@@ -678,10 +678,10 @@ namespace dmGameSystem
 
     static dmGameObject::Result CompCollectionProxyFinalizeInternal(HCollectionProxyComponent proxy, dmMessage::Message* message)
     {
-        dmGameObject::HCollection hcollection = GetCollection(proxy);
-        if (proxy->m_Initialized == 1 && hcollection != 0x0)
+        dmGameObject::HCollection collection = GetCollection(proxy);
+        if (proxy->m_Initialized == 1 && collection != 0x0)
         {
-            dmGameObject::Final(hcollection);
+            dmGameObject::Final(collection);
             proxy->m_Initialized = 0;
         }
         else
@@ -702,8 +702,8 @@ namespace dmGameSystem
 
     static dmGameObject::Result CompCollectionProxyEnableInternal(HCollectionProxyComponent proxy, dmMessage::Message* message)
     {
-        dmGameObject::HCollection hcollection = GetCollection(proxy);
-        if (hcollection != 0)
+        dmGameObject::HCollection collection = GetCollection(proxy);
+        if (collection != 0)
         {
             if (proxy->m_Enabled == 0 && proxy->m_DelayedEnable == 0)
             {
@@ -711,7 +711,7 @@ namespace dmGameSystem
 
                 if (proxy->m_Initialized == 0)
                 {
-                    dmGameObject::Init(hcollection);
+                    dmGameObject::Init(collection);
                     proxy->m_Initialized = 1;
                 }
             }
@@ -871,12 +871,12 @@ namespace dmGameSystem
     {
         assert(node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT);
         CollectionProxyComponent* proxy = (CollectionProxyComponent*)node->m_Component;
-        dmGameObject::HCollection hcollection = GetCollection(proxy);
+        dmGameObject::HCollection collection = GetCollection(proxy);
         it->m_Parent = *node;
         it->m_NextChild = *node; // copy data fields
-        it->m_NextChild.m_Collection = hcollection;
+        it->m_NextChild.m_Collection = collection;
         it->m_NextChild.m_Type = dmGameObject::SCENE_NODE_TYPE_COLLECTION;
-        it->m_NextChild.m_Node = (uint64_t)hcollection;
+        it->m_NextChild.m_Node = (uint64_t)collection;
         it->m_FnIterateNext = CompCollectionProxyIterGetNext;
     }
 }

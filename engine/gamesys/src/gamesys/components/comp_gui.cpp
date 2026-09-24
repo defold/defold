@@ -3534,7 +3534,7 @@ namespace dmGameSystem
         return (uintptr_t)dmGui::GetSceneUserData(scene);
     }
 
-    static dmGameObject::HInstance GuiScriptInstanceGetGameObject(void* script_instance)
+    static dmGameObject::HGameObject GuiScriptInstanceGetGameObject(void* script_instance)
     {
         dmGui::HScene scene = (dmGui::HScene)script_instance;
         if (!scene)

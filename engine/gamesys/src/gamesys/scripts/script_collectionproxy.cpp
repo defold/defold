@@ -74,24 +74,24 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, index, &receiver, 0x0);
 
         dmScript::GetURL(L, &sender);
-        dmGameObject::HCollection hcollection = dmScript::CheckCollection(L);
-        dmGameObject::HInstance hinstance = dmGameObject::GetInstanceFromIdentifier(hcollection, receiver.m_Path);
+        dmGameObject::HCollection collection = dmScript::CheckCollection(L);
+        dmGameObject::HInstance receiver_instance = dmGameObject::GetInstanceFromIdentifier(collection, receiver.m_Path);
 
-        if (hinstance == 0x0)
+        if (receiver_instance == 0x0)
         {
             return 0;
         }
 
         uint16_t component_index = 0;
-        dmGameObject::GetComponentIndex(hinstance, receiver.m_Fragment, &component_index);
+        dmGameObject::GetComponentIndex(receiver_instance, receiver.m_Fragment, &component_index);
         dmGameObject::HComponent user_data = 0;
         dmGameSystem::HCollectionProxyWorld world = 0;
-        dmGameObject::GetComponentFromLua(L, index, hcollection, COLLECTION_PROXY_EXT, &user_data, &receiver, (dmGameObject::HComponentWorld*)&world);
+        dmGameObject::GetComponentFromLua(L, index, collection, COLLECTION_PROXY_EXT, &user_data, &receiver, (dmGameObject::HComponentWorld*)&world);
 
         if (factory)
-            *factory = dmGameObject::GetFactory(hcollection);
+            *factory = dmGameObject::GetFactory(collection);
 
-        return dmGameSystem::GetCollectionUrlHashFromComponent(world, dmGameObject::GetIdentifier(hinstance), component_index);
+        return dmGameSystem::GetCollectionUrlHashFromComponent(world, dmGameObject::GetIdentifier(receiver_instance), component_index);
     }
 
     struct GetResourceHashContext

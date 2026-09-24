@@ -318,7 +318,7 @@ namespace dmGameSystem
         ModelContext* model_context);
 
     dmGameObject::Result RegisterComponentTypes(dmResource::HFactory factory,
-                                                  dmGameObject::HContext gocontext,
+                                                  dmGameObject::HContext regist,
                                                   dmRender::HRenderContext render_context,
                                                   PhysicsContext* physics_context,
                                                   SpriteContext* sprite_context,
