@@ -27,14 +27,16 @@
 
 (defonce ^:private gl-info-atom (atom nil))
 
-(defn- profile ^GLProfile []
+(defn- profile
+  ^GLProfile []
   (GLProfile/get GLProfile/GL3))
 
 (defn drawable-factory
   (^GLDrawableFactory [] (drawable-factory (profile)))
   (^GLDrawableFactory [^GLProfile profile] (GLDrawableFactory/getFactory profile)))
 
-(defn- unchecked-offscreen-drawable ^GLOffscreenAutoDrawable [w h]
+(defn- unchecked-offscreen-drawable
+  ^GLOffscreenAutoDrawable [w h]
   (let [profile (profile)
         factory (drawable-factory profile)
         caps    (doto (GLCapabilities. profile)
@@ -114,7 +116,8 @@
       (.glGenVertexArrays gl 1 names 0)
       (.attachObject context "editor.default-vao" (aget names 0)))))
 
-(defn make-current ^GLContext [^GLAutoDrawable drawable]
+(defn make-current
+  ^GLContext [^GLAutoDrawable drawable]
   (when-let [^GLContext context (.getContext drawable)]
     (try
       (let [result (.makeCurrent context)]
@@ -123,16 +126,15 @@
             (when (time-to-log?)
               (log/warn :message "Failed to set gl context as current."))
             nil)
-          (do
+          (try
             (when (or (= result GLContext/CONTEXT_CURRENT_NEW)
                       (nil? (.getAttachedObject context "editor.default-vao")))
-              (try
-                (initialize-context! context)
-                (catch Exception e
-                  (.release context)
-                  (throw e))))
+              (initialize-context! context))
             (.glBindVertexArray (.getGL3 (.getGL context)) (int (.getAttachedObject context "editor.default-vao")))
-            (doto context ignore-some-gl-warnings!))))
+            (doto context ignore-some-gl-warnings!)
+            (catch Exception e
+              (.release context)
+              (throw e)))))
       (catch clojure.lang.ExceptionInfo e
         (throw e))
       (catch Exception e
@@ -166,12 +168,14 @@
 (defn info []
   (or @gl-info-atom (init-info!)))
 
-(defn gl-support-error ^String []
+(defn gl-support-error
+  ^String []
   (support-error (info)))
 
-(defn offscreen-drawable ^GLOffscreenAutoDrawable [w h]
-  (if-let [error (gl-support-error)]
-    (throw (ex-info error (info)))
+(defn offscreen-drawable
+  ^GLOffscreenAutoDrawable [w h]
+  ;; Startup reports unsupported hardware and lets users disable scene rendering.
+  (when-not (gl-support-error)
     (unchecked-offscreen-drawable w h)))
 
 (defn gl-gen-buffers

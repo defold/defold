@@ -18,6 +18,7 @@
             [editor.app-view :as app-view]
             [editor.camera :as camera]
             [editor.geom :as geom]
+            [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.math :as math]
             [editor.scene :as scene]
@@ -32,6 +33,14 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(deftest scene-rendering-disabled-test
+  (with-redefs [gl/gl-support-error (constantly "OpenGL 3.3 core is unavailable.")]
+    (test-util/with-loaded-project
+      (let [[_ view-id] (test-util/open-scene-view! project app-view "/sprite/atlas.sprite" 128 128)]
+        (is (nil? (g/node-value view-id :drawable)))
+        (is (nil? (g/node-value view-id :picking-drawable)))
+        (is (nil? (g/node-value view-id :frame)))))))
 
 (deftest gen-scene
   (testing "Scene generation"

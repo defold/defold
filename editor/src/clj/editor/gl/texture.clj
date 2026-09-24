@@ -27,7 +27,7 @@
   (:import [clojure.lang IHashEq Murmur3 Util]
            [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$TextureFormat]
-           [com.jogamp.opengl GL GL3 GLProfile]
+           [com.jogamp.opengl GL GL3]
            [com.jogamp.opengl.util.awt ImageUtil]
            [com.jogamp.opengl.util.texture Texture TextureData TextureIO]
            [java.awt.image BufferedImage DataBufferByte]
@@ -326,7 +326,9 @@
         pixel-format (data-format->pixel-format data-format)
         type (data-format->type data-format)
         border 0]
-    (TextureData. (GLProfile/get GLProfile/GL3) internal-format width height border pixel-format type mipmap false false data nil)))
+    ;; Raw pixel data does not need a profile. GPU upload uses the current context,
+    ;; while CPU-side texture construction must work with scene rendering disabled.
+    (TextureData. nil internal-format width height border pixel-format type mipmap false false data nil)))
 
 (defn texture-data-topology-hash
   ^long [^TextureData texture-data]
@@ -474,13 +476,12 @@
    (let [texture-image (.textureImage texture-generator-result)
          mip-image-byte-arrays (.imageDatas texture-generator-result)
          image (select-texture-image-image texture-image)
-         gl-profile (GLProfile/get GLProfile/GL3)
          gl-format (int (format->gl-format (.getFormat image)))
          mipmap-buffers (image->mipmap-buffers image mip-image-byte-arrays)
 
          texture-data
          (TextureData.
-           gl-profile
+           nil                 ; raw pixel data does not need a profile
            gl-format
            (.getWidth image)
            (.getHeight image)
