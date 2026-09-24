@@ -1532,8 +1532,7 @@
           installed-deps (set (workspace/dependencies workspace evaluation-context))
           notifications (workspace/notifications workspace evaluation-context)
           resources (g/node-value workspace :resource-map evaluation-context)]
-      [(if (or (not= desired-deps installed-deps)
-               (coll/every? resources ["/defold-pbr/shaders/pbr.vp" "/defold-pbr/shaders/pbr.fp"]))
+      [(if (coll/every? resources ["/defold-pbr/shaders/pbr.vp" "/defold-pbr/shaders/pbr.fp"])
          (notifications/close notifications ::pbr-library)
          (when (coll/any? (fn [resource]
                             (and (= "material" (resource/ext resource))
