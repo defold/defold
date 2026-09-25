@@ -73,10 +73,10 @@ namespace dmGameObject
 
     struct ScriptInstance
     {
-        HScript          m_Script;
-        HInstance        m_Instance;
+        HScript     m_Script;
+        HInstance   m_Instance;
         CompScriptWorld* m_World;
-        HProperties      m_Properties;
+        HProperties m_Properties;
 
         int         m_InstanceReference;
         int         m_ScriptDataReference;
@@ -94,8 +94,8 @@ namespace dmGameObject
         CompScriptWorld(uint32_t max_instance_count);
 
         dmArray<ScriptInstance*> m_Instances;
-        dmScript::HScriptWorld   m_ScriptWorld;
-        Collection*              m_Collection;
+        dmScript::HScriptWorld m_ScriptWorld;
+        Collection* m_Collection;
     };
 
     void    InitializeScript(dmScript::HContext context);

@@ -88,7 +88,7 @@ public:
 #define EPSILON 0.000001f
 
 void AnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
-                      bool finished, void* userdata1, void* userdata2)
+                                    bool finished, void* userdata1, void* userdata2)
 {
     AnimTest* test = (AnimTest*)userdata1;
     if (finished)
@@ -304,7 +304,7 @@ TEST_F(AnimTest, AnimateEuler)
 }
 
 void AnimationStoppedToDelete(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
-                              bool finished, void* userdata1, void* userdata2)
+                                    bool finished, void* userdata1, void* userdata2)
 {
     AnimTest* test = (AnimTest*)userdata1;
     if (finished)

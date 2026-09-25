@@ -441,9 +441,9 @@ static bool IterateGameObjectPropertiesGetNext(SceneNodePropertyIterator* pit)
         SceneNodePropertyType type = SCENE_NODE_PROPERTY_TYPE_VECTOR3;
         switch(index)
         {
-            case 0: value = Vector4(GetPosition(instance)); break;
-            case 1: value = Vector4(GetRotation(instance)); type = SCENE_NODE_PROPERTY_TYPE_QUAT; break;
-            case 2: value = Vector4(GetScale(instance)); break;
+            case 0: value = Vector4(dmGameObject::GetPosition(instance)); break;
+            case 1: value = Vector4(dmGameObject::GetRotation(instance)); type = SCENE_NODE_PROPERTY_TYPE_QUAT; break;
+            case 2: value = Vector4(dmGameObject::GetScale(instance)); break;
             case 3: value = Vector4(GetWorldPosition(collection, instance)); break;
             case 4: value = Vector4(GetWorldRotation(collection, instance)); type = SCENE_NODE_PROPERTY_TYPE_QUAT; break;
             case 5: value = Vector4(GetWorldScale(collection, instance)); break;

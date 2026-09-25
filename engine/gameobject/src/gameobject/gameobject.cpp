@@ -1821,7 +1821,7 @@ namespace dmGameObject
 
                 for (uint32_t j = 0; j < instance_desc.m_Children.m_Count; ++j)
                 {
-                    dmhash_t child_id = GetAbsoluteIdentifier(parent, instance_desc.m_Children[j]);
+                    dmhash_t child_id = dmGameObject::GetAbsoluteIdentifier(parent, instance_desc.m_Children[j]);
 
                     // It is not always the case that 'parent' has had the path prefix prepended to its id, so it is necessary
                     // to see if a remapping exists.

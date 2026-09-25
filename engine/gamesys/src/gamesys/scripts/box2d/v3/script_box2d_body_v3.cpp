@@ -49,9 +49,9 @@ namespace dmGameSystem
 
     void PushBody(lua_State* L, void* body, dmGameObject::HGameObject instance)
     {
-        B2DLuaBody* luabody = (B2DLuaBody*) lua_newuserdata(L, sizeof(B2DLuaBody));
-        luabody->m_Body     = *(b2BodyId*) body;
-        luabody->m_Instance = instance;
+        B2DLuaBody* luabody   = (B2DLuaBody*) lua_newuserdata(L, sizeof(B2DLuaBody));
+        luabody->m_Body       = *(b2BodyId*) body;
+        luabody->m_Instance   = instance;
 
         luaL_getmetatable(L, BOX2D_TYPE_NAME_BODY);
         lua_setmetatable(L, -2);

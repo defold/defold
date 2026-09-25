@@ -30,7 +30,7 @@ namespace dmGameSystem
 
     struct B2DLuaJoint
     {
-        b2JointId m_Joint;
+        b2JointId                 m_Joint;
     };
 
     static dmHashTable64<uint8_t> g_JointIds;

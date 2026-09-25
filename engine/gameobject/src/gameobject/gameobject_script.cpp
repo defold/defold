@@ -1401,7 +1401,7 @@ namespace dmGameObject
             return DM_LUA_ERROR("go.set_parent can only access instances within the same collection.");
         }
 
-        Instance* child_instance  = GetInstanceFromIdentifier(collection, target.m_Path);
+        Instance* child_instance  = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
         Instance* parent_instance = 0x0;
 
         if (!child_instance)
@@ -1412,7 +1412,7 @@ namespace dmGameObject
         if (lua_gettop(L) > 1 && !lua_isnil(L, 2))
         {
             dmScript::ResolveURL(L, 2, &target, &sender);
-            parent_instance = GetInstanceFromIdentifier(collection, target.m_Path);
+            parent_instance = dmGameObject::GetInstanceFromIdentifier(collection, target.m_Path);
 
             if (!parent_instance)
             {

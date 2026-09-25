@@ -206,7 +206,7 @@ namespace dmGameSystem
             return 0;
         }
 
-        btCollisionObject* collision_object = (btCollisionObject*)collision_object_ptr;
+        btCollisionObject*      collision_object = (btCollisionObject*)collision_object_ptr;
 
         EnsureCollisionObjectCapacity();
 
