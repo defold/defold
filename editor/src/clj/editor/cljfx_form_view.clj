@@ -1367,7 +1367,7 @@
    :desc desc})
 
 (defn- summary-table-input [{:keys [value summary-columns full-width localization-state state-path state
-                                   on-value-changed default-row key-path]}]
+                                   on-value-changed default-row key-path item-field-paths]}]
   (let [selected-index (-> state :selected-indices util/only)
         add-event {:event-type :2panel-summary-added
                    :value value
@@ -1412,11 +1412,14 @@
                                                                                     (value-fn item)
                                                                                     (get-in item (:path column)))
                                                                             label (if (some? value) (display-value-text column value) "")]
-                                                                        (cond-> {:text label
-                                                                                 :on-mouse-clicked {:event-type :2panel-summary-cell-clicked
+                                                                        (cond-> {:text label}
+                                                                          ;; Only cells with a matching detail field can request focus.
+                                                                          (contains? (item-field-paths item) (:path column))
+                                                                          (assoc :on-mouse-clicked {:event-type :2panel-summary-cell-clicked
                                                                                                     :index index
                                                                                                     :path (:path column)
-                                                                                                    :state-path state-path}}
+                                                                                                    :state-path state-path})
+
                                                                           (not (string/blank? label))
                                                                           (assoc :tooltip {:fx/type fx.tooltip/lifecycle :text label}))))}})
                                         summary-columns)
@@ -1592,7 +1595,13 @@
                               :state (:key state)
                               :on-value-changed on-value-changed
                               :default-row default-row
-                              :key-path (:path panel-key)})
+                              :key-path (:path panel-key)
+                              :item-field-paths (fn [item]
+                                                  (into #{(:path panel-key)}
+                                                        (comp (mapcat :fields) (map :path))
+                                                        (:sections (if-let [panel-form-fn (:panel-form-fn field)]
+                                                                     (panel-form-fn item)
+                                                                     (:panel-form field)))))})
 
         selected-item-fields
         (when selected-index

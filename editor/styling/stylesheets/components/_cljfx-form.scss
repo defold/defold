@@ -36,10 +36,6 @@
       -fx-background-radius: 1px;
     }
   }
-
-  & > .split-pane-divider:hover > .horizontal-grabber {
-    -fx-background-color: -df-text, -df-text, -df-text, -df-text;
-  }
 }
 
 .cljfx-form-detail-panel {

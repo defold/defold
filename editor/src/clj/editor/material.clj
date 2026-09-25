@@ -341,7 +341,6 @@
    :sections
    [{:localization-key "material.programs"
      :title-style-class "cljfx-form-group-title"
-     :help-icon true
      :fields
      [{:path [:name]
        :localization-key "material.name"
@@ -421,7 +420,6 @@
                         fields)))]}
     {:localization-key "material.render-settings"
      :title-style-class "cljfx-form-group-title"
-     :help-icon true
      :fields
      [{:path [:tags]
        :localization-key "material.tags"
