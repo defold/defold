@@ -558,17 +558,11 @@ TEST_F(ScriptTest, TestInstanceCallback)
     dmScript::SetInstance(L);
     ASSERT_TRUE(dmScript::IsInstanceValid(L));
 
-    // Verify that the native resolver and the typed overload resolve the same instance,
+    // Verify that the original GO lookup and the typed overload resolve the same instance,
     // while an unrelated script instance type is rejected.
     dmScript::GetInstance(L);
     uint32_t script_instance_type_hash = dmScript::GetUserType(L, -1);
-    ASSERT_TRUE(lua_getmetatable(L, -1));
-    lua_getfield(L, -1, dmGameObject::META_TABLE_GET_GAME_OBJECT);
-    ASSERT_TRUE(lua_islightuserdata(L, -1));
-    dmGameObject::ScriptInstanceGameObjectResolver* resolver = (dmGameObject::ScriptInstanceGameObjectResolver*)lua_touserdata(L, -1);
-    ASSERT_NE((dmGameObject::ScriptInstanceGameObjectResolver*)0, resolver);
-    ASSERT_EQ(go, resolver->m_GetInstance(lua_touserdata(L, -3)));
-    lua_pop(L, 3);
+    lua_pop(L, 1);
 
     ASSERT_EQ(go, dmGameObject::GetInstanceFromLua(L));
     ASSERT_EQ(go, dmGameObject::GetInstanceFromLua(L, script_instance_type_hash));

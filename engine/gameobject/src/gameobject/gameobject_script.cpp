@@ -468,14 +468,6 @@ namespace dmGameObject
         return 1;
     }
 
-    static HGameObject ScriptInstanceGetGameObject(void* script_instance)
-    {
-        ScriptInstance* instance = (ScriptInstance*)script_instance;
-        return instance ? instance->m_Instance : 0;
-    }
-
-    static ScriptInstanceGameObjectResolver g_ScriptInstanceGameObjectResolver = { ScriptInstanceGetGameObject };
-
     static int ScriptInstanceResolvePath(lua_State* L)
     {
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
@@ -2471,11 +2463,6 @@ namespace dmGameObject
         SCRIPT_TYPE_HASH = dmScript::RegisterUserType(L, SCRIPT, Script_methods, Script_meta);
 
         SCRIPTINSTANCE_TYPE_HASH = dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
-        luaL_getmetatable(L, SCRIPTINSTANCE);
-        lua_pushlightuserdata(L, &g_ScriptInstanceGameObjectResolver);
-        lua_setfield(L, -2, META_TABLE_GET_GAME_OBJECT);
-        lua_pop(L, 1);
-
         luaL_register(L, "go", GO_methods);
 
 #define SETPLAYBACK(name) \
