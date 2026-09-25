@@ -379,9 +379,10 @@ TEST(ModelCompression, UnusedFallbackUriIsNotResolved)
 
 TEST(ModelCompression, MixedFallbackBufferStillRequiresOrdinaryData)
 {
+    // Make the first view ordinary while the second still uses the same fallback buffer.
     Scene* scene = LoadModifiedCompressionJson("box/glTF-Meshopt/Box-embedded.gltf",
-                                               "\n  ],\n  \"buffers\": [",
-                                               ",\n    {\"buffer\":1,\"byteLength\":4}\n  ],\n  \"buffers\": [");
+                                               "\"EXT_meshopt_compression\": {",
+                                               "\"unused_extension\": {");
     ASSERT_NE((Scene*)0, scene);
     ASSERT_EQ((char*)0, scene->m_LoadError);
     ASSERT_TRUE(NeedsResolve(scene));
