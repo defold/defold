@@ -741,6 +741,47 @@ TEST(Shaderc, GlslEsPrecisionOptions)
     free(data);
 }
 
+TEST(Shaderc, HLSLWritableImageRootBindings)
+{
+#if !defined(_WIN32)
+    SKIP();
+    return;
+#else
+    uint32_t size;
+    void* data = ReadFile("./build/src/test/data/compute.spv", &size);
+    ASSERT_NE((void*) 0, data);
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_COMPUTE, data, size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 51;
+    dmShaderc::ShaderCompileResult* result = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, result);
+    ASSERT_GT(result->m_Data.Size(), 0u);
+    ID3D12RootSignatureDeserializer* signature = 0;
+    ASSERT_EQ(S_OK, D3D12CreateRootSignatureDeserializer(result->m_HLSLRootSignature.Begin(), result->m_HLSLRootSignature.Size(), IID_PPV_ARGS(&signature)));
+    const D3D12_ROOT_SIGNATURE_DESC* desc = signature->GetRootSignatureDesc();
+    ASSERT_EQ(result->m_HLSLResourceMappings.Size(), desc->NumParameters);
+    bool image_found = false;
+    for (uint32_t i = 0; i < result->m_HLSLResourceMappings.Size(); ++i)
+    {
+        uint32_t index = result->m_HLSLResourceMappings[i].m_RootParameterIndex;
+        ASSERT_LT(index, desc->NumParameters);
+        const D3D12_ROOT_PARAMETER& parameter = desc->pParameters[index];
+        if (parameter.ParameterType == D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE)
+        {
+            ASSERT_EQ(1u, parameter.DescriptorTable.NumDescriptorRanges);
+            image_found |= parameter.DescriptorTable.pDescriptorRanges[0].RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+        }
+    }
+    ASSERT_TRUE(image_found);
+    signature->Release();
+    dmShaderc::FreeShaderCompileResult(result);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    free(data);
+#endif
+}
+
 TEST(Shaderc, HLSLRootParameterIndicesWithOverride)
 {
 #if !defined(_WIN32)
