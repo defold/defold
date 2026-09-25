@@ -336,6 +336,50 @@
                     (when (render-program-utils/editable-constant-type? (or type (:default type-field))) value))
         :pref-width 180}])))
 
+(defn- vertex-attribute-form-with-summary []
+  (table-2panel-form
+    {:path [:attributes]
+     :localization-key "material.attributes"
+     :summary-columns (let [fields-by-path (into {} (map (juxt :path identity)) vertex-attribute-fields)
+                            column (fn [path pref-width]
+                                     (let [field (fields-by-path path)]
+                                       (assoc field :pref-width pref-width
+                                              :value-fn #(get-in % path (:default field)))))]
+                        [(column [:semantic-type] 130)
+                         (column [:vector-type] 90)
+                         (column [:data-type] 90)
+                         {:path [:values] :localization-key "material.attributes.value" :type :vec4
+                          :value-fn #(when-not (graphics/engine-provided-attribute? %) (:values %))
+                          :pref-width 180}])
+     :panel-key {:path [:name]
+                 :type :string
+                 :default "new_attribute"}
+     :panel-form-fn
+     (fn panel-form-fn [selected-attribute]
+       {:sections
+        [{:fields
+          (cond
+            (nil? selected-attribute)
+            vertex-attribute-fields
+
+            (graphics/engine-provided-attribute? selected-attribute)
+            (coll/remove-index vertex-attribute-fields value-vertex-attribute-field-index)
+
+            :else
+            (assoc vertex-attribute-fields
+              value-vertex-attribute-field-index
+              (let [semantic-type (:semantic-type selected-attribute graphics/default-attribute-semantic-type)
+                    vector-type (:vector-type selected-attribute graphics/default-attribute-vector-type)
+                    data-type (:data-type selected-attribute graphics/default-attribute-data-type)
+                    normalize (:normalize selected-attribute false)
+                    type (vector-type->form-field-type semantic-type vector-type data-type normalize)
+                    default (graphics.types/default-attribute-doubles semantic-type vector-type)]
+                {:path [:values]
+                 :localization-key "material.attributes.value"
+                 :type type
+                 :default default})))}]})}
+    "material.attributes"))
+
 (def ^:private form-data
   {:navigation false
    :sections
@@ -355,49 +399,7 @@
     {:localization-key "material.attributes"
      :title-style-class "cljfx-form-group-title"
      :help-icon true
-     :fields
-     [(table-2panel-form
-        {:path [:attributes]
-         :localization-key "material.attributes"
-         :summary-columns (let [fields-by-path (into {} (map (juxt :path identity)) vertex-attribute-fields)
-                                column (fn [path pref-width]
-                                         (let [field (fields-by-path path)]
-                                           (assoc field :pref-width pref-width
-                                                  :value-fn #(get-in % path (:default field)))))]
-                            [(column [:semantic-type] 130)
-                             (column [:vector-type] 90)
-                             (column [:data-type] 90)
-                             {:path [:values] :localization-key "material.attributes.value" :type :vec4
-                              :value-fn #(when-not (graphics/engine-provided-attribute? %) (:values %))
-                              :pref-width 180}])
-         :panel-key {:path [:name]
-                     :type :string
-                     :default "new_attribute"}
-         :panel-form-fn
-         (fn panel-form-fn [selected-attribute]
-           {:sections
-            [{:fields
-              (cond
-                (nil? selected-attribute)
-                vertex-attribute-fields
-
-                (graphics/engine-provided-attribute? selected-attribute)
-                (coll/remove-index vertex-attribute-fields value-vertex-attribute-field-index)
-
-                :else
-                (assoc vertex-attribute-fields
-                  value-vertex-attribute-field-index
-                  (let [semantic-type (:semantic-type selected-attribute graphics/default-attribute-semantic-type)
-                        vector-type (:vector-type selected-attribute graphics/default-attribute-vector-type)
-                        data-type (:data-type selected-attribute graphics/default-attribute-data-type)
-                        normalize (:normalize selected-attribute false)
-                        type (vector-type->form-field-type semantic-type vector-type data-type normalize)
-                        default (graphics.types/default-attribute-doubles semantic-type vector-type)]
-                    {:path [:values]
-                     :localization-key "material.attributes.value"
-                     :type type
-                     :default default})))}]})}
-        "material.attributes")]}
+     :fields [(vertex-attribute-form-with-summary)]}
     {:localization-key "material.vertex-constants"
      :title-style-class "cljfx-form-group-title"
      :help-icon true
@@ -509,7 +511,9 @@
     (g/set-property node-id property processed-value)))
 
 (g/defnk produce-form-data [_node-id name attributes vertex-program fragment-program vertex-constants fragment-constants max-page-count ^:raw samplers tags vertex-space :as args]
-  (let [values (select-keys args (into [] (comp (mapcat :fields) (mapcat :path)) (:sections form-data)))
+  (let [values (select-keys args (coll/into-> (:sections form-data) []
+                                   (mapcat :fields)
+                                   (mapcat :path)))
         form-values (into {} (map (fn [[k v]] [[k] v]) values))]
     (-> form-data
         (assoc :values form-values)
