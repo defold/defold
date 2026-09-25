@@ -15,9 +15,11 @@
 (ns editor.model-scene
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.attachment :as attachment]
             [editor.buffers :as buffers]
             [editor.core :as core]
             [editor.defold-project :as project]
+            [editor.editor-extensions.node-types :as node-types]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.attribute :as attribute]
@@ -1291,6 +1293,10 @@
             (augment-scene source-scene _node-id "" (constantly nil) false
                            (:index (gltf/asset-info resource))))))
 
+(node-types/register-node-type-name! GltfMeshInfoNode "gltf-mesh")
+(node-types/register-node-type-name! GltfMaterialInfoNode "gltf-material")
+(node-types/register-node-type-name! GltfTextureInfoNode "gltf-texture")
+
 (defn- load-gltf-mesh-node
   "Connects a virtual mesh preview to its source scene so materials and reloads are shared."
   [_load-opts {self :node-id mesh-resource :owner-resource}]
@@ -1317,8 +1323,30 @@
     [(resource/proj-path (:source mesh-resource))]
     []))
 
+(defn- gltf-metadata-nodes-getter [kind]
+  (fn [node evaluation-context]
+    (let [basis (:basis evaluation-context)
+          group-node
+          (coll/first-where
+            (fn [candidate]
+              (and (= GltfMetadataGroupNode (g/node-type* basis candidate))
+                   (= kind (g/node-value candidate :kind evaluation-context))))
+            (attachment/nodes-getter node evaluation-context))]
+      (if group-node
+        (attachment/nodes-getter group-node evaluation-context)
+        []))))
+
 (defn register-resource-types [workspace]
-  (into
+  (concat
+    (attachment/register
+      workspace ModelSceneNode :meshes
+      :get (gltf-metadata-nodes-getter :meshes))
+    (attachment/register
+      workspace ModelSceneNode :materials
+      :get (gltf-metadata-nodes-getter :materials))
+    (attachment/register
+      workspace ModelSceneNode :textures
+      :get (gltf-metadata-nodes-getter :textures))
     (workspace/register-resource-type workspace
       :ext model-file-types
       :label (localization/message "resource.type.model-scene")

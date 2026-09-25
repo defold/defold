@@ -167,6 +167,17 @@ dialog.button.cancel = Отмена
 dialog.button.delete = Удалить
 dialog.button.apply = Применить
 
+# Model glTF Auto Fill Dialog
+
+dialog.model-auto-fill.title = Автоматически заполнить поля модели?
+dialog.model-auto-fill.header = Использовать материалы и текстуры из файла «{file}»?
+dialog.model-auto-fill.content = При этом будут назначены материалы и связанные с ними текстуры, предоставленные файлом glTF.
+dialog.model-auto-fill.content-replace = При этом текущие назначения материалов и текстур модели будут заменены ресурсами, предоставленными файлом glTF.
+dialog.model-auto-fill.button.keep-current = Сохранить текущие
+dialog.model-auto-fill.button.auto-fill = Заполнить автоматически
+notification.gltf-pbr-library = Для материалов glTF требуется библиотека PBR-шейдеров.
+notification.gltf-pbr-library.action.add = Добавить библиотеку
+
 # Error Dialog
 
 dialog.error.title = Ошибка
@@ -1422,6 +1433,28 @@ property.font.style.tooltip = Базовый стиль выбранного ш�
 property.font.markup = Разметка
 property.font.markup.tooltip = Открывающие теги форматированного текста, определяющие этот стиль. Поддерживаются свойства отрисовки, эффекты, подчёркивание и зачёркивание.
 
+# Properties: glTF
+
+property.gltf.index = Индекс
+property.gltf.index.tooltip = Индекс этого ресурса с нуля в соответствующем массиве glTF.
+property.gltf.name.tooltip = Имя ресурса из файла glTF или сгенерированное имя, если исходный ресурс не имеет имени.
+property.gltf.primitive-count = Количество примитивов
+property.gltf.primitive-count.tooltip = Количество примитивов в этом меше glTF.
+property.gltf.vertex-count = Количество вершин
+property.gltf.vertex-count.tooltip = Общее количество вершин во всех примитивах этого меша glTF.
+property.gltf.material.tooltip = Доступный только для чтения ресурс «Материал», созданный из этого материала glTF.
+property.gltf.samplers = Сэмплеры
+property.gltf.samplers.tooltip = Привязки сэмплеров к текстурам, на которые ссылается этот материал glTF.
+property.gltf.image.tooltip = Встроенный или внешний ресурс изображения, из которого выполняет выборку эта текстура glTF.
+property.gltf.min-filter = Мин. фильтр
+property.gltf.min-filter.tooltip = Фильтр выборки, используемый при отображении этой текстуры glTF меньше исходного изображения.
+property.gltf.mag-filter = Макс. фильтр
+property.gltf.mag-filter.tooltip = Фильтр выборки, используемый при отображении этой текстуры glTF больше исходного изображения.
+property.gltf.wrap-s = Обёртка по S
+property.gltf.wrap-s.tooltip = Управляет выборкой за пределами диапазона горизонтальной координаты текстуры.
+property.gltf.wrap-t = Обёртка по T
+property.gltf.wrap-t.tooltip = Управляет выборкой за пределами диапазона вертикальной координаты текстуры.
+
 # Properties: gui
 
 property.gui.id.tooltip = Идентификатор, используемый для поиска этого узла с помощью `gui.get_node()`. Он должен быть уникальным в пределах GUI-сцены; идентификаторы узлов экземпляра шаблона получают префикс из **Id** узла шаблона и косой черты.
@@ -1740,6 +1773,9 @@ outline.collection-proxy = Прокси коллекции
 outline.collision-object = Объект коллизий
 outline.font.styles = Стили
 outline.game-object = Игровой объект
+outline.gltf.materials = Материалы
+outline.gltf.meshes = Меши
+outline.gltf.textures = Текстуры
 outline.gui.box = Прямоугольник
 outline.gui.fonts = Шрифты
 outline.gui.layouts = Компоновки

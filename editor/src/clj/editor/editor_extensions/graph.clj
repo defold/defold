@@ -532,8 +532,7 @@
                    (e/mapcat #(e/cat ((ext-property-lister (node-id->type-keyword % evaluation-context)) % evaluation-context))))
               (e/map prop-kw->property (attachment/list-kws workspace node-id evaluation-context))
               (when explicit-type-name ["type"])))
-          vec
-          sort
+          coll/sort
           vec))))
 
 ;; endregion
