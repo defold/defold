@@ -1625,7 +1625,7 @@
                                                       (= :choicebox (:type item-field))
                                                       (assoc :pref-width 240))}]
                                       reset-button (conj reset-button))}))))
-                 (-> (if-some [panel-form-fn (:panel-form-fn field)]
+                 (-> (if-let [panel-form-fn (:panel-form-fn field)]
                        (let [selected-item (get value selected-index ::no-value)]
                          (when (not= ::no-value selected-item)
                            (panel-form-fn selected-item)))
