@@ -340,7 +340,7 @@
   (table-2panel-form
     {:path [:attributes]
      :localization-key "material.attributes"
-     :summary-columns (let [fields-by-path (into {} (map (juxt :path identity)) vertex-attribute-fields)
+     :summary-columns (let [fields-by-path (coll/into-> vertex-attribute-fields {} (map (juxt :path identity)))
                             column (fn [path pref-width]
                                      (let [field (fields-by-path path)]
                                        (assoc field :pref-width pref-width

@@ -72,7 +72,7 @@
            [javafx.scene Node]
            [javafx.scene.control Cell ComboBox ComboBoxBase ListView ListView$EditEvent TableColumn TableColumn$CellEditEvent TableView TableView$ResizeFeatures]
            [javafx.scene.input KeyCode KeyEvent MouseEvent]
-           [javafx.scene.layout GridPane Region]
+           [javafx.scene.layout GridPane]
            [javafx.scene.paint Color]
            [javafx.util Callback]))
 
@@ -85,6 +85,7 @@
 
 (def ^:private small-field-width 120)
 (def ^:private normal-field-width 400)
+(def ^:private choicebox-field-width 200)
 (def ^:private large-field-width 1000)
 
 (g/defnk produce-form-view [renderer form-data ui-state]
@@ -506,11 +507,11 @@
   [{:keys [value on-value-changed options to-string show-on-focus map-event-handler disable pref-width max-width]
     :or {disable false
          to-string str
-         pref-width normal-field-width}}]
+         pref-width choicebox-field-width}}]
   (let [value->label (into {} options)]
     {:fx/type fxui.combo-box/view
      :pref-width pref-width
-     :max-width (or max-width Region/USE_COMPUTED_SIZE)
+     :max-width (or max-width pref-width)
      :disable disable
      :value value
      :show-on-focus show-on-focus
@@ -524,15 +525,17 @@
                                              from-string
                                              to-string
                                              disable
-                                             pref-width]
+                                             pref-width
+                                             max-width]
                                       :or {disable false
                                            to-string str
-                                           pref-width normal-field-width}}]
+                                           pref-width choicebox-field-width}}]
   (let [value->label (into {} options)
         label->value (set/map-invert value->label)]
     {:fx/type fx.combo-box/lifecycle
      :style-class ["combo-box" "combo-box-base" "cljfx-form-combo-box"]
      :pref-width pref-width
+     :max-width (or max-width pref-width)
      :disable disable
      :value value
      :on-value-changed on-value-changed
@@ -1566,15 +1569,7 @@
                  [item-list selected-item-fields]
                  [item-list])}))
 
-(defmethod form-input-view :table-2panel [{:keys [value
-                                                  on-value-changed
-                                                  state
-                                                  state-path
-                                                  panel-key
-                                                  summary-columns
-                                                  full-width
-                                                  localization-state]
-                                           :as field}]
+(defmethod form-input-view :table-2panel [{:keys [value on-value-changed state state-path panel-key summary-columns full-width localization-state] :as field}]
   (let [default-row (form/two-panel-defaults field)
         state (cond-> state (not (coll/empty? value)) (update :key update :selected-indices #(if (coll/empty? %) [0] %)))
         selected-index (-> state :key :selected-indices util/only)
