@@ -741,6 +741,61 @@ TEST(Shaderc, GlslEsPrecisionOptions)
     free(data);
 }
 
+TEST(Shaderc, HLSLRootParameterIndicesWithOverride)
+{
+#if !defined(_WIN32)
+    SKIP();
+#else
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/reflection.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+    dmShaderc::HShaderContext context = dmShaderc::NewShaderContext(dmShaderc::SHADER_STAGE_FRAGMENT, data, data_size);
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(context, dmShaderc::SHADER_LANGUAGE_HLSL);
+    dmShaderc::ShaderCompilerOptions options;
+    options.m_Version = 51;
+    options.m_EntryPoint = "main";
+
+    dmShaderc::ShaderCompileResult* original = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, original);
+    ASSERT_GT(original->m_HLSLResourceMappings.Size(), 1u);
+    ID3D12RootSignatureDeserializer* deserializer = 0;
+    ASSERT_EQ(S_OK, D3D12CreateRootSignatureDeserializer(original->m_HLSLRootSignature.Begin(),
+        original->m_HLSLRootSignature.Size(), IID_PPV_ARGS(&deserializer)));
+    D3D12_ROOT_SIGNATURE_DESC desc = *deserializer->GetRootSignatureDesc();
+    ASSERT_EQ(original->m_HLSLResourceMappings.Size(), desc.NumParameters);
+
+    // Reverse the actual root signature while leaving shader reflection order intact.
+    dmArray<D3D12_ROOT_PARAMETER> parameters;
+    parameters.SetCapacity(desc.NumParameters);
+    parameters.SetSize(desc.NumParameters);
+    for (uint32_t i = 0; i < desc.NumParameters; ++i)
+        parameters[i] = desc.pParameters[desc.NumParameters - i - 1];
+    desc.pParameters = parameters.Begin();
+    ID3DBlob* signature = 0;
+    ASSERT_EQ(S_OK, D3D12SerializeRootSignature(&desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, 0));
+    dmArray<char> override_text;
+    ASSERT_TRUE(dmShaderc::RootSignatureBlobToText(signature->GetBufferPointer(), (uint32_t) signature->GetBufferSize(), override_text));
+    options.m_RootSignatureOverride = override_text.Begin();
+
+    dmShaderc::ShaderCompileResult* reordered = dmShaderc::Compile(context, compiler, options);
+    ASSERT_NE((void*) 0, reordered);
+    ASSERT_EQ(original->m_HLSLResourceMappings.Size(), reordered->m_HLSLResourceMappings.Size());
+    for (uint32_t i = 0; i < original->m_HLSLResourceMappings.Size(); ++i)
+    {
+        ASSERT_EQ(original->m_HLSLResourceMappings[i].m_NameHash, reordered->m_HLSLResourceMappings[i].m_NameHash);
+        ASSERT_EQ(desc.NumParameters - i - 1, reordered->m_HLSLResourceMappings[i].m_RootParameterIndex);
+    }
+
+    dmShaderc::FreeShaderCompileResult(reordered);
+    dmShaderc::FreeShaderCompileResult(original);
+    dmShaderc::DeleteShaderCompiler(compiler);
+    dmShaderc::DeleteShaderContext(context);
+    signature->Release();
+    deserializer->Release();
+    free(data);
+#endif
+}
+
 TEST(Shaderc, HLSLMergeRootSignatures)
 {
 #if !defined(_WIN32)
@@ -763,10 +818,28 @@ TEST(Shaderc, HLSLMergeRootSignatures)
     arr[1].m_HLSLRootSignature.SetSize(fs_rs_size);
     memcpy(arr[1].m_HLSLRootSignature.Begin(), fs_rs_blob->GetBufferPointer(), fs_rs_size);
 
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        arr[i].m_HLSLResourceMappings.SetCapacity(1);
+        arr[i].m_HLSLResourceMappings.SetSize(1);
+        memset(arr[i].m_HLSLResourceMappings.Begin(), 0, sizeof(dmShaderc::HLSLResourceMapping));
+        arr[i].m_HLSLResourceMappings[0].m_ShaderResourceSet = i;
+    }
+
     dmShaderc::HLSLRootSignature* merged = dmShaderc::HLSLMergeRootSignatures(arr, 2);
     ASSERT_NE((void*)0, merged);
     ASSERT_EQ('\0', merged->m_LastError[0]);
     ASSERT_GT(merged->m_HLSLRootSignature.Size(), 0u);
+    ASSERT_EQ(0u, arr[0].m_HLSLResourceMappings[0].m_RootParameterIndex);
+    ASSERT_EQ(1u, arr[1].m_HLSLResourceMappings[0].m_RootParameterIndex);
+
+    // Both stages now carry the merged signature. A repeated merge must use the
+    // recorded root indices, not the position in each stage's reflection array.
+    dmShaderc::HLSLRootSignature* merged_again = dmShaderc::HLSLMergeRootSignatures(arr, 2);
+    ASSERT_EQ('\0', merged_again->m_LastError[0]);
+    ASSERT_EQ(0u, arr[0].m_HLSLResourceMappings[0].m_RootParameterIndex);
+    ASSERT_EQ(1u, arr[1].m_HLSLResourceMappings[0].m_RootParameterIndex);
+    delete merged_again;
 
     // Validate the merged blob deserializes
     ID3D12RootSignatureDeserializer* deser = 0;
@@ -788,8 +861,8 @@ TEST(Shaderc, HLSLMergeRootSignatures)
 
 TEST(Shaderc, HLSLMergeRootSignaturesStageVisibleSamplerOverlap)
 {
-#if !defined(DM_BINARY_HLSL_SUPPORTED)
-    ASSERT_TRUE(true);
+#if !defined(_WIN32)
+    SKIP();
     return;
 #else
     D3D12_DESCRIPTOR_RANGE vs_range = {};
@@ -842,6 +915,14 @@ TEST(Shaderc, HLSLMergeRootSignaturesStageVisibleSamplerOverlap)
     arr[1].m_HLSLRootSignature.SetSize((uint32_t) fs_blob->GetBufferSize());
     memcpy(arr[1].m_HLSLRootSignature.Begin(), fs_blob->GetBufferPointer(), fs_blob->GetBufferSize());
 
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        arr[i].m_HLSLResourceMappings.SetCapacity(1);
+        arr[i].m_HLSLResourceMappings.SetSize(1);
+        memset(arr[i].m_HLSLResourceMappings.Begin(), 0, sizeof(dmShaderc::HLSLResourceMapping));
+        arr[i].m_HLSLResourceMappings[0].m_ShaderResourceBinding = 3;
+    }
+
     dmShaderc::HLSLRootSignature* merged = dmShaderc::HLSLMergeRootSignatures(arr, 2);
     ASSERT_NE((void*)0, merged);
     ASSERT_EQ(0, strcmp("", merged->m_LastError));
@@ -856,10 +937,25 @@ TEST(Shaderc, HLSLMergeRootSignaturesStageVisibleSamplerOverlap)
     const D3D12_ROOT_SIGNATURE_DESC* merged_desc = deser->GetRootSignatureDesc();
     ASSERT_EQ(1u, merged_desc->NumParameters);
     ASSERT_EQ(D3D12_SHADER_VISIBILITY_ALL, merged_desc->pParameters[0].ShaderVisibility);
+    ASSERT_EQ(0u, arr[0].m_HLSLResourceMappings[0].m_RootParameterIndex);
+    ASSERT_EQ(0u, arr[1].m_HLSLResourceMappings[0].m_RootParameterIndex);
+
+    // Equal HLSL registers must not silently alias different Defold resources.
+    arr[1].m_HLSLResourceMappings[0].m_ShaderResourceBinding = 4;
+    dmShaderc::HLSLRootSignature* conflicting = dmShaderc::HLSLMergeRootSignatures(arr, 2);
+    ASSERT_NE('\0', conflicting->m_LastError[0]);
+    delete conflicting;
+
+    arr[1].m_HLSLResourceMappings[0].m_ShaderResourceBinding = 3;
+    arr[1].m_HLSLResourceMappings[0].m_RootParameterIndex = 1;
+    dmShaderc::HLSLRootSignature* invalid = dmShaderc::HLSLMergeRootSignatures(arr, 2);
+    ASSERT_NE('\0', invalid->m_LastError[0]);
+    delete invalid;
 
     deser->Release();
     vs_blob->Release();
     fs_blob->Release();
+    delete merged;
 #endif
 }
 

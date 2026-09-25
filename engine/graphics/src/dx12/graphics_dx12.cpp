@@ -1335,7 +1335,7 @@ namespace dmGraphics
         return true;
     }
 
-    static void ResetRenderTargetScissor(DX12Context* context, DX12RenderTarget* rt)
+    static D3D12_RECT GetRenderTargetBounds(DX12Context* context, DX12RenderTarget* rt)
     {
         RenderTarget* brt = &rt->m_Base;
         uint32_t width = context->m_CurrentViewport.m_W;
@@ -1352,10 +1352,13 @@ namespace dmGraphics
             }
         }
 
-        rt->m_Scissor.left   = 0;
-        rt->m_Scissor.top    = 0;
-        rt->m_Scissor.right  = (LONG) width;
-        rt->m_Scissor.bottom = (LONG) height;
+        D3D12_RECT bounds = { 0, 0, (LONG) width, (LONG) height };
+        return bounds;
+    }
+
+    static void ResetRenderTargetScissor(DX12Context* context, DX12RenderTarget* rt)
+    {
+        rt->m_Scissor = GetRenderTargetBounds(context, rt);
     }
 
     static void BeginRenderPass(DX12Context* context, HRenderTarget render_target)
@@ -3080,7 +3083,7 @@ namespace dmGraphics
             viewport.Height   = (float) height;
         }
 
-        scissor = rt->m_Scissor;
+        scissor = context->m_PipelineState.m_ScissorTestEnabled ? rt->m_Scissor : GetRenderTargetBounds(context, rt);
 
         context->m_CommandList->RSSetViewports(1, &viewport);
         context->m_CommandList->RSSetScissorRects(1, &scissor);
@@ -3096,6 +3099,7 @@ namespace dmGraphics
         for (int i = 0; i < program->m_RootSignatureResources.Size(); ++i)
         {
             DX12ResourceBinding& dx12_res = program->m_RootSignatureResources[i];
+            const uint32_t root_index = dx12_res.m_RootParameterIndex;
             ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[dx12_res.m_Set][dx12_res.m_Binding];
 
             switch(pgm_res.m_Res->m_BindingFamily)
@@ -3103,16 +3107,16 @@ namespace dmGraphics
                 case BINDING_FAMILY_TEXTURE:
                 {
                     DX12Texture* texture = GetAssetFromContainer<DX12Texture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentTextures[pgm_res.m_TextureUnit]);
-                    bool root_param_is_sampler = i < program->m_RootSignatureParamIsSampler.Size() && program->m_RootSignatureParamIsSampler[i] != 0;
+                    bool root_param_is_sampler = root_index < program->m_RootSignatureParamIsSampler.Size() && program->m_RootSignatureParamIsSampler[root_index] != 0;
 
                     if (root_param_is_sampler || pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
                     {
                         const DX12TextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
-                        frame_resources.m_ScratchBuffer.AllocateSampler(context, pipeline_type, sampler, i);
+                        frame_resources.m_ScratchBuffer.AllocateSampler(context, pipeline_type, sampler, root_index);
                     }
                     else
                     {
-                        frame_resources.m_ScratchBuffer.AllocateTexture2D(context, pipeline_type, texture, i);
+                        frame_resources.m_ScratchBuffer.AllocateTexture2D(context, pipeline_type, texture, root_index);
 
                         // Render-target cubemaps have one mipmap and six array slices. Other textures track one state per mipmap.
                         const bool cubemap_render_target = texture->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP &&
@@ -3157,17 +3161,17 @@ namespace dmGraphics
 
                         if (pipeline_type == PIPELINE_TYPE_GRAPHICS)
                         {
-                            context->m_CommandList->SetGraphicsRootConstantBufferView(i, gpu_addr);
+                            context->m_CommandList->SetGraphicsRootConstantBufferView(root_index, gpu_addr);
                         }
                         else
                         {
-                            context->m_CommandList->SetComputeRootConstantBufferView(i, gpu_addr);
+                            context->m_CommandList->SetComputeRootConstantBufferView(root_index, gpu_addr);
                         }
                     }
                     else
                     {
                         const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
-                        void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, pipeline_type, i, uniform_size_nonalign);
+                        void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, pipeline_type, root_index, uniform_size_nonalign);
                         memcpy(gpu_mapped_memory, &program->m_UniformData[pgm_res.m_UniformBufferOffset], uniform_size_nonalign);
                     }
                 } break;
@@ -3430,6 +3434,8 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
         for (int j = 0; j < shaders[i]->m_HlslResourceMapping.m_Count; ++j)
         {
             uint32_t index = offset + j;
+            const uint32_t root_index = shaders[i]->m_HlslResourceMapping[j].m_RootParameterIndex;
+            program->m_RootSignatureResources[index].m_RootParameterIndex = root_index == 0xffffffff ? index : root_index;
             program->m_RootSignatureResources[index].m_NameHash = shaders[i]->m_HlslResourceMapping[j].m_NameHash;
             program->m_RootSignatureResources[index].m_Binding  = shaders[i]->m_HlslResourceMapping[j].m_Binding;
             program->m_RootSignatureResources[index].m_Set      = shaders[i]->m_HlslResourceMapping[j].m_Set;
@@ -4554,11 +4560,19 @@ static void CreateRootSignatureResourceBindings(DX12ShaderProgram* program, Shad
     static void DX12EnableState(HContext context, State state)
     {
         SetPipelineStateValue(g_DX12Context->m_PipelineState, state, 1);
+        if (state == STATE_SCISSOR_TEST)
+        {
+            g_DX12Context->m_ViewportChanged = 1;
+        }
     }
 
     static void DX12DisableState(HContext context, State state)
     {
         SetPipelineStateValue(g_DX12Context->m_PipelineState, state, 0);
+        if (state == STATE_SCISSOR_TEST)
+        {
+            g_DX12Context->m_ViewportChanged = 1;
+        }
     }
 
     static void DX12SetBlendFunc(HContext _context, BlendFactor source_factor, BlendFactor destinaton_factor)

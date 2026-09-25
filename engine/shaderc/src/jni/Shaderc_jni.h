@@ -93,6 +93,7 @@ struct HLSLResourceMappingJNI {
     jclass cls;
     jfieldID name;
     jfieldID nameHash;
+    jfieldID rootParameterIndex;
     jfieldID shaderResourceSet;
     jfieldID shaderResourceBinding;
 };

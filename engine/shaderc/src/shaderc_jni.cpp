@@ -414,6 +414,7 @@ static jobject HLSLMergeRootSignatures(JNIEnv* env, jclass cls, jobjectArray sha
 
         dmJNI::SetObjectDeref(env, obj, types->m_ShaderCompileResultJNI.data, dmJNI::C2J_CreateUByteArray(env, results[i].m_Data.Begin(), results[i].m_Data.Size()));
         dmJNI::SetObjectDeref(env, obj, types->m_ShaderCompileResultJNI.hLSLRootSignature, dmJNI::C2J_CreateUByteArray(env, results[i].m_HLSLRootSignature.Begin(), results[i].m_HLSLRootSignature.Size()));
+        dmJNI::SetObjectDeref(env, obj, types->m_ShaderCompileResultJNI.hLSLResourceMappings, dmShaderc::jni::C2J_CreateHLSLResourceMappingArray(env, types, results[i].m_HLSLResourceMappings.Begin(), results[i].m_HLSLResourceMappings.Size()));
         env->DeleteLocalRef(obj);
     }
 

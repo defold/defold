@@ -112,6 +112,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         SETUP_CLASS(HLSLResourceMappingJNI, "HLSLResourceMapping");
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
         GET_FLD_TYPESTR(nameHash, "J");
+        GET_FLD_TYPESTR(rootParameterIndex, "I");
         GET_FLD_TYPESTR(shaderResourceSet, "B");
         GET_FLD_TYPESTR(shaderResourceBinding, "B");
     }
@@ -252,6 +253,7 @@ jobject C2J_CreateHLSLResourceMapping(JNIEnv* env, TypeInfos* types, const HLSLR
     jobject obj = env->AllocObject(types->m_HLSLResourceMappingJNI.cls);
     dmJNI::SetString(env, obj, types->m_HLSLResourceMappingJNI.name, src->m_Name);
     dmJNI::SetULong(env, obj, types->m_HLSLResourceMappingJNI.nameHash, src->m_NameHash);
+    dmJNI::SetUInt(env, obj, types->m_HLSLResourceMappingJNI.rootParameterIndex, src->m_RootParameterIndex);
     dmJNI::SetUByte(env, obj, types->m_HLSLResourceMappingJNI.shaderResourceSet, src->m_ShaderResourceSet);
     dmJNI::SetUByte(env, obj, types->m_HLSLResourceMappingJNI.shaderResourceBinding, src->m_ShaderResourceBinding);
     return obj;
@@ -645,6 +647,7 @@ bool J2C_CreateHLSLResourceMapping(JNIEnv* env, TypeInfos* types, jobject obj, H
     if (out == 0) return false;
     out->m_Name = dmJNI::GetString(env, obj, types->m_HLSLResourceMappingJNI.name);
     out->m_NameHash = dmJNI::GetULong(env, obj, types->m_HLSLResourceMappingJNI.nameHash);
+    out->m_RootParameterIndex = dmJNI::GetUInt(env, obj, types->m_HLSLResourceMappingJNI.rootParameterIndex);
     out->m_ShaderResourceSet = dmJNI::GetUByte(env, obj, types->m_HLSLResourceMappingJNI.shaderResourceSet);
     out->m_ShaderResourceBinding = dmJNI::GetUByte(env, obj, types->m_HLSLResourceMappingJNI.shaderResourceBinding);
     return true;

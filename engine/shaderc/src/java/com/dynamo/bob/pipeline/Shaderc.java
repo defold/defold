@@ -308,6 +308,7 @@ public class Shaderc {
     public static class HLSLResourceMapping {
         public String name;
         public long nameHash = 0;
+        public int rootParameterIndex = 0;
         public byte shaderResourceSet = 0;
         public byte shaderResourceBinding = 0;
     };

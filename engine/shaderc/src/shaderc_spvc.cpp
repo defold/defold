@@ -980,7 +980,7 @@ namespace dmShaderc
         // highp qualifier might not be supported on ES2, so we need to apply a workaround.
         if (final_compile_result && options.m_GlslEs && options.m_Version == 100 && context->m_Stage == SHADER_STAGE_FRAGMENT)
         {
-            EnsureSize(transform_buffer, final_compile_result_size + 1);
+            transform_buffer.EnsureSize(final_compile_result_size + 1);
             memcpy(transform_buffer.Begin(), final_compile_result, final_compile_result_size);
             transform_buffer.Begin()[final_compile_result_size] = '\0';
 

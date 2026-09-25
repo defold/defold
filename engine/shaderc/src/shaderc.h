@@ -242,6 +242,8 @@ namespace dmShaderc
     {
         const char* m_Name;
         uint64_t    m_NameHash;
+        // Index in m_HLSLRootSignature; remapped when stage signatures are merged.
+        uint32_t    m_RootParameterIndex;
 
         // These point to a resource from one of the ShaderReflection list
         uint8_t     m_ShaderResourceSet;

@@ -322,6 +322,7 @@ namespace dmShaderc
             memset(&resource_entries[i], 0, sizeof(HLSLResourceMapping));
             resource_entries[i].m_Name     = bindDesc.Name;
             resource_entries[i].m_NameHash = resource_name_hash;
+            resource_entries[i].m_RootParameterIndex = i;
 
             // 1. try to find the resource by name hash
             const ShaderResource* resource = FindShaderResourceUniform(context, resource_name_hash);
@@ -1277,6 +1278,68 @@ namespace dmShaderc
         return true;
     }
 
+    static bool DeserializeRootSignature(const dmArray<uint8_t>& data,
+        Microsoft::WRL::ComPtr<ID3D12VersionedRootSignatureDeserializer>& deserializer,
+        const D3D12_ROOT_SIGNATURE_DESC** desc)
+    {
+        HRESULT hr = D3D12CreateVersionedRootSignatureDeserializer(data.Begin(), data.Size(), IID_PPV_ARGS(&deserializer));
+        if (FAILED(hr))
+            return false;
+        const D3D12_VERSIONED_ROOT_SIGNATURE_DESC* versioned_desc = 0;
+        hr = deserializer->GetRootSignatureDescAtVersion(D3D_ROOT_SIGNATURE_VERSION_1_0, &versioned_desc);
+        if (FAILED(hr))
+            return false;
+        *desc = &versioned_desc->Desc_1_0;
+        return true;
+    }
+
+    static bool AssignRootParameterIndices(ID3D12ShaderReflection* reflection, ShaderStage stage, ShaderCompileResult* result)
+    {
+        if (result->m_HLSLRootSignature.Empty())
+            return true;
+
+        Microsoft::WRL::ComPtr<ID3D12VersionedRootSignatureDeserializer> deserializer;
+        const D3D12_ROOT_SIGNATURE_DESC* desc = 0;
+        if (!DeserializeRootSignature(result->m_HLSLRootSignature, deserializer, &desc))
+            return false;
+
+        for (uint32_t i = 0; i < result->m_HLSLResourceMappings.Size(); ++i)
+        {
+            D3D12_SHADER_INPUT_BIND_DESC binding;
+            if (FAILED(reflection->GetResourceBindingDesc(i, &binding)))
+                return false;
+
+            uint32_t root_index = 0;
+            for (; root_index < desc->NumParameters; ++root_index)
+            {
+                const D3D12_ROOT_PARAMETER& param = desc->pParameters[root_index];
+                if (param.ShaderVisibility != D3D12_SHADER_VISIBILITY_ALL && param.ShaderVisibility != GetD3D12RootSignatureVisibility(stage))
+                    continue;
+                if (binding.Type == D3D_SIT_CBUFFER && param.ParameterType == D3D12_ROOT_PARAMETER_TYPE_CBV &&
+                    param.Descriptor.ShaderRegister == binding.BindPoint && param.Descriptor.RegisterSpace == binding.Space)
+                    break;
+
+                if (param.ParameterType != D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE || param.DescriptorTable.NumDescriptorRanges != 1)
+                    continue;
+                const D3D12_DESCRIPTOR_RANGE& range = param.DescriptorTable.pDescriptorRanges[0];
+                const bool matching_type =
+                    (binding.Type == D3D_SIT_TEXTURE && range.RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_SRV) ||
+                    (binding.Type == D3D_SIT_SAMPLER && range.RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER) ||
+                    (binding.Type == D3D_SIT_UAV_RWTYPED && range.RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_UAV) ||
+                    (binding.Type == D3D_SIT_CBUFFER && range.RangeType == D3D12_DESCRIPTOR_RANGE_TYPE_CBV);
+                if (matching_type && range.BaseShaderRegister == binding.BindPoint && range.RegisterSpace == binding.Space)
+                    break;
+            }
+            if (root_index == desc->NumParameters)
+            {
+                dmLogError("No root parameter for HLSL resource '%s'", binding.Name);
+                return false;
+            }
+            result->m_HLSLResourceMappings[i].m_RootParameterIndex = root_index;
+        }
+        return true;
+    }
+
     ShaderCompileResult* CompileRawHLSLToBinary(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions* options, ShaderCompileResult* raw_hlsl)
     {
         DM_TRACE_LINE();
@@ -1411,6 +1474,10 @@ namespace dmShaderc
         GetCombinedSamplerMapSPIRV(context, (ShaderCompilerSPVC*) compiler, combined_samplers);
 
         FillResourceEntryArray(context, reflection, &shaderDesc, combined_samplers, result->m_HLSLResourceMappings);
+        if (!AssignRootParameterIndices(reflection, context->m_Stage, result))
+        {
+            goto cleanup;
+        }
 
         success = true;
 
@@ -1535,6 +1602,69 @@ namespace dmShaderc
             default:
                 return false;
         }
+    }
+
+    static bool RemapRootParameterIndices(ShaderCompileResult* shaders, uint32_t shader_count, const dmArray<uint8_t>& merged_signature)
+    {
+        Microsoft::WRL::ComPtr<ID3D12VersionedRootSignatureDeserializer> merged_deserializer;
+        const D3D12_ROOT_SIGNATURE_DESC* merged_desc = 0;
+        if (!DeserializeRootSignature(merged_signature, merged_deserializer, &merged_desc))
+            return false;
+
+        uint32_t mapping_count = 0;
+        for (uint32_t i = 0; i < shader_count; ++i)
+            mapping_count += shaders[i].m_HLSLResourceMappings.Size();
+        dmArray<uint32_t> indices;
+        indices.SetCapacity(mapping_count);
+        dmArray<const HLSLResourceMapping*> owners;
+        owners.SetCapacity(merged_desc->NumParameters);
+        owners.SetSize(merged_desc->NumParameters);
+        if (!owners.Empty())
+            memset(owners.Begin(), 0, owners.Size() * sizeof(owners[0]));
+
+        for (uint32_t i = 0; i < shader_count; ++i)
+        {
+            if (shaders[i].m_HLSLResourceMappings.Empty())
+                continue;
+            Microsoft::WRL::ComPtr<ID3D12VersionedRootSignatureDeserializer> source_deserializer;
+            const D3D12_ROOT_SIGNATURE_DESC* source_desc = 0;
+            if (!DeserializeRootSignature(shaders[i].m_HLSLRootSignature, source_deserializer, &source_desc))
+                return false;
+            for (uint32_t j = 0; j < shaders[i].m_HLSLResourceMappings.Size(); ++j)
+            {
+                const HLSLResourceMapping& mapping = shaders[i].m_HLSLResourceMappings[j];
+                if (mapping.m_RootParameterIndex >= source_desc->NumParameters)
+                    return false;
+                const D3D12_ROOT_PARAMETER& source = source_desc->pParameters[mapping.m_RootParameterIndex];
+                uint32_t root_index = 0;
+                for (; root_index < merged_desc->NumParameters; ++root_index)
+                {
+                    const D3D12_ROOT_PARAMETER& target = merged_desc->pParameters[root_index];
+                    if (RootParameterBindingsEqual(source, target) &&
+                        (target.ShaderVisibility == source.ShaderVisibility || target.ShaderVisibility == D3D12_SHADER_VISIBILITY_ALL))
+                        break;
+                }
+                if (root_index == merged_desc->NumParameters)
+                    return false;
+                const HLSLResourceMapping* owner = owners[root_index];
+                if (owner && (owner->m_ShaderResourceSet != mapping.m_ShaderResourceSet ||
+                              owner->m_ShaderResourceBinding != mapping.m_ShaderResourceBinding))
+                {
+                    dmLogError("Shared HLSL root parameter %u maps to different shader resources", root_index);
+                    return false;
+                }
+                owners[root_index] = &mapping;
+                indices.Push(root_index);
+            }
+        }
+
+        uint32_t index = 0;
+        for (uint32_t i = 0; i < shader_count; ++i)
+        {
+            for (uint32_t j = 0; j < shaders[i].m_HLSLResourceMappings.Size(); ++j)
+                shaders[i].m_HLSLResourceMappings[j].m_RootParameterIndex = indices[index++];
+        }
+        return true;
     }
 
     static D3D12_SHADER_VISIBILITY MergeRootParameterVisibility(D3D12_SHADER_VISIBILITY a, D3D12_SHADER_VISIBILITY b)
@@ -1856,6 +1986,14 @@ namespace dmShaderc
             result->m_HLSLRootSignature.SetCapacity(merged_size);
             result->m_HLSLRootSignature.SetSize(merged_size);
             memcpy(result->m_HLSLRootSignature.Begin(), merged_signature_blob->GetBufferPointer(), merged_size);
+        }
+
+        // Remap before replacing the per-stage signatures: resource order is not root order
+        // after shared bindings are deduplicated or an overridden signature is used.
+        if (!RemapRootParameterIndices(shaders, shaders_size, result->m_HLSLRootSignature))
+        {
+            _errstring = "Failed to map HLSL resources to the merged root signature";
+            goto cleanup;
         }
 
         // Ensure each compiled shader blob emplaces the same merged root signature.
