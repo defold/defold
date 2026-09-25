@@ -118,7 +118,7 @@ namespace dmEngine
         RunResult                                   m_RunResult;
         bool                                        m_Alive;
 
-        dmGameObject::HContext                      m_Register;
+        dmGameObject::HRegister                     m_Register;
         dmGameObject::CollectionResource*           m_MainCollectionResource;
         dmArray<dmGameObject::InputAction>          m_InputBuffer;
         dmHashTable64<void*>                        m_ResourceTypeContexts;

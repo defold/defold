@@ -50,72 +50,64 @@ namespace dmGameObject
     extern const dmhash_t UNNAMED_IDENTIFIER;
 
     /**
-     * Create the game-object system context. Only one context may exist at a time.
-     * @return New caller-owned context. Delete it with DeleteContext.
+     * Create a new component type register. Only one register may exist at a time.
+     * @return Register handle
      */
-    HContext NewContext();
+    HRegister NewRegister();
 
     /**
-     * Delete a game-object system context and every collection it owns.
-     * @param regist Game-object system context
+     * Delete a component type register
+     * @param regist Register to delete
      */
-    void DeleteContext(HContext regist);
-
-    /**
-     * Get the context that owns a collection.
-     * @param collection Collection handle
-     * @return Borrowed owning context, or 0 if the collection handle is invalid or stale
-     */
-    HContext GetGameObjectContext(HCollection collection);
+    void DeleteRegister(HRegister regist);
 
     /**
      * Delete a the loaded collections
-     * @param regist Game-object system context
+     * @param regist the register
      */
-    void DeleteCollections(HContext regist);
+    void DeleteCollections(HRegister regist);
 
     /**
      * Initialize system
-     * @param regist Game-object system context
      * @param context Script context
      */
-    void Initialize(HContext regist, dmScript::HContext context);
+    void Initialize(HRegister regist, dmScript::HContext context);
 
     /**
-     * Set default capacity of collections in this context. This does not affect existing collections.
-     * @param regist Game-object system context
-     * @param capacity Default capacity of collections in this context (1-1048576).
+     * Set default capacity of collections in this register. This does not affect existing collections.
+     * @param regist Register
+     * @param capacity Default capacity of collections in this register (1-1048576).
      * @return RESULT_OK on success or RESULT_INVALID_OPERATION if max_count is not within range
      */
-    Result SetCollectionDefaultCapacity(HContext regist, uint32_t capacity);
+    Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity);
 
     /**
-     * Get default capacity of collections in this context.
-     * @param regist Game-object system context
+     * Get default capacity of collections in this register.
+     * @param regist Register
      * @return Default capacity
      */
-    uint32_t GetCollectionDefaultCapacity(HContext regist);
+    uint32_t GetCollectionDefaultCapacity(HRegister regist);
 
-    void SetContextRegistry(HContext regist, HContextRegistry context_registry);
-    HContextRegistry GetContextRegistry(HContext regist);
+    void SetContextRegistry(HRegister regist, HContextRegistry context_registry);
+    HContextRegistry GetContextRegistry(HRegister regist);
 
     /**
-     * Set default input stack capacity of collections in this context. This does not affect existing collections.
-     * @param regist Game-object system context
-     * @param capacity Default capacity of collections in this context.
+     * Set default input stack capacity of collections in this register. This does not affect existing collections.
+     * @param regist Register
+     * @param capacity Default capacity of collections in this register.
      */
-    void SetInputStackDefaultCapacity(HContext regist, uint32_t capacity);
+    void SetInputStackDefaultCapacity(HRegister regist, uint32_t capacity);
 
     /**
      * Creates a new gameobject collection
      * @param name Collection name, which must be unique and follow the same naming as for sockets
      * @param factory Resource factory. Must be valid during the life-time of the collection
-     * @param regist Game-object system context
+     * @param regist Register
      * @param max_instances Max instances in this collection
      * @param collection_desc description data of collections
      * @return HCollection
      */
-    HCollection NewCollection(const char* name, dmResource::HFactory factory, HContext regist, uint32_t max_instances, HCollectionDesc collection_desc);
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances, HCollectionDesc collection_desc);
 
     /**
      * Deletes a gameobject collection
@@ -240,11 +232,11 @@ namespace dmGameObject
     bool PostUpdate(HCollection collection);
 
     /**
-     * Performs clean up of the context after update, such as deleting all collections scheduled for delete.
-     * @param regist Game-object system context
+     * Performs clean up of the register after update, such as deleting all collections scheduled for delete.
+     * @param regist Game-object register
      * @return True on success
      */
-    bool PostUpdate(HContext regist);
+    bool PostUpdate(HRegister regist);
 
     /**
      * Dispatches input actions to the input focus stacks in the supplied game object collection.
@@ -271,6 +263,13 @@ namespace dmGameObject
      * @return The resource factory bound to the specified instance, via its collection
      */
     dmResource::HFactory GetFactory(HInstance instance);
+
+    /**
+     * Retrieve a register from the specified collection
+     * @param collection Game object collection
+     * @return The register bound to the specified collection, or 0 if the collection is invalid or stale
+     */
+    HRegister GetRegister(HCollection collection);
 
     /**
      * Retrieve the frame message socket for the specified collection.

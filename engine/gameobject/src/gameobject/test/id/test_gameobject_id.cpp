@@ -39,7 +39,7 @@ protected:
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
-        m_Register = dmGameObject::NewContext();
+        m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
 
         m_Contexts.SetCapacity(7,16);
@@ -66,13 +66,13 @@ protected:
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteContext(m_Register);
+        dmGameObject::DeleteRegister(m_Register);
     }
 
 public:
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HContext m_Register;
+    dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmGameObject::ModuleContext m_ModuleContext;
@@ -354,7 +354,7 @@ TEST_F(IdTest, TestInvalidHandleDefaults)
     ASSERT_EQ((dmGameObject::HComponentWorld)0, dmGameObject::GetWorld(invalid_collection, 0));
     ASSERT_EQ((void*)0, dmGameObject::GetContext(invalid_collection, 0));
     ASSERT_EQ((dmResource::HFactory)0, dmGameObject::GetFactory(invalid_collection));
-    ASSERT_EQ((dmGameObject::HContext)0, dmGameObject::GetGameObjectContext(invalid_collection));
+    ASSERT_EQ((dmGameObject::HRegister)0, dmGameObject::GetRegister(invalid_collection));
     ASSERT_EQ((dmMessage::HSocket)0, dmGameObject::GetMessageSocket(invalid_collection));
     ASSERT_EQ((dmMessage::HSocket)0, dmGameObject::GetFrameMessageSocket(invalid_collection));
     ASSERT_FALSE(dmGameObject::Init(invalid_collection));
@@ -372,8 +372,8 @@ TEST_F(IdTest, TestInvalidHandleDefaults)
 
     const dmGameObject::HCollection zero_generation_collection = 1;
     const dmGameObject::HCollection sentinel_index_collection = (1U << 16) | UINT16_MAX;
-    ASSERT_EQ((dmGameObject::HContext)0, dmGameObject::GetGameObjectContext(zero_generation_collection));
-    ASSERT_EQ((dmGameObject::HContext)0, dmGameObject::GetGameObjectContext(sentinel_index_collection));
+    ASSERT_EQ((dmGameObject::HRegister)0, dmGameObject::GetRegister(zero_generation_collection));
+    ASSERT_EQ((dmGameObject::HRegister)0, dmGameObject::GetRegister(sentinel_index_collection));
     ASSERT_EQ((dmResource::HFactory)0, dmGameObject::GetFactory(zero_generation_collection));
     ASSERT_EQ((dmResource::HFactory)0, dmGameObject::GetFactory(sentinel_index_collection));
     ASSERT_FALSE(dmGameObject::IsValid(invalid_generation));

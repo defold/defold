@@ -28,15 +28,10 @@ namespace dmEngine
         return (dmWebServer::HServer)ContextRegistryGet(context_registry, WEBSERVER_CONTEXT_NAME);
     }
 
-    dmGameObject::HContext GetGameObjectContext(dmExtension::AppParams* app_params)
+    dmGameObject::HRegister GetGameObjectRegister(dmExtension::AppParams* app_params)
     {
         HContextRegistry context_registry = ExtensionAppParamsGetContextRegistry(app_params);
-        return (dmGameObject::HContext)ContextRegistryGet(context_registry, GAMEOBJECT_CONTEXT_NAME);
-    }
-
-    dmGameObject::HContext GetGameObjectRegister(dmExtension::AppParams* app_params)
-    {
-        return GetGameObjectContext(app_params);
+        return (dmGameObject::HRegister)ContextRegistryGet(context_registry, GAMEOBJECT_CONTEXT_NAME);
     }
 
     dmHID::HContext GetHIDContext(dmExtension::AppParams* app_params)

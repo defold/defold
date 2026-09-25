@@ -68,52 +68,52 @@ namespace dmGameObject
 
     /*#
      * Register a new component type
-     * @param regist Game-object system context
+     * @param regist Gameobject register
      * @param type Collection of component type registration data
      * @return RESULT_OK on success
      */
-    Result RegisterComponentType(HContext regist, const ComponentType& type);
+    Result RegisterComponentType(HRegister regist, const ComponentType& type);
 
     /*#
      * Retrieves a registered component type given its resource type.
-     * @param regist Game-object system context
+     * @param regist Game object register
      * @param resource_type The resource type of the component type
      * @param out_component_index Optional component index out argument, 0x0 is accepted
      * @return the registered component type or 0x0 if not found
      */
-    ComponentType* FindComponentType(HContext regist, HResourceType resource_type, uint32_t* out_component_index);
+    ComponentType* FindComponentType(HRegister regist, HResourceType resource_type, uint32_t* out_component_index);
 
     /*#
      * Gets the number of registered component types
      * @name GetNumComponentTypes
-     * @param regist [type: dmGameObject::HContext] Game-object system context
+     * @param regist [type: dmGameObject::HRegister] the game object register
      * @return count [type: uint32_t] the number of registered component types
      */
-    uint32_t GetNumComponentTypes(HContext regist);
+    uint32_t GetNumComponentTypes(HRegister regist);
 
     /*#
      * Gets the number of registered component types
      * @name GetComponentType
-     * @param regist [type: dmGameObject::HContext] Game-object system context
+     * @param regist [type: dmGameObject::HRegister] the game object register
      * @param index [type: uint32_t] the index
      * @return count [type: uint32_t] the number of registered component types
      */
-    ComponentType* GetComponentType(HContext regist, uint32_t index);
+    ComponentType* GetComponentType(HRegister regist, uint32_t index);
 
     /*#
      * Set update order priority. Zero is highest priority.
-     * @param regist Game-object system context
+     * @param regist Register
      * @param resource_type Resource type
      * @param prio Priority
      * @return RESULT_OK on success
      */
-    Result SetUpdateOrderPrio(HContext regist, HResourceType resource_type, uint16_t prio);
+    Result SetUpdateOrderPrio(HRegister regist, HResourceType resource_type, uint16_t prio);
 
     /*#
      * Sort component types according to update order priority.
-     * @param regist Game-object system context
+     * @param regist Register
      */
-    void SortComponentTypes(HContext regist);
+    void SortComponentTypes(HRegister regist);
 
 
     struct ComponentTypeDescriptor

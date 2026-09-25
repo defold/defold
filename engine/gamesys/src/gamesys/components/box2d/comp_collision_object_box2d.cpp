@@ -159,7 +159,7 @@ namespace dmGameSystem
     struct DispatchContext
     {
         PhysicsContextBox2D*    m_PhysicsContext;
-        dmGameObject::HContext  m_Regist;
+        dmGameObject::HRegister m_Register;
         uint32_t                m_ComponentTypeIndex;
         bool                    m_Success;
     };
@@ -516,7 +516,7 @@ namespace dmGameSystem
             dmhash_t coll_name_hash = dmMessage::GetSocketNameHash(message->m_Sender.m_Socket);
 
             // Target collection which can be different than we are updating for.
-            dmGameObject::HCollection collection = dmGameObject::GetCollectionByHash(context->m_Regist, coll_name_hash);
+            dmGameObject::HCollection collection = dmGameObject::GetCollectionByHash(context->m_Register, coll_name_hash);
             if (!collection) // if the collection has been removed
                 return;
 
@@ -566,7 +566,7 @@ namespace dmGameSystem
         dispatch_context.m_PhysicsContext = physics_context;
         dispatch_context.m_Success = true;
         dispatch_context.m_ComponentTypeIndex = world->m_ComponentTypeIndex;
-        dispatch_context.m_Regist = dmGameObject::GetGameObjectContext(collection);
+        dispatch_context.m_Register = dmGameObject::GetRegister(collection);
 
         dmMessage::HSocket physics_socket;
         physics_socket = dmPhysics::GetSocket2D(physics_context->m_Context);

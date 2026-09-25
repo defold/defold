@@ -54,7 +54,7 @@ protected:
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
 
-        m_Register = dmGameObject::NewContext();
+        m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
         m_ModuleContext.m_ScriptContexts.SetCapacity(1);
         m_ModuleContext.m_ScriptContexts.Push(m_ScriptContext);
@@ -85,13 +85,13 @@ protected:
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteContext(m_Register);
+        dmGameObject::DeleteRegister(m_Register);
     }
 
 public:
 
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HContext m_Register;
+    dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmMessage::HSocket m_Socket;
@@ -110,7 +110,7 @@ static void SetCachedWorldTransform(dmGameObject::HCollection collection, dmGame
 
 struct TestScript01Context
 {
-    dmGameObject::HContext m_Register;
+    dmGameObject::HRegister m_Register;
     bool m_Result;
 };
 

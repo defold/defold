@@ -212,7 +212,7 @@ namespace dmGameObject
         uint16_t    m_NextFree;            // Next slot in the free list, or INVALID_COLLECTION_INDEX.
     };
 
-    struct Context
+    struct Register
     {
         uint32_t                    m_ComponentTypeCount;
         ComponentType               m_ComponentTypes[MAX_COMPONENT_TYPES];
@@ -230,8 +230,8 @@ namespace dmGameObject
         uint32_t                    m_DefaultInputStackCapacity;
         HContextRegistry            m_ContextRegistry;
 
-        Context();
-        ~Context();
+        Register();
+        ~Register();
     };
 
     // Max hierarchical depth
@@ -240,13 +240,13 @@ namespace dmGameObject
     const uint32_t MAX_HIERARCHICAL_DEPTH = 128;
     struct Collection
     {
-        Collection(dmResource::HFactory factory, HContext regist, uint32_t max_instances, uint32_t max_input_stack_entries);
+        Collection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances, uint32_t max_input_stack_entries);
 
         // Resource factory
         dmResource::HFactory     m_Factory;
 
         // GameObject component register
-        HContext                 m_Register;
+        HRegister                m_Register;
 
         HCollection              m_HCollection;
 

@@ -87,7 +87,7 @@ protected:
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
 
-        m_Register = dmGameObject::NewContext();
+        m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
 
         m_Contexts.SetCapacity(7,16);
@@ -141,7 +141,7 @@ protected:
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteContext(m_Register);
+        dmGameObject::DeleteRegister(m_Register);
     }
 
     static dmResource::Result ResReloadTargetCreate(const dmResource::ResourceCreateParams* params);
@@ -168,7 +168,7 @@ public:
 
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HContext m_Register;
+    dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmGameObject::ModuleContext m_ModuleContext;
@@ -359,7 +359,7 @@ TEST_F(ReloadCollectionTest, TestCollectionReload)
     ASSERT_EQ(dmResource::RESULT_OK, rr);
     m_Collection = dmGameObject::GetCollectionFromResource(collection_resource);
     ASSERT_NE(old_collection, m_Collection);
-    ASSERT_EQ((dmGameObject::HContext)0, dmGameObject::GetGameObjectContext(old_collection));
+    ASSERT_EQ((dmGameObject::HRegister)0, dmGameObject::GetRegister(old_collection));
     ASSERT_EQ(dmGameObject::INVALID_COLLECTION, dmGameObject::GetCollection(old_game_object));
     ASSERT_FALSE(dmGameObject::IsValid(old_game_object));
     ASSERT_EQ(0, m_Stats.m_MissingCollectionResourceCount);
@@ -408,7 +408,7 @@ TEST_F(ReloadCollectionTest, TestCollectionReload)
     ASSERT_EQ(dmResource::RESULT_OK, rr);
     m_Collection = dmGameObject::GetCollectionFromResource(collection_resource);
     ASSERT_NE(old_collection, m_Collection);
-    ASSERT_EQ((dmGameObject::HContext)0, dmGameObject::GetGameObjectContext(old_collection));
+    ASSERT_EQ((dmGameObject::HRegister)0, dmGameObject::GetRegister(old_collection));
     ASSERT_EQ(dmGameObject::INVALID_COLLECTION, dmGameObject::GetCollection(old_game_object));
     ASSERT_FALSE(dmGameObject::IsValid(old_game_object));
     ASSERT_EQ(0, m_Stats.m_MissingCollectionResourceCount);

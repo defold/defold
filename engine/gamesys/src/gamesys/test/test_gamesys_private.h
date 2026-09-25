@@ -99,7 +99,7 @@ static inline int16_t ReadUnalignedInt16(const void* ptr)
 
 namespace dmGameObject
 {
-    HCollection GetCollectionByHash(HContext regist, dmhash_t socket_name);
+    HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name);
 }
 
 namespace dmGameSystem
@@ -163,9 +163,9 @@ class ParticleFxComponentTest : public ComponentTest { public: ParticleFxCompone
 bool RunString(lua_State* L, const char* script);
 void DeleteInstance(dmGameObject::HCollection collection, dmGameObject::HInstance instance);
 CollectionProxyComponentRef GetCollectionProxyComponentRef(dmGameObject::HInstance instance, dmhash_t component_id);
-dmGameObject::HCollection GetCollectionByName(dmGameObject::HContext regist, const char* name);
+dmGameObject::HCollection GetCollectionByName(dmGameObject::HRegister regist, const char* name);
 void ConfigureCollectionProxy(CollectionProxyComponentRef proxy, const char* collection_path, dmGameObject::Result expected_load_result = dmGameObject::RESULT_OK);
-void UpdateAndPostUpdateCollection(dmGameObject::HCollection collection, dmGameObject::UpdateContext* update_context, dmGameObject::HContext regist);
+void UpdateAndPostUpdateCollection(dmGameObject::HCollection collection, dmGameObject::UpdateContext* update_context, dmGameObject::HRegister regist);
 bool UpdateAndWaitUntilDone(dmGameSystem::ScriptLibContext& scriptlibcontext, dmGameObject::HCollection collection,
                            dmGameObject::UpdateContext* update_context, bool ignore_script_update_fail,
                            const char* tests_done_key, uint32_t timeout_seconds = 1);

@@ -37,7 +37,7 @@ namespace dmGameObject
         return resource ? resource->m_Collection : INVALID_COLLECTION;
     }
 
-    static dmResource::Result AcquireResources(const char* name, dmResource::HFactory factory, dmGameObject::HContext regist, dmGameObjectDDF::CollectionDesc* collection_desc, const char* filename, CollectionResource* collection_resource, HCollection* out_hcollection)
+    static dmResource::Result AcquireResources(const char* name, dmResource::HFactory factory, dmGameObject::HRegister regist, dmGameObjectDDF::CollectionDesc* collection_desc, const char* filename, CollectionResource* collection_resource, HCollection* out_hcollection)
     {
         // NOTE: Be careful about control flow. See below with dmMutex::Unlock, return, etc
         dmResource::Result res = dmResource::RESULT_OK;
@@ -270,7 +270,7 @@ bail:
 
     static dmResource::Result ResCollectionCreate(const dmResource::ResourceCreateParams* params)
     {
-        Context* regist = (Context*) params->m_Context;
+        Register* regist = (Register*) params->m_Context;
         dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) params->m_PreloadData;
 
         CollectionResource* resource = new CollectionResource;
@@ -317,7 +317,7 @@ bail:
         CollectionResource* resource = (CollectionResource*)ResourceDescriptorGetResource(params->m_Resource);
         HCollection prev_hcollection = resource->m_Collection;
         Collection* prev_collection = GetCollectionFromHandle(prev_hcollection);
-        Context* regist = (Context*) params->m_Context;
+        Register* regist = (Register*) params->m_Context;
         bool was_initialized = IsCollectionInitialized(prev_collection);
 
         if (was_initialized)

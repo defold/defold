@@ -16,7 +16,6 @@
 #define DMSDK_ENGINE_EXTENSION_HPP
 
 #include <dmsdk/dlib/configfile.h>
-#include <dmsdk/dlib/deprecated.h>
 #include <dmsdk/dlib/webserver.h>
 #include <dmsdk/extension/extension.h>
 #include <dmsdk/gameobject/gameobject.h>
@@ -92,21 +91,12 @@ namespace dmEngine
      */
     dmWebServer::HServer GetWebServer(dmExtension::AppParams* app_params);
 
-    /*# get the game object context
-     * @name GetGameObjectContext
-     * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppFinalize
-     * @return context [type:dmGameObject::HContext] The borrowed engine-owned game object context. The caller must not release it.
-     */
-    dmGameObject::HContext GetGameObjectContext(dmExtension::AppParams* app_params);
-
-    /*# get the game object context
+    /*# get the game object register
      * @name GetGameObjectRegister
-     * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppFinalize
-     * @return context [type:dmGameObject::HContext] The borrowed engine-owned game object context. The caller must not release it.
-     * @note Deprecated since Defold 1.14.1. Use GetGameObjectContext instead.
+     * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
+     * @return register [type:dmGameObject::HRegister] The game object register
      */
-    DM_DEPRECATED("Deprecated since Defold 1.14.1; use dmEngine::GetGameObjectContext instead")
-    dmGameObject::HContext GetGameObjectRegister(dmExtension::AppParams* app_params);
+    dmGameObject::HRegister GetGameObjectRegister(dmExtension::AppParams* app_params);
 
     /*# get the hid context
      * @name GetHIDContext

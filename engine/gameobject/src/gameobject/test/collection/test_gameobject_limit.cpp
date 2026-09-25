@@ -44,7 +44,7 @@ protected:
         dmScript::ContextParams script_context_params = {};
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
-        m_Register = dmGameObject::NewContext();
+        m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
 
         m_Contexts.SetCapacity(7,16);
@@ -72,13 +72,13 @@ protected:
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
         dmResource::DeleteFactory(m_Factory);
-        dmGameObject::DeleteContext(m_Register);
+        dmGameObject::DeleteRegister(m_Register);
     }
 
 public:
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HContext m_Register;
+    dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection = 0;
     dmResource::HFactory m_Factory;
     dmGameObject::ModuleContext m_ModuleContext;

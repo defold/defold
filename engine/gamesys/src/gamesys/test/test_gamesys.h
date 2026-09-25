@@ -158,7 +158,7 @@ protected:
     void WaitForTestsDone(int update_count, bool render, bool* result);
 
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HContext m_Register;
+    dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmConfigFile::HConfig m_Config;
@@ -670,7 +670,7 @@ void GamesysTest<T>::SetUp()
     gui_params.m_HidContext = m_HidContext;
     m_GuiContext = dmGui::NewContext(&gui_params);
 
-    m_Register = dmGameObject::NewContext();
+    m_Register = dmGameObject::NewRegister();
     dmGameObject::Initialize(m_Register, m_ScriptContext);
 
     char config_buffer[64];
@@ -838,7 +838,7 @@ void GamesysTest<T>::TearDown()
     SetupComponentCreateContext(component_create_ctx, component_create_ctx_impl);
     dmGameObject::DestroyRegisteredComponentTypes(&component_create_ctx);
 
-    dmGameObject::DeleteContext(m_Register);
+    dmGameObject::DeleteRegister(m_Register);
 
     dmSound::Finalize();
     dmInput::DeleteContext(m_InputContext);

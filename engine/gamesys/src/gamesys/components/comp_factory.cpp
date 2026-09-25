@@ -84,7 +84,7 @@ namespace dmGameSystem
             return dmGameObject::RESULT_INVALID_OPERATION;
 
         *out_instance = dmGameObject::INVALID_GAME_OBJECT;
-        if (!dmGameObject::GetGameObjectContext(collection))
+        if (!dmGameObject::GetRegister(collection))
             return dmGameObject::RESULT_INVALID_INSTANCE;
 
         uint32_t index = dmGameObject::AcquireInstanceIndex(collection);

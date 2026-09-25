@@ -466,7 +466,7 @@ namespace dmEngine
     , m_ThrottleEnabled(false)
     {
         m_EngineService = engine_service;
-        m_Register = dmGameObject::NewContext();
+        m_Register = dmGameObject::NewRegister();
         m_InputBuffer.SetCapacity(64);
         m_ResourceTypeContexts.SetCapacity(31, 64);
         m_PhysicsContextBox2D.m_Context = 0x0;
@@ -536,7 +536,7 @@ namespace dmEngine
 
         dmHttpClient::ReopenConnectionPool();
 
-        dmGameObject::DeleteContext(engine->m_Register);
+        dmGameObject::DeleteRegister(engine->m_Register);
 
         UnloadBootstrapContent(engine);
 

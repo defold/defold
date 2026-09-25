@@ -2356,7 +2356,7 @@ namespace dmGameObject
             dmhash_t target_socket_hash = dmMessage::GetSocketNameHash(receiver.m_Socket);
             if (target_socket_hash != 0)
             {
-                dmGameObject::HContext regist = dmGameObject::GetGameObjectContext(collection);
+                dmGameObject::HRegister regist = dmGameObject::GetRegister(collection);
                 dmGameObject::HCollection target_collection = dmGameObject::GetCollectionByHash(regist, target_socket_hash);
                 if (target_collection != 0)
                 {

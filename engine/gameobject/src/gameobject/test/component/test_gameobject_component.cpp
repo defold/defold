@@ -50,7 +50,7 @@ protected:
         m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
 
-        m_Register = dmGameObject::NewContext();
+        m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
         m_ContextRegistry = ContextRegistryCreate();
         ContextRegistrySet(m_ContextRegistry, "component_test", this);
@@ -155,7 +155,7 @@ protected:
         dmScript::DeleteContext(m_ScriptContext);
         dmGameObject::SetContextRegistry(m_Register, 0);
         ContextRegistryDestroy(m_ContextRegistry);
-        dmGameObject::DeleteContext(m_Register);
+        dmGameObject::DeleteRegister(m_Register);
         dmResource::DeleteFactory(m_Factory);
     }
 
@@ -207,7 +207,7 @@ public:
 
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
-    dmGameObject::HContext m_Register;
+    dmGameObject::HRegister m_Register;
     dmGameObject::HCollection m_Collection;
     dmResource::HFactory m_Factory;
     dmGameObject::ModuleContext m_ModuleContext;
@@ -715,7 +715,7 @@ TEST(ComponentApi, CreateDestroyType)
     dmScript::ContextParams script_context_params = {};
     dmScript::HContext script_context = dmScript::NewContext(script_context_params);
     dmScript::Initialize(script_context);
-    dmGameObject::HContext regist = dmGameObject::NewContext();
+    dmGameObject::HRegister regist = dmGameObject::NewRegister();
     dmGameObject::Initialize(regist, script_context);
 
 
@@ -772,7 +772,7 @@ TEST(ComponentApi, CreateDestroyType)
 
     free((void*)g_ComponentApiTestContext.m_CreateContext);
     ContextRegistryDestroy(context_registry);
-    dmGameObject::DeleteContext(regist);
+    dmGameObject::DeleteRegister(regist);
     dmScript::Finalize(script_context);
     dmScript::DeleteContext(script_context);
     dmResource::DeleteFactory(factory);

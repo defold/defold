@@ -94,19 +94,11 @@ namespace dmGameObject
     typedef struct ScriptInstance* HScriptInstance;
 
     /*#
-     * Game object system context.
-     * @typedef
-     * @name HContext
-     */
-    typedef struct Context* HContext;
-
-    /*#
-     * Deprecated alias for HContext. Use HContext instead.
+     * Collection register.
      * @typedef
      * @name HRegister
-     * @note Deprecated since Defold 1.14.1. Use HContext instead.
      */
-    typedef DM_DEPRECATED("Deprecated since Defold 1.14.1; use dmGameObject::HContext instead") HContext HRegister;
+    typedef struct Register* HRegister;
 
     /*#
      * Opaque gameobject collection handle.
@@ -595,13 +587,13 @@ namespace dmGameObject
 
     /*#
      * Retrieve a collection by socket name hash
-     * Note: in native extensions, the context can be retrieved during init using dmEngine::GetGameObjectContext(dmExtension::AppParams *params)
+     * Note: in native extensions, the register can be retrieved during init using dmEngine::GetGameObjectRegister(dmExtension::AppParams *params)
      * @name GetCollectionByHash
-     * @param regist [type: dmGameObject::HContext] Game object system context
+     * @param regist [type: dmGameObject::HRegister] Register
      * @param socket_name [type: dmhash_t] The socket name
      * @return collection [type: dmGameObject::HCollection] The collection if successful, or dmGameObject::INVALID_COLLECTION otherwise.
      */
-    HCollection GetCollectionByHash(HContext regist, dmhash_t socket_name);
+    HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name);
 
     /*#
      * Create a new gameobject instance
@@ -1234,11 +1226,11 @@ namespace dmGameObject
     /*#
      * Gets the top node of the whole game (the main collection)
      * @name TraverseGetRoot
-     * @param regist [type:dmGameObject::HContext] the full gameobject context
+     * @param regist [type:dmGameObject::HRegister] the full gameobject register
      * @param node [type:dmGameObject::SceneNode*] the node to inspect
      * @return result [type:bool] True if successful
      *
-     * @note The dmGameObject::HContext is obtained from the `dmEngine::GetGameObjectContext(dmExtension::AppParams)`
+     * @note The dmGameObject::HRegister is obtained from the `dmEngine::GetGameObjectRegister(dmExtension::AppParams)`
      * @note Traversing the scene like this is not efficient. These functions are here for inspection and testing purposes only.
      *
      * @examples
@@ -1255,7 +1247,7 @@ namespace dmGameObject
      *     }
      * }
      *
-     * bool OutputScene(HContext regist) {
+     * bool OutputScene(HRegister regist) {
      *     dmGameObject::SceneNode root;
      *     if (!dmGameObject::TraverseGetRoot(regist, &root))
      *         return false;
@@ -1263,7 +1255,7 @@ namespace dmGameObject
      * }
      *```
      */
-    bool TraverseGetRoot(HContext regist, SceneNode* node);
+    bool TraverseGetRoot(HRegister regist, SceneNode* node);
 
     /*#
      * Get a scene node iterator for the nodes' children
