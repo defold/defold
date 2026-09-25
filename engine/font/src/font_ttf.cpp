@@ -36,6 +36,7 @@
     #define FontImplGetGlyphBox          FontHarfbuzzGetGlyphBox
     #define FontImplGetOutlineType       FontHarfbuzzGetOutlineType
     #define FontImplGetVerticalMetrics   FontHarfbuzzGetVerticalMetrics
+    #define FontImplGetColr              FontHarfbuzzGetColr
 
 #else
     #include "truetype/font_truetype.h"
@@ -50,6 +51,7 @@
     #define FontImplGetGlyphBox          FontTrueTypeGetGlyphBox
     #define FontImplGetOutlineType       FontTrueTypeGetOutlineType
     #define FontImplGetVerticalMetrics   FontTrueTypeGetVerticalMetrics
+    #define FontImplGetColr              FontTrueTypeGetColr
 #endif
 
 struct TTFFont
@@ -593,4 +595,9 @@ FontResult FontGetGlyphSDFMetricsTTF(HFont hfont, uint32_t glyph_index, float sc
     glyph->m_Ascent = -y0;
     glyph->m_Descent = y1;
     return FONT_RESULT_OK;
+}
+
+const FontColr* FontGetColrTTF(HFont font)
+{
+    return FontImplGetColr(ToFont(font)->m_Font);
 }

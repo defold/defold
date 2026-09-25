@@ -67,6 +67,7 @@ list(FILTER FONT_SOURCES EXCLUDE REGEX "/markup(_null)?\\.cpp$")
 list(FILTER FONT_SOURCES EXCLUDE REGEX "/text_layout_markup\\.cpp$")
 list(APPEND FONT_SOURCES
   "${FONT_TRUETYPE_SRC_DIR}/font_truetype.cpp"
+  "${FONT_TRUETYPE_SRC_DIR}/font_colr.cpp"
   "${FONT_RENDER_SRC_DIR}/glyph_gen.cpp")
 set(FONT_LIBRARY_SOURCES ${FONT_SOURCES})
 set(FONT_LIBRARY_DEPENDENCIES ${FONT_DEPENDENCIES})

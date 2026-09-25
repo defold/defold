@@ -117,4 +117,8 @@ FontOutlineType FontTrueTypeGetOutlineType(FontTrueType* font);
  */
 bool FontTrueTypeGetGlyphBox(FontTrueType* font, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1);
 
+// Borrowed color-table view; valid until the face and its source data are destroyed.
+struct FontColr;
+const FontColr* FontTrueTypeGetColr(FontTrueType* font);
+
 #endif // DM_FONT_TRUETYPE_H

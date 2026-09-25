@@ -20,6 +20,7 @@
 
 #include "font_outline.h"
 #include "font_truetype.h"
+#include "font_colr.h"
 
 #define FOURCC(a, b, c, d) (((uint32_t)(a) << 24) | ((uint32_t)(b) << 16) | ((uint32_t)(c) << 8) | (uint32_t)(d))
 
@@ -294,6 +295,7 @@ struct FontTrueTypePrivate
 
 struct FontTrueType
 {
+    FontColr                    m_Colr;               // Borrowed color tables and palette zero.
     const uint8_t*               m_FontData;           // Borrowed complete SFNT or TTC data.
     const uint8_t*               m_Data;               // Borrowed CFF/CFF2 table data; null for glyf.
     uint32_t                     m_DataSize;           // Size of m_Data in bytes.
@@ -857,6 +859,7 @@ static bool ParsePrivate(FontTrueType* font, uint32_t index, FontTrueTypeBuffer 
 static FontTrueType* NewFont()
 {
     FontTrueType* font = new FontTrueType;
+    memset(&font->m_Colr, 0, sizeof(font->m_Colr));
     font->m_FontData = 0;
     font->m_Data = 0;
     font->m_DataSize = 0;
@@ -1082,6 +1085,11 @@ FontTrueType* FontTrueTypeCreate(const void* source, uint32_t data_size, uint32_
     }
     if (!font)
         return 0;
+
+    uint32_t colr_offset, colr_size, cpal_offset, cpal_size;
+    if (FindTable(data, data_size, font_offset, FOURCC('C', 'O', 'L', 'R'), &colr_offset, &colr_size) &&
+        FindTable(data, data_size, font_offset, FOURCC('C', 'P', 'A', 'L'), &cpal_offset, &cpal_size))
+        FontColrInitialize(&font->m_Colr, data + colr_offset, colr_size, data + cpal_offset, cpal_size);
 
     font->m_FontData = data;
     font->m_UnitsPerEm = ReadU16(data + head_offset + HEAD_UNITS_PER_EM_OFFSET);
@@ -2286,6 +2294,9 @@ FontOutlineType FontTrueTypeGetOutlineType(FontTrueType* font)
 
 bool FontTrueTypeGetGlyphBox(FontTrueType* font, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1)
 {
+    if (FontColrGetGlyphBox(&font->m_Colr, glyph_index, x0, y0, x1, y1))
+        return true;
+
     if (font->m_OutlineType == FONT_OUTLINE_TYPE_GLYF)
     {
         const uint8_t* data;
@@ -2321,4 +2332,9 @@ bool FontTrueTypeGetGlyphBox(FontTrueType* font, uint32_t glyph_index, int32_t* 
         *y1 = (int32_t)ceilf(fy1);
     }
     return has_bounds;
+}
+
+const FontColr* FontTrueTypeGetColr(FontTrueType* font)
+{
+    return &font->m_Colr;
 }

@@ -147,3 +147,8 @@ hb_font_t* FontHarfbuzzGetFont(FontHarfbuzz* font)
 {
     return font->m_Font;
 }
+
+const FontColr* FontHarfbuzzGetColr(FontHarfbuzz* font)
+{
+    return FontTrueTypeGetColr(font->m_TrueType);
+}

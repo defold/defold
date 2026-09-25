@@ -125,4 +125,8 @@ hb_font_t* FontHarfbuzzGetFont(FontHarfbuzz* font);
  */
 hb_font_t* FontGetHarfbuzzFontFromTTF(HFont font);
 
+// Borrowed color-table view owned by the standalone outline parser.
+struct FontColr;
+const FontColr* FontHarfbuzzGetColr(FontHarfbuzz* font);
+
 #endif // DM_FONT_HARFBUZZ_H

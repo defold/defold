@@ -189,6 +189,9 @@ defold_add_executable(test_font_truetype
   "${FONT_TEST_ROOT}/test_font_truetype.cpp")
 font_configure_test(test_font_truetype font_skribidi)
 
+defold_add_executable(test_font_colr "${FONT_TEST_ROOT}/test_font_colr.cpp")
+font_configure_test(test_font_colr font)
+
 if(FONT_RENDERER_IS_DESKTOP AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
   set(FONT_RENDERER_TEST_JAVA "${FONT_SRC_DIR}/java/test/com/dynamo/bob/font/FontRendererTest.java")
   set(FONT_RENDERER_TEST_CLASSES_DIR "${CMAKE_CURRENT_BINARY_DIR}/font-renderer-test-classes")
