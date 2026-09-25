@@ -110,7 +110,7 @@ namespace dmGameObject
         return (uint32_t)(instance >> INSTANCE_GENERATION_SHIFT);
     }
 
-    uint32_t GetGeneration(HInstance instance)
+    uint32_t GetGeneration(HGameObject instance)
     {
         return GetInstanceGeneration(instance);
     }
@@ -1266,7 +1266,7 @@ namespace dmGameObject
         return instance->m_Prototype == &EMPTY_PROTOTYPE ? 0 : instance->m_Prototype;
     }
 
-    HInstance New(HCollection hcollection, const char* prototype_name) {
+    HGameObject New(HCollection hcollection, const char* prototype_name) {
         Collection* collection = GetCollectionFromHandle(hcollection);
         if (!collection)
             return 0;
@@ -1349,7 +1349,7 @@ namespace dmGameObject
         }
     }
 
-    void AssignInstanceIndex(uint32_t index, HInstance hinstance)
+    void AssignInstanceIndex(uint32_t index, HGameObject hinstance)
     {
         Instance* instance = GetInstanceFromHandle(hinstance);
         if (instance)
@@ -1384,7 +1384,7 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    Result SetIdentifier(HCollection hcollection, HInstance hinstance, dmhash_t id)
+    Result SetIdentifier(HCollection hcollection, HGameObject hinstance, dmhash_t id)
     {
         Collection* collection = GetCollectionFromHandle(hcollection);
         Instance* instance = GetInstanceFromHandle(collection, hinstance);
@@ -2053,7 +2053,7 @@ namespace dmGameObject
         return CollectionSpawnFromDescInternal(collection, (dmGameObjectDDF::CollectionDesc*)collection_desc, id_prefix, property_containers, out_instances, transform);
     }
 
-    HInstance Spawn(HCollection hcollection, HPrototype proto, const char* prototype_name, dmhash_t id, HPropertyContainer property_container, const Point3& position, const Quat& rotation, const Vector3& scale)
+    HGameObject Spawn(HCollection hcollection, HPrototype proto, const char* prototype_name, dmhash_t id, HPropertyContainer property_container, const Point3& position, const Quat& rotation, const Vector3& scale)
     {
         Collection* collection = GetCollectionFromHandle(hcollection);
         if (!collection)
@@ -2357,7 +2357,7 @@ namespace dmGameObject
         collection->m_InstancesToDeleteTail = index;
     }
 
-    void Delete(HCollection hcollection, HInstance hinstance, bool recursive)
+    void Delete(HCollection hcollection, HGameObject hinstance, bool recursive)
     {
         Collection* collection = GetCollectionFromHandle(hcollection);
         Instance* instance = GetInstanceFromHandle(collection, hinstance);
@@ -2486,7 +2486,7 @@ namespace dmGameObject
         return instance ? SetIdentifier(collection, instance, identifier) : RESULT_INVALID_INSTANCE;
     }
 
-    dmhash_t GetIdentifier(HInstance hinstance)
+    dmhash_t GetIdentifier(HGameObject hinstance)
     {
         Instance* instance = GetInstanceFromHandle(hinstance);
         return instance ? instance->m_Identifier : 0;
@@ -2509,7 +2509,7 @@ namespace dmGameObject
         }
     }
 
-    dmhash_t GetAbsoluteIdentifier(HInstance hinstance, const char* identifier)
+    dmhash_t GetAbsoluteIdentifier(HGameObject hinstance, const char* identifier)
     {
         Instance* instance = GetInstanceFromHandle(hinstance);
         return instance && identifier ? GetAbsoluteIdentifier(instance, identifier) : 0;
@@ -2529,7 +2529,7 @@ namespace dmGameObject
         return GetInstanceFromHandle(collection, GetInstanceHandleFromIdentifier(collection, identifier));
     }
 
-    HInstance GetInstanceFromIdentifier(HCollection hcollection, dmhash_t identifier)
+    HGameObject GetInstanceFromIdentifier(HCollection hcollection, dmhash_t identifier)
     {
         return GetInstanceHandleFromIdentifier(GetCollectionFromHandle(hcollection), identifier);
     }
@@ -2575,7 +2575,7 @@ namespace dmGameObject
         return RESULT_COMPONENT_NOT_FOUND;
     }
 
-    Result GetComponentId(HInstance hinstance, uint16_t component_index, dmhash_t* component_id)
+    Result GetComponentId(HGameObject hinstance, uint16_t component_index, dmhash_t* component_id)
     {
         Instance* instance = GetInstanceFromHandle(hinstance);
         if (instance)
@@ -2639,7 +2639,7 @@ namespace dmGameObject
         return RESULT_COMPONENT_NOT_FOUND;
     }
 
-    Result GetComponent(HInstance hinstance, dmhash_t component_id, uint32_t* component_type, HComponent* out_component, HComponentWorld* out_world)
+    Result GetComponent(HGameObject hinstance, dmhash_t component_id, uint32_t* component_type, HComponent* out_component, HComponentWorld* out_world)
     {
         Collection* collection = 0;
         Instance* instance = GetInstanceFromHandle(hinstance, &collection);
@@ -2665,14 +2665,14 @@ namespace dmGameObject
         return instance->m_Bone;
     }
 
-    void SetBone(HInstance hinstance, bool bone)
+    void SetBone(HGameObject hinstance, bool bone)
     {
         Instance* instance = GetInstanceFromHandle(hinstance);
         if (instance)
             SetBone(instance, bone);
     }
 
-    bool IsBone(HInstance hinstance)
+    bool IsBone(HGameObject hinstance)
     {
         Instance* instance = GetInstanceFromHandle(hinstance);
         return instance ? IsBone(instance) : false;
@@ -2708,7 +2708,7 @@ namespace dmGameObject
         return count;
     }
 
-    uint32_t SetBoneTransforms(HInstance hinstance, dmTransform::Transform& component_transform, dmTransform::Transform* transforms, uint32_t transform_count)
+    uint32_t SetBoneTransforms(HGameObject hinstance, dmTransform::Transform& component_transform, dmTransform::Transform* transforms, uint32_t transform_count)
     {
         Collection* collection = 0;
         Instance* instance = GetInstanceFromHandle(hinstance, &collection);
@@ -2732,7 +2732,7 @@ namespace dmGameObject
         }
     }
 
-    void DeleteBones(HInstance hparent) {
+    void DeleteBones(HGameObject hparent) {
         Collection* collection = 0;
         Instance* parent = GetInstanceFromHandle(hparent, &collection);
         if (parent)
@@ -3573,7 +3573,7 @@ namespace dmGameObject
         return collection ? collection->m_Factory : 0;
     }
 
-    HCollection GetCollection(HInstance instance)
+    HCollection GetCollection(HGameObject instance)
     {
         Collection* collection = 0;
         return GetInstanceFromHandle(instance, &collection) ? collection->m_HCollection : 0;
@@ -3829,7 +3829,7 @@ namespace dmGameObject
         return false;
     }
 
-    void SetPosition(HInstance hinstance, Point3 position)
+    void SetPosition(HGameObject hinstance, Point3 position)
     {
         Collection* collection = 0;
         Instance* instance = GetInstanceFromHandle(hinstance, &collection);
@@ -3837,13 +3837,13 @@ namespace dmGameObject
             SetPosition(collection, instance, position);
     }
 
-    Point3 GetPosition(HInstance hinstance)
+    Point3 GetPosition(HGameObject hinstance)
     {
         Instance* instance = GetInstanceFromHandle(hinstance);
         return instance ? GetPosition(instance) : Point3(0.0f, 0.0f, 0.0f);
     }
 
-    void SetRotation(HInstance hinstance, Quat rotation)
+    void SetRotation(HGameObject hinstance, Quat rotation)
     {
         Collection* collection = 0;
         Instance* instance = GetInstanceFromHandle(hinstance, &collection);
@@ -3851,13 +3851,13 @@ namespace dmGameObject
             SetRotation(collection, instance, rotation);
     }
 
-    Quat GetRotation(HInstance hinstance)
+    Quat GetRotation(HGameObject hinstance)
     {
         Instance* instance = GetInstanceFromHandle(hinstance);
         return instance ? GetRotation(instance) : Quat::identity();
     }
 
-    void SetScale(HInstance hinstance, float scale)
+    void SetScale(HGameObject hinstance, float scale)
     {
         Collection* collection = 0;
         Instance* instance = GetInstanceFromHandle(hinstance, &collection);
@@ -3865,7 +3865,7 @@ namespace dmGameObject
             SetScale(collection, instance, scale);
     }
 
-    void SetScale(HInstance hinstance, Vector3 scale)
+    void SetScale(HGameObject hinstance, Vector3 scale)
     {
         Collection* collection = 0;
         Instance* instance = GetInstanceFromHandle(hinstance, &collection);
@@ -3873,7 +3873,7 @@ namespace dmGameObject
             SetScale(collection, instance, scale);
     }
 
-    void SetScaleXY(HInstance hinstance, float scale_x, float scale_y)
+    void SetScaleXY(HGameObject hinstance, float scale_x, float scale_y)
     {
         Collection* collection = 0;
         Instance* instance = GetInstanceFromHandle(hinstance, &collection);
@@ -3881,47 +3881,47 @@ namespace dmGameObject
             SetScaleXY(collection, instance, scale_x, scale_y);
     }
 
-    float GetUniformScale(HInstance hinstance)
+    float GetUniformScale(HGameObject hinstance)
     {
         Instance* instance = GetInstanceFromHandle(hinstance);
         return instance ? GetUniformScale(instance) : 1.0f;
     }
 
-    Vector3 GetScale(HInstance hinstance)
+    Vector3 GetScale(HGameObject hinstance)
     {
         Instance* instance = GetInstanceFromHandle(hinstance);
         return instance ? GetScale(instance) : Vector3(1.0f, 1.0f, 1.0f);
     }
 
-    Point3 GetWorldPosition(HInstance hinstance)
+    Point3 GetWorldPosition(HGameObject hinstance)
     {
         Collection* collection = 0;
         Instance* instance = GetInstanceFromHandle(hinstance, &collection);
         return instance ? GetWorldPosition(collection, instance) : Point3(0.0f, 0.0f, 0.0f);
     }
 
-    Quat GetWorldRotation(HInstance hinstance)
+    Quat GetWorldRotation(HGameObject hinstance)
     {
         Collection* collection = 0;
         Instance* instance = GetInstanceFromHandle(hinstance, &collection);
         return instance ? GetWorldRotation(collection, instance) : Quat::identity();
     }
 
-    float GetWorldUniformScale(HInstance hinstance)
+    float GetWorldUniformScale(HGameObject hinstance)
     {
         Collection* collection = 0;
         Instance* instance = GetInstanceFromHandle(hinstance, &collection);
         return instance ? GetWorldUniformScale(collection, instance) : 1.0f;
     }
 
-    Vector3 GetWorldScale(HInstance hinstance)
+    Vector3 GetWorldScale(HGameObject hinstance)
     {
         Collection* collection = 0;
         Instance* instance = GetInstanceFromHandle(hinstance, &collection);
         return instance ? GetWorldScale(collection, instance) : Vector3(1.0f, 1.0f, 1.0f);
     }
 
-    dmTransform::Transform GetWorldTransform(HInstance hinstance)
+    dmTransform::Transform GetWorldTransform(HGameObject hinstance)
     {
         Collection* collection = 0;
         Instance* instance = GetInstanceFromHandle(hinstance, &collection);
@@ -3930,7 +3930,7 @@ namespace dmGameObject
         return instance ? GetWorldTransform(collection, instance) : transform;
     }
 
-    const Matrix4& GetWorldMatrix(HInstance hinstance)
+    const Matrix4& GetWorldMatrix(HGameObject hinstance)
     {
         static const Matrix4 identity = Matrix4::identity();
         Collection* collection = 0;
@@ -3938,7 +3938,7 @@ namespace dmGameObject
         return instance ? GetWorldMatrix(collection, instance) : identity;
     }
 
-    Result SetParent(HInstance hchild, HInstance hparent)
+    Result SetParent(HGameObject hchild, HGameObject hparent)
     {
         Collection* collection = 0;
         Instance* child = GetInstanceFromHandle(hchild, &collection);
@@ -3948,7 +3948,7 @@ namespace dmGameObject
         return SetParent(collection, child, parent);
     }
 
-    HInstance GetParent(HInstance hinstance)
+    HGameObject GetParent(HGameObject hinstance)
     {
         Collection* collection = 0;
         Instance* instance = GetInstanceFromHandle(hinstance, &collection);
@@ -4796,7 +4796,7 @@ namespace dmGameObject
     }
 
 #define DM_GAMEOBJECT_PROPERTY_GETTER_WRAPPER(NAME, VALUE_TYPE) \
-    PropertyResult NAME(HInstance hinstance, dmhash_t component_id, dmhash_t property_id, VALUE_TYPE out_value) \
+    PropertyResult NAME(HGameObject hinstance, dmhash_t component_id, dmhash_t property_id, VALUE_TYPE out_value) \
     { \
         Collection* collection = 0; \
         Instance* instance = GetInstanceFromHandle(hinstance, &collection); \
@@ -4816,7 +4816,7 @@ namespace dmGameObject
 #undef DM_GAMEOBJECT_PROPERTY_GETTER_WRAPPER
 
 #define DM_GAMEOBJECT_PROPERTY_SETTER_WRAPPER(NAME, VALUE_TYPE) \
-    PropertyResult NAME(HInstance hinstance, dmhash_t component_id, dmhash_t property_id, VALUE_TYPE value) \
+    PropertyResult NAME(HGameObject hinstance, dmhash_t component_id, dmhash_t property_id, VALUE_TYPE value) \
     { \
         Collection* collection = 0; \
         Instance* instance = GetInstanceFromHandle(hinstance, &collection); \

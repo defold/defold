@@ -44,7 +44,7 @@ extern "C"
 }
 
 namespace dmScript {
-    dmGameObject::HInstance CheckGOInstance(lua_State* L) {
+    dmGameObject::HGameObject CheckGOInstance(lua_State* L) {
         dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
         if (instance == 0) {
             luaL_error(L, "no instance could be found in the current script environment");
@@ -54,7 +54,7 @@ namespace dmScript {
 
     // Inspired by the internal function dmGameObject::ResolveInstance
     // Modified to support both gameobject/gui scripts
-    dmGameObject::HInstance CheckGOInstance(lua_State* L, int instance_arg)
+    dmGameObject::HGameObject CheckGOInstance(lua_State* L, int instance_arg)
     {
         dmGameObject::HInstance instance = CheckGOInstance(L);
 

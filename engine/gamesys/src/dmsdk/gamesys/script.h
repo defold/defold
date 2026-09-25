@@ -45,9 +45,9 @@ namespace dmScript
      *
      * @name CheckGOInstance
      * @param L [type: lua_State*] lua state
-     * @return instance [type: dmGameObject::HInstance]
+     * @return instance [type: dmGameObject::HGameObject]
      */
-    dmGameObject::HInstance CheckGOInstance(lua_State* L);
+    dmGameObject::HGameObject CheckGOInstance(lua_State* L);
 
     /*#
      * Get gameobject instance
@@ -58,7 +58,7 @@ namespace dmScript
      * @name CheckGOInstance
      * @param L [type: lua_State*] lua state
      * @param index [type: int] lua-arg
-     * @return instance [type: dmGameObject::HInstance] gameobject instance
+     * @return instance [type: dmGameObject::HGameObject] gameobject instance
      *
      * @examples
      *
@@ -68,7 +68,7 @@ namespace dmScript
      * static int get_position(lua_State* L)
      * {
      *     DM_LUA_STACK_CHECK(L, 3);
-     *     dmGameObject::HInstance instance = dmScript::CheckGOInstance(L, 1);
+     *     dmGameObject::HGameObject instance = dmScript::CheckGOInstance(L, 1);
      *     dmVMath::Point3 position = dmGameObject::GetPosition(instance);
      *     lua_pushnumber(L, position.getX());
      *     lua_pushnumber(L, position.getY());
@@ -77,7 +77,7 @@ namespace dmScript
      * }
      * ```
      */
-    dmGameObject::HInstance CheckGOInstance(lua_State* L, int index);
+    dmGameObject::HGameObject CheckGOInstance(lua_State* L, int index);
 
     /*#
      * Get current gameobject's collection handle
