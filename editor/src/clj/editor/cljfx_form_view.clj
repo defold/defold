@@ -1326,9 +1326,10 @@
     (fx.mutator/setter
       (fn [^TableView view [selected-indices _]]
         (let [model (.getSelectionModel view)]
-          (.clearSelection model)
-          (when-not (coll/empty? selected-indices)
-            (.selectIndices model (first selected-indices) (into-array Integer/TYPE (rest selected-indices)))))))
+          (when (not= selected-indices (vec (.getSelectedIndices model)))
+            (.clearSelection model)
+            (when-not (coll/empty? selected-indices)
+              (.selectIndices model (first selected-indices) (into-array Integer/TYPE (rest selected-indices))))))))
     fx.lifecycle/scalar))
 
 (def ^:private ext-with-focus-request-props
@@ -1403,22 +1404,23 @@
                                            :text (get-label-text localization-state column)
                                            :cell-value-factory (fn [[index item]] [index item])
                                            ;; The :describe form lets cells dispatch map events.
-                                           :cell-factory {:fx/cell-type :table-cell
-                                                          :describe (fn [[index item]]
-                                                                      (let [value (if-let [value-fn (:value-fn column)]
-                                                                                    (value-fn item)
-                                                                                    (get-in item (:path column)))
-                                                                            label (if (some? value) (display-value-text column value) "")]
-                                                                        (cond-> {:text label}
-                                                                          ;; Only cells with a matching detail field can request focus.
-                                                                          (contains? (item-field-paths item) (:path column))
-                                                                          (assoc :on-mouse-clicked {:event-type :2panel-summary-cell-clicked
-                                                                                                    :index index
-                                                                                                    :path (:path column)
-                                                                                                    :state-path state-path})
+                                           :cell-factory
+                                           {:fx/cell-type :table-cell
+                                            :describe (fn [[index item]]
+                                                        (let [value (if-let [value-fn (:value-fn column)]
+                                                                      (value-fn item)
+                                                                      (get-in item (:path column)))
+                                                              label (if (some? value) (display-value-text column value) "")]
+                                                          (cond-> {:text label}
+                                                            ;; Only cells with a matching detail field can request focus.
+                                                            (contains? (item-field-paths item) (:path column))
+                                                            (assoc :on-mouse-clicked {:event-type :2panel-summary-cell-clicked
+                                                                                      :index index
+                                                                                      :path (:path column)
+                                                                                      :state-path state-path})
 
-                                                                          (not (string/blank? label))
-                                                                          (assoc :tooltip {:fx/type fx.tooltip/lifecycle :text label}))))}})
+                                                            (not (string/blank? label))
+                                                            (assoc :tooltip {:fx/type fx.tooltip/lifecycle :text label}))))}})
                                         summary-columns)
                          :items (into [] (map-indexed vector) value)
                          :context-menu {:fx/type fx.context-menu/lifecycle
