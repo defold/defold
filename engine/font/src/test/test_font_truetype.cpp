@@ -378,6 +378,50 @@ TEST(FontTrueTypeReference, OpenTypeCFF1)
     FreeReferenceFont(&font);
 }
 
+TEST(FontTrueTypeReference, CFF2HarfBuzzReferencePaths)
+{
+    ReferenceFont font;
+    ASSERT_TRUE(LoadFont("src/test/data/SourceSerif4Variable-Roman_cff2.otf", &font));
+    ASSERT_EQ(1464u, hb_face_get_glyph_count(font.m_HBFace));
+    // Golden checksum from HarfBuzz 13.2.1 hb_font_draw_glyph at the default
+    // axes, in font units. Ignore redundant closing lines and quantize to
+    // 1/16 unit to tolerate cross-platform floating-point roundoff.
+    uint64_t hash = 14695981039346656037ULL;
+    const uint32_t point_counts[] = {1, 1, 2, 3, 0};
+    for (uint32_t glyph = 0; glyph < 1464; ++glyph)
+    {
+        hash = (hash ^ glyph) * 1099511628211ULL;
+        FontOutline outline = {};
+        ASSERT_EQ(FONT_RESULT_OK, FontTrueTypeGetGlyphOutline(font.m_TrueType, glyph, &outline));
+        FontOutlinePoint start = {};
+        for (uint32_t i = 0; i < outline.m_CommandCount; ++i)
+        {
+            const FontOutlineCommand& command = outline.m_Commands[i];
+            if (command.m_Type == FONT_OUTLINE_MOVE_TO)
+                start = command.m_Points[0];
+            if (command.m_Type == FONT_OUTLINE_LINE_TO && command.m_Points[0].m_X == start.m_X && command.m_Points[0].m_Y == start.m_Y)
+            {
+                uint32_t next = i + 1;
+                while (next < outline.m_CommandCount && outline.m_Commands[next].m_Type == FONT_OUTLINE_LINE_TO &&
+                       outline.m_Commands[next].m_Points[0].m_X == start.m_X && outline.m_Commands[next].m_Points[0].m_Y == start.m_Y)
+                    ++next;
+                if (next < outline.m_CommandCount && outline.m_Commands[next].m_Type == FONT_OUTLINE_CLOSE)
+                    continue;
+            }
+            hash = (hash ^ command.m_Type) * 1099511628211ULL;
+            for (uint32_t p = 0; p < point_counts[command.m_Type]; ++p)
+            {
+                hash = (hash ^ (uint32_t)(int32_t)floorf(command.m_Points[p].m_X * 16 + .5f)) * 1099511628211ULL;
+                hash = (hash ^ (uint32_t)(int32_t)floorf(command.m_Points[p].m_Y * 16 + .5f)) * 1099511628211ULL;
+            }
+        }
+        hash = (hash ^ 0xffffffffu) * 1099511628211ULL;
+        FontFreeGlyphOutline(&outline);
+    }
+    ASSERT_EQ(0x2c1203296d142d7bULL, hash);
+    FreeReferenceFont(&font);
+}
+
 TEST(FontTrueTypeReference, OpenTypeCFF2)
 {
     ReferenceFont font;
@@ -420,6 +464,89 @@ TEST(FontTrueTypeReference, OpenTypeCFF2)
 
     FontFreeGlyphOutline(&outline);
     CompareAllGlyphBoundsWithOutlines(&font);
+    FreeReferenceFont(&font);
+}
+
+// The engine has no axis controls, but Skribidi must still see fvar's default
+// style rather than a conflicting OS/2 or STAT fallback when HB_NO_VAR is set.
+TEST(FontTrueTypeReference, DefaultVariationStyle)
+{
+    const uint8_t fvar[] = {
+        0, 1, 0, 0, 0, 16, 0, 2, 0, 3, 0, 20, 0, 0, 0, 16, 'w', 'g', 'h', 't', 0, 100, 0, 0, 2, 63, 0, 0, 3, 132, 0, 0, 0, 0, 1, 0, // 575
+        'w',
+        'd',
+        't',
+        'h',
+        0,
+        75,
+        0,
+        0,
+        0,
+        87,
+        128,
+        0,
+        0,
+        125,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1, // 87.5
+        's',
+        'l',
+        'n',
+        't',
+        255,
+        226,
+        0,
+        0,
+        255,
+        243,
+        128,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        2 // -12.5
+    };
+    hb_face_t* face = hb_face_builder_create();
+    hb_blob_t* blob = hb_blob_create((const char*)fvar, sizeof(fvar), HB_MEMORY_MODE_READONLY, 0, 0);
+    ASSERT_TRUE(hb_face_builder_add_table(face, HB_TAG('f', 'v', 'a', 'r'), blob));
+    hb_blob_destroy(blob);
+    hb_font_t* font = hb_font_create(face);
+    ASSERT_EQ(575.0f, hb_style_get_value(font, HB_STYLE_TAG_WEIGHT));
+    ASSERT_EQ(87.5f, hb_style_get_value(font, HB_STYLE_TAG_WIDTH));
+    ASSERT_EQ(-12.5f, hb_style_get_value(font, HB_STYLE_TAG_SLANT_ANGLE));
+    ASSERT_NEAR(tanf(12.5f * 3.14159265358979323846f / 180.0f), hb_style_get_value(font, HB_STYLE_TAG_SLANT_RATIO), 0.000001f);
+    hb_font_destroy(font);
+    hb_face_destroy(face);
+}
+
+TEST(FontTrueTypeReference, ShapingReceivesScaledCFFBounds)
+{
+    ReferenceFont font;
+    ASSERT_TRUE(LoadFont("src/test/data/SourceSerif4Variable-Roman_cff2.otf", &font));
+    uint32_t   glyph = FontTrueTypeGetGlyphIndex(font.m_TrueType, 'S');
+    hb_font_t* hb_font = FontHarfbuzzGetFont(font.m_Harfbuzz);
+    int        upem = (int)hb_face_get_upem(hb_font_get_face(hb_font));
+    hb_font_set_scale(hb_font, upem * 2, upem * 3);
+    hb_glyph_extents_t extents;
+    ASSERT_TRUE(hb_font_get_glyph_extents(hb_font, glyph, &extents));
+    ASSERT_EQ(80, extents.x_bearing);
+    ASSERT_EQ(2055, extents.y_bearing);
+    ASSERT_EQ(864, extents.width);
+    ASSERT_EQ(-2100, extents.height);
+    hb_font_set_scale(hb_font, upem * 10000, upem * 10000);
+    ASSERT_TRUE(hb_font_get_glyph_extents(hb_font, glyph, &extents));
+    ASSERT_EQ(400000, extents.x_bearing);
+    ASSERT_EQ(6850000, extents.y_bearing);
+    ASSERT_EQ(4320000, extents.width);
+    ASSERT_EQ(-7000000, extents.height);
     FreeReferenceFont(&font);
 }
 

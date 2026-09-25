@@ -94,10 +94,9 @@ if(TARGET ddf)
 endif()
 defold_target_link_libraries(font "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_LIBRARY_DEPENDENCIES})
 
-# The full-layout path gets mapping, metrics, and outlines from HarfBuzz. Keep
-# the standalone TrueType/OpenType parser in the legacy font library only.
+# Both layout paths decode outlines with the standalone TrueType/OpenType
+# parser. The full-layout adapter supplies its bounds to HarfBuzz for shaping.
 set(FONT_SKRIBIDI_SOURCES ${FONT_SOURCES})
-list(FILTER FONT_SKRIBIDI_SOURCES EXCLUDE REGEX "/font_truetype\\.cpp$")
 list(APPEND FONT_SKRIBIDI_SOURCES
   "${FONT_HARFBUZZ_SRC_DIR}/font_harfbuzz.cpp")
 set(FONT_SKRIBIDI_LIBRARY_SOURCES ${FONT_SKRIBIDI_SOURCES})

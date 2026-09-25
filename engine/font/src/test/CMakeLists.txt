@@ -184,11 +184,9 @@ defold_target_link_libraries(benchmark_text_layout_null "${TARGET_PLATFORM}"
   font_richtext_null)
 defold_target_link_socket(benchmark_text_layout_null "${TARGET_PLATFORM}" PRIVATE)
 
-# Exercise the standalone parser directly even though the full-layout library
-# deliberately excludes it in favor of HarfBuzz.
+# Exercise the shared outline parser and its full-layout adapter.
 defold_add_executable(test_font_truetype
-  "${FONT_TEST_ROOT}/test_font_truetype.cpp"
-  "${FONT_SRC_DIR}/truetype/font_truetype.cpp")
+  "${FONT_TEST_ROOT}/test_font_truetype.cpp")
 font_configure_test(test_font_truetype font_skribidi)
 
 if(FONT_RENDERER_IS_DESKTOP AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
