@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 import com.dynamo.bob.Bob;
@@ -306,12 +307,12 @@ public class ShaderCompilePipeline {
         return null;
     }
 
-    protected Shaderc.ShaderCompileResult generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) {
+    protected Shaderc.ShaderCompileResult generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) throws CompileExceptionError {
         return generateCrossCompiledShader(shaderType, shaderLanguage, versionOut, null);
     }
 
 // TODO: Try to remove the very language specific rootSignatureOverride
-    protected Shaderc.ShaderCompileResult generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut, String rootSignatureOverride) {
+    protected Shaderc.ShaderCompileResult generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut, String rootSignatureOverride) throws CompileExceptionError {
 
         long compiler = 0;
 
@@ -328,6 +329,34 @@ public class ShaderCompilePipeline {
         }
 
         Shaderc.ShaderCompilerOptions opts = new Shaderc.ShaderCompilerOptions();
+        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM430 ||
+            shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330 ||
+            shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300) {
+            // GL/ES has one SSBO binding namespace. Rank unique descriptor pairs
+            // across all stages, matching GetStorageBufferBindingIndex in the
+            // runtime. Leave reflection and non-GL shader decorations intact.
+            TreeSet<Long> storageBindings = new TreeSet<>();
+            for (ShaderModule stage : shaderModules) {
+                for (Shaderc.ShaderResource resource : stage.spirvReflector.getSsbos()) {
+                    storageBindings.add(((long) resource.set << 32) | Integer.toUnsignedLong(resource.binding));
+                }
+            }
+            for (ShaderModule stage : shaderModules) {
+                // Shared resources are removed from the fragment reflection
+                // during reconciliation, but still occur in its SPIR-V module.
+                for (Shaderc.ShaderResource resource : stage.spirvReflector.getSsbos()) {
+                    long key = ((long) resource.set << 32) | Integer.toUnsignedLong(resource.binding);
+                    int binding = storageBindings.headSet(key).size();
+                    if (binding > 255) {
+                        ShadercJni.DeleteShaderCompiler(compiler);
+                        throw new CompileExceptionError("Too many shader storage buffer bindings for GLSL");
+                    }
+                    ShadercJni.SetResourceBinding(module.spirvContext, compiler, resource.nameHash, binding);
+                }
+            }
+            if (!storageBindings.isEmpty())
+                versionOut = Math.max(versionOut, shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ? 310 : 430);
+        }
         opts.version                       = versionOut;
         opts.entryPoint                    = "main";
         opts.removeUnusedVariables         = 1;

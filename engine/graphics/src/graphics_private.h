@@ -238,6 +238,25 @@ namespace dmGraphics
         dmArray<ShaderResourceTypeInfo> m_TypeInfos;
     };
 
+    // GLSL has one SSBO binding namespace. Match the shader pipeline's dense,
+    // lexicographic (set, binding) mapping, including resources shared by stages.
+    inline uint32_t GetStorageBufferBindingIndex(const dmArray<ShaderResourceBinding>& resources, uint32_t index)
+    {
+        const ShaderResourceBinding& resource = resources[index];
+        uint32_t result = 0;
+        for (uint32_t i = 0; i < resources.Size(); ++i)
+        {
+            const ShaderResourceBinding& candidate = resources[i];
+            if (candidate.m_Set > resource.m_Set ||
+                (candidate.m_Set == resource.m_Set && candidate.m_Binding >= resource.m_Binding)) continue;
+            bool duplicate = false;
+            for (uint32_t j = 0; j < i; ++j)
+                duplicate |= resources[j].m_Set == candidate.m_Set && resources[j].m_Binding == candidate.m_Binding;
+            if (!duplicate) ++result;
+        }
+        return result;
+    }
+
     struct SetTextureAsyncParams
     {
         HTexture                m_Texture;

@@ -75,6 +75,8 @@ namespace dmGraphics
         void*              m_MappedDataPtr;
         VulkanHandle       m_Handle;
         VkBufferUsageFlags m_Usage;
+        VkAccessFlags      m_StorageAccess = 0;
+        VkPipelineStageFlags m_StorageStages = 0;
         uint32_t           m_Destroyed  : 1;
 
         VkResult MapMemory(VkDevice vk_device, uint32_t offset = 0, uint32_t size = 0);
@@ -181,6 +183,7 @@ namespace dmGraphics
             // the attachment load ops. For the main RT this also aliases context->m_MainRenderPass
             // (which already specifies CLEAR for both). VK_NULL_HANDLE when no depth attachment.
             VkRenderPass  m_RenderPassClearColorDepth;
+            VkRenderPass  m_RenderPassLoad;
             VkFramebuffer m_Framebuffer;
             VkFramebuffer m_CubeMapFramebuffers[CUBEMAP_FACE_COUNT - 1];
             VkImageView   m_CubeMapAttachmentViews[CUBEMAP_FACE_COUNT][MAX_BUFFER_COLOR_ATTACHMENTS + 1];
@@ -206,6 +209,7 @@ namespace dmGraphics
         // Set alongside m_HasPendingClearColor when depth/stencil is also pending a clear.
         // BeginRenderPass picks m_RenderPassClearColorDepth and uses m_DepthAttachmentClearValue.
         uint32_t       m_HasPendingClearDepth : 1;
+        uint32_t       m_ResumePass : 1;
         uint32_t       m_SubPassCount         : 8;
         uint32_t       m_SubPassIndex         : 8;
 
@@ -533,6 +537,7 @@ namespace dmGraphics
         uint32_t                        m_SwapInterval;
         uint32_t                        m_SwapIntervalChanged  : 1;
         uint32_t                        m_FrameBegun           : 1;
+        uint32_t                        m_ImageAvailableConsumed : 1;
         uint32_t                        m_CurrentFrameInFlight : 2;
         uint32_t                        m_NumFramesInFlight    : 2;
         uint32_t                        m_MainRTBegunThisFrame : 1;
@@ -540,7 +545,6 @@ namespace dmGraphics
         uint32_t                        m_ViewportChanged      : 1;
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_PolygonOffsetChanged : 1;
-        uint32_t                        m_StorageBufferGraphicsWritePending : 1;
         uint32_t                        m_UseValidationLayers  : 1;
         uint32_t                        m_ASTCSupport          : 1;
         // See OpenGL backend: separate flag for ASTC array textures

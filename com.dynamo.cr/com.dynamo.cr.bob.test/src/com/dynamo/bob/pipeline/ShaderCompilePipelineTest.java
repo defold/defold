@@ -254,6 +254,51 @@ public class ShaderCompilePipelineTest {
     }
 
     @Test
+    public void testStorageBufferBindingsAcrossSetsAndStages() throws Exception {
+        String vsShader = """
+                #version 430
+                layout(set=0, binding=0, std430) readonly buffer VertexData { vec4 vertexValue; };
+                layout(set=2, binding=7, std430) readonly buffer Shared { vec4 sharedValue; };
+                void main() { gl_Position = vertexValue + sharedValue; }
+                """;
+        String fsShader = """
+                #version 430
+                layout(set=1, binding=0, std430) readonly buffer FragmentData { vec4 fragmentValue; };
+                layout(set=2, binding=7, std430) readonly buffer Shared { vec4 sharedValue; };
+                out vec4 color;
+                void main() { color = fragmentValue + sharedValue; }
+                """;
+        ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testStorageBufferBindings");
+        try {
+            ShaderCompilePipeline.createShaderPipeline(pipeline, toShaderDescs(vsShader, fsShader), new ShaderCompilePipeline.Options());
+            Shaderc.ShaderResource vertex = getShaderResource(pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX), "VertexData");
+            Shaderc.ShaderResource fragment = getShaderResource(pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT), "FragmentData");
+            assertEquals(0, vertex.set);
+            assertEquals(1, fragment.set);
+            assertEquals(0, vertex.binding);
+            assertEquals(0, fragment.binding);
+            for (ShaderDesc.Language language : new ShaderDesc.Language[] {
+                    ShaderDesc.Language.LANGUAGE_GLSL_SM430, ShaderDesc.Language.LANGUAGE_GLES_SM300 }) {
+                String vs = new String(pipeline.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, language).data);
+                String fs = new String(pipeline.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, language).data);
+                assertTrue(vs, vs.matches("(?s).*layout\\(binding = 0, std430\\) readonly buffer VertexData.*"));
+                assertTrue(fs, fs.matches("(?s).*layout\\(binding = 1, std430\\) readonly buffer FragmentData.*"));
+                assertTrue(vs, vs.matches("(?s).*layout\\(binding = 2, std430\\) readonly buffer Shared.*"));
+                assertTrue(fs, fs.matches("(?s).*layout\\(binding = 2, std430\\) readonly buffer Shared.*"));
+                if (language == ShaderDesc.Language.LANGUAGE_GLES_SM300) {
+                    assertTrue(vs, vs.startsWith("#version 310 es"));
+                    assertTrue(fs, fs.startsWith("#version 310 es"));
+                }
+            }
+            // GL remapping must not change the descriptor decorations used by Vulkan/Metal.
+            assertEquals(0, fragment.binding);
+            assertEquals(1, fragment.set);
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
+    }
+
+    @Test
     public void testAreTypesEqual() throws IOException, CompileExceptionError {
         String vsShader =
                 """

@@ -1,0 +1,12 @@
+#include <metal_stdlib>
+using namespace metal;
+
+struct VertexInput
+{
+    float2 pos [[attribute(0)]];
+};
+
+vertex float4 main0(VertexInput in [[stage_in]])
+{
+    return float4(in.pos, 0.0, 1.0);
+}

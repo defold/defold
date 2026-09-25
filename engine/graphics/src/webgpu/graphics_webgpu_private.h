@@ -73,6 +73,8 @@ namespace dmGraphics
     {
         StorageBuffer m_Base;
         WGPUBuffer    m_Buffer;
+        uint64_t      m_LastRenderPass = 0;
+        uint8_t       m_RenderPassAccess = 0;
     };
 
     struct WebGPUShaderModule

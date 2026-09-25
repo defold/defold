@@ -151,6 +151,7 @@ namespace dmGraphics
         ShaderDesc::Language                m_Language;
         dmArray<OpenGLVertexAttribute>      m_Attributes;
         dmArray<OpenGLScratchUniformBuffer> m_UniformBuffers;
+        dmArray<uint32_t>                  m_StorageBufferBindings;
         Type                                m_TextureUnitTypes[DM_MAX_TEXTURE_UNITS];
     };
 
@@ -214,6 +215,7 @@ namespace dmGraphics
         uint32_t                m_MultiTargetRenderingSupport      : 1;
         uint32_t                m_ComputeSupport                   : 1;
         uint32_t                m_StorageBufferSupport             : 1;
+        uint32_t                m_StorageBufferUpdateBarrierPending : 1;
         uint32_t                m_InstancingSupport                : 1;
         uint32_t                m_ASTCSupport                      : 1;
         // ASTC for 2D array textures (paged atlases). Some HTML5/GLES drivers

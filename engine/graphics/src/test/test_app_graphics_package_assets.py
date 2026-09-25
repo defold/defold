@@ -39,22 +39,26 @@ if 'test_app_graphics_package_assets_vendor' not in sys.modules:
         def to_vendor(cls):
             return ""
 
-def to_spirv(buffer_name, file_path, profile):
+def to_spirv(buffer_name, file_path, profile, resource_set_stage="frag"):
 
     dynamo_home = os.environ['DYNAMO_HOME']
 
-    platform_str = platform.platform().lower()
-
-    if platform_str.startswith("windows"):
+    system = platform.system()
+    machine = "arm64" if platform.machine().lower() in ("arm64", "aarch64") else "x86_64"
+    if system == "Windows":
         platform_str = "x86_64-win32"
-    elif platform_str.startswith("macos"):
-        platform_str = "arm64-macos"
+    elif system == "Darwin":
+        platform_str = machine + "-macos"
+    else:
+        platform_str = machine + "-linux"
 
     exe = '%s/ext/bin/%s/glslang' % (dynamo_home, platform_str)
+    if system == "Windows":
+        exe += ".exe"
 
     out_path = file_path + '.spv'
 
-    subprocess.call([exe,
+    subprocess.check_call([exe,
         "-w",
         "--entry-point",
         "main",
@@ -62,7 +66,7 @@ def to_spirv(buffer_name, file_path, profile):
         "--auto-map-locations",
         "-Os",
         "--resource-set-binding",
-        "frag",
+        resource_set_stage,
         "1",
         "-S",
         profile,
@@ -97,13 +101,29 @@ if __name__ == '__main__':
          to_plaintext("glsl_fragment_program", "test_app_graphics.fs"),
          to_plaintext("glsl_compute_program", "test_app_graphics.cp"),
          to_plaintext("glsl_fragment_program_ssbo", "test_app_graphics_ssbo.fs"),
+         to_plaintext("glsl_fragment_write_program_ssbo", "test_app_graphics_ssbo_write.fs"),
+         to_plaintext("glsl_vertex_read_program_ssbo", "test_app_graphics_ssbo_read.vs"),
+         to_plaintext("glsl_fragment_varying_program_ssbo", "test_app_graphics_ssbo_varying.fs"),
+         to_plaintext("glsl_vertex_program_ssbo", "test_app_graphics_ssbo.vs"),
+         to_plaintext("glsl_compute_program_ssbo", "test_app_graphics_ssbo.cp"),
          to_plaintext("glsl_fragment_program_ubo", "test_app_graphics_ubo.fs"),
          to_plaintext("msl_vertex_program", "test_app_graphics.vs.msl"),
          to_plaintext("msl_fragment_program", "test_app_graphics.fs.msl"),
+         to_plaintext("msl_vertex_program_ssbo", "test_app_graphics_ssbo.vs.msl"),
+         to_plaintext("msl_fragment_program_ssbo", "test_app_graphics_ssbo.fs.msl"),
+         to_plaintext("msl_fragment_write_program_ssbo", "test_app_graphics_ssbo_write.fs.msl"),
+         to_plaintext("msl_vertex_read_program_ssbo", "test_app_graphics_ssbo_read.vs.msl"),
+         to_plaintext("msl_fragment_varying_program_ssbo", "test_app_graphics_ssbo_varying.fs.msl"),
+         to_plaintext("msl_compute_program_ssbo", "test_app_graphics_ssbo.cp.msl"),
          to_spirv("spirv_vertex_program", "test_app_graphics.vs", "vert"),
          to_spirv("spirv_fragment_program", "test_app_graphics.fs", "frag"),
          to_spirv("spirv_compute_program", "test_app_graphics.cp", "comp"),
          to_spirv("spirv_fragment_program_ssbo", "test_app_graphics_ssbo.fs", "frag"),
+         to_spirv("spirv_fragment_write_program_ssbo", "test_app_graphics_ssbo_write.fs", "frag"),
+         to_spirv("spirv_vertex_read_program_ssbo", "test_app_graphics_ssbo_read.vs", "vert", "vert"),
+         to_spirv("spirv_fragment_varying_program_ssbo", "test_app_graphics_ssbo_varying.fs", "frag"),
+         to_spirv("spirv_vertex_program_ssbo", "test_app_graphics_ssbo.vs", "vert"),
+         to_spirv("spirv_compute_program_ssbo", "test_app_graphics_ssbo.cp", "comp", "comp"),
          to_spirv("spirv_fragment_program_ubo", "test_app_graphics_ubo.fs", "frag")])
 
     if test_app_graphics_package_assets_vendor.is_installed():

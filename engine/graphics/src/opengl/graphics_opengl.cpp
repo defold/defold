@@ -2439,6 +2439,12 @@ static void LogFrameBufferError(GLenum status)
         buffer->m_BaseStorageBuffer.m_Size = size;
         buffer->m_BaseStorageBuffer.m_Usage = buffer_usage;
 
+        if (context->m_StorageBufferUpdateBarrierPending)
+        {
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_BUFFER_UPDATE);
+            context->m_StorageBufferUpdateBarrierPending = 0;
+        }
+
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, GetGLHandle(context, buffer->m_Id));
         glBufferData(GL_SHADER_STORAGE_BUFFER, size, data, GetOpenGLBufferUsage(buffer_usage));
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
@@ -2458,6 +2464,12 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
         assert(offset + size <= buffer->m_BaseStorageBuffer.m_Size);
+
+        if (context->m_StorageBufferUpdateBarrierPending)
+        {
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_BUFFER_UPDATE);
+            context->m_StorageBufferUpdateBarrierPending = 0;
+        }
 
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, GetGLHandle(context, buffer->m_Id));
         glBufferSubDataARB(GL_SHADER_STORAGE_BUFFER, offset, size, data);
@@ -3129,7 +3141,7 @@ static void LogFrameBufferError(GLenum status)
             {
                 const ShaderResourceBinding& resource = program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers[i];
                 OpenGLStorageBuffer* buffer = context->m_CurrentStorageBuffers[resource.m_Set][resource.m_Binding];
-                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, resource.m_Binding, buffer ? GetGLHandle(context, buffer->m_Id) : 0);
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, program->m_StorageBufferBindings[i], buffer ? GetGLHandle(context, buffer->m_Id) : 0);
                 CHECK_GL_ERROR;
             }
         }
@@ -3241,6 +3253,7 @@ static void LogFrameBufferError(GLenum status)
         if (context->m_StorageBufferSupport && context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
         {
             glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_STORAGE);
+            context->m_StorageBufferUpdateBarrierPending = 1;
             CHECK_GL_ERROR;
         }
     #else
@@ -3314,6 +3327,8 @@ static void LogFrameBufferError(GLenum status)
             glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS |
                             DMGRAPHICS_BARRIER_BIT_TEXTURE_FETCH |
                             DMGRAPHICS_BARRIER_BIT_SHADER_STORAGE);
+            if (context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
+                context->m_StorageBufferUpdateBarrierPending = 1;
             CHECK_GL_ERROR;
         }
     #endif
@@ -4100,6 +4115,25 @@ static void LogFrameBufferError(GLenum status)
         delete program;
     }
 
+    static bool BuildStorageBufferBindings(OpenGLContext* context, OpenGLProgram* program, char* error_buffer, uint32_t error_buffer_size)
+    {
+        const dmArray<ShaderResourceBinding>& resources = program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers;
+        program->m_StorageBufferBindings.SetSize(0);
+        program->m_StorageBufferBindings.SetCapacity(resources.Size());
+        for (uint32_t i = 0; i < resources.Size(); ++i)
+        {
+            const uint32_t binding = GetStorageBufferBindingIndex(resources, i);
+            if (!context->m_StorageBufferSupport || binding >= context->m_BaseContext.m_Limits.m_MaxStorageBuffersPerStage)
+            {
+                if (error_buffer && error_buffer_size)
+                    dmSnPrintf(error_buffer, error_buffer_size, "Storage buffer binding %u exceeds the adapter's supported binding range.", binding);
+                return false;
+            }
+            program->m_StorageBufferBindings.Push(binding);
+        }
+        return true;
+    }
+
     static HProgram OpenGLNewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         ShaderDesc::Shader* ddf_vp = 0x0;
@@ -4115,6 +4149,12 @@ static void LogFrameBufferError(GLenum status)
         OpenGLProgram* program = new OpenGLProgram();
 
         CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
+
+        if (!BuildStorageBufferBindings(context, program, error_buffer, error_buffer_size))
+        {
+            DeleteIncompleteProgram(context, program, 0, 0, 0);
+            return 0;
+        }
 
         if (ddf_cp)
         {
@@ -4266,6 +4306,12 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLProgram* program = (OpenGLProgram*) _program;
 
+        // The shared ReloadProgram entry point destroys the previous reflection.
+        // Rebuild it together with the GL mapping before using the new shaders.
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
+        if (!BuildStorageBufferBindings(context, program, error_buffer, error_buffer_size))
+            return false;
+
         if (ddf_cp)
         {
             if (!ReloadShader(context, program->m_ComputeShader, ddf_cp, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf->m_ComputeProgram, error_buffer, error_buffer_size))
@@ -4310,6 +4356,21 @@ static void LogFrameBufferError(GLenum status)
             BuildAttributes(program);
         }
 
+        for (uint32_t i = 0; i < program->m_UniformBuffers.Size(); ++i)
+        {
+            OpenGLScratchUniformBuffer& buffer = program->m_UniformBuffers[i];
+            GLuint id = GetGLHandle(context, buffer.m_Id);
+            glDeleteBuffers(1, &id);
+            CleanupGLHandle(context, buffer.m_Id);
+            delete[] buffer.m_BlockMemory;
+        }
+        program->m_UniformBuffers.SetSize(0);
+        OpenGLShader* shaders[] = { program->m_VertexShader, program->m_FragmentShader };
+        ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
+        OpenGLShader** active_shaders = ddf_cp ? &program->m_ComputeShader : shaders;
+        const uint32_t shader_count = ddf_cp ? 1 : 2;
+        CreateProgramResourceBindings(program, bindings, active_shaders, shader_count);
+        OpenGLBuildUniforms(context, program, active_shaders, shader_count);
         memset(program->m_TextureUnitTypes, 0, sizeof(program->m_TextureUnitTypes));
         return true;
     }
@@ -4355,6 +4416,8 @@ static void LogFrameBufferError(GLenum status)
         {
             return language == ShaderDesc::LANGUAGE_GLSL_SM430;
         }
+        if (language == ShaderDesc::LANGUAGE_GLSL_SM430)
+            return context->m_StorageBufferSupport;
         return language == ShaderDesc::LANGUAGE_GLSL_SM330;
     }
 

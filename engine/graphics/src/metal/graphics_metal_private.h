@@ -106,6 +106,8 @@ namespace dmGraphics
     {
         StorageBuffer     m_Base;
         MetalDeviceBuffer m_DeviceBuffer;
+        uint64_t          m_LastRenderPass;
+        uint8_t           m_RenderPassAccess;
     };
 
     struct MetalConstantScratchBuffer
@@ -191,6 +193,7 @@ namespace dmGraphics
         , m_HasPendingClearColor(0)
         , m_HasPendingClearDepth(0)
         , m_HasPendingClearStencil(0)
+        , m_ResumePass(0)
         , m_ColorAttachmentCount(0)
         {
             memset(&m_Base, 0, sizeof(m_Base));
@@ -230,6 +233,7 @@ namespace dmGraphics
         uint32_t       m_HasPendingClearColor : 1;
         uint32_t       m_HasPendingClearDepth : 1;
         uint32_t       m_HasPendingClearStencil : 1;
+        uint32_t       m_ResumePass : 1;
         uint32_t       m_ColorAttachmentCount : 4;
     };
 
@@ -359,6 +363,7 @@ namespace dmGraphics
         MTL::Resource*                     m_ComputeUsedResources[MAX_ENCODER_RESOURCE_CACHE];
         MTL::ResourceUsage                 m_ComputeUsedResourceUsage[MAX_ENCODER_RESOURCE_CACHE];
         uint16_t                           m_RenderUsedResourceCount;
+        uint64_t                           m_RenderPassSerial;
         uint16_t                           m_ComputeUsedResourceCount;
 
         MetalTexture*                      m_DefaultTexture2D;

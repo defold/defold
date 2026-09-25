@@ -18,6 +18,7 @@
 
 #include <dlib/log.h>
 #include <dlib/time.h>
+#include <ddf/ddf.h>
 #include <platform/window.hpp>
 #include <dmsdk/dlib/dstrings.h> // dmStrCaseCmp
 
@@ -32,6 +33,47 @@
 #define APP_TITLE "GraphicsTest"
 #define WIDTH 8u
 #define HEIGHT 4u
+
+TEST(StorageBuffer, LegacyDescriptorFields)
+{
+    // Legacy wire tags: block_size=11 and sampler_texture_index=12. Keep
+    // literal bytes so regenerating current protobuf code cannot hide a break.
+    const uint8_t block[] = {0x0a, 1, 'b', 0x10, 1, 0x1a, 0, 0x58, 0x80, 1};
+    const uint8_t sampler[] = {0x0a, 1, 's', 0x10, 2, 0x1a, 0, 0x60, 7};
+    dmGraphics::ShaderDesc::ResourceBinding* resource = 0;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(block, sizeof(block), &resource));
+    ASSERT_EQ(128u, resource->m_Bindinginfo.m_BlockSize);
+    ASSERT_EQ(0u, resource->m_ResourceAccessFlags);
+    dmGraphics::ShaderDesc::ShaderReflection reflection = {};
+    reflection.m_StorageBuffers.m_Data = resource;
+    reflection.m_StorageBuffers.m_Count = 1;
+    dmGraphics::Program program = {};
+    dmGraphics::CreateShaderMeta(&reflection, &program);
+    ASSERT_TRUE(program.m_WritesStorageBuffers); // Missing metadata is conservative.
+    dmGraphics::DestroyShaderMeta(program.m_ShaderMeta);
+    dmDDF::FreeMessage(resource);
+    resource = 0;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(sampler, sizeof(sampler), &resource));
+    ASSERT_EQ(7u, resource->m_Bindinginfo.m_SamplerTextureIndex);
+    ASSERT_EQ(0u, resource->m_ResourceAccessFlags);
+    dmDDF::FreeMessage(resource);
+}
+
+TEST(StorageBuffer, FlatBindingsAcrossSetsAndStages)
+{
+    dmArray<dmGraphics::ShaderResourceBinding> resources;
+    resources.SetCapacity(5);
+    resources.SetSize(5);
+    memset(resources.Begin(), 0, sizeof(resources[0]) * resources.Size());
+    resources[0].m_Set = 2; resources[0].m_Binding = 7;
+    resources[1].m_Set = 1; resources[1].m_Binding = 0;
+    resources[2].m_Set = 0; resources[2].m_Binding = 0;
+    resources[3].m_Set = 2; resources[3].m_Binding = 7; // Shared between stages.
+    resources[4].m_Set = 0; resources[4].m_Binding = 9;
+    const uint32_t expected[] = {3, 2, 0, 3, 1};
+    for (uint32_t i = 0; i < resources.Size(); ++i)
+        ASSERT_EQ(expected[i], dmGraphics::GetStorageBufferBindingIndex(resources, i));
+}
 
 #define ASSERT_VECF(exp, act, num_values) \
     for (int i = 0; i < num_values; ++i) \

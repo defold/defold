@@ -1,0 +1,15 @@
+#include <metal_stdlib>
+using namespace metal;
+
+struct Data { float4 member1; };
+struct StorageArguments { const device Data* my_data [[id(0)]]; };
+struct VertexIn { float2 pos [[attribute(0)]]; };
+struct VertexOut { float4 position [[position]]; float4 color [[user(locn0)]]; };
+
+vertex VertexOut main0(VertexIn in [[stage_in]], constant StorageArguments& args [[buffer(1)]])
+{
+    VertexOut out;
+    out.position = float4(in.pos, 0, 1);
+    out.color = float4(args.my_data[1].member1.rgb, 1);
+    return out;
+}
