@@ -18,10 +18,12 @@
             [editor.code.syntax :as syntax]
             [editor.code.util :as util]
             [util.coll :as coll :refer [pair]]
-            [util.defonce :as defonce])
+            [util.defonce :as defonce]
+            [util.diff :as diff])
   (:import [java.io IOException InputStream Reader Writer]
            [java.nio CharBuffer]
-           [java.util Collections]
+           [java.text BreakIterator]
+           [java.util Collections Locale]
            [java.util.regex MatchResult Pattern]
            [org.apache.commons.io.input ReaderInputStream]))
 
@@ -40,6 +42,67 @@
   (ascent [this] "A rounded double representing the distance from the baseline to the top.")
   (line-height [this] "A rounded double representing the line height.")
   (char-width [this character] "A rounded double representing the width of the specified character."))
+
+(defonce/protocol ComplexTextMetrics
+  (complex-text-width [this text] "Returns the shaped width of text.")
+  (complex-text-col->x [this text col] "Returns the visual x position of a logical offset.")
+  (complex-text-x->col [this text x] "Returns the logical offset nearest x.")
+  (complex-text-x->character-col [this text x] "Returns the logical offset of the character at x.")
+  (complex-text-selection-spans [this text start-offset end-offset] "Returns selection spans relative to the run's left edge."))
+
+(defn- combining-character? [character]
+  (let [character-type (Character/getType (unchecked-char character))]
+    (or (= Character/NON_SPACING_MARK character-type)
+        (= Character/COMBINING_SPACING_MARK character-type)
+        (= Character/ENCLOSING_MARK character-type))))
+
+(defn- neutral-character?
+  "True for ASCII characters that may join complex text on both sides.
+  Tabs need editor tab stops, and quotes must keep adjacent literals separate."
+  [character]
+  (case character
+    (\tab \" \' \`) false
+    (or (Character/isDigit (unchecked-char character))
+        (not (Character/isLetterOrDigit (unchecked-char character))))))
+
+(defn complex-text-ranges
+  "Returns [start end] spans that must be shaped together.
+  Neutral text stays with surrounding complex text so bidi can reorder the phrase."
+  [^String line]
+  (let [line-length (count line)]
+    (loop [index 0
+           start -1
+           end -1
+           ranges []]
+      (if (>= index line-length)
+        (if (neg? start)
+          ranges
+          (conj ranges [start end]))
+        (let [character (.charAt line index)
+              next-index (inc index)]
+          (cond
+            (<= 0x80 (int character))
+            (recur next-index
+                   (if (neg? start)
+                     ;; Include the base of a combining mark, but never a tab.
+                     (if (and (pos? index)
+                              (combining-character? character)
+                              (not (Character/isWhitespace (.charAt line (dec index)))))
+                       (dec index)
+                       index)
+                     start)
+                   next-index
+                   ranges)
+
+            (and (not (neg? start))
+                 (neutral-character? character))
+            (recur next-index start end ranges)
+
+            (not (neg? start))
+            (recur next-index -1 -1 (conj ranges [start end]))
+
+            :else
+            (recur next-index start end ranges)))))))
 
 (defmacro clamp [value minimum maximum]
   `(max ~minimum (min ~value ~maximum)))
@@ -561,10 +624,128 @@
   [^LayoutInfo layout ^String text start-index end-index start-x]
   (advance-text-impl (.glyph layout) (.tab-stops layout) text start-index end-index start-x))
 
+(defn- line-col->x
+  [glyph-metrics tab-stops ^String line col ranges]
+  (let [col (long col)]
+    (loop [range-index 0
+           index 0
+           x 0.0]
+      (if-let [[start end] (get ranges range-index)]
+        (let [start (long start)
+              end (long end)]
+          (cond
+            (< col start)
+            (advance-text-impl glyph-metrics tab-stops line index col x)
+
+            ;; Range boundaries also need bidi-aware caret positions.
+            (<= col end)
+            (+ ^double (advance-text-impl glyph-metrics tab-stops line index start x)
+               ^double (complex-text-col->x glyph-metrics (.substring line start end) (- col start)))
+
+            :else
+            (recur (inc range-index)
+                   end
+                   (+ ^double (advance-text-impl glyph-metrics tab-stops line index start x)
+                      ^double (complex-text-width glyph-metrics (.substring line start end))))))
+        (advance-text-impl glyph-metrics tab-stops line index col x)))))
+
+(defn- line-x->col
+  [glyph-metrics tab-stops ^String line x round complex-hit past-end ranges]
+  (let [x (double x)
+        round (double round)]
+    (loop [range-index 0
+           index 0
+           start-x 0.0]
+      (if-let [[start end] (get ranges range-index)]
+        (let [start (long start)
+              end (long end)
+              complex-start-x (double (advance-text-impl glyph-metrics tab-stops line index start start-x))
+              complex-end-x (+ complex-start-x ^double (complex-text-width glyph-metrics (.substring line start end)))]
+          (cond
+            (< x complex-start-x)
+            (loop [col index
+                   col-x start-x]
+              (let [next-col (inc col)
+                    next-x (double (advance-text-impl glyph-metrics tab-stops line col next-col col-x))]
+                (if (or (<= x next-x) (= next-col start))
+                  (max 0 (+ col (long (+ round (/ (- x col-x) (- next-x col-x))))))
+                  (recur next-col next-x))))
+
+            (< x complex-end-x)
+            (+ start ^long (complex-hit glyph-metrics (.substring line start end) (- x complex-start-x)))
+
+            :else
+            (recur (inc range-index) end complex-end-x)))
+        (loop [col index
+               col-x start-x]
+          (if (>= col (count line))
+            (when past-end col)
+            (let [next-col (inc col)
+                  next-x (double (advance-text-impl glyph-metrics tab-stops line col next-col col-x))]
+              (if (<= x next-x)
+                (max 0 (+ col (long (+ round (/ (- x col-x) (- next-x col-x))))))
+                (recur next-col next-x)))))))))
+
 (defn line-width
   "Returns an accurate line width measurement, taking tab stops into account."
-  ^double [glyph-metrics tab-stops line]
-  (advance-text-impl glyph-metrics tab-stops line 0 (count line) 0.0))
+  ^double [glyph-metrics tab-stops ^String line]
+  (let [ranges (complex-text-ranges line)]
+    (if (zero? (count ranges))
+      (advance-text-impl glyph-metrics tab-stops line 0 (count line) 0.0)
+      (loop [range-index 0
+             index 0
+             x 0.0]
+        (if-let [[start end] (get ranges range-index)]
+          (let [start (long start)
+                end (long end)]
+            (recur (inc range-index)
+                   end
+                   (+ ^double (advance-text-impl glyph-metrics tab-stops line index start x)
+                      ^double (complex-text-width glyph-metrics (.substring line start end)))))
+          (advance-text-impl glyph-metrics tab-stops line index (count line) x))))))
+
+(defn- line-selection-spans
+  "Returns the visual spans covering [start-col end-col)."
+  [glyph-metrics tab-stops ^String line start-col end-col]
+  (let [start-col (long start-col)
+        end-col (long end-col)
+        ranges (complex-text-ranges line)
+
+        ordinary-spans (fn [spans ^long from ^long to ^double from-x]
+                         (let [a (max start-col from)
+                               b (min end-col to)]
+                           (if (< a b)
+                             (let [x0 (advance-text-impl glyph-metrics tab-stops line from a from-x)
+                                   x1 (advance-text-impl glyph-metrics tab-stops line a b x0)]
+                               (conj spans [x0 x1]))
+                             spans)))
+
+        ;; Use the run's origin; an RTL caret at its start sits at the far edge.
+        range-spans (fn [spans ^long rs ^long re ^double base-x]
+                      (let [a (max start-col rs)
+                            b (min end-col re)]
+                        (if (< a b)
+                          (into spans
+                                (map (fn [[^double x0 ^double x1]]
+                                       [(+ base-x x0) (+ base-x x1)]))
+                                (complex-text-selection-spans glyph-metrics (subs line rs re) (- a rs) (- b rs)))
+                          spans)))]
+    (loop [range-index 0
+           index 0
+           x 0.0
+           spans []]
+      (if-let [[start end] (get ranges range-index)]
+        (let [start (long start)
+              end (long end)
+              complex-start-x (double (advance-text-impl glyph-metrics tab-stops line index start x))
+              complex-end-x (+ complex-start-x ^double (complex-text-width glyph-metrics (subs line start end)))]
+          (recur (inc range-index)
+                 end
+                 complex-end-x
+                 (-> spans
+                     (ordinary-spans index start x)
+                     (range-spans start end complex-start-x))))
+        (ordinary-spans spans index (count line) x)))))
 
 (defn text-width
   "Simple text width measurement. Does not take tab stops into account, so don't feed it strings with tabs.
@@ -755,36 +936,45 @@
 
 (defn col->x
   ^double [^LayoutInfo layout ^long col ^String line]
-  (+ (.x ^Rect (.canvas layout))
-     (.scroll-x layout)
-     ^double (advance-text layout line 0 col 0.0)))
+  (let [ranges (complex-text-ranges line)]
+    (+ (.x ^Rect (.canvas layout))
+       (.scroll-x layout)
+       (double (if (pos? (count ranges))
+                 (line-col->x (.glyph layout) (.tab-stops layout) line col ranges)
+                 (advance-text layout line 0 col 0.0))))))
 
 (defn x->col
   ^long [^LayoutInfo layout ^double x ^String line]
-  (let [line-x (x->doc-x layout x)
-        line-length (count line)]
-    (loop [col 0
-           start-x 0.0]
-      (if (<= line-length col)
-        col
-        (let [next-col (inc col)
-              end-x (double (advance-text layout line col next-col start-x))]
-          (if (<= end-x line-x)
-            (recur next-col end-x)
-            (max 0 (+ col (long (+ 0.5 (/ (- line-x start-x) (- end-x start-x))))))))))))
+  (let [ranges (complex-text-ranges line)]
+    (if (pos? (count ranges))
+      (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x) 0.5 complex-text-x->col true ranges)
+      (let [line-x (x->doc-x layout x)
+            line-length (count line)]
+        (loop [col 0
+               start-x 0.0]
+          (if (<= line-length col)
+            col
+            (let [next-col (inc col)
+                  end-x (double (advance-text layout line col next-col start-x))]
+              (if (<= end-x line-x)
+                (recur next-col end-x)
+                (max 0 (+ col (long (+ 0.5 (/ (- line-x start-x) (- end-x start-x))))))))))))))
 
 (defn x->character-col [^LayoutInfo layout ^double x ^String line]
-  (let [line-x (x->doc-x layout x)
-        line-length (count line)]
-    (loop [col 0
-           start-x 0.0]
-      (if (<= line-length col)
-        nil
-        (let [next-col (inc col)
-              end-x (double (advance-text layout line col next-col start-x))]
-          (if (<= end-x line-x)
-            (recur next-col end-x)
-            (max 0 (+ col (long (/ (- line-x start-x) (- end-x start-x)))))))))))
+  (let [ranges (complex-text-ranges line)]
+    (if (pos? (count ranges))
+      (line-x->col (.glyph layout) (.tab-stops layout) line (x->doc-x layout x) 0.0 complex-text-x->character-col false ranges)
+      (let [line-x (x->doc-x layout x)
+            line-length (count line)]
+        (loop [col 0
+               start-x 0.0]
+          (if (<= line-length col)
+            nil
+            (let [next-col (inc col)
+                  end-x (double (advance-text layout line col next-col start-x))]
+              (if (<= end-x line-x)
+                (recur next-col end-x)
+                (max 0 (+ col (long (/ (- line-x start-x) (- end-x start-x)))))))))))))
 
 (defn adjust-row
   ^long [lines ^long row]
@@ -1113,45 +1303,77 @@
         top (- (row->y layout (.row adjusted-cursor)) 0.5)]
     (->Rect left top 1.0 (inc ^double (line-height (.glyph layout))))))
 
+(defn- merge-rects
+  "Merges overlapping or adjacent rects."
+  [rects]
+  (reduce (fn [merged ^Rect rect]
+            (let [^Rect previous (peek merged)]
+              (if (and previous
+                       (<= (.x rect) (+ (.x previous) (.w previous) 0.5)))
+                (conj (pop merged)
+                      (->Rect (.x previous)
+                              (.y previous)
+                              (- (max (+ (.x previous) (.w previous))
+                                      (+ (.x rect) (.w rect)))
+                                 (.x previous))
+                              (.h previous)))
+                (conj merged rect))))
+          []
+          (sort-by (fn [^Rect rect] (.x rect)) rects)))
+
 (defn cursor-range-rects
   [^LayoutInfo layout lines ^CursorRange adjusted-cursor-range]
   (let [canvas ^Rect (.canvas layout)
         ^double line-height (line-height (.glyph layout))
-        col-to-col-rect (fn [^long row ^long start-col ^long end-col]
-                          (let [line (lines row)
-                                top (row->y layout row)
-                                left (col->x layout start-col line)
-                                right (col->x layout end-col line)
-                                width (- right left)]
-                            (->Rect left top width line-height)))
-        col-to-edge-rect (fn [^long row ^long col]
-                           (let [line (lines row)
-                                 top (row->y layout row)
-                                 left (col->x layout col line)
-                                 width (- (+ (.x canvas) (.w canvas)) left)]
-                             (->Rect left top width line-height)))
-        edge-to-col-rect (fn [^long row ^long col]
-                           (let [line (lines row)
-                                 top (row->y layout row)
-                                 left (col->x layout 0 line)
-                                 right (col->x layout col line)
-                                 width (- right left)]
-                             (->Rect left top width line-height)))
+
+        ;; Bidi selections may have several visual spans on one line.
+        line-rects (fn [^long row ^long start-col ^long end-col]
+                     (let [line (lines row)
+                           top (row->y layout row)
+                           ;; Touching shaped text counts, since bidi caret
+                           ;; positions differ at range boundaries.
+                           spans (when (coll/any? (fn [[^long start ^long end]]
+                                                    (and (<= start end-col) (>= end start-col)))
+                                                  (complex-text-ranges line))
+                                   (line-selection-spans (.glyph layout) (.tab-stops layout) line start-col end-col))]
+                       (if (coll/empty? spans)
+                         ;; Zero-width marks may produce no spans. RTL positions
+                         ;; can be reversed, so build the fallback from both ends.
+                         (let [start-x (col->x layout start-col line)
+                               end-x (col->x layout end-col line)]
+                           [(->Rect (min start-x end-x) top (Math/abs (- end-x start-x)) line-height)])
+                         (mapv (fn [[^double x0 ^double x1]]
+                                 (->Rect (doc-x->x layout x0) top (- x1 x0) line-height))
+                               spans))))
+
+        edge-to-col-rects (fn [^long row ^long col]
+                            (merge-rects (line-rects row 0 col)))
+
+        col-to-edge-rects (fn [^long row ^long col]
+                            (let [line (lines row)
+                                  top (row->y layout row)
+                                  ;; An RTL end caret is not the visual end of the line.
+                                  line-end-x (doc-x->x layout (line-width (.glyph layout) (.tab-stops layout) line))
+                                  width (- (+ (.x canvas) (.w canvas)) ^double line-end-x)]
+                              (merge-rects (conj (line-rects row col (count line))
+                                                 (->Rect line-end-x top width line-height)))))
+
         edge-to-edge-rect (fn [^long start-row ^long end-row]
                             (let [top (row->y layout start-row)
                                   left (col->x layout 0 "")
                                   width (- (+ (.x canvas) (.w canvas)) left)
                                   height (* line-height (inc (- end-row start-row)))]
                               (->Rect left top width height)))
+
         {start-row :row start-col :col} (cursor-range-start adjusted-cursor-range)
         {end-row :row end-col :col} (cursor-range-end adjusted-cursor-range)]
     (case (- ^long end-row ^long start-row)
-      0 [(col-to-col-rect start-row start-col end-col)]
-      1 [(col-to-edge-rect start-row start-col)
-         (edge-to-col-rect end-row end-col)]
-      [(col-to-edge-rect start-row start-col)
-       (edge-to-edge-rect (inc ^long start-row) (dec ^long end-row))
-       (edge-to-col-rect end-row end-col)])))
+      0 (merge-rects (line-rects start-row start-col end-col))
+      1 (into (col-to-edge-rects start-row start-col)
+              (edge-to-col-rects end-row end-col))
+      (-> (col-to-edge-rects start-row start-col)
+          (conj (edge-to-edge-rect (inc ^long start-row) (dec ^long end-row)))
+          (into (edge-to-col-rects end-row end-col))))))
 
 (defn- scroll-x-limit
   ^double [^LayoutInfo layout]
@@ -1406,39 +1628,104 @@
   (let [adjusted (adjust-cursor lines cursor)
         row (.row adjusted)
         col (.col adjusted)
+        ^String line (lines row)
         new-col (dec col)]
     (if (neg? new-col)
       (let [new-row (max 0 (dec row))
             new-col (if (zero? row) 0 (count (lines new-row)))]
         (->Cursor new-row new-col))
-      (->Cursor row new-col))))
+      ;; Keep the cursor outside UTF-16 surrogate pairs.
+      (let [new-col (if (and (pos? new-col)
+                             (Character/isLowSurrogate (.charAt line new-col))
+                             (Character/isHighSurrogate (.charAt line (dec new-col))))
+                      (dec new-col)
+                      new-col)]
+        (->Cursor row new-col)))))
 
 (defn- cursor-right
   ^Cursor [lines ^Cursor cursor]
   (let [adjusted (adjust-cursor lines cursor)
         row (.row adjusted)
         col (.col adjusted)
+        ^String line (lines row)
         new-col (inc col)]
-    (if (> new-col (count (lines row)))
+    (if (> new-col (count line))
       (let [last-row (dec (count lines))
             new-row (min (inc row) last-row)
             new-col (if (= last-row row) (count (lines last-row)) 0)]
         (->Cursor new-row new-col))
-      (->Cursor row new-col))))
+      ;; Keep the cursor outside UTF-16 surrogate pairs.
+      (let [new-col (if (and (< new-col (count line))
+                             (Character/isHighSurrogate (.charAt line col))
+                             (Character/isLowSurrogate (.charAt line new-col)))
+                      (inc new-col)
+                      new-col)]
+        (->Cursor row new-col)))))
+
+(defn- previous-grapheme-boundary
+  ^long [^String line ^long col]
+  (let [iterator (BreakIterator/getCharacterInstance Locale/ROOT)]
+    (.setText iterator line)
+    (let [boundary (.preceding iterator col)]
+      (if (= BreakIterator/DONE boundary) 0 boundary))))
+
+(defn- next-grapheme-boundary
+  ^long [^String line ^long col]
+  (let [iterator (BreakIterator/getCharacterInstance Locale/ROOT)]
+    (.setText iterator line)
+    (let [boundary (.following iterator col)]
+      (if (= BreakIterator/DONE boundary) (count line) boundary))))
+
+(defn- cursor-left-grapheme
+  ^Cursor [lines ^Cursor cursor]
+  (let [adjusted (adjust-cursor lines cursor)
+        row (.row adjusted)
+        col (.col adjusted)]
+    (if (zero? col)
+      (let [new-row (max 0 (dec row))]
+        (->Cursor new-row (if (zero? row) 0 (count (lines new-row)))))
+      (->Cursor row (previous-grapheme-boundary (lines row) col)))))
+
+(defn- cursor-right-grapheme
+  ^Cursor [lines ^Cursor cursor]
+  (let [adjusted (adjust-cursor lines cursor)
+        row (.row adjusted)
+        col (.col adjusted)
+        line (lines row)]
+    (if (= col (count line))
+      (let [last-row (dec (count lines))
+            new-row (min (inc row) last-row)]
+        (->Cursor new-row (if (= last-row row) (count (lines last-row)) 0)))
+      (->Cursor row (next-grapheme-boundary line col)))))
+
+(defn- grapheme-boundary?
+  [^String line ^long col]
+  (let [iterator (BreakIterator/getCharacterInstance Locale/ROOT)]
+    (.setText iterator line)
+    (.isBoundary iterator col)))
 
 (defn- cursor-prev-word
   ^Cursor [lines ^Cursor cursor]
   (let [left-adjusted (cursor-left lines cursor)]
     (if (not= (.row cursor) (.row left-adjusted))
       left-adjusted
-      (cursor-range-start (word-cursor-range-at-cursor lines left-adjusted)))))
+      ;; The word scan may stop inside a grapheme.
+      (let [^Cursor target (cursor-range-start (word-cursor-range-at-cursor lines left-adjusted))
+            ^String line (lines (.row target))]
+        (if (grapheme-boundary? line (.col target))
+          target
+          (->Cursor (.row target) (previous-grapheme-boundary line (.col target))))))))
 
 (defn- cursor-next-word
   ^Cursor [lines ^Cursor cursor]
   (let [right-adjusted (cursor-right lines cursor)]
     (if (not= (.row cursor) (.row right-adjusted))
       right-adjusted
-      (cursor-range-end (word-cursor-range-at-cursor lines right-adjusted)))))
+      (let [^Cursor target (cursor-range-end (word-cursor-range-at-cursor lines right-adjusted))
+            ^String line (lines (.row target))]
+        (if (grapheme-boundary? line (.col target))
+          target
+          (->Cursor (.row target) (next-grapheme-boundary line (.col target))))))))
 
 (defn move-cursors [cursor-ranges move-fn lines]
   (into []
@@ -2069,34 +2356,85 @@
           (recur (inc indent-level))
           indent-level)))))
 
-(defn- indent-level
-  ^long [^long prev-line-indent-level prev-line-begin? line-end?]
-  (if (and line-end? prev-line-begin?)
-    ;; function foo()
-    ;; end|
-    prev-line-indent-level
+(defn- frame-closed-by? [frame kind]
+  (or (= :any kind)
+      (= :any (:kind frame))
+      (= kind (:kind frame))))
 
-    (if line-end?
-      ;; function foo()
-      ;;     ...
-      ;;     ...
-      ;;     end|
-      (dec prev-line-indent-level)
+(defn- indent-step [{:keys [stack line-continuation]} {:keys [leading closes opens has-code unfinished trailing-comma] :as counts}]
+  (let [;; A closer finishes any assignment left unfinished above it.
+        assignment-scope (:assignment-scope line-continuation)
+        assign-pending (and assignment-scope (coll/empty? closes))
+        trailing-comma-pending (:trailing-comma line-continuation)
+        continued (if assign-pending 1 0)
+        top (peek stack)
+        ;; Determine this line's indentation before updating the stack.
+        [level col] (cond
+                      (nil? top)
+                      [continued nil]
 
-      (if prev-line-begin?
-        ;; function foo()
-        ;; |
-        (inc prev-line-indent-level)
+                      (and leading (frame-closed-by? top leading))
+                      [(:level top) (when trailing-comma-pending (:col top))]
 
-        ;; function foo()
-        ;;     ...
-        ;;     ...
-        ;; |
-        prev-line-indent-level))))
+                      :else
+                      [(+ (inc ^long (:level top)) continued)
+                       (when-not assign-pending (:col top))])
+        ;; Remove enclosing frames closed by this line, resuming the assignment
+        ;; each one suspended.
+        [stack assignment-scope] (reduce (fn [[stack assignment-scope] kind]
+                                           (let [top (peek stack)]
+                                             (if (and top (frame-closed-by? top kind))
+                                               [(pop stack) (:assignment-scope top)]
+                                               [stack assignment-scope])))
+                                         [stack assignment-scope]
+                                         closes)
+        ;; Add frames opened on this line for subsequent lines.
+        stack (let [line-indent (if (coll/empty? stack)
+                                  continued
+                                  (+ (inc ^long (:level (peek stack))) continued))
+                    n (count opens)]
+                (loop [i 0
+                       s stack]
+                  (if (= i n)
+                    s
+                    (recur (inc i) (conj s (assoc (opens i) :level line-indent :assignment-scope (when (zero? i) assignment-scope)))))))
+        ;; The assignment carries to the lines below until a line of code
+        ;; finishes it. Lines inside a bracket indent through that instead, so
+        ;; the frame holds the assignment until it closes.
+        assignment-scope (if-not has-code
+                           assignment-scope
+                           (when (coll/empty? opens)
+                             (cond
+                               (= :assignment unfinished) (if (:bracket (peek stack)) :nested :statement)
+                               trailing-comma (when (= :statement assignment-scope) :statement))))
+        trailing-comma (if has-code trailing-comma (:trailing-comma line-continuation))]
+    [{:stack stack
+      :line-continuation {:assignment-scope assignment-scope
+                          :trailing-comma trailing-comma}
+      :lex-state (:lex-state counts)
+      :in-multiline-scope (:in-multiline-scope counts)}
+     level col]))
+
+(defn- indent-string->tab-spaces
+  ^long [^String indent-string]
+  (if (= "\t" indent-string)
+    (indent-type->tab-spaces :tabs)
+    (.length indent-string)))
 
 (defn- indent-line
-  ^String [unindented-line indent-string ^long indent-level]
-  (string/join (concat (repeat indent-level indent-string) [unindented-line])))
+  ^String [^String unindented-line ^String indent-string ^long indent-level indent-col]
+  (let [[units padding] (if-not indent-col
+                          [indent-level 0]
+                          (let [tab-spaces (indent-string->tab-spaces indent-string)
+                                units (quot ^long indent-col tab-spaces)]
+                            [units (- ^long indent-col (* units tab-spaces))]))
+        builder (StringBuilder.)]
+    (dotimes [_ units]
+      (.append builder indent-string))
+    (dotimes [_ padding]
+      (.append builder \space))
+    (.append builder unindented-line)
+    (.toString builder)))
 
 (defn- length-difference-by-row [indentation-splices]
   (into {}
@@ -2139,79 +2477,160 @@
               (not= regions regions')
               (assoc :regions regions')))))
 
-(defn- find-indent-level [indent-level-pattern grammar lines ^long queried-row]
-  (let [^long start-row (loop [row queried-row]
-                          (cond (not (pos? row)) 0
-                                (string/blank? (get lines row)) (recur (dec row))
-                                :else row))
-        start-line (get lines start-row)]
-    (loop [row (inc start-row)
-           prev-line-begin? (begins-indentation? grammar start-line)
-           prev-line-indent-level (parse-indent-level indent-level-pattern start-line)]
+(defn- line-indent-counts [grammar line lex-state ^long tab-spaces]
+  (if-let [counts (:counts (:indent grammar))]
+    (counts line lex-state tab-spaces)
+    (let [close (boolean (ends-indentation? grammar line))
+          open (boolean (begins-indentation? grammar line))]
+      {:leading (when close :any)
+       :closes (if close [:any] [])
+       :opens (if open [{:kind :any :col nil}] [])
+       :unfinished nil
+       :trailing-comma false
+       :has-code (not (string/blank? line))
+       :lex-state nil
+       :in-multiline-scope false})))
+
+(defn- find-indent-state [indent-level-pattern grammar syntax-info lines queried-row tab-spaces]
+  (let [queried-row (long queried-row)
+        tab-spaces (long tab-spaces)
+        multiline-scopes (:multiline-scopes (:indent grammar))
+        restart-scan? (:restart-scan? (:indent grammar))
+        ^long start-row (loop [row queried-row]
+                          (if-not (pos? row)
+                            0
+                            (let [^String line (get lines row)]
+                              (cond
+                                (and restart-scan? (restart-scan? line)) 0
+
+                                (string/blank? line) (recur (dec row))
+
+                                (when-let [^String line-comment (:line-comment grammar)]
+                                  (.startsWith (string/triml line) line-comment))
+                                (recur (dec row))
+
+                                (pos? (parse-indent-level indent-level-pattern line)) (recur (dec row))
+
+                                (when-let [kind (:leading (line-indent-counts grammar line nil tab-spaces))]
+                                  (not= :block kind))
+                                (recur (dec row))
+
+                                (nil? multiline-scopes) row
+
+                                ;; The contexts left open at the end of the row above
+                                ;; say whether this one starts inside a multiline scope.
+                                (contains? multiline-scopes
+                                           (:name (:parent-pattern (ffirst (get syntax-info (dec row))))))
+                                0
+
+                                :else row))))]
+    (loop [row start-row
+           state {:stack (loop [n (parse-indent-level indent-level-pattern (get lines start-row))
+                                stack []]
+                           (if (zero? n)
+                             stack
+                             (recur (dec n) (conj stack {:level (long (count stack)) :col nil :kind :any}))))
+                  :line-continuation {:assignment-scope nil
+                                      :trailing-comma false}
+                  :lex-state nil
+                  :in-multiline-scope false}]
       (if (< queried-row row)
-        prev-line-indent-level
-        (let [line (lines row)
-              line-begin? (begins-indentation? grammar line)
-              line-end? (ends-indentation? grammar line)
-              line-indent-level (indent-level prev-line-indent-level prev-line-begin? line-end?)]
-          (recur (inc row)
-                 line-begin?
-                 line-indent-level))))))
+        state
+        (let [[next-state] (indent-step state (line-indent-counts grammar (get lines row) (:lex-state state) tab-spaces))]
+          (recur (inc row) next-state))))))
 
-(defn- fix-indentation [affected-cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions]
-  (let [fixed-rows (volatile! #{})]
+(defn- fix-indentation [affected-cursor-ranges indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions]
+  (let [tab-trigger-boundary-by-row
+        (reduce
+          (fn [acc ^CursorRange region]
+            (if (and (::indentation-anchor region)
+                     (case (:type region) (:tab-trigger-word :tab-trigger-exit) true false))
+              (let [start (cursor-range-start region)
+                    end (cursor-range-end region)
+                    start-row (.row start)
+                    end-row (.row end)
+                    end-row-exclusive (if (or (= start-row end-row) (pos? (.col end)))
+                                        (inc end-row)
+                                        end-row)]
+                (loop [row start-row
+                       acc acc]
+                  (if (= end-row-exclusive row)
+                    acc
+                    (let [col (if (= start-row row) (.col start) 0)]
+                      (recur (inc row)
+                             (update acc row (fnil max col) col))))))
+
+              acc))
+          {}
+          regions)
+        fixed-rows (volatile! #{})
+        tab-spaces (indent-string->tab-spaces indent-string)
+        mapcat-fn
+        (fn [^CursorRange cursor-range]
+          (let [start (cursor-range-start cursor-range)
+                end (cursor-range-end cursor-range)
+                start-row (.row start)
+                end-row (inc (.row end))
+                prev-state (find-indent-state indent-level-pattern grammar syntax-info lines (dec start-row) tab-spaces)]
+            (loop [row start-row
+                   state prev-state
+                   splices (transient [])]
+              (if (<= end-row row)
+                (persistent! splices)
+                (let [next-row (inc row)
+                      line (lines row)
+                      in-multiline-scope (:in-multiline-scope state)
+                      lex-state (:lex-state state)
+                      counts (line-indent-counts grammar line lex-state tab-spaces)
+                      [unfixed-state line-indent-level line-indent-col]
+                      (indent-step state counts)]
+                  (if (contains? @fixed-rows row)
+                    (recur next-row unfixed-state splices)
+                    (let [single-line-edit? (not (cursor-range-multi-line? cursor-range))
+                          typed? (and single-line-edit? (= 1 (- (.col end) (.col start))))
+                          line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count line)))
+                          last-line (= end-row next-row)
+                          tab-trigger-indentation-boundary (get tab-trigger-boundary-by-row row)
+                          indentation-boundary (Math/min (long (or tab-trigger-indentation-boundary Long/MAX_VALUE))
+                                                         (long (if last-line (.col end) (count line))))
+                          unindented-line (str (string/triml (subs line 0 indentation-boundary))
+                                               (subs line indentation-boundary))
+
+                          indented-line
+                          (cond
+                            ;; Leading whitespace inside a multi-line string is part of its value.
+                            in-multiline-scope
+                            line
+                            ;; Insert typed whitespace (except newlines) without adjusting indentation.
+                            (and typed? (whitespace-character-at-index? line (.col start)))
+                            line
+
+                            ;; Typing can only decrease indentation (i.e. typing the final character of "end"), never increase it.
+                            (and typed? (not (and (ends-indentation? grammar line)
+                                                  (not (ends-indentation? grammar (str (subs line 0 (.col start))
+                                                                                       (subs line (.col end))))))))
+                            line
+
+                            ;; On the last line, we don't want to strip any whitespace that comes after the cursor.
+                            last-line
+                            (indent-line unindented-line indent-string line-indent-level line-indent-col)
+
+                            ;; On in-between lines, we only want to keep whitespace that comes before code.
+                            :else
+                            (if (or tab-trigger-indentation-boundary
+                                    (pos? (count unindented-line)))
+                              (indent-line unindented-line indent-string line-indent-level line-indent-col)
+                              ""))
+                          ;; Re-lex the corrected line because indentation can change visual columns.
+                          [next-state]
+                          (indent-step state (line-indent-counts grammar indented-line lex-state tab-spaces))
+                          splices (if (= line indented-line)
+                                    splices
+                                    (conj! splices [line-cursor-range [indented-line]]))]
+                      (vswap! fixed-rows conj row)
+                      (recur next-row next-state splices))))))))]
     (splice-indentation lines cursor-ranges regions
-                        (into []
-                              (mapcat (fn [^CursorRange cursor-range]
-                                        (let [start (cursor-range-start cursor-range)
-                                              end (cursor-range-end cursor-range)
-                                              start-row (.row start)
-                                              end-row (inc (.row end))
-                                              prev-row (dec start-row)]
-                                          (loop [row start-row
-                                                 prev-line-indent-level (find-indent-level indent-level-pattern grammar lines prev-row)
-                                                 prev-line-begin? (begins-indentation? grammar (get lines prev-row))
-                                                 splices (transient [])]
-                                            (if (<= end-row row)
-                                              (persistent! splices)
-                                              (let [next-row (inc row)
-                                                    line (lines row)
-                                                    line-begin? (begins-indentation? grammar line)
-                                                    line-end? (ends-indentation? grammar line)
-                                                    line-indent-level (indent-level prev-line-indent-level prev-line-begin? line-end?)]
-                                                (if (contains? @fixed-rows row)
-                                                  (recur next-row line-indent-level line-begin? splices)
-                                                  (let [single-line-edit? (not (cursor-range-multi-line? cursor-range))
-                                                        typed? (and single-line-edit? (= 1 (- (.col end) (.col start))))
-                                                        line-cursor-range (->CursorRange (->Cursor row 0) (->Cursor row (count line)))
-                                                        indented-line (cond
-                                                                        ;; Insert typed whitespace (except newlines) without adjusting indentation.
-                                                                        (and typed? (whitespace-character-at-index? line (.col start)))
-                                                                        line
-
-                                                                        ;; Typing can only decrease indentation (i.e. typing the final character of "end"), never increase it.
-                                                                        (and typed? (not (and (ends-indentation? grammar line)
-                                                                                              (not (ends-indentation? grammar (str (subs line 0 (.col start))
-                                                                                                                                   (subs line (.col end))))))))
-                                                                        line
-
-                                                                        ;; On the last line, we don't want to strip any whitespace that comes after the cursor.
-                                                                        (= end-row next-row)
-                                                                        (let [unindented-line (str (string/triml (subs line 0 (.col end))) (subs line (.col end)))]
-                                                                          (indent-line unindented-line indent-string line-indent-level))
-
-                                                                        ;; On in-between lines, we only want to keep whitespace that comes before code.
-                                                                        :else
-                                                                        (let [unindented-line (string/triml line)]
-                                                                          (if (seq unindented-line)
-                                                                            (indent-line unindented-line indent-string line-indent-level)
-                                                                            "")))
-                                                        splices (if (= line indented-line)
-                                                                  splices
-                                                                  (conj! splices [line-cursor-range [indented-line]]))]
-                                                    (vswap! fixed-rows conj row)
-                                                    (recur next-row line-indent-level line-begin? splices)))))))))
-                              affected-cursor-ranges))))
+                        (into [] (mapcat mapcat-fn) affected-cursor-ranges))))
 
 (defn- transform-indentation [rows lines cursor-ranges regions line-fn]
   (splice-indentation lines cursor-ranges regions
@@ -2224,13 +2643,21 @@
                                           [line-cursor-range [new-line]])))))
                             rows)))
 
-(defn- fix-indentation-after-splice [{:keys [lines cursor-ranges regions] :as splice-properties} indent-level-pattern indent-string grammar]
-  (when (some? splice-properties)
+(defn- affected-syntax-info-end-row
+  ^long [affected-cursor-ranges]
+  (inc (long (transduce (map #(.-row (cursor-range-end %))) max 0 affected-cursor-ranges))))
+
+(defn- fix-indentation-after-splice [{:keys [invalidated-row lines cursor-ranges regions] :as splice-properties} affected-cursor-ranges indent-level-pattern indent-string grammar syntax-info]
+  (when splice-properties
     (assert (vector? lines))
     (assert (vector? cursor-ranges))
     (if (nil? (:indent grammar))
       splice-properties
-      (let [indentation-properties (fix-indentation cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions)]
+      (let [affected-cursor-ranges (or affected-cursor-ranges cursor-ranges)
+            syntax-info (-> (or syntax-info [])
+                            (cond-> invalidated-row (invalidate-syntax-info invalidated-row (count lines)))
+                            (ensure-syntax-info (affected-syntax-info-end-row affected-cursor-ranges) lines grammar))
+            indentation-properties (fix-indentation affected-cursor-ranges indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions)]
         (merge splice-properties
                (dissoc indentation-properties :invalidated-row))))))
 
@@ -2251,18 +2678,18 @@
         (assoc splice-properties :document-width new-document-width)
         splice-properties))))
 
-(defn- insert-lines-seqs [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout lines-seqs]
-  (when-not (empty? lines-seqs)
+(defn- insert-lines-seqs [indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions ^LayoutInfo layout lines-seqs]
+  (when-not (coll/empty? lines-seqs)
     (-> (splice lines regions (map #(pair (adjust-cursor-range lines %1) %2) cursor-ranges lines-seqs))
-        (fix-indentation-after-splice indent-level-pattern indent-string grammar)
+        (fix-indentation-after-splice nil indent-level-pattern indent-string grammar syntax-info)
         (update-document-width-after-splice layout)
         (update :cursor-ranges (partial mapv cursor-range-end-range))
         (frame-cursor layout))))
 
-(defn- insert-text [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout ^String text]
+(defn- insert-text [indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions ^LayoutInfo layout ^String text]
   (when-not (empty? text)
     (let [text-lines (util/split-lines text)]
-      (insert-lines-seqs indent-level-pattern indent-string grammar lines cursor-ranges regions layout (repeat text-lines)))))
+      (insert-lines-seqs indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions layout (repeat text-lines)))))
 
 (defn- inc-limited
   ^long [^long n]
@@ -2347,8 +2774,9 @@
     [(->CursorRange from to) [""]]))
 
 (defn delete-character-after-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
+  ;; Avoid leaving combining marks attached to the preceding character.
   (let [from (CursorRange->Cursor cursor-range)
-        to (cursor-right lines from)]
+        to (cursor-right-grapheme lines from)]
     [(->CursorRange from to) [""]]))
 
 (defn delete-word-after-cursor [lines _grammar _auto-closing-parens _syntax-info cursor-range]
@@ -2416,10 +2844,26 @@
                       (not-any? (partial cursor-range-equals? cursor-range) visible-cursor-ranges)))
                visible-occurrences))))
 
-(defn replace-typed-chars [indent-level-pattern indent-string grammar lines regions ^LayoutInfo layout splices]
-  (-> (splice lines regions splices)
-      (fix-indentation-after-splice indent-level-pattern indent-string grammar)
-      (update-document-width-after-splice layout)))
+(defn replace-typed-chars [indent-level-pattern indent-string grammar syntax-info lines regions ^LayoutInfo layout splices]
+  (let [result (-> (splice lines regions
+                           (mapv (fn [[cursor-range replacement-lines introduced-regions]]
+                                   [cursor-range
+                                    replacement-lines
+                                    (coll/mapv-> introduced-regions assoc ::indentation-anchor true)])
+                                 splices))
+                   (fix-indentation-after-splice
+                     (introduce-replacement-ranges
+                       (mapv (fn [[cursor-range replacement-lines]]
+                               [cursor-range
+                                replacement-lines
+                                [(->CursorRange document-start-cursor (document-end-cursor replacement-lines))]])
+                             splices))
+                     indent-level-pattern
+                     indent-string
+                     grammar
+                     syntax-info)
+                   (update-document-width-after-splice layout))]
+    (cond-> result (:regions result) (update :regions coll/mapv-> dissoc ::indentation-anchor))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -2497,7 +2941,7 @@
                             :else
                             (pair cursor-range (util/split-lines typed))))
                         cursor-ranges))
-                    (fix-indentation-after-splice indent-level-pattern indent-string grammar)
+                    (fix-indentation-after-splice nil indent-level-pattern indent-string grammar syntax-info)
                     (update-document-width-after-splice layout))
         {:keys [lines]} changes]
     (-> changes
@@ -2525,14 +2969,14 @@
 (defn key-typed [indent-level-pattern indent-string grammar auto-closing-parens lines cursor-ranges regions layout syntax-info ^String typed]
   (case typed
     "\r" ; Enter or Return.
-    (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout "\n")
+    (insert-text indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions layout "\n")
 
     (when (not-any? #(Character/isISOControl ^char %) typed)
       (if (and auto-closing-parens
                (= 1 (.length typed))
                (contains? grammar :auto-insert))
         (key-type-with-auto-insert indent-level-pattern indent-string grammar lines cursor-ranges regions layout syntax-info typed)
-        (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed)))))
+        (insert-text indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions layout typed)))))
 
 (defn execution-marker? [region]
   (= :execution-marker (:type region)))
@@ -2873,7 +3317,9 @@
         (when (not= cursor-ranges new-cursor-ranges)
           (merge {:cursor-ranges new-cursor-ranges
                   :hovered-element nil}
-                 (scroll-to-any-cursor layout lines new-cursor-ranges))))
+                 ;; A bidi caret can be far from the pointer driving the scroll.
+                 (scroll-to-rect scroll-shortest scroll-shortest layout lines
+                                 (->Rect (double x) (double y) 1.0 1.0)))))
       nil)))
 
 (defn- element-at-position [lines visible-regions ^LayoutInfo layout ^LayoutInfo minimap-layout x y]
@@ -2953,13 +3399,13 @@
   (put-selection-on-clipboard! lines cursor-ranges clipboard)
   nil)
 
-(defn paste [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout clipboard]
+(defn paste [indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions ^LayoutInfo layout clipboard]
   (cond
     (can-paste-multi-selection? clipboard cursor-ranges)
-    (insert-lines-seqs indent-level-pattern indent-string grammar lines cursor-ranges regions layout (cycle (get-content clipboard clipboard-mime-type-multi-selection)))
+    (insert-lines-seqs indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions layout (cycle (get-content clipboard clipboard-mime-type-multi-selection)))
 
     (can-paste-plain-text? clipboard)
-    (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout (get-content clipboard clipboard-mime-type-plain-text))))
+    (insert-text indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions layout (get-content clipboard clipboard-mime-type-plain-text))))
 
 (defn can-paste? [cursor-ranges clipboard]
   (or (can-paste-plain-text? clipboard)
@@ -3000,8 +3446,8 @@
                       :end cursor-line-end
                       :up cursor-up
                       :down cursor-down
-                      :left cursor-left
-                      :right cursor-right
+                      :left cursor-left-grapheme
+                      :right cursor-right-grapheme
                       :prev-word cursor-prev-word
                       :next-word cursor-next-word
                       :line-start cursor-line-start
@@ -3097,9 +3543,9 @@
                      (cursor-in-leading-whitespace? lines (.to cursor-range))))
               cursor-ranges)))
 
-(defn indent [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout]
+(defn indent [indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions ^LayoutInfo layout]
   (if-not (can-indent? lines cursor-ranges)
-    (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout indent-string)
+    (insert-text indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions layout indent-string)
     (let [indent-line #(if (empty? %) % (str indent-string %))
           rows (cursor-ranges->rows lines cursor-ranges)]
       (-> (transform-indentation rows lines cursor-ranges regions indent-line)
@@ -3111,14 +3557,18 @@
         rows (cursor-ranges->rows lines cursor-ranges)]
     (transform-indentation rows lines cursor-ranges regions deindent-line)))
 
-(defn reindent [indent-level-pattern indent-string grammar lines cursor-ranges regions ^LayoutInfo layout]
-  (let [affected-cursor-ranges (map (fn [cursor-range]
-                                      (let [start-row (.row (adjust-cursor lines (cursor-range-start cursor-range)))
-                                            end-row (.row (adjust-cursor lines (cursor-range-end cursor-range)))]
-                                        (->CursorRange (->Cursor start-row 0) (->Cursor end-row (count (lines end-row))))))
-                                    cursor-ranges)]
-    (-> (fix-indentation affected-cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions)
-        (update-document-width-after-splice layout))))
+(defn reindent [indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions ^LayoutInfo layout]
+  (when (:indent grammar)
+    (let [affected-cursor-ranges (mapv (fn [cursor-range]
+                                         (let [start-row (.row (adjust-cursor lines (cursor-range-start cursor-range)))
+                                               end-row (.row (adjust-cursor lines (cursor-range-end cursor-range)))]
+                                           (->CursorRange (->Cursor start-row 0) (->Cursor end-row (count (lines end-row))))))
+                                       cursor-ranges)
+          syntax-info (ensure-syntax-info (or syntax-info [])
+                                          (affected-syntax-info-end-row affected-cursor-ranges)
+                                          lines grammar)]
+      (-> (fix-indentation affected-cursor-ranges indent-level-pattern indent-string grammar syntax-info lines cursor-ranges regions)
+          (update-document-width-after-splice layout)))))
 
 (defn select-and-frame [lines ^LayoutInfo layout cursor-range]
   (let [adjusted-cursor-range (adjust-cursor-range lines cursor-range)
@@ -3337,6 +3787,187 @@
                                                 (update :to dissoc ::sticky)
                                                 (dissoc ::cursor))))
                                     new-regions))))
+
+(defn- whitespace-run-end
+  ^long [^String line ^long start]
+  (let [line-length (count line)]
+    (loop [i start]
+      (if (and (< i line-length)
+               (Character/isWhitespace (.charAt line i)))
+        (recur (inc i))
+        i))))
+
+(defn- respaced-row-edits
+  "Edits for a row a formatter only respaced, or nil if it changed in other ways.
+  Editing the gaps between words rather than the span around them keeps a cursor
+  next to the word it was next to."
+  [^long row ^String line ^String new-line]
+  (let [line-length (count line)
+        new-line-length (count new-line)]
+    (loop [start 0
+           new-start 0
+           edits []]
+      (let [end (whitespace-run-end line start)
+            new-end (whitespace-run-end new-line new-start)
+            new-run (subs new-line new-start new-end)
+            edits (if (= (subs line start end) new-run)
+                    edits
+                    (conj edits (pair (->CursorRange (->Cursor row start) (->Cursor row end))
+                                      [new-run])))
+            at-end (= line-length end)
+            new-at-end (= new-line-length new-end)]
+        (cond
+          (and at-end new-at-end) edits
+          (or at-end new-at-end) nil
+          (not= (.charAt line end) (.charAt new-line new-end)) nil
+          :else (recur (inc end) (inc new-end) edits))))))
+
+(defn- rows->diff-string [rows]
+  (if (coll/empty? rows)
+    ""
+    (str (coll/join-to-string "\n" rows) "\n")))
+
+(defn- replacement-edits
+  "Diff a replacement of the rows in [span-begin-row span-end-row) into minimal
+  per-line edits. Both sides are terminated so one diff row is one row."
+  [lines ^long span-begin-row ^long span-end-row replacement-lines]
+  (let [{:keys [right-lines edits]} (diff/find-edits (rows->diff-string (subvec lines span-begin-row span-end-row))
+                                                     (rows->diff-string replacement-lines))
+        line-count (long (count lines))
+        line-edits (coll/into-> edits []
+                     (mapcat
+                       (fn [{:keys [left right] :as edit}]
+                         (when-not (diff/nop-edit? edit)
+                           (let [begin-row (+ span-begin-row (long (:begin left)))
+                                 end-row (+ span-begin-row (long (:end left)))
+                                 row-count (- end-row begin-row)
+                                 new-lines (subvec right-lines (long (:begin right)) (long (:end right)))]
+                             (cond
+                               ;; Rows still line up, so rewrite each in place to leave
+                               ;; cursors and regions on the row they started on.
+                               (and (pos? row-count) (= row-count (count new-lines)))
+                               (coll/into-> (range begin-row end-row) []
+                                 (mapcat
+                                   (fn [^long row]
+                                     (let [line (lines row)
+                                           new-line (new-lines (- row begin-row))]
+                                       (when (not= line new-line)
+                                         (or (respaced-row-edits row line new-line)
+                                             ;; The row changed in more than spacing, so rewrite it whole.
+                                             [(pair (->CursorRange (->Cursor row 0)
+                                                                   (->Cursor row (count line)))
+                                                    [new-line])]))))))
+
+                               ;; Rows no longer line up, so rewrite the hunk in one go.
+                               (and (pos? row-count) (pos? (count new-lines)))
+                               (let [last-row (dec end-row)]
+                                 [(pair (->CursorRange (->Cursor begin-row 0)
+                                                       (->Cursor last-row (count (lines last-row))))
+                                        new-lines)])
+
+                               ;; Added or removed rows take the line break after them.
+                               (< end-row line-count)
+                               [(pair (->CursorRange (->Cursor begin-row 0)
+                                                     (->Cursor end-row 0))
+                                      (conj new-lines ""))]
+
+                               ;; The last row has no line break after it, so write one.
+                               (<= line-count begin-row)
+                               (let [document-end (document-end-cursor lines)]
+                                 [(pair (->CursorRange document-end document-end)
+                                        (into [""] new-lines))])
+
+                               ;; Removing the last rows takes the line break in front instead.
+                               :else
+                               [(pair (->CursorRange (if (pos? begin-row)
+                                                       (let [prev-row (dec begin-row)]
+                                                         (->Cursor prev-row (count (lines prev-row))))
+                                                       (->Cursor 0 0))
+                                                     (document-end-cursor lines))
+                                      [""])]))))))]
+    line-edits))
+
+(defn- whole-row-replacement
+  "Returns [start-row end-row replacement-lines] if the formatter edit replaces
+  whole rows; otherwise returns nil."
+  [lines cursor-range replacement-lines]
+  (let [start (cursor-range-start cursor-range)
+        end (cursor-range-end cursor-range)
+        begin-row (.row start)
+        end-row (.row end)
+        line-count (count lines)]
+    (when (and (zero? (.col start))
+               (< begin-row line-count))
+      (cond
+        ;; Ends at the document end, so the rest of the document is replaced.
+        (cursor-before-or-same? (document-end-cursor lines) end)
+        [begin-row line-count replacement-lines]
+
+        ;; Ends where a later row starts. The trailing empty line is the line
+        ;; break in front of that row, which stays where it is.
+        (and (zero? (.col end))
+             (< begin-row end-row))
+        (when (= "" (peek replacement-lines))
+          [begin-row end-row (pop replacement-lines)])
+
+        ;; Ends where its own row ends.
+        (= (.col end) (count (lines end-row)))
+        [begin-row (inc end-row) replacement-lines]))))
+
+(defn- merge-rows-into-runs
+  "Group ascending rows into [begin end) runs, merging runs less than two rows
+  apart so a contiguous block is one request rather than several."
+  [rows]
+  (reduce (fn [runs ^long row]
+            (let [[begin-row end-row] (peek runs)]
+              (if (and end-row (<= (- row (long end-row)) 1))
+                (conj (pop runs) (pair begin-row (inc row)))
+                (conj runs (pair row (inc row))))))
+          []
+          rows))
+
+(defn- trim-blank-rows
+  "Narrow a [begin end) row run to its outermost non-blank rows, or nil if it has
+  none. Servers tend to delete the blank rows they are handed."
+  [lines [^long begin-row ^long end-row]]
+  (loop [first-row begin-row]
+    (cond
+      (= first-row end-row)
+      nil
+
+      (string/blank? (lines first-row))
+      (recur (inc first-row))
+
+      :else
+      (loop [last-row (dec end-row)]
+        (if (string/blank? (lines last-row))
+          (recur (dec last-row))
+          (pair first-row (inc last-row)))))))
+
+(defn format-row-spans
+  "Whole-row cursor ranges covering the rows the cursor ranges touch, ready to
+  send to a formatter."
+  [lines cursor-ranges]
+  (coll/into-> (merge-rows-into-runs (cursor-ranges->rows lines cursor-ranges)) []
+    (keep
+      (fn [run]
+        (when-let [[^long begin-row ^long end-row] (trim-blank-rows lines run)]
+          (let [last-row (dec end-row)]
+            (->CursorRange (->Cursor begin-row 0)
+                           (->Cursor last-row (count (lines last-row))))))))))
+
+(defn format-document-edits
+  "Turn a formatting response into edits that keep cursors in place
+
+  Servers answer with edits spanning whole rows, which we diff so only the parts
+  that actually changed get spliced. Anything else passes through untouched."
+  [lines edits]
+  (coll/into-> edits []
+    (mapcat
+      (fn [[cursor-range replacement-lines :as edit]]
+        (if-let [[begin-row end-row new-lines] (whole-row-replacement lines cursor-range replacement-lines)]
+          (replacement-edits lines begin-row end-row new-lines)
+          [edit])))))
 
 (defn apply-edits
   ([lines regions cursor-ranges ascending-cursor-ranges-and-replacements]

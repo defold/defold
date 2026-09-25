@@ -16,7 +16,6 @@
 #define DMSDK_SOCKET_H
 
 #include <stdint.h>
-#include <dmsdk/dlib/sockettypes.h>
 #include <dmsdk/dlib/file_descriptor.h>
 
 /*# Socket API documentation

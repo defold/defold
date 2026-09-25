@@ -18,6 +18,6 @@
             [integration.test-util :as test-util]))
 
 (deftest compute-build-targets
-  (test-util/with-loaded-project "test/resources/save_data_project"
-    (let [node-id (test-util/resource-node project "/checked.compute")]
+  (test-util/with-loaded-project "test/resources/all_types_project"
+    (let [node-id (test-util/resource-node project "/test.compute")]
       (is (not (g/error? (g/node-value node-id :build-targets)))))))

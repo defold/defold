@@ -19,6 +19,7 @@ import static org.apache.commons.io.FilenameUtils.normalize;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.util.AppManifestMigration;
 import com.dynamo.bob.util.MiscUtil;
 import com.dynamo.bob.util.TimeProfiler;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
@@ -65,7 +66,7 @@ import com.dynamo.bob.util.FileUtil;
 public class ExtenderUtil {
 
     public static final String appManifestPath = "_app/" + ExtenderClient.appManifestFilename;
-    public static final String proguardPath = "_app/app.pro";
+    public static final String r8KeepRulesPath = "_app/app.keep";
     public static final String privacyManifestPath = "_app/PrivacyInfo.xcprivacy";
     public static final String JAR_RE = "(.+\\.jar)";
 
@@ -326,22 +327,203 @@ public class ExtenderUtil {
 
         @Override
         public byte[] getContent() throws IOException {
-            String prefix = "";
+            StringBuilder prefix = new StringBuilder();
             if (options != null) {
-                prefix += "context:" + System.getProperty("line.separator");
+                prefix.append("context:").append(System.lineSeparator());
                 for (String key : options.keySet()) {
                     String value = options.get(key);
-                    prefix += String.format("    %s: %s", key, value) + System.getProperty("line.separator");
+                    prefix.append(String.format("    %s: %s", key, value)).append(System.lineSeparator());
                 }
             }
 
-            byte[] prefixBytes = prefix.getBytes();
-            byte[] content = getResource().getContent();
+            byte[] prefixBytes = prefix.toString().getBytes(StandardCharsets.UTF_8);
+            byte[] content = migrateAppManifest(getResource().getContent());
             byte[] c = new byte[prefixBytes.length + content.length];
             System.arraycopy(prefixBytes, 0, c, 0, prefixBytes.length);
             System.arraycopy(content, 0, c, prefixBytes.length, content.length);
             return c;
         }
+    }
+
+    private static String normalizeLibraryName(String library) {
+        if (library.endsWith(".lib")) {
+            library = library.substring(0, library.length() - 4);
+        }
+        if (library.startsWith("lib")) {
+            library = library.substring(3);
+        }
+        return library;
+    }
+
+    private static boolean excludesLegacyBullet3DLibraries(List<?> excludedLibraries) {
+        Set<String> normalizedLibraries = new HashSet<String>();
+        for (Object excludedLibrary : excludedLibraries) {
+            if (excludedLibrary instanceof String) {
+                normalizedLibraries.add(normalizeLibraryName((String) excludedLibrary));
+            }
+        }
+        return normalizedLibraries.contains("LinearMath")
+                && normalizedLibraries.contains("BulletDynamics")
+                && normalizedLibraries.contains("BulletCollision");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean addBullet3DCompatibilityExclusions(Object contextValue) {
+        if (!(contextValue instanceof Map<?, ?>)) {
+            return false;
+        }
+
+        Map<String, Object> context = (Map<String, Object>) contextValue;
+        Object excludedLibrariesValue = context.get("excludeLibs");
+        Object excludedSymbolsValue = context.get("excludeSymbols");
+        if (!(excludedLibrariesValue instanceof List<?>)
+                || (excludedSymbolsValue != null && !(excludedSymbolsValue instanceof List<?>))) {
+            return false;
+        }
+
+        List<Object> excludedLibraries = (List<Object>) excludedLibrariesValue;
+        if (!excludesLegacyBullet3DLibraries(excludedLibraries)) {
+            return false;
+        }
+
+        boolean modified = false;
+        if (!excludedLibraries.contains("script_bullet3d")) {
+            excludedLibraries = new ArrayList<Object>(excludedLibraries);
+            excludedLibraries.add("script_bullet3d");
+            context.put("excludeLibs", excludedLibraries);
+            modified = true;
+        }
+
+        List<Object> excludedSymbols = excludedSymbolsValue == null
+                ? new ArrayList<Object>()
+                : (List<Object>) excludedSymbolsValue;
+        if (!excludedSymbols.contains("ScriptBullet3DExt")) {
+            excludedSymbols = new ArrayList<Object>(excludedSymbols);
+            excludedSymbols.add("ScriptBullet3DExt");
+            context.put("excludeSymbols", excludedSymbols);
+            modified = true;
+        }
+        return modified;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean migrateWindowsLibraryNames(Object contextValue) {
+        if (!(contextValue instanceof Map<?, ?>)) {
+            return false;
+        }
+
+        Map<String, Object> context = (Map<String, Object>) contextValue;
+        boolean modified = false;
+        for (String key : List.of("excludeLibs", "libs", "engineLibs")) {
+            Object librariesValue = context.get(key);
+            if (!(librariesValue instanceof List<?>)) {
+                continue;
+            }
+
+            List<?> libraries = (List<?>) librariesValue;
+            List<Object> migratedLibraries = new ArrayList<>(libraries.size());
+            for (Object library : libraries) {
+                String migratedLibrary = AppManifestMigration.WINDOWS_LIBRARY_NAMES.get(library);
+                migratedLibraries.add(migratedLibrary == null ? library : migratedLibrary);
+            }
+            if (!libraries.equals(migratedLibraries)) {
+                context.put(key, migratedLibraries);
+                modified = true;
+            }
+        }
+        return modified;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean migrateMacOSVulkanPlatform(Object contextValue) {
+        if (!(contextValue instanceof Map<?, ?>)) {
+            return false;
+        }
+        Map<String, Object> context = (Map<String, Object>) contextValue;
+        Object excluded = context.get("excludeLibs");
+        if (excluded != null && !(excluded instanceof List<?>)) {
+            return false;
+        }
+        List<?> exclusions = excluded == null ? List.of() : (List<?>) excluded;
+        if (exclusions.contains("platform") || exclusions.contains("platform_vulkan")) {
+            return false;
+        }
+        for (String key : List.of("libs", "engineLibs")) {
+            Object libraries = context.get(key);
+            if (libraries instanceof List<?> && ((List<?>) libraries).contains("platform_vulkan")) {
+                // The Vulkan platform variant replaces the default platform library.
+                List<Object> migrated = new ArrayList<>(exclusions);
+                migrated.add("platform");
+                context.put("excludeLibs", migrated);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean migrateSimulatorGraphics(Object contextValue) {
+        if (!(contextValue instanceof Map<?, ?>)) {
+            return false;
+        }
+        Map<String, Object> context = (Map<String, Object>) contextValue;
+        boolean modified = false;
+        for (String key : List.of("libs", "engineLibs", "excludeLibs", "symbols", "excludeSymbols")) {
+            Object value = context.get(key);
+            if (value instanceof List<?>) {
+                List<Object> entries = new ArrayList<>((List<?>) value);
+                if (entries.removeAll(List.of("graphics", "graphics_metal", "graphics_vulkan",
+                        "platform_vulkan", "MoltenVK", "GraphicsAdapterOpenGL",
+                        "GraphicsAdapterMetal", "GraphicsAdapterVulkan"))) {
+                    context.put(key, entries);
+                    modified = true;
+                }
+            }
+        }
+        return modified;
+    }
+
+    // Complete legacy Bullet3D exclusions, Windows library names, and macOS
+    // Vulkan platform selection before upload, even without opening the editor.
+    private static byte[] migrateAppManifest(byte[] content) {
+        Object manifestValue;
+        try {
+            manifestValue = new Yaml().load(new String(content, StandardCharsets.UTF_8));
+        } catch (YAMLException e) {
+            return content;
+        }
+        if (!(manifestValue instanceof Map<?, ?>)) {
+            return content;
+        }
+
+        Map<?, ?> manifest = (Map<?, ?>) manifestValue;
+        boolean modified = addBullet3DCompatibilityExclusions(manifest.get("context"));
+        Object platformsValue = manifest.get("platforms");
+        if (platformsValue instanceof Map<?, ?>) {
+            for (Map.Entry<?, ?> platform : ((Map<?, ?>) platformsValue).entrySet()) {
+                Object platformValue = platform.getValue();
+                if (platformValue instanceof Map<?, ?>) {
+                    Object context = ((Map<?, ?>) platformValue).get("context");
+                    modified |= addBullet3DCompatibilityExclusions(context);
+                    if ("arm64_sim-ios".equals(platform.getKey())) {
+                        modified |= migrateSimulatorGraphics(context);
+                    }
+                    if ("osx".equals(platform.getKey())
+                            || "arm64-osx".equals(platform.getKey())
+                            || "x86_64-osx".equals(platform.getKey())) {
+                        modified |= migrateMacOSVulkanPlatform(context);
+                    }
+                    if ("win32".equals(platform.getKey())
+                            || "x86-win32".equals(platform.getKey())
+                            || "x86_64-win32".equals(platform.getKey())) {
+                        modified |= migrateWindowsLibraryNames(context);
+                    }
+                }
+            }
+        }
+        return modified
+                ? new Yaml().dump(manifestValue).getBytes(StandardCharsets.UTF_8)
+                : content;
     }
 
     private static List<ExtenderResource> listFilesRecursive(Project project, String path) {
@@ -389,7 +571,7 @@ public class ExtenderUtil {
 
         Iterator<Map.Entry<String, IResource>> it = from.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
+            Map.Entry<String, IResource> entry = it.next();
             String outputPath = entry.getKey();
             if (!allowOverrides) {
                 if (into.containsKey(outputPath)) {
@@ -466,11 +648,13 @@ public class ExtenderUtil {
         String path = projectProperties.getStringValue(section, key, "");
         if (!path.isEmpty()) {
             IResource resource = project.getResource(path);
-            if (resource.exists()) {
-                return true;
-            }
+            return resource.exists();
         }
         return false;
+    }
+
+    private static boolean isAndroidPlatform(Platform platform) {
+        return "android".equals(platform.getOs());
     }
 
 
@@ -493,16 +677,14 @@ public class ExtenderUtil {
 
 
     /**
-     * Returns true if the project should build remotely
+     * Returns true if the project contains platform-independent reasons to use Extender.
      * @param project
-     * @return True if it contains native extension code
+     * @return True if it contains native extension code or an app manifest
      */
     public static boolean hasNativeExtensions(Project project) {
         TimeProfiler.start("hasNativeExtensions");
         BobProjectProperties projectProperties = project.getProjectProperties();
-        if (hasPropertyResource(project, projectProperties, "native_extension", "app_manifest") ||
-            hasPropertyResource(project, projectProperties, "android", "proguard") &&
-            !projectProperties.getStringValue("android", "proguard", "").startsWith("/builtins/")) {
+        if (hasPropertyResource(project, projectProperties, "native_extension", "app_manifest")) {
             TimeProfiler.stop();
             return true;
         }
@@ -512,6 +694,17 @@ public class ExtenderUtil {
         boolean hasNativeExtensions = paths.stream().anyMatch(v -> isEngineExtensionManifest(project, v));
         TimeProfiler.stop();
         return hasNativeExtensions;
+    }
+
+    /**
+     * Returns true if this target must be built by Extender. R8 is Android-only,
+     * and a non-empty setting selects Extender even if the resource is missing so
+     * {@link #getProjectResource} can report the invalid path.
+     */
+    public static boolean hasNativeExtensions(Project project, Platform platform) {
+        return hasNativeExtensions(project) ||
+               (isAndroidPlatform(platform) &&
+                !project.getProjectProperties().getStringValue("android", "r8_keep_rules", "").isEmpty());
     }
 
     private static IResource getProjectResource(Project project, String section, String key) throws CompileExceptionError, IOException {
@@ -532,8 +725,7 @@ public class ExtenderUtil {
     public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, Map<String, String> appmanifestOptions) throws CompileExceptionError, IOException {
         List<ExtenderResource> sources = new ArrayList<>();
 
-        List<String> platformFolderAlternatives = new ArrayList<String>();
-        platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths()));
+        List<String> platformFolderAlternatives = new ArrayList<String>(Arrays.asList(platform.getExtenderPaths()));
         platformFolderAlternatives.add("common");
 
         // Find app manifest if there is one
@@ -545,16 +737,17 @@ public class ExtenderUtil {
 
             sources.add( new FSAppManifestResource(resource, project.getRootDirectory(), appManifestPath, appmanifestOptions ));
         }
-        // Find a Proguard file if specified
-        {
-            IResource resource = getProjectResource(project, "android", "proguard");
+        // Find R8 keep rules if specified. The selected resource is the complete
+        // project-level configuration, just like a custom Android manifest.
+        if (isAndroidPlatform(platform)) {
+            IResource resource = getProjectResource(project, "android", "r8_keep_rules");
             if (resource != null) {
-                sources.add(new FSAliasResource(resource, project.getRootDirectory(), proguardPath));
+                sources.add(new FSAliasResource(resource, project.getRootDirectory(), r8KeepRulesPath));
             }
         }
 
         // For iOS and macOS only: Add the project privacy manifest 
-        if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
+        if (platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim) {
             IResource resource = getProjectResource(project, "ios", "privacymanifest");
             if (resource != null) {
                 sources.add(new FSAliasResource(resource, project.getRootDirectory(), privacyManifestPath));
@@ -593,33 +786,33 @@ public class ExtenderUtil {
     }
 
     static private String createExtensionManifest(String name, Platform platform, Map<String, Object> options) {
-        String ln = System.getProperty("line.separator");
-        String s = String.format("name: %s", name) + ln;
-        s += "platforms:" + ln;
-        s += String.format("  %s:", platform.getExtenderPair()) + ln;
-        s += String.format("    context:" + ln);
+        String ln = System.lineSeparator();
+        StringBuilder s = new StringBuilder(String.format("name: %s", name) + ln);
+        s.append("platforms:").append(ln);
+        s.append(String.format("  %s:", platform.getExtenderPair())).append(ln);
+        s.append(String.format("    context:" + ln));
 
         for (String key : options.keySet()) {
             Object value = options.get(key);
-            String svalue = null;
+            StringBuilder svalue = null;
             if (value instanceof String) {
-                svalue = (String)value;
+                svalue = new StringBuilder((String) value);
             } else if (value instanceof List) {
-                svalue = "[";
+                svalue = new StringBuilder("[");
                 List<Object> l = (List<Object>)value;
                 int length = l.size();
                 for (int i = 0; i < length; ++i) {
                     String vv = (String)l.get(i);
-                    svalue += "'" + vv + "'";
+                    svalue.append("'").append(vv).append("'");
                     if (i < length-1) {
-                        svalue += ", ";
+                        svalue.append(", ");
                     }
                 }
-                svalue += "]" + ln;
+                svalue.append("]").append(ln);
             }
-            s += String.format("      %s: %s", key, svalue) + ln;
+            s.append(String.format("      %s: %s", key, svalue.toString())).append(ln);
         }
-        return s;
+        return s.toString();
     }
 
     public static List<ExtenderResource> getLibrarySources(Project project, Platform platform,
@@ -704,8 +897,7 @@ public class ExtenderUtil {
     public static List<IResource> getExtensionPlatformManifests(Project project, Platform platform) throws CompileExceptionError {
         List<IResource> out = new ArrayList<>();
 
-        List<String> platformFolderAlternatives = new ArrayList<String>();
-        platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths())); // we skip "common" here since it makes little sense
+        List<String> platformFolderAlternatives = new ArrayList<String>(Arrays.asList(platform.getExtenderPaths())); // we skip "common" here since it makes little sense
 
         // Find extension folders
         List<String> extensionFolders = getExtensionFolders(project);
@@ -973,8 +1165,10 @@ public class ExtenderUtil {
 
         List<String> armv7ExtenderPaths = new ArrayList<String>(Arrays.asList(Platform.Armv7Android.getExtenderPaths()));
         List<String> arm64ExtenderPaths = new ArrayList<String>(Arrays.asList(Platform.Arm64Android.getExtenderPaths()));
+        List<String> x86_64ExtenderPaths = new ArrayList<String>(Arrays.asList(Platform.X86_64Android.getExtenderPaths()));
         Set<String> set = new LinkedHashSet<>(armv7ExtenderPaths);
         set.addAll(arm64ExtenderPaths);
+        set.addAll(x86_64ExtenderPaths);
         platformFolderAlternatives = new ArrayList<>(set);
 
         // Project specific bundle resources
@@ -1046,7 +1240,7 @@ public class ExtenderUtil {
     public static void writeResourcesToDirectory(Map<String, IResource> resources, File directory) throws IOException {
         Iterator<Map.Entry<String, IResource>> it = resources.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
+            Map.Entry<String, IResource> entry = it.next();
             File outputFile = new File(directory, entry.getKey());
             writeResourceToFile(entry.getValue(), outputFile);
         }
@@ -1061,7 +1255,7 @@ public class ExtenderUtil {
     public static void writeResourcesToZip(Map<String, IResource> resources, ZipOutputStream zipOutputStream) throws IOException {
         Iterator<Map.Entry<String, IResource>> it = resources.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
+            Map.Entry<String, IResource> entry = it.next();
             ZipEntry ze = new ZipEntry(normalize(entry.getKey(), true));
             zipOutputStream.putNextEntry(ze);
             zipOutputStream.write(entry.getValue().getContent());
@@ -1113,7 +1307,7 @@ public class ExtenderUtil {
         try {
             return new Yaml().load(yaml);
         } catch(YAMLException e) {
-            throw new IOException(String.format("%s:1: error: %s", resource.getAbsPath(), e.toString()));
+            throw new IOException(String.format("%s:1: error: %s", resource.getAbsPath(), e));
         }
     }
 
@@ -1233,7 +1427,7 @@ public class ExtenderUtil {
             ctx = mergeManifestContext(ctx, platform_ctx);
         } catch (RuntimeException e) {
             e.printStackTrace(System.out);
-            throw new CompileExceptionError(resource, -1, String.format("Extension manifest '%s' contains invalid values: %s", resource.getAbsPath(), e.toString()));
+            throw new CompileExceptionError(resource, -1, String.format("Extension manifest '%s' contains invalid values: %s", resource.getAbsPath(), e));
         }
         return ctx;
     }

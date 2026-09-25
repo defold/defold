@@ -83,33 +83,24 @@ static inline void view_scroll_zoom(view_t* view, float mouse_x, float mouse_y, 
 	view->cy = mouse_y + old_rel_view_y * view->scale;
 }
 
-static inline skb_rect2_t calc_decoration_rect(const skb_decoration_t* decoration, const skb_attribute_decoration_t attr_decoration)
-{
-	float offset_x = decoration->offset_x;
-	float offset_y = decoration->offset_y;
-	skb_vec2_t size = skb_rasterizer_get_decoration_pattern_size(attr_decoration.style, decoration->thickness);
-	if (attr_decoration.position == SKB_DECORATION_OVERLINE)
-		offset_y -= size.y; // Above the position.
-	else if (attr_decoration.position == SKB_DECORATION_THROUGHLINE)
-		offset_y -= size.y * 0.5f; // Center.
-	skb_rect2_t rect = {0};
-	rect.x = offset_x;
-	rect.y = offset_y;
-	rect.width = decoration->length;
-	rect.height = decoration->thickness;
-	return rect;
-}
 
-//
-// Atlas draw helpers
-//
-typedef struct skb_image_atlas_t skb_image_atlas_t;
-void debug_draw_atlas(skb_image_atlas_t* atlas, float sx, float sy, float scale, int32_t columns);
+#define LOAD_FONT_OR_FAIL(path, font_family) \
+	if (!skb_font_collection_add_font(ctx->font_collection, path, font_family, NULL)) { \
+		skb_debug_log("Failed to load " path "\n"); \
+		goto error; \
+	}
+
+#define LOAD_FONT_PARAMS_OR_FAIL(path, font_family, params) \
+	if (!skb_font_collection_add_font(ctx->font_collection, path, font_family, params)) { \
+		skb_debug_log("Failed to load " path "\n"); \
+		goto error; \
+	}
 
 
+typedef struct render_context_t render_context_t;
 typedef struct GLFWwindow GLFWwindow;
 
-typedef void* example_create_t(void);
+typedef void* example_create_t(GLFWwindow* window, render_context_t* rc);
 typedef void example_destroy_t(void* ctx_ptr);
 typedef void example_on_key_t(void* ctx_ptr, GLFWwindow* window, int key, int action, int mods);
 typedef void example_on_char_t(void* ctx_ptr, unsigned int codepoint);

@@ -13,7 +13,7 @@ in mediump vec3 normal;
 // instanced rendering is automatically triggered.
 // To read more about instancing in Defold, navigate to
 // https://defold.com/manuals/material/#instancing
-in mediump mat4 mtx_world;
+in highp mat4 mtx_world;
 in mediump mat4 mtx_normal;
 
 out highp vec4 var_position;

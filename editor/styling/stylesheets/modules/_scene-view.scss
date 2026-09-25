@@ -99,6 +99,10 @@
             -fx-background-radius: 4px;
             -fx-padding: 0px 14px 7px 14px;
 
+            .color-dropper-icon:hover {
+                -fx-cursor: hand;
+            }
+
             .label {
                 -fx-alignment: center-left;
             }

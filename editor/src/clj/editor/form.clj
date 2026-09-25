@@ -52,6 +52,7 @@
    :integer 0
    :number 0.0
    :vec4 (vector-of :double 0.0 0.0 0.0 0.0)
+   :color (vector-of :double 1.0 1.0 1.0 1.0)
    :mat4 (vector-of :double
            1.0 0.0 0.0 0.0
            0.0 1.0 0.0 0.0

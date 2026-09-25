@@ -21,31 +21,32 @@
             [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.util :as util]
-            [editor.fs :as fs]
             [editor.lsp.async :as lsp.async]
             [editor.lsp.base :as lsp.base]
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
-            [editor.lua :as lua]
             [editor.os :as os]
             [editor.resource :as resource]
+            [editor.system :as system]
             [editor.workspace :as workspace]
             [service.log :as log]
             [util.coll :as coll]
+            [util.defonce :as defonce]
             [util.eduction :as e]
             [util.path :as path])
   (:import [editor.code.data Cursor CursorRange]
-           [java.io File InputStream]
+           [java.io Closeable File IOException InputStream OutputStream]
            [java.lang ProcessBuilder$Redirect ProcessHandle]
            [java.net URI]
+           [java.nio.channels Channels Pipe]
            [java.util Map]
            [java.util.concurrent TimeUnit]
            [java.util.function BiFunction]))
 
 (set! *warn-on-reflection* true)
 
-(defprotocol Connection
+(defonce/protocol Connection
   (^InputStream input-stream [connection])
-  (^InputStream output-stream [connection])
+  (^OutputStream output-stream [connection])
   (dispose [connection]))
 
 (extend-protocol Connection
@@ -69,7 +70,7 @@
                            (log/warn :message "Language server process exit code is not zero"
                                      :exit-code (.exitValue process)))))))))))
 
-(defprotocol Launcher
+(defonce/protocol Launcher
   (launch [launcher ^File directory]))
 
 (extend-protocol Launcher
@@ -85,7 +86,36 @@
           (.redirectError ProcessBuilder$Redirect/INHERIT)
           (.directory directory))))))
 
-(defprotocol Message
+(defn launch-connection
+  "Launch an in-process language server using the supplied JSON-RPC method handlers."
+  [method->handler]
+  (let [client-to-server (Pipe/open)
+        server-to-client (Pipe/open)
+        client-input (Channels/newInputStream (.source server-to-client))
+        server-output (Channels/newOutputStream (.sink server-to-client))
+        server-input (Channels/newInputStream (.source client-to-server))
+        client-output (Channels/newOutputStream (.sink client-to-server))
+        [base-source base-sink base-error] (lsp.base/make server-input server-output)
+        jsonrpc (lsp.jsonrpc/make method->handler base-source base-sink)]
+    (a/go
+      (when-let [error (<! base-error)]
+        (log/warn :message "Embedded language server connection failed"
+                  :exception error)))
+    (reify Connection
+      (input-stream [_] client-input)
+      (output-stream [_] client-output)
+      (dispose [_]
+        (a/close! jsonrpc)
+        (run!
+          (fn [^Closeable closeable]
+            (try
+              (.close closeable)
+              (catch IOException error
+                (log/warn :message "Failed to close embedded language server stream"
+                          :exception error))))
+          [client-input client-output server-input server-output])))))
+
+(defonce/protocol Message
   (->jsonrpc [input project on-response]))
 
 (extend-protocol Message
@@ -94,7 +124,7 @@
   nil
   (->jsonrpc [input _ _] input))
 
-(deftype RawRequest [notification result-converter]
+(defonce/type RawRequest [notification result-converter]
   Message
   (->jsonrpc [this _ _]
     (throw (ex-info "Can't send raw request: use finalize-request first" {:request this}))))
@@ -139,7 +169,6 @@
 ;; diagnostics
 (s/def ::severity #{:error :warning :information :hint})
 (s/def ::message string?)
-(s/def ::cursor #(instance? Cursor %))
 (s/def ::cursor-range #(instance? CursorRange %))
 (s/def ::diagnostic (s/and ::cursor-range (s/keys :req-un [::severity ::message])))
 (s/def ::result-id string?)
@@ -162,13 +191,17 @@
 (s/def ::document-symbol boolean?)
 (s/def ::hover boolean?)
 (s/def ::rename boolean?)
+(s/def ::formatting boolean?)
+(s/def ::range-formatting boolean?)
 (s/def ::capabilities (s/keys :req-un [::text-document-sync
                                        ::pull-diagnostics
                                        ::goto-definition
                                        ::find-references
                                        ::document-symbol
                                        ::hover
-                                       ::rename]
+                                       ::rename
+                                       ::formatting
+                                       ::range-formatting]
                               :opt-un [::completion]))
 
 (defn- lsp-position->editor-cursor [{:keys [line character]}]
@@ -195,10 +228,10 @@
 (defn- lsp-diagnostic-result->editor-diagnostic-result
   [{:keys [resultId version] :as lsp-diagnostics-result} diagnostics-key]
   (cond-> {:items (mapv lsp-diagnostic->editor-diagnostic (get lsp-diagnostics-result diagnostics-key))}
-          resultId
-          (assoc :result-id resultId)
-          version
-          (assoc :version version)))
+    resultId
+    (assoc :result-id resultId)
+    version
+    (assoc :version version)))
 
 (defn- diagnostics-handler [project out on-publish-diagnostics]
   (fn [{:keys [uri] :as result}]
@@ -224,7 +257,9 @@
                                                       documentSymbolProvider
                                                       completionProvider
                                                       hoverProvider
-                                                      renameProvider]}]
+                                                      renameProvider
+                                                      documentFormattingProvider
+                                                      documentRangeFormattingProvider]}]
   (cond-> {:text-document-sync (cond
                                  (nil? textDocumentSync)
                                  {:change :none :open-close false}
@@ -257,44 +292,59 @@
                     (map? hoverProvider))
            :rename (and (map? renameProvider)
                         (let [prepare (:prepareProvider renameProvider)]
-                          (and (boolean? prepare) prepare)))}
-          completionProvider
-          (assoc :completion {:resolve (boolean (:resolveProvider completionProvider))
-                              :trigger-characters (set (:triggerCharacters completionProvider))})))
+                          (and (boolean? prepare) prepare)))
+           :formatting (if (boolean? documentFormattingProvider)
+                         documentFormattingProvider
+                         (map? documentFormattingProvider))
+           :range-formatting (if (boolean? documentRangeFormattingProvider)
+                               documentRangeFormattingProvider
+                               (map? documentRangeFormattingProvider))}
+    completionProvider
+    (assoc :completion {:resolve (boolean (:resolveProvider completionProvider))
+                        :trigger-characters (set (:triggerCharacters completionProvider))})))
 
-(defn- configuration-handler [project]
+(defn- lua-language-server-plugin-path []
+  (str (path/of (system/defold-unpack-path)
+                "shared"
+                "lua-language-server"
+                "plugin.lua")))
+
+(defn- lua-language-server-show-message-request-handler [{:keys [actions message]}]
+  ;; Only auto-approve the exact plugin bundled with the editor. All other plugin
+  ;; requests remain unapproved.
+  (let [plugin-path (lua-language-server-plugin-path)
+        expected-message (str "The current settings try to load the plugin at this location:"
+                              plugin-path
+                              "\n\nNote that malicious plugin may harm your computer\n")]
+    (when (= expected-message message)
+      (coll/first-where #(= "Trust and load this plugin\n" (:title %)) actions))))
+
+(defn- configuration-handler [project server]
   (fn [{:keys [items]}]
     (lsp.async/with-auto-evaluation-context evaluation-context
-      (mapv
-        (fn [{:keys [section]}]
-          (case section
-            "Lua"
-            (let [script-intelligence (g/node-value project :script-intelligence evaluation-context)
-                  completions (g/node-value script-intelligence :lua-completions evaluation-context)
-                  workspace (g/node-value project :workspace evaluation-context)
-                  root (g/raw-property-value (:basis evaluation-context) workspace :root)]
-              {:runtime {:version "Lua 5.1" :pathStrict true}
-               :completion {:workspaceWord false
-                            :callSnippet "Replace"}
-               :diagnostics {:globals (-> lua/defined-globals
-                                          (into (lua/extract-globals-from-completions completions))
-                                          (into (lua/extract-globals-from-completions lua/editor-completions)))}
-               :workspace {:library [(str (path/of root ".internal" "lua-annotations"))]}})
-
-            "files.associations"
-            (let [workspace (g/node-value project :workspace evaluation-context)
-                  resource-types (g/node-value workspace :resource-types evaluation-context)]
-              (into {}
-                    (keep (fn [[ext {:keys [textual? language]}]]
-                            (when (and textual? (not= "plaintext" language))
-                              [(str "*." ext) language])))
-                    resource-types))
-
-            "files.exclude"
-            ["/build" "/.internal"]
-
-            nil))
-        items))))
+      (let [workspace (g/node-value project :workspace evaluation-context)
+            resource-types (g/node-value workspace :resource-types evaluation-context)
+            {:keys [extensions configuration]} server
+            configuration
+            (coll/deep-merge
+              {:files
+               {:associations
+                (into {}
+                      (keep (fn [[ext {:keys [textual? language]}]]
+                              (when (and textual?
+                                         (not= "plaintext" language)
+                                         (or (nil? extensions) (contains? extensions ext)))
+                                [(str "*." ext) language])))
+                      resource-types)
+                :exclude {"/build" true
+                          "/.internal" true}}}
+              configuration)]
+        (mapv
+          (fn [{:keys [section]}]
+            (if-not section
+              configuration
+              (reduce get configuration (e/map keyword (string/split section #"\.")))))
+          items)))))
 
 (def ^:private ^:const completion-item-tag-deprecated 1)
 (def ^:private completion-item-tag:lsp->editor
@@ -378,7 +428,8 @@
             title ((g/node-value project :settings evaluation-context) ["project" "title"])]
         {:processId (.pid (ProcessHandle/current))
          :rootUri uri
-         :capabilities {:workspace {:diagnostics {}
+         :capabilities {:workspace {:configuration true
+                                    :diagnostics {}
                                     :workspaceEdit {:documentChanges false
                                                     :normalizesLineEndings true}}
                         :textDocument {:definition {:dynamicRegistration false
@@ -393,7 +444,9 @@
                                                :contentFormat [:markdown :plaintext]}
                                        :rename {:dynamicRegistration false
                                                 :prepareSupport true
-                                                :honorsChangeAnnotations false}}
+                                                :honorsChangeAnnotations false}
+                                       :formatting {:dynamicRegistration false}
+                                       :rangeFormatting {:dynamicRegistration false}}
                         :completion {:dynamicRegistration false
                                      :completionItem {:snippetSupport true
                                                       :commitCharactersSupport true
@@ -424,9 +477,10 @@
 
   Required args:
     project     defold project node id
-    launcher    the server launcher, e.g. a map with the following keys:
-                  :command    a shell command to launch the language process,
-                              vector of strings, required
+    server      language server definition with the following keys:
+                  :launcher       server launcher, required
+                  :configuration  nested server configuration map, optional
+                  :extensions     handled resource extensions, optional
     in          input channel that server will take items from to execute,
                 items are server actions created by other public fns in this ns
     out         output channel that server can submit values to, valid values
@@ -448,12 +502,13 @@
 
   See also:
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#lifeCycleMessages"
-  [project launcher in out & {:keys [on-publish-diagnostics
-                                     on-initialized
-                                     on-response]}]
+  [project server in out & {:keys [on-publish-diagnostics
+                                   on-initialized
+                                   on-response]}]
   (a/go
     (try
-      (let [directory (lsp.async/with-auto-evaluation-context evaluation-context
+      (let [launcher (:launcher server)
+            directory (lsp.async/with-auto-evaluation-context evaluation-context
                         (let [basis (:basis evaluation-context)
                               workspace (g/node-value project :workspace evaluation-context)]
                           (workspace/project-directory basis workspace)))
@@ -467,8 +522,8 @@
                   jsonrpc (lsp.jsonrpc/make
                             {"textDocument/publishDiagnostics" (diagnostics-handler project out on-publish-diagnostics)
                              "workspace/diagnostic/refresh" (constantly nil)
-                             "workspace/configuration" (configuration-handler project)
-                             "window/showMessageRequest" (constantly nil)
+                             "workspace/configuration" (configuration-handler project server)
+                             "window/showMessageRequest" lua-language-server-show-message-request-handler
                              "window/workDoneProgress/create" (constantly nil)}
                             base-source
                             base-sink)
@@ -541,8 +596,8 @@
     (lsp.jsonrpc/notification
       "textDocument/diagnostic"
       (cond-> {:textDocument {:uri (resource-uri resource)}}
-              previous-result-id
-              (assoc :previousResultId previous-result-id)))
+        previous-result-id
+        (assoc :previousResultId previous-result-id)))
     (fn convert-result [result _]
       (result-converter (full-or-unchanged-diagnostic-result:lsp->editor result)))))
 
@@ -580,7 +635,7 @@
                   (keep #(lsp-location-or-location-link->editor-location % project evaluation-context))
                   result)))))))
 
-(defrecord MarkupContent [type value]
+(defonce/record MarkupContent [type value]
   ;; We need markup content to be Comparable since it ends up in cursor regions
   ;; that need to be comparable
   Comparable
@@ -602,6 +657,7 @@
   {:value newText
    :cursor-range (lsp-range->editor-cursor-range range)})
 
+#_{:clj-kondo/ignore [:unused-binding]}
 (defn- completion-item:lsp->editor
   [{:keys [label filterText insertText tags deprecated kind
            insertTextMode insertTextFormat commitCharacters
@@ -636,8 +692,8 @@
                           :invoked 1
                           :trigger-character 2
                           :trigger-for-incomplete-completions 3)}
-          trigger-character
-          (assoc :triggerCharacter trigger-character)))
+    trigger-character
+    (assoc :triggerCharacter trigger-character)))
 
 (defn completion
   "See also:
@@ -665,11 +721,11 @@
     (bound-fn [result _]
       (item-converter
         (cond-> completion
-                ;; LSP specification does not allow null completion resolution
-                ;; results, but the Lua language server might return null anyway
-                result
-                (conj (select-keys (completion-item:lsp->editor result)
-                                   [:detail :doc :additional-edits])))))))
+          ;; LSP specification does not allow null completion resolution
+          ;; results, but the Lua language server might return null anyway
+          result
+          (conj (select-keys (completion-item:lsp->editor result)
+                             [:detail :doc :additional-edits])))))))
 
 (defn find-references
   "See also:
@@ -702,8 +758,8 @@
            :selection-range (lsp-range->editor-cursor-range selectionRange)
            :containment-range (lsp-range->editor-cursor-range range)
            :children (mapv document-symbol:lsp->editor children)}
-          detail
-          (assoc :detail detail)))
+    detail
+    (assoc :detail detail)))
 
 (defn- symbol-information->editor-document-symbol [{:keys [name kind tags deprecated location]}]
   {:name name
@@ -769,7 +825,7 @@
      :contentChanges (into []
                            (map (fn [[cursor-range replacement]]
                                   {:range (editor-cursor-range->lsp-range cursor-range)
-                                   :text (string/join "\n" replacement)}))
+                                   :text (coll/join-to-string "\n" replacement)}))
                            incremental-diff)}))
 
 (defn watched-file-change
@@ -856,3 +912,41 @@
                                          (mapv (fn [{:keys [cursor-range value]}]
                                                  (coll/pair cursor-range (util/split-lines value)))))))))
              (into {}))))))
+
+(defn formatting
+  "See also:
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_formatting"
+  [resource indent-type]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "textDocument/formatting"
+      {:textDocument {:uri (resource-uri resource)}
+       :options {:tabSize (data/indent-type->tab-spaces indent-type)
+                 :insertSpaces (not= :tabs indent-type)}})
+    (bound-fn [result _project]
+      {:edits (->> result
+                   (mapv text-edit:lsp->editor)
+                   (sort-by :cursor-range)
+                   (mapv (fn [{:keys [cursor-range value]}]
+                           (coll/pair cursor-range (util/split-lines value)))))})))
+
+(defn range-formatting
+  "See also:
+    https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_rangeFormatting"
+  [resource requested-cursor-range indent-type result-converter]
+  (raw-request
+    (lsp.jsonrpc/notification
+      "textDocument/rangeFormatting"
+      {:textDocument {:uri (resource-uri resource)}
+       :range (editor-cursor-range->lsp-range requested-cursor-range)
+       :options {:tabSize (data/indent-type->tab-spaces indent-type)
+                 :insertSpaces (not= :tabs indent-type)}})
+    (bound-fn [result _project]
+      (result-converter
+        {:requested-cursor-range requested-cursor-range
+         :edits (->> result
+                     (mapv text-edit:lsp->editor)
+                     (sort-by :cursor-range)
+                     (mapv (fn [{:keys [cursor-range value]}]
+                             (coll/pair cursor-range (util/split-lines value)))))}))))
+

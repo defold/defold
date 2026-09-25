@@ -9,10 +9,14 @@ set(DLIB_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(DLIB_SRC_DIR "${DLIB_ROOT}/src")
 set(DLIB_CORE_DIR "${DLIB_SRC_DIR}/dlib")
 set(DLIB_MBEDTLS_DIR "${DLIB_SRC_DIR}/mbedtls")
-set(DLIB_DEPENDENCIES zip mbedtls)
-set(DLIB_NOASAN_DEPENDENCIES zip_noasan mbedtls_noasan)
-set(DLIB_SHARED_DEPENDENCIES profile_null_noasan mbedtls_noasan zip_noasan)
-set(DLIB_BASIS_TRANSCODER_DEPENDENCIES dlib)
+set(DLIB_DEPENDENCIES zip mbedtls lz4)
+set(DLIB_NOASAN_DEPENDENCIES zip_noasan mbedtls_noasan lz4)
+set(DLIB_SHARED_DEPENDENCIES profile_null_noasan mbedtls_noasan zip_noasan lz4)
+
+add_library(lz4 STATIC IMPORTED GLOBAL)
+set_target_properties(lz4 PROPERTIES
+  IMPORTED_LOCATION "${DEFOLD_EXT_LIB_DIR}/liblz4${CMAKE_STATIC_LIBRARY_SUFFIX}")
+
 file(GLOB_RECURSE DLIB_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${DLIB_SRC_DIR}/dmsdk/*.h"
   "${DLIB_SRC_DIR}/dmsdk/*.hpp")
@@ -138,8 +142,7 @@ set(DLIB_MBEDTLS_INCLUDE_DIRS
 file(GLOB DLIB_BASE_SOURCES CONFIGURE_DEPENDS
      "${DLIB_CORE_DIR}/*.cpp"
      "${DLIB_CORE_DIR}/http/*.cpp"
-     "${DLIB_SRC_DIR}/zlib/*.c"
-     "${DLIB_SRC_DIR}/lz4/*.c")
+     "${DLIB_SRC_DIR}/zlib/*.c")
 
 set(DLIB_FEATURE_SOURCES)
 set(DLIB_FEATURE_FILES)
@@ -150,10 +153,12 @@ foreach(_feature IN ITEMS
     dlib/log
     dlib/mutex
     dlib/socket
+    dlib/spinlock
     dlib/sslsocket
     dlib/sys
     dlib/time
-    dlib/thread)
+    dlib/thread
+    dlib/zip)
   set(_extra_tags)
   set(_preferred_tags)
   if(_feature STREQUAL "dlib/crypt")
@@ -167,12 +172,20 @@ foreach(_feature IN ITEMS
   elseif(_feature STREQUAL "dlib/sslsocket")
     if(DLIB_USE_MBEDTLS AND DLIB_TARGET_OS MATCHES "^(macos|ios)$")
       set(_preferred_tags mbedtls)
-    elseif(DLIB_TARGET_OS MATCHES "^(android|linux|win32|xbone)$")
+    elseif(NOT DLIB_TARGET_OS MATCHES "^(macos|ios|web)$")
       set(_extra_tags mbedtls)
     endif()
   elseif(_feature STREQUAL "dlib/sys")
-    if(DLIB_TARGET_OS MATCHES "^(android|linux|macos|ios|web|nx64|ps4|ps5)$")
+    if(DLIB_TARGET_OS MATCHES "^(android|linux|macos|ios|web|nx64)$")
       set(_extra_tags posix)
+    endif()
+  elseif(_feature STREQUAL "dlib/spinlock")
+    if(DLIB_TARGET_OS MATCHES "^(win32|web)$")
+      set(_preferred_tags atomic)
+    elseif(DLIB_TARGET_OS STREQUAL "linux")
+      set(_preferred_tags posix)
+    elseif(DLIB_TARGET_OS MATCHES "^(nx64|ps4|ps5|xbone)$")
+      set(_preferred_tags ${DLIB_TARGET_OS})
     endif()
   endif()
   dlib_select_feature(_selected _all "${_feature}" EXTRA_TAGS ${_extra_tags} PREFERRED_TAGS ${_preferred_tags})
@@ -225,6 +238,10 @@ else()
        "${DLIB_MBEDTLS_DIR}/tf-psa-crypto/utilities/*.c")
 endif()
 
+if(DM_MBEDTLS_CUSTOM_NET)
+  dlib_remove_matching(DLIB_MBEDTLS_SOURCES "/net_sockets\\.c$")
+endif()
+
 defold_add_library(mbedtls STATIC ${DLIB_MBEDTLS_SOURCES})
 set_target_properties(mbedtls PROPERTIES OUTPUT_NAME dmbedtls)
 target_include_directories(mbedtls PUBLIC ${DLIB_MBEDTLS_INCLUDE_DIRS})
@@ -242,7 +259,7 @@ target_compile_definitions(dlib
   PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 target_link_libraries(dlib PUBLIC ${DLIB_DEPENDENCIES})
 defold_target_link_socket(dlib "${TARGET_PLATFORM}" SCOPE PUBLIC)
-if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|x86_64-ios)$")
+if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|arm64_sim-ios)$")
   foreach(_fw IN ITEMS CFNetwork Security)
     target_link_options(dlib PUBLIC "-Wl,-framework,${_fw}")
   endforeach()
@@ -256,7 +273,7 @@ target_compile_definitions(dlib_noasan
 target_link_libraries(dlib_noasan PUBLIC ${DLIB_NOASAN_DEPENDENCIES})
 set_target_properties(dlib_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 defold_target_link_socket(dlib_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC)
-if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|x86_64-ios)$")
+if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|arm64_sim-ios)$")
   foreach(_fw IN ITEMS CFNetwork Security)
     target_link_options(dlib_noasan PUBLIC "-Wl,-framework,${_fw}")
   endforeach()
@@ -264,11 +281,15 @@ endif()
 
 defold_add_library(image STATIC "${DLIB_CORE_DIR}/image.cpp")
 target_include_directories(image PUBLIC "${DLIB_SRC_DIR}")
-target_compile_definitions(image PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(image
+  PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES}
+  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 
 defold_add_library(image_noasan STATIC "${DLIB_CORE_DIR}/image.cpp")
 target_include_directories(image_noasan PUBLIC "${DLIB_SRC_DIR}")
-target_compile_definitions(image_noasan PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(image_noasan
+  PUBLIC VALGRIND ${DLIB_EXTRA_DEFINES}
+  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 set_target_properties(image_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 
 defold_add_library(image_null STATIC "${DLIB_CORE_DIR}/image_null.cpp")
@@ -292,14 +313,18 @@ set_target_properties(profile_null_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET d
 
 defold_add_library(profile STATIC "${DLIB_CORE_DIR}/profile/profile.cpp")
 target_include_directories(profile PUBLIC "${DLIB_SRC_DIR}" "${DLIB_CORE_DIR}/profile")
-target_compile_definitions(profile PUBLIC ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(profile
+  PUBLIC ${DLIB_EXTRA_DEFINES}
+  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 
 defold_add_library(profile_noasan STATIC "${DLIB_CORE_DIR}/profile/profile.cpp")
 target_include_directories(profile_noasan PUBLIC "${DLIB_SRC_DIR}" "${DLIB_CORE_DIR}/profile")
-target_compile_definitions(profile_noasan PUBLIC ${DLIB_EXTRA_DEFINES})
+target_compile_definitions(profile_noasan
+  PUBLIC ${DLIB_EXTRA_DEFINES}
+  PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
 set_target_properties(profile_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
 
-if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x86_64-macos|arm64-macos)$")
+if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos|arm64-macos)$")
   defold_add_library(dlib_shared SHARED ${DLIB_SOURCES})
   defold_target_skip_sanitizer(dlib_shared)
   target_include_directories(dlib_shared PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
@@ -325,48 +350,15 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x8
   endif()
 endif()
 
-set(DLIB_BASIS_FLAGS BASISD_SUPPORT_KTX2_ZSTD=0)
-if(TARGET_PLATFORM MATCHES "^(x86_64-win32|x86-win32|x86_64-macos)$")
-  list(APPEND DLIB_BASIS_FLAGS BASISU_SUPPORT_SSE=1)
-endif()
-
-file(GLOB_RECURSE DLIB_BASIS_TRANSCODER_SOURCES CONFIGURE_DEPENDS "${DLIB_SRC_DIR}/basis/transcoder/*.cpp")
-defold_add_library(basis_transcoder STATIC ${DLIB_BASIS_TRANSCODER_SOURCES})
-target_include_directories(basis_transcoder PUBLIC "${DLIB_SRC_DIR}/basis")
-target_compile_definitions(basis_transcoder PUBLIC
-  DM_BASIS_TRANSCODER_UASTC
-  BASISD_SUPPORT_KTX2=0
-  MINIZ_NO_STDIO
-  ${DLIB_BASIS_FLAGS})
-target_link_libraries(basis_transcoder PUBLIC ${DLIB_BASIS_TRANSCODER_DEPENDENCIES})
-
-if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86-win32|x86_64-macos|arm64-macos)$")
-  file(GLOB_RECURSE DLIB_BASIS_ENCODER_SOURCES CONFIGURE_DEPENDS
-       "${DLIB_SRC_DIR}/basis/encoder/*.c"
-       "${DLIB_SRC_DIR}/basis/encoder/*.cpp"
-       "${DLIB_SRC_DIR}/basis/transcoder/*.cpp")
-  defold_add_library(basis_encoder STATIC ${DLIB_BASIS_ENCODER_SOURCES})
-  target_include_directories(basis_encoder PUBLIC "${DLIB_SRC_DIR}/basis")
-  target_compile_definitions(basis_encoder PUBLIC DM_BASIS_ENCODER MINIZ_NO_STDIO ${DLIB_BASIS_FLAGS})
-
-  defold_add_library(basis_encoder_noasan STATIC ${DLIB_BASIS_ENCODER_SOURCES})
-  target_include_directories(basis_encoder_noasan PUBLIC "${DLIB_SRC_DIR}/basis")
-  target_compile_definitions(basis_encoder_noasan PUBLIC DM_BASIS_ENCODER MINIZ_NO_STDIO ${DLIB_BASIS_FLAGS})
-endif()
-
 set(DLIB_INSTALL_TARGETS
   dlib dlib_noasan zip zip_noasan mbedtls mbedtls_noasan
   image image_noasan image_null image_null_noasan
-  profile profile_noasan profile_null profile_null_noasan
-  basis_transcoder)
+  profile profile_noasan profile_null profile_null_noasan)
 if(TARGET dlib_shared)
   list(APPEND DLIB_INSTALL_TARGETS dlib_shared)
 endif()
 if(TARGET dlib_memprofile)
   list(APPEND DLIB_INSTALL_TARGETS dlib_memprofile)
-endif()
-if(TARGET basis_encoder)
-  list(APPEND DLIB_INSTALL_TARGETS basis_encoder basis_encoder_noasan)
 endif()
 
 defold_install_targets(TARGETS ${DLIB_INSTALL_TARGETS}
@@ -473,8 +465,6 @@ install(FILES ${DLIB_HTTP_PUBLIC_HEADERS} DESTINATION include/dlib/http)
 install(FILES "${DLIB_CORE_DIR}/profile/profile.h" DESTINATION include/dlib/profile)
 install(DIRECTORY "${DLIB_SRC_DIR}/stb/" DESTINATION ext/include/stb FILES_MATCHING PATTERN "*.h")
 install(DIRECTORY "${DLIB_SRC_DIR}/jc/" DESTINATION ext/include/jc FILES_MATCHING PATTERN "*.h")
-install(DIRECTORY "${DLIB_SRC_DIR}/basis/encoder/" DESTINATION ext/include/basis/encoder FILES_MATCHING PATTERN "*.h")
-install(DIRECTORY "${DLIB_SRC_DIR}/basis/transcoder/" DESTINATION ext/include/basis/transcoder FILES_MATCHING PATTERN "*.h")
 install(FILES "${DLIB_SRC_DIR}/python/dlib/__init__.py" DESTINATION lib/python/dlib)
 install(FILES "${DLIB_CORE_DIR}/memprofile.py" DESTINATION lib/python)
 install(PROGRAMS "${DLIB_ROOT}/bin/memprofile.sh" DESTINATION bin)

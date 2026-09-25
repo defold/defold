@@ -4,7 +4,7 @@
 
 This guide focuses on the tool and platform sdk installation.
 
-Build instructions for the engine are found here [here](/editor/README_BUILD.md)).
+(Build instructions for the engine are found here [here](/README_BUILD.md)).
 
 At the very minimum, you need to install the SDK for your host platform (Windows, macOS or Linux)
 
@@ -177,7 +177,7 @@ source ~/.zprofile
 
 <details><summary>Manual download...</summary><p>
 
-Download and install the latest JDK 25 (25+36 or later) release from either of these locations:
+Download and install the latest JDK 25 (25.0.4.1+1 or later) release from either of these locations:
 
 * [Adoptium/Temurin](https://github.com/adoptium/temurin25-binaries/releases) - The Adoptium Working Group promotes and supports high-quality runtimes and associated technology for use across the Java ecosystem
 
@@ -352,7 +352,7 @@ defold$ ./scripts/build.py check_sdk --verbose
   * **libcurl4-openssl-dev** - Development files and documentation for libcurl
   * **uuid-dev** - Universally Unique ID library
   * **libopenal-dev** - Software implementation of the OpenAL audio API
-  * **libncurses5** -  Needed by clang
+  * **libtinfo5** and **libncurses5** - Needed by clang and Emscripten
 
   **Tools**
   * **build-essential** - Compilers
@@ -376,6 +376,7 @@ defold$ ./scripts/build.py check_sdk --verbose
           libopenal-dev \
           libgl1-mesa-dev \
           libglw1-mesa-dev \
+          libtinfo5 \
           libncurses5 \
           openssl \
           valgrind \
@@ -388,16 +389,33 @@ Once installed, verify the installation with
 defold$ ./scripts/build.py check_sdk --verbose
 ```
 
-If you're using Ubuntu and it fails to install `libncurses5`, try:
+If you're using Ubuntu and it fails to find `libtinfo5` or `libncurses5`, enable the `universe` repository and refresh the apt package list:
 
 ```sh
-sudo ln -s /usr/lib/x86_64-linux-gnu/libtinfo.so.5 /usr/lib/libtinfo.so.5
+sudo add-apt-repository -y universe
+sudo apt-get update
 ```
 
-and:
+Then retry the install:
 
 ```sh
-sudo ln -s /usr/lib/x86_64-linux-gnu/libncurses.so.5 /usr/lib/libncurses.so.5
+sudo apt-get install libtinfo5 libncurses5
+```
+
+On Ubuntu 24.04 and newer, where the legacy package names are no longer available, install the Ubuntu 22.04 packages directly:
+
+```sh
+wget http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.2_amd64.deb
+wget http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libncurses5_6.3-2ubuntu0.2_amd64.deb
+sudo apt install ./libtinfo5_6.3-2ubuntu0.2_amd64.deb ./libncurses5_6.3-2ubuntu0.2_amd64.deb
+```
+
+For arm64 Linux:
+
+```sh
+wget http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses/libtinfo5_6.3-2_arm64.deb
+wget http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses/libncurses5_6.3-2_arm64.deb
+sudo apt install ./libtinfo5_6.3-2_arm64.deb ./libncurses5_6.3-2_arm64.deb
 ```
 
 </p></details>
@@ -550,15 +568,16 @@ There are a few ways to install the DotNet sdk:
 
 These are needed in some special build scripts (e.g. when rebuilding external source libraries).
 
-* **curl** - Command line tool for downloading files
-* **wget** - Command line tool for downloading files
-* **cmake** for easier building of external projects
-* **patch** for easier patching on windows (when building external projects)
+* **curl** for downloading files
+* **wget** for downloading files
+* **cmake** for building of external projects
+* **ninja** for building of external projects
+* **patch** for patching when building external projects
 
 <details><summary>macOS...</summary><p>
 
   ```sh
-  brew install wget curl cmake patch
+  brew install wget curl cmake ninja patch
   ````
 
 </p></details>
@@ -566,7 +585,7 @@ These are needed in some special build scripts (e.g. when rebuilding external so
 <details><summary>Linux...</summary><p>
 
   ```sh
-  apt-get install wget curl cmake patch
+  apt-get install wget curl cmake ninja-build patch
   ````
 
 </p></details>

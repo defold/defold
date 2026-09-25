@@ -17,11 +17,6 @@ function init(self)
 	-- Remove this function if not needed
 end
 
-function final(self)
-	-- Add finalization code here
-	-- Remove this function if not needed
-end
-
 function update(self, dt)
 	-- Add update code here
 	-- Remove this function if not needed

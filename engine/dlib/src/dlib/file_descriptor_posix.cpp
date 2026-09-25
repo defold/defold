@@ -15,9 +15,29 @@
 #include "file_descriptor.h"
 
 #include <assert.h>
+#include <poll.h>
+#include <dmsdk/dlib/dalloca.h>
 
 namespace dmFileDescriptor
 {
+    static void ToNativePollFDs(Poller* poller, pollfd* native_pollfds, uint32_t count)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            native_pollfds[i].fd = poller->m_Pollfds[i].m_Fd;
+            native_pollfds[i].events = (short)poller->m_Pollfds[i].m_Events;
+            native_pollfds[i].revents = 0;
+        }
+    }
+
+    static void FromNativePollFDs(pollfd* native_pollfds, Poller* poller, uint32_t count)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            poller->m_Pollfds[i].m_REvents = native_pollfds[i].revents;
+        }
+    }
+
     int PollEventToNative(PollEvent event)
     {
         switch (event)
@@ -50,7 +70,11 @@ namespace dmFileDescriptor
 
     int Wait(Poller* poller, int timeout)
     {
-        int r = poll(poller->m_Pollfds.Begin(), poller->m_Pollfds.Size(), timeout);
+        uint32_t count = poller->m_Pollfds.Size();
+        pollfd* native_pollfds = count ? (pollfd*)dmAlloca(sizeof(pollfd) * count) : 0;
+        ToNativePollFDs(poller, native_pollfds, count);
+        int r = poll(native_pollfds, (nfds_t)count, timeout);
+        FromNativePollFDs(native_pollfds, poller, count);
         return r;
     }
 } // namespace dmFileDescriptor

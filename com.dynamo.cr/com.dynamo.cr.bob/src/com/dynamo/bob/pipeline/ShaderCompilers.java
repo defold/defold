@@ -76,8 +76,8 @@ public class ShaderCompilers {
 
     private static LinkedHashSet<GraphicsAdapter> getDefaultShaderAdapters(Platform platform) {
         LinkedHashSet<GraphicsAdapter> adapters = new LinkedHashSet<>();
-        if (platform.isMacOS()) {
-            adapters.add(GraphicsAdapter.VULKAN);
+        if (platform.isMacOS() || platform == Platform.Arm64IosSim) {
+            adapters.add(GraphicsAdapter.METAL);
         } else if (platform.matchesOS(OS.OS_ID_ANDROID)) {
             adapters.add(GraphicsAdapter.VULKAN);
             adapters.add(GraphicsAdapter.OPENGLES);
@@ -95,7 +95,7 @@ public class ShaderCompilers {
 
     private static Set<GraphicsAdapter> getShaderAdaptersFromOptions(Platform platform, IShaderCompiler.CompileOptions compileOptions) {
         LinkedHashSet<GraphicsAdapter> adapters = new LinkedHashSet<>();
-        if (compileOptions.shaderAdapters == null) {
+        if (platform == Platform.Arm64IosSim || compileOptions.shaderAdapters == null) {
             return getDefaultShaderAdapters(platform);
         }
         for (String adapterName : compileOptions.shaderAdapters.split(",")) {
@@ -329,7 +329,7 @@ public class ShaderCompilers {
                     }
 
                     if (arrayTextureFallbackRequired) {
-                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult.data), compileOptions.maxPageCount);
+                        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(new String(crossCompileResult.data), compileOptions.maxPageCount, shaderLanguage);
                         if (variantCompileResult != null && variantCompileResult.arraySamplers.length > 0) {
                             crossCompileResult.data = variantCompileResult.source.getBytes();
                             variantTextureArray = true;
@@ -370,7 +370,7 @@ public class ShaderCompilers {
                         if (mergedRootSignatureText == null || mergedRootSignatureText.isEmpty()) {
                             throw new CompileExceptionError("Failed to convert merged HLSL root signature to text for shared-root-signature recompile");
                         }
-                        if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32) {
+                        if (platform == Platform.X86_64Win32) {
                             mergedRootSignatureText = Win32ShaderCompiler.ensureInputAssemblerRootFlag(mergedRootSignatureText);
                         }
 
@@ -408,6 +408,7 @@ public class ShaderCompilers {
 
             ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
             compileResult.shaderBuildResults = shaderBuildResults;
+            compileResult.setShaderSourcePaths(shaderModules);
 
             for(ShaderDesc.ShaderType type : shaderTypeKeys.keySet()) {
                 compileResult.reflectors.add(pipeline.getReflectionData(type));
@@ -424,16 +425,25 @@ public class ShaderCompilers {
         }
     }
 
+    public static IShaderCompiler GetCommonShaderCompiler(Platform platform) {
+        return new CommonShaderCompiler(platform);
+    }
+
+    public static IShaderCompiler GetCommonShaderCompiler(Platform platform, ShaderCompilePipeline.Options baseOptions) {
+        return new CommonShaderCompiler(platform, baseOptions);
+    }
+
     public static ArrayList<ShaderDesc.Language> GetSupportedOpenGLVersionsForPlatform(Platform platform) {
         ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<>();
         if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
-        } else if (platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
+        } else if (platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-        } else if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32 || platform == Platform.X86_64Linux) {
+        } else if (platform == Platform.X86_64Win32 || platform == Platform.X86_64Linux) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430); // Compute
         } else if (platform == Platform.Arm64Linux || platform == Platform.Armv7Android || platform == Platform.Arm64Android ||
+                platform == Platform.X86_64Android ||
                 platform == Platform.WasmWeb || platform == Platform.WasmPthreadWeb) {
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);

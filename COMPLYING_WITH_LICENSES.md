@@ -32,6 +32,7 @@ The following software has licenses which require inclusion of their respective 
     * [VkQuality](/licenses/NOTICE-vkquality) - Used by the Android Vulkan graphics backend to select between Vulkan and OpenGL ES.
   * MIT
     * [jctest](/licenses/NOTICE-jctest) - Used when running unit tests in the engine. Not included in any builds.
+    * [Nuklear](https://github.com/Immediate-Mode-UI/Nuklear) - Micha Mettke and contributors. Used by the desktop-only fontviewer development and test application. Not included in the Defold engine or games built with Defold. The license text is included with the vendored library in `engine/font/src/test/fontviewer/LICENSE.nuklear`.
     * [Lua](/licenses/NOTICE-lua) - Used in HTML5 builds.
     * [LuaCJson](/licenses/NOTICE-luacjson) - Used for encoding lua tables to JSON. Used on all platforms.
     * [LuaJIT](/licenses/NOTICE-luajit) - Used on all platforms except HTML5.

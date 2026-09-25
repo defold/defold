@@ -38,6 +38,7 @@ function default_sampler(name)
         name = hash(name),
         u_wrap = graphics.TEXTURE_WRAP_CLAMP_TO_EDGE,
         v_wrap = graphics.TEXTURE_WRAP_CLAMP_TO_EDGE,
+        w_wrap = graphics.TEXTURE_WRAP_REPEAT,
         min_filter = graphics.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST,
         mag_filter = graphics.TEXTURE_FILTER_LINEAR,
         max_anisotropy = 1
@@ -50,6 +51,7 @@ function assert_sampler(sampler, expected)
     assert(sampler.name           == expected.name)
     assert(sampler.u_wrap         == expected.u_wrap)
     assert(sampler.v_wrap         == expected.v_wrap)
+    assert(sampler.w_wrap         == expected.w_wrap)
     assert(sampler.min_filter     == expected.min_filter)
     assert(sampler.mag_filter     == expected.mag_filter)
     assert(sampler.max_anisotropy == expected.max_anisotropy)
@@ -150,6 +152,7 @@ function test_module_set_samplers(module, resource, sampler_name)
     local s = get_by_name(samplers, sampler_name)
     s.u_wrap = graphics.TEXTURE_WRAP_REPEAT
     s.v_wrap = graphics.TEXTURE_WRAP_REPEAT
+    s.w_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT
     module.set_samplers(resource, {
         [sampler_name] = s
     })

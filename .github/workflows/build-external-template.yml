@@ -40,13 +40,13 @@ on:
             { "name": "arm64-macos", "runner": "macOS-26", "target": "macos" },
             { "name": "x86_64-macos", "runner": "macOS-26", "target": "macos" },
             { "name": "arm64-ios", "runner": "macOS-26", "target": "macos" },
-            { "name": "x86_64-ios", "runner": "macOS-26", "target": "macos" },
+            { "name": "arm64_sim-ios", "runner": "macOS-26", "target": "macos" },
             { "name": "wasm-web", "runner": "ubuntu-22.04", "target": "web" },
             { "name": "wasm_pthread-web", "runner": "ubuntu-22.04", "target": "web" },
-            { "name": "win32", "runner": "windows-2025-vs2026", "target": "windows" },
             { "name": "x86_64-win32", "runner": "windows-2025-vs2026", "target": "windows" },
             { "name": "arm64-android", "runner": "ubuntu-22.04", "target": "android" },
-            { "name": "armv7-android", "runner": "ubuntu-22.04", "target": "android" }
+            { "name": "armv7-android", "runner": "ubuntu-22.04", "target": "android" },
+            { "name": "x86_64-android", "runner": "ubuntu-22.04", "target": "android" }
           ]
         description: 'JSON array of platforms to build'
         required: false
@@ -96,15 +96,15 @@ jobs:
     runs-on: ${{ matrix.platforms.runner }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: "${{ env.BUILD_BRANCH || github.ref_name }}"
 
       - name: Setup MSVC
         if: "${{ matrix.platforms.target == 'windows' && inputs.setup_msvc }}"
-        uses: TheMrMilchmann/setup-msvc-dev@79dac248aac9d0059f86eae9d8b5bfab4e95e97c # v4.0.0
+        uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
         with:
-          arch: ${{ matrix.platforms.name == 'win32' && 'x86' || 'x64' }}
+          arch: x64
 
       - name: Setup NDK (r25b)
         if: "${{ matrix.platforms.target == 'android' }}"
@@ -115,9 +115,18 @@ jobs:
           add-to-path: false
 
       - name: Install Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: 3.13
+
+      - name: Install Java
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          java-version: '25'
+          distribution: temurin
+
+      - name: Install CMake and Ninja
+        uses: lukka/get-cmake@fffaaafeea488556c2c12dad60690008bc1caacb # v4.3.4
 
       - name: Setup emsdk
         if: "${{ matrix.platforms.target == 'web' }}"
@@ -129,16 +138,13 @@ jobs:
         shell: bash
         run: ci/ci.sh install --platform=${{ matrix.platforms.name }}
 
-      - name: Install externals
-        shell: bash
-        run: ci/ci.sh install_ext
-
       - name: Build ${{ inputs.package_name }}
         if: "${{ matrix.platforms.target != 'windows' || inputs.windows_build_command == '' }}"
         shell: bash
         env:
           PACKAGE_ROOT: ${{ inputs.package_root != '' && inputs.package_root || format('external/{0}', inputs.package_name) }}
-          ARTIFACT_DIR: ${{ inputs.artifact_dir != '' && inputs.artifact_dir || format('{0}/build', inputs.package_root != '' && inputs.package_root || format('external/{0}', inputs.package_name)) }}
+          ARTIFACT_DIR: ${{ inputs.artifact_dir != '' && inputs.artifact_dir || 'packages' }}
+          BUILD_PACKAGE_NAME: ${{ inputs.package_name }}
           BUILD_PLATFORM_NAME: ${{ matrix.platforms.name }}
           BUILD_PLATFORM_TARGET: ${{ matrix.platforms.target }}
           PRE_BUILD_COMMAND: ${{ inputs.pre_build_command }}
@@ -168,6 +174,7 @@ jobs:
           if [ "$BUILD_PLATFORM_TARGET" == "android" ]; then
             export ANDROID_NDK_HOME="${{ steps.setup-ndk.outputs.ndk-path }}"
             export ANDROID_NDK_ROOT="${{ steps.setup-ndk.outputs.ndk-path }}"
+            export CMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake"
             export ANDROID_SDK_ROOT="/usr/local/lib/android/sdk"
             export ANDROID_HOME="$ANDROID_SDK_ROOT"
             export PATH="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
@@ -175,6 +182,9 @@ jobs:
             if [[ "$BUILD_PLATFORM_NAME" == "arm64-android" ]]; then
               export CC="aarch64-linux-android${{ inputs.android_abi_version }}-clang"
               export CXX="aarch64-linux-android${{ inputs.android_abi_version }}-clang++"
+            elif [[ "$BUILD_PLATFORM_NAME" == "x86_64-android" ]]; then
+              export CC="x86_64-linux-android${{ inputs.android_abi_version }}-clang"
+              export CXX="x86_64-linux-android${{ inputs.android_abi_version }}-clang++"
             else
               export CC="armv7a-linux-androideabi${{ inputs.android_abi_version }}-clang"
               export CXX="armv7a-linux-androideabi${{ inputs.android_abi_version }}-clang++"
@@ -191,12 +201,7 @@ jobs:
           if [ -n "$BUILD_COMMAND" ]; then
             eval "$BUILD_COMMAND"
           else
-            ./scripts/build.py install_waf
-            cd "$PACKAGE_ROOT"
-
-            waf distclean || true
-            PREFIX="$DYNAMO_HOME" waf configure --platform="$BUILD_PLATFORM_NAME"
-            waf install
+            ./scripts/build.py build_external --package="$BUILD_PACKAGE_NAME" --platform="$BUILD_PLATFORM_NAME"
           fi
 
           echo "Final package includes:"
@@ -215,7 +220,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.package_name }}-${{ inputs.package_version }}-common.tar.gz
-          path: ${{ inputs.artifact_dir != '' && inputs.artifact_dir || format('{0}/build', inputs.package_root != '' && inputs.package_root || format('external/{0}', inputs.package_name)) }}/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-common.tar.gz
+          path: ${{ inputs.artifact_dir != '' && inputs.artifact_dir || 'packages' }}/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-common.tar.gz
           if-no-files-found: error
           retention-days: 1
 
@@ -223,7 +228,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.package_name }}-${{ inputs.package_version }}-${{ matrix.platforms.name }}.tar.gz
-          path: ${{ inputs.artifact_dir != '' && inputs.artifact_dir || format('{0}/build', inputs.package_root != '' && inputs.package_root || format('external/{0}', inputs.package_name)) }}/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-${{ matrix.platforms.name }}.tar.gz
+          path: ${{ inputs.artifact_dir != '' && inputs.artifact_dir || 'packages' }}/${{ inputs.result_folder_name }}-${{ inputs.package_version }}-${{ matrix.platforms.name }}.tar.gz
           if-no-files-found: error
           retention-days: 1
 
@@ -233,7 +238,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repo
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: "${{ env.BUILD_BRANCH || github.ref_name }}"
           fetch-depth: 0

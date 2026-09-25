@@ -152,10 +152,9 @@
       (validation/prop-error :fatal _node-id :sound validation/prop-nil? (seq dep-build-targets) sound-message)
       [(make-sound-desc-build-target _node-id resource save-value dep-build-targets)]))
 
-(defn load-sound [_project self resource sound-desc]
+(defn load-sound [{:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id sound-desc :source-value}]
   {:pre [(map? sound-desc)]} ; Sound$SoundDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (gu/set-properties-from-pb-map self Sound$SoundDesc sound-desc
       sound (resolve-resource :sound)
       looping (protobuf/int->boolean :looping)
@@ -194,7 +193,7 @@
             (dynamic error (g/fnk [_node-id loopcount]
                              (validation/prop-error :fatal _node-id :loopcount (partial validation/prop-outside-range? [0 127]) loopcount loopcount-message)))
             (dynamic read-only? (g/fnk [looping]
-                                   (not looping)))
+                                  (not looping)))
             (dynamic label (properties/label-dynamic :sound :loopcount))
             (dynamic tooltip (properties/tooltip-dynamic :sound :loopcount)))
   (property group g/Str (default (protobuf/default Sound$SoundDesc :group))
@@ -231,7 +230,7 @@
       :icon sound-icon
       :icon-class :property
       :category (localization/message "resource.category.components")
-      :view-types [:cljfx-form-view :text]
+      :view-types [:form :text]
       :view-opts {}
       :tags #{:component}
       :tag-opts {:component {:transform-properties #{}}}

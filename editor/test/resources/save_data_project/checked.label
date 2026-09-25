@@ -29,3 +29,4 @@ line_break: true
 text: "Checked Label"
 font: "/checked.font"
 material: "/builtins/fonts/label-df.material"
+style: "notice"

@@ -17,24 +17,24 @@ package com.dynamo.bob.test.util;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
 
-import java.awt.FontFormatException;
-import java.awt.image.BufferedImage;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.zip.InflaterInputStream;
 
-import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.junit.Rule;
 import org.junit.Test;
@@ -45,10 +45,13 @@ import com.dynamo.bob.font.BMFont.BMFontFormatException;
 import com.dynamo.bob.font.BMFont.ChannelData;
 import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.bob.font.Fontc;
-import com.dynamo.bob.font.Fontc.FontResourceResolver;
+import com.dynamo.bob.font.FontRenderer;
+import com.dynamo.bob.font.Fontc.EditorFontMap;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank.Glyph;
 import com.dynamo.render.proto.Font.FontDesc;
-import com.dynamo.render.proto.Font.GlyphBank;
-import com.dynamo.render.proto.Font.GlyphBank.Glyph;
+import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.FontTextureFormat;
 
 public class FontTest {
 
@@ -56,6 +59,97 @@ public class FontTest {
 
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    private void assertCompiledSdfEdgeWidth(float scale, float outlineWidth) throws Exception {
+        // Compile the compressed offline glyph bank through Bob's real font
+        // compiler. Native-only glyph-bank snapshots skip this encoding step.
+        FontDesc desc = FontDesc.newBuilder().setFont("Tuffy.ttf").setMaterial("/builtins/fonts/font-df.material")
+                .setSize(32).setCharacters("H").setOutlineWidth(outlineWidth).setOutlineAlpha(0).setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD).build();
+        GlyphBank bank;
+        try (InputStream input = getClass().getResourceAsStream(desc.getFont())) {
+            bank = new Fontc().compileForEditorBuild(input, desc, null, null);
+        }
+        assertEquals(1, bank.getGlyphsCount());
+        assertEquals(1, bank.getGlyphChannels());
+        GlyphBank.Glyph glyph = bank.getGlyphs(0);
+        byte[] payload = bank.getGlyphData().substring((int)glyph.getGlyphDataOffset(),
+                (int)(glyph.getGlyphDataOffset() + glyph.getGlyphDataSize())).toByteArray();
+        byte[] pixels;
+        if (payload[0] == 1) {
+            try (InflaterInputStream input = new InflaterInputStream(new ByteArrayInputStream(payload, 1, payload.length - 1))) {
+                pixels = input.readAllBytes();
+            }
+            for (int i = 1; i < pixels.length; ++i)
+                pixels[i] += pixels[i - 1];
+        } else {
+            assertEquals(0, payload[0]);
+            pixels = java.util.Arrays.copyOfRange(payload, 1, payload.length);
+        }
+        int width = (int)glyph.getWidth() + 2 * (int)bank.getGlyphPadding();
+        int height = glyph.getAscent() + glyph.getDescent() + 2 * (int)bank.getGlyphPadding();
+        assertEquals(width * height, pixels.length);
+        // The H's straight left stem gives a measured distance slope, avoiding
+        // an assumption about which compiler encoding is in use.
+        float distancePerTexel = 0;
+        int row = height / 4;
+        for (int x = 3; x < width; ++x) {
+            int a = Byte.toUnsignedInt(pixels[row * width + x - 1]);
+            int b = Byte.toUnsignedInt(pixels[row * width + x]);
+            if (a > 0 && a < 191 && b >= 191 && b < 255) {
+                // Span three texels toward the outside: stay on the straight
+                // distance ramp while reducing byte-quantization error.
+                int outside = Byte.toUnsignedInt(pixels[row * width + x - 3]);
+                distancePerTexel = (b - outside) / (3.0f * 255.0f);
+                break;
+            }
+        }
+        assertTrue("Expected an unsaturated straight SDF edge", distancePerTexel > 0);
+        FontRenderer.GlyphBankGlyph[] glyphs = {
+            new FontRenderer.GlyphBankGlyph(glyph.getCharacter(), glyph.getWidth(), glyph.getAdvance(), glyph.getLeftBearing(),
+                    glyph.getAscent(), glyph.getDescent(), 0, pixels.length)
+        };
+        FontRenderer.GlyphBank nativeBank = new FontRenderer.GlyphBank(glyphs, pixels, (int)bank.getGlyphPadding(),
+                bank.getGlyphChannels(), bank.getMaxAscent(), bank.getMaxDescent());
+        FontRenderer.Params params = new FontRenderer.Params();
+        params.size = desc.getSize();
+        params.cacheWidth = params.cacheHeight = 128;
+        params.sdfSpread = bank.getSdfSpread();
+        params.sdfOutline = bank.getSdfOutline();
+        params.sdfShadow = bank.getSdfShadow();
+        try (FontRenderer renderer = new FontRenderer("edge.fontc", nativeBank, params)) {
+            FontRenderer.Properties properties = new FontRenderer.Properties();
+            properties.leading = 1;
+            properties.sdfScale = scale;
+            renderer.setProperties(properties);
+            renderer.setText("H");
+            renderer.beginBatch();
+            renderer.generateTexture(0);
+            FontRenderer.VertexBufferRequirements requirements = renderer.getVertexBufferRequirements();
+            assertEquals(6, requirements.vertexCount);
+            ByteBuffer vertices = ByteBuffer.allocateDirect(requirements.byteCount).order(ByteOrder.nativeOrder());
+            float[] transform = {scale, 0, 0, 0, 0, scale, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+            renderer.getVertices(transform, vertices, requirements);
+            // sdf_params.z is at byte 36 in FontGlyphVertex. Use the production
+            // renderer's value, not another copy of its smoothing formula.
+            float transitionWidth = 2 * vertices.getFloat(36) * scale / distancePerTexel;
+            assertEquals("Offline SDF screen-space edge width at scale " + scale, 2.0f, transitionWidth, .05f);
+        }
+    }
+
+    @Test
+    public void testCompiledSdfEdgeAtHalfScale() throws Exception {
+        assertCompiledSdfEdgeWidth(.5f, 0);
+    }
+
+    @Test
+    public void testCompiledSdfEdgeAtOneScale() throws Exception {
+        assertCompiledSdfEdgeWidth(1.0f, 0);
+    }
+
+    @Test
+    public void testCompiledSdfEdgeAtTwoScale() throws Exception {
+        assertCompiledSdfEdgeWidth(2.0f, 0);
+    }
 
     private String copyResourceToDir(String tmpDir, String resName) throws IOException {
         String outputPath = Paths.get(tmpDir, resName).toString();
@@ -101,6 +195,15 @@ public class FontTest {
 
             String actualValue = expected.get(key);
             assertEquals( resValue, actualValue );
+        }
+    }
+
+    @Test
+    public void testCompiledSdfEdgeWithFractionalOutline() throws Exception {
+        for (float outlineWidth : new float[]{.5f, 1.5f}) {
+            for (float scale : new float[]{.5f, 1.0f, 2.0f}) {
+                assertCompiledSdfEdgeWidth(scale, outlineWidth);
+            }
         }
     }
 
@@ -239,15 +342,7 @@ public class FontTest {
         Fontc fontc = new Fontc();
         InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
         FileOutputStream fontOutputStream = new FileOutputStream(outfile);
-        final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
-
-        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
-                @Override
-                public InputStream getResource(String resourceName)
-                        throws FileNotFoundException {
-                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
-                }
-            });
+        fontc.compile(fontInputStream, fontDesc, false);
 
         GlyphBank glyphBank = fontc.getGlyphBank();
         glyphBank.writeTo(fontOutputStream);
@@ -268,6 +363,259 @@ public class FontTest {
     }
 
     @Test
+    public void testCompileForEditorReturnsUncompressedFontData() throws Exception {
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(24)
+            .setCharacters("Ag ")
+            .build();
+
+        EditorFontMap editorFontMap;
+        try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+            editorFontMap = new Fontc().compileForEditor(input, fontDesc, null, null);
+        }
+
+        FontMap fontMap = editorFontMap.fontMap;
+        GlyphBank glyphBank = editorFontMap.glyphBank;
+        assertEquals("/font.materialc", fontMap.getMaterial());
+        assertEquals(fontDesc.getCharacters(), fontMap.getCharacters());
+        assertEquals(glyphBank.getCacheWidth(), fontMap.getCacheWidth());
+        assertEquals(glyphBank.getCacheHeight(), fontMap.getCacheHeight());
+        assertEquals(glyphBank.getPadding(), fontMap.getPadding());
+        assertEquals(glyphBank.getGlyphsCount(), editorFontMap.glyphCellWidths.length);
+        assertEquals(glyphBank.getGlyphsCount(), editorFontMap.glyphCellHeights.length);
+
+        long expectedOffset = 0;
+        int maxAscent = 0;
+        int maxDescent = 0;
+        for (int i = 0; i < glyphBank.getGlyphsCount(); ++i) {
+            Glyph glyph = glyphBank.getGlyphs(i);
+            long expectedSize = (long)editorFontMap.glyphCellWidths[i]
+                              * editorFontMap.glyphCellHeights[i]
+                              * glyphBank.getGlyphChannels();
+            assertEquals(expectedOffset, glyph.getGlyphDataOffset());
+            assertEquals(expectedSize, glyph.getGlyphDataSize());
+            expectedOffset += expectedSize;
+            maxAscent = Math.max(maxAscent, glyph.getAscent());
+            maxDescent = Math.max(maxDescent, glyph.getDescent());
+        }
+        assertEquals(expectedOffset, glyphBank.getGlyphData().size());
+        assertEquals(maxAscent + maxDescent + 2 * glyphBank.getGlyphPadding(), glyphBank.getCacheCellHeight());
+    }
+
+    @Test
+    public void testCompileForEditorBuildReturnsCompressedGlyphData() throws Exception {
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(24)
+            .setCharacters("Ag ")
+            .build();
+
+        GlyphBank glyphBank;
+        try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+            glyphBank = new Fontc().compileForEditorBuild(input, fontDesc, null, null);
+        }
+
+        long expectedOffset = 0;
+        for (Glyph glyph : glyphBank.getGlyphsList()) {
+            assertEquals(expectedOffset, glyph.getGlyphDataOffset());
+            if (glyph.getGlyphDataSize() > 0) {
+                byte compressionHeader = glyphBank.getGlyphData().byteAt((int)expectedOffset);
+                assertTrue(compressionHeader == 0 || compressionHeader == 1);
+            }
+            expectedOffset += glyph.getGlyphDataSize();
+        }
+        assertEquals(expectedOffset, glyphBank.getGlyphData().size());
+    }
+
+    @Test
+    public void testCompileForEditorDistanceFieldReturnsMetadataOnly() throws Exception {
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(24)
+            .setCharacters("Ag ")
+            .setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD)
+            .build();
+
+        EditorFontMap editorFontMap;
+        try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+            editorFontMap = new Fontc().compileForEditor(input, fontDesc, null, null);
+        }
+        Fontc fontc = new Fontc();
+        try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+            fontc.compile(input, fontDesc, false);
+        }
+
+        GlyphBank glyphBank = editorFontMap.glyphBank;
+        GlyphBank compiledGlyphBank = fontc.getGlyphBank();
+        assertEquals(0, glyphBank.getGlyphData().size());
+        assertEquals(compiledGlyphBank.getCacheWidth(), glyphBank.getCacheWidth());
+        assertEquals(compiledGlyphBank.getCacheHeight(), glyphBank.getCacheHeight());
+        assertEquals(compiledGlyphBank.getCacheCellWidth(), glyphBank.getCacheCellWidth());
+        assertEquals(compiledGlyphBank.getCacheCellHeight(), glyphBank.getCacheCellHeight());
+        assertEquals(compiledGlyphBank.getGlyphsCount(), glyphBank.getGlyphsCount());
+        for (int i = 0; i < glyphBank.getGlyphsCount(); ++i) {
+            Glyph glyph = glyphBank.getGlyphs(i);
+            Glyph compiledGlyph = compiledGlyphBank.getGlyphs(i);
+            assertEquals(compiledGlyph.getCharacter(), glyph.getCharacter());
+            assertEquals(compiledGlyph.getWidth(), glyph.getWidth(), 0.0f);
+            assertEquals(compiledGlyph.getAdvance(), glyph.getAdvance(), 0.0f);
+            assertEquals(compiledGlyph.getLeftBearing(), glyph.getLeftBearing(), 0.0f);
+            assertEquals(compiledGlyph.getAscent(), glyph.getAscent());
+            assertEquals(compiledGlyph.getDescent(), glyph.getDescent());
+            assertEquals(0, glyph.getGlyphDataOffset());
+            assertEquals(0, glyph.getGlyphDataSize());
+        }
+    }
+
+    @Test
+    public void testCompileForEditorAllCharsReturnsSupportedGlyphMetrics() throws Exception {
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(24)
+            .setAllChars(true)
+            .setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD)
+            .build();
+
+        EditorFontMap editorFontMap;
+        try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+            editorFontMap = new Fontc().compileForEditor(input, fontDesc, null, null);
+        }
+
+        GlyphBank glyphBank = editorFontMap.glyphBank;
+        assertEquals(1499, glyphBank.getGlyphsCount());
+        assertEquals(0, glyphBank.getGlyphData().size());
+        assertEquals(glyphBank.getGlyphsCount(), editorFontMap.glyphCellWidths.length);
+        assertEquals(glyphBank.getGlyphsCount(), editorFontMap.glyphCellHeights.length);
+        int previousCodepoint = -1;
+        for (Glyph glyph : glyphBank.getGlyphsList()) {
+            assertTrue(glyph.getCharacter() > previousCodepoint);
+            assertEquals(0, glyph.getGlyphDataSize());
+            previousCodepoint = glyph.getCharacter();
+        }
+    }
+
+    @Test
+    public void testCompileForEditorAllCharsPreservesShadowBlurCapacityChannels() throws Exception {
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(24)
+            .setAllChars(true)
+            .setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD)
+            .setShadowAlpha(0.0f)
+            .setShadowBlur(4)
+            .build();
+
+        EditorFontMap editorFontMap;
+        try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+            editorFontMap = new Fontc().compileForEditor(input, fontDesc, null, null);
+        }
+
+        assertEquals(3, editorFontMap.glyphBank.getGlyphChannels());
+        assertEquals(0, editorFontMap.glyphBank.getGlyphData().size());
+    }
+
+    @Test
+    public void testBitmapOutlineWidthReservesGlyphChannelsWhenAlphaIsZero() throws Exception {
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(24)
+            .setCharacters("A")
+            .setOutputFormat(FontTextureFormat.TYPE_BITMAP)
+            .setOutlineWidth(2.0f)
+            .setOutlineAlpha(0.0f)
+            .build();
+
+        Fontc fontc = new Fontc();
+        try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+            fontc.compile(input, fontDesc, false);
+        }
+
+        GlyphBank glyphBank = fontc.getGlyphBank();
+        assertEquals(3, glyphBank.getGlyphChannels());
+        assertEquals(1, glyphBank.getGlyphsCount());
+        assertTrue(glyphBank.getGlyphs(0).getGlyphDataSize() > 1);
+    }
+
+    @Test
+    public void testCompiledFontLayoutPaddingPreservesFractionalMetrics() throws Exception {
+        FontDesc baseDesc = FontDesc.newBuilder()
+            .setFont("/builtins/fonts/vera_mo_bd.ttf")
+            .setMaterial("font.material")
+            .setSize(14)
+            .setCharacters(" L")
+            .build();
+        FontDesc[] descriptions = {
+            baseDesc.toBuilder().setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD).build(),
+            baseDesc.toBuilder().setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD).setOutlineWidth(1.5f).setShadowBlur(2).build(),
+            baseDesc.toBuilder().setOutputFormat(FontTextureFormat.TYPE_BITMAP).build(),
+            baseDesc.toBuilder().setOutputFormat(FontTextureFormat.TYPE_BITMAP).setOutlineWidth(1.5f).setShadowBlur(6).build()
+        };
+        int[] expectedPadding = {1, 4, 0, 5};
+
+        for (int i = 0; i < descriptions.length; ++i) {
+            FontDesc fontDesc = descriptions[i];
+            Fontc fontc = new Fontc();
+            try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+                fontc.compile(input, fontDesc, false);
+            }
+            EditorFontMap editorFontMap;
+            try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+                editorFontMap = new Fontc().compileForEditor(input, fontDesc, null, null);
+            }
+            GlyphBank editorBuild;
+            try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+                editorBuild = new Fontc().compileForEditorBuild(input, fontDesc, null, null);
+            }
+
+            assertEquals(expectedPadding[i], editorFontMap.fontMap.getPadding());
+            for (GlyphBank bank : new GlyphBank[] {fontc.getGlyphBank(), editorFontMap.glyphBank, editorBuild}) {
+                assertTrue(bank.getIsMonospaced());
+                assertEquals(expectedPadding[i], bank.getPadding());
+                assertEquals(8.4287109375f, bank.getGlyphs(0).getAdvance(), EPSILON);
+                assertEquals(16.296875f, bank.getMaxAscent() + bank.getMaxDescent(), EPSILON);
+            }
+            if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
+                // Layout padding must not change the native SDF's sampling range.
+                assertEquals(i == 0 ? 3.0f : 6.5f, fontc.getGlyphBank().getSdfSpread(), EPSILON);
+            }
+        }
+    }
+
+    @Test
+    public void testNativeDistanceFieldSingleChannelGlyphBank() throws Exception {
+        FontDesc fontDesc = FontDesc.newBuilder()
+            .setFont("Tuffy.ttf")
+            .setMaterial("font.material")
+            .setSize(24)
+            .setCharacters("A")
+            .setOutputFormat(FontTextureFormat.TYPE_DISTANCE_FIELD)
+            .build();
+
+        Fontc fontc = new Fontc();
+        try (InputStream input = getClass().getResourceAsStream(fontDesc.getFont())) {
+            fontc.compile(input, fontDesc, false);
+        }
+
+        GlyphBank glyphBank = fontc.getGlyphBank();
+        assertEquals(1, glyphBank.getGlyphChannels());
+        assertEquals(1, glyphBank.getGlyphsCount());
+        assertEquals(Fontc.GetFontMapPadding(fontDesc), glyphBank.getPadding());
+        assertEquals(Fontc.GetFontMapSdfSpread(fontDesc), glyphBank.getSdfSpread(), EPSILON);
+        assertEquals(Fontc.GetFontMapSdfOutline(fontDesc), glyphBank.getSdfOutline(), EPSILON);
+        assertEquals(Fontc.GetFontMapSdfShadow(fontDesc), glyphBank.getSdfShadow(), EPSILON);
+        assertTrue(glyphBank.getGlyphs(0).getGlyphDataSize() > 1);
+        assertTrue(glyphBank.getGlyphs(0).getWidth() > 0.0f);
+        assertTrue(glyphBank.getGlyphs(0).getAscent() + glyphBank.getGlyphs(0).getDescent() > 0);
+    }
+
+    @Test
     public void testTTFUnsortedCharacters() throws Exception {
 
         // create "font file"
@@ -285,15 +633,7 @@ public class FontTest {
         Fontc fontc = new Fontc();
         InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
         FileOutputStream fontOutputStream = new FileOutputStream(outfile);
-        final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
-
-        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
-                @Override
-                public InputStream getResource(String resourceName)
-                        throws FileNotFoundException {
-                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
-                }
-            });
+        fontc.compile(fontInputStream, fontDesc, false);
 
         GlyphBank glyphBank = fontc.getGlyphBank();
         glyphBank.writeTo(fontOutputStream);
@@ -305,12 +645,12 @@ public class FontTest {
         BufferedInputStream glyphBankCStream = new BufferedInputStream(new FileInputStream(outfile));
         glyphBank = GlyphBank.newBuilder().mergeFrom(glyphBankCStream).build();
 
-        String actual = "";
+        StringBuilder actual = new StringBuilder();
         for (int i=0; i < glyphBank.getGlyphsCount(); i++)
         {
-            actual += new String(Character.toChars(glyphBank.getGlyphs(i).getCharacter()));
+            actual.append(new String(Character.toChars(glyphBank.getGlyphs(i).getCharacter())));
         }
-        assertEquals(actual, "!$0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
+        assertEquals("!$0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", actual.toString());
     }
 
     @Test
@@ -331,15 +671,7 @@ public class FontTest {
         Fontc fontc = new Fontc();
         InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
         FileOutputStream fontOutputStream = new FileOutputStream(outfile);
-        final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
-
-        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
-                @Override
-                public InputStream getResource(String resourceName)
-                        throws FileNotFoundException {
-                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
-                }
-            });
+        fontc.compile(fontInputStream, fontDesc, false);
         GlyphBank glyphBank = fontc.getGlyphBank();
         glyphBank.writeTo(fontOutputStream);
 
@@ -351,10 +683,8 @@ public class FontTest {
         glyphBank = GlyphBank.newBuilder().mergeFrom(glyphBankCStream).build();
 
         // glyph count
-        // DroidSansJapanese contains 12585 glyphs in total
-        // JDK 21 can display 6639 glyphs
-        // JDK 25 can display 10792 glyphs, but many of them are zero-width, so we filter them out
-        int expectedCharCount = 6662;
+        // Native stb_truetype glyph count after filtering missing and zero-width glyphs.
+        int expectedCharCount = 6619;
         assertEquals(expectedCharCount, glyphBank.getGlyphsCount());
     }
 
@@ -376,15 +706,7 @@ public class FontTest {
         Fontc fontc = new Fontc();
         InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
         FileOutputStream fontOutputStream = new FileOutputStream(outfile);
-        final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
-
-        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
-                @Override
-                public InputStream getResource(String resourceName)
-                        throws FileNotFoundException {
-                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
-                }
-            });
+        fontc.compile(fontInputStream, fontDesc, false);
         GlyphBank glyphBank = fontc.getGlyphBank();
         glyphBank.writeTo(fontOutputStream);
 
@@ -395,8 +717,8 @@ public class FontTest {
         BufferedInputStream glyphBankCStream = new BufferedInputStream(new FileInputStream(outfile));
         glyphBank = GlyphBank.newBuilder().mergeFrom(glyphBankCStream).build();
 
-        // glyph count in font: 1502, but we show a bit more zero-width chars
-        int expectedCharCount = 1541; // Taken from font information of Tuffy.ttf
+        // Native stb_truetype glyph count after filtering missing and zero-width glyphs.
+        int expectedCharCount = 1499;
         assertEquals(expectedCharCount, glyphBank.getGlyphsCount());
     }
 
@@ -414,22 +736,13 @@ public class FontTest {
         // compile font
         Fontc fontc = new Fontc();
         InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
-        final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
-
-        BufferedImage previewImage = fontc.compile(fontInputStream, fontDesc, true, new FontResourceResolver() {
-                @Override
-                public InputStream getResource(String resourceName)
-                        throws FileNotFoundException {
-                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
-                }
-            });
+        fontc.compile(fontInputStream, fontDesc, true);
         GlyphBank glyphBank = fontc.getGlyphBank();
 
         fontInputStream.close();
 
-        // Check "old" texture sizes
-        assertEquals(previewImage.getWidth(), 1024);
-        assertEquals(previewImage.getHeight(), 2048);
+        assertEquals(1024, glyphBank.getCacheWidth());
+        assertEquals(2048, glyphBank.getCacheHeight());
 
         // For previews we don't include all glyphs
         assertTrue(glyphBank.getGlyphsCount() < 1519);
@@ -460,18 +773,11 @@ public class FontTest {
         Fontc fontc = new Fontc();
         InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
         FileOutputStream fontOutputStream = new FileOutputStream(outfile);
-        final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
         try {
-            fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
-                    @Override
-                    public InputStream getResource(String resourceName)
-                            throws FileNotFoundException {
-                        return new FileInputStream(Paths.get(searchPath, resourceName).toString());
-                    }
-                });
+            fontc.compile(fontInputStream, fontDesc, false);
             GlyphBank glyphBank = fontc.getGlyphBank();
             glyphBank.writeTo(fontOutputStream);
-        } catch (FontFormatException e) {
+        } catch (IOException e) {
             success = false;
         }
 
@@ -506,14 +812,9 @@ public class FontTest {
         Fontc fontc = new Fontc();
         FileInputStream fontInputStream = new FileInputStream(fontDesc.getFont());
         FileOutputStream fontOutputStream = new FileOutputStream(outfile);
-        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
-
-            @Override
-            public InputStream getResource(String resourceName)
-                    throws FileNotFoundException {
-                return new FileInputStream(Paths.get(tmpDir.toString(), resourceName).toString());
-            }
-        });
+        try (InputStream bitmapStream = new FileInputStream(tmpDir.resolve("bmfont.png").toFile())) {
+            fontc.compile(fontInputStream, fontDesc, false, "bmfont.png", bitmapStream);
+        }
         GlyphBank glyphBank = fontc.getGlyphBank();
         glyphBank.writeTo(fontOutputStream);
 
@@ -548,39 +849,22 @@ public class FontTest {
         Fontc fontc = new Fontc();
         InputStream fontInputStream = getClass().getResourceAsStream(fontDesc.getFont());
         FileOutputStream fontOutputStream = new FileOutputStream(outfile);
-        final String searchPath = FilenameUtils.getBaseName(fontDesc.getFont());
-
-        fontc.compile(fontInputStream, fontDesc, false, new FontResourceResolver() {
-                @Override
-                public InputStream getResource(String resourceName)
-                        throws FileNotFoundException {
-                    return new FileInputStream(Paths.get(searchPath, resourceName).toString());
-                }
-            });
+        fontc.compile(fontInputStream, fontDesc, false);
         GlyphBank glyphBank = fontc.getGlyphBank();
         byte[] glyphData = glyphBank.getGlyphData().toByteArray();
         int glyphCount = glyphBank.getGlyphsCount();
         for (int i = 0; i < glyphCount; i++) {
             Glyph g = glyphBank.getGlyphs(i);
             if ((char)g.getCharacter() == '.') {
-                byte[] expectedBytes = new byte[] {
-                    0x00, // uncompressed
-                    0x00, 0x00, 0x00, 0x00,
-                    0x00, (byte)0xff, 0x00, 0x00,
-                    0x00, (byte)0xff, 0x00, 0x00,
-                    0x00, 0x00, 0x00, 0x00
-                };
                 int glyphDataSize = (int)g.getGlyphDataSize();
                 int glyphDataOffset = (int)g.getGlyphDataOffset();
-                assertEquals(expectedBytes.length, glyphDataSize);
-                for (int gi = 0; gi < expectedBytes.length; gi++) {
-                    assertEquals(expectedBytes[gi], glyphData[glyphDataOffset + gi]);
-                }
+                assertTrue(glyphDataSize > 1);
+                assertTrue(glyphData[glyphDataOffset] == 0 || glyphData[glyphDataOffset] == 1);
                 return;
             }
         }
         // we should not get here unless the '.' glyph wasn't found
-        assertTrue(false);
+        fail();
     }
 
 }

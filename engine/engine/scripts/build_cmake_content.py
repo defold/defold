@@ -47,6 +47,11 @@ RAW_ARCHIVE_FILES = {
     "builtins/connect/game.project",
 }
 
+PROJECT_OWNED_BUILD_INPUTS = {
+    "builtins/input/default.gamepads",
+    "builtins/input/gamecontrollerdb.txt",
+}
+
 
 def run(args, cwd):
     subprocess.check_call(args, cwd=str(cwd))
@@ -68,6 +73,17 @@ def copytree(src, dst):
     shutil.copytree(src, dst)
 
 
+def overlay_font_content(font_content_root, destination_root):
+    if not font_content_root:
+        return
+    source = Path(font_content_root).resolve()
+    for path in sorted(source.rglob("*")):
+        if path.is_file():
+            destination = destination_root / path.relative_to(source)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, destination)
+
+
 def iter_content_files(root):
     for rel_dir in BOB_RELATIVE_DIRS:
         current = root / rel_dir
@@ -79,12 +95,16 @@ def iter_content_files(root):
 
 
 def should_build_input(path):
+    rel_path = path.as_posix()
     if path.name in ARCHIVE_NAME_EXCLUDES:
         return False
     if path.suffix in BUILD_INPUT_EXT_EXCLUDES:
         return False
-    if path.as_posix().endswith("/builtins/connect/game.project"):
+    if rel_path.endswith("/builtins/connect/game.project"):
         return False
+    for project_owned_input in PROJECT_OWNED_BUILD_INPUTS:
+        if rel_path.endswith("/" + project_owned_input):
+            return False
     return True
 
 
@@ -136,6 +156,30 @@ def remove_root_generated_font_outputs(build_root):
         path.unlink()
 
 
+def rebuild_builtin_gamepads(args, stage_root, build_root, bob_classpath):
+    default_gamepads = stage_root / "builtins/input/default.gamepads"
+    gamecontrollerdb = stage_root / "builtins/input/gamecontrollerdb.txt"
+    output = build_root / "builtins/input/default.gamepadsc"
+    inputs = []
+
+    if gamecontrollerdb.exists():
+        inputs.append(str(gamecontrollerdb))
+    if default_gamepads.exists():
+        inputs.append(str(default_gamepads))
+    if not inputs:
+        return
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    run(java_command(
+        args.java,
+        "com.dynamo.bob.pipeline.GamepadBuilder",
+        bob_classpath,
+        *inputs,
+        str(output),
+        args.platform,
+    ), stage_root)
+
+
 def collect_archive_inputs(build_root):
     inputs = []
     for path in sorted(build_root.rglob("*")):
@@ -161,6 +205,7 @@ def build_builtins(args):
     bob_classpath = args.bob_classpath or str(bob_light)
 
     copytree(source_root, work_root)
+    overlay_font_content(args.font_content_root, work_root)
     output_root.mkdir(parents=True, exist_ok=True)
 
     build_inputs = work_root / "builtins-build.inputs"
@@ -190,6 +235,7 @@ def build_builtins(args):
     run(java_cmd, work_root)
 
     build_root = work_root / "build/default"
+    rebuild_builtin_gamepads(args, work_root, build_root, bob_classpath)
     rebuild_builtin_fonts(args, work_root, build_root, bob_classpath)
     remove_root_generated_font_outputs(build_root)
     stage_raw_archive_inputs(work_root, build_root)
@@ -222,16 +268,20 @@ def build_builtins(args):
 
 def package_bob(args):
     source_root = Path(args.source_root).resolve()
+    work_root = Path(args.work_root).resolve()
     output = Path(args.output).resolve()
     bob_light = Path(args.bob_light).resolve()
+
+    copytree(source_root, work_root)
+    overlay_font_content(args.font_content_root, work_root)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(bob_light, output)
 
     with zipfile.ZipFile(output, "a", zipfile.ZIP_DEFLATED) as archive:
-        for path in sorted((source_root / "builtins").rglob("*")):
+        for path in sorted((work_root / "builtins").rglob("*")):
             if path.is_file():
-                archive.write(path, path.relative_to(source_root).as_posix())
+                archive.write(path, path.relative_to(work_root).as_posix())
 
 
 def main():
@@ -240,6 +290,7 @@ def main():
 
     builtins = subparsers.add_parser("builtins")
     builtins.add_argument("--source-root", required=True)
+    builtins.add_argument("--font-content-root")
     builtins.add_argument("--work-root", required=True)
     builtins.add_argument("--output-root", required=True)
     builtins.add_argument("--stamp", required=True)
@@ -252,6 +303,8 @@ def main():
 
     bob = subparsers.add_parser("package-bob")
     bob.add_argument("--source-root", required=True)
+    bob.add_argument("--font-content-root")
+    bob.add_argument("--work-root", required=True)
     bob.add_argument("--output", required=True)
     bob.add_argument("--bob-light", required=True)
     bob.set_defaults(func=package_bob)

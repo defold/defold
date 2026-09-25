@@ -60,8 +60,6 @@ extern int g_KeyboardActive;
 extern int g_autoCloseKeyboard;
 extern int g_SpecialKeyActive;
 
-static int g_appLaunchInterrupted = 0;
-
 static ASensorEventQueue* g_sensorEventQueue = 0;
 static ASensorRef g_accelerometer = 0;
 static int g_accelerometerEnabled = 0;
@@ -77,6 +75,14 @@ pthread_t g_MainThread = 0;
 bool g_AppResumed = false;
 
 #define COMMAND_LINE_ARGUMENTS_EXTRA "com.dynamo.android.EXTRA_COMMAND_LINE_ARGUMENTS"
+
+int _glfwAndroidIsAppResumed(void)
+{
+    spinlock_lock(&g_EventLock);
+    int resumed = g_AppResumed;
+    spinlock_unlock(&g_EventLock);
+    return resumed;
+}
 
 void JNIAndroidFreeCommandLine(int argc, char** argv)
 {
@@ -472,15 +478,6 @@ void _glfwAndroidHandleCommand(struct android_app* app, int32_t cmd) {
         _glfwWin.opened = 1;
         break;
     case APP_CMD_TERM_WINDOW:
-        if (!_glfwInitialized) {
-            // If TERM arrives before the GL context etc. have been created, (e.g.
-            // if the user opens search in a narrow time window during app launch),
-            // then we can be placed in an unrecoverable situation:
-            // TERM can arrive before _glPlatformInit is called, and so creation of the
-            // GL context will fail. Deferred creation is not effective either, as the
-            // application will attempt to open the GL window before it has regained focus.
-            g_appLaunchInterrupted = 1;
-        }
         // Defer surface teardown to the engine thread to avoid blocking the looper.
         break;
     case APP_CMD_GAINED_FOCUS:
@@ -1280,10 +1277,6 @@ int _glfwPlatformGetAcceleration(float* x, float* y, float* z)
 int _glfwPlatformInit( void )
 {
     LOGV("_glfwPlatformInit");
-
-    if (g_appLaunchInterrupted) {
-        return GL_FALSE;
-    }
 
     g_MainThread = pthread_self();
 

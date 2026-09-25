@@ -88,6 +88,8 @@
 
 #_{:clj-kondo/ignore [:unused-private-var]}
 (defn- register-gui-resource-types! [workspace]
+  ;; We're deliberately not supplying {:undoable false} to g/transact because we
+  ;; want to test that the transaction steps are all wrapped in g/non-undoable.
   (g/transact
     (concat
       (gui/register-custom-node-type-info

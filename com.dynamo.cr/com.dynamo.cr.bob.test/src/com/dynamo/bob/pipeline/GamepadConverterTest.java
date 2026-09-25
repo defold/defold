@@ -16,7 +16,9 @@ package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import org.junit.Test;
 
@@ -32,9 +34,17 @@ import com.dynamo.input.proto.Input.GamepadType;
 public class GamepadConverterTest extends AbstractProtoBuilderTest {
 
     @Test
+    public void testNormalizePlatform() throws Exception {
+        assertEquals("ios", GamepadConverter.normalizePlatform("arm64-ios"));
+        assertEquals("ios", GamepadConverter.normalizePlatform("arm64_sim-ios"));
+        assertEquals("macos", GamepadConverter.normalizePlatform("arm64-macos"));
+        assertEquals("android", GamepadConverter.normalizePlatform("arm64-android"));
+        assertEquals("web", GamepadConverter.normalizePlatform("wasm_pthread-web"));
+    }
+
+    @Test
     public void testConvertSdlMappingToGamepadMapsRuntime() throws Exception {
-        String sdl = ""
-                + "03000000000000000000000000000000,Ignored Pad,a:b0,platform:Windows,\n"
+        String sdl = "03000000000000000000000000000000,Ignored Pad,a:b0,platform:Windows,\n"
                 + "03000000000000000000000000000001,Test Pad,a:b0,b:b1,x:b2,y:b3,back:b8,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,leftshoulder:b4,leftstick:b10,lefttrigger:a2,leftx:a0,lefty:a1,rightshoulder:b5,rightstick:b11,righttrigger:b7,rightx:a3,righty:a4,start:b9,platform:Mac OS X,\n";
 
         GamepadMapsRuntime maps = parse(GamepadConverter.convertToRuntimeFormat(sdl, "x86_64-macos"));
@@ -43,8 +53,8 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
         GamepadMapRuntime driver = maps.getMappings(0);
         assertEquals("Test Pad", driver.getDevice());
         assertFalse(driver.hasDeadZone());
-        assertTrue(driver.hasGuid());
-        assertEquals("03000000000000000000000000000001", bytesToHex(driver.getGuid().toByteArray()));
+        assertMappingGuid(driver, "03000000000000000000000000000001");
+        assertEquals("03000000000000000000000000000001,Test Pad,a:b0,b:b1,x:b2,y:b3,back:b8,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,leftshoulder:b4,leftstick:b10,lefttrigger:a2,leftx:a0,lefty:a1,rightshoulder:b5,rightstick:b11,righttrigger:b7,rightx:a3,righty:a4,start:b9,platform:Mac OS X,", driver.getRawMapping());
 
         GamepadMapEntry a = find(driver, Gamepad.GAMEPAD_RPAD_DOWN);
         assertEquals(GamepadType.GAMEPAD_TYPE_BUTTON, a.getType());
@@ -63,7 +73,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
 
         GamepadMapEntry trigger = find(driver, Gamepad.GAMEPAD_LTRIGGER);
         assertEquals(GamepadType.GAMEPAD_TYPE_AXIS, trigger.getType());
-        assertEquals(4, trigger.getIndex());
+        assertEquals(2, trigger.getIndex());
         assertHasModifier(trigger, GamepadModifier.GAMEPAD_MODIFIER_SCALE);
 
         GamepadMapEntry dpadUp = find(driver, Gamepad.GAMEPAD_LPAD_UP);
@@ -80,8 +90,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
         GamepadMapRuntime driver = maps.getMappings(0);
 
         assertEquals("XInput Controller", driver.getDevice());
-        assertTrue(driver.hasGuid());
-        assertEquals("78696e70757401000000000000000000", bytesToHex(driver.getGuid().toByteArray()));
+        assertMappingGuid(driver, "78696e70757401000000000000000000");
         assertEquals(0, find(driver, Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
         assertEquals(2, find(driver, Gamepad.GAMEPAD_RSTICK_LEFT).getIndex());
         assertEquals(3, find(driver, Gamepad.GAMEPAD_RSTICK_UP).getIndex());
@@ -98,7 +107,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
         GamepadMapRuntime driver = maps.getMappings(0);
 
         assertEquals("Xbox Wireless Controller", driver.getDevice());
-        assertEquals("030000005e040000ff02000000000000", bytesToHex(driver.getGuid().toByteArray()));
+        assertMappingGuid(driver, "030000005e040000ff02000000000000");
         assertEquals(2, find(driver, Gamepad.GAMEPAD_RSTICK_LEFT).getIndex());
         assertEquals(3, find(driver, Gamepad.GAMEPAD_RSTICK_UP).getIndex());
         assertEquals(4, find(driver, Gamepad.GAMEPAD_LTRIGGER).getIndex());
@@ -122,13 +131,39 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
         GamepadMapRuntime driver = maps.getMappings(0);
 
         assertEquals("Xbox 360 Controller", driver.getDevice());
-        assertEquals("030000005e0400008e02000000000000", bytesToHex(driver.getGuid().toByteArray()));
+        assertMappingGuid(driver, "030000005e0400008e02000000000000");
         assertEquals(2, find(driver, Gamepad.GAMEPAD_RSTICK_LEFT).getIndex());
         assertEquals(3, find(driver, Gamepad.GAMEPAD_RSTICK_UP).getIndex());
         assertEquals(4, find(driver, Gamepad.GAMEPAD_LTRIGGER).getIndex());
         assertEquals(5, find(driver, Gamepad.GAMEPAD_RTRIGGER).getIndex());
         assertHasModifier(find(driver, Gamepad.GAMEPAD_LTRIGGER), GamepadModifier.GAMEPAD_MODIFIER_SCALE);
         assertHasModifier(find(driver, Gamepad.GAMEPAD_RTRIGGER), GamepadModifier.GAMEPAD_MODIFIER_SCALE);
+    }
+
+    @Test
+    public void testConvertXboxMappingToGameInputPacketLayout() throws Exception {
+        String sdl = "030000005e040000fd02000000000000,Xbox One Controller,a:b3,b:b4,x:b5,y:b6,back:b2,start:b1,leftstick:b13,rightstick:b14,leftshoulder:b11,rightshoulder:b12,dpup:b7,dpdown:b8,dpleft:b9,dpright:b10,leftx:a0,lefty:a1,rightx:a2,righty:a3,lefttrigger:a4,righttrigger:a5,platform:Xbox,\n";
+
+        GamepadMapsRuntime maps = parse(GamepadConverter.convertToRuntimeFormat(sdl, "x86_64-xbone"));
+        GamepadMapRuntime driver = maps.getMappings(0);
+
+        assertEquals("Xbox One Controller", driver.getDevice());
+        assertMappingGuid(driver, "030000005e040000fd02000000000000");
+        assertEquals(3, find(driver, Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
+        assertEquals(4, find(driver, Gamepad.GAMEPAD_RPAD_RIGHT).getIndex());
+        assertEquals(5, find(driver, Gamepad.GAMEPAD_RPAD_LEFT).getIndex());
+        assertEquals(6, find(driver, Gamepad.GAMEPAD_RPAD_UP).getIndex());
+        assertEquals(1, find(driver, Gamepad.GAMEPAD_START).getIndex());
+        assertEquals(2, find(driver, Gamepad.GAMEPAD_BACK).getIndex());
+        assertEquals(13, find(driver, Gamepad.GAMEPAD_LSTICK_CLICK).getIndex());
+        assertEquals(14, find(driver, Gamepad.GAMEPAD_RSTICK_CLICK).getIndex());
+
+        GamepadMapEntry dpadUp = find(driver, Gamepad.GAMEPAD_LPAD_UP);
+        assertEquals(GamepadType.GAMEPAD_TYPE_BUTTON, dpadUp.getType());
+        assertEquals(7, dpadUp.getIndex());
+
+        assertEquals(4, find(driver, Gamepad.GAMEPAD_LTRIGGER).getIndex());
+        assertEquals(5, find(driver, Gamepad.GAMEPAD_RTRIGGER).getIndex());
     }
 
     @Test
@@ -197,17 +232,57 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testConvertSdlMacosMappingInfersCanonicalOptionalButtonSlots() throws Exception {
+    public void testConvertSdlMacosMappingKeepsPhysicalPacketLayout() throws Exception {
         String sdl = "03000000000000000000000000000001,Simple Pad,a:b1,leftshoulder:b4,rightshoulder:b5,lefttrigger:a2,platform:Mac OS X,\n";
 
         GamepadMapsRuntime maps = parse(GamepadConverter.convertToRuntimeFormat(sdl, "x86_64-macos"));
         GamepadMapRuntime driver = maps.getMappings(0);
 
         assertEquals("Simple Pad", driver.getDevice());
-        assertEquals(0, find(driver, Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
+        assertEquals(1, find(driver, Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
         assertEquals(4, find(driver, Gamepad.GAMEPAD_LSHOULDER).getIndex());
         assertEquals(5, find(driver, Gamepad.GAMEPAD_RSHOULDER).getIndex());
-        assertEquals(4, find(driver, Gamepad.GAMEPAD_LTRIGGER).getIndex());
+        assertEquals(2, find(driver, Gamepad.GAMEPAD_LTRIGGER).getIndex());
+    }
+
+    @Test
+    public void testConvertSdlMacosIOHIDMappingKeepsPhysicalPacketLayout() throws Exception {
+        String sdl = "0300a769c82d00001b30000001000000,8BitDo Ultimate 2C,a:b0,b:b1,back:b10,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,guide:b12,leftshoulder:b6,leftstick:b13,lefttrigger:a5,leftx:a0,lefty:a1,paddle1:b5,paddle2:b2,rightshoulder:b7,rightstick:b14,righttrigger:a4,rightx:a2,righty:a3,start:b11,x:b3,y:b4,platform:Mac OS X,\n";
+
+        GamepadMapsRuntime maps = parse(GamepadConverter.convertToRuntimeFormat(sdl, "arm64-macos"));
+        GamepadMapRuntime driver = maps.getMappings(0);
+
+        assertMappingGuid(driver, "0300a769c82d00001b30000001000000");
+        assertEquals(3, find(driver, Gamepad.GAMEPAD_RPAD_LEFT).getIndex());
+        assertEquals(4, find(driver, Gamepad.GAMEPAD_RPAD_UP).getIndex());
+        assertEquals(6, find(driver, Gamepad.GAMEPAD_LSHOULDER).getIndex());
+        assertEquals(7, find(driver, Gamepad.GAMEPAD_RSHOULDER).getIndex());
+        assertEquals(13, find(driver, Gamepad.GAMEPAD_LSTICK_CLICK).getIndex());
+        assertEquals(14, find(driver, Gamepad.GAMEPAD_RSTICK_CLICK).getIndex());
+        assertEquals(5, find(driver, Gamepad.GAMEPAD_LTRIGGER).getIndex());
+        assertEquals(4, find(driver, Gamepad.GAMEPAD_RTRIGGER).getIndex());
+    }
+
+    @Test
+    public void testConvertUpstreamSdl8BitDoUltimate2CMacosMappingKeepsPhysicalPacketLayout() throws Exception {
+        String sdl = "03000000c82d00001b30000001000000,8BitDo Ultimate 2C,a:b0,b:b1,back:b10,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,guide:b12,leftshoulder:b6,leftstick:b13,lefttrigger:a5,leftx:a0,lefty:a1,paddle1:b5,paddle2:b2,rightshoulder:b7,rightstick:b14,righttrigger:a4,rightx:a2,righty:a3,start:b11,x:b3,y:b4,platform:Mac OS X,\n";
+
+        GamepadMapsRuntime maps = parse(GamepadConverter.convertToRuntimeFormat(sdl, "arm64-macos"));
+        GamepadMapRuntime driver = maps.getMappings(0);
+
+        assertMappingGuid(driver, "03000000c82d00001b30000001000000");
+        assertEquals(sdl.trim(), driver.getRawMapping());
+        assertEquals(3, find(driver, Gamepad.GAMEPAD_RPAD_LEFT).getIndex());
+        assertEquals(4, find(driver, Gamepad.GAMEPAD_RPAD_UP).getIndex());
+        assertEquals(10, find(driver, Gamepad.GAMEPAD_BACK).getIndex());
+        assertEquals(11, find(driver, Gamepad.GAMEPAD_START).getIndex());
+        assertEquals(13, find(driver, Gamepad.GAMEPAD_LSTICK_CLICK).getIndex());
+        assertEquals(14, find(driver, Gamepad.GAMEPAD_RSTICK_CLICK).getIndex());
+        assertEquals(6, find(driver, Gamepad.GAMEPAD_LSHOULDER).getIndex());
+        assertEquals(7, find(driver, Gamepad.GAMEPAD_RSHOULDER).getIndex());
+        assertEquals(12, find(driver, Gamepad.GAMEPAD_GUIDE).getIndex());
+        assertEquals(5, find(driver, Gamepad.GAMEPAD_LTRIGGER).getIndex());
+        assertEquals(4, find(driver, Gamepad.GAMEPAD_RTRIGGER).getIndex());
     }
 
     @Test
@@ -218,8 +293,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
         GamepadMapRuntime driver = maps.getMappings(0);
 
         assertEquals("Xbox 360 Controller", driver.getDevice());
-        assertTrue(driver.hasGuid());
-        assertEquals("030000005e0400008e02000014010000", bytesToHex(driver.getGuid().toByteArray()));
+        assertMappingGuid(driver, "030000005e0400008e02000014010000");
 
         assertEquals(4, find(driver, Gamepad.GAMEPAD_BACK).getIndex());
         assertEquals(5, find(driver, Gamepad.GAMEPAD_START).getIndex());
@@ -243,27 +317,26 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testConvertUpstreamSdlDualSenseBluetoothMacosMappingToCanonicalPacketLayout() throws Exception {
+    public void testConvertUpstreamSdlDualSenseBluetoothMacosMappingKeepsPhysicalPacketLayout() throws Exception {
         String sdl = "050000004c050000e60c000000010000,PS5 Controller,a:b1,b:b2,back:b8,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,guide:b12,leftshoulder:b4,leftstick:b10,lefttrigger:a3,leftx:a0,lefty:a1,rightshoulder:b5,rightstick:b11,righttrigger:a4,rightx:a2,righty:a5,start:b9,touchpad:b13,x:b0,y:b3,platform:Mac OS X,\n";
 
         GamepadMapsRuntime maps = parse(GamepadConverter.convertToRuntimeFormat(sdl, "x86_64-macos"));
         GamepadMapRuntime driver = maps.getMappings(0);
 
         assertEquals("PS5 Controller", driver.getDevice());
-        assertTrue(driver.hasGuid());
-        assertEquals("050000004c050000e60c000000010000", bytesToHex(driver.getGuid().toByteArray()));
+        assertMappingGuid(driver, "050000004c050000e60c000000010000");
 
-        assertEquals(0, find(driver, Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
-        assertEquals(1, find(driver, Gamepad.GAMEPAD_RPAD_RIGHT).getIndex());
-        assertEquals(2, find(driver, Gamepad.GAMEPAD_RPAD_LEFT).getIndex());
+        assertEquals(1, find(driver, Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
+        assertEquals(2, find(driver, Gamepad.GAMEPAD_RPAD_RIGHT).getIndex());
+        assertEquals(0, find(driver, Gamepad.GAMEPAD_RPAD_LEFT).getIndex());
         assertEquals(3, find(driver, Gamepad.GAMEPAD_RPAD_UP).getIndex());
-        assertEquals(4, find(driver, Gamepad.GAMEPAD_BACK).getIndex());
-        assertEquals(5, find(driver, Gamepad.GAMEPAD_START).getIndex());
-        assertEquals(6, find(driver, Gamepad.GAMEPAD_LSTICK_CLICK).getIndex());
-        assertEquals(7, find(driver, Gamepad.GAMEPAD_RSTICK_CLICK).getIndex());
-        assertEquals(8, find(driver, Gamepad.GAMEPAD_LSHOULDER).getIndex());
-        assertEquals(9, find(driver, Gamepad.GAMEPAD_RSHOULDER).getIndex());
-        assertEquals(10, find(driver, Gamepad.GAMEPAD_GUIDE).getIndex());
+        assertEquals(8, find(driver, Gamepad.GAMEPAD_BACK).getIndex());
+        assertEquals(9, find(driver, Gamepad.GAMEPAD_START).getIndex());
+        assertEquals(10, find(driver, Gamepad.GAMEPAD_LSTICK_CLICK).getIndex());
+        assertEquals(11, find(driver, Gamepad.GAMEPAD_RSTICK_CLICK).getIndex());
+        assertEquals(4, find(driver, Gamepad.GAMEPAD_LSHOULDER).getIndex());
+        assertEquals(5, find(driver, Gamepad.GAMEPAD_RSHOULDER).getIndex());
+        assertEquals(12, find(driver, Gamepad.GAMEPAD_GUIDE).getIndex());
 
         GamepadMapEntry dpadUp = find(driver, Gamepad.GAMEPAD_LPAD_UP);
         assertEquals(GamepadType.GAMEPAD_TYPE_HAT, dpadUp.getType());
@@ -271,8 +344,8 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
         assertEquals(1, dpadUp.getHatMask());
 
         assertEquals(2, find(driver, Gamepad.GAMEPAD_RSTICK_LEFT).getIndex());
-        assertEquals(4, find(driver, Gamepad.GAMEPAD_LTRIGGER).getIndex());
-        assertEquals(5, find(driver, Gamepad.GAMEPAD_RTRIGGER).getIndex());
+        assertEquals(3, find(driver, Gamepad.GAMEPAD_LTRIGGER).getIndex());
+        assertEquals(4, find(driver, Gamepad.GAMEPAD_RTRIGGER).getIndex());
 
         assertHasModifier(find(driver, Gamepad.GAMEPAD_LSTICK_UP), GamepadModifier.GAMEPAD_MODIFIER_NEGATE);
         assertHasModifier(find(driver, Gamepad.GAMEPAD_RSTICK_UP), GamepadModifier.GAMEPAD_MODIFIER_NEGATE);
@@ -282,8 +355,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testGamepadBuilderCombinesGamepadsAndGamepadDb() throws Exception {
-        String gamepads = ""
-                + "driver {\n"
+        String gamepads = "driver {\n"
                 + "  device: \"Manual Pad\"\n"
                 + "  platform: \"osx\"\n"
                 + "  dead_zone: 0.2\n"
@@ -295,8 +367,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
                 + "  dead_zone: 0.2\n"
                 + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
                 + "}\n";
-        String gamepadDb = ""
-                + "03000000000000000000000000000001,SDL Pad,a:b1,platform:Mac OS X,\n"
+        String gamepadDb = "03000000000000000000000000000001,SDL Pad,a:b1,platform:Mac OS X,\n"
                 + "03000000000000000000000000000002,Ignored SDL Pad,a:b2,platform:Linux,\n";
 
         addFile("/pad.gamepads", gamepads);
@@ -316,17 +387,16 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
         assertEquals(2, maps.getMappingsCount());
         assertEquals("SDL Pad", maps.getMappings(0).getDevice());
         assertEquals("Manual Pad", maps.getMappings(1).getDevice());
-        assertEquals(0, find(maps.getMappings(0), Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
+        assertEquals(1, find(maps.getMappings(0), Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
         assertFalse(maps.getMappings(0).hasDeadZone());
-        assertTrue(maps.getMappings(0).hasGuid());
-        assertFalse(maps.getMappings(1).hasGuid());
+        assertTrue(maps.getMappings(0).hasRawMapping());
+        assertFalse(maps.getMappings(1).hasRawMapping());
         assertEquals(0.2f, maps.getMappings(1).getDeadZone(), 0.0f);
     }
 
     @Test
     public void testGamepadBuilderWithOnlyGamepadDb() throws Exception {
-        String gamepadDb = ""
-                + "03000000000000000000000000000001,SDL Pad,a:b1,platform:Mac OS X,\n"
+        String gamepadDb = "03000000000000000000000000000001,SDL Pad,a:b1,platform:Mac OS X,\n"
                 + "03000000000000000000000000000002,Ignored SDL Pad,a:b2,platform:Linux,\n";
 
         addFile("/gamecontrollerdb.txt", gamepadDb);
@@ -343,15 +413,14 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
 
         assertEquals(1, maps.getMappingsCount());
         assertEquals("SDL Pad", maps.getMappings(0).getDevice());
-        assertEquals(0, find(maps.getMappings(0), Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
+        assertEquals(1, find(maps.getMappings(0), Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
         assertFalse(maps.getMappings(0).hasDeadZone());
-        assertTrue(maps.getMappings(0).hasGuid());
+        assertTrue(maps.getMappings(0).hasRawMapping());
     }
 
     @Test
     public void testGamepadBuilderWithOnlyGamepads() throws Exception {
-        String gamepads = ""
-                + "driver {\n"
+        String gamepads = "driver {\n"
                 + "  device: \"Manual Pad\"\n"
                 + "  platform: \"osx\"\n"
                 + "  dead_zone: 0.2\n"
@@ -379,7 +448,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
         assertEquals(1, maps.getMappingsCount());
         assertEquals("Manual Pad", maps.getMappings(0).getDevice());
         assertEquals(0, find(maps.getMappings(0), Gamepad.GAMEPAD_RPAD_DOWN).getIndex());
-        assertFalse(maps.getMappings(0).hasGuid());
+        assertFalse(maps.getMappings(0).hasRawMapping());
         assertEquals(0.2f, maps.getMappings(0).getDeadZone(), 0.0f);
     }
 
@@ -400,7 +469,7 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
 
     private static void assertMissingInput(GamepadMapRuntime map, Gamepad input) {
         for (GamepadMapEntry entry : map.getMapList()) {
-            assertFalse("Unexpected gamepad input: " + input, entry.getInput() == input);
+            assertNotSame("Unexpected gamepad input: " + input, entry.getInput(), input);
         }
     }
 
@@ -410,20 +479,17 @@ public class GamepadConverterTest extends AbstractProtoBuilderTest {
                 return;
             }
         }
-        assertTrue("Missing modifier " + modifier + " for " + entry.getInput(), false);
+        fail("Missing modifier " + modifier + " for " + entry.getInput());
     }
 
     private static void assertMissingModifier(GamepadMapEntry entry, GamepadModifier modifier) {
         for (int i = 0; i < entry.getModCount(); i++) {
-            assertFalse("Unexpected modifier " + modifier + " for " + entry.getInput(), entry.getMod(i).getMod() == modifier);
+            assertNotSame("Unexpected modifier " + modifier + " for " + entry.getInput(), entry.getMod(i).getMod(), modifier);
         }
     }
 
-    private static String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder(bytes.length * 2);
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b & 0xff));
-        }
-        return sb.toString();
+    private static void assertMappingGuid(GamepadMapRuntime map, String guid) {
+        assertTrue(map.hasRawMapping());
+        assertTrue(map.getRawMapping().startsWith(guid + ","));
     }
 }

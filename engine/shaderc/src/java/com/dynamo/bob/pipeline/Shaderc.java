@@ -226,7 +226,8 @@ public class Shaderc {
     public enum ShaderCompilerPlatform {
         SHADER_COMPILER_PLATFORM_DEFAULT(0),
         SHADER_COMPILER_PLATFORM_MACOS(1),
-        SHADER_COMPILER_PLATFORM_IOS(2);
+        SHADER_COMPILER_PLATFORM_IOS(2),
+        SHADER_COMPILER_PLATFORM_XBONE(3);
         private final int value;
         private ShaderCompilerPlatform(int value) {
             this.value = value;

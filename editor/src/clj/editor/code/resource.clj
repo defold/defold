@@ -22,6 +22,7 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [schema.core :as s]
+            [util.eduction :as e]
             [util.text-util :as text-util])
   (:import [editor.code.data Cursor CursorRange]))
 
@@ -60,8 +61,8 @@
   (or (data/guess-indent-type (take 512 lines) 4)
       default-indent-type))
 
-(defn read-fn [resource]
-  (data/string->lines (slurp resource)))
+(defn read-fn [_read-opts _owner-resource readable]
+  (data/string->lines (slurp readable)))
 
 (defn write-fn [lines]
   (data/lines->string lines))
@@ -101,7 +102,7 @@
   project."
   [node-id resource]
   (let [lines+disk-sha256 (resource-io/with-error-translation resource node-id nil
-                            (resource/read-source-value+sha256-hex resource read-fn))]
+                            (resource/read-source-value+sha256-hex resource #(read-fn {} resource %)))]
     (if (g/error? lines+disk-sha256)
       [lines+disk-sha256 nil]
       lines+disk-sha256)))
@@ -150,6 +151,7 @@
     (resource-node/set-source-value! node-id source-value)
     (when disk-sha256
       (g/transact
+        {:undoable false}
         (workspace/set-disk-sha256 (resource/workspace resource) node-id disk-sha256)))))
 
 (defn- eager-load [self lines]
@@ -161,14 +163,19 @@
       :modified-lines lines
       :modified-indent-type indent-type)))
 
-(defn- load-fn [additional-load-fn lazy-loaded connect-breakpoints project self resource lines]
-  (concat
-    (when-not lazy-loaded
-      (eager-load self lines))
+(defn- connect-fn [additional-connect-fn connect-breakpoints project self resource]
+  (e/concat
     (when connect-breakpoints
       (g/connect self :breakpoints project :breakpoints))
+    (when additional-connect-fn
+      (additional-connect-fn project self resource))))
+
+(defn- load-fn [additional-load-fn lazy-loaded load-opts {self :node-id lines :source-value :as node-load-info}]
+  (e/concat
+    (when-not lazy-loaded
+      (eager-load self lines))
     (when additional-load-fn
-      (additional-load-fn project self resource))))
+      (additional-load-fn load-opts node-load-info))))
 
 (g/defnk produce-breakpoint-rows [regions]
   (into (sorted-set)
@@ -186,7 +193,7 @@
   (property modified-lines types/Lines (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         lsp (lsp/get-node-lsp basis self)]
+                         lsp (lsp/get-lsp basis)]
                      (if-some [[resource source-value disk-sha256] (init-disk-state self evaluation-context)]
                        (do
                          (lsp/notify-lines-modified! lsp resource source-value new-value)
@@ -205,14 +212,14 @@
   (output indent-type IndentType :cached (g/fnk [_node-id modified-indent-type resource]
                                            (or modified-indent-type
                                                (let [lines (resource-io/with-error-translation resource _node-id :indent-type
-                                                             (read-fn resource))]
+                                                             (read-fn {} resource resource))]
                                                  (if (g/error? lines)
                                                    default-indent-type
                                                    (guess-indent-type lines))))))
 
   (output lines types/Lines (g/fnk [_node-id save-value resource] (or save-value
                                                                       (resource-io/with-error-translation resource _node-id :lines
-                                                                        (read-fn resource)))))
+                                                                        (read-fn {} resource resource)))))
 
   (output save-value types/Lines (g/fnk [_node-id modified-lines]
                                    (or modified-lines
@@ -225,16 +232,20 @@
 
 (defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label lazy-loaded additional-load-fn built-pb-class] :as args}]
   (let [connect-breakpoints (contains? tags :debuggable)
-        load-fn (partial load-fn additional-load-fn lazy-loaded connect-breakpoints)
-        args (-> args
-                 (dissoc :additional-load-fn)
-                 (assoc :load-fn load-fn
-                        :read-fn read-fn
-                        :write-fn write-fn
-                        :search-fn search-fn
-                        :search-value-fn search-value-fn
-                        :source-value-fn source-value-fn
-                        :textual? true
-                        :test-info (cond-> {:type :code}
-                                           built-pb-class (assoc :built-pb-class built-pb-class))))]
+        additional-connect-fn (:connect-fn args)
+        resource-connect-fn (when (or additional-connect-fn connect-breakpoints)
+                              (partial connect-fn additional-connect-fn connect-breakpoints))
+        resource-load-fn (partial load-fn additional-load-fn lazy-loaded)
+        args (cond-> (-> args
+                         (dissoc :additional-load-fn :connect-fn)
+                         (assoc :load-fn resource-load-fn
+                                :read-fn read-fn
+                                :write-fn write-fn
+                                :search-fn search-fn
+                                :search-value-fn search-value-fn
+                                :source-value-fn source-value-fn
+                                :textual? true
+                                :test-info (cond-> {:type :code}
+                                             built-pb-class (assoc :built-pb-class built-pb-class))))
+               resource-connect-fn (assoc :connect-fn resource-connect-fn))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

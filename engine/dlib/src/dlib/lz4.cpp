@@ -13,8 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include "lz4.h"
-#include "../lz4/lz4.h"
-#include "../lz4/lz4hc.h"
+#include <lz4/lz4.h>
+#include <lz4/lz4hc.h>
 
 namespace dmLZ4
 {

@@ -30,17 +30,17 @@
             [support.test-support :as test-support :refer [spit-until-new-mtime with-clean-system]]
             [util.coll :as coll]
             [util.http-server :as http-server])
-  (:import [com.dynamo.bob.util Library$Archive Library$Problem$Missing Library$Result]
+  (:import [com.dynamo.bob.util DependencyMetadata Library$Archive Library$Problem$Missing Library$Result]
            [java.net URI]
            [org.apache.commons.io FileUtils]))
 
 (def ^:dynamic *project-path* "test/resources/empty_project")
 
 (defn- setup-scratch
-  ([ws-graph]
-   (setup-scratch ws-graph *project-path*))
-  ([ws-graph project-path]
-   (let [workspace (test-util/setup-scratch-workspace! ws-graph project-path)
+  ([]
+   (setup-scratch *project-path*))
+  ([project-path]
+   (let [workspace (test-util/setup-scratch-workspace! project-path)
          project (test-util/setup-project! workspace)]
      [workspace project])))
 
@@ -65,7 +65,7 @@
 (deftest initial-state
   (with-clean-system
     (test-util/with-project-default-library-directory
-      (let [[workspace project] (log/without-logging (setup-scratch world))]
+      (let [[workspace project] (log/without-logging (setup-scratch))]
         (testing "initially no library files"
           (let [files (test-support/library-files (workspace/project-directory workspace))]
             (is (= 0 (count files)))))
@@ -77,7 +77,7 @@
 (deftest libraries-present
   (with-clean-system
     (test-util/with-project-default-library-directory
-      (let [[workspace _project] (log/without-logging (setup-scratch world))
+      (let [[workspace _project] (log/without-logging (setup-scratch))
             project-directory (workspace/project-directory workspace)]
         ;; copy to proper place
         (FileUtils/copyDirectory
@@ -108,12 +108,12 @@
   (with-clean-system
     (test-util/with-ui-run-later-rebound
       (with-open [server (http-server/start! test-util/lib-server-handler)]
-        (let [workspace (test-util/setup-scratch-workspace! world "test/resources/test_project")
+        (let [workspace (test-util/setup-scratch-workspace! "test/resources/test_project")
               uri (test-util/lib-server-uri server "lib_resource_project")
               game-project-res (workspace/resolve-workspace-resource workspace "/game.project")]
           (write-deps! game-project-res uri)
-          (let [extensions (extensions/make world)
-                project (project/open-project! world extensions workspace game-project-res progress/null-render-progress!)
+          (let [extensions (extensions/make)
+                project (project/open-project! extensions workspace game-project-res progress/null-render-progress!)
                 ext-gui (test-util/resource-node project "/lib_resource_project/simple.gui")
                 int-gui (test-util/resource-node project "/gui/empty.gui")]
             (is (some? ext-gui))
@@ -129,44 +129,49 @@
                   or (:node-id (test-util/outline int-gui [0 0 0]))]
               (is (= [or] (g/overrides original))))))))))
 
-(defn- fetch-libraries! [workspace library-uris render-fn]
-  (->> (library/fetch! (workspace/project-directory workspace) library-uris render-fn)
-       (workspace/set-project-dependencies! workspace))
-  (workspace/resource-sync! workspace))
-
 (deftest fetch-libraries
   (with-clean-system
     (with-open [server (http-server/start! test-util/lib-server-handler)]
-      (let [[workspace project] (log/without-logging (setup-scratch world))
+      (let [[workspace project] (log/without-logging (setup-scratch))
+            dependency-metadata-file (.toFile
+                                       (DependencyMetadata/metadataPath
+                                         (library/directory (workspace/project-directory workspace))))
             uri (test-util/lib-server-uri server "lib_resource_project")
             game-project (project/get-resource-node project "/game.project")]
         ;; make sure we don't have library file to begin with
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
         ;; add dependency, fetch libraries, we should now have library file
         (game-project/set-setting! game-project ["project" "dependencies"] [uri])
-        (fetch-libraries! workspace (project/project-dependencies project) identity)
+        (test-util/set-libraries! workspace (project/project-dependencies project))
         (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))
+        (is (.isFile dependency-metadata-file))
+        (is (.contains (slurp dependency-metadata-file) uri))
+        ;; disable dependency metadata, fetch libraries, we should still update the metadata file
+        (game-project/set-setting! game-project ["project" "dependencies_metadata"] false)
+        (test-util/set-libraries! workspace (project/project-dependencies project))
+        (is (.isFile dependency-metadata-file))
         ;; remove dependency again, fetch libraries, we should no longer have the file
         (game-project/set-setting! game-project ["project" "dependencies"] nil)
-        (fetch-libraries! workspace (project/project-dependencies project) identity)
+        (test-util/set-libraries! workspace (project/project-dependencies project))
+        (is (not (.exists dependency-metadata-file)))
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))))))
 
 (deftest fetch-libraries-from-library-archive-with-nesting
   (with-clean-system
     (with-open [server (http-server/start! test-util/lib-server-handler)]
-      (let [[workspace project] (log/without-logging (setup-scratch world))
+      (let [[workspace project] (log/without-logging (setup-scratch))
             uri (test-util/lib-server-uri server "lib_resource_project_with_nesting")
             game-project (project/get-resource-node project "/game.project")]
         ;; make sure we don't have library file to begin with
         (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
         ;; add dependency, fetch libraries, we should now have library file
         (game-project/set-setting! game-project ["project" "dependencies"] [uri])
-        (fetch-libraries! workspace (project/project-dependencies project) identity)
+        (test-util/set-libraries! workspace (project/project-dependencies project))
         (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))))))
 
 (deftest fetch-libraries-from-local-extension-dir
   (with-clean-system
-    (let [[workspace _project] (log/without-logging (setup-scratch world))
+    (let [[workspace _project] (log/without-logging (setup-scratch))
           project-directory (workspace/project-directory workspace)
           original-uri (URI/create "https://example.com/local-extension-dir.zip")
           property-prefix "defold.extension.test-local"
@@ -177,7 +182,9 @@
       (System/setProperty (str property-prefix ".path") (.getCanonicalPath local-extension-dir))
       (try
         (write-deps! game-project-resource "{{defold.extension.test-local.url}}")
-        (let [results (library/fetch! project-directory (project/read-dependencies game-project-resource) progress/null-render-progress!)
+        (let [results (test-util/fetch-library-results!
+                        project-directory
+                        (project/read-dependencies game-project-resource))
               result ^Library$Result (first results)
               archive ^Library$Archive (.archive result)]
           (is (not= original-uri (.uri result)))

@@ -2,16 +2,129 @@ defold_log("functions_test.cmake:")
 
 set(_DEFOLD_BUN_MIN_VERSION "1.3.13")
 
+set(DEFOLD_TEST_JOBS 2 CACHE STRING "Maximum concurrent native test commands")
+if(NOT DEFOLD_TEST_JOBS MATCHES "^[1-9][0-9]*$")
+  message(FATAL_ERROR "DEFOLD_TEST_JOBS must be a positive integer")
+endif()
+
+# Unclassified tests share a lock, including all fixed-port test servers.
+# Only assign another group after checking its filesystem and device isolation.
+function(defold_test_run_settings out_runner out_options group)
+  set(_runner)
+  set(_options USES_TERMINAL)
+  if(CMAKE_GENERATOR MATCHES "^Ninja" AND TARGET_PLATFORM MATCHES "^(x86_64-win32|(arm64|x86_64)-(macos|linux))$")
+    get_property(_pool_defined GLOBAL PROPERTY DEFOLD_TEST_POOL_DEFINED)
+    if(NOT _pool_defined)
+      set_property(GLOBAL APPEND PROPERTY JOB_POOLS "defold_tests=${DEFOLD_TEST_JOBS}")
+      set_property(GLOBAL PROPERTY DEFOLD_TEST_POOL_DEFINED TRUE)
+    endif()
+    if(NOT group)
+      set(group shared)
+    endif()
+    string(SHA256 _group_id "${group}")
+    _defold_find_python(_python)
+    set(_runner "${_python}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/run_test_locked.py"
+      --lock "${CMAKE_BINARY_DIR}/test-locks/${_group_id}.lock" --)
+    set(_options JOB_POOL defold_tests)
+  endif()
+  set(${out_runner} "${_runner}" PARENT_SCOPE)
+  set(${out_options} "${_options}" PARENT_SCOPE)
+endfunction()
+
+# Register the aggregate command separately so a focused run_* target still
+# runs only its own test. The scheduler reserves a resource group before
+# starting a worker, instead of spending worker slots waiting for group locks.
+function(defold_add_to_run_tests run_target)
+  cmake_parse_arguments(PARSE_ARGV 1 DRT "" "RUN_GROUP;RUN_PRIORITY;WORKING_DIRECTORY" "COMMAND;DEPENDS")
+  if(NOT CMAKE_GENERATOR MATCHES "^Ninja" OR NOT TARGET_PLATFORM MATCHES "^(x86_64-win32|(arm64|x86_64)-(macos|linux))$")
+    add_dependencies(run_tests ${run_target})
+    return()
+  endif()
+  if(NOT DRT_COMMAND)
+    message(FATAL_ERROR "defold_add_to_run_tests: COMMAND is required")
+  endif()
+  if(NOT DRT_RUN_GROUP)
+    set(DRT_RUN_GROUP shared)
+  endif()
+  if(NOT DRT_RUN_PRIORITY)
+    set(DRT_RUN_PRIORITY 0)
+  endif()
+  if(NOT DRT_RUN_PRIORITY MATCHES "^(0|[1-9][0-9]*)$")
+    message(FATAL_ERROR "RUN_PRIORITY must be a non-negative integer")
+  endif()
+  if(NOT DRT_WORKING_DIRECTORY)
+    set(DRT_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+  endif()
+  set(_command "")
+  foreach(_arg IN LISTS DRT_COMMAND)
+    _defold_test_json_quote(_quoted "${_arg}")
+    string(APPEND _command "${_quoted},")
+  endforeach()
+  string(REGEX REPLACE ",$" "" _command "${_command}")
+  _defold_test_json_quote(_name "${run_target}")
+  _defold_test_json_quote(_group "${DRT_RUN_GROUP}")
+  _defold_test_json_quote(_cwd "${DRT_WORKING_DIRECTORY}")
+  set_property(GLOBAL APPEND PROPERTY DEFOLD_PARALLEL_TEST_COMMANDS
+    "{\"name\":${_name},\"group\":${_group},\"priority\":${DRT_RUN_PRIORITY},\"cwd\":${_cwd},\"command\":[${_command}]}")
+  set_property(GLOBAL APPEND PROPERTY DEFOLD_PARALLEL_TEST_DEPENDENCIES ${DRT_DEPENDS})
+
+  # Finalize after all libraries have registered tests, including when a library
+  # is configured as the top-level project.
+  get_property(_scheduled GLOBAL PROPERTY DEFOLD_PARALLEL_TEST_FINALIZER_SCHEDULED)
+  if(NOT _scheduled)
+    set_property(GLOBAL PROPERTY DEFOLD_PARALLEL_TEST_FINALIZER_SCHEDULED TRUE)
+    cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}"
+      CALL defold_finalize_parallel_run_tests)
+  endif()
+endfunction()
+
+function(_defold_test_json_quote out_var value)
+  string(REPLACE "\\" "\\\\" _quoted "${value}")
+  string(REPLACE "\"" "\\\"" _quoted "${_quoted}")
+  string(REPLACE "\n" "\\n" _quoted "${_quoted}")
+  string(REPLACE "\r" "\\r" _quoted "${_quoted}")
+  string(REPLACE "\t" "\\t" _quoted "${_quoted}")
+  set(${out_var} "\"${_quoted}\"" PARENT_SCOPE)
+endfunction()
+
+function(defold_finalize_parallel_run_tests)
+  get_property(_commands GLOBAL PROPERTY DEFOLD_PARALLEL_TEST_COMMANDS)
+  if(NOT _commands OR TARGET run_tests_parallel)
+    return()
+  endif()
+  list(JOIN _commands ",\n" _commands)
+  set(_manifest "${CMAKE_BINARY_DIR}/defold_run_tests_$<CONFIG>.json")
+  file(GENERATE OUTPUT "${_manifest}" CONTENT "[\n${_commands}\n]\n")
+  get_property(_deps GLOBAL PROPERTY DEFOLD_PARALLEL_TEST_DEPENDENCIES)
+  list(REMOVE_DUPLICATES _deps)
+  _defold_find_python(_python)
+  add_custom_target(run_tests_parallel
+    COMMAND "${_python}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/run_tests.py"
+      "${_manifest}" --jobs "${DEFOLD_TEST_JOBS}" --lock-dir "${CMAKE_BINARY_DIR}/test-locks"
+    DEPENDS ${_deps}
+    USES_TERMINAL
+    VERBATIM
+    COMMENT "Running Defold tests by resource group")
+  add_dependencies(run_tests run_tests_parallel)
+endfunction()
+
 # Registers a test target with the global build_tests and run_tests targets.
 #
 # Usage:
 #   defold_register_test_target(<target> [run_flag] [run_workdir]
 #                               [CONFIGFILE <configfile>]
+#                               [RUN_GROUP <resource-group>] [RUN_PRIORITY <integer>]
+#                               [RUNTIME_DEPENDS <target> ...]
 #                               [STAGE_FILES <source> <target> ...])
 #   - run_flag: ON/OFF (default ON). If ON, creates a per-test run target and
 #               adds it to global run_tests
 #   - run_workdir: optional working directory for executing the test
 #   - CONFIGFILE: optional config file path relative to run_workdir
+#   - RUN_GROUP: independently runnable resource group (default shared).
+#                Native Ninja tests in the same group remain serialized.
+#   - RUN_PRIORITY: higher values start first when their resource group is free.
+#   - RUNTIME_DEPENDS: content targets required by build_tests and test runners;
+#                      IDE builds also prepare them with the test executable
 #   - STAGE_FILES: optional flattened list of SOURCE TARGET pairs for test
 #                  runtime staging. Platform-specific runners decide if/how
 #                  these files are uploaded or otherwise prepared.
@@ -184,7 +297,7 @@ function(defold_finalize_sequential_run_tests)
     return()
   endif()
 
-  if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-xbone")
+  if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android|x86_64-xbone")
     return()
   endif()
 
@@ -390,15 +503,20 @@ function(_defold_register_android_batch_target out_var target_name run_dir_norm 
 
   if(NOT TARGET ${_prepare_target})
     add_custom_target(${_prepare_target}
-      COMMAND "${_python}" "${_runner}" prepare --cwd "${run_dir_norm}" ${_config_args} ${_stage_args}
+      COMMAND ${DEFOLD_ANDROID_TEST_ENV} "${_python}" "${_runner}" prepare --cwd "${run_dir_norm}" ${_config_args} ${_stage_args}
       USES_TERMINAL
       COMMAND_EXPAND_LISTS
       COMMENT "Preparing Android test library in ${run_dir_norm}")
   endif()
 
+  # Stage only once the test target is built. The staged folders often hold data
+  # generated by the target's dependencies, and nothing else orders the two.
+  get_property(_runtime_deps TARGET ${target_name} PROPERTY DEFOLD_TEST_RUNTIME_DEPENDENCIES)
+  add_dependencies(${_prepare_target} ${target_name} ${_runtime_deps})
+
   if(NOT TARGET ${_batch_run_target})
     add_custom_target(${_batch_run_target}
-      COMMAND "${_python}" "${_runner}" run-test --cwd "${run_dir_norm}" --program "$<TARGET_FILE:${target_name}>" ${_config_args}
+      COMMAND ${DEFOLD_ANDROID_TEST_ENV} "${_python}" "${_runner}" run-test --cwd "${run_dir_norm}" --program "$<TARGET_FILE:${target_name}>" ${_config_args}
       DEPENDS ${target_name} ${_prepare_target}
       USES_TERMINAL
       COMMAND_EXPAND_LISTS
@@ -448,16 +566,28 @@ function(defold_register_test_target target_name)
     message(FATAL_ERROR "defold_register_test_target: target '${target_name}' does not exist")
   endif()
 
-  if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios")
-    target_compile_definitions(${target_name} PRIVATE JC_TEST_USE_COLORS=1)
-  elseif(TARGET_PLATFORM MATCHES "x86_64-xbone")
+  if(TARGET_PLATFORM MATCHES "x86_64-xbone")
     target_compile_definitions(${target_name} PRIVATE
       JC_TEST_NO_DEATH_TEST
-      JC_TEST_USE_COLORS=1
       JC_TEST_USE_PRINTF)
   endif()
   if(DEFINED DEFOLD_PLATFORM_TEST_DEFINES)
-    target_compile_definitions(${target_name} PRIVATE ${DEFOLD_PLATFORM_TEST_DEFINES})
+    set(_platform_test_defines ${DEFOLD_PLATFORM_TEST_DEFINES})
+    list(FILTER _platform_test_defines EXCLUDE REGEX "^JC_TEST_USE_COLORS(=.*)?$")
+    if(_platform_test_defines)
+      target_compile_definitions(${target_name} PRIVATE ${_platform_test_defines})
+    endif()
+  endif()
+  if(DEFOLD_TEST_COLORS)
+    target_compile_definitions(${target_name} PRIVATE JC_TEST_USE_COLORS=1)
+  else()
+    target_compile_definitions(${target_name} PRIVATE JC_TEST_USE_COLORS=0)
+  endif()
+  if(DEFOLD_PLATFORM_TEST_REQUIRES_TESTMAIN AND TARGET testmain)
+    target_link_libraries(${target_name} PRIVATE testmain)
+  endif()
+  if(DEFOLD_PLATFORM_TEST_LINK_OPTIONS)
+    target_link_options(${target_name} PRIVATE ${DEFOLD_PLATFORM_TEST_LINK_OPTIONS})
   endif()
   _defold_force_load_ios_testmain(${target_name})
 
@@ -467,7 +597,7 @@ function(defold_register_test_target target_name)
 
   add_dependencies(build_tests ${target_name})
 
-  set(_known_keywords CONFIGFILE STAGE_FILES)
+  set(_known_keywords CONFIGFILE RUN_GROUP RUN_PRIORITY RUNTIME_DEPENDS STAGE_FILES)
   set(_legacy_args "")
   set(_keyword_args "")
   set(_in_keyword_args FALSE)
@@ -489,7 +619,18 @@ function(defold_register_test_target target_name)
     message(FATAL_ERROR "defold_register_test_target: expected at most [run_flag] [run_workdir] before keyword arguments")
   endif()
 
-  cmake_parse_arguments(DEFOLD_TEST "" "CONFIGFILE" "STAGE_FILES" ${_keyword_args})
+  cmake_parse_arguments(DEFOLD_TEST "" "CONFIGFILE;RUN_GROUP;RUN_PRIORITY" "RUNTIME_DEPENDS;STAGE_FILES" ${_keyword_args})
+
+  set_property(TARGET ${target_name} PROPERTY DEFOLD_TEST_RUNTIME_DEPENDENCIES "${DEFOLD_TEST_RUNTIME_DEPENDS}")
+  if(DEFOLD_TEST_RUNTIME_DEPENDS)
+    add_dependencies(build_tests ${DEFOLD_TEST_RUNTIME_DEPENDS})
+    # Xcode Run schemes and Visual Studio startup projects build the executable
+    # directly, bypassing run_* targets.
+    # iOS resource staging also runs in the executable's POST_BUILD step.
+    if(CMAKE_GENERATOR STREQUAL "Xcode" OR DEFOLD_MSVC_IDE_SOLUTION)
+      add_dependencies(${target_name} ${DEFOLD_TEST_RUNTIME_DEPENDS})
+    endif()
+  endif()
 
   set(_TEST_CONFIGFILE "${DEFOLD_TEST_CONFIGFILE}")
 
@@ -518,14 +659,14 @@ function(defold_register_test_target target_name)
 
   set(_IOS_RUNNER_PLATFORM "")
   set(_IOS_RUN_DIR_NORM "")
-  if(TARGET_PLATFORM MATCHES "^(arm64-ios|x86_64-ios)$")
+  if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
     if(_RUN_DIR_NORM)
       set(_IOS_RUN_DIR_NORM "${_RUN_DIR_NORM}")
     else()
       get_filename_component(_IOS_RUN_DIR_NORM "${CMAKE_CURRENT_SOURCE_DIR}" ABSOLUTE)
       get_filename_component(_IOS_RUN_DIR_NORM "${_IOS_RUN_DIR_NORM}" REALPATH)
     endif()
-    if(TARGET_PLATFORM STREQUAL "x86_64-ios")
+    if(TARGET_PLATFORM STREQUAL "arm64_sim-ios")
       set(_IOS_RUNNER_PLATFORM "simulator")
     else()
       set(_IOS_RUNNER_PLATFORM "device")
@@ -593,7 +734,8 @@ function(defold_register_test_target target_name)
         "DEFOLD_HOME=${DEFOLD_HOME}"
         "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
         "PYTHONPATH=${_test_pythonpath_env}")
-      if(DEFOLD_MSVC_IDE_SOLUTION AND NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android|wasm-web|wasm_pthread-web")
+      defold_test_run_settings(_test_runner _test_run_options "${DEFOLD_TEST_RUN_GROUP}")
+      if(DEFOLD_MSVC_IDE_SOLUTION AND NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android|wasm-web|wasm_pthread-web")
         set(_vs_debugger_working_directory "$<TARGET_FILE_DIR:${target_name}>")
         if(_RUN_DIR_NORM)
           set(_vs_debugger_working_directory "${_RUN_DIR_NORM}")
@@ -615,7 +757,7 @@ function(defold_register_test_target target_name)
           set(_run_args "$<TARGET_FILE:${target_name}>")
         endif()
       endif()
-      if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+      if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android")
         if(NOT _RUN_DIR_NORM)
           message(FATAL_ERROR "defold_register_test_target: Android test '${target_name}' requires a run_workdir")
         endif()
@@ -627,14 +769,14 @@ function(defold_register_test_target target_name)
         endif()
         _defold_build_stage_file_args(_stage_args ${DEFOLD_TEST_STAGE_FILES})
         add_custom_target(${_run_target}
-          COMMAND "${_python}" "${_runner}" prepare --cwd "${_RUN_DIR_NORM}" ${_config_args} ${_stage_args}
-          COMMAND "${_python}" "${_runner}" run-test --cwd "${_RUN_DIR_NORM}" --program "$<TARGET_FILE:${target_name}>" ${_config_args}
+          COMMAND ${DEFOLD_ANDROID_TEST_ENV} "${_python}" "${_runner}" prepare --cwd "${_RUN_DIR_NORM}" ${_config_args} ${_stage_args}
+          COMMAND ${DEFOLD_ANDROID_TEST_ENV} "${_python}" "${_runner}" run-test --cwd "${_RUN_DIR_NORM}" --program "$<TARGET_FILE:${target_name}>" ${_config_args}
           COMMAND "${_python}" "${_runner}" stop --cwd "${_RUN_DIR_NORM}" ${_config_args}
           DEPENDS ${target_name}
           USES_TERMINAL
           COMMAND_EXPAND_LISTS
           COMMENT "Running ${target_name} on Android device")
-      elseif(TARGET_PLATFORM MATCHES "^(arm64-ios|x86_64-ios)$")
+      elseif(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
         _defold_add_ios_run_target(${_run_target} ${target_name} "${_IOS_RUN_DIR_NORM}" "${_TEST_CONFIGFILE}" "${_IOS_RUNNER_PLATFORM}" ${DEFOLD_TEST_STAGE_FILES})
 
       elseif(TARGET_PLATFORM MATCHES "x86_64-xbone")
@@ -675,28 +817,31 @@ function(defold_register_test_target target_name)
         endif()
       elseif(_RUN_DIR_NORM)
         add_custom_target(${_run_target}
-          COMMAND ${_run_env} ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" ${_run_exe} ${_run_args}
+          COMMAND ${_test_runner} ${_run_env} ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" ${_run_exe} ${_run_args}
           DEPENDS ${target_name}
-          USES_TERMINAL
+          ${_test_run_options}
           COMMENT "Running ${target_name} in ${_RUN_DIR_NORM}")
       else()
         add_custom_target(${_run_target}
-          COMMAND ${_run_env} ${_run_exe} ${_run_args}
+          COMMAND ${_test_runner} ${_run_env} ${_run_exe} ${_run_args}
           DEPENDS ${target_name}
-          USES_TERMINAL
+          ${_test_run_options}
           COMMENT "Running ${target_name}")
       endif()
     endif()
+    if(DEFOLD_TEST_RUNTIME_DEPENDS)
+      add_dependencies(${_run_target} ${DEFOLD_TEST_RUNTIME_DEPENDS})
+    endif()
     set(_sequential_dep ${target_name})
-    if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-xbone")
+    if(CMAKE_GENERATOR STREQUAL "Xcode" AND NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android|x86_64-xbone")
       set(_prepare_target "prepare_${target_name}")
       if(NOT TARGET ${_prepare_target})
-        add_custom_target(${_prepare_target} DEPENDS ${target_name})
+        add_custom_target(${_prepare_target} DEPENDS ${target_name} ${DEFOLD_TEST_RUNTIME_DEPENDS})
       endif()
       set(_sequential_dep ${_prepare_target})
     endif()
 
-    if(NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios|x86_64-xbone")
+    if(NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android|arm64-ios|arm64_sim-ios|x86_64-xbone")
       set(_sequential_command ${_run_env})
       if(_RUN_DIR_NORM)
         list(APPEND _sequential_command ${CMAKE_COMMAND} -E chdir "${_RUN_DIR_NORM}" ${_run_exe})
@@ -706,21 +851,24 @@ function(defold_register_test_target target_name)
       list(APPEND _sequential_command ${_run_args})
       defold_register_sequential_test_command(${target_name}
         COMMAND ${_sequential_command}
-        DEPENDS ${_sequential_dep})
+        DEPENDS ${_sequential_dep} ${DEFOLD_TEST_RUNTIME_DEPENDS})
     endif()
 
-    if(NOT CMAKE_GENERATOR STREQUAL "Xcode" OR TARGET_PLATFORM MATCHES "arm64-android|armv7-android|arm64-ios|x86_64-ios")
+    if(NOT CMAKE_GENERATOR STREQUAL "Xcode" OR TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android|arm64-ios|arm64_sim-ios")
       if(NOT TARGET run_tests)
         add_custom_target(run_tests)
       endif()
     endif()
-    if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+    if(TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android")
       _defold_register_android_batch_target(_android_stop_target ${target_name} "${_RUN_DIR_NORM}" "${_TEST_CONFIGFILE}" ${DEFOLD_TEST_STAGE_FILES})
       add_dependencies(run_tests ${_android_stop_target})
-    elseif(TARGET_PLATFORM MATCHES "^(arm64-ios|x86_64-ios)$")
+    elseif(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
       add_dependencies(run_tests ${_run_target})
     elseif(NOT CMAKE_GENERATOR STREQUAL "Xcode")
-      add_dependencies(run_tests ${_run_target})
+      defold_add_to_run_tests(${_run_target}
+        RUN_GROUP "${DEFOLD_TEST_RUN_GROUP}" RUN_PRIORITY "${DEFOLD_TEST_RUN_PRIORITY}"
+        COMMAND ${_sequential_command}
+        DEPENDS ${target_name} ${DEFOLD_TEST_RUNTIME_DEPENDS})
     endif()
   endif()
 endfunction()

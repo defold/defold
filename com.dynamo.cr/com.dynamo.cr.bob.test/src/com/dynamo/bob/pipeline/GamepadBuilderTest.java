@@ -34,9 +34,9 @@ public class GamepadBuilderTest {
         return new File(System.getProperty("user.dir"), path).getCanonicalFile();
     }
 
-    private static boolean hasMapping(GamepadMapsRuntime maps, String device, boolean hasGuid) {
+    private static boolean hasMapping(GamepadMapsRuntime maps, String device, boolean hasRawMapping) {
         for (GamepadMapRuntime mapping : maps.getMappingsList()) {
-            if (mapping.getDevice().equals(device) && mapping.hasGuid() == hasGuid) {
+            if (mapping.getDevice().equals(device) && mapping.hasRawMapping() == hasRawMapping) {
                 return true;
             }
         }
@@ -80,6 +80,31 @@ public class GamepadBuilderTest {
     }
 
     @Test
+    public void testMainBuildsXboxDefaultGamepads() throws Exception {
+        File defaultGamepads = repoFile("../../engine/engine/content/builtins/input/default.gamepads");
+        File gamecontrollerdb = repoFile("../../engine/engine/content/builtins/input/gamecontrollerdb.txt");
+        File output = File.createTempFile("default-gamepads-xbox", ".gamepadsc");
+        output.deleteOnExit();
+
+        try {
+            GamepadBuilder.main(new String[] {
+                    defaultGamepads.getAbsolutePath(),
+                    gamecontrollerdb.getAbsolutePath(),
+                    output.getAbsolutePath(),
+                    "x86_64-xbone"
+            });
+
+            GamepadMapsRuntime maps = GamepadMapsRuntime.parseFrom(Files.readAllBytes(output.toPath()));
+            assertEquals(1, maps.getMappingsCount());
+            assertNull(firstMappingWithoutControls(maps));
+            assertTrue("Expected the legacy default.gamepads Xbox mapping.",
+                    hasMapping(maps, "Xbox One Controller", false));
+        } finally {
+            output.delete();
+        }
+    }
+
+    @Test
     public void testMainCombinesInputsAndFiltersByTargetPlatform() throws Exception {
         File gamepads = File.createTempFile("platform-filter", ".gamepads");
         File gamecontrollerdb = File.createTempFile("platform-filter", ".txt");
@@ -87,8 +112,7 @@ public class GamepadBuilderTest {
         gamecontrollerdb.deleteOnExit();
 
         try {
-            Files.write(gamepads.toPath(), (""
-                    + "driver {\n"
+            Files.write(gamepads.toPath(), ("driver {\n"
                     + "  device: \"Manual Mac Pad\"\n"
                     + "  platform: \"macos\"\n"
                     + "  dead_zone: 0.2\n"
@@ -107,8 +131,7 @@ public class GamepadBuilderTest {
                     + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
                     + "}\n").getBytes(StandardCharsets.UTF_8));
 
-            Files.write(gamecontrollerdb.toPath(), (""
-                    + "03000000000000000000000000000001,SDL Mac Pad,a:b0,platform:Mac OS X,\n"
+            Files.write(gamecontrollerdb.toPath(), ("03000000000000000000000000000001,SDL Mac Pad,a:b0,platform:Mac OS X,\n"
                     + "03000000000000000000000000000002,SDL Linux Pad,a:b0,platform:Linux,\n"
                     + "03000000000000000000000000000003,SDL Windows Pad,a:b0,platform:Windows,\n").getBytes(StandardCharsets.UTF_8));
 
@@ -133,4 +156,5 @@ public class GamepadBuilderTest {
             gamecontrollerdb.delete();
         }
     }
+
 }

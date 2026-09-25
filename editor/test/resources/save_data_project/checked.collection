@@ -27,6 +27,11 @@ instances {
       type: PROPERTY_TYPE_NUMBER
     }
     properties {
+      id: "text"
+      value: "hello"
+      type: PROPERTY_TYPE_TEXT
+    }
+    properties {
       id: "vector3"
       value: "0.1, 0.2, 0.3"
       type: PROPERTY_TYPE_VECTOR3
@@ -85,6 +90,11 @@ collection_instances {
         id: "number"
         value: "1.0"
         type: PROPERTY_TYPE_NUMBER
+      }
+      properties {
+        id: "text"
+        value: "hello"
+        type: PROPERTY_TYPE_TEXT
       }
       properties {
         id: "vector3"
@@ -155,6 +165,11 @@ embedded_instances {
   "    id: \"number\"\n"
   "    value: \"1.0\"\n"
   "    type: PROPERTY_TYPE_NUMBER\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"text\"\n"
+  "    value: \"hello\"\n"
+  "    type: PROPERTY_TYPE_TEXT\n"
   "  }\n"
   "  properties {\n"
   "    id: \"vector3\"\n"

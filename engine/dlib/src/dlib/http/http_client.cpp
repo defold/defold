@@ -617,7 +617,7 @@ if (sock_res != dmSocket::RESULT_OK)\
         HTTP_CLIENT_SENDALL_AND_BAIL(encoded_path)
         HTTP_CLIENT_SENDALL_AND_BAIL(" HTTP/1.1\r\n")
         HTTP_CLIENT_SENDALL_AND_BAIL("Host: ");
-        HTTP_CLIENT_SENDALL_AND_BAIL(client->m_HostURI.m_Hostname);
+        HTTP_CLIENT_SENDALL_AND_BAIL(client->m_HostURI.m_Location);
         HTTP_CLIENT_SENDALL_AND_BAIL("\r\n");
 
         if (client->m_HttpWriteHeaders) {

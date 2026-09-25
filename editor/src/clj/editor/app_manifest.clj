@@ -20,15 +20,16 @@
             [editor.localization :as localization]
             [editor.properties :as properties]
             [editor.resource-io :as resource-io]
-            [editor.yaml :as yaml]))
+            [editor.yaml :as yaml])
+  (:import [com.dynamo.bob.util AppManifestMigration]))
 
 (def macos #{:x86_64-osx :arm64-osx})
 
-(def windows #{:x86-win32 :x86_64-win32})
+(def windows #{:x86_64-win32})
 
-(def android #{:armv7-android :arm64-android})
+(def android #{:armv7-android :arm64-android :x86_64-android})
 
-(def ios #{:armv7-ios :arm64-ios :x86_64-ios})
+(def ios #{:arm64-ios :arm64_sim-ios})
 
 (def web #{:wasm-web :wasm_pthread-web})
 
@@ -36,114 +37,29 @@
 
 (def vulkan
   #{:x86_64-linux :arm64-linux
-    :x86-win32 :x86_64-win32
-    :armv7-android :arm64-android
+    :x86_64-win32
+    :armv7-android :arm64-android :x86_64-android
     :arm64-ios})
 
 (def vulkan-osx #{:x86_64-osx :arm64-osx})
 
 (def vulkan-ios #{:arm64-ios})
 
-(def metal-ios #{:arm64-ios :x86_64-ios})
+(def metal-ios #{:arm64-ios})
 
 (def all-platforms
   #{;; ios
-    :armv7-ios :arm64-ios :x86_64-ios
+    :arm64-ios :arm64_sim-ios
     ;; android
-    :armv7-android :arm64-android
+    :armv7-android :arm64-android :x86_64-android
     ;; osx
     :x86_64-osx :arm64-osx
     ;; linux
     :x86_64-linux :arm64-linux
     ;; windows
-    :x86-win32 :x86_64-win32
+    :x86_64-win32
     ;; web
     :wasm-web :wasm_pthread-web})
-
-(def defold-windows-lib-names
-  #{"basis_encoder"
-    "basis_encoder_noasan"
-    "basis_transcoder"
-    "crashext"
-    "crashext_null"
-    "decoder_ogg"
-    "decoder_opus"
-    "decoder_wav"
-    "ddf"
-    "ddf_noasan"
-    "dlib"
-    "dlib_noasan"
-    "engine"
-    "engine_release"
-    "engine_service"
-    "engine_service_null"
-    "extension"
-    "font"
-    "font_skribidi"
-    "gamesys"
-    "gamesys_model"
-    "gamesys_model_null"
-    "gamesys_rig"
-    "gamesys_rig_null"
-    "graphics"
-    "graphics_dx12"
-    "graphics_null"
-    "graphics_null_noasan"
-    "graphics_opengles"
-    "graphics_proto"
-    "graphics_proto_noasan"
-    "graphics_transcoder_basisu"
-    "graphics_transcoder_null"
-    "graphics_vulkan"
-    "graphics_webgpu"
-    "graphics_webgpu_wagyu"
-    "hid"
-    "hid_null"
-    "image"
-    "image_noasan"
-    "image_null"
-    "image_null_noasan"
-    "input"
-    "launcherutil"
-    "liveupdate"
-    "liveupdate_null"
-    "lua"
-    "mbedtls"
-    "mbedtls_noasan"
-    "model"
-    "particle"
-    "physics"
-    "physics_2d"
-    "physics_2d_defold"
-    "physics_3d"
-    "physics_null"
-    "platform"
-    "platform_null"
-    "platform_vulkan"
-    "profile"
-    "profile_noasan"
-    "profile_null"
-    "profile_null_noasan"
-    "profiler_js"
-    "profiler_remotery"
-    "profilerext"
-    "profilerext_null"
-    "record"
-    "record_null"
-    "render"
-    "render_font_default"
-    "resource"
-    "rig"
-    "rig_null"
-    "script"
-    "script_box2d"
-    "script_box2d_defold"
-    "sound"
-    "sound_nosimd"
-    "sound_null"
-    "sound_openal"
-    "zip"
-    "zip_noasan"})
 
 (def windows-lib-name-overrides
   {"vpx" "vpx"
@@ -168,7 +84,7 @@
 
 (defn- windows-lib-name [lib]
   (or (windows-lib-name-overrides lib)
-      (and (contains? defold-windows-lib-names lib) lib)
+      (get AppManifestMigration/WINDOWS_LIBRARY_NAMES lib)
       (str "lib" lib)))
 
 (defn- legacy-windows-lib-name [lib]
@@ -411,7 +327,8 @@
 (defn set-setting-value [manifest setting value]
   (case (:setting setting)
     :check-box (reduce #(set-toggle-value %1 %2 value) manifest (:toggles setting))
-    :choice (let [{:keys [choices none]} setting
+    :choice (let [manifest (reduce #(set-toggle-value %1 %2 false) manifest (:cleanup-toggles setting))
+                  {:keys [choices none]} setting
                   enabled-toggles (if (= none value)
                                     nil
                                     (some (fn [[id toggles]]
@@ -491,12 +408,36 @@
       (exclude-libs-toggles all-platforms ["font"])
       (libs-toggles all-platforms ["font_skribidi", "harfbuzz", "sheenbidi", "unibreak", "skribidi"]))))
 
+(def rich-text-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["font_richtext"])
+      (libs-toggles all-platforms ["font_richtext_null"]))))
+
 (def sound-setting
   (make-check-box-setting
     (concat
       (exclude-libs-toggles all-platforms ["sound" "tremolo"])
       (generic-contains-toggles all-platforms :excludeSymbols ["DefaultSoundDevice" "AudioDecoderWav" "AudioDecoderStbVorbis" "AudioDecoderTremolo"])
       (libs-toggles all-platforms ["sound_null"]))))
+
+(def gui-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["gamesys_gui" "gui"])
+      (libs-toggles all-platforms ["gui_null"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ResourceTypeGui" "ResourceTypeGuiScript" "ComponentTypeGui"]))))
+
+(def particle-fx-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["gamesys_particle" "particle"])
+      (libs-toggles all-platforms ["particle_null"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ResourceTypeParticleFX" "ComponentTypeParticleFX" "ScriptLibParticleFX"]))))
+
+(def tilemap-setting
+  (make-check-box-setting
+    (generic-contains-toggles all-platforms :excludeSymbols ["ResourceTypeTileMap" "ComponentTypeTileMap" "ScriptLibTileMap"])))
 
 (def sound-decoder-wav-setting
   (make-check-box-setting
@@ -542,7 +483,8 @@
 (def use-android-support-lib-setting
   (make-check-box-setting
     [(boolean-toggle :armv7-android :jetifier false)
-     (boolean-toggle :arm64-android :jetifier false)]))
+     (boolean-toggle :arm64-android :jetifier false)
+     (boolean-toggle :x86_64-android :jetifier false)]))
 
 (def physics-setting
   ;; by default, legacy 2d and 3d are included in `physics` lib
@@ -550,7 +492,12 @@
         exclude-default (exclude-libs-toggles all-platforms ["physics"])
 
         ;; must use at least one of these when excluding default
-        exclude-3d (exclude-libs-toggles all-platforms ["LinearMath" "BulletDynamics" "BulletCollision"])
+        exclude-3d-legacy (exclude-libs-toggles all-platforms ["LinearMath" "BulletDynamics" "BulletCollision"])
+        exclude-3d (into []
+                         cat
+                         [exclude-3d-legacy
+                          (exclude-libs-toggles all-platforms ["script_bullet3d"])
+                          (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBullet3DExt"])])
         exclude-legacy-2d (exclude-libs-toggles all-platforms ["box2d_defold" "script_box2d_defold"])
 
         ;; must be used when excluding 2d completely:
@@ -563,15 +510,26 @@
         include-legacy-2d (libs-toggles all-platforms ["physics_2d_defold"])
         include-2d-v3 (libs-toggles all-platforms ["physics_2d" "box2d" "script_box2d"])
         include-3d (libs-toggles all-platforms ["physics_3d"])]
+    ;; The current signatures come first so writes include the Bullet script
+    ;; exclusions. The duplicate legacy signatures keep old manifests readable.
     (make-choice-setting
       {:2d :none :3d false}
       (concat exclude-all exclude-default exclude-3d exclude-legacy-2d exclude-all-2d)
 
+      {:2d :none :3d false}
+      (concat exclude-all exclude-default exclude-3d-legacy exclude-legacy-2d exclude-all-2d)
+
       {:2d :legacy :3d false}
       (concat exclude-default exclude-3d include-legacy-2d)
 
+      {:2d :legacy :3d false}
+      (concat exclude-default exclude-3d-legacy include-legacy-2d)
+
       {:2d :v3 :3d false}
       (concat exclude-default exclude-3d exclude-legacy-2d include-2d-v3)
+
+      {:2d :v3 :3d false}
+      (concat exclude-default exclude-3d-legacy exclude-legacy-2d include-2d-v3)
 
       {:2d :none :3d true}
       (concat exclude-default exclude-legacy-2d exclude-all-2d include-3d)
@@ -596,12 +554,12 @@
 
 
 (def generic-vulkan
-  (disj vulkan :armv7-android :arm64-android :arm64-ios))
+  (disj vulkan :armv7-android :arm64-android :x86_64-android :arm64-ios))
 
 (def generic-vulkan-toggles
   (concat
-    (exclude-libs-toggles [:x86-win32 :x86_64-win32] ["platform"])
-    (libs-toggles [:x86-win32 :x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
+    (exclude-libs-toggles [:x86_64-win32] ["platform"])
+    (libs-toggles [:x86_64-win32 :arm64-linux :x86_64-linux] ["platform_vulkan"])
     (libs-toggles windows ["graphics_vulkan" "vulkan"])
     (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
     (generic-contains-toggles linux :dynamicLibs ["vulkan"])
@@ -660,6 +618,8 @@
    [:open-gl-metal "OpenGL & Metal"]
    [:open-gl-vulkan "OpenGL & Vulkan"]])
 
+;; Legacy macOS entries remain here so changing a choice can remove overrides
+;; written by older editors, including libraries now supplied by engine defaults.
 (def open-gl-osx-toggles
   (concat
     (libs-toggles vulkan-osx ["graphics" "platform"])
@@ -669,6 +629,7 @@
 (def explicit-vulkan-osx-toggles
   (concat
     (libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+    (exclude-libs-toggles vulkan-osx ["platform"])
     (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterVulkan"])
     (generic-contains-toggles vulkan-osx :frameworks ["Metal" "IOSurface" "QuartzCore"])))
 
@@ -695,13 +656,28 @@
     (generic-contains-toggles vulkan-osx :excludeSymbols ["GraphicsAdapterOpenGL"])))
 
 (def graphics-setting-osx
-  (make-choice-setting
-    :open-gl (concat open-gl-osx-toggles exclude-metal-osx-toggles exclude-vulkan-osx-toggles)
-    :metal (concat metal-osx-toggles exclude-open-gl-osx-toggles exclude-vulkan-osx-toggles)
-    :vulkan (concat explicit-vulkan-osx-toggles exclude-open-gl-osx-toggles exclude-metal-osx-toggles)
-    :open-gl-metal (concat open-gl-osx-toggles metal-osx-toggles exclude-vulkan-osx-toggles)
-    :open-gl-vulkan (concat open-gl-osx-toggles explicit-vulkan-osx-toggles exclude-metal-osx-toggles)
-    :vulkan))
+  (let [open-gl (concat
+                  (libs-toggles vulkan-osx ["graphics"])
+                  (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterOpenGL"])
+                  (generic-contains-toggles vulkan-osx :frameworks ["OpenGL"]))
+        vulkan (concat
+                 (libs-toggles vulkan-osx ["graphics_vulkan" "platform_vulkan" "MoltenVK"])
+                 (exclude-libs-toggles vulkan-osx ["platform"])
+                 (generic-contains-toggles vulkan-osx :symbols ["GraphicsAdapterVulkan"]))]
+    (assoc
+      ;; Match the combined choice first, before its subsets. Metal and its
+      ;; frameworks/platform library are provided by the engine defaults.
+      (make-choice-setting
+        :open-gl-vulkan (concat open-gl vulkan exclude-metal-osx-toggles)
+        :vulkan (concat vulkan exclude-metal-osx-toggles)
+        :open-gl (concat open-gl exclude-metal-osx-toggles)
+        :open-gl-metal open-gl
+        :metal)
+      ;; Clear both previous choices and redundant entries written by older
+      ;; editors before writing the minimal overrides for the new selection.
+      :cleanup-toggles (concat open-gl-osx-toggles explicit-vulkan-osx-toggles
+                               metal-osx-toggles exclude-metal-osx-toggles
+                               exclude-open-gl-osx-toggles exclude-vulkan-osx-toggles))))
 
 (def open-gl-ios-toggles [])
 
@@ -784,12 +760,12 @@
                                      ;; booleans
                                      :jetifier]]]]
     [[:platforms [;; ios
-                  [:armv7-ios platform-pattern]
                   [:arm64-ios platform-pattern]
-                  [:x86_64-ios platform-pattern]
+                  [:arm64_sim-ios platform-pattern]
                   ;; android
                   [:armv7-android platform-pattern]
                   [:arm64-android platform-pattern]
+                  [:x86_64-android platform-pattern]
                   ;; osx
                   [:arm64-osx platform-pattern]
                   [:x86_64-osx platform-pattern]
@@ -797,11 +773,107 @@
                   [:x86_64-linux platform-pattern]
                   [:arm64-linux platform-pattern]
                   ;; windows
-                  [:x86-win32 platform-pattern]
                   [:x86_64-win32 platform-pattern]
                   ;; web
                   [:wasm-web platform-pattern]
                   [:wasm_pthread-web platform-pattern]]]]))
+
+(defn- migrate-windows-library-names [manifest]
+  (reduce (fn [manifest platform]
+            (reduce (fn [manifest key]
+                      (if-let [libs (get-in-guarded manifest :platforms map? platform map? :context map? key vector?)]
+                        (assoc-in manifest [:platforms platform :context key]
+                                  (mapv #(get AppManifestMigration/WINDOWS_LIBRARY_NAMES % %) libs))
+                        manifest))
+                    manifest
+                    [:excludeLibs :libs :engineLibs]))
+          manifest
+          (conj windows :win32)))
+
+(defn- migrate-macos-vulkan-platform [manifest]
+  ;; platform_vulkan replaces the new default platform library. Keep old
+  ;; explicit Vulkan manifests recognizable and link only the selected variant.
+  (reduce (fn [manifest platform]
+            (let [context (get-in-guarded manifest :platforms map? platform map? :context map?)
+                  excluded (:excludeLibs context)
+                  libraries (mapcat #(let [v (get context %)] (when (vector? v) v)) [:libs :engineLibs])]
+              (if (and (or (nil? excluded) (vector? excluded))
+                       (some #{"platform_vulkan"} libraries)
+                       (not-any? #{"platform" "platform_vulkan"} excluded))
+                (assoc-in manifest [:platforms platform :context :excludeLibs]
+                          (conj (or excluded []) "platform"))
+                manifest)))
+          manifest
+          (conj macos :osx)))
+
+(defn- migrate-simulator-graphics [manifest]
+  ;; Simulator graphics are fixed to Metal, independently of device settings.
+  (let [path [:platforms :arm64_sim-ios :context]
+        context (get-in manifest path)
+        obsolete #{"graphics" "graphics_metal" "graphics_vulkan" "platform_vulkan" "MoltenVK"
+                   "GraphicsAdapterOpenGL" "GraphicsAdapterMetal" "GraphicsAdapterVulkan"}]
+    (if-not (map? context)
+      manifest
+      (assoc-in manifest path
+                (reduce (fn [context key]
+                          (if-not (vector? (get context key))
+                            context
+                            (update context key #(into [] (remove obsolete) %))))
+                        context [:libs :engineLibs :excludeLibs :symbols :excludeSymbols])))))
+
+;; Older 2D-only manifests exclude Bullet archives but predate its separate
+;; script library and registration symbol.
+(defn- migrate-bullet3d-context [context]
+  (if-not (and (map? context)
+               (vector? (:excludeLibs context))
+               (or (nil? (:excludeSymbols context))
+                   (vector? (:excludeSymbols context)))
+               (= #{"LinearMath" "BulletDynamics" "BulletCollision"}
+                  (into #{}
+                        (keep (fn [library]
+                                (when (string? library)
+                                  (second (re-matches #"(?:lib)?(LinearMath|BulletDynamics|BulletCollision)(?:\.lib)?" library)))))
+                        (:excludeLibs context))))
+    context
+    (cond-> context
+      (not (contains? (set (:excludeLibs context)) "script_bullet3d"))
+      (update :excludeLibs conj "script_bullet3d")
+
+      (not (contains? (set (:excludeSymbols context)) "ScriptBullet3DExt"))
+      (update :excludeSymbols (fnil conj []) "ScriptBullet3DExt"))))
+
+(defn- migrate-bullet3d-exclusions [manifest]
+  (if-not (map? manifest)
+    manifest
+    (cond-> manifest
+      (contains? manifest :context)
+      (update :context migrate-bullet3d-context)
+
+      (map? (:platforms manifest))
+      (update :platforms
+              (fn [platforms]
+                (reduce-kv (fn [platforms platform platform-value]
+                             (if-not (and (map? platform-value)
+                                          (contains? platform-value :context))
+                               platforms
+                               (update-in platforms [platform :context] migrate-bullet3d-context)))
+                           platforms
+                           platforms))))))
+
+(defn- load-app-manifest [_load-opts {self :node-id}]
+  (g/expand-ec
+    (fn [evaluation-context]
+      (let [manifest (g/node-value self :manifest evaluation-context)]
+        (when-not (g/error? manifest)
+          (let [migrated-manifest (-> manifest
+                                      migrate-windows-library-names
+                                      migrate-macos-vulkan-platform
+                                      migrate-simulator-graphics
+                                      migrate-bullet3d-exclusions)]
+            (when-not (= manifest migrated-manifest)
+              ;; Prevent the project loader from caching the original lines as save-data.
+              (g/flag-nodes-as-migrated! evaluation-context [self])
+              (g/set-property self :manifest migrated-manifest))))))))
 
 (g/defnode AppManifestNode
   (inherits r/CodeEditorResourceNode)
@@ -868,6 +940,24 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter sound-setting))
             (set (setting-property-setter sound-setting)))
+  (property exclude-gui g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-gui))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-gui))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter gui-setting))
+            (set (setting-property-setter gui-setting)))
+  (property exclude-particle-fx g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-particle-fx))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-particle-fx))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter particle-fx-setting))
+            (set (setting-property-setter particle-fx-setting)))
+  (property exclude-tilemap g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-tilemap))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-tilemap))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter tilemap-setting))
+            (set (setting-property-setter tilemap-setting)))
   (property exclude-sound-decoder-wav g/Any
             (dynamic label (properties/label-dynamic :appmanifest :exclude-sound-decoder-wav))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-sound-decoder-wav))
@@ -968,7 +1058,15 @@
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :use-font-layout))
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter font-setting))
-            (set (setting-property-setter font-setting))))
+            (set (setting-property-setter font-setting)))
+  (property use-rich-text g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :use-rich-text))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :use-rich-text))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (g/fnk [manifest]
+                     (some-> (get-setting-value manifest rich-text-setting) not)))
+            (set (setting-property-updater rich-text-setting (fn [_ enabled]
+                                                               (not enabled))))))
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type
@@ -981,4 +1079,5 @@
     :node-type AppManifestNode
     :view-types [:code :default]
     :view-opts {:code {:use-custom-editor false}}
-    :lazy-loaded true))
+    :additional-load-fn load-app-manifest
+    :lazy-loaded false))

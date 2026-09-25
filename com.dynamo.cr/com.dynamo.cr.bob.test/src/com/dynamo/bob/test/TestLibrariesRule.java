@@ -92,7 +92,7 @@ public class TestLibrariesRule extends ExternalResource {
     protected void before() throws Throwable {
         serverLocation = new File("server_root");
         serverLocation.mkdirs();
-        createLib(serverLocation.getAbsolutePath(), "", "1", "111");
+        createLib(serverLocation.getAbsolutePath(), "", "1", "0123456789abcdef0123456789abcdef01234567");
         createLib(serverLocation.getAbsolutePath(), "", "2", "222");
         createLib(serverLocation.getAbsolutePath(), "subdir/", "3", "333");
         createLib(serverLocation.getAbsolutePath(), "subdir/second/", "4", "444");

@@ -15,7 +15,7 @@ cd defold
 # Setup the shell environment (consider putting it in an alias in your bash profile)
 ./scripts/build.py shell
 
-# Extracts packages - you only need to do this once
+# Installs packages and builds source dependencies (also needed after distclean)
 ./scripts/build.py install_ext
 
 # Change directory to the editor subdirectory
@@ -42,7 +42,7 @@ cd defold
 # Setup the shell environment (consider putting it in an alias in your bash profile)
 ./scripts/build.py shell
 
-# Extracts packages - you only need to do this once
+# Installs packages and builds source dependencies (also needed after distclean)
 ./scripts/build.py install_ext
 
 # Build the engine
@@ -103,6 +103,7 @@ Please note that Lein will introduce a nREPL dependency automagically, but its a
 
 As a temporary solution, we use Bob (from Editor1) as the content pipeline for bundling and running in the browser. In order to setup Bob locally, you need to:
 
+- Install and build dependencies for the platform, e.g. `python scripts/build.py install_ext --platform=wasm-web`
 - Build the engine for the specific platform, e.g. `python scripts/build.py build_engine --platform=wasm-web --skip-tests -- --skip-build-tests`
 - Build Bob with local artifacts, `python scripts/build.py build_bob`
 - `lein init`, which will install `bob.jar` as a local maven package

@@ -12,6 +12,8 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
+import os
+import tempfile
 import unittest
 import script_doc
 import script_doc_ddf_pb2
@@ -77,6 +79,20 @@ foobar
         self.assertEqual('MY_NAME', elements[0].name)
         self.assertEqual(script_doc_ddf_pb2.VARIABLE, elements[0].type)
 
+    def test_constant_value_type(self):
+        doc = """
+/*#
+ * MY_DESC
+ * @name MY_CONSTANT
+ * @constant [type:string|nil]
+ */
+"""
+        element = script_doc.parse_document(doc).elements[0]
+        self.assertEqual(script_doc_ddf_pb2.CONSTANT, element.type)
+        self.assertEqual(1, len(element.parameters))
+        self.assertEqual("value", element.parameters[0].name)
+        self.assertEqual(["string", "nil"], list(element.parameters[0].types))
+
     def test_description_markdown(self):
         doc= """
 /*#
@@ -92,6 +108,29 @@ foobar
         elements = doc_dict["elements"]
         self.assertEqual(1, len(elements))
         self.assertEqual(u'<em>EMPHASIS</em>\n<ul>\n<li>MY_DESC</li>\n<li>MY_DESC</li>\n</ul>', elements[0].get("description"))
+
+    def test_member_markdown(self):
+        doc = """
+/*#
+ * MY_STRUCT
+ * @name my.struct
+ * @struct
+ * @member value [type:string] Use `code` formatting.
+ */
+"""
+        doc_msg = script_doc.parse_document(doc)
+        doc_dict = script_doc.message_to_json_dict(doc_msg)
+        member = doc_dict["elements"][0]["members"][0]
+        self.assertEqual("Use <code>code</code> formatting.", member["doc"])
+
+    def test_json_format_version(self):
+        doc_msg = script_doc.parse_document("""
+/*#
+ * @name MY_NAME
+ */
+""")
+        doc_dict = script_doc.message_to_json_dict(doc_msg)
+        self.assertEqual(2, doc_dict["format_version"])
 
     def test_multiple(self):
         doc= """
@@ -141,6 +180,37 @@ foobar
         p3 = elements[0].parameters[2]
         self.assertEqual(True, p3.is_optional)
 
+    def test_nested_lua_type_expression(self):
+        doc = """
+/*#
+ * MY_DESC
+ * @name MY_NAME
+ * @param options [type:table<string, {value:number|nil}>|string[]] DOC
+ */
+"""
+        parameter = script_doc.parse_document(doc).elements[0].parameters[0]
+        self.assertEqual(
+            ["table<string, {value:number|nil}>", "string[]"],
+            list(parameter.types))
+
+    def test_struct_member_union_type(self):
+        doc = """
+/*#
+ * MY_STRUCT
+ * @name my.struct
+ * @struct
+ * @member value [type:string|hash] DOC
+ */
+"""
+        element = script_doc.parse_document(doc).elements[0]
+        self.assertEqual(script_doc_ddf_pb2.STRUCT, element.type)
+        self.assertEqual("string|hash", element.members[0].type)
+        self.assertEqual("DOC", element.members[0].doc)
+
+    def test_invalid_nested_lua_type_expression(self):
+        with self.assertRaises(ValueError):
+            script_doc.extract_type_from_docstr("[type:table<string, {value:number>] DOC")
+
     def test_return(self):
         doc= """
 /*#
@@ -164,9 +234,51 @@ foobar
         self.assertEqual('number', r2.types[0])
         self.assertEqual('nil', r2.types[1])
 
+    def test_boolean_literal_value_names_fail_validation(self):
+        invalid_tags = (
+            "@param true [type:boolean] DOC",
+            "@return false [type:boolean] DOC",
+            "@member true [type:boolean] DOC",
+            "@tparam false DOC",
+        )
+        for invalid_tag in invalid_tags:
+            with self.subTest(invalid_tag=invalid_tag):
+                doc = """
+/*#
+ * MY_DESC
+ * @name MY_NAME
+ * %s
+ */
+""" % invalid_tag
+                with self.assertRaisesRegex(ValueError, "Invalid documentation value name"):
+                    script_doc.parse_document(doc)
+
+    def test_boolean_literal_element_name_fails_validation(self):
+        doc = """
+/*#
+ * MY_DESC
+ * @name true
+ * @variable
+ */
+"""
+        with self.assertRaisesRegex(ValueError, "Invalid documentation value name"):
+            script_doc.parse_document(doc)
+
+    def test_boolean_literals_are_allowed_in_value_docs(self):
+        doc = """
+/*#
+ * MY_DESC
+ * @name MY_NAME
+ * @return active [type:boolean] true if active, false otherwise
+ */
+"""
+        returnvalue = script_doc.parse_document(doc).elements[0].returnvalues[0]
+        self.assertEqual("active", returnvalue.name)
+        self.assertEqual("true if active, false otherwise", returnvalue.doc)
+
 
     def test_all_lua_types(self):
-        doc= """
+        doc = """
 /*#
  * MY_DESC
  * @name MY_NAME
@@ -174,13 +286,46 @@ foobar
  * @param param_y [type:vector|vector3|vector4|matrix4|quaternion|hash|url|node|resource|buffer] DOCY
  * @param param_z [type:constant|any] DOCZ
  * @param param_b2 [type:b2World|b2Body|b2BodyType|b2Shape|b2Chain] DOCB2
+ * @param param_bullet3d [type:btDiscreteDynamicsWorld|btCollisionObject|btRigidBody|btCollisionShape|btTypedConstraint] DOCBULLET3D
  */
 """
         elements = script_doc.parse_document(doc).elements
-        self.assertEqual(True, True) # make sure it doesn't crash
+        self.assertEqual(1, len(elements))
+        # Bullet3D userdata types must remain valid documentation inputs so the
+        # public Lua API can be generated without dropping typed parameters.
+        self.assertEqual(['btDiscreteDynamicsWorld', 'btCollisionObject', 'btRigidBody', 'btCollisionShape', 'btTypedConstraint'], elements[0].parameters[4].types)
+
+    # Verifies that generated Lua annotations mark only bracketed parameters as
+    # optional. This prevents required Bullet3D userdata from becoming nullable
+    # when protobuf booleans are converted through the annotation template.
+    def test_optional_parameter_lua_annotation(self):
+        doc = """
+/*# Test API
+ * @document
+ * @name test
+ * @namespace test
+ * @language Lua
+ * @path test
+ */
+/*# Activate
+ * @name test.activate
+ * @param body [type:btRigidBody] body
+ * @param [force] [type:boolean] force activation
+ */
+"""
+        message = script_doc.parse_document(doc)
+        with tempfile.TemporaryDirectory() as temp_directory:
+            output_path = os.path.join(temp_directory, 'test.lua')
+            script_doc.write_lua_annotation(message, output_path)
+            with open(output_path, encoding='utf-8') as output_file:
+                annotation = output_file.read()
+
+        self.assertIn('---@param body btRigidBody body', annotation)
+        self.assertNotIn('---@param body? btRigidBody body', annotation)
+        self.assertIn('---@param force? boolean force activation', annotation)
 
 
-    def test_wrong_type(self):
+    def test_lua_type_validation_is_deferred(self):
         doc= """
 /*#
  * MY_DESC
@@ -188,13 +333,166 @@ foobar
  * @param param_x [type:foobar] DOCX
  */
 """
-        exception = False
-        try:
-            script_doc.parse_document(doc)
-        except Exception:
-            exception = True
+        parameter = script_doc.parse_document(doc).elements[0].parameters[0]
+        self.assertEqual(["foobar"], list(parameter.types))
 
-        self.assertEqual(exception, True)
+    def test_strict_source_validation_accepts_canonical_lua_documentation(self):
+        doc = r'''
+/*# Test API
+ * @document
+ * @name Test
+ * @namespace test
+ * @language Lua
+ */
+
+/*# Calls the test function.
+ * @name test.call
+ * @param values [type:string[]] values to inspect
+ * @param callback [type:fun(value:string):boolean] callback to invoke
+ * @return result [type:{ ok:boolean }] call result
+ * @examples
+ * ```objective-c
+ * @interface MyDelegate : NSObject
+ * @end
+ * ```
+ */
+'''
+        script_doc.validate_source_documentation(
+            doc,
+            "example.cpp",
+            require_document=True)
+
+    def test_strict_source_validation_requires_name(self):
+        doc = """
+/*# Test API
+ * @document
+ * @namespace test
+ * @language Lua
+ */
+"""
+        with self.assertRaisesRegex(
+                ValueError,
+                r"example\.cpp:\d+: documentation comment is missing required @name"):
+            script_doc.validate_source_documentation(doc, "example.cpp")
+
+    def test_strict_source_validation_rejects_unknown_tag_with_suggestion(self):
+        doc = """
+/*# Test API
+ * @document
+ * @name Test
+ * @namespace test
+ * @language Lua
+ */
+/*# Calls the test function.
+ * @name test.call
+ * @pram value [type:string] value to inspect
+ */
+"""
+        with self.assertRaisesRegex(
+                ValueError,
+                r"unknown Lua documentation tag @pram; did you mean @param\?"):
+            script_doc.validate_source_documentation(doc, "example.cpp")
+
+    def test_strict_source_validation_requires_explicit_lua_types(self):
+        invalid_elements = (
+            "@name test.call\n * @param value description",
+            "@name test.call\n * @return result description",
+            "@name test.value\n * @struct\n * @member value description",
+        )
+        for invalid_element in invalid_elements:
+            with self.subTest(invalid_element=invalid_element):
+                doc = """
+/*# Test API
+ * @document
+ * @name Test
+ * @namespace test
+ * @language Lua
+ */
+/*# Invalid element.
+ * %s
+ */
+""" % invalid_element
+                with self.assertRaisesRegex(
+                        ValueError,
+                        r"requires an explicit \[type:\.\.\.\] declaration"):
+                    script_doc.validate_source_documentation(doc, "example.cpp")
+
+    def test_strict_source_validation_rejects_misplaced_lua_types(self):
+        invalid_elements = (
+            "@name test.call\n * @param value description [type:string]",
+            "@name test.call\n * @return result description [type:string]",
+            "@name test.value\n * @struct\n * @member value description [type:string]",
+        )
+        for invalid_element in invalid_elements:
+            with self.subTest(invalid_element=invalid_element):
+                doc = """
+/*# Test API
+ * @document
+ * @name Test
+ * @namespace test
+ * @language Lua
+ */
+/*# Invalid element.
+ * %s
+ */
+""" % invalid_element
+                with self.assertRaisesRegex(
+                        ValueError,
+                        r"requires an explicit \[type:\.\.\.\] declaration"):
+                    script_doc.validate_source_documentation(doc, "example.cpp")
+
+    def test_strict_source_validation_allows_untyped_enum_members(self):
+        doc = """
+/*# Test API
+ * @document
+ * @name Test
+ * @namespace test
+ * @language Lua
+ */
+/*# Test values.
+ * @enum
+ * @name test.VALUE
+ * @member test.VALUE_ONE
+ * @version 1
+ * @warning Kept for compatibility.
+ */
+"""
+        script_doc.validate_source_documentation(doc, "example.cpp")
+
+    def test_strict_source_validation_rejects_legacy_type_syntax(self):
+        invalid_types = (
+            ("[string]", "legacy array type"),
+            ("function(value)", "legacy callback type"),
+        )
+        for invalid_type, expected_error in invalid_types:
+            with self.subTest(invalid_type=invalid_type):
+                doc = """
+/*# Test API
+ * @document
+ * @name Test
+ * @namespace test
+ * @language Lua
+ */
+/*# Invalid element.
+ * @name test.call
+ * @param value [type:%s] value to inspect
+ */
+""" % invalid_type
+                with self.assertRaisesRegex(ValueError, expected_error):
+                    script_doc.validate_source_documentation(doc, "example.cpp")
+
+    def test_strict_source_validation_requires_document_comment(self):
+        doc = """
+/*# Calls the test function.
+ * @name test.call
+ * @param value [type:string] value to inspect
+ */
+"""
+        with self.assertRaisesRegex(ValueError, r"no @document comment"):
+            script_doc.validate_source_documentation(
+                doc,
+                "example.cpp",
+                require_document=True)
 
 
     def test_document(self):
@@ -257,7 +555,7 @@ foobar
  * @name MY_MESSAGE
  * @examples example:
  *
- * ```language
+ * ```text
  * MY_EXAMPLE
  * ```
  */
@@ -267,6 +565,88 @@ foobar
         elements = doc_dict["elements"]
         self.assertEqual(1, len(elements))
         self.assertEqual(u'example:\n<div class="codehilite"><pre><span></span><code>MY_EXAMPLE\n</code></pre></div>', elements[0].get("examples"))
+
+    def test_fenced_code_in_parameter_doc_fails_validation(self):
+        doc = """
+/*#
+ * @name MY_FUNCTION
+ * @param value [type:string] Description.
+ *
+ * ```lua
+ * print(value)
+ * ```
+ */
+"""
+        with self.assertRaisesRegex(
+                ValueError,
+                "Code blocks are not allowed in structured documentation"):
+            script_doc.parse_document(doc, "example.cpp")
+
+    def test_indented_code_in_return_doc_fails_validation(self):
+        doc = """
+/*#
+ * @name MY_FUNCTION
+ * @return result [type:table] Description.
+ *
+ *     accidental code block
+ */
+"""
+        with self.assertRaisesRegex(
+                ValueError,
+                "Code blocks are not allowed in structured documentation"):
+            script_doc.parse_document(doc, "example.cpp")
+
+    def test_repeated_examples_are_separated(self):
+        doc= """
+/*#
+ * @name MY_MESSAGE
+ * @examples First example:
+ *
+ * ```lua
+ * print("first")
+ * ```
+ * @examples Second example:
+ *
+ * ```lua
+ * print("second")
+ * ```
+ */
+"""
+        doc_msg = script_doc.parse_document(doc)
+        element = doc_msg.elements[0]
+        self.assertIn("```\n\nSecond example:", element.examples)
+
+        examples = script_doc.message_to_json_dict(doc_msg)["elements"][0]["examples"]
+        self.assertIn("First example:\n<div class=\"codehilite\">", examples)
+        self.assertIn("</div>\n\nSecond example:\n<div class=\"codehilite\">", examples)
+        self.assertNotIn("```", examples)
+
+    def test_unclosed_examples_fence_fails_validation(self):
+        doc= """
+/*#
+ * @name MY_MESSAGE
+ * @examples Broken example:
+ *
+ * ```lua
+ * print("missing closing fence")
+ */
+"""
+        with self.assertRaisesRegex(ValueError, "Malformed Markdown fenced code block"):
+            script_doc.parse_document(doc)
+
+    def test_text_after_closing_fence_fails_validation(self):
+        doc= """
+/*#
+ * @name MY_MESSAGE
+ * @examples Broken example:
+ *
+ * ```lua
+ * print("broken closing fence")
+ * ```Next example
+ */
+"""
+        with self.assertRaisesRegex(ValueError, "Malformed Markdown fenced code block"):
+            script_doc.parse_document(doc)
 
     def test_examples2(self):
         doc= """
@@ -328,6 +708,67 @@ foobar
         self.assertEqual(u'MY_DESC @test', elements[0].description)
         self.assertEqual('MY_MESSAGE', elements[0].name)
         self.assertEqual(u'example:\nMY_EXAMPLE @test', elements[0].examples)
+
+    def test_at_tag_syntax_inside_fenced_example(self):
+        doc= r'''
+/*#
+ * @name MY_MESSAGE
+ * @examples Objective-C example:
+ *
+ * ```objective-c
+ * @interface MyDelegate : NSObject
+ * @end
+ *
+ * @implementation MyDelegate
+ * @end
+ * ```
+ */
+'''
+        element = script_doc.parse_document(doc).elements[0]
+        self.assertIn("@interface MyDelegate : NSObject", element.examples)
+        self.assertIn("@implementation MyDelegate", element.examples)
+        self.assertTrue(element.examples.endswith("```"))
+
+        examples = script_doc.message_to_json_dict(
+            script_doc.parse_document(doc))["elements"][0]["examples"]
+        self.assertIn("@interface", examples)
+        self.assertIn("MyDelegate", examples)
+        self.assertNotIn("```", examples)
+
+    def test_at_tag_syntax_inside_fenced_description(self):
+        doc = r'''
+/*# Objective-C description.
+ *
+ * ```objective-c
+ * @interface MyDelegate : NSObject
+ * @end
+ * ```
+ * @name MY_MESSAGE
+ */
+'''
+        element = script_doc.parse_document(doc).elements[0]
+        self.assertIn("@interface MyDelegate : NSObject", element.description)
+        self.assertIn("@end", element.description)
+        self.assertTrue(element.description.endswith("```"))
+
+        description = script_doc.message_to_json_dict(
+            script_doc.parse_document(doc))["elements"][0]["description"]
+        self.assertIn("@interface", description)
+        self.assertIn("MyDelegate", description)
+        self.assertNotIn("```", description)
+
+    def test_unclosed_description_fence_fails_validation(self):
+        doc= '''
+/*#
+ * Broken description:
+ *
+ * ```lua
+ * print("missing closing fence")
+ * @name MY_MESSAGE
+ */
+'''
+        with self.assertRaisesRegex(ValueError, "Malformed Markdown fenced code block"):
+            script_doc.parse_document(doc)
 
     def test_detection(self):
         doc1= """

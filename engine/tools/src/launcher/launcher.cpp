@@ -39,6 +39,7 @@
 #endif
 
 #ifdef __MACH__
+#include <signal.h>
 #include <sys/sysctl.h>
 #endif
 
@@ -88,7 +89,7 @@ static uint64_t GetTotalRAM() {
   return value;
 }
 
-static void GetThreeQuartersRAMStr(char* buf, uint64_t cap) {
+static void GetThreeQuartersRAMStr(char* buf, uint32_t buf_size, uint64_t cap) {
 #if defined(__linux__)
   const char* fmt = "-Xmx%lu";
 #else
@@ -100,7 +101,7 @@ static void GetThreeQuartersRAMStr(char* buf, uint64_t cap) {
   if(d_seventyfive_percent_ram > d_cap) {
     d_seventyfive_percent_ram = d_cap;
   }
-  sprintf(buf, fmt, (uint64_t)d_seventyfive_percent_ram);
+  snprintf(buf, buf_size, fmt, (uint64_t)d_seventyfive_percent_ram);
 }
 
 struct ReplaceContext
@@ -247,7 +248,7 @@ int Launch(int argc, char **argv) {
     }
 
     char ram_str_buf[100];
-    GetThreeQuartersRAMStr(ram_str_buf, 34359738368ull); // Max 32 gigs.
+    GetThreeQuartersRAMStr(ram_str_buf, sizeof(ram_str_buf), 34359738368ull); // Max 32 gigs.
     args[i++] = ram_str_buf;
 
     args[i++] = (char*) main;
@@ -320,6 +321,20 @@ int Launch(int argc, char **argv) {
     dmConfigFile::Delete(config);
 
     return exit_code;
+#elif defined(__MACH__)
+    // Replace the launcher so it does not remain registered with AppKit while
+    // blocking on the JVM. The editor starts a new launcher when restarting.
+    fflush(stdout);
+    fflush(stderr);
+    execv(args[0], (char *const *) args);
+
+    char buf[2048];
+    strerror_r(errno, buf, sizeof(buf));
+    dmLogFatal("Failed to launch application: %s", buf);
+    FreeFileList(fileList);
+    delete[] args;
+    dmConfigFile::Delete(config);
+    return 127;
 #else
 
     pid_t pid = fork();
@@ -335,10 +350,6 @@ int Launch(int argc, char **argv) {
     int stat;
     wait(&stat);
 
-#if defined(__MACH__)
-    FreeFileList(fileList);
-#endif
-
     delete[] args;
     dmConfigFile::Delete(config);
 
@@ -351,6 +362,11 @@ int Launch(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+#if defined(__MACH__)
+    // The updater may close our output pipes while exiting. Failed startup
+    // log writes must not terminate the launcher before it starts the JVM.
+    signal(SIGPIPE, SIG_IGN);
+#endif
     dmLogInfo("Launcher version %s", DEFOLD_SHA1);
     int ret = Launch(argc, argv);
     while (ret == 17) {

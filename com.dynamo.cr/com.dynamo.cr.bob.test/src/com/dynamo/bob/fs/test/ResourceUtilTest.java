@@ -132,6 +132,16 @@ public class ResourceUtilTest {
     }
 
     @Test
+    public void testExtensionMappingsAreCaseInsensitive() {
+        ResourceUtil.registerMapping(".png", ".texturec");
+
+        assertEquals(".texturec", ResourceUtil.getOutputExt(".PNG"));
+        assertEquals(".texturec", ResourceUtil.getOutputExt(".PnG"));
+        assertEquals("/Textures/Image.texturec",
+                ResourceUtil.minifyPathAndReplaceExt("/Textures/Image.PnG", ".png", ".texturec"));
+    }
+
+    @Test
     public void testMinifyEnabledUnsupportedSuffixKeepsPathAndAddsSlashForNonBuild() {
         ResourceUtil.enableMinification(true);
         assertEquals("/foo.bar", ResourceUtil.minifyPath("foo.bar"));

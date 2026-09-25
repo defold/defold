@@ -1,0 +1,26 @@
+local M = {}
+
+local function command(view_type, label)
+    return editor.command({
+        label = label,
+        locations = {"View"},
+        query = {active_view = {type = view_type}},
+        run = function(opts)
+            local view = opts.active_view
+            local resource = editor.get(view, "resource")
+            local resource_path = editor.get(resource, "path")
+            print(("type=%s resource=%s dirty=%s"):format(editor.get(view, "type"), resource_path, tostring(editor.get(view, "dirty"))))
+        end
+    })
+end
+
+function M.get_commands()
+    return {
+        command("code", "Inspect Active Code View"),
+        command("scene", "Inspect Active Scene View"),
+        command("html", "Inspect Active HTML View"),
+        command("form", "Inspect Active Form View")
+    }
+end
+
+return M

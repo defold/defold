@@ -15,6 +15,8 @@
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import java.util.List;
 
 import org.junit.Before;
@@ -99,6 +101,7 @@ public class ComputeBuilderTest extends AbstractProtoBuilderTest {
         src.append("  name: \"texture_in\"\n");
         src.append("  wrap_u: WRAP_MODE_CLAMP_TO_EDGE\n");
         src.append("  wrap_v: WRAP_MODE_CLAMP_TO_EDGE\n");
+        src.append("  wrap_w: WRAP_MODE_MIRRORED_REPEAT\n");
         src.append("  filter_min: FILTER_MODE_MIN_LINEAR\n");
         src.append("  filter_mag: FILTER_MODE_MAG_LINEAR\n");
         src.append("}\n");
@@ -122,12 +125,16 @@ public class ComputeBuilderTest extends AbstractProtoBuilderTest {
         assertEquals("texture_in", samplers.get(0).getName());
         assertEquals(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE, samplers.get(0).getWrapU());
         assertEquals(MaterialDesc.WrapMode.WRAP_MODE_CLAMP_TO_EDGE, samplers.get(0).getWrapV());
+        assertEquals(MaterialDesc.WrapMode.WRAP_MODE_MIRRORED_REPEAT, samplers.get(0).getWrapW());
+        assertTrue(samplers.get(0).hasWrapW());
         assertEquals(MaterialDesc.FilterModeMin.FILTER_MODE_MIN_LINEAR, samplers.get(0).getFilterMin());
         assertEquals(MaterialDesc.FilterModeMag.FILTER_MODE_MAG_LINEAR, samplers.get(0).getFilterMag());
 
         assertEquals("texture_out", samplers.get(1).getName());
         assertEquals(MaterialDesc.WrapMode.WRAP_MODE_REPEAT, samplers.get(1).getWrapU());
         assertEquals(MaterialDesc.WrapMode.WRAP_MODE_REPEAT, samplers.get(1).getWrapV());
+        assertEquals(MaterialDesc.WrapMode.WRAP_MODE_REPEAT, samplers.get(1).getWrapW());
+        assertFalse(samplers.get(1).hasWrapW());
         assertEquals(MaterialDesc.FilterModeMin.FILTER_MODE_MIN_NEAREST, samplers.get(1).getFilterMin());
         assertEquals(MaterialDesc.FilterModeMag.FILTER_MODE_MAG_NEAREST, samplers.get(1).getFilterMag());
 

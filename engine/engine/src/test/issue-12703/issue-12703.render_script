@@ -1,0 +1,9 @@
+function init(self)
+	self.tile_predicate = render.predicate({ "tile" })
+end
+
+function update(self)
+	render.set_view(vmath.matrix4())
+	render.set_projection(vmath.matrix4())
+	render.draw(self.tile_predicate)
+end

@@ -13,11 +13,12 @@ set(TEXC_DEPENDENCIES dlib zip mbedtls basis_encoder astcenc)
 set(TEXC_BINDINGS_DEPENDENCIES jni_noasan)
 set(TEXC_SHARED_DEPENDENCIES
   dlib_noasan
+  image_noasan
   zip_noasan
   mbedtls_noasan
   profile_null_noasan
   jni_noasan
-  basis_encoder_noasan
+  basis_encoder
   astcenc)
 
 set(TEXC_IS_DESKTOP OFF)
@@ -28,6 +29,10 @@ endif()
 if(TEXC_IS_DESKTOP)
   find_package(JNI REQUIRED)
   find_program(DEFOLD_PYTHON NAMES python3 python REQUIRED)
+  defold_find_clang_cpp(DEFOLD_CLANGPP)
+  if(NOT DEFOLD_CLANGPP)
+    message(FATAL_ERROR "Could not find clang++. It is required to generate texc Java bindings.")
+  endif()
 
   set(TEXC_CORE_SOURCES
     "${TEXC_SRC_DIR}/texc.cpp"
@@ -48,6 +53,7 @@ if(TEXC_IS_DESKTOP)
     COMMAND "${CMAKE_COMMAND}" -E env
             "DEFOLD_HOME=${DEFOLD_HOME}"
             "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
+            "CLANGPP=${DEFOLD_CLANGPP}"
             "${DEFOLD_PYTHON}" "${DEFOLD_CMAKE_DIR}/gen_java_bindings.py"
             --gen-java "${DEFOLD_HOME}/engine/jni/scripts/gen_java.py"
             --header "${TEXC_SRC_DIR}/texc.h"

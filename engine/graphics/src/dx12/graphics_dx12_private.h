@@ -25,8 +25,8 @@
 
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 
-#if defined(DM_PLATFORM_VENDOR) && __has_include("graphics_dx12_vendor.h")
-    #include "graphics_dx12_vendor.h"
+#if defined(DM_PLATFORM_XBOX)
+    #include "graphics_dx12_xbox.h"
 #else
     #include <d3d12.h>
     #include <d3dx12.h>
@@ -74,6 +74,7 @@ namespace dmGraphics
         TextureFilter   m_MagFilter;
         TextureWrap     m_AddressModeU;
         TextureWrap     m_AddressModeV;
+        TextureWrap     m_AddressModeW;
         float           m_MaxAnisotropy;
         uint8_t         m_MaxLod;
     };
@@ -246,7 +247,7 @@ namespace dmGraphics
         GraphicsContext                    m_BaseContext;
         ID3D12Device*                      m_Device;
 
-#if defined(DM_PLATFORM_VENDOR)
+#if defined(DM_PLATFORM_XBOX)
         DX12VendorContext                  m_VendorContext;
 #else
         IDXGISwapChain3*                   m_SwapChain;
@@ -295,7 +296,7 @@ namespace dmGraphics
     };
 
     bool            CommonInitialize(DX12Context* context);
-    int16_t         CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy);
+    int16_t         CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, uint8_t maxLod, float max_anisotropy);
     void            FlushResourcesToDestroy(DX12FrameResource& current_frame_resource);
     void            SyncronizeFrame(DX12Context* context);; // wait for gpu to finish
     void            SetupMainRenderTarget(DX12Context* context, DXGI_SAMPLE_DESC sample_desc);

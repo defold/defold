@@ -15,7 +15,8 @@
 package com.dynamo.bob.test.util;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+
+import java.nio.charset.StandardCharsets;
 
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
@@ -31,6 +32,12 @@ public class PropertiesTestUtil {
 
     public static void assertURL(PropertyDeclarations properties, String expected, int index) {
         assertEquals(expected, properties.getStringValues(properties.getUrlEntries(index).getIndex()));
+    }
+
+    public static void assertText(PropertyDeclarations properties, String expected, int index) {
+        PropertyDeclarationEntry entry = properties.getTextEntries(index);
+        assertEquals(expected, properties.getStringValues(entry.getIndex()));
+        assertEquals(expected.getBytes(StandardCharsets.UTF_8).length, entry.getValueLength());
     }
 
     public static void assertVector3(PropertyDeclarations properties, float expectedX, float expectedY, float expectedZ, int index) {
@@ -57,6 +64,6 @@ public class PropertiesTestUtil {
     }
 
     public static void assertBoolean(PropertyDeclarations properties, boolean expected, int index) {
-        assertTrue(expected == (properties.getFloatValues(properties.getBoolEntries(index).getIndex()) != 0.0f));
+        assertEquals(expected, (properties.getFloatValues(properties.getBoolEntries(index).getIndex()) != 0.0f));
     }
 }

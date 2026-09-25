@@ -23,10 +23,6 @@
 #include <dlib/math.h>
 #include <dlib/path.h>
 
-#if !defined(DM_HOSTFS)
-    #define DM_HOSTFS ""
-#endif
-
 #ifdef __EMSCRIPTEN__
 // Implemented in library_sys.js
 extern "C" void dmSysPumpMessageQueue();
@@ -170,30 +166,7 @@ namespace dmSys
     #endif
     }
 
-    Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
-    {
-        const char* hostfs = DM_HOSTFS;
-        size_t hostfs_len = strlen(hostfs);
-
-        if (hostfs_len == 0 || strncmp(path, hostfs, hostfs_len) == 0)
-        {
-            dmStrlCpy(buffer, path, buffer_size);
-        }
-        else
-        {
-            dmStrlCpy(buffer, hostfs, buffer_size);
-            size_t buffer_len = buffer_size > 0 ? strlen(buffer) : 0;
-            if (buffer_len > 0 && buffer[buffer_len - 1] != '/')
-            {
-                dmStrlCat(buffer, "/", buffer_size);
-            }
-            dmStrlCat(buffer, path, buffer_size);
-        }
-
-        dmPath::Normalize(buffer, buffer, buffer_size);
-        return RESULT_OK;
-    }
-
+#if !defined(DM_SYS_CUSTOM_HOST_PATHS)
     Result ResolveMountFileName(char* buffer, size_t buffer_size, const char* path)
     {
         dmSnPrintf(buffer, buffer_size, "%s", path);
@@ -210,6 +183,7 @@ namespace dmSys
 
         return RESULT_NOENT;
     }
+#endif
 
     void GetEngineInfo(EngineInfo* info)
     {
@@ -229,45 +203,68 @@ namespace dmSys
 
     void FillLanguageTerritory(const char* lang, struct SystemInfo* info)
     {
-        // find first separator ("-" or "_")
-        size_t lang_len = lang ? strlen(lang) : 0;
-        if(lang_len == 0)
+        // Platform locale names start with language[-script][-region]. Apple
+        // and POSIX may use underscores; POSIX may append codeset or modifier data.
+        const char* separators = "-_.@";
+        size_t language_len = lang ? strcspn(lang, separators) : 0;
+        if (language_len == 0)
         {
             lang = "en_US";
-            lang_len = strlen(lang);
+            language_len = 2;
             dmLogWarning("Invalid language parameter (empty field), using default: \"%s\"", lang);
         }
-        const char* sep_first = lang;
-        while((*sep_first) && (*sep_first != '-') && (*sep_first != '_'))
-            ++sep_first;
-        const char* sep_last = lang + lang_len;
-        while((sep_last != sep_first) && (*sep_last != '-') && (*sep_last != '_'))
-            --sep_last;
+        dmStrlCpy(info->m_Language, lang, dmMath::Min(sizeof(info->m_Language), language_len + 1));
 
-        dmStrlCpy(info->m_Language, lang, dmMath::Min((size_t)(sep_first+1 - lang), sizeof(info->m_Language)));
+        const char* script = 0;
+        const char* region = 0;
+        size_t region_len = 0;
 
-        if(sep_first != sep_last)
-        {
-            // Language script. If there is more than one separator, this is what is up to the last separator (<language>-<script>-<territory> format)
-            dmStrlCpy(info->m_DeviceLanguage, lang, dmMath::Min((size_t)(sep_last+1 - lang), sizeof(info->m_DeviceLanguage)));
-            info->m_DeviceLanguage[sep_first - lang] = '-';
-        }
-        else
-        {
-            // No language script, default to language
-            dmStrlCpy(info->m_DeviceLanguage, info->m_Language, dmMath::Min(sizeof(info->m_DeviceLanguage), sizeof(info->m_Language)));
-        }
+        // The subtag after the language is either a four-letter script or the
+        // region itself.
+        const char* subtag = lang + language_len;
+        if (*subtag == '-' || *subtag == '_')
+            ++subtag;
+        size_t subtag_len = strcspn(subtag, separators);
 
-        if(sep_last != lang + lang_len)
+        // RFC 5646 section 2.2.3 defines script as an optional subtag that is
+        // separate from region. Preserve it only when the platform supplied it.
+        // https://www.rfc-editor.org/rfc/rfc5646.html#section-2.2.3
+        const char* ascii_letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        if (subtag_len == 4 && strspn(subtag, ascii_letters) == subtag_len)
         {
-            dmStrlCpy(info->m_Territory, sep_last + 1, dmMath::Min((size_t)((lang + lang_len) - sep_last), sizeof(info->m_Territory)));
-        }
-        else
-        {
-            info->m_Territory[0] = '\0';
-            dmLogWarning("No territory detected in language string: \"%s\"", lang);
+            script = subtag;
+
+            // If there is a script, the following subtag may be the region.
+            subtag += subtag_len;
+            if (*subtag == '-' || *subtag == '_')
+                ++subtag;
+            subtag_len = strcspn(subtag, separators);
         }
 
+        // Regions are either two ASCII letters or three digits.
+        bool is_region =
+            (subtag_len == 2 && strspn(subtag, ascii_letters) == subtag_len) ||
+            (subtag_len == 3 && strspn(subtag, "0123456789") == subtag_len);
+        if (is_region)
+        {
+            region = subtag;
+            region_len = subtag_len;
+        }
+
+        // Expose only explicitly supplied language-script and region. POSIX
+        // metadata, variants, extensions, and Windows sort-order subtags are ignored.
+        dmStrlCpy(info->m_DeviceLanguage, info->m_Language, sizeof(info->m_DeviceLanguage));
+        if (script)
+        {
+            char script_code[5];
+            dmStrlCpy(script_code, script, sizeof(script_code));
+            dmStrlCat(info->m_DeviceLanguage, "-", sizeof(info->m_DeviceLanguage));
+            dmStrlCat(info->m_DeviceLanguage, script_code, sizeof(info->m_DeviceLanguage));
+        }
+
+        info->m_Territory[0] = '\0';
+        if (region)
+            dmStrlCpy(info->m_Territory, region, region_len + 1);
     }
 
     void PumpMessageQueue() {

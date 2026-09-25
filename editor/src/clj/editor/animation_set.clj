@@ -115,10 +115,10 @@
 (g/defnk produce-animation-set-build-target [_node-id resource animation-set]
   (when (not (empty? animation-set))
     (bt/with-content-hash
-       {:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-animation-set
-        :user-data {:animation-set animation-set}})))
+      {:node-id _node-id
+       :resource (workspace/make-build-resource resource)
+       :build-fn build-animation-set
+       :user-data {:animation-set animation-set}})))
 
 (def ^:private form-sections
   {:navigation false
@@ -151,7 +151,7 @@
   (property animations resource/ResourceVec ; Nil is valid default.
             (value (gu/passthrough animation-resources))
             (set (fn [evaluation-context self old-value new-value]
-                   (let [project (project/get-project (:basis evaluation-context) self)
+                   (let [project (project/get-project (:basis evaluation-context))
                          connections [[:resource :animation-resources]
                                       [:animation-set :animation-sets]
                                       [:animation-info :animation-infos]]]
@@ -173,15 +173,14 @@
   (output animation-ids g/Any produce-animation-ids)
   (output animation-set-build-target g/Any :cached produce-animation-set-build-target))
 
-(defn- load-animation-set [_project self resource animation-set-desc]
+(defn- load-animation-set [{:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id animation-set-desc :source-value}]
   {:pre [(map? animation-set-desc)]} ; Rig$AnimationSetDesc in map format
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)
         animation-instance-descs->animation-resources #(mapv (comp resolve-resource :animation) %)]
     (gu/set-properties-from-pb-map self Rig$AnimationSetDesc animation-set-desc
       animations (animation-instance-descs->animation-resources :animations))))
 
-(defn- sanitize-animation-set [animation-set-desc]
+(defn- sanitize-animation-set [_read-opts _owner-resource animation-set-desc]
   (dissoc animation-set-desc :skeleton)) ; Deprecated field.
 
 (defn register-resource-types [workspace]
@@ -195,4 +194,4 @@
     :sanitize-fn sanitize-animation-set
     :node-type AnimationSetNode
     :ddf-type Rig$AnimationSetDesc
-    :view-types [:cljfx-form-view :text]))
+    :view-types [:form :text]))

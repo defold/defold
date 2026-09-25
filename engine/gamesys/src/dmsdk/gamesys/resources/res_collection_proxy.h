@@ -16,13 +16,13 @@
 #define DMSDK_GAMESYS_RES_COLLECTION_PROXY_H
 
 #include <dmsdk/dlib/hash.h>
-#include <gamesys/gamesys_ddf.h>
+#include <gamesys/collectionproxy_ddf.h>
 
 namespace dmGameSystem
 {
     struct CollectionProxyResource
     {
-        dmGameSystemDDF::CollectionProxyDesc* m_DDF;
+        dmCollectionProxyDDF::CollectionProxyDesc* m_DDF;
         dmhash_t m_UrlHash;
     };
 }

@@ -15,7 +15,11 @@ jobs:
       package_name: 'skribidi'
       result_folder_name: 'SkriBidi'
       result_lib_name: 'libskribidi'
-      package_version: '1e8038'
+      package_version: 'a4a2f5'
+      artifact_dir: 'packages'
+      setup_msvc: true
+      build_command: |
+        ./scripts/build.py --platform="$BUILD_PLATFORM_NAME" --package=skribidi build_external
       push_changes: ${{ inputs.push_changes }}
     secrets:
       dm_packages_url: ${{ secrets.DM_PACKAGES_URL }}

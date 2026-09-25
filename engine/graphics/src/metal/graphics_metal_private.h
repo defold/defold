@@ -35,15 +35,19 @@ namespace dmGraphics
     typedef dmHashTable64<MetalPipeline> PipelineCache;
     typedef dmArray<ResourceToDestroy>   ResourcesToDestroyList;
 
-#if defined(DM_PLATFORM_MACOS)
-    const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 2; // Keep two frames in flight on macOS for better CPU/GPU overlap
-#else
-    const static uint8_t  MAX_FRAMES_IN_FLIGHT     = 1;
-#endif
+    const static uint8_t  MAX_FRAMES_IN_FLIGHT       = 2; // Keep two frames in flight for better CPU/GPU overlap
     const static uint16_t MAX_ENCODER_RESOURCE_CACHE = 256;
     const static uint8_t  MAX_VERTEX_BUFFER_SLOTS    = MAX_BINDINGS_PER_SET_COUNT + MAX_VERTEX_BUFFERS;
-    const static uint32_t UNIFORM_BUFFER_ALIGNMENT = 256;
-    const static uint32_t STORAGE_BUFFER_ALIGNMENT = 16;
+    // Minimum constant buffer offset alignment: https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf
+    // Simulator requirements: https://developer.apple.com/documentation/metal/developing-metal-apps-that-run-in-simulator#Constant-buffer-limitations
+#if defined(IOS_SIMULATOR)
+    const static uint32_t UNIFORM_BUFFER_ALIGNMENT   = 256;
+#elif defined(DM_PLATFORM_MACOS) && defined(__x86_64__)
+    const static uint32_t UNIFORM_BUFFER_ALIGNMENT   = 32;
+#else
+    const static uint32_t UNIFORM_BUFFER_ALIGNMENT   = 4;
+#endif
+    const static uint32_t STORAGE_BUFFER_ALIGNMENT   = 16;
 
     enum MetalResourceType
     {
@@ -124,7 +128,7 @@ namespace dmGraphics
 
         void                        Initialize(const MetalContext* context, uint32_t size_per_buffer);
         void                        AddBuffer(const MetalContext* context);
-        MetalConstantScratchBuffer* Allocate(const MetalContext* context, uint32_t size);
+        MetalConstantScratchBuffer* Allocate(const MetalContext* context, uint32_t size, uint32_t alignment);
         MetalArgumentBinding        Bind(const MetalContext* context, MTL::ArgumentEncoder* encode);
 
         inline MetalConstantScratchBuffer* Get() { return &m_ScratchBufferPool[m_ScratchBufferIndex]; }
@@ -147,6 +151,7 @@ namespace dmGraphics
         TextureFilter      m_MagFilter;
         TextureWrap        m_AddressModeU;
         TextureWrap        m_AddressModeV;
+        TextureWrap        m_AddressModeW;
         float              m_MaxAnisotropy;
         float              m_MinLod;
         float              m_MaxLod;
@@ -172,6 +177,8 @@ namespace dmGraphics
         MetalRenderTarget(const uint32_t rtId)
         : m_DepthClearValue(1.0f)
         , m_StencilClearValue(0)
+        , m_Width(0)
+        , m_Height(0)
         , m_Id(rtId)
         , m_Destroyed(0)
         , m_IsBound(0)
@@ -209,6 +216,8 @@ namespace dmGraphics
         MTL::PixelFormat      m_ColorFormat[MAX_BUFFER_COLOR_ATTACHMENTS];
         MTL::PixelFormat      m_DepthStencilFormat;
 
+        uint16_t       m_Width;
+        uint16_t       m_Height;
         const uint16_t m_Id;
         uint32_t       m_Destroyed            : 1;
         uint32_t       m_IsBound              : 1;
@@ -272,10 +281,11 @@ namespace dmGraphics
             uint32_t         m_ColorWriteMaskBits;
             MTL::PixelFormat m_ColorFormats[MAX_BUFFER_COLOR_ATTACHMENTS];
             MTL::PixelFormat m_DepthStencilFormat;
+            // MetalGetSupportedSampleCounts admits values through 64.
+            uint8_t          m_SampleCount;
             uint8_t          m_ClearColor   : 1;
             uint8_t          m_ClearDepth   : 1;
             uint8_t          m_ClearStencil : 1;
-            uint8_t          m_SampleCount  : 4;
         };
 
         struct ClearShader
@@ -320,6 +330,7 @@ namespace dmGraphics
         HJobContext                        m_JobContext;
         SetTextureAsyncState               m_SetTextureAsyncState;
         int32_atomic_t                     m_DeleteContextRequested;
+        int32_atomic_t                     m_PendingAsyncTextureJobs;
         dispatch_semaphore_t               m_FrameBoundarySemaphore;
 
         // Per-frame render state
@@ -356,6 +367,7 @@ namespace dmGraphics
         uint32_t                           m_NumFramesInFlight       : 2;
         uint32_t                           m_RenderTargetBound       : 1;
         uint32_t                           m_MainRTBegunThisFrame    : 1;
+        uint32_t                           m_MainMSAAColorNeedsResolve : 1;
         uint32_t                           m_ViewportChanged         : 1;
         uint32_t                           m_ScissorChanged          : 1;
         uint32_t                           m_CullFaceChanged         : 1;
@@ -365,6 +377,7 @@ namespace dmGraphics
         // See OpenGL backend: separate flag for ASTC array textures
         uint32_t                           m_ASTCArrayTextureSupport : 1;
         uint32_t                           m_AsyncProcessingSupport  : 1;
+        uint32_t                           m_CombinedMSAAStoreAndResolveSupport : 1;
     };
 }
 

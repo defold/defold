@@ -200,7 +200,7 @@ namespace dmGameSystem
         if (world->m_PrototypeIndices.Remaining() == 0)
         {
             ShowFullBufferError("ParticleFx", dmParticle::MAX_INSTANCE_COUNT_KEY, world->m_PrototypeIndices.Capacity());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         uint32_t index = world->m_PrototypeIndices.Pop();
         ParticleFXComponentPrototype* prototype = &world->m_Prototypes[index];
@@ -601,8 +601,6 @@ namespace dmGameSystem
 
     static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
     {
-        ParticleFXWorld* pfx_world = (ParticleFXWorld*)params.m_UserData;
-
         for (uint32_t i = 0; i < params.m_NumEntries; ++i)
         {
             dmRender::RenderListEntry* entry = &params.m_Entries[i];
@@ -1200,9 +1198,49 @@ namespace dmGameSystem
         return dmParticle::FETCH_RESOURCES_OK;
     }
 
+    static dmGameObject::Result CompParticleFXTypeCreate(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::HComponentType type)
+    {
+        ParticleFXContext* particlefx_context = new ParticleFXContext;
+        HContextRegistry context_registry = dmGameObject::ComponentGetContextRegistry(ctx);
+        particlefx_context->m_Factory = ctx->m_Factory;
+        particlefx_context->m_RenderContext = (dmRender::HRenderContext) ContextRegistryGet(context_registry, RENDER_CONTEXT_NAME);
+        particlefx_context->m_MaxParticleFXCount = dmConfigFile::GetInt(ctx->m_Config, dmParticle::MAX_INSTANCE_COUNT_KEY, 64);
+        particlefx_context->m_MaxEmitterCount = dmConfigFile::GetInt(ctx->m_Config, dmParticle::MAX_EMITTER_COUNT_KEY, 64);
+        particlefx_context->m_MaxParticleCount = dmConfigFile::GetInt(ctx->m_Config, dmParticle::MAX_PARTICLE_GPU_COUNT_KEY, 1024);
+        particlefx_context->m_MaxParticleBufferCount = dmConfigFile::GetInt(ctx->m_Config, dmParticle::MAX_PARTICLE_CPU_COUNT_KEY, 1024);
+        particlefx_context->m_Debug = false;
+
+        dmGameObject::ComponentTypeSetPrio(type, 800);
+        dmGameObject::ComponentTypeSetContext(type, particlefx_context);
+        dmGameObject::ComponentTypeSetHasUserData(type, true);
+        dmGameObject::ComponentTypeSetReadsTransforms(type, true);
+        dmGameObject::ComponentTypeSetNewWorldFn(type, CompParticleFXNewWorld);
+        dmGameObject::ComponentTypeSetDeleteWorldFn(type, CompParticleFXDeleteWorld);
+        dmGameObject::ComponentTypeSetCreateFn(type, CompParticleFXCreate);
+        dmGameObject::ComponentTypeSetDestroyFn(type, CompParticleFXDestroy);
+        dmGameObject::ComponentTypeSetAddToUpdateFn(type, CompParticleFXAddToUpdate);
+        dmGameObject::ComponentTypeSetGetFn(type, CompParticleFXGetComponent);
+        dmGameObject::ComponentTypeSetUpdateFn(type, CompParticleFXUpdate);
+        dmGameObject::ComponentTypeSetRenderFn(type, CompParticleFXRender);
+        dmGameObject::ComponentTypeSetOnMessageFn(type, CompParticleFXOnMessage);
+        dmGameObject::ComponentTypeSetOnReloadFn(type, CompParticleFXOnReload);
+        dmGameObject::ComponentTypeSetGetPropertyFn(type, CompParticleFXGetProperty);
+        dmGameObject::ComponentTypeSetSetPropertyFn(type, CompParticleFXSetProperty);
+        return dmGameObject::RESULT_OK;
+    }
+
+    static dmGameObject::Result CompParticleFXTypeDestroy(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::HComponentType type)
+    {
+        ParticleFXContext* particlefx_context = (ParticleFXContext*) dmGameObject::ComponentTypeGetContext(type);
+        delete particlefx_context;
+        return dmGameObject::RESULT_OK;
+    }
+
     void GetParticleFXWorldRenderBuffers(void* pfx_world, dmRender::HBufferedRenderBuffer* vx_buffer)
     {
         ParticleFXWorld* world = (ParticleFXWorld*) pfx_world;
         *vx_buffer = world->m_VertexBuffer;
     }
 }
+
+DM_DECLARE_COMPONENT_TYPE(ComponentTypeParticleFX, "particlefxc", dmGameSystem::CompParticleFXTypeCreate, dmGameSystem::CompParticleFXTypeDestroy);

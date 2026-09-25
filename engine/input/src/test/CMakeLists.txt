@@ -84,13 +84,13 @@ defold_target_link_socket(test_input "${TARGET_PLATFORM}" PRIVATE)
 defold_target_link_glfw(test_input "${TARGET_PLATFORM}" PRIVATE)
 
 # Platform-specific libs
-if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android")
+if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android")
     # nothing extra for now
-elseif (TARGET_PLATFORM MATCHES "arm64-ios|x86_64-ios")
+elseif (TARGET_PLATFORM MATCHES "arm64-ios|arm64_sim-ios")
     target_link_libraries(test_input PRIVATE "-framework IOKit")
 elseif (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
     target_link_libraries(test_input PRIVATE "-framework IOKit")
-elseif (TARGET_PLATFORM MATCHES "x86_64-win32|win32")
+elseif (TARGET_PLATFORM STREQUAL "x86_64-win32")
     target_link_libraries(test_input PRIVATE user32 gdi32 shell32)
 elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
     find_package(Threads REQUIRED)

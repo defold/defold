@@ -356,9 +356,9 @@ namespace dmGameObject
     void UpdateTransforms(HCollection hcollection);
 
     /**
-     * Remove the reference to a dynamically created resource. This implies
-     * that the resource has been externally removed and should no longer be
-     * tracked by the collection, e.g resource.release(id) has been called
+     * Remove the reference to a dynamically created resource from all collections
+     * in the collection register. This implies that the resource has been externally
+     * removed and should no longer be tracked, e.g resource.release(id) has been called.
      */
     void RemoveDynamicResourceHash(HCollection collection, dmhash_t resource_hash);
 }

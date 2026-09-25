@@ -158,7 +158,7 @@ namespace dmGameSystem
         else
         {
             ShowFullBufferError("Factory", FACTORY_MAX_COUNT_KEY, fw->m_Components.Size());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -253,7 +253,7 @@ namespace dmGameSystem
             }
 
             dmGameObject::HInstance spawned_instance;
-            dmGameObject::Result result = DoSpawn(world, component, collection, create->m_Id, create->m_Position, create->m_Rotation, scale, properties, &spawned_instance);
+            DoSpawn(world, component, collection, create->m_Id, create->m_Position, create->m_Rotation, scale, properties, &spawned_instance);
 
             if (properties)
             {

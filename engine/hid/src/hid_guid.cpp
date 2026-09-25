@@ -20,8 +20,6 @@
 
 #include <dlib/dstrings.h>
 
-#include <sdl/joystick/usb_ids.h>
-
 namespace dmHID
 {
 
@@ -174,63 +172,7 @@ GamepadGuid CreateGUID(uint16_t bus, uint16_t vendor, uint16_t product, uint16_t
 
 const char* GetGamepadIdentityName(const GamepadIdentity& identity, const char* fallback_name)
 {
-    if (identity.m_Vendor == USB_VENDOR_NINTENDO)
-    {
-        switch (identity.m_Product)
-        {
-            case USB_PRODUCT_NINTENDO_SWITCH_PRO:          return "Nintendo Switch Pro Controller";
-            case USB_PRODUCT_NINTENDO_SWITCH_JOYCON_PAIR:  return "Nintendo Switch Joy-Con (L/R)";
-            case USB_PRODUCT_NINTENDO_SWITCH_JOYCON_LEFT:  return "Nintendo Switch Joy-Con (L)";
-            case USB_PRODUCT_NINTENDO_SWITCH_JOYCON_RIGHT: return "Nintendo Switch Joy-Con (R)";
-            default: break;
-        }
-    }
-
-    if (identity.m_Vendor == USB_VENDOR_SONY)
-    {
-        switch (identity.m_Product)
-        {
-            case USB_PRODUCT_SONY_DS4_SLIM:
-                if (identity.m_HasDualshockTouchpad)
-                    return "PS4 Controller";
-                return "DualShock 4 Wireless Controller";
-            case USB_PRODUCT_SONY_DS5:
-                return "DualSense Wireless Controller";
-            default: break;
-        }
-    }
-
-    if (identity.m_Vendor == USB_VENDOR_MICROSOFT)
-    {
-        switch (identity.m_Product)
-        {
-            case USB_PRODUCT_XBOX360_XUSB_CONTROLLER:
-            case USB_PRODUCT_XBOX360_WIRED_CONTROLLER:
-            case USB_PRODUCT_XBOX360_WIRELESS_RECEIVER:
-            case USB_PRODUCT_XBOX360_WIRELESS_RECEIVER_THIRDPARTY1:
-            case USB_PRODUCT_XBOX360_WIRELESS_RECEIVER_THIRDPARTY2:
-                return "Xbox 360 Controller";
-            case USB_PRODUCT_XBOX_ONE_ADAPTIVE:                 return "Xbox Adaptive Controller";
-            case USB_PRODUCT_XBOX_ONE_ELITE_SERIES_1:           return "Xbox Elite Wireless Controller";
-            case USB_PRODUCT_XBOX_ONE_ELITE_SERIES_2:           return "Xbox Elite Wireless Controller Series 2";
-            case USB_PRODUCT_XBOX_ONE_ELITE_SERIES_2_BLUETOOTH: return "Xbox Elite Wireless Controller Series 2";
-            case USB_PRODUCT_XBOX_ONE_S:                        return "Xbox Wireless Controller";
-            case USB_PRODUCT_XBOX_ONE_S_REV2_BLUETOOTH:         return "Xbox Wireless Controller";
-            case USB_PRODUCT_XBOX_SERIES_X:                     return "Xbox Wireless Controller";
-            case USB_PRODUCT_XBOX_SERIES_X_BLE:                 return "Xbox Wireless Controller";
-            case USB_PRODUCT_XBOX_ONE_S_REV1_BLUETOOTH:         return "Xbox Wireless Controller";
-            case USB_PRODUCT_XBOX_ONE_XBOXGIP_CONTROLLER:       return "Xbox Wireless Controller";
-            default: break;
-        }
-    }
-
-    if (identity.m_Vendor == USB_VENDOR_BACKBONE)
-    {
-        if (identity.m_Product == USB_PRODUCT_BACKBONE_ONE_IOS_PS5)
-            return "Backbone One PlayStation Edition";
-        if (identity.m_Product == USB_PRODUCT_BACKBONE_ONE_IOS)
-            return "Backbone One";
-    }
+    (void) identity;
 
     if (fallback_name && fallback_name[0] != '\0')
         return fallback_name;
@@ -240,12 +182,11 @@ const char* GetGamepadIdentityName(const GamepadIdentity& identity, const char* 
 
 GamepadGuid CreateGUIDFromIdentity(uint16_t bus, const GamepadIdentity& identity, const char* fallback_name, const char** axis_keys, uint32_t axis_count, const char** button_keys, uint32_t button_count, uint16_t button_mask)
 {
-    const char* name_for_guid = GetGamepadIdentityName(identity, fallback_name);
     uint16_t signature = 0;
 
     if (axis_count > 0 || button_count > 0)
     {
-        signature = UpdateCRC16(signature, name_for_guid);
+        signature = UpdateCRC16(signature, fallback_name);
 
         for (uint32_t i = 0; i < axis_count; ++i)
         {
@@ -262,7 +203,7 @@ GamepadGuid CreateGUIDFromIdentity(uint16_t bus, const GamepadIdentity& identity
         signature = button_mask;
     }
 
-    return CreateGUID(bus, identity.m_Vendor, identity.m_Product, signature, 0, name_for_guid, 0, 0);
+    return CreateGUID(bus, identity.m_Vendor, identity.m_Product, signature, 0, fallback_name, 0, 0);
 }
 
 void GetGamepadDeviceNameSDL(HContext context, HGamepad gamepad, char device_name[MAX_GAMEPAD_NAME_LENGTH])

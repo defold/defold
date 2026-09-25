@@ -19,6 +19,7 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.vertex2 :as vtx]
+            [editor.render-util :as render-util]
             [editor.shaders :as shaders]
             [editor.slice9 :as slice9]
             [util.coll :refer [pair]])
@@ -358,6 +359,24 @@
 
 (def ^:const animation-preview-offset 40.0)
 
+(defn animation-preview-size
+  [camera viewport ^double image-width ^double image-height]
+  (let [[sx sy _] (camera/scale-factor camera viewport)
+        sx (double sx)
+        sy (double sy)
+        scaled-width (/ image-width sx)
+        scaled-height (/ image-height sy)
+        max-width (max 0.0 (- (double (:right viewport))
+                              (double (:left viewport))
+                              (* 2.0 animation-preview-offset)))
+        max-height (max 0.0 (- (double (:bottom viewport))
+                               (double (:top viewport))
+                               (* 2.0 animation-preview-offset)))
+        scale (min 1.0
+                   (/ max-width scaled-width)
+                   (/ max-height scaled-height))]
+    [(* scaled-width scale) (* scaled-height scale)]))
+
 (defn- animation-frame->vertex-floats
   [animation-frame world-transform]
   (let [size [(:width animation-frame)
@@ -394,13 +413,6 @@
 (defn render-animation-overlay
   [^GL2 gl render-args renderables]
   (let [{:keys [camera viewport]} render-args
-        [^double sx ^double sy ^double sz] (camera/scale-factor camera viewport)
-        scale-m (doto (Matrix4d.)
-                  (.setIdentity)
-                  (.setM00 (/ 1.0 sx))
-                  (.setM11 (- (/ 1.0 sy))) ; flip
-                  (.setM22 (/ 1.0 sz))
-                  (.setM33 1.0))
         world-pos (Vector3d. animation-preview-offset (- (double (:bottom viewport)) animation-preview-offset) 0.0)]
     (doseq [renderable renderables]
       (let [state (-> renderable :updatable :state)]
@@ -409,10 +421,17 @@
                 anim-data (:anim-data user-data)
                 image-width (double (:width anim-data))
                 image-height (double (:height anim-data))
+                [scaled-width scaled-height] (animation-preview-size camera viewport image-width image-height)
+                scaled-width (double scaled-width)
+                scaled-height (double scaled-height)
+                scale-m (doto (Matrix4d.)
+                          (.setIdentity)
+                          (.setM00 (/ scaled-width image-width))
+                          (.setM11 (- (/ scaled-height image-height)))) ; flip
                 world-transform (doto (Matrix4d.)
                                   (.setIdentity)
-                                  (.setTranslation (Vector3d. (+ (.x world-pos) (* 0.5 (/ 1.0 sx) image-width))
-                                                              (- (.y world-pos) (* 0.5 (/ 1.0 sy) image-height))
+                                  (.setTranslation (Vector3d. (+ (.x world-pos) (* 0.5 scaled-width))
+                                                              (- (.y world-pos) (* 0.5 scaled-height))
                                                               0.0))
                                   (.mul scale-m))
                 vertex-count (anim-data->vertex-count anim-data frame)
@@ -422,24 +441,14 @@
                     gpu-texture (:gpu-texture user-data)
                     x0 (.x world-pos)
                     y0 (.y world-pos)
-                    x1 (+ x0 (* (/ 1.0 sx) image-width))
-                    y1 (- y0 (* (/ 1.0 sy) image-height))
-                    [cr cg cb ca] colors/outline-color
-                    [xr xg xb xa] colors/scene-background]
-                (.glColor4d gl xr xg xb xa)
-                (.glBegin gl GL2/GL_QUADS)
-                (.glVertex3d gl x0 y0 0)
-                (.glVertex3d gl x0 y1 0)
-                (.glVertex3d gl x1 y1 0)
-                (.glVertex3d gl x1 y0 0)
-                (.glEnd gl)
-                (.glColor4d gl cr cg cb ca)
-                (.glBegin gl GL2/GL_LINE_LOOP)
-                (.glVertex3d gl x0 y0 0)
-                (.glVertex3d gl x0 y1 0)
-                (.glVertex3d gl x1 y1 0)
-                (.glVertex3d gl x1 y0 0)
-                (.glEnd gl)
+                    x1 (+ x0 scaled-width)
+                    y1 (- y0 scaled-height)
+                    positions [[x0 y0]
+                               [x0 y1]
+                               [x1 y1]
+                               [x1 y0]]]
+                (render-util/render-color-quad! gl render-args ::animation-background colors/scene-background positions)
+                (render-util/render-color-line-loop! gl render-args ::animation-outline colors/outline-color positions)
                 (gl/with-gl-bindings gl render-args [animation-overlay-shader vertex-binding gpu-texture]
                   (shader/set-samplers-by-index animation-overlay-shader gl 0 (:texture-units gpu-texture))
                   (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 vertex-count))))))))))

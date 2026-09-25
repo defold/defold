@@ -18,16 +18,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
@@ -54,6 +52,7 @@ import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.DependencyMetadata;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
@@ -65,8 +64,6 @@ import com.dynamo.rig.proto.Rig.MeshSet;
 import com.dynamo.rig.proto.Rig.Skeleton;
 import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.rig.proto.Rig.AnimationSet;
-
-import static com.dynamo.bob.util.ComponentsCounter.isCompCounterStorage;
 
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", paramsForSignature = {"liveupdate", "variant", "archive", "archive-resource-padding",
                 "platform", "build-report-json", "build-report-html"})
@@ -232,7 +229,7 @@ public class GameProjectBuilder extends Builder {
         return resourcePadding;
     }
 
-    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources) throws IOException, CompileExceptionError {
+    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, Set<String> excludedResources) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
         logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
@@ -267,17 +264,12 @@ public class GameProjectBuilder extends Builder {
 
     private Set<IResource> getCustomResources(Project project) {
         Set<IResource> resources = new HashSet<>();
-        String[] custom_resources = project.getProjectProperties().getStringValue("project", "custom_resources", "").split(",");
-        for (String s : custom_resources) {
-            s = s.trim();
-            if (!s.isEmpty()) {
-                ArrayList<String> paths = new ArrayList<String>();
-                project.findResourcePaths(s, paths);
-                for (String path : paths) {
-                    IResource r = project.getResource(path);
-                    resources.add(r.output());
-                }
-            }
+        for (String path : CopyCustomResourcesBuilder.getCustomResourcePaths(project)) {
+            IResource r = project.getResource(path);
+            resources.add(r.output());
+        }
+        if (CopyCustomResourcesBuilder.getDependencyMetadataInputResource(project) != null) {
+            resources.add(CopyCustomResourcesBuilder.getDependencyMetadataOutputResource(project));
         }
         return resources;
     }
@@ -290,6 +282,9 @@ public class GameProjectBuilder extends Builder {
                 IResource resource = project.getResource(path);
                 graph.add(resource);
             }
+        }
+        if (CopyCustomResourcesBuilder.getDependencyMetadataInputResource(project) != null) {
+            graph.add(project.getResource(DependencyMetadata.OUTPUT_PATH));
         }
         return graph;
     }
@@ -323,6 +318,8 @@ public class GameProjectBuilder extends Builder {
     static public void transformGameProjectFile(BobProjectProperties properties) {
         String gamepadsPath = properties.getStringValue("input", "gamepads", DEFAULT_GAMEPADS);
         String gamepadDbPath = properties.getStringValue("input", "gamepad_database", DEFAULT_GAMEPAD_DATABASE);
+        String[] projectCustomResources = properties.getStringArrayValue("project", "custom_resources", new String[0]);
+        String[] customResources = properties.getStringArrayValueMerged("project", "custom_resources", new String[0]);
 
         properties.removePrivateFields();
 
@@ -341,6 +338,9 @@ public class GameProjectBuilder extends Builder {
 
         properties.putStringValue("input", "gamepads", getGamepadsOutputPath(gamepadsPath, gamepadDbPath));
         properties.putStringValue("input", "gamepad_database", null);
+        if (!Arrays.equals(projectCustomResources, customResources)) {
+            properties.putStringValue("project", "custom_resources", String.join(", ", customResources));
+        }
     }
 
     private static void setOutputContentFromFile(IResource output, File sourceFile) throws IOException {
@@ -393,12 +393,12 @@ public class GameProjectBuilder extends Builder {
             logger.info("Creation of the excluded resources list.");
             tstart = System.currentTimeMillis();
             boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
-            List<String> excludedResources;
+            Set<String> excludedResources;
             if (shouldPublishLU) {
                 excludedResources = resourceGraph.createExcludedResourcesList();
             }
             else {
-                excludedResources = new ArrayList<String>();
+                excludedResources = new HashSet<String>();
             }
             tend = System.currentTimeMillis();
             logger.info("Creation of the excluded resources list took %f s", (tend-tstart)/1000.0);
@@ -464,7 +464,7 @@ public class GameProjectBuilder extends Builder {
         }
 
         transformGameProjectFile(properties);
-        task.getOutputs().get(0).setContent(properties.serialize().getBytes());
+        task.getOutputs().get(0).setContent(properties.serialize().getBytes(StandardCharsets.UTF_8));
     }
 
     @Override

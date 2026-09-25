@@ -28,9 +28,12 @@ def _add_private_paths(root):
             sys.path.insert(0, path)
 
 
-def _hook_file(root, hook, target_os):
+def _hook_files(root, hook, target_os):
     subdir = _hook_subdir(hook)
-    return os.path.join(root, subdir, '%s_%s.py' % (hook, target_os))
+    return [
+        os.path.join(root, subdir, '%s_%s.py' % (hook, target_os)),
+        os.path.join(root, subdir, '%s_vendor.py' % hook),
+    ]
 
 
 def find_hook_file(hook, platform):
@@ -47,9 +50,9 @@ def find_hook_file(hook, platform):
         search_roots.append(repo_root)
 
     for root in search_roots:
-        path = _hook_file(root, hook, target_os)
-        if os.path.exists(path):
-            return path
+        for path in _hook_files(root, hook, target_os):
+            if os.path.exists(path):
+                return path
     return None
 
 

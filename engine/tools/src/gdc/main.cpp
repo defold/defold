@@ -65,7 +65,7 @@ struct Driver
     Trigger m_Triggers[dmInputDDF::MAX_GAMEPAD_COUNT];
 };
 
-void GetDelta(dmHID::HGamepad gamepad, dmHID::GamepadPacket* zero_packet, dmHID::GamepadPacket* input_packet, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta);
+void GetDelta(dmHID::HGamepad gamepad, dmHID::GamepadPacket* zero_packet, dmHID::GamepadPacket* input_packet, bool prefer_axis, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta);
 void DumpDriver(FILE* out, Driver* driver);
 void LogDriver(Driver* driver);
 void DumpSDLEntry(FILE* out, Driver* driver);
@@ -84,6 +84,8 @@ static const char* GetSDLPlatformName(const char* platform)
         return "iOS";
     if (strcmp(platform, DM_PLATFORM_NAME_WEB) == 0)
         return "Web";
+    if (strcmp(platform, DM_PLATFORM_NAME_XBOX) == 0)
+        return "Xbox";
     return platform;
 }
 
@@ -489,7 +491,7 @@ int main(int argc, char *argv[])
     window_params.m_Height = 32;
     window_params.m_Title = "gdc";
     window_params.m_PrintDeviceInfo = false;
-    window_params.m_OpenGLVersionHint = 33;
+    window_params.m_GraphicsApiVersionHint = 33;
     window_params.m_GraphicsApi = AdapterFamilyToWindowApi(dmGraphics::GetInstalledAdapterFamily());
     window_params.m_ContextAlphabits = 8;
     window_params.m_Hidden = 1;
@@ -653,7 +655,7 @@ retry:
             printf("%d: Failed to get gamepad packet\n", __LINE__);
             break;
         }
-        GetDelta(gamepad, &prev_packet, &packet, &gamepad_type, &index, &value, &delta);
+        GetDelta(gamepad, &prev_packet, &packet, false, &gamepad_type, &index, &value, &delta);
         if (debug_input && dmMath::Abs(delta) >= 0.01f)
         {
             printf("\tdebug settle: type=%d index=%u value=%.3f delta=%.3f\n", gamepad_type, index, value, delta);
@@ -721,7 +723,7 @@ retry:
                 }
                 ++debug_sample_count;
             }
-            GetDelta(gamepad, &prev_packet, &packet, &gamepad_type, &index, &value, &delta);
+            GetDelta(gamepad, &prev_packet, &packet, IsTriggerID(i), &gamepad_type, &index, &value, &delta);
             if (debug_input && gamepad_type == dmInputDDF::GAMEPAD_TYPE_AXIS && dmMath::Abs(delta) > 0.05f)
             {
                 printf("\tdebug axis: index=%u value=%.3f delta=%.3f\n", index, value, delta);
@@ -817,7 +819,7 @@ bail:
     return result;
 }
 
-void GetDelta(dmHID::HGamepad gamepad, dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta)
+void GetDelta(dmHID::HGamepad gamepad, dmHID::GamepadPacket* prev_packet, dmHID::GamepadPacket* packet, bool prefer_axis, dmInputDDF::GamepadType* gamepad_type, uint32_t* index, float* value, float* delta)
 {
     if (gamepad_type != 0x0)
         *gamepad_type = dmInputDDF::GAMEPAD_TYPE_AXIS;
@@ -852,7 +854,7 @@ void GetDelta(dmHID::HGamepad gamepad, dmHID::GamepadPacket* prev_packet, dmHID:
     uint32_t hat_count = dmHID::GetGamepadHatCount(gamepad);
     for (uint32_t i = 0; i < hat_count; ++i)
     {
-        if (prev_packet->m_Hat[i] != packet->m_Hat[i]) {
+        if ((!prefer_axis || max_delta < AXIS_DETECT_THRESHOLD) && prev_packet->m_Hat[i] != packet->m_Hat[i]) {
             if (gamepad_type != 0x0)
                 *gamepad_type = dmInputDDF::GAMEPAD_TYPE_HAT;
             if (index != 0x0)
@@ -870,7 +872,7 @@ void GetDelta(dmHID::HGamepad gamepad, dmHID::GamepadPacket* prev_packet, dmHID:
     {
         bool was_down = dmHID::GetGamepadButton(prev_packet, i);
         bool is_down = dmHID::GetGamepadButton(packet, i);
-        if (!was_down && is_down)
+        if ((!prefer_axis || max_delta < AXIS_DETECT_THRESHOLD) && !was_down && is_down)
         {
             if (gamepad_type != 0x0)
                 *gamepad_type = dmInputDDF::GAMEPAD_TYPE_BUTTON;

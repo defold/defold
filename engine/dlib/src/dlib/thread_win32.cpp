@@ -14,6 +14,7 @@
 
 #include <assert.h>
 #include <dlib/profile/profile.h>
+#include <dmsdk/dlib/safe_windows.h>
 #include <dmsdk/dlib/thread.h>
 
 #include <stdlib.h>
@@ -21,6 +22,26 @@
 
 namespace dmThread
 {
+    static Thread ToThread(HANDLE thread)
+    {
+        return (Thread)(uintptr_t)thread;
+    }
+
+    static HANDLE ToNativeThread(Thread thread)
+    {
+        return (HANDLE)(uintptr_t)thread;
+    }
+
+    static TlsKey ToTlsKey(DWORD key)
+    {
+        return (TlsKey)key;
+    }
+
+    static DWORD ToNativeTlsKey(TlsKey key)
+    {
+        return (DWORD)key;
+    }
+
     static void* GetFunctionPtr(const char* dllname, const char* fnname)
     {
         return (void*)GetProcAddress(GetModuleHandleA(dllname), fnname);
@@ -40,7 +61,7 @@ namespace dmThread
             wchar_t* buf = (wchar_t*)malloc((wn + 1) * sizeof(wchar_t));
             wn = mbsrtowcs(buf, &name, wn + 1, NULL);
 
-            pfn(thread, buf);
+            pfn(ToNativeThread(thread), buf);
 
             free(buf);
         }
@@ -55,46 +76,46 @@ namespace dmThread
                                      arg, 0, &thread_id);
         assert(thread);
 
-        SetThreadName((Thread)thread, name);
+        SetThreadName(ToThread(thread), name);
 
-        return thread;
+        return ToThread(thread);
     }
 
     void Join(Thread thread)
     {
-        uint32_t ret = WaitForSingleObject(thread, INFINITE);
+        uint32_t ret = WaitForSingleObject(ToNativeThread(thread), INFINITE);
         assert(ret == WAIT_OBJECT_0);
     }
 
     void Detach(Thread thread)
     {
-        CloseHandle(thread);
+        CloseHandle(ToNativeThread(thread));
     }
 
     TlsKey AllocTls()
     {
-        return TlsAlloc();
+        return ToTlsKey(TlsAlloc());
     }
 
     void FreeTls(TlsKey key)
     {
-        BOOL ret = TlsFree(key);
+        BOOL ret = TlsFree(ToNativeTlsKey(key));
         assert(ret);
     }
 
     void SetTlsValue(TlsKey key, void* value)
     {
-        BOOL ret = TlsSetValue(key, value);
+        BOOL ret = TlsSetValue(ToNativeTlsKey(key), value);
         assert(ret);
     }
 
     void* GetTlsValue(TlsKey key)
     {
-        return TlsGetValue(key);
+        return TlsGetValue(ToNativeTlsKey(key));
     }
 
     Thread GetCurrentThread()
     {
-        return ::GetCurrentThread();
+        return ToThread(::GetCurrentThread());
     }
 }

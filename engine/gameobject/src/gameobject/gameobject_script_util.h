@@ -47,6 +47,7 @@ namespace dmGameObject
         "vmath.quat",    // PROPERTY_TYPE_QUAT
         "boolean",       // PROPERTY_TYPE_BOOLEAN
         "vmath.matrix4", // PROPERTY_TYPE_MATRIX4
+        "string",        // PROPERTY_TYPE_TEXT
     };
 }
 

@@ -25,6 +25,7 @@ import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.util.StringUtil;
 import com.dynamo.gamesys.proto.DataProto.Data;
 import com.dynamo.proto.DdfStruct.ListValue;
 import com.dynamo.proto.DdfStruct.Struct;
@@ -138,7 +139,7 @@ public class LightBuilder extends ProtoBuilder<Data.Builder> {
     }
 
     private static String lightTypeTagFromResource(IResource resource) {
-        String ext = FilenameUtils.getExtension(resource.getPath());
+        String ext = StringUtil.toLowerCase(FilenameUtils.getExtension(resource.getPath()));
         switch (ext) {
             case "point_light":
                 return "point_light";

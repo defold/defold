@@ -17,6 +17,10 @@
 #include <dlib/image.h>
 #include <string.h> // memcmp
 
+#include <astcenc/astcenc.h>
+#include <basis/transcoder/basisu_transcoder.h>
+#include <basis/encoder/basisu_comp.h>
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
@@ -217,6 +221,19 @@ TEST_F(TexcTest, PreMultipliedAlpha)
         ASSERT_TRUE(dmTexc::PreMultiplyAlpha(image));
         dmTexc::DestroyImage(image);
     }
+}
+
+TEST_F(TexcTest, ConvertRGBA32FToRGBA16FRoundsMantissaIntoExponent)
+{
+    float rgba32f[4] = { 1.9999f, 1.0f, 0.0f, -1.9999f };
+    uint16_t rgba16f[4] = {};
+
+    ASSERT_TRUE(dmTexc::ConvertRGBA32FToPf((const uint8_t*)rgba32f, 1, 1, dmTexc::PF_RGBA16F, rgba16f));
+
+    ASSERT_EQ(0x4000, rgba16f[0]);
+    ASSERT_EQ(0x3c00, rgba16f[1]);
+    ASSERT_EQ(0x0000, rgba16f[2]);
+    ASSERT_EQ(0xc000, rgba16f[3]);
 }
 
 
@@ -458,14 +475,98 @@ TEST_P(TexcCompileTest, EncodeBasisU)
 
     // Naming matching variables in basis_compressor_params (basis_comp.h)
     // CL_NORMAL
-    settings.m_rdo_uastc = 0;
     settings.m_pack_uastc_flags = 2;
+    settings.m_rdo_uastc_quality_scalar = 1.0f;
+    settings.m_rdo_uastc_dict_size = 4096;
 
-    uint8_t* out = 0;
-    uint32_t out_size = 0;
-    ASSERT_TRUE(dmTexc::BasisUEncode(&settings, &out, &out_size));
+    for (uint32_t rdo = 0; rdo < 2; ++rdo)
+    {
+        settings.m_rdo_uastc = rdo;
+        uint8_t* out = 0;
+        uint32_t out_size = 0;
+        ASSERT_TRUE(dmTexc::BasisUEncode(&settings, &out, &out_size));
+        ASSERT_LT(0U, out_size);
 
-    free(out);
+        basist::basisu_transcoder transcoder;
+        ASSERT_TRUE(transcoder.validate_file_checksums(out, out_size, true));
+        ASSERT_EQ(basist::basis_tex_format::cUASTC_LDR_4x4, transcoder.get_basis_tex_format(out, out_size));
+        basist::basisu_image_level_info level_info;
+        ASSERT_TRUE(transcoder.get_image_level_info(out, out_size, level_info, 0, 0));
+        ASSERT_EQ((uint32_t)m_Width, level_info.m_orig_width);
+        ASSERT_EQ((uint32_t)m_Height, level_info.m_orig_height);
+        ASSERT_TRUE(transcoder.start_transcoding(out, out_size));
+
+        const basist::transcoder_texture_format formats[] = {
+            basist::transcoder_texture_format::cTFRGBA32,
+            basist::transcoder_texture_format::cTFBC7_RGBA,
+            basist::transcoder_texture_format::cTFASTC_4x4_RGBA,
+            basist::transcoder_texture_format::cTFETC2_RGBA,
+        };
+        for (uint32_t i = 0; i < sizeof(formats) / sizeof(formats[0]); ++i)
+        {
+            uint32_t count = formats[i] == basist::transcoder_texture_format::cTFRGBA32 ? m_Width * m_Height : level_info.m_total_blocks;
+            dmArray<uint8_t> decoded;
+            decoded.SetCapacity(count * basist::basis_get_bytes_per_block_or_pixel(formats[i]));
+            ASSERT_TRUE(transcoder.transcode_image_level(out, out_size, 0, 0, decoded.Begin(), count, formats[i]));
+        }
+        free(out);
+    }
+}
+
+TEST(TexcCompileTest, BasisUFullKTX2)
+{
+    ASSERT_TRUE(basist::basisu_transcoder_supports_ktx2());
+    ASSERT_TRUE(basist::basisu_transcoder_supports_ktx2_zstd());
+    ASSERT_TRUE(basisu::basisu_encoder_init());
+
+    basisu::image source(16, 16);
+    basisu::imagef source_hdr(16, 16);
+    for (uint32_t y = 0; y < 16; ++y)
+    {
+        for (uint32_t x = 0; x < 16; ++x)
+        {
+            source(x, y).set(x * 16, y * 16, (x + y) * 8, 255);
+            source_hdr(x, y) = basisu::vec4F(0.25f + x * 0.25f, 0.5f + y * 0.25f, 2.0f, 1.0f);
+        }
+    }
+    const basist::basis_tex_format formats[] = {
+        basist::basis_tex_format::cETC1S,
+        basist::basis_tex_format::cUASTC_LDR_4x4,
+        basist::basis_tex_format::cXUASTC_LDR_4x4,
+        basist::basis_tex_format::cXUBC7,
+        basist::basis_tex_format::cUASTC_HDR_4x4,
+    };
+    basisu::job_pool pool(1);
+    for (uint32_t i = 0; i < sizeof(formats) / sizeof(formats[0]); ++i)
+    {
+        basisu::basis_compressor_params params;
+        params.set_format_mode(formats[i]);
+        if (formats[i] == basist::basis_tex_format::cETC1S)
+            params.m_quality_level = 128;
+        params.m_pJob_pool = &pool;
+        params.m_create_ktx2_file = true;
+        params.m_ktx2_uastc_supercompression = basist::KTX2_SS_ZSTANDARD;
+        params.m_status_output = false;
+        bool hdr = basist::basis_tex_format_is_hdr(formats[i]);
+        if (hdr)
+            params.m_source_images_hdr.push_back(source_hdr);
+        else
+            params.m_source_images.push_back(source);
+
+        basisu::basis_compressor encoder;
+        ASSERT_TRUE(encoder.init(params));
+        ASSERT_EQ(basisu::basis_compressor::cECSuccess, encoder.process());
+        const basisu::uint8_vec& data = encoder.get_output_ktx2_file();
+        basist::ktx2_transcoder transcoder;
+        ASSERT_TRUE(transcoder.init(data.data(), data.size()));
+        ASSERT_EQ(formats[i], transcoder.get_basis_tex_format());
+        ASSERT_EQ(16U, transcoder.get_width());
+        ASSERT_EQ(16U, transcoder.get_height());
+        ASSERT_TRUE(transcoder.start_transcoding());
+        uint8_t decoded[16 * 16];
+        basist::transcoder_texture_format output_format = hdr ? basist::transcoder_texture_format::cTFBC6H : basist::transcoder_texture_format::cTFBC7_RGBA;
+        ASSERT_TRUE(transcoder.transcode_image_level(0, 0, 0, decoded, 16, output_format));
+    }
 }
 
 INSTANTIATE_TEST_CASE_P(TexcCompileTest, TexcCompileTest, jc_test_values_in(compile_info));
@@ -533,6 +634,54 @@ TEST(TexcCompileTestASTC, Encode)
 
     dmTexc::DestroyImage(image);
     free(image_data);
+}
+
+TEST(TexcCompileTestASTC, EncodeHDR)
+{
+    const uint32_t width = 4;
+    const uint32_t height = 4;
+    float image_data[width * height * 4];
+    for (uint32_t i = 0; i < width * height; ++i)
+    {
+        image_data[i * 4 + 0] = 2.0f + (float)i * 0.25f;
+        image_data[i * 4 + 1] = 1.0f;
+        image_data[i * 4 + 2] = 0.5f;
+        image_data[i * 4 + 3] = 1.0f;
+    }
+
+    dmTexc::ASTCEncodeSettings settings;
+    memset(&settings, 0, sizeof(settings));
+    settings.m_Path = "hdr";
+    settings.m_Width = width;
+    settings.m_Height = height;
+    settings.m_PixelFormat = dmTexc::PF_RGBA32F;
+    settings.m_ColorSpace = dmTexc::CS_LRGB;
+    settings.m_Data = (uint8_t*)image_data;
+    settings.m_DataCount = sizeof(image_data);
+    settings.m_NumThreads = 1;
+    settings.m_QualityLevel = 10.0f;
+    settings.m_OutPixelFormat = dmTexc::PF_RGBA_ASTC_4x4;
+
+    uint8_t* out = 0;
+    uint32_t out_size = 0;
+    ASSERT_TRUE(dmTexc::ASTCEncode(&settings, &out, &out_size));
+    ASSERT_EQ(16U, out_size);
+
+    astcenc_config config;
+    astcenc_error status = astcenc_config_init(ASTCENC_PRF_HDR_RGB_LDR_A, 4, 4, 1, 10.0f, ASTCENC_FLG_DECOMPRESS_ONLY, &config);
+    ASSERT_EQ(ASTCENC_SUCCESS, status);
+
+    astcenc_context* context = 0;
+    status = astcenc_context_alloc(&config, 1, &context);
+    ASSERT_EQ(ASTCENC_SUCCESS, status);
+
+    astcenc_block_info block_info;
+    status = astcenc_get_block_info(context, out, &block_info);
+    ASSERT_EQ(ASTCENC_SUCCESS, status);
+    ASSERT_TRUE(block_info.is_hdr_block);
+
+    astcenc_context_free(context);
+    free(out);
 }
 
 int main(int argc, char **argv)

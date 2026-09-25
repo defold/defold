@@ -250,6 +250,43 @@ TEST(dmImage, PngGrayAlpha)
     dmImage::Free(&image);
 }
 
+TEST(dmImage, Hdr)
+{
+    static const uint8_t HDR_2X2[] = {
+        '#', '?', 'R', 'A', 'D', 'I', 'A', 'N', 'C', 'E', '\n',
+        'F', 'O', 'R', 'M', 'A', 'T', '=', '3', '2', '-', 'b', 'i', 't', '_', 'r', 'l', 'e', '_', 'r', 'g', 'b', 'e', '\n',
+        '\n',
+        '-', 'Y', ' ', '2', ' ', '+', 'X', ' ', '2', '\n',
+        128, 0, 0, 129,
+        0, 128, 0, 129,
+        0, 0, 128, 129,
+        128, 128, 128, 129,
+    };
+
+    ASSERT_TRUE(dmImage::IsHDR(HDR_2X2, sizeof(HDR_2X2)));
+    ASSERT_EQ((dmImage::HImage)0, dmImage::NewImage(HDR_2X2, sizeof(HDR_2X2), false));
+
+    dmImage::Image image;
+    dmImage::Result r = dmImage::Load(HDR_2X2, sizeof(HDR_2X2), false, false, &image);
+    ASSERT_EQ(dmImage::RESULT_OK, r);
+    ASSERT_EQ(2U, image.m_Width);
+    ASSERT_EQ(2U, image.m_Height);
+    ASSERT_EQ(dmImage::TYPE_RGBA32F, image.m_Type);
+    ASSERT_NE((void*)0, image.m_Buffer);
+
+    const float* b = (const float*)image.m_Buffer;
+    ASSERT_NEAR(1.0f, b[0], 0.0001f);
+    ASSERT_NEAR(0.0f, b[1], 0.0001f);
+    ASSERT_NEAR(0.0f, b[2], 0.0001f);
+    ASSERT_NEAR(1.0f, b[3], 0.0001f);
+    ASSERT_NEAR(0.0f, b[4], 0.0001f);
+    ASSERT_NEAR(1.0f, b[5], 0.0001f);
+    ASSERT_NEAR(0.0f, b[6], 0.0001f);
+    ASSERT_NEAR(1.0f, b[7], 0.0001f);
+
+    dmImage::Free(&image);
+}
+
 TEST(dmImage, Jpeg)
 {
     dmImage::Image image;

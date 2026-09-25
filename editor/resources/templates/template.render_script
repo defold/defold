@@ -4,12 +4,6 @@ function init(self)
 	-- Remove this function if not needed
 end
 
-function final(self)
-	-- Add finalization code here
-	-- Learn more: https://defold.com/manuals/script/
-	-- Remove this function if not needed
-end
-
 function update(self, dt)
 	-- Add update code here
 	-- Learn more: https://defold.com/manuals/script/

@@ -28,6 +28,7 @@ import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -51,22 +52,23 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         addFile("/vp.vp", ShaderProgramBuilderTest.vp);
         addFile("/fp.fp", ShaderProgramBuilderTest.fp);
         addFile("/material.material", "name: \"material\"\nvertex_program: \"/vp.vp\"\nfragment_program: \"/fp.fp\"");
-        StringBuilder src = new StringBuilder();
-        src.append("\n");
-        src.append("go.property(\"number\", 1)\n");
-        src.append("go.property(\"hash\", hash(\"hash\"))\n");
-        src.append("go.property(\"url\", msg.url())\n");
-        src.append("go.property(\"vec3\", vmath.vector3(1, 2, 3))\n");
-        src.append("go.property(\"vec3empt\", vmath.vector3())\n");
-        src.append("go.property(\"vec3negative\", vmath.vector3(-1))\n");
-        src.append("go.property(\"vec4\", vmath.vector4(4, 5, 6, 7))\n");
-        src.append("go.property(\"quat\", vmath.quat(8, 9, 10, 11))\n");
-        src.append("go.property(\"bool\", true)\n");
-        src.append("go.property(\"material\", resource.material(\"/material.material\"))\n");
-        src.append("\n");
-        src.append("    go.property(  \"space_number\"  ,  1   )\n");
-        src.append("go.property(\"semi_colon\", 1);\n");
-        LuaModule luaModule = getMessage(build("/test.script", src.toString()), LuaModule.class);
+        String src = "\n" +
+                "go.property(\"number\", 1)\n" +
+                "go.property(\"hash\", hash(\"hash\"))\n" +
+                "go.property(\"url\", msg.url())\n" +
+                "go.property(\"vec3\", vmath.vector3(1, 2, 3))\n" +
+                "go.property(\"vec3empt\", vmath.vector3())\n" +
+                "go.property(\"vec3negative\", vmath.vector3(-1))\n" +
+                "go.property(\"vec4\", vmath.vector4(4, 5, 6, 7))\n" +
+                "go.property(\"quat\", vmath.quat(8, 9, 10, 11))\n" +
+                "go.property(\"bool\", true)\n" +
+                "go.property(\"text\", \"hello\")\n" +
+                "go.property(\"long_text\", [[\nhello\nworld]])\n" +
+                "go.property(\"material\", resource.material(\"/material.material\"))\n" +
+                "\n" +
+                "    go.property(  \"space_number\"  ,  1   )\n" +
+                "go.property(\"semi_colon\", 1);\n";
+        LuaModule luaModule = getMessage(build("/test.script", src), LuaModule.class);
         PropertyDeclarations properties = luaModule.getProperties();
         assertEquals(3, properties.getNumberEntriesCount());
         PropertiesTestUtil.assertNumber(properties, 1, 0);
@@ -81,6 +83,8 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         PropertiesTestUtil.assertVector4(properties, 4, 5, 6, 7, 0);
         PropertiesTestUtil.assertQuat(properties, 8, 9, 10, 11, 0);
         PropertiesTestUtil.assertBoolean(properties, true, 0);
+        PropertiesTestUtil.assertText(properties, "hello", 0);
+        PropertiesTestUtil.assertText(properties, "hello\nworld", 1);
         assertEquals(ResourceUtil.minifyPath("/material.materialc"), luaModule.getPropertyResources(0));
 
         // Verify that .x, .y, .z and .w exists as sub element ids for Vec3, Vec4 and Quat.
@@ -99,22 +103,17 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         try {
             @SuppressWarnings("unused")
             LuaModule luaModule = (LuaModule) build("/test.script", src.toString()).get(0);
-            assertTrue(false);
+            fail();
         } catch (CompileExceptionError e) { }
     }
 
     @Test
-    public void testPropUnsupportedType() throws Exception {
-        StringBuilder src = new StringBuilder();
-        src.append("\n");
-        src.append("go.property(\"string\", \"\")\n");
-        try {
-            @SuppressWarnings("unused")
-            LuaModule luaModule = (LuaModule)build("/test.script", src.toString()).get(0);
-            assertTrue(false);
-        } catch (CompileExceptionError e) {
-            assertEquals(2, e.getLineNumber());
-        }
+    public void testPropString() throws Exception {
+        String src = "\n" +
+                "go.property(\"string\", \"\")\n";
+
+        LuaModule luaModule = getMessage(build("/test.script", src), LuaModule.class);
+        PropertiesTestUtil.assertText(luaModule.getProperties(), "", 0);
     }
 
     @Test
@@ -150,11 +149,11 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         final String scriptSource = "function foo() print('foo') end";
         LuaModule luaModule = (LuaModule)build(path, scriptSource).get(0);
         LuaSource luaSource = luaModule.getSource();
-        assertTrue(luaSource.getScript() != null);
+        assertNotNull(luaSource.getScript());
         assertTrue(luaSource.getScript().size() > 0);
-        assertTrue(luaSource.getBytecode().size() == 0);
-        assertTrue(luaSource.getBytecode64().size() == 0);
-        assertTrue(luaSource.getDelta().size() == 0);
+        assertEquals(0, luaSource.getBytecode().size());
+        assertEquals(0, luaSource.getBytecode64().size());
+        assertEquals(0, luaSource.getDelta().size());
         assertTrue(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.UNCOMPRESSED));
     }
 
@@ -167,11 +166,11 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         final String scriptSource = "function foo() print('foo') end";
         LuaModule luaModule = (LuaModule)build(path, scriptSource).get(0);
         LuaSource luaSource = luaModule.getSource();
-        assertTrue(luaSource.getScript() != null);
+        assertNotNull(luaSource.getScript());
         assertTrue(luaSource.getScript().size() > 0);
-        assertTrue(luaSource.getBytecode().size() == 0);
-        assertTrue(luaSource.getBytecode64().size() == 0);
-        assertTrue(luaSource.getDelta().size() == 0);
+        assertEquals(0, luaSource.getBytecode().size());
+        assertEquals(0, luaSource.getBytecode64().size());
+        assertEquals(0, luaSource.getDelta().size());
         assertTrue(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.ENCRYPTED));
         assertFalse(p.getOutputFlags("build" + path + "c").contains(Project.OutputFlags.UNCOMPRESSED));
     }
@@ -212,10 +211,10 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
         LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
         LuaSource luaSource = luaModule.getSource();
-        assertTrue(luaSource.getScript().size() == 0);
+        assertEquals(0, luaSource.getScript().size());
         assertTrue(luaSource.getBytecode().size() > 0);
-        assertTrue(luaSource.getBytecode64().size() == 0);
-        assertTrue(luaSource.getDelta().size() == 0);
+        assertEquals(0, luaSource.getBytecode64().size());
+        assertEquals(0, luaSource.getDelta().size());
     }
 
     @Test
@@ -227,10 +226,10 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         StringBuilder src = new StringBuilder();
         LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
         LuaSource luaSource = luaModule.getSource();
-        assertTrue(luaSource.getScript().size() == 0);
+        assertEquals(0, luaSource.getScript().size());
         assertTrue(luaSource.getBytecode().size() > 0);
-        assertTrue(luaSource.getBytecode64().size() == 0);
-        assertTrue(luaSource.getDelta().size() == 0);
+        assertEquals(0, luaSource.getBytecode64().size());
+        assertEquals(0, luaSource.getDelta().size());
     }
 
     @Test
@@ -241,10 +240,10 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
         LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
         LuaSource luaSource = luaModule.getSource();
-        assertTrue(luaSource.getScript().size() == 0);
+        assertEquals(0, luaSource.getScript().size());
         assertTrue(luaSource.getBytecode32().size() > 0);
         assertTrue(luaSource.getBytecode64().size() > 0);
-        assertTrue(luaSource.getDelta().size() == 0);
+        assertEquals(0, luaSource.getDelta().size());
     }
 
     @Test
@@ -257,9 +256,9 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         StringBuilder src = new StringBuilder();
         LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
         LuaSource luaSource = luaModule.getSource();
-        assertTrue(luaSource.getScript().size() == 0);
+        assertEquals(0, luaSource.getScript().size());
         assertTrue(luaSource.getBytecode().size() > 0);
-        assertTrue(luaSource.getBytecode64().size() == 0);
+        assertEquals(0, luaSource.getBytecode64().size());
         assertTrue(luaSource.getDelta().size() > 0);
     }
 
@@ -293,23 +292,23 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
         // first diff is on byte 1-255
         // index - diff is on the 2nd byte (0x0001)
-        assertTrue(delta[0] == 0x01);
-        assertTrue(delta[1] == 0x00);
+        assertEquals(0x01, delta[0]);
+        assertEquals(0x00, delta[1]);
         // count - diff consists of 255 values
-        assertTrue((delta[2] & 0xff) == 255);
+        assertEquals(255, (delta[2] & 0xff));
         // byte - diffing bytes
         for (int i = 1; i <= 255; i++) {
-            assertTrue(delta[2 + i] == 99);
+            assertEquals(99, delta[2 + i]);
         }
 
         // second diff is on byte 256
         // index - diff is on the 256th byte (0x0100)
-        assertTrue(delta[258] == 0x00);
-        assertTrue(delta[259] == 0x01);
+        assertEquals(0x00, delta[258]);
+        assertEquals(0x01, delta[259]);
         // count - diff consists of 1 value
-        assertTrue((delta[260] & 0xff) == 1);
+        assertEquals(1, (delta[260] & 0xff));
         // byte - the last diffing byte
-        assertTrue(delta[261] == 99);
+        assertEquals(99, delta[261]);
     }
 
     @Test

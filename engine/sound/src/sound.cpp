@@ -2007,11 +2007,15 @@ namespace dmSound
         }
 
         uint16_t active_instance_count;
+#if defined(__EMSCRIPTEN__)
         uint32_t playing_instance_count;
+#endif
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
             active_instance_count = sound->m_InstancesPool.Size();
+#if defined(__EMSCRIPTEN__)
             playing_instance_count = sound->m_PlayingInstanceCount;
+#endif
         }
 
         bool currentIsAudioInterrupted = IsAudioInterrupted();

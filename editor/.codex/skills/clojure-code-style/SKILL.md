@@ -13,8 +13,6 @@ When one branch of an `if` is trivial, prefer placing the trivial branch in the 
 
 ## Functions
 
-When a `defn` has a return type hint, put the type hint and argument vector on the next line.
-
 Avoid introducing multiple arities to functions. Prefer updating call sites with added arguments instead. For recursive functions, prefer a separate private `-impl`-suffixed helper over an internal-only arity.
 
 ## Grouping and spacing
@@ -45,6 +43,15 @@ Prefer `if-let`/`when-let` over `if-some`/`when-some`. Latter can be used only w
 ## Linting
 
 Use `clj-kondo` to find and fix lint issues in your changes.
+
+## Editor recovery
+
+If your change causes the running editor to disable handlers or timers after an exception, fix or revert the cause first. Then re-enable disabled functionality from the REPL:
+
+```clojure
+(editor.ui/run-now
+  (editor.ui/enable-disabled-functionality!))
+```
 
 ## Inline single-use trivial helpers/constants/locals
 

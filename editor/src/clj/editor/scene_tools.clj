@@ -27,6 +27,7 @@
             [editor.math :as math]
             [editor.prefs :as prefs]
             [editor.scene-picking :as scene-picking]
+            [editor.shaders :as shaders]
             [util.coll :as coll])
   (:import [com.jogamp.opengl GL GL2]
            [java.lang Math Runnable]
@@ -78,18 +79,7 @@
 (vtx/defvertex pos-vtx
   (vec3 position))
 
-(shader/defshader vertex-shader
-  (attribute vec4 position)
-  (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
-
-(shader/defshader fragment-shader
-  (uniform vec4 color) ; `color` also used in selection pass to render picking id
-  (defn void main []
-    (setq gl_FragColor color)))
-
-; TODO - macro of this
-(def shader (shader/make-shader ::shader vertex-shader fragment-shader))
+(def shader shaders/uniform-color-local-space)
 
 ; Rendering
 
@@ -152,7 +142,6 @@
 (defn render-manips [^GL2 gl render-args renderables n]
   (let [camera (:camera render-args)
         renderable (first renderables)
-        world-transform (:world-transform renderable)
         user-data (:user-data renderable)
         manip (:manip user-data)
         manip-rotation (:manip-rotation user-data)
@@ -161,17 +150,15 @@
                 (:color user-data))
         vertex-buffers (:vertex-buffers user-data)]
     (when (manip-visible? manip manip-rotation (c/camera-view-matrix camera))
-      (gl/gl-push-matrix gl
-        (gl/gl-mult-matrix-4d gl world-transform)
-        (doseq [[mode vertex-buffer ^long vertex-count] vertex-buffers
-                :let [vertex-binding (vtx/use-with mode vertex-buffer shader)
-                      color (if (#{GL/GL_LINES GL/GL_POINTS} mode)
-                              (float-array (assoc color 3 1.0))
-                              (float-array color))]
-                :when (> vertex-count 0)]
-          (gl/with-gl-bindings gl render-args [shader vertex-binding]
-            (shader/set-uniform shader gl "color" color)
-            (gl/gl-draw-arrays gl mode 0 vertex-count)))))))
+      (doseq [[mode vertex-buffer ^long vertex-count] vertex-buffers
+              :let [vertex-binding (vtx/use-with mode vertex-buffer shader)
+                    color (if (#{GL/GL_LINES GL/GL_POINTS} mode)
+                            (float-array (assoc color 3 1.0))
+                            (float-array color))]
+              :when (> vertex-count 0)]
+        (gl/with-gl-bindings gl render-args [shader vertex-binding]
+          (shader/set-uniform shader gl "color" color)
+          (gl/gl-draw-arrays gl mode 0 vertex-count))))))
 
 ; Vertex generation and transformations
 
@@ -556,7 +543,6 @@
         start-pos (action->manip-pos start-action lead-transform active-manip manip-rotation project-fn)
         manipulations-fn (make-drag-manipulations-fn manip-opts active-manip manip-origin original-values initial-evaluation-context)]
     {:active-manip active-manip
-     :initial-evaluation-context initial-evaluation-context
      :lead-transform lead-transform
      :manip-origin manip-origin
      :manip-rotation manip-rotation
@@ -594,6 +580,7 @@
                                viewport (g/node-value self :viewport initial-evaluation-context)
                                drag-start-state (make-drag-start-state manip-opts original-values manip manip-space action camera viewport initial-evaluation-context)]
                            (g/transact
+                             {:undoable false}
                              (concat
                                (g/set-property self :drag-start-state drag-start-state)
                                (g/set-property self :preview-overrides {})
@@ -613,6 +600,7 @@
                                 (g/operation-sequence op-seq)
                                 commit-tx-data)))
                           (g/transact
+                            {:undoable false}
                             (concat
                               (g/set-property self :drag-start-state nil)
                               (g/set-property self :preview-overrides nil)
@@ -626,15 +614,23 @@
                          preview-overrides (:node-id->prop-kw->override-value combined-manipulations)]
                      (when (or (not (coll/empty? preview-tx-data))
                                (not (coll/empty? preview-overrides)))
-                       (g/transact
-                         (concat
-                           (g/operation-sequence op-seq)
-                           (g/set-property self :preview-overrides preview-overrides)
-                           preview-tx-data)))
+                       (when (not (coll/empty? preview-overrides))
+                         (g/transact
+                           {:undoable false}
+                           (concat
+                             (g/operation-sequence op-seq)
+                             (g/set-property self :preview-overrides preview-overrides))))
+                       (when (not (coll/empty? preview-tx-data))
+                         (g/transact
+                           (concat
+                             (g/operation-sequence op-seq)
+                             preview-tx-data))))
                      nil)
                    (let [manip (first (get selection-data self))]
                      (when (not= manip (g/node-value self :hot-manip))
-                       (g/transact (g/set-property self :hot-manip manip)))
+                       (g/transact
+                         {:undoable false}
+                         (g/set-property self :hot-manip manip)))
                      action))
     action))
 

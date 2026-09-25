@@ -432,3 +432,7 @@ Text {
     -fx-fill: -df-defold-blue-lighter;
   }
 }
+TextFlow.deprecated > Text {
+  -fx-strikethrough: true;
+  -fx-opacity: 0.75;
+}

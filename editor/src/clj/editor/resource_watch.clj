@@ -127,8 +127,7 @@
         (file-resource-status resource)))
 
 (defn file-resource-status-map-entry? [[proj-path {:keys [version source]}]]
-  (and (string? proj-path)
-       (str/starts-with? proj-path "/")
+  (and (resource/proj-path? proj-path)
        (= :directory source)
        (try
          (Long/parseUnsignedLong version)
@@ -173,8 +172,7 @@
     empty-snapshot
     snapshots))
 
-(defn- make-debugger-snapshot
-  [workspace]
+(defn- make-debugger-snapshot [workspace]
   (let [base-path (if (system/defold-dev?)
                     ;; Use local debugger support files so we can see
                     ;; changes to them instantly without re-packing/restarting.

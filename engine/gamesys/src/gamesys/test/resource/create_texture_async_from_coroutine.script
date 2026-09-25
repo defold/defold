@@ -1,0 +1,49 @@
+-- Copyright 2020-2026 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+tests_done = false
+
+local texture_params = {
+    width = 4,
+    height = 4,
+    type = graphics.TEXTURE_TYPE_2D,
+    format = graphics.TEXTURE_FORMAT_RGBA,
+}
+
+function init(self)
+    local co = coroutine.create(function()
+        local texture_path = "/create_texture_async_from_coroutine.texturec"
+        local expected_path = hash(texture_path)
+        local texture_buffer = buffer.create(texture_params.width * texture_params.height, {
+            { name = hash("rgba"), type = buffer.VALUE_TYPE_UINT8, count = 4 }
+        })
+
+        resource.create_texture_async(texture_path, texture_params, texture_buffer, function(self, request_id, result)
+            assert(request_id ~= nil)
+            assert(result.path == expected_path)
+
+            local texture_info = resource.get_texture_info(result.path)
+            assert(texture_info.width == texture_params.width)
+            assert(texture_info.height == texture_params.height)
+            tests_done = true
+        end)
+    end)
+
+    local ok, error = coroutine.resume(co)
+    assert(ok, tostring(error))
+    assert(coroutine.status(co) == "dead")
+
+    co = nil
+    collectgarbage("collect")
+end

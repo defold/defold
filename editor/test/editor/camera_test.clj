@@ -39,6 +39,21 @@
           proj (c/camera-projection-matrix framed-camera)]
       (is (.epsilonEquals proj-before proj math/epsilon)))))
 
+(deftest frame-wide-aabb
+  (testing "Framing a wide AABB should fit the whole bounds in the viewport"
+    (let [camera (c/make-camera :orthographic identity {:fov-x 960.0
+                                                        :fov-y 640.0})
+          viewport (t/->Region 0 960 0 640)
+          aabb (t/->AABB (Point3d. 0.0 0.0 0.0)
+                          (Point3d. 1224.0 640.0 0.0))
+          camera (c/camera-orthographic-frame-aabb camera viewport aabb)
+          min-proj (c/camera-project camera viewport (.. aabb min))
+          max-proj (c/camera-project camera viewport (.. aabb max))]
+      (is (<= (:left viewport) (.x min-proj) (:right viewport)))
+      (is (<= (:left viewport) (.x max-proj) (:right viewport)))
+      (is (<= (:top viewport) (.y min-proj) (:bottom viewport)))
+      (is (<= (:top viewport) (.y max-proj) (:bottom viewport))))))
+
 (deftest look-rotation-pitch-clamp
   (testing "Pitch should clamp at ±86 degrees even with extreme dy input"
     (let [camera (c/make-camera :perspective)

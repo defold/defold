@@ -30,25 +30,6 @@ message Create
     optional dmMath.Vector3 scale3   = 5 [(field_align)=true]; // if zero, 'scale' is used instead
 }
 
-message CollectionProxyDesc
-{
-    required string collection = 1 [(resource)=true];
-    optional bool exclude = 2 [default=false];
-}
-
-enum TimeStepMode
-{
-    TIME_STEP_MODE_CONTINUOUS   = 0;
-    TIME_STEP_MODE_DISCRETE     = 1;
-}
-
-/* Documented in comp_collecion_proxy.cpp */
-message SetTimeStep
-{
-    required float          factor  = 1;
-    required TimeStepMode   mode    = 2;
-}
-
 message SetViewProjection
 {
     required uint64         id          = 1;

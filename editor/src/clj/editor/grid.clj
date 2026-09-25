@@ -19,16 +19,17 @@
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
+            [editor.gl.vertex2 :as vtx]
             [editor.math :as math]
             [editor.prefs :as prefs]
-            [editor.scene-cache :as scene-cache]
+            [editor.shaders :as shaders]
             [editor.types :as types]
-            [editor.ui.settings-popup :as settings-popup])
+            [editor.ui.settings-popup :as settings-popup]
+            [util.array :as array])
   (:import com.jogamp.opengl.GL2
            [editor.types AABB Camera]
            [java.util List]
            [javafx.scene Parent]
-           [java.nio ByteBuffer ByteOrder DoubleBuffer]
            [javax.vecmath Matrix3d Point3d Vector4d]))
 
 (set! *warn-on-reflection* true)
@@ -40,107 +41,125 @@
 (def y-axis-color colors/scene-grid-y-axis)
 (def z-axis-color colors/scene-grid-z-axis)
 
-(defn- make-grid-vertex-buffer [_1 _2]
-  (-> (ByteBuffer/allocateDirect (* 3 8))
-      (.order (ByteOrder/nativeOrder))
-      (.asDoubleBuffer)))
+(def ^:private grid-shader shaders/infinity-grid-local-space)
 
-(defn- ignore-grid-vertex-buffer [_1 _2 _3] nil)
+(defn grid-axis-line-positions
+  [fixed-axis u-axis u-min u-max u-size v-axis v-min v-max]
+  (let [fixed-axis (long fixed-axis)
+        u-axis (long u-axis)
+        v-axis (long v-axis)]
+    (into []
+          (mapcat (fn [u]
+                    [(-> [0.0 0.0 0.0]
+                         (assoc fixed-axis 0.0)
+                         (assoc u-axis u)
+                         (assoc v-axis v-min))
+                     (-> [0.0 0.0 0.0]
+                         (assoc fixed-axis 0.0)
+                         (assoc u-axis u)
+                         (assoc v-axis v-max))]))
+          (range u-min u-max u-size))))
 
-(scene-cache/register-object-cache! ::grid-vertex
-                                    make-grid-vertex-buffer
-                                    ignore-grid-vertex-buffer
-                                    ignore-grid-vertex-buffer)
-
-(defn render-grid-axis
-  [^GL2 gl ^DoubleBuffer vx uidx start stop size vidx min max]
-  (doseq [u (range start stop size)]
-    (.put vx ^int uidx ^double u)
-    (.put vx ^int vidx ^double min)
-    (gl/gl-vertex-3dv gl vx)
-    (.put vx ^int vidx ^double max)
-    (gl/gl-vertex-3dv gl vx)))
-
-(defn render-grid
-  [gl fixed-axis u-size v-size aabb]
+(defn grid-line-positions
+  [^long fixed-axis u-size v-size aabb]
   (let [min-values (geom/as-array (types/min-p aabb))
         max-values (geom/as-array (types/max-p aabb))
-        u-axis ^double (mod (inc ^int fixed-axis) 3)
+        u-axis (long (mod (inc fixed-axis) 3))
         u-min (nth min-values u-axis)
         u-max (nth max-values u-axis)
-        v-axis ^double (mod (inc ^int u-axis) 3)
+        v-axis (long (mod (inc u-axis) 3))
         v-min (nth min-values v-axis)
-        v-max (nth max-values v-axis)
-        vertex ^DoubleBuffer (scene-cache/request-object! ::grid-vertex :grid-vertex {} nil)]
-    (.put vertex ^int fixed-axis 0.0)
-    (render-grid-axis gl vertex u-axis u-min u-max u-size v-axis v-min v-max)
-    (render-grid-axis gl vertex v-axis v-min v-max v-size u-axis u-min u-max)))
+        v-max (nth max-values v-axis)]
+    (into (grid-axis-line-positions fixed-axis u-axis u-min u-max u-size v-axis v-min v-max)
+          (grid-axis-line-positions fixed-axis v-axis v-min v-max v-size u-axis u-min u-max))))
 
-(defn render-primary-axes
-  [^GL2 gl ^AABB aabb options]
-  (let [{:keys [axes-colors active-plane]} options]
-    (when-not (= active-plane :x)
-      (gl/gl-color gl (or (:x axes-colors) x-axis-color))
-      (gl/gl-vertex-3d gl (-> aabb types/min-p .x) 0.0 0.0)
-      (gl/gl-vertex-3d gl (-> aabb types/max-p .x) 0.0 0.0))
+(defn- into-colored-vertices!
+  [vertices positions color]
+  (let [[r g b a] color]
+    (reduce (fn [vertices [x y z]]
+              (conj! vertices [x y z r g b a]))
+            vertices
+            positions)))
 
-    (when-not (= active-plane :y)
-      (gl/gl-color gl (or (:y axes-colors) y-axis-color))
-      (gl/gl-vertex-3d gl 0.0 (-> aabb types/min-p .y) 0.0)
-      (gl/gl-vertex-3d gl 0.0 (-> aabb types/max-p .y) 0.0))
+(defn- into-primary-axis-vertices!
+  [vertices ^AABB aabb options]
+  (let [{:keys [axes-colors active-plane]} options
+        min-p (types/min-p aabb)
+        max-p (types/max-p aabb)
+        vertices (cond-> vertices
+                   (not= active-plane :x)
+                   (into-colored-vertices! [[(.x min-p) 0.0 0.0]
+                                            [(.x max-p) 0.0 0.0]]
+                                           (or (:x axes-colors) x-axis-color))
 
-    (when-not (= active-plane :z)
-      (gl/gl-color gl (or (:z axes-colors) z-axis-color))
-      (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/min-p .z))
-      (gl/gl-vertex-3d gl 0.0 0.0 (-> aabb types/max-p .z)))))
+                   (not= active-plane :y)
+                   (into-colored-vertices! [[0.0 (.y min-p) 0.0]
+                                            [0.0 (.y max-p) 0.0]]
+                                           (or (:y axes-colors) y-axis-color))
 
-(defn render-grid-sizes
-  [^GL2 gl ^doubles dir grids options is-2d]
-  (let [{:keys [^double opacity color auto-scale]} options]
-    (doseq [grid-index (range (if auto-scale 2 1))
-            :let [^double fixed-axis (:plane grids)
-                  ^double ratio (nth (:ratios grids) grid-index)
-                  ratio (Math/abs (* ^double (aget dir fixed-axis) ratio))
+                   (not= active-plane :z)
+                   (into-colored-vertices! [[0.0 0.0 (.z min-p)]
+                                            [0.0 0.0 (.z max-p)]]
+                                           (or (:z axes-colors) z-axis-color)))]
+    vertices))
+
+(defn grid-vertex-data
+  [^doubles dir grids options is-2d]
+  (let [{:keys [^double opacity color auto-scale]} options
+        fixed-axis (long (:plane grids))
+        u-axis (long (mod (inc fixed-axis) 3))
+        v-axis (long (mod (inc u-axis) 3))
+        grid-vertices
+        (reduce
+          (fn [vertices grid-index]
+            (let [^double ratio (nth (:ratios grids) grid-index)
+                  ratio (Math/abs (* (aget dir fixed-axis) ratio))
                   ratio (cond-> ratio (not is-2d) (max 0.5))
                   alpha (cond-> opacity auto-scale (* ratio))
                   size-map (nth (:sizes grids) grid-index)
-                  ^double u-axis (mod (inc fixed-axis) 3)
-                  ^double v-axis (mod (inc u-axis) 3)
-                  u-axis-key (nth axes u-axis)
-                  v-axis-key (nth axes v-axis)
-                  u-size (get size-map u-axis-key)
-                  v-size (get size-map v-axis-key)]]
-      (doto gl
-        (gl/gl-color (colors/alpha color alpha))
-        (render-grid fixed-axis u-size v-size (nth (:aabbs grids) grid-index))))))
+                  u-size (get size-map (nth axes u-axis))
+                  v-size (get size-map (nth axes v-axis))
+                  positions (grid-line-positions fixed-axis u-size v-size (nth (:aabbs grids) grid-index))]
+              (into-colored-vertices! vertices positions (colors/alpha color alpha))))
+          (transient [])
+          (range (if auto-scale 2 1)))
+        grid-aabb (apply geom/aabb-union (:aabbs grids))]
+    (persistent! (into-primary-axis-vertices! grid-vertices grid-aabb options))))
 
-(defn- enable-fog
-  [^GL2 gl camera]
-  (let [max-fov (math/deg->rad (max ^double (:fov-x camera) ^double (:fov-y camera)))
-        fog-start (* max-fov ^double (:z-far camera))]
-    (doto gl
-      (.glEnable GL2/GL_FOG)
-      (.glFogi GL2/GL_FOG_MODE GL2/GL_LINEAR)
-      (.glFogfv GL2/GL_FOG_COLOR (float-array colors/scene-background) 0)
-      (.glFogf GL2/GL_FOG_START fog-start)
-      (.glFogf GL2/GL_FOG_END (* 2 fog-start)))))
+(defn- make-grid-vertex-buffer
+  [vertex-data]
+  (let [vertex-description (shaders/vertex-description grid-shader)
+        vertex-buffer (vtx/make-vertex-buffer vertex-description :stream (count vertex-data))
+        byte-buffer (vtx/buf vertex-buffer)
+        float-buffer (.asFloatBuffer byte-buffer)]
+    (doseq [vertex vertex-data]
+      (.put float-buffer (float-array vertex)))
+    (.position byte-buffer (* (.position float-buffer) Float/BYTES))
+    (vtx/flip! vertex-buffer)))
+
+(defn grid-fog-parameters
+  ^floats [camera]
+  (if (= :perspective (:type camera))
+    (let [max-fov (math/deg->rad (max ^double (:fov-x camera) ^double (:fov-y camera)))
+          fog-start (* max-fov ^double (:z-far camera))]
+      (array/of-floats fog-start (* 2.0 fog-start) 1.0 0.0))
+    (array/of-floats 0.0 1.0 0.0 0.0)))
 
 (defn render-scaled-grids
-  [^GL2 gl _pass renderables _count]
+  [^GL2 gl render-args renderables _count]
   (let [renderable (first renderables)
         {:keys [camera grids options]} (:user-render-data renderable)
         view-matrix (c/camera-view-matrix camera)
         dir (double-array 4)
         is-2d (c/mode-2d? camera)
-        is-perspective (= :perspective (:type camera))
-        _ (.getRow view-matrix 2 dir)]
-    (when is-perspective
-      (enable-fog gl camera))
-    (gl/gl-lines gl
-      (render-grid-sizes dir grids options is-2d)
-      (render-primary-axes (apply geom/aabb-union (:aabbs grids)) options))
-    (when is-perspective
-      (.glDisable gl GL2/GL_FOG))))
+        _ (.getRow view-matrix 2 dir)
+        vertex-buffer (make-grid-vertex-buffer (grid-vertex-data dir grids options is-2d))
+        vertex-binding (vtx/use-with ::grid vertex-buffer grid-shader)
+        render-args (assoc render-args
+                      :fog-color (float-array colors/scene-background)
+                      :fog-parameters (grid-fog-parameters camera))]
+    (gl/with-gl-bindings gl render-args [grid-shader vertex-binding]
+      (gl/gl-draw-arrays gl GL2/GL_LINES 0 (count vertex-buffer)))))
 
 (g/defnk produce-renderable
   [camera grids merged-options]
@@ -245,17 +264,22 @@
                     (conj (snap-out-to-grid aabb grid-size-large)))
      :plane plane}))
 
+(defn- grid-mode
+  "Returns :grid-2d or :grid-3d depending on camera projection mode"
+  [camera]
+  (if (c/mode-2d? camera) :grid-2d :grid-3d))
+
+(defn- get-grid-pref [prefs camera path]
+  (prefs/get prefs (into [:scene (grid-mode camera)] path)))
+
+(defn- set-grid-pref! [prefs camera path value]
+  (prefs/set! prefs (into [:scene (grid-mode camera)] path) value))
+
 (g/defnk produce-merged-options
   [prefs camera options]
-  (cond-> (if prefs (prefs/get prefs [:scene :grid]) {})
-          :always
-          (assoc :auto-scale true)
-
-          options
-          (merge options)
-
-          (c/mode-2d? camera)
-          (assoc :active-plane :z)))
+  (merge (if prefs (get-grid-pref prefs camera []) {})
+         {:auto-scale true}
+         options))
 
 (g/defnode Grid
   (property prefs g/Any)
@@ -268,37 +292,43 @@
   (output renderable pass/RenderData :cached produce-renderable))
 
 (defn- invalidate-grids! [app-view]
-  (let [scene-view-id (g/node-value app-view :active-view)
-        grid-id (g/node-value scene-view-id :grid)]
-    (g/transact [(g/invalidate-output grid-id :grids)])))
+  (g/let-ec [scene-view-id (g/node-value app-view :active-view evaluation-context)
+             grid-id (g/node-value scene-view-id :grid evaluation-context)]
+    (g/transact
+      {:undoable false}
+      (g/invalidate-output grid-id :grids))))
 
 (defn show-settings! [^Parent owner app-view prefs keymap localization]
-  (let [scene-view-id (g/node-value app-view :active-view)
-        grid (g/node-value scene-view-id :grid)
-        ignored-keys (set (keys (g/node-value grid :options)))
-        value-changed-fn (fn [k v]
-                           (prefs/set! prefs [:scene :grid k] v)
-                           (invalidate-grids! app-view))
-        all-descriptors
-        [{:type :reset-all
-          :on-reset (fn [swap-state]
-                      (prefs/reset-path! prefs [:scene :grid])
-                      (swap-state merge (prefs/get prefs [:scene :grid]))
-                      (invalidate-grids! app-view))}
-         {:key :size :type :vec3-floats
-          :value (prefs/get prefs [:scene :grid :size])
-          :on-value-changed (partial value-changed-fn :size)}
-         {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"
-          :value (prefs/get prefs [:scene :grid :active-plane])
-          :on-value-changed (partial value-changed-fn :active-plane)}
-         {:key :color :type :color :label "scene-popup.grid.color"
-          :value (prefs/get prefs [:scene :grid :color])
-          :on-value-changed (partial value-changed-fn :color)}
-         {:key :opacity :type :slider :label "scene-popup.grid.opacity" :min 0.0 :max 1.0
-          :value (prefs/get prefs [:scene :grid :opacity])
-          :on-value-changed (partial value-changed-fn :opacity)
-          :slider-value->string (fn [^double v]
-                                  (str (Math/round (* v 100)) "%"))}]
-        descriptors (filterv #(not (contains? ignored-keys (:key %))) all-descriptors)
-        initial-state (into {} (keep #(when-let [k (:key %)] [k (:value %)])) descriptors)]
-    (settings-popup/show! owner keymap localization initial-state 240 descriptors)))
+  (g/let-ec [scene-view-id (g/node-value app-view :active-view evaluation-context)
+             grid (g/node-value scene-view-id :grid evaluation-context)
+             camera (g/node-value grid :camera evaluation-context)
+             ignored-keys (set (keys (g/node-value grid :options evaluation-context)))]
+    (let [value-changed-fn (fn [k v]
+                             (set-grid-pref! prefs camera [k] v)
+                             (invalidate-grids! app-view))
+
+          all-descriptors
+          [{:type :reset-all
+            :on-reset (fn [swap-state]
+                        (prefs/reset-path! prefs [:scene (grid-mode camera)])
+                        (swap-state merge (get-grid-pref prefs camera []))
+                        (invalidate-grids! app-view))}
+           {:key :size :type :vec3-floats
+            :value (get-grid-pref prefs camera [:size])
+            :on-value-changed (partial value-changed-fn :size)}
+           {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"
+            :value (get-grid-pref prefs camera [:active-plane])
+            :on-value-changed (partial value-changed-fn :active-plane)}
+           {:key :color :type :color :label "scene-popup.grid.color"
+            :value (get-grid-pref prefs camera [:color])
+            :on-value-changed (partial value-changed-fn :color)}
+           {:key :opacity :type :slider :label "scene-popup.grid.opacity" :min 0.0 :max 1.0
+            :value (get-grid-pref prefs camera [:opacity])
+            :on-value-changed (partial value-changed-fn :opacity)
+            :slider-value->string (fn [^double v]
+                                    (str (Math/round (* v 100)) "%"))}]
+
+          descriptors (filterv #(not (contains? ignored-keys (:key %))) all-descriptors)
+
+          initial-state (into {} (keep #(when-let [k (:key %)] [k (:value %)])) descriptors)]
+      (settings-popup/show! owner keymap localization initial-state 240 descriptors))))

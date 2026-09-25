@@ -31,10 +31,12 @@
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
+            [editor.scene :as scene]
             [editor.ui :as ui]
             [editor.web-server :as web-server]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [support.test-support :refer [with-clean-system]]
             [util.coll :as coll]
             [util.eduction :as e]
             [util.http-client :as http]
@@ -44,7 +46,8 @@
            [java.nio.charset StandardCharsets]
            [javafx.scene Scene]
            [javafx.scene.layout Region]
-           [javafx.stage Stage]))
+           [javafx.stage Stage]
+           [javax.imageio ImageIO]))
 
 (set! *warn-on-reflection* true)
 
@@ -274,6 +277,63 @@
                                 (is (not= first-clj second-clj))
                                 (is (= new-value second-clj))))))))))))))))))
 
+(deftest bob-endpoint-test
+  (with-clean-system
+    (let [token "test-token"
+          invocations (atom [])
+          bob-result (atom {})]
+      (with-open [server (http-server/start!
+                           (web-server/make-dynamic-handler
+                             (command-requests/router
+                               nil
+                               test-util/localization
+                               nil
+                               token
+                               (fn invoke-bob! [options commands]
+                                 (swap! invocations conj [options commands])
+                                 @bob-result))))]
+        (let [request! (fn request! [body authorization]
+                         @(http/request (str (http-server/local-url server) "/bob")
+                                        :method "POST"
+                                        :headers (cond-> {"content-type" "application/json"}
+                                                   authorization (assoc "authorization" authorization))
+                                        :body (json/write-str body)
+                                        :as :string))]
+          (testing "Requires bearer token"
+            (doseq [authorization [nil "Bearer wrong-token"]]
+              (let [{:keys [status]} (request! {} authorization)]
+                (is (= 401 status))))
+            (is (coll/empty? @invocations)))
+
+          (testing "Validates request structure"
+            (doseq [body [[]
+                          {"options" []}
+                          {"commands" {}}
+                          {"commands" ["build" 1]}]]
+              (let [{:keys [status]} (request! body (str "Bearer " token))]
+                (is (= 400 status))))
+            (is (coll/empty? @invocations)))
+
+          (testing "Invokes Bob with options and commands"
+            (let [options {"platform" "x86_64-linux"
+                           "archive" true}
+                  commands ["build" "bundle"]
+                  {:keys [status body]} (request! {"options" options
+                                                   "commands" commands}
+                                                  (str "Bearer " token))]
+              (is (= 200 status))
+              (is (= {:success true :issues []} (json/read-str body :key-fn keyword)))
+              (is (= [[options commands]] @invocations))))
+
+          (testing "Reports Bob errors"
+            (reset! bob-result {:error (g/error-fatal "Bob failed")})
+            (let [{:keys [status body]} (request! {} (str "Bearer " token))
+                  response (json/read-str body :key-fn keyword)]
+              (is (= 422 status))
+              (is (false? (:success response)))
+              (is (= [{:message "Bob failed" :severity "error"}]
+                     (:issues response))))))))))
+
 (deftest web-server-test
   (test-util/with-loaded-project
     (let [root (doto (Region.)
@@ -284,10 +344,14 @@
                                 (selection [_this _evaluation-context])
                                 (succeeding-selection [_this _evaluation-context])
                                 (alt-selection [_this _evaluation-context]))))
-          view-graph (g/node-id->graph-id app-view)
-          console (g/make-node! view-graph console/ConsoleNode)
-          console-view (g/make-node! view-graph view/CodeEditorView :gutter-view (console/->ConsoleGutterView))]
-      (g/connect! console :_node-id console-view :resource-node)
+          [_console console-view]
+          (g/tx-nodes-added
+            (g/transact
+              {:undoable false}
+              (g/make-nodes [console console/ConsoleNode
+                             console-view [view/CodeEditorView :gutter-view (console/->ConsoleGutterView)]]
+                (g/connect console :_node-id console-view :resource-node))))]
+
       (binding [ui/*main-stage* (atom @(fx/on-fx-thread (doto (Stage.) (.setScene (Scene. root)))))]
         (with-open [server (http-server/start!
                              (web-server/make-dynamic-handler
@@ -296,7 +360,8 @@
                                              (console/routes console-view)
                                              (hot-reload/routes workspace)
                                              (bob/routes project)
-                                             (command-requests/router root test-util/localization progress/null-render-progress!)
+                                             (scene/routes project app-view)
+                                             (command-requests/router root test-util/localization progress/null-render-progress! "test-token" (fn [_ _]))
                                              (doc/routes)])))]
           (let [url (http-server/local-url server)]
             (let [{:keys [status headers body]} @(http/request (str url "/") :as :string)]
@@ -313,28 +378,46 @@
                        (get-in json-body ["components" "securitySchemes" "token" "description"])))
                 (is (contains? (get json-body "paths") "/console"))
                 (is (contains? (get json-body "paths") "/console/stream"))
+                (is (contains? (get json-body "paths") "/preview/{path}"))
                 (let [get-ref (get-in json-body ["paths" "/ref" "get"])
                       param-names (into #{} (map #(get % "name")) (get get-ref "parameters"))]
                   (is get-ref)
-                  (is (every? param-names ["environment" "language" "q"])))
-                (let [post-command (get-in json-body ["paths" "/command/{command}" "post"])]
-                  (is (= "Execute an editor command" (get post-command "summary")))
-                  (is (string/includes? (get post-command "description") "`build-html5`"))
-                  (is (some #{"build-html5"} (get-in post-command ["parameters" 0 "schema" "enum"]))))))
+                  (is (coll/every? param-names ["environment" "language" "q"])))
+                (let [paths (get json-body "paths")
+                      post-build-html5 (get-in paths ["/command/build-html5" "post"])
+                      post-compile (get-in paths ["/command/compile" "post"])
+                      post-run (get-in paths ["/command/run" "post"])]
+                  (is (not (contains? paths "/command/build")))
+                  (is (get-in post-build-html5 ["responses" "default"]))
+                  (is (get-in post-compile ["responses" "default"]))
+                  (is (get-in post-run ["responses" "default"]))
+                  (let [focus-parameter (coll/first-where #(= "focus" (get % "name")) (get post-run "parameters"))]
+                    (is (= "query" (get focus-parameter "in")))
+                    (is (= {"type" "boolean" "default" true} (get focus-parameter "schema")))))))
+            (let [{:keys [status]} @(http/request (str url "/command/run?focus=invalid") :method "POST")]
+              (is (= 400 status)))
+            (let [{:keys [status headers body]} @(http/request
+                                                   (str url "/preview/collection/components/test.gui?width=32&height=32")
+                                                   :as :byte-array)]
+              (is (= 200 status))
+              (is (= "image/png" (get headers "content-type")))
+              (let [image (ImageIO/read (ByteArrayInputStream. body))]
+                (is (= 32 (.getWidth image)))
+                (is (= 32 (.getHeight image)))))
             (let [{:keys [status headers body]} @(http/request (str url "/ref?environment=runtime&language=Lua&q=go.property") :as :string)
                   json-body (json/read-str body :key-fn keyword)]
               (is (= 200 status))
               (is (= "application/json" (get headers "content-type")))
               (is (not (coll/empty? json-body)))
-              (is (every? #(= "runtime" (:environment %)) json-body))
-              (is (every? #(= "Lua" (:language %)) json-body))
+              (is (coll/every? #(= "runtime" (:environment %)) json-body))
+              (is (coll/every? #(= "Lua" (:language %)) json-body))
               (is (coll/any? #(= "go.property" (:name %)) json-body)))
             (let [{:keys [status headers body]} @(http/request (str url "/ref?environment=editor&q=editor.prefs.get") :as :string)
                   json-body (json/read-str body :key-fn keyword)]
               (is (= 200 status))
               (is (= "application/json" (get headers "content-type")))
               (is (not (coll/empty? json-body)))
-              (is (every? #(= "editor" (:environment %)) json-body))
+              (is (coll/every? #(= "editor" (:environment %)) json-body))
               (is (coll/any? #(= "editor.prefs.get" (:name %)) json-body)))
             (let [{:keys [status body]} @(http/request (str url "/ref?q=game%20object") :as :string)
                   json-body (json/read-str body :key-fn keyword)]
@@ -352,9 +435,9 @@
               (is (coll/any? #(= "runtime" (:environment %)) json-body))
               (is (coll/any? #(= "Lua" (:language %)) json-body))
               (is (coll/any? #(= "C++" (:language %)) json-body))
-              (is (every? (fn [element]
-                            (#{"Lua" "C++"} (:language element)))
-                          json-body)))
+              (is (coll/every? (fn [element]
+                                 (#{"Lua" "C++"} (:language element)))
+                               json-body)))
             (let [{:keys [status headers body]} @(http/request (str url "/engine-profiler/") :as :string)]
               (is (= 200 status))
               (is (= "text/html" (get headers "content-type")))
@@ -390,9 +473,10 @@
               (is (= 405 status))
               (is (= "OPTIONS, POST" (get headers "allow")))
               (is (= "405 Method Not Allowed\n" body)))
-            (with-redefs [ui/open-url (promise)]
-              (let [{:keys [status body]} @(http/request (str url "/command/report-issue") :method "POST" :as :string)]
-                (is (= 202 status))
-                (is (= "202 Accepted\n" body)))
-              (when (is (realized? ui/open-url))
-                (is (string/includes? @ui/open-url "github.com/defold/defold/issues"))))))))))
+            (let [opened-url (promise)]
+              (with-redefs [ui/open-url opened-url]
+                (let [{:keys [status body]} @(http/request (str url "/command/report-issue") :method "POST" :as :string)]
+                  (is (= 200 status))
+                  (is (= "200 OK\n" body)))
+                (when (is (realized? opened-url))
+                  (is (string/includes? @opened-url "github.com/defold/defold/issues")))))))))))

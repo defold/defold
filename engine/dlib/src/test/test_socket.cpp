@@ -15,14 +15,17 @@
 #include <stdint.h>
 #include <stdlib.h> // free
 #include <string.h>
+#if defined(_WIN32)
+#include <winsock2.h> // inet_addr
+#elif defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__)
+#include <arpa/inet.h> // inet_addr
+#endif
+
 #include <dlib/atomic.h>
 #include <dlib/dstrings.h>
 #include <dlib/socket.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
-#if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__)
-#include <arpa/inet.h> // inet_addr
-#endif
 
 #include <dlib/network_constants.h>
 

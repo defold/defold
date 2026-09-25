@@ -20,7 +20,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.localization :as localization]
             [editor.util :as util]
-            [internal.graph.types :as gt]
+            [internal.graph :as ig]
             [plumbing.core :refer [fnk]]
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
@@ -362,7 +362,8 @@
                (fnk env)
                (catch Exception e
                  (when (not= :run fsym)
-                   (swap! throwing-handlers assoc throwing-id fnk))
+                   (swap! throwing-handlers assoc throwing-id fnk)
+                   (error-reporting/report-disabled-functionality!))
                  (error-reporting/report-exception!
                    (ex-info (format "handler '%s' in context '%s' failed at '%s' with message '%s'"
                                     (:command handler) (:name command-context) fsym (.getMessage e))
@@ -552,7 +553,7 @@
   (if (empty? selection)
     selection
     (let [basis (:basis evaluation-context)
-          _ (assert (gt/basis? basis))
+          _ (assert (ig/graph? basis))
           selection (if (g/node-type? t)
                       (adapt selection Long evaluation-context)
                       selection)

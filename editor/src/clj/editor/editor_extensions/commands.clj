@@ -27,7 +27,8 @@
             [editor.lsp.async :as lsp.async]
             [editor.resource :as resource]
             [editor.scene :as scene]
-            [util.coll :as coll]))
+            [util.coll :as coll]
+            [util.fn :as fn]))
 
 (set! *warn-on-reflection* true)
 
@@ -114,11 +115,30 @@
                    (g/update-cache-from-evaluation-context! evaluation-context))
                  (cont assoc :selection res)))))
 
+(defn- gen-active-view-query [q acc]
+  (let [expected-type (case (:type q)
+                        "code" :editor.code.view/CodeEditorView
+                        "scene" :editor.scene/SceneView
+                        "html" :editor.html-view/HtmlViewNode
+                        "form" :editor.cljfx-form-view/CljfxFormView)]
+    (gen-query acc [env cont]
+      (when-let [app-view (:app-view env)]
+        (let [evaluation-context (or (:evaluation-context env)
+                                     (g/make-evaluation-context))]
+          (try
+            (when-let [view (g/node-value app-view :active-view evaluation-context)]
+              (when (g/node-kw-instance? (:basis evaluation-context) expected-type view)
+                (cont assoc :active_view (editor-lookup-userdata view))))
+            (finally
+              (when-not (:evaluation-context env)
+                (g/update-cache-from-evaluation-context! evaluation-context)))))))))
+
 (defn- compile-query [q project]
   (reduce-kv
     (fn [acc k v]
       (case k
         :selection (gen-selection-query v acc project)
+        :active_view (gen-active-view-query v acc)
         :argument (gen-query acc [env cont] (cont assoc :argument (:user-data env)))
         acc))
     (fn [lua-fn]
@@ -137,6 +157,9 @@
                    :opt {:selection (coerce/hash-map
                                       :req {:type (coerce/enum :resource :outline :scene)
                                             :cardinality (coerce/enum :one :many)})
+                         :active_view (coerce/hash-map
+                                        :req {:type (coerce/enum "code" "scene" "html" "form")}
+                                        :extra-keys false)
                          :argument (coerce/const true)})
           :id prefs-docs/serializable-keyword-coercer
           :active coerce/function
@@ -202,7 +225,7 @@
                          (rt/->clj rt coerce/to-boolean (rt/invoke-immediate-1 (:rt state) {:evaluation-context (:evaluation-context env)} active (rt/->lua opts)))))))
 
             (and (not active) query)
-            (assoc :active? (lua-fn->env-fn (constantly true)))
+            (assoc :active? (lua-fn->env-fn fn/constantly-true))
 
             run
             (assoc :run

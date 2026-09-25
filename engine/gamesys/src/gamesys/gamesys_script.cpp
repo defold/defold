@@ -24,8 +24,6 @@
 #include "gamesys_private.h"
 
 #include "scripts/script_label.h"
-#include "scripts/script_particlefx.h"
-#include "scripts/script_tilemap.h"
 #include "scripts/script_physics.h"
 #include "scripts/script_sound.h"
 #include "scripts/script_sprite.h"
@@ -36,8 +34,6 @@
 #include "scripts/script_collectionproxy.h"
 #include "scripts/script_buffer.h"
 #include "scripts/script_sys_gamesys.h"
-#include "components/comp_gui.h"
-
 #include <dmsdk/gamesys/script.h>
 #include <gameobject/script.h>
 
@@ -51,13 +47,20 @@ namespace dmScript {
     static inline dmGameObject::HInstance GetGOInstance(lua_State* L)
     {
         dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
-        if (instance == 0) {
-            dmGui::HScene scene = dmGui::GetSceneFromLua(L);
-            if (scene != 0) {
-                instance = (dmGameObject::HInstance)dmGameSystem::GuiGetUserDataCallback(scene);
-            }
+        if (instance != 0)
+        {
+            return instance;
         }
-        return instance;
+
+        dmScript::GetInstance(L);
+        uint32_t user_type_hash = dmScript::GetUserType(L, -1);
+        lua_pop(L, 1);
+
+        if (user_type_hash != 0)
+        {
+            return dmGameObject::GetInstanceFromLua(L, user_type_hash);
+        }
+        return 0;
     }
 
     dmGameObject::HInstance CheckGOInstance(lua_State* L) {
@@ -235,6 +238,9 @@ namespace dmGameSystem
         lua_pushinteger(L, (lua_Integer) info.m_VWrap);
         lua_setfield(L, -2, "v_wrap");
 
+        lua_pushinteger(L, (lua_Integer) info.m_WWrap);
+        lua_setfield(L, -2, "w_wrap");
+
         lua_pushinteger(L, (lua_Integer) info.m_MinFilter);
         lua_setfield(L, -2, "min_filter");
 
@@ -279,7 +285,8 @@ namespace dmGameSystem
 
             lua_setfield(L, -2, "value");
         }
-        else if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
+        else if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER ||
+                 type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR)
         {
             uint32_t num_values;
             dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
@@ -375,7 +382,7 @@ namespace dmGameSystem
         PushVertexAttributeValue(L, attribute->m_VectorType, values);
     }
 
-    void GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
+    void GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureWrap* w_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
     {
         // parse u_wrap
         {
@@ -393,6 +400,16 @@ namespace dmGameSystem
             if (!lua_isnil(L, -1))
             {
                 *v_wrap = (dmGraphics::TextureWrap) lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse w_wrap
+        {
+            lua_getfield(L, -1, "w_wrap");
+            if (!lua_isnil(L, -1))
+            {
+                *w_wrap = (dmGraphics::TextureWrap) lua_tointeger(L, -1);
             }
             lua_pop(L, 1);
         }
@@ -497,11 +514,7 @@ namespace dmGameSystem
                     }
                     lua_pop(L, 1);
 
-                    if (scratch_values->Capacity() < count)
-                    {
-                        scratch_values->SetCapacity(count);
-                    }
-                    scratch_values->SetSize(count);
+                    scratch_values->EnsureSize(count);
 
                     dmVMath::Vector4* write_ptr = scratch_values->Begin();
 
@@ -522,12 +535,7 @@ namespace dmGameSystem
                         count = 4;
                     }
 
-                    if (scratch_values->Capacity() < count)
-                    {
-                        scratch_values->SetCapacity(count);
-                    }
-
-                    scratch_values->SetSize(count);
+                    scratch_values->EnsureSize(count);
 
                     FillConstantsFromLua(L, -1, scratch_values->Begin());
                 }
@@ -552,8 +560,6 @@ namespace dmGameSystem
 
         ScriptBufferRegister(context);
         ScriptLabelRegister(context);
-        ScriptParticleFXRegister(context);
-        ScriptTileMapRegister(context);
         ScriptPhysicsRegister(context);
         ScriptFactoryRegister(context);
         ScriptCollectionFactoryRegister(context);

@@ -40,7 +40,7 @@
               (catch Exception e
                 (g/->error _node-id :meta-info :fatal resource (.getMessage e) (ex-data e)))))))
 
-(defn- additional-load-fn [project self _resource]
+(defn- connect-fn [project self _resource]
   (g/connect self :proj-path+meta-info project :proj-path+meta-info-pairs))
 
 (defn register-resource-types [workspace]
@@ -48,7 +48,7 @@
     workspace
     :ext "properties"
     :node-type GameProperties
-    :additional-load-fn additional-load-fn
+    :connect-fn connect-fn
     :label (localization/message "resource.type.properties")
     :icon "icons/32/Icons_05-Project-info.png"
     :language "ini"

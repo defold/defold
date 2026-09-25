@@ -27,9 +27,7 @@
 #include "shared_library.h"
 #include "dalloca.h" // dmFixedMemAllocator
 
-#if defined(DM_PLATFORM_VENDOR)
-    #include <dmsdk/dlib/hash_vendor.h>
-#else
+#ifndef DM_HASH_FMT
     #define DM_HASH_FMT "%016" PRIx64
 #endif
 

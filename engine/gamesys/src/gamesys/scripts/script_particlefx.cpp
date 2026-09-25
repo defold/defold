@@ -20,6 +20,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/vmath.h>
+#include <extension/extension.hpp>
 #include <particle/particle.h>
 #include <graphics/graphics.h>
 #include <render/render.h>
@@ -49,6 +50,24 @@ namespace dmGameSystem
      * @name Particle effects
      * @namespace particlefx
      * @language Lua
+     */
+
+    /*# Emitter states
+     * @enum
+     * @name particlefx.EMITTER_STATE
+     * @member particlefx.EMITTER_STATE_POSTSPAWN postspawn state The emitter is not spawning any particles, but has particles that are still alive.
+     * @member particlefx.EMITTER_STATE_PRESPAWN prespawn state The emitter will be in this state when it has been started but before spawning any particles. Normally the emitter is in this state for a short time, depending on if a start delay has been set for this emitter or not.
+     * @member particlefx.EMITTER_STATE_SLEEPING sleeping state The emitter does not have any living particles and will not spawn any particles in this state.
+     * @member particlefx.EMITTER_STATE_SPAWNING spawning state The emitter is spawning particles.
+     */
+
+    /*# Particle effect stop options
+     *
+     * Options used when stopping particle effects.
+     *
+     * @struct
+     * @name particlefx.stop_options
+     * @member clear? [type:boolean] Instantly clear spawned particles.
      */
 
     /*# [type:hash] particlefx material
@@ -116,33 +135,9 @@ namespace dmGameSystem
      * ```
      */
 
-    /*# sleeping state
-     * The emitter does not have any living particles and will not spawn any particles in this state.
-     *
-     * @name particlefx.EMITTER_STATE_SLEEPING
-     * @constant
-     */
 
-    /*# prespawn state
-     * The emitter will be in this state when it has been started but before spawning any particles. Normally the emitter is in this state for a short time, depending on if a start delay has been set for this emitter or not.
-     *
-     * @name particlefx.EMITTER_STATE_PRESPAWN
-     * @constant
-     */
 
-    /*# spawning state
-     * The emitter is spawning particles.
-     *
-     * @name particlefx.EMITTER_STATE_SPAWNING
-     * @constant
-     */
 
-    /*# postspawn state
-     * The emitter is not spawning any particles, but has particles that are still alive.
-     *
-     * @name particlefx.EMITTER_STATE_POSTSPAWN
-     * @constant
-     */
 
     void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data)
     {
@@ -190,24 +185,7 @@ namespace dmGameSystem
      *
      * @name particlefx.play
      * @param url [type:string|hash|url] the particle fx that should start playing.
-     * @param [emitter_state_function] [type:function(self, id, emitter, state)] optional callback function that will be called when an emitter attached to this particlefx changes state.
-     *
-     * `self`
-     * : [type:object] The current object
-     *
-     * `id`
-     * : [type:hash] The id of the particle fx component
-     *
-     * `emitter`
-     * : [type:hash] The id of the emitter
-     *
-     * `state`
-     * : [type:constant] the new state of the emitter:
-     *
-     * - `particlefx.EMITTER_STATE_SLEEPING`
-     * - `particlefx.EMITTER_STATE_PRESPAWN`
-     * - `particlefx.EMITTER_STATE_SPAWNING`
-     * - `particlefx.EMITTER_STATE_POSTSPAWN`
+     * @param [emitter_state_function] [type:fun(self:script_instance, id:hash, emitter:hash, state:particlefx.EMITTER_STATE)] optional callback function that will be called when an emitter attached to this particlefx changes state.
      *
      * @examples
      *
@@ -250,7 +228,7 @@ namespace dmGameSystem
 
         if (top > 1 && !lua_isnil(L, 2))
         {
-            data.m_CallbackInfo = dmScript::CreateCallback(dmScript::GetMainThread(L), -1);
+            data.m_CallbackInfo = dmScript::CreateCallback(L, 2);
             if (data.m_CallbackInfo == 0x0)
             {
                 return DM_LUA_ERROR("particlefx.play failed to create callback");
@@ -295,9 +273,7 @@ namespace dmGameSystem
      *
      * @name particlefx.stop
      * @param url [type:string|hash|url] the particle fx that should stop playing
-     * @param [options] [type:table] Options when stopping the particle fx. Supported options:
-     *
-     * - [type:boolean] `clear`: instantly clear spawned particles
+     * @param [options] [type:particlefx.stop_options] options used when stopping the particle fx
      *
      * @examples
      *
@@ -486,4 +462,14 @@ namespace dmGameSystem
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
     }
+
+    static dmExtension::Result ScriptParticleFXInitialize(dmExtension::Params* params)
+    {
+        ScriptLibContext context;
+        context.m_LuaState = params->m_L;
+        ScriptParticleFXRegister(context);
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptLibParticleFX, "ScriptParticleFX", 0, 0, ScriptParticleFXInitialize, 0, 0, 0)
 }

@@ -17,6 +17,7 @@
 #include "EAGLView.h"
 #import "TextUtil.h"
 #import "AppDelegate.h"
+#import "ViewController.h"
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
@@ -111,7 +112,7 @@ static void LogGLError(GLint err)
     g_glContext = glContext;
     g_glAuxContext = glAuxContext;
 
-    CGFloat scaleFactor = [[UIScreen mainScreen] scale];
+    CGFloat scaleFactor = g_ApplicationWindow.screen.scale;
     g_EAGLView = [[[EAGLView alloc] initWithFrame: bounds] autorelease];
     g_EAGLView.context = glContext;
     g_EAGLView.auxContext = glAuxContext;
@@ -247,10 +248,6 @@ static void LogGLError(GLint err)
     }
 }
 
-- (void)dealloc
-{
-}
-
 @end
 
 
@@ -294,6 +291,25 @@ int  _glfwPlatformOpenWindowOpenGL( int width, int height,
                               const _GLFWwndconfig *wndconfig,
                               const _GLFWfbconfig *fbconfig )
 {
+    if (!g_EAGLView || !g_glContext)
+    {
+        ViewController* viewController = (ViewController*) _glfwWin.viewController;
+        if (!viewController)
+        {
+            viewController = (ViewController*) g_ApplicationWindow.rootViewController;
+            _glfwWin.viewController = viewController;
+        }
+        if (viewController && [viewController isViewLoaded])
+        {
+            [viewController createView:FALSE];
+        }
+    }
+
+    if (!g_EAGLView || !g_glContext || ![EAGLContext setCurrentContext:g_glContext])
+    {
+        return GL_FALSE;
+    }
+
     // Width and height are set by the EAGLView
     _glfwWin.width = [g_EAGLView getWindowWidth];
     _glfwWin.height = [g_EAGLView getWindowHeight];
@@ -308,6 +324,7 @@ int  _glfwPlatformOpenWindowOpenGL( int width, int height,
 
     _glfwWin.view = g_EAGLView;
     _glfwWin.window = g_ApplicationWindow;
+    _glfwWin.iconified = !_glfwPlatformIsSceneActive();
 
     _glfwWin.context = g_glContext;
     _glfwWin.aux_context = g_glAuxContext;

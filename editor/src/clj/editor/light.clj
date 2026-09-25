@@ -608,11 +608,13 @@
 
   (property color types/Color (default [1.0 1.0 1.0])
             (dynamic label (properties/label-dynamic :light :color))
+            (dynamic tooltip (properties/tooltip-dynamic :light :color))
             (dynamic edit-type (g/constantly {:type types/Color
                                               :ignore-alpha true})))
 
   (property intensity g/Num (default 1.0)
             (dynamic label (properties/label-dynamic :light :intensity))
+            (dynamic tooltip (properties/tooltip-dynamic :light :intensity))
             (dynamic error (g/fnk [_node-id intensity] (validate-intensity _node-id intensity)))
             (dynamic edit-type (g/constantly {:type g/Num
                                               :min 0.0})))
@@ -636,7 +638,7 @@
   (output own-build-errors g/Any (gu/passthrough ambient-light-build-errors))
   (output rt-tags g/Any (g/constantly ["light" "ambient_light"])))
 
-(defn load-ambient-light [_project self _resource data-desc]
+(defn load-ambient-light [_load-opts {self :node-id data-desc :source-value}]
   {:pre [(map? data-desc)]} ; DataProto$Data in JSON map format.
   (let [data (:data data-desc)]
     (g/set-properties self
@@ -661,8 +663,8 @@
   (output own-build-errors g/Any (gu/passthrough directional-light-build-errors))
   (output rt-tags g/Any (g/constantly ["light" "directional_light"])))
 
-(defn load-directional-light [project self resource data-desc]
-  (load-ambient-light project self resource data-desc))
+(defn load-directional-light [load-opts node-load-info]
+  (load-ambient-light load-opts node-load-info))
 
 ;; -----------------------------------------------------------------------------
 ;; PointLightNode
@@ -676,6 +678,7 @@
 
   (property range g/Num (default 10.0)
             (dynamic label (properties/label-dynamic :light :range))
+            (dynamic tooltip (properties/tooltip-dynamic :light :range))
             (dynamic error (g/fnk [_node-id range] (validate-range _node-id range)))
             (dynamic edit-type (g/constantly {:type g/Num
                                               :min 0.0})))
@@ -699,11 +702,11 @@
   (output own-build-errors g/Any (gu/passthrough point-light-build-errors))
   (output rt-tags g/Any (g/constantly ["light" "point_light"])))
 
-(defn load-point-light [project self resource data-desc]
+(defn load-point-light [load-opts {self :node-id data-desc :source-value :as node-load-info}]
   {:pre [(map? data-desc)]} ; DataProto$Data in JSON map format.
   (let [data (:data data-desc)]
     (concat
-      (load-directional-light project self resource data-desc)
+      (load-directional-light load-opts node-load-info)
       (g/set-property self :range (get data "range")))))
 
 (defmethod scene-tools/manip-scalable? ::PointLightNode [_node-id] true)
@@ -734,6 +737,7 @@
 
   (property inner-cone-angle g/Num (default 0.0)
             (dynamic label (properties/label-dynamic :light :inner-cone-angle))
+            (dynamic tooltip (properties/tooltip-dynamic :light :inner-cone-angle))
             (dynamic error (g/fnk [_node-id inner-cone-angle] (validate-inner-cone-angle _node-id inner-cone-angle)))
             (dynamic edit-type (g/fnk [outer-cone-angle]
                                  {:type g/Num
@@ -747,6 +751,7 @@
 
   (property outer-cone-angle g/Num (default 45.0)
             (dynamic label (properties/label-dynamic :light :outer-cone-angle))
+            (dynamic tooltip (properties/tooltip-dynamic :light :outer-cone-angle))
             (dynamic error (g/fnk [_node-id outer-cone-angle] (validate-outer-cone-angle _node-id outer-cone-angle)))
             (dynamic edit-type (g/fnk [inner-cone-angle]
                                  {:type g/Num
@@ -788,11 +793,11 @@
                 (update "inner_cone_angle" math/deg->rad)
                 (update "outer_cone_angle" math/deg->rad)))))
 
-(defn load-spot-light [project self resource data-desc]
+(defn load-spot-light [load-opts {self :node-id data-desc :source-value :as node-load-info}]
   {:pre [(map? data-desc)]} ; DataProto$Data in JSON map format.
   (let [data (:data data-desc)]
     (concat
-      (load-point-light project self resource data-desc)
+      (load-point-light load-opts node-load-info)
       (g/set-properties self
         :inner-cone-angle (get data "inner_cone_angle")
         :outer-cone-angle (get data "outer_cone_angle")))))

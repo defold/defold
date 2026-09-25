@@ -24,9 +24,12 @@
             [editor.properties :as properties]
             [editor.scene-selection :as selection]
             [editor.types :as types]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt])
   (:import [editor.curve_view SubSelectionProvider]
            [javax.vecmath Point3d]))
+
+(set! *warn-on-reflection* true)
 
 (defn- world->screen [view x y]
   (let [world-p (Point3d. x y 0.0)
@@ -64,17 +67,27 @@
     (mapv last)))
 
 (defn- make-curve-view! [app-view width height]
-  (doto (curve-view/make-view! app-view (test-util/make-view-graph!) nil nil test-util/localization {} false)
-    (g/set-property! :viewport (types/->Region 0 width 0 height))))
+  (let [curve-view (curve-view/make-view!
+                     app-view
+                     nil
+                     nil
+                     nil
+                     test-util/localization
+                     {}
+                     false)]
+    (g/transact
+      {:undoable false}
+      (g/set-property curve-view :viewport (types/->Region 0 width 0 height)))
+    curve-view))
 
 (defn- curve-controller [view]
   (reduce
-    (fn [_ [node-id]]
-      (when (g/node-instance? curve-view/CurveController node-id)
-        (reduced node-id)))
+    (fn [_ arc]
+      (let [source-node-id (gt/source-id arc)]
+        (when (g/node-instance? curve-view/CurveController source-node-id)
+          (reduced source-node-id))))
     nil
-    (g/sources-of view :input-handlers)))
-
+    (g/inputs (g/now) view :input-handlers)))
 
 (deftest selection
   (test-util/with-loaded-project
@@ -144,6 +157,7 @@
     (let [curve-view (make-curve-view! app-view 800 400)
           node-id (test-util/open-tab! project app-view "/particlefx/fireworks_big.particlefx")
           emitter (:node-id (test-util/outline node-id [0]))
+          controller (curve-controller curve-view)
           context (handler/->context :curve-view {} (SubSelectionProvider. app-view))
           original-curve (g/node-value emitter :particle-key-alpha)]
       (app-view/select! app-view [emitter])
@@ -158,6 +172,14 @@
       (mouse-dbl-click! curve-view 0.05 0.62)
       (is (nil? (cp emitter :particle-key-alpha 9)))
       (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
+      ; Emitter changes are undoable, but controller changes are not
+      (g/undo! :undo/global)
+      (is (cp? [0.05 0.62] (cp emitter :particle-key-alpha 9)))
+      (is (nil? (g/node-value controller :handle)))
+      (mouse-move! curve-view 0.05 0.62)
+      (g/redo! :undo/global)
+      (is (nil? (cp emitter :particle-key-alpha 9)))
+      (is (nil? (g/node-value controller :handle)))
       ; Delete through handler
       (mouse-drag! curve-view 0.0 -2.0 1.0 2.0)
       (test-util/handler-run :edit.delete [context] {})
@@ -184,8 +206,11 @@
             point-count #(properties/curve-point-count (g/node-value emitter :particle-key-alpha))]
         (app-view/select! app-view [emitter])
         (is (= 8 (point-count)))
-        (let [[x y] (world->screen view 0.05 0.5)]
-          (g/set-property! view :tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0]))
+        (let [[x y] (world->screen view 0.05 0.5)
+              tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0])]
+          (g/transact
+            {:undoable false}
+            (g/set-property view :tool-picking-rect tool-picking-rect))
           (is (= :curve (first (g/node-value view :curve-handle))))
           (curve-view/handle-input controller nil {:type :mouse-pressed
                                                    :button :middle
@@ -195,8 +220,11 @@
                                    nil))
         (is (= 9 (point-count)))
         (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
-        (let [[x y] (world->screen view 0.05 0.62)]
-          (g/set-property! view :tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0]))
+        (let [[x y] (world->screen view 0.05 0.62)
+              tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0])]
+          (g/transact
+            {:undoable false}
+            (g/set-property view :tool-picking-rect tool-picking-rect))
           (is (= :control-point (first (g/node-value view :curve-handle))))
           (curve-view/handle-input controller nil {:type :mouse-pressed
                                                    :button :secondary
@@ -240,8 +268,11 @@
             point-count #(properties/curve-point-count (g/node-value emitter :particle-key-alpha))]
         (app-view/select! app-view [emitter])
         (is (= 8 (point-count)))
-        (let [[x y] (world->screen view 0.05 0.5)]
-          (g/set-property! view :tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0]))
+        (let [[x y] (world->screen view 0.05 0.5)
+              tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0])]
+          (g/transact
+            {:undoable false}
+            (g/set-property view :tool-picking-rect tool-picking-rect))
           (is (= :curve (first (g/node-value view :curve-handle))))
           (curve-view/handle-input controller nil {:type :mouse-pressed
                                                    :button :middle
@@ -251,8 +282,11 @@
                                    nil))
         (is (= 9 (point-count)))
         (test-util/ensure-number-type-preserving! original-curve (g/node-value emitter :particle-key-alpha))
-        (let [[x y] (world->screen view 0.05 0.62)]
-          (g/set-property! view :tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0]))
+        (let [[x y] (world->screen view 0.05 0.62)
+              tool-picking-rect (selection/calc-picking-rect [x y 0.0] [x y 0.0])]
+          (g/transact
+            {:undoable false}
+            (g/set-property view :tool-picking-rect tool-picking-rect))
           (is (= :control-point (first (g/node-value view :curve-handle))))
           (curve-view/handle-input controller nil {:type :mouse-pressed
                                                    :button :secondary

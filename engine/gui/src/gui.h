@@ -86,10 +86,9 @@ namespace dmGui
                         m_Playback              == other.m_Playback;
             }
 
-            uint32_t m_Start : 13;
-            uint32_t m_End : 13;
-            uint32_t m_Playback : 4;
-            uint32_t : 2;
+            uint32_t m_Start;
+            uint32_t m_End;
+            uint8_t  m_Playback;
             uint16_t m_OriginalTextureWidth;
             uint16_t m_OriginalTextureHeight;
             uint8_t  m_FPS;
@@ -150,6 +149,11 @@ namespace dmGui
      * Callback to update custom node data
      */
     typedef void (*UpdateCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
+
+    /**
+     * Callback to prepare a text layout for a node
+     */
+    typedef void (*PrepareNodeTextLayoutCallback)(dmGui::HScene scene, dmGui::HNode node);
 
     /**
      * Callback to get custom resource data
@@ -222,6 +226,7 @@ namespace dmGui
         CloneCustomNodeCallback        m_CloneCustomNodeCallback;
         UpdateCustomNodeCallback       m_UpdateCustomNodeCallback;
         void*                          m_CreateCustomNodeCallbackContext;
+        PrepareNodeTextLayoutCallback  m_PrepareNodeTextLayoutCallback;
         GetResourceCallback            m_GetResourceCallback;
         void*                          m_GetResourceCallbackContext;
         GetMaterialPropertyCallback    m_GetMaterialPropertyCallback;
@@ -324,6 +329,12 @@ namespace dmGui
             SetDefaultNewContextParams(this);
         }
     };
+
+    void SetContextCallbacks(HContext context,
+                             GetURLCallback get_url_callback,
+                             GetUserDataCallback get_user_data_callback,
+                             ResolvePathCallback resolve_path_callback,
+                             GetTextMetricsCallback get_text_metrics_callback);
 
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -978,6 +989,10 @@ namespace dmGui
     void SetNodeText(HScene scene, HNode node, const char* text);
     void SetNodeLineBreak(HScene scene, HNode node, bool line_break);
     bool GetNodeLineBreak(HScene scene, HNode node);
+    // Authored base style, stored separately from script-visible properties.
+    void SetNodeTextStyle(HScene scene, HNode node, dmhash_t style);
+    dmhash_t GetNodeTextStyle(HScene scene, HNode node);
+
     void SetNodeTextLeading(HScene scene, HNode node, float leading);
     float GetNodeTextLeading(HScene scene, HNode node);
     void SetNodeTextTracking(HScene scene, HNode node, float tracking);
@@ -1020,6 +1035,7 @@ namespace dmGui
     Result SetNodeFont(HScene scene, HNode node, const char* font_id);
 
     dmhash_t GetNodeLayerId(HScene scene, HNode node);
+    uint16_t GetNodeLayerIndex(HScene scene, HNode node);
     Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id);
     Result SetNodeLayer(HScene scene, HNode node, const char* layer_id);
 
@@ -1084,6 +1100,8 @@ namespace dmGui
 
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
+    // Invokes the scene callback that prepares the current text layout for a node.
+    void PrepareNodeTextLayout(HScene scene, HNode node);
     // Returns the node-owned text layout as a borrowed handle.
     void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout);
     // Stores a node-owned text layout reference. The incoming handle remains owned by the caller.
@@ -1162,6 +1180,16 @@ namespace dmGui
      * @return true if the node was picked, false otherwise
      */
     bool PickNode(HScene scene, HNode node, float x, float y);
+
+    /** converts project-space input coordinates to the local transform used to render a node
+     * @param scene the scene the node exists in
+     * @param node node to convert coordinates for
+     * @param x project-space x-coordinate
+     * @param y project-space y-coordinate
+     * @param position local render position (out)
+     * @return true when the position could be projected onto the node plane
+     */
+    bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, dmVMath::Point3* position);
 
     /** retrieves if a node is enabled or not
      * Only enabled nodes are animated and rendered.

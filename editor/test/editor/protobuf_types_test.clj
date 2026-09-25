@@ -17,25 +17,29 @@
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
-            [editor.progress :as progress]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log]
-            [support.test-support :refer [with-clean-system]]))
+            [support.test-support :refer [with-clean-system]]
+            [util.coll :as coll]))
 
 (def ^:private project-path "test/resources/all_types_project")
 
 (deftest test-load
   (with-clean-system
-    (is (let [workspace (test-util/setup-workspace! world project-path)
+    (is (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)]
           true))))
 
-(def expected-dependencies
+(def ^:private expected-dependencies
   {"/test.animationset" ["/test2.animationset"]
    "/test.atlas" ["/builtins/graphics/particle_blob.png"]
    "/test.camera" []
    "/test.collection" []
+   "/test.compute" ["/test.cp"]
+   "/test.cp" []
    "/test_embedded_gos.collection" ["/test.collection"
                                     "/main.collection"
                                     "/test.tilemap"
@@ -133,46 +137,116 @@
    "/test2.animationset" []
    "/test2.gui" ["/test.material"]})
 
+(def ^:private expected-editor-dependencies
+  {"/test.animationset" []
+   "/test.atlas" []
+   "/test.camera" []
+   "/test.collection" []
+   "/test.collectionfactory" []
+   "/test.collectionproxy" []
+   "/test.collisionobject" []
+   "/test.compute" []
+   "/test.cp" []
+   "/test.cubemap" []
+   "/test.display_profiles" []
+   "/test.factory" []
+   "/test.font" []
+   "/test.fp" []
+   "/test.gamepads" []
+   "/test.gltf" []
+   "/test.go" []
+   "/test.gui" ["/builtins/fonts/default.font"]
+   "/test.gui_script" []
+   "/test.input_binding" []
+   "/test.json" []
+   "/test.label" []
+   "/test.lua" []
+   "/test.material" []
+   "/test.model" []
+   "/test.particlefx" []
+   "/test.render" []
+   "/test.render_script" []
+   "/test.script" []
+   "/test.sound" []
+   "/test.sprite" []
+   "/test.texture_profiles" []
+   "/test.tilemap" []
+   "/test.tilesource" []
+   "/test.vp" []
+   "/test.wav" []
+   "/test2.animationset" []
+   "/test2.go" []
+   "/test2.gui" ["/builtins/fonts/default.font"]
+   "/test_embedded_components.go" []
+   "/test_embedded_gos.collection" []
+   "/test_embedded_gos_referenced_components.collection" []})
+
 (defn fallback-dependencies-fn [resource-type]
-  (when (#{"vp" "fp" "lua" "script" "gui_script" "wav" "json" "render_script" "gltf" "glb"} (:ext resource-type))
+  (when (#{"cp"
+           "fp"
+           "glb"
+           "gltf"
+           "gui_script"
+           "json"
+           "lua"
+           "render_script"
+           "script"
+           "vp"
+           "wav"}
+         (:ext resource-type))
     (constantly [])))
 
 (deftest dependencies
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world project-path)
+    (let [workspace (test-util/setup-workspace! project-path)
           project (test-util/setup-project! workspace)
-          resource-nodes (g/node-value project :nodes-by-resource-path)]
+          resource-nodes (g/node-value project :nodes-by-resource-path)
+          basis (g/now)]
       (doseq [[resource-path node-id] resource-nodes
               :when (.startsWith resource-path "/test")]
-        (let [resource (g/node-value node-id :resource)
+        (let [resource (resource-node/resource basis node-id)
               resource-type (resource/resource-type resource)
               dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
-              source-value (g/node-value node-id :source-value)]
+              save-value (g/node-value node-id :save-value)
+              expected-dependencies (expected-dependencies resource-path)
+              expected-editor-dependencies (expected-editor-dependencies resource-path)]
           (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
-          (is (some? (expected-dependencies resource-path)) resource-path)
-          (is (= (sort (expected-dependencies resource-path))
-                 (sort (dependencies-fn source-value))) resource-path))))))
+          (is (some? expected-dependencies) resource-path)
+          (is (some? expected-editor-dependencies) resource-path)
+          (is (= (sort expected-dependencies)
+                 (sort (dependencies-fn
+                         (workspace/make-read-opts basis workspace :include-editor-dependencies false)
+                         resource
+                         save-value)))
+              resource-path)
+          (is (= (sort (set (concat expected-dependencies expected-editor-dependencies)))
+                 (sort (dependencies-fn
+                         (workspace/make-read-opts basis workspace :include-editor-dependencies true)
+                         resource
+                         save-value)))
+              resource-path))))))
 
 (deftest load-order-sanity
   (with-clean-system
-    (let [workspace (test-util/setup-workspace! world project-path)
-          proj-graph (g/make-graph! :history true :volatility 1)
-          extensions (extensions/make proj-graph)
-          project (project/make-project proj-graph workspace extensions)]
-      (let [node-id+resource-pairs
-            (project/make-node-id+resource-pairs proj-graph (g/node-value project :resources))
+    (let [workspace (test-util/setup-workspace! project-path)
+          extensions (extensions/make)
+          project (project/make-project workspace extensions)
 
-            node-load-infos
-            (project/read-nodes node-id+resource-pairs)
+          node-id+resource-pairs
+          (project/make-node-id+resource-pairs (g/node-value project :resources))
 
-            load-order
-            (into {}
-                  (map-indexed (fn [node-index {:keys [resource]}]
-                                 [(resource/proj-path resource) node-index]))
-                  node-load-infos)]
-        (doseq [[resource-path dependencies] expected-dependencies
-                dependency dependencies]
-          (is (< (load-order dependency) (load-order resource-path)) (format "%s before %s" dependency resource-path)))))))
+          node-load-infos
+          (project/read-nodes node-id+resource-pairs)
+
+          load-order
+          (into {}
+                (map-indexed (fn [node-index {:keys [resource]}]
+                               [(resource/proj-path resource) node-index]))
+                node-load-infos)]
+
+      (doseq [[resource-path dependencies] (coll/merge-with into expected-dependencies expected-editor-dependencies)
+              dependency (distinct dependencies)]
+        (is (< (load-order dependency) (load-order resource-path)) (format "%s before %s" dependency resource-path))))))
 
 (def non-broken-dependencies
   {"/broken_embedded_gos.collection" [] ; embedded instance broken, so no dependencies
@@ -191,9 +265,10 @@
 (deftest broken-embedded-data-gives-no-dependencies
   (log/without-logging ; skip warnings about <<<<<<<< in game.project, BORK in go/collection
     (with-clean-system
-      (let [workspace (test-util/setup-workspace! world "test/resources/broken_project")
+      (let [workspace (test-util/setup-workspace! "test/resources/broken_project")
             project (test-util/setup-project! workspace)
-            resource-nodes (g/node-value project :nodes-by-resource-path)]
+            resource-nodes (g/node-value project :nodes-by-resource-path)
+            basis (g/now)]
         (let [broken-go (resource-nodes "/broken_embedded_components.go")
               broken-collection (resource-nodes "/broken_embedded_gos.collection")]
           (doseq [node-id [broken-go broken-collection]]
@@ -204,5 +279,8 @@
                   source-value (g/node-value node-id :source-value)]
               (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
               (is (= (sort (non-broken-dependencies resource-path))
-                     (sort (dependencies-fn source-value)))
+                     (sort (dependencies-fn
+                             (workspace/make-read-opts basis workspace :include-editor-dependencies false)
+                             resource
+                             source-value)))
                   resource-path))))))))

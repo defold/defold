@@ -14,6 +14,7 @@
 
 import run
 from log import log
+import json
 import os
 import re
 import sys
@@ -22,6 +23,26 @@ from datetime import datetime
 from configparser import ConfigParser
 
 s3buckets = {}
+
+def get_release_info(archive_path, channel):
+    import botocore.exceptions
+    bucket = get_bucket(urlparse(archive_path).hostname)
+    key = '%s/info.json' % channel
+    try:
+        response = bucket.Object(key).get()
+    except botocore.exceptions.ClientError as err:
+        if err.response.get('Error', {}).get('Code') in ('NoSuchKey', '404'):
+            return None
+        raise
+    with response['Body'] as body:
+        info = json.load(body)
+    if not isinstance(info, dict) or not isinstance(info.get('sha1'), str) or not re.fullmatch('[0-9a-f]{40}', info['sha1']):
+        raise ValueError('Invalid release SHA in %s; refusing to replace the published channel' % key)
+    automatic_sha1 = info.get('automatic_sha1')
+    if channel == 'alpha' and automatic_sha1 is not None and (
+            not isinstance(automatic_sha1, str) or not re.fullmatch('[0-9a-f]{40}', automatic_sha1)):
+        raise ValueError('Invalid automatic release SHA in %s; refusing to replace the published channel' % key)
+    return info
 
 def init_boto_data_path():
     data_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto3_data'))
@@ -170,7 +191,7 @@ def move_release(archive_path, sha1, channel):
         # destination
         new_key = "archive/%s/%s/%s" % (channel, sha1, name)
 
-        print("Prepair %s to be moved to: %s" % (name, new_key))
+        print("Prepare %s to be moved to: %s" % (name, new_key))
 
         # the keys in archive/sha1/* are all redirects to files in archive/channel/sha1/*
         # get the actual file from the redirect

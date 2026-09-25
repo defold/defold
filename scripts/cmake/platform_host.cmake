@@ -71,6 +71,8 @@ if(_defold_host_cpu_lc MATCHES "^(aarch64|arm64)$")
   set(_HOST_PLATFORM_ARCH "arm64")
 elseif(_defold_host_cpu_lc MATCHES "^(x86_64|amd64|x64|x86-64)$")
   set(_HOST_PLATFORM_ARCH "x86_64")
+elseif(_HOST_PLATFORM_OS STREQUAL "win32" AND _defold_host_cpu_lc MATCHES "^(x86|i[3-6]86)$")
+  message(FATAL_ERROR "32-bit Windows hosts are not supported")
 endif()
 
 # Fallbacks if detection failed

@@ -1,0 +1,10 @@
+attribute vec4 position;
+attribute mat4 crash_attr;
+
+varying vec4 var_crash_attr;
+
+void main()
+{
+    gl_Position = position;
+    var_crash_attr = crash_attr[0];
+}

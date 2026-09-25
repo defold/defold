@@ -18,6 +18,12 @@
 #include <dmsdk/font/font.h>
 #include "text_layout.h"
 
+// Normalized SDF value change over one spread of signed distance (positive inside):
+// value = edge + FONT_SDF_DISTANCE_SCALE * distance / spread.
+// The 0.25 range leaves room above the default 0.75 edge for interior distances.
+// Generation, outline/shadow thresholds and shader smoothing must use the same scale.
+static const float FONT_SDF_DISTANCE_SCALE = 0.25f;
+
 typedef HFont       (*FontLoadFromMemoryFn)(const char* name, const void* data, uint32_t data_size, bool allocate);
 typedef void        (*FontDestroyFn)(HFont font);
 typedef uint32_t    (*FontGetResourceSizeFn)(HFont font);
@@ -50,14 +56,5 @@ struct Font
 HFont FontCreate(Font* font);
 
 TextLayoutType FontGetLayoutType(HFont hfont);
-
-#if defined(FONT_USE_HARFBUZZ)
-
-typedef struct hb_font_t hb_font_t;
-
-hb_font_t* FontGetHarfbuzzFontFromTTF(HFont hfont);
-
-#endif
-
 
 #endif // DM_FONT_H
