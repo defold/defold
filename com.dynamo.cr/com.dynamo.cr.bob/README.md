@@ -46,6 +46,25 @@ the output, preserving the compressed bytes. Loose files are compressed in
 parallel. `-Pkeep-bob-uncompressed` still stores every entry without compression;
 compressed dependency entries are inflated once while writing the output.
 
+## Android resource shrinking
+
+Selecting `android.r8_keep_rules` enables R8 code optimization and, with SDKs that
+support it, Android resource shrinking. Extender runs both in the same R8 invocation
+and returns the optimized proto archive as `compiledresources.apk` for Bob to package
+into APK and AAB files.
+
+Resources accessed only through names constructed at runtime or native code need
+an explicit resource keep rule. For example, with `project.bundle_resources` set to
+`/bundle`, put this in `bundle/android/res/raw/keep.xml`:
+
+```xml
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/dynamic_icon,@raw/runtime_data" />
+```
+
+Resource keep XML is separate from the Java `.keep` configuration. Projects without
+`android.r8_keep_rules` continue using D8.
+
 ## Content pipeline
 
 Bob builds content for the editor and engine tests. The engine build first builds the host tools and bob-light.jar, then uses Bob from CMake to compile test content and built-in resources.
