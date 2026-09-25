@@ -25,6 +25,8 @@
 #include "../../gameobject.h"
 #include "../../gameobject_private.h"
 
+using dmGameObject::CancelAnimations;
+
 class AnimTest : public jc_test_base_class
 {
 protected:
@@ -232,7 +234,7 @@ TEST_F(AnimTest, Cancel)
     float delay = 0.f;
 
     Animate(m_Collection, go, 0, id, dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::CancelAnimations(m_Collection, go, 0, id));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, go, 0, id));
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_EQ(0.0f, X(go));
@@ -257,7 +259,7 @@ TEST_F(AnimTest, CancelAll)
 
     Animate(m_Collection, go, 0, id1, dmGameObject::PLAYBACK_ONCE_FORWARD, var1, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
     Animate(m_Collection, go, 0, id2, dmGameObject::PLAYBACK_ONCE_FORWARD, var2, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, AnimationStopped, this, 0x0);
-    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::CancelAnimations(m_Collection, go, 0, 0));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, CancelAnimations(m_Collection, go, 0, 0));
 
     dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_EQ(0.0f, X(go));

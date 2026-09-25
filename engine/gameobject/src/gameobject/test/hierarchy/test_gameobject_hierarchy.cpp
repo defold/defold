@@ -31,6 +31,7 @@
 #define EPSILON 0.000001f
 
 using namespace dmVMath;
+using dmGameObject::SetBoneTransforms;
 
 class HierarchyTest : public jc_test_base_class
 {
@@ -982,7 +983,7 @@ TEST_F(HierarchyTest, TestHierarchyBonesOrder)
 
     dmTransform::Transform component_transform;
     component_transform.SetIdentity();
-    ASSERT_EQ(instance_count, dmGameObject::SetBoneTransforms(instances[0], component_transform, transforms, instance_count));
+    ASSERT_EQ(instance_count, SetBoneTransforms(instances[0], component_transform, transforms, instance_count));
 
     for (uint32_t i = 0; i < instance_count; ++i)
     {
@@ -992,7 +993,7 @@ TEST_F(HierarchyTest, TestHierarchyBonesOrder)
     }
 
     component_transform.SetTranslation(Vector3(100.0f, 100.0f, 100.0f));
-    ASSERT_EQ(instance_count, dmGameObject::SetBoneTransforms(instances[0], component_transform, transforms, instance_count));
+    ASSERT_EQ(instance_count, SetBoneTransforms(instances[0], component_transform, transforms, instance_count));
 
     ASSERT_NEAR((float)101.f, dmGameObject::GetPosition(instances[0]).getX(), EPSILON);
     ASSERT_NEAR((float)102.f, dmGameObject::GetPosition(instances[0]).getY(), EPSILON);
@@ -1048,7 +1049,7 @@ TEST_F(HierarchyTest, TestHierarchyBonesMulti)
 
     dmTransform::Transform component_transform;
     component_transform.SetIdentity();
-    ASSERT_EQ(2u, dmGameObject::SetBoneTransforms(p1, component_transform, t, 2));
+    ASSERT_EQ(2u, SetBoneTransforms(p1, component_transform, t, 2));
 
     ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
