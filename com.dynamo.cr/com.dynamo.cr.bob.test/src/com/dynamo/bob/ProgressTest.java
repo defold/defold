@@ -14,6 +14,8 @@
 
 package com.dynamo.bob;
 
+import com.dynamo.bob.bundle.BundleHelper;
+
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -201,6 +203,33 @@ public class ProgressTest {
         assertEquals(1.0, reporter.reports.get(2).fraction(), 0.0);
         assertEquals(1, reporter.closeCalls);
         assertFalse(progress.isCanceled());
+    }
+
+    @Test
+    public void buildingEngineStageLabel() {
+        assertEquals("Linking engine", new IProgress.Message.BuildingEngineStage("arm64-ios", "LINKING", "Linking engine", -1, -1).label());
+        assertEquals("SDK", new IProgress.Message.BuildingEngineStage("arm64-ios", "SDK", null, -1, -1).label());
+        assertEquals("ext: compiling source files (3/17)", new IProgress.Message.BuildingEngineStage("arm64-ios", "COMPILING", "ext: compiling source files", 3, 17).label());
+    }
+
+    @Test
+    public void extenderProgressListenerNeverDecreases() {
+        var reporter = new RecordingReporter();
+        var progress = new Progress(reporter);
+        var listener = BundleHelper.createProgressListener(progress, "arm64-ios");
+
+        listener.onProgress("SDK", "Downloading SDK", 10, -1, -1);
+        listener.onProgress("COMPILING", "ext: compiling source files", 50, 1, 2);
+        listener.onProgress("COMPILING", "ext: compiling source files", 0, 2, 2);
+        listener.onProgress("SUCCESS", null, 100, -1, -1);
+
+        var last = reporter.reports.get(reporter.reports.size() - 1);
+        assertEquals(1.0, last.fraction(), 0.0);
+        assertEquals("SUCCESS", ((IProgress.Message.BuildingEngineStage) last.message()).label());
+        var fractions = reporter.reports.stream().mapToDouble(Report::fraction).toArray();
+        for (int i = 1; i < fractions.length; ++i) {
+            assertTrue(fractions[i] >= fractions[i - 1]);
+        }
     }
 
     @Test

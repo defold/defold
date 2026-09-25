@@ -230,10 +230,10 @@
    :dmengine <File to bundled/dev dmengine>
    :engine-archive <File to custom engine archive downloaded from extension server>
    :extender-platform <String platform the engine was compiled for>}"
-  [project evaluation-context prefs platform]
+  [project evaluation-context prefs platform progress]
   (or (dev-custom-engine prefs platform)
       (if (native-extensions/has-engine-extensions? project evaluation-context)
-        (native-extensions/get-engine-archive project platform prefs evaluation-context)
+        (native-extensions/get-engine-archive project platform prefs evaluation-context progress)
         (bundled-engine platform))))
 
 (defn- unpack-dmengine!

@@ -1137,7 +1137,7 @@ public class Project implements AutoCloseable {
         return platformStrings;
     }
 
-    public void buildEnginePlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
+    public void buildEnginePlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform, IProgress progress) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Get SHA1 and create log file
         final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
@@ -1187,7 +1187,7 @@ public class Project implements AutoCloseable {
             extender.setHeaders(buildServerHeaders);
 
             String buildPlatform = platform.getExtenderPair();
-            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
+            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile, progress);
 
             cleanEngine(platform, buildDir);
 
@@ -1199,7 +1199,7 @@ public class Project implements AutoCloseable {
         }
     }
 
-    public void buildLibraryPlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
+    public void buildLibraryPlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform, IProgress progress) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Get SHA1 and create log file
         final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
@@ -1259,7 +1259,7 @@ public class Project implements AutoCloseable {
             extender.setHeaders(buildServerHeaders);
 
             String buildPlatform = platform.getExtenderPair();
-            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
+            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile, progress);
 
             BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
         } catch (ConnectException e) {
@@ -1296,9 +1296,9 @@ public class Project implements AutoCloseable {
                         TimeProfiler.addData("variant", appmanifestOptions.get("withSymbols"));
                         try {
                             if (shouldBuildArtifact("library")) {
-                                buildLibraryPlatform( buildDir, cacheDir, appmanifestOptions, platform);
+                                buildLibraryPlatform(buildDir, cacheDir, appmanifestOptions, platform, architectureProgress);
                             } else {
-                                buildEnginePlatform( buildDir, cacheDir, appmanifestOptions, platform);
+                                buildEnginePlatform(buildDir, cacheDir, appmanifestOptions, platform, architectureProgress);
                             }
                         } catch (Throwable e) {
                             throw new RuntimeException(e);
@@ -2051,10 +2051,11 @@ public class Project implements AutoCloseable {
                             boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this, getPlatform());
                             boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
                             TimeProfiler.stop();
-                            var buildPhases = commandProgress.split(3);
+                            // setup 10%, engine 30%, resources 60%
+                            var buildPhases = commandProgress.split(10);
 
                             if (shouldBuildProject) {
-                                try (var setupProgress = buildPhases.subtask()) {
+                                try (var setupProgress = buildPhases.subtask(1)) {
                                     // do this before buildRemoteEngine to prevent concurrent modification exception, since
                                     // lua transpilation adds new mounts with compiled Lua that buildRemoteEngine iterates over
                                     // when sending to extender
@@ -2067,13 +2068,13 @@ public class Project implements AutoCloseable {
                                     TimeProfiler.stop();
                                 }
                             } else {
-                                buildPhases.worked();
+                                buildPhases.worked(1);
                             }
 
                             TimeProfiler.start("PrepEngine");
                             TimeProfiler.addData("shouldBuildRemoteEngine", shouldBuildRemoteEngine);
                             AtomicBoolean remoteBuildFailed = new AtomicBoolean(false);
-                            var engineProgress = buildPhases.subtask();
+                            var engineProgress = buildPhases.subtask(3);
                             if (shouldBuildRemoteEngine) {
                                 remoteBuildFuture = buildRemoteEngine(engineProgress, executor, remoteBuildFailed);
                             } else {
@@ -2088,7 +2089,7 @@ public class Project implements AutoCloseable {
                             }
                             TimeProfiler.stop();
                             boolean resourceBuildingFailed = false;
-                            try (var resourceProgress = buildPhases.subtask()) {
+                            try (var resourceProgress = buildPhases.subtask(6)) {
                                 if (shouldBuildProject) {
                                     result = createAndRunTasks(resourceProgress, remoteBuildFailed);
                                 }

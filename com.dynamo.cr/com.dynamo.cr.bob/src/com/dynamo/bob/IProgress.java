@@ -66,13 +66,27 @@ public interface IProgress extends ICanceled, AutoCloseable {
     }
 
     /// Marker type for progress messages reported by `IProgress`
-    sealed interface Message permits IProgress.Message.Building, IProgress.Message.BuildingEngine, IProgress.Message.Bundling, IProgress.Message.Cleaning, IProgress.Message.CleaningEngine, IProgress.Message.DownloadingArchive, IProgress.Message.DownloadingArchives, IProgress.Message.DownloadingSymbols, IProgress.Message.GeneratingReport, IProgress.Message.ReadingClasses, IProgress.Message.ReadingTasks, IProgress.Message.TranspilingToLua, IProgress.Message.Working {
+    sealed interface Message permits IProgress.Message.Building, IProgress.Message.BuildingEngine, IProgress.Message.BuildingEngineStage, IProgress.Message.Bundling, IProgress.Message.Cleaning, IProgress.Message.CleaningEngine, IProgress.Message.DownloadingArchive, IProgress.Message.DownloadingArchives, IProgress.Message.DownloadingSymbols, IProgress.Message.GeneratingReport, IProgress.Message.ReadingClasses, IProgress.Message.ReadingTasks, IProgress.Message.TranspilingToLua, IProgress.Message.Working {
         record Bundling() implements IProgress.Message {
             public static final Bundling INSTANCE = new Bundling();
         }
 
         record BuildingEngine() implements IProgress.Message {
             public static final BuildingEngine INSTANCE = new BuildingEngine();
+        }
+
+        /// Live stage of a remote engine build for one platform.
+        ///
+        /// `currentFile`/`totalFiles` are -1 outside the compile stage.
+        record BuildingEngineStage(String platform, String stage, String detail, int currentFile, int totalFiles) implements IProgress.Message {
+            /// Display text: detail (or stage when detail is missing), with file counts only while compiling
+            public String label() {
+                String text = detail == null || detail.isBlank() ? stage : detail;
+                if (totalFiles >= 0) {
+                    return String.format("%s (%d/%d)", text, Math.max(0, currentFile), totalFiles);
+                }
+                return text;
+            }
         }
 
         record CleaningEngine() implements IProgress.Message {

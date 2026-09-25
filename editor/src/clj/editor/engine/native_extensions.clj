@@ -29,7 +29,8 @@
             [editor.yaml :as yaml]
             [util.coll :as coll])
   (:import [com.defold.extender.client ExtenderClient ExtenderClientCache ExtenderResource]
-           [com.dynamo.bob Platform]
+           [com.dynamo.bob IProgress Platform]
+           [com.dynamo.bob.bundle BundleHelper]
            [java.io File]
            [java.net URI]
            [java.nio.charset StandardCharsets]
@@ -298,44 +299,52 @@
              (extension-resource-nodes-by-upload-path project evaluation-context platform)
              (get-main-manifest-file-upload-resource project evaluation-context platform)))))
 
-(defn get-engine-archive [project platform prefs evaluation-context]
-  (if-not (supported-platform? platform)
-    (throw (engine-build-errors/unsupported-platform-error platform))
-    (let [basis (:basis evaluation-context)
-          extender-platform (get-in extender-platforms [platform :platform])
-          project-directory (workspace/project-directory basis (project/workspace project evaluation-context))
-          cache-directory (cache-dir project-directory)
-          sdk-version (system/defold-engine-sha1)
-          cache (ExtenderClientCache. cache-directory)
-          extender-resources (make-extender-resources project platform evaluation-context)
-          cache-key (.calcKey cache extender-platform sdk-version extender-resources)
-          url (get-build-server-url prefs project evaluation-context)
-          headers (get-build-server-headers prefs)
-          username (string/trim (prefs/get prefs [:extensions :build-server-username]))
-          password (prefs/get prefs [:extensions :build-server-password])]
-      (if (.isCached cache extender-platform cache-key)
-        {:id {:type :custom :version cache-key}
-         :cached true
-         :engine-archive (.getCachedBuildFile cache extender-platform)
-         :extender-platform extender-platform}
-        (let [extender-client (ExtenderClient. url cache-directory)
-              destination-file (fs/create-temp-file! (str "build_" sdk-version) ".zip")
-              log-file (fs/create-temp-file! (str "build_" sdk-version) ".txt")]
-          (try
-            (when-let [^String auth (or
-                                      (and (not (string/blank? username))
-                                           (not (coll/empty? password))
-                                           (str username ":" password))
-                                      (.getUserInfo (URI. url)))]
-              (.setHeader extender-client "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes auth StandardCharsets/UTF_8)))))
-            (when (pos? (count headers))
-              (.setHeaders extender-client headers))
-            (.build extender-client extender-platform sdk-version extender-resources destination-file log-file)
-            {:id {:type :custom :version cache-key}
-             :engine-archive destination-file
-             :extender-platform extender-platform}
-            (catch Exception e
-              (throw (engine-build-errors/build-error
-                       (or (:cause (Throwable->map e))
-                           (.getSimpleName (class e)))
-                       (slurp log-file))))))))))
+(defn get-engine-archive
+  ([project platform prefs evaluation-context]
+   (get-engine-archive project platform prefs evaluation-context nil))
+  ([project platform prefs evaluation-context ^IProgress progress]
+   (if-not (supported-platform? platform)
+     (throw (engine-build-errors/unsupported-platform-error platform))
+     (let [basis (:basis evaluation-context)
+           extender-platform (get-in extender-platforms [platform :platform])
+           project-directory (workspace/project-directory basis (project/workspace project evaluation-context))
+           cache-directory (cache-dir project-directory)
+           sdk-version (system/defold-engine-sha1)
+           cache (ExtenderClientCache. cache-directory)
+           extender-resources (make-extender-resources project platform evaluation-context)
+           cache-key (.calcKey cache extender-platform sdk-version extender-resources)
+           url (get-build-server-url prefs project evaluation-context)
+           headers (get-build-server-headers prefs)
+           username (string/trim (prefs/get prefs [:extensions :build-server-username]))
+           password (prefs/get prefs [:extensions :build-server-password])]
+       (if (.isCached cache extender-platform cache-key)
+         (do
+           (some-> progress .close)
+           {:id {:type :custom :version cache-key}
+            :cached true
+            :engine-archive (.getCachedBuildFile cache extender-platform)
+            :extender-platform extender-platform})
+         (let [extender-client (ExtenderClient. url cache-directory)
+               destination-file (fs/create-temp-file! (str "build_" sdk-version) ".zip")
+               log-file (fs/create-temp-file! (str "build_" sdk-version) ".txt")]
+           (try
+             (when-let [^String auth (or
+                                       (and (not (string/blank? username))
+                                            (not (coll/empty? password))
+                                            (str username ":" password))
+                                       (.getUserInfo (URI. url)))]
+               (.setHeader extender-client "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes auth StandardCharsets/UTF_8)))))
+             (when (pos? (count headers))
+               (.setHeaders extender-client headers))
+             (.build extender-client extender-platform sdk-version extender-resources destination-file log-file
+                     (when progress (BundleHelper/createProgressListener progress extender-platform)))
+             {:id {:type :custom :version cache-key}
+              :engine-archive destination-file
+              :extender-platform extender-platform}
+             (catch Exception e
+               (throw (engine-build-errors/build-error
+                        (or (:cause (Throwable->map e))
+                            (.getSimpleName (class e)))
+                        (slurp log-file))))
+             (finally
+               (some-> progress .close)))))))))
