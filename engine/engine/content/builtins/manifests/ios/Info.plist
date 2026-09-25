@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
         <key>BuildMachineOSBuild</key>
-        <string>25F71</string>
+        <string>26A428</string>
         <key>CFBundleDevelopmentRegion</key>
         <string>{{ios.default_language}}</string>
         <key>CFBundleDisplayName</key>
@@ -60,19 +60,19 @@
         <key>DTCompiler</key>
         <string>com.apple.compilers.llvm.clang.1_0</string>
         <key>DTPlatformBuild</key>
-        <string>23F73</string>
+        <string>24A94403</string>
         <key>DTPlatformName</key>
         <string>iphoneos</string>
         <key>DTPlatformVersion</key>
-        <string>26.5</string>
+        <string>27.1</string>
         <key>DTSDKBuild</key>
-        <string>23F73</string>
+        <string>24A94403</string>
         <key>DTSDKName</key>
-        <string>iphoneos26.5</string>
+        <string>iphoneos27.1</string>
         <key>DTXcode</key>
-        <string>2650</string>
+        <string>2710</string>
         <key>DTXcodeBuild</key>
-        <string>17F42</string>
+        <string>27A9269</string>
         <key>UIFileSharingEnabled</key>
         <{{project.write_log}}/>
         <key>LSRequiresIPhoneOS</key>
