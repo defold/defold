@@ -766,19 +766,22 @@ namespace dmGraphics
 
     bool IsTextureFormatSupportedForType(HContext context, TextureType type, TextureFormat format)
     {
-        // Some compressed families can't be uploaded to array/3D targets on all backends (notably
-        // BC and ASTC on WebGL2), even though they work fine as plain 2D textures. Each is gated
-        // behind a context feature the backend only sets where array/3D uploads actually work.
-        if (type == TEXTURE_TYPE_2D_ARRAY || type == TEXTURE_TYPE_3D)
+        // ASTC support for 2D arrays and 3D volumes differs on some backends.
+        if (type == TEXTURE_TYPE_2D_ARRAY && IsTextureFormatASTC(format) &&
+            !IsContextFeatureSupported(context, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES))
         {
-            if (IsTextureFormatASTC(format) && !IsContextFeatureSupported(context, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES))
-            {
-                return false;
-            }
-            if (IsTextureFormatBC(format) && !IsContextFeatureSupported(context, CONTEXT_FEATURE_BC_ARRAY_TEXTURES))
-            {
-                return false;
-            }
+            return false;
+        }
+        if (type == TEXTURE_TYPE_3D && IsTextureFormatASTC(format) &&
+            !IsContextFeatureSupported(context, CONTEXT_FEATURE_ASTC_3D_TEXTURES))
+        {
+            return false;
+        }
+        // BC formats need an explicit backend capability for either target.
+        if ((type == TEXTURE_TYPE_2D_ARRAY || type == TEXTURE_TYPE_3D) &&
+            IsTextureFormatBC(format) && !IsContextFeatureSupported(context, CONTEXT_FEATURE_BC_ARRAY_TEXTURES))
+        {
+            return false;
         }
         return IsTextureFormatSupported(context, format);
     }

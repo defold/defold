@@ -719,14 +719,16 @@ namespace dmGraphics
         SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
 
         // ETC2 support
-        if (context->m_Device->supportsFamily(MTL::GPUFamilyApple3))  // A8+ class
+        if (context->m_Device->supportsFamily(MTL::GPUFamilyApple3))
         {
             SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGB_ETC1);
             SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGBA_ETC2);
         }
 
-        // ASTC support
-        if (context->m_Device->supportsFamily(MTL::GPUFamilyApple3))
+        // ASTC LDR 2D and 2D array textures start at Apple2 (A8). Apple Silicon Macs also
+        // support Apple families; A7 devices and Intel Macs do not support ASTC.
+        // Defold does not expose ASTC HDR formats, which require Apple6.
+        if (context->m_Device->supportsFamily(MTL::GPUFamilyApple2))
         {
             context->m_ASTCSupport = 1;
             context->m_ASTCArrayTextureSupport = 1;
@@ -1441,6 +1443,11 @@ namespace dmGraphics
         if (context->m_ASTCArrayTextureSupport)
         {
             SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
+        }
+        // Compressed 3D (volume) textures require Apple3; 2D texture arrays do not.
+        if (context->m_Device->supportsFamily(MTL::GPUFamilyApple3))
+        {
+            SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_3D_TEXTURES);
         }
         // BC (S3TC/RGTC/BPTC) array/3D uploads work on Metal where BC is supported at all (macOS);
         // gated further by IsTextureFormatSupported, so this is a no-op on iOS where BC is absent.

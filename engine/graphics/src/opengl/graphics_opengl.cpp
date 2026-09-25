@@ -346,9 +346,9 @@ static bool OpenGLValidateASTCSupport()
 #endif
 
 #if defined(__EMSCRIPTEN__)
-static bool OpenGLValidateASTCArraySupport()
+static bool OpenGLValidateASTC3DTextureSupport(GLenum target)
 {
-    // Two opaque white ASTC 4x4 blocks, one per array layer.
+    // Two opaque white ASTC 4x4 blocks, one per array layer or volume slice.
     static const unsigned char astc_texture_data[] = {
         0xFC, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
         0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -358,21 +358,21 @@ static bool OpenGLValidateASTCArraySupport()
 
     };
 
-    dmLogInfo("Checking ASTC Array support. May produce GL error.");
+    dmLogInfo("Checking ASTC %s support. May produce GL error.", target == GL_TEXTURE_3D ? "3D texture" : "array texture");
 
     GLint previous_texture_binding = 0;
-    glGetIntegerv(GL_TEXTURE_BINDING_2D_ARRAY, &previous_texture_binding);
+    glGetIntegerv(target == GL_TEXTURE_3D ? GL_TEXTURE_BINDING_3D : GL_TEXTURE_BINDING_2D_ARRAY, &previous_texture_binding);
     OpenGLClearGLError();
 
     GLuint texture = 0;
     glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
-    DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(GL_TEXTURE_2D_ARRAY, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR,
+    glBindTexture(target, texture);
+    DMGRAPHICS_COMPRESSED_TEX_IMAGE_3D(target, 0, DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR,
         4, 4, 2, 0, (GLsizei) sizeof(astc_texture_data), astc_texture_data);
 
     GLint err = glGetError();
 
-    glBindTexture(GL_TEXTURE_2D_ARRAY, (GLuint) previous_texture_binding);
+    glBindTexture(target, (GLuint) previous_texture_binding);
     glDeleteTextures(1, &texture);
     OpenGLClearGLError();
 
@@ -1216,6 +1216,17 @@ static void LogFrameBufferError(GLenum status)
         return false;
     }
 
+#if !defined(__EMSCRIPTEN__)
+    static bool OpenGLIsASTC3DTextureSupported(HContext context)
+    {
+        // LDR alone supports 2D arrays; volumes need HDR, the full profile, or sliced 3D.
+        return OpenGLIsExtensionSupported(context, "GL_KHR_texture_compression_astc_hdr") ||
+               OpenGLIsExtensionSupported(context, "GL_KHR_texture_compression_astc_sliced_3d") ||
+               OpenGLIsExtensionSupported(context, "GL_OES_texture_compression_astc") ||
+               OpenGLIsExtensionSupported(context, "OES_texture_compression_astc");
+    }
+#endif
+
     static uint32_t OpenGLGetNumSupportedExtensions(HContext _context)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -1788,7 +1799,7 @@ static void LogFrameBufferError(GLenum status)
             // and https://github.com/defold/defold/issues/11009
             if (context->m_IsGles3Version && astc_supported)
             {
-                astc_array_textures_supported = OpenGLValidateASTCArraySupport();
+                astc_array_textures_supported = OpenGLValidateASTC3DTextureSupport(GL_TEXTURE_2D_ARRAY);
             }
             #endif
             delete[] pCompressedFormats;
@@ -2054,7 +2065,23 @@ static void LogFrameBufferError(GLenum status)
         if (context->m_StorageBufferSupport)             SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
         if (context->m_InstancingSupport)                SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         if (context->m_3DTextureSupport)                 SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
-        if (context->m_ASTCArrayTextureSupport)          SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
+        if (context->m_ASTCArrayTextureSupport)
+        {
+            SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
+        }
+        if (context->m_ASTCSupport && context->m_3DTextureSupport)
+        {
+        #if defined(__EMSCRIPTEN__)
+            // WebGL exposes ASTC profiles through its extension object, not GL extension strings.
+            bool astc_3d_textures_supported = OpenGLValidateASTC3DTextureSupport(GL_TEXTURE_3D);
+        #else
+            bool astc_3d_textures_supported = OpenGLIsASTC3DTextureSupported(_context);
+        #endif
+            if (astc_3d_textures_supported)
+            {
+                SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_3D_TEXTURES);
+            }
+        }
         if (context->m_BlendEquationMinMaxSupport)       SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
     #if !defined(__EMSCRIPTEN__)
         // Native OpenGL allows BC (S3TC/RGTC/BPTC) uploads to array/3D targets; WebGL2 forbids them.
