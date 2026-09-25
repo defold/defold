@@ -46,12 +46,26 @@ set(BASISU_TARGETS basis_transcoder)
 set(BASISU_INSTALL_TARGETS basis_transcoder)
 
 if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos|arm64-macos)$")
+  # UASTC LDR must propagate the selected transfer function to its .basis header.
+  set(BASISU_OFFLINE_SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/offline")
+  set(BASISU_OFFLINE_SOURCE "${BASISU_OFFLINE_SOURCE_DIR}/encoder/basisu_comp.cpp")
+  add_custom_command(OUTPUT "${BASISU_OFFLINE_SOURCE}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${BASISU_OFFLINE_SOURCE_DIR}/encoder"
+    COMMAND "${CMAKE_COMMAND}" -E copy
+      "${BASISU_SOURCE_DIR}/encoder/basisu_comp.cpp" "${BASISU_OFFLINE_SOURCE}"
+    COMMAND "${GIT_EXECUTABLE}" apply --unsafe-paths
+      "--directory=${BASISU_OFFLINE_SOURCE_DIR}" "${CMAKE_CURRENT_LIST_DIR}/defold-encoder.patch"
+    DEPENDS "${BASISU_SOURCE_DIR}/encoder/basisu_comp.cpp"
+            "${CMAKE_CURRENT_LIST_DIR}/defold-encoder.patch"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/../.."
+    COMMENT "Applying Basis Universal UASTC color metadata fix"
+    VERBATIM)
+
   # Matches the encoder sources in the pinned upstream CMakeLists.txt, without
   # the command line tool, WASM bindings, or optional external astcenc backend.
   set(BASISU_ENCODER_SOURCES
     basisu_backend.cpp
     basisu_basis_file.cpp
-    basisu_comp.cpp
     basisu_enc.cpp
     basisu_etc.cpp
     basisu_frontend.cpp
@@ -82,8 +96,10 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
   list(TRANSFORM BASISU_ENCODER_SOURCES PREPEND "${BASISU_SOURCE_DIR}/encoder/")
   # One complete, uninstrumented library for offline tools and editor JNI.
   add_library(basis_encoder STATIC ${BASISU_ENCODER_SOURCES}
+    "${BASISU_OFFLINE_SOURCE}"
     "${BASISU_SOURCE_DIR}/transcoder/basisu_transcoder.cpp"
     "${BASISU_SOURCE_DIR}/zstd/zstd.c")
+  target_include_directories(basis_encoder PRIVATE "${BASISU_SOURCE_DIR}/encoder")
   target_compile_definitions(basis_encoder PRIVATE
     BASISD_SUPPORT_KTX2=1 BASISD_SUPPORT_KTX2_ZSTD=1
     BASISU_SUPPORT_OPENCL=0 BASISU_SUPPORT_ASTCENC=0 MINIZ_NO_STDIO)

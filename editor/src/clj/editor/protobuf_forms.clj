@@ -283,11 +283,19 @@
                                       :type :choicebox
                                       :options (sort-by first (make-options os-values))
                                       :default (ffirst os-values)}
-                          :panel-form {:sections
+                          :panel-form-fn
+                          (fn platform-form-fn [selected-platform]
+                            {:sections
                                        [{:fields
-                                         [{:path [:formats]
+                                         [{:path [:keep-ktx2-format]
+                                           :type :boolean
+                                           :localization-key "texture-profiles.profiles.platforms.keep-ktx2-format"
+                                           :default (protobuf/default Graphics$PlatformProfile :keep-ktx2-format)
+                                           :optional true}
+                                          {:path [:formats]
                                            :localization-key "texture-profiles.profiles.platforms.formats"
                                            :type :2panel
+                                           :disable (:keep-ktx2-format selected-platform false)
                                            :panel-key {:path [:format]
                                                        :localization-key "texture-profiles.profiles.platforms.formats.format"
                                                        :type :choicebox
@@ -325,11 +333,21 @@
                                            :localization-key "texture-profiles.profiles.platforms.max-texture-size"
                                            :default (protobuf/default Graphics$PlatformProfile :max-texture-size)
                                            :optional true}
+                                          {:path [:recompress]
+                                           :type :boolean
+                                           :localization-key "texture-profiles.profiles.platforms.recompress"
+                                           :default (protobuf/default Graphics$PlatformProfile :recompress)
+                                           :optional true}
+                                          {:path [:regenerate-mipmaps]
+                                           :type :boolean
+                                           :localization-key "texture-profiles.profiles.platforms.regenerate-mipmaps"
+                                           :default (protobuf/default Graphics$PlatformProfile :regenerate-mipmaps)
+                                           :optional true}
                                           {:path [:premultiply-alpha]
                                            :type :boolean
                                            :localization-key "texture-profiles.profiles.platforms.premultiply-alpha"
                                            :default (protobuf/default Graphics$PlatformProfile :premultiply-alpha)
-                                           :optional true}]}]}}]}]}}]}]}))
+                                           :optional true}]}]})}]}]}}]}]}))
 
 (defn produce-form-data
   ([node-id pb def]

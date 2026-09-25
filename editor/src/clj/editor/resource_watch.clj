@@ -195,8 +195,9 @@
               (coll/pair-map-by resource/proj-path))
         (:resources snapshot)))
 
-(defn- resource-status [snapshot path]
-  (get-in snapshot [:status-map path]))
+(defn- resource-status [snapshot resource]
+  [(get-in snapshot [:status-map (resource/proj-path resource)])
+   (mapv #(get-in snapshot [:status-map %]) (resource/snapshot-dependencies resource))])
 
 (defn diff [old-snapshot new-snapshot]
   (let [old-map (make-resource-map old-snapshot)
@@ -204,8 +205,8 @@
         old-paths (set (keys old-map))
         new-paths (set (keys new-map))
         common-paths (set/intersection new-paths old-paths)
-        changed-paths (filterv #(not= (resource-status old-snapshot %)
-                                      (resource-status new-snapshot %))
+        changed-paths (filterv #(not= (resource-status old-snapshot (old-map %))
+                                      (resource-status new-snapshot (new-map %)))
                                common-paths)
 
         {changed-from-folder-to-file :file
