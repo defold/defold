@@ -245,6 +245,29 @@ public class ExtenderUtilTest {
         }
     }
 
+    @Test
+    public void testSimulatorGraphicsMigratesBeforeUpload() throws Exception {
+        project.getProjectProperties().putStringValue("ios", "privacymanifest", "");
+        String yaml = "platforms:\n  arm64_sim-ios:\n    context:\n"
+                + "      libs: [graphics_metal, custom]\n"
+                + "      excludeLibs: [graphics_metal]\n"
+                + "      excludeSymbols: [GraphicsAdapterMetal]\n"
+                + "  arm64-ios:\n    context:\n      excludeLibs: [graphics_metal]\n";
+        byte[] original = yaml.getBytes(StandardCharsets.UTF_8);
+        createFile(fileSystem, "simulator.appmanifest", original);
+        project.getProjectProperties().putStringValue("native_extension", "app_manifest", "simulator.appmanifest");
+        byte[] migrated = findResource(ExtenderUtil.getExtensionSources(project, Platform.Arm64IosSim, null),
+                ExtenderUtil.appManifestPath).getContent();
+        String expected = "platforms:\n  arm64_sim-ios:\n    context:\n"
+                + "      libs: [custom]\n      excludeLibs: []\n      excludeSymbols: []\n"
+                + "  arm64-ios:\n    context:\n      excludeLibs: [graphics_metal]\n";
+        assertEquals((Object) new Yaml().load(expected), (Object) new Yaml().load(new String(migrated, StandardCharsets.UTF_8)));
+        assertArrayEquals(original, project.getResource("simulator.appmanifest").getContent());
+        createFile(fileSystem, "simulator.appmanifest", migrated);
+        assertArrayEquals(migrated, findResource(ExtenderUtil.getExtensionSources(project, Platform.Arm64IosSim, null),
+                ExtenderUtil.appManifestPath).getContent());
+    }
+
     @SuppressWarnings("unchecked")
     @Test
     public void testLegacyMacOSVulkanPlatformMigratesBeforeUpload() throws Exception {
