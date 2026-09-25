@@ -45,7 +45,7 @@
 
 (def vulkan-ios #{:arm64-ios})
 
-(def metal-ios #{:arm64-ios :arm64_sim-ios})
+(def metal-ios #{:arm64-ios})
 
 (def all-platforms
   #{;; ios
@@ -806,6 +806,21 @@
           manifest
           (conj macos :osx)))
 
+(defn- migrate-simulator-graphics [manifest]
+  ;; Simulator graphics are fixed to Metal, independently of device settings.
+  (let [path [:platforms :arm64_sim-ios :context]
+        context (get-in manifest path)
+        obsolete #{"graphics" "graphics_metal" "graphics_vulkan" "platform_vulkan" "MoltenVK"
+                   "GraphicsAdapterOpenGL" "GraphicsAdapterMetal" "GraphicsAdapterVulkan"}]
+    (if-not (map? context)
+      manifest
+      (assoc-in manifest path
+                (reduce (fn [context key]
+                          (if-not (vector? (get context key))
+                            context
+                            (update context key #(into [] (remove obsolete) %))))
+                        context [:libs :engineLibs :excludeLibs :symbols :excludeSymbols])))))
+
 ;; Older 2D-only manifests exclude Bullet archives but predate its separate
 ;; script library and registration symbol.
 (defn- migrate-bullet3d-context [context]
@@ -853,6 +868,7 @@
           (let [migrated-manifest (-> manifest
                                       migrate-windows-library-names
                                       migrate-macos-vulkan-platform
+                                      migrate-simulator-graphics
                                       migrate-bullet3d-exclusions)]
             (when-not (= manifest migrated-manifest)
               ;; Prevent the project loader from caching the original lines as save-data.
