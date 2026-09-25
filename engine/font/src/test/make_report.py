@@ -96,6 +96,10 @@ def cases(full, rich):
         if rich:
             add(source, True, 'rich_style', text='<color=#ff8080><size=150%>AB</size></color>CD', markup=True, outline_alpha=0, outline=0)
     if full:
+        add('ttf_vector', True, 'color', text='😀 🍎 🚀', outline_alpha=0, outline=0)
+        add('ttf_vector', True, 'color_fallback', text='😀 🇸🇪 🚀', outline_alpha=0, outline=0)
+        if rich:
+            add('ttf_vector', True, 'color_tint', text='<color=#0000FF>😀 🍎 🚀</color>', markup=True, outline_alpha=0, outline=0)
         lorem=json.loads((DATA/'lorem.json').read_text(encoding="utf-8"))
         for language in ('english','arabic'):
             for multi in (False,True):add('arabic' if language=='arabic' else 'latin',multi,language,text=lorem[language])

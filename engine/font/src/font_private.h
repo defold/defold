@@ -17,6 +17,14 @@
 
 #include "font.h"
 
+#if defined(FONT_USE_SKRIBIDI)
+#include <dmsdk/font/fontcollection.h>
+
+// Adds a borrowed font to a specific Skribidi family, e.g. SKB_FONT_FAMILY_EMOJI.
+// Ownership and lifetime match FontCollectionAddFont.
+FontResult FontCollectionAddFontForFamily(HFontCollection coll, HFont font, uint8_t font_family);
+#endif
+
 // Unit tests
 void FontDebug(HFont font, float scale, float padding, const char* text);
 void FontDebugGlyph(FontGlyph* glyph, int indent);

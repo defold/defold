@@ -17,10 +17,16 @@
 
 #include "font_renderer.h"
 #include <font/font_vector_slug.h>
+#include <font/font_vector_paint.hpp>
 #include "../render_private.h"
 
 namespace dmRender
 {
+    // Adds color glyphs to the shared numeric cache and uploads changes once
+    // per layout. Ordinary vector glyphs keep using the existing cache.
+    void PrepareVectorPaintGlyphs(HFontMap font_map, HTextLayout layout, uint32_t frame);
+    const FontVectorPaintGlyph* GetVectorPaintGlyph(HFontMap font_map, HFont font, uint32_t glyph);
+
     struct FontMap
     {
         FontMap()
@@ -39,6 +45,9 @@ namespace dmRender
             free(m_CellTempData);
             m_CellTempData = 0;
 
+            delete m_VectorPaint;
+            if (m_VectorPaintTexture)
+                dmGraphics::DeleteTexture(m_GraphicsContext, m_VectorPaintTexture);
             delete m_SlugData;
             if (m_VectorBandTexture)
                 dmGraphics::DeleteTexture(m_GraphicsContext, m_VectorBandTexture);
@@ -68,6 +77,8 @@ namespace dmRender
         dmGraphics::HTexture    m_VectorSdfTexture;
         dmGraphics::HTexture    m_VectorBandTexture;
         FontVectorSlugData*     m_SlugData;
+        FontVectorPaintCache*   m_VectorPaint;
+        dmGraphics::HTexture   m_VectorPaintTexture;
         bool                    m_VectorBitmapEffects;
         bool                    m_SlugResetPending;
         uint32_t                m_SlugOverflowFrame;

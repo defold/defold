@@ -19,7 +19,60 @@
 #include <dmsdk/font/font.h>
 #include "../font.h"
 #include "../font_vector_slug.h"
+#include "../font_vector_paint.hpp"
 #include "../render/glyph_gen.h"
+
+TEST(FontVector, ColorPaintCacheFallbackAndReuse)
+{
+    char path[512];
+    HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/NotoColorEmoji-Regular.ttf"));
+    ASSERT_NE((HFont)0, font);
+    FontVectorSlugData data;
+    FontVectorPaintCache cache;
+    cache.m_Slug = &data;
+    const uint32_t glyphs[] = { FontGetGlyphIndex(font, 0x1f600), 2017, 2688 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(glyphs); ++i)
+    {
+        uint32_t index;
+        bool color;
+        ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, glyphs[i], &index, &color));
+        ASSERT_TRUE(color);
+        const FontVectorPaintGlyph& glyph = cache.m_Glyphs[index];
+        if (i == 0)
+            ASSERT_GT(glyph.m_LayerCount, 1u);
+        else
+        {
+            ASSERT_EQ(1u, glyph.m_LayerCount);
+            const FontVectorPaintLayer& layer = cache.m_Layers[glyph.m_FirstLayer];
+            ASSERT_EQ(0u, cache.m_Paths[layer.m_Path].m_Glyph);
+            ASSERT_EQ(0.0f, cache.m_Paints[layer.m_Paint].getX()); // Solid fallback, no partial graph.
+        }
+        uint32_t curves = data.m_Curves.Size(), layers = cache.m_Layers.Size(), paints = cache.m_Paints.Size();
+        uint32_t again;
+        ASSERT_TRUE(FontVectorPaintAddGlyph(&cache, font, glyphs[i], &again, &color));
+        ASSERT_EQ(index, again);
+        ASSERT_EQ(curves, data.m_Curves.Size());
+        ASSERT_EQ(layers, cache.m_Layers.Size());
+        ASSERT_EQ(paints, cache.m_Paints.Size());
+    }
+    // Atlas exhaustion must preserve previously submitted glyphs and metadata.
+    uint32_t curves = data.m_Curves.Size(), bands = data.m_Bands.Size();
+    uint32_t layers = cache.m_Layers.Size(), paths = cache.m_Paths.Size();
+    uint32_t count = data.m_CurveCount, index;
+    bool color;
+    data.m_MaxTexels = bands;
+    ASSERT_FALSE(FontVectorPaintAddGlyph(&cache, font, FontGetGlyphIndex(font, 0x1f680), &index, &color));
+    ASSERT_TRUE(data.m_Overflow);
+    ASSERT_EQ(curves, data.m_Curves.Size());
+    ASSERT_EQ(bands, data.m_Bands.Size());
+    ASSERT_EQ(layers, cache.m_Layers.Size());
+    ASSERT_EQ(paths, cache.m_Paths.Size());
+    ASSERT_EQ(count, data.m_CurveCount);
+    FontVectorPaintClear(&cache);
+    ASSERT_EQ(0u, cache.m_GlyphLookup.Size());
+    ASSERT_EQ(0u, cache.m_PathLookup.Size());
+    FontDestroy(font);
+}
 
 TEST(FontVector, CpuEffectsPreserveFaceCurvesAndOutlineDistanceField)
 {

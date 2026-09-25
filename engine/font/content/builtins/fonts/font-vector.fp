@@ -20,6 +20,7 @@ precision highp float;
 precision highp int;
 #endif
 #include "/builtins/fonts/font-vector-slug.glsl"
+#include "/builtins/fonts/font-vector-paint.glsl"
 uniform highp sampler2D effect_bitmap;
 #ifdef SLUG_LEGACY_GL
 varying vec2 var_texcoord;
@@ -30,6 +31,10 @@ varying vec4 var_glyph;
 varying float var_curve_count;
 #define out_fragColor gl_FragColor
 #else
+in highp vec2 var_font_position;
+in highp vec2 var_paint_position;
+flat in highp float var_paint;
+flat in highp vec4 var_font_clip;
 in highp vec2 var_texcoord;
 flat in highp float var_mode;
 in mediump vec4 var_color;
@@ -45,7 +50,7 @@ void main()
 {
     vec2 emsPerPixel = fwidth(var_texcoord);
     vec3 effects = vec3(0.0);
-    if (var_mode > 0.5)
+    if (var_mode > 0.5 && var_mode < 2.5)
     {
 #ifdef SLUG_LEGACY_GL
         effects = texture2D(effect_bitmap, var_texcoord).rgb;
@@ -58,7 +63,7 @@ void main()
     // WGSL requires derivative operations outside non-uniform control flow.
     float smoothing = max(0.5 * fwidth(effects.g), 0.0001);
     float coverage;
-    if (var_mode > 0.5)
+    if (var_mode > 0.5 && var_mode < 2.5)
     {
         if (var_mode < 1.5)
         {
@@ -74,6 +79,14 @@ void main()
         coverage = SlugRender(var_texcoord, emsPerPixel, var_banding, var_glyph);
 #endif
     out_fragColor = coverage * vec4(var_color.rgb * var_color.a, var_color.a);
+#ifndef SLUG_LEGACY_GL
+    if (var_mode > 2.5)
+    {
+        if (any(lessThan(var_font_position, var_font_clip.xy)) || any(greaterThan(var_font_position, var_font_clip.zw)))
+            discard;
+        out_fragColor = coverage * FontVectorPaintColor(int(var_paint + 0.5), var_paint_position, var_color);
+    }
+#endif
     if ((var_mode < 0.5 && var_curve_count <= 0.0) || out_fragColor.a <= 0.0) discard;
 #ifdef FONT_VECTOR_PICKING
     out_fragColor = id;

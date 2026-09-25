@@ -4497,6 +4497,34 @@ TEST_F(FontTest, LayoutRequiresResolverForResourceObjects)
 }
 
 #if defined(FONT_USE_SKRIBIDI)
+TEST_F(FontTest, SkribidiLayoutSelectsEmojiFamily)
+{
+    HFont emoji_font = 0;
+    LoadFont("src/test/data/NotoColorEmoji-Regular.ttf", &emoji_font);
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(m_FontCollection, emoji_font));
+    uint32_t text[] = { 'A', 0x1f600 };
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, DM_ARRAY_SIZE(text), &settings, &layout));
+    ASSERT_EQ(2u, TextLayoutGetGlyphCount(layout));
+    const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+    ASSERT_EQ(m_Font, glyphs[0].m_Font);
+    ASSERT_EQ(emoji_font, glyphs[1].m_Font);
+    ASSERT_EQ(FontGetGlyphIndex(emoji_font, 0x1f600), glyphs[1].m_GlyphIndex);
+    ASSERT_NE(0u, glyphs[1].m_GlyphIndex);
+    TextLayoutRelease(layout);
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionRemoveFont(m_FontCollection, emoji_font));
+    layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, DM_ARRAY_SIZE(text), &settings, &layout));
+    glyphs = TextLayoutGetGlyphs(layout);
+    for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout); ++i)
+        ASSERT_NE(emoji_font, glyphs[i].m_Font);
+    TextLayoutRelease(layout);
+    FontDestroy(emoji_font);
+}
+
 TEST_F(FontTest, SkribidiLayoutResolvesNestedMarkup)
 {
     const char source[] =

@@ -134,7 +134,8 @@ struct VectorImageResources
 static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext context, VectorImageResources& resources)
 {
     const bool  baked = strstr(c.m_Source, "_bank") != 0;
-    const char* path = strncmp(c.m_Source, "otf", 3) == 0 ? "src/test/data/SourceCodePro-Regular.otf" : "src/test/data/WorkSans.ttf";
+    const bool color = strstr(c.m_Name, "_color") != 0;
+    const char* path = color ? "src/test/data/NotoColorEmoji-Regular.ttf" : strncmp(c.m_Source, "otf", 3) == 0 ? "src/test/data/SourceCodePro-Regular.otf" : "src/test/data/WorkSans.ttf";
     HFont       source = resources.m_Source = FontLoadFromPath(path);
     ASSERT_NE((HFont)0, source);
     VectorImageBank&       bank = resources.m_Bank;
@@ -157,10 +158,11 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
         ASSERT_NE((HFont)0, font);
     }
 
-    dmArray<char> vp, fp, slug;
+    dmArray<char> vp, fp, slug, paint;
     LoadVectorImageFile("content/builtins/fonts/font-vector.vp", vp);
     LoadVectorImageFile("content/builtins/fonts/font-vector.fp", fp);
     LoadVectorImageFile("content/builtins/fonts/font-vector-slug.glsl", slug);
+    LoadVectorImageFile("content/builtins/fonts/font-vector-paint.glsl", paint);
     // Standalone GL has no shader include loader. Inline the production shader
     // and lower its samplerless integer texture to GLSL 330's integer sampler,
     // as shaderc/SPIRV-Cross does for this backend. Coverage code stays unchanged.
@@ -172,23 +174,23 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     memcpy(texture_type, "usampler2D", 10);
     char* include = strstr(fp.Begin(), "#include");
     ASSERT_NE((char*)0, include);
-    char*         after_include = strchr(include, '\n');
+    char*         after_include = strchr(strstr(include + 1, "#include"), '\n');
     dmArray<char> fragment;
-    fragment.SetCapacity(fp.Size() + slug.Size());
+    fragment.SetCapacity(fp.Size() + slug.Size() + paint.Size());
     fragment.SetSize(fragment.Capacity());
     const uint32_t prefix = include - fp.Begin();
     memcpy(fragment.Begin(), fp.Begin(), prefix);
-    dmSnPrintf(fragment.Begin() + prefix, fragment.Size() - prefix, "%s%s", slug.Begin(), after_include);
+    dmSnPrintf(fragment.Begin() + prefix, fragment.Size() - prefix, "%s%s%s", slug.Begin(), paint.Begin(), after_include);
     dmGraphics::ShaderDescBuilder shaders;
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vp.Begin(), vp.Size() - 1);
     shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, fragment.Begin(), strlen(fragment.Begin()));
-    const char* inputs[] = { "position", "texcoord", "effect_params", "color" };
-    for (uint32_t i = 0; i < 4; ++i)
-        shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, inputs[i], i, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    const char* inputs[] = { "position", "texcoord", "effect_params", "color", "texcoord0", "face_color", "outline_color" };
+    for (uint32_t i = 0; i < 7; ++i)
+        shaders.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, inputs[i], i, i == 4 ? dmGraphics::ShaderDesc::SHADER_TYPE_VEC2 : dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
     shaders.AddTypeMember("view_proj", dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
     shaders.AddUniform("vs_uniforms", 0, 0);
-    const char* samplers[] = { "curve_texture", "band_texture", "effect_bitmap" };
-    for (uint32_t i = 0; i < 3; ++i)
+    const char* samplers[] = { "curve_texture", "band_texture", "effect_bitmap", "paint_texture" };
+    for (uint32_t i = 0; i < 4; ++i)
         shaders.AddTexture(samplers[i], i, i == 1 ? dmGraphics::ShaderDesc::SHADER_TYPE_UTEXTURE2D : dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
     char                 error[1024] = {};
     dmGraphics::HProgram program = resources.m_Program = dmGraphics::NewProgram(context, shaders.Get(), error, sizeof(error));
@@ -198,7 +200,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
 
     dmRender::HRenderContext render = resources.m_Render;
     dmRender::HMaterial      material = resources.m_Material = dmRender::NewMaterial(render, program);
-    for (uint32_t i = 0; i < 3; ++i)
+    for (uint32_t i = 0; i < 4; ++i)
     {
         dmGraphics::TextureFilter filter = i == 2 ? dmGraphics::TEXTURE_FILTER_LINEAR : dmGraphics::TEXTURE_FILTER_NEAREST;
         ASSERT_TRUE(dmRender::SetMaterialSampler(material, dmHashString64(samplers[i]), i, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, filter, filter, 1));
@@ -287,15 +289,26 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     entry.m_OutlineAlpha = 1.0f;
     entry.m_ShadowAlpha = 1.0f;
     dmArray<dmRender::FontDefaultVertex> vertices;
-    vertices.SetCapacity(TextLayoutGetGlyphCount(layout) * 18);
+    vertices.SetCapacity(color ? 512 * 6 : TextLayoutGetGlyphCount(layout) * 18);
     vertices.SetSize(vertices.Capacity());
     const uint32_t count = dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)vertices.Begin(), vertices.Size());
     ASSERT_GT(count, 0u);
+    if (color)
+    {
+        // A small client buffer may drop a color glyph, but cannot emit a
+        // partial graph or overwrite the following memory.
+        dmRender::FontDefaultVertex bounded[7];
+        memset(bounded, 0xcd, sizeof(bounded));
+        ASSERT_LE(dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)bounded, 6), 6u);
+        const uint8_t* guard = (const uint8_t*)&bounded[6];
+        for (uint32_t i = 0; i < sizeof(bounded[6]); ++i)
+            ASSERT_EQ(0xcdu, guard[i]);
+    }
     ASSERT_LE(count, vertices.Size());
     bool face = false, outline = false, shadow = false;
     for (uint32_t i = 0; i < count; ++i)
     {
-        face |= vertices[i].m_VectorTexcoord[2] > 0 && vertices[i].m_VectorTexcoord[3] == 0;
+        face |= vertices[i].m_VectorTexcoord[2] > 0 && (vertices[i].m_VectorTexcoord[3] == 0 || vertices[i].m_VectorTexcoord[3] == 3);
         outline |= vertices[i].m_VectorTexcoord[3] == 1;
         shadow |= vertices[i].m_VectorTexcoord[3] == 2;
     }
@@ -311,7 +324,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     dmGraphics::HRenderTarget      target = resources.m_Target = dmGraphics::NewRenderTarget(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, rt);
     dmGraphics::HVertexBuffer      buffer = resources.m_Buffer = dmGraphics::NewVertexBuffer(context, count * sizeof(vertices[0]), vertices.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
     dmGraphics::HVertexDeclaration declaration = resources.m_Declaration = dmRender::CreateFontVertexDeclaration(context);
-    dmGraphics::HTexture           textures[] = { map->m_Texture, map->m_VectorBandTexture, map->m_VectorSdfTexture ? map->m_VectorSdfTexture : map->m_Texture };
+    dmGraphics::HTexture           textures[] = { map->m_Texture, map->m_VectorBandTexture, map->m_VectorSdfTexture ? map->m_VectorSdfTexture : map->m_Texture, map->m_VectorPaintTexture };
     dmGraphics::BeginFrame(context);
     dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
     dmGraphics::SetViewport(context, 0, 0, width, height);
@@ -321,7 +334,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     dmGraphics::EnableProgram(context, program);
     dmVMath::Matrix4 projection = dmVMath::Matrix4::orthographic(0, width, 0, height, -1, 1);
     dmGraphics::SetConstantM4(context, (dmVMath::Vector4*)&projection, 1, dmGraphics::FindUniformLocation(program, "view_proj"));
-    for (uint32_t i = 0; i < 3; ++i)
+    for (uint32_t i = 0; i < 4; ++i)
     {
         dmGraphics::SetSampler(context, dmGraphics::FindUniformLocation(program, samplers[i]), i);
         dmGraphics::EnableTexture(context, i, 0, textures[i]);
@@ -335,7 +348,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     dmGraphics::ReadPixels(context, 0, 0, width, height, pixels.Begin(), pixels.Size());
     dmGraphics::DisableVertexDeclaration(context, declaration);
     dmGraphics::DisableVertexBuffer(context, buffer);
-    for (uint32_t i = 0; i < 3; ++i)
+    for (uint32_t i = 0; i < 4; ++i)
         dmGraphics::DisableTexture(context, i, textures[i]);
     dmGraphics::DisableProgram(context);
     dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
@@ -345,11 +358,20 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     // Inspect the actual BGRA readback, independently of optional baselines.
     uint32_t outline_pixels = 0;
     uint32_t shadow_pixels = 0;
+    uint32_t yellow_pixels = 0, gray_pixels = 0;
     for (uint32_t i = 0; i < pixels.Size(); i += 4)
     {
         const uint8_t* pixel = &pixels[i];
+        yellow_pixels += pixel[2] > 190 && pixel[1] > 140 && pixel[0] < 90;
+        gray_pixels += pixel[2] > 200 && pixel[1] > 200 && pixel[0] > 200;
         outline_pixels += pixel[0] > pixel[1] + 16 && pixel[0] > pixel[2] + 16;
         shadow_pixels += pixel[1] > pixel[0] + 16 && pixel[1] > pixel[2] + 16;
+    }
+    if (color)
+    {
+        ASSERT_GT(yellow_pixels, 100u);
+        if (strstr(c.m_Name, "_fallback"))
+            ASSERT_GT(gray_pixels, 10u);
     }
     if (outline)
         ASSERT_GT(outline_pixels, 0u);

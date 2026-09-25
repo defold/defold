@@ -49,6 +49,7 @@ HFontCollection FontCollectionCreate();
 void FontCollectionDestroy(HFontCollection coll);
 
 /*# add a font to the font collection
+ * Full-layout collections also make COLR fonts available for emoji selection.
  * @note No ownership transfer occurrs. HFont must be alive during the lifetime of the font collection
  * @name FontCollectionAddFont
  * @param coll [type: HFontCollection] the font collection

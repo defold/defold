@@ -25,6 +25,7 @@ set(FONT_TRUETYPE_SRC_DIR "${FONT_SRC_DIR}/truetype")
 set(FONT_PUBLIC_HEADERS
   "${FONT_SRC_DIR}/font.h"
   "${FONT_SRC_DIR}/font_vector_slug.h"
+  "${FONT_SRC_DIR}/font_vector_paint.hpp"
   "${FONT_SRC_DIR}/fontgen.h"
   "${FONT_SRC_DIR}/font_glyphbank.h"
   "${FONT_SRC_DIR}/fontcollection.h"

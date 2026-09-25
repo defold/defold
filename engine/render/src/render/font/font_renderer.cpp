@@ -598,6 +598,9 @@ namespace dmRender
         uint32_t band_unit = dmRender::GetMaterialSamplerUnit(material, dmHashString64("band_texture"));
         if (band_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_IsVector)
             ro->m_Textures[band_unit] = font_map->m_VectorBandTexture;
+        uint32_t paint_unit = dmRender::GetMaterialSamplerUnit(material, dmHashString64("paint_texture"));
+        if (paint_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_IsVector)
+            ro->m_Textures[paint_unit] = font_map->m_VectorPaintTexture;
         uint32_t bitmap_unit = dmRender::GetMaterialSamplerUnit(material, dmHashString64("effect_bitmap"));
         if (bitmap_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_VectorBitmapEffects)
             ro->m_Textures[bitmap_unit] = font_map->m_VectorSdfTexture;
