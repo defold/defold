@@ -1038,13 +1038,7 @@
                                                       (dissoc :edit)))]]))
 
 (defmethod handle-event :table-select [{:keys [ui-state state-path fx/event]}]
-  (let [state (get-in ui-state state-path)
-        ;; Selecting a different row cancels a pending focus request from
-        ;; adding a row. Empty events come from items being replaced.
-        moved (and (not (coll/empty? event)) (not= (vec event) (vec (:selected-indices state))))]
-    {:set-ui-state (assoc-in ui-state state-path
-                             (cond-> (assoc state :selected-indices event)
-                               moved (dissoc :focus-request)))}))
+  {:set-ui-state (assoc-in ui-state (conj state-path :selected-indices) event)})
 
 (defn- edited-table-cell-view [column
                                {:keys [value
