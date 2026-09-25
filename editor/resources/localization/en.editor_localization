@@ -1433,6 +1433,28 @@ property.font.style.tooltip = The base style from the selected font. Leave empty
 property.font.markup = Markup
 property.font.markup.tooltip = Opening rich-text tags that define this style. Supports all rich-text tags, including size, links, and sprites.
 
+# Properties: glTF
+
+property.gltf.index = Index
+property.gltf.index.tooltip = The zero-based index of this asset in the corresponding glTF array.
+property.gltf.name.tooltip = The asset name from the glTF file, or a generated name when the source asset is unnamed.
+property.gltf.primitive-count = Primitive Count
+property.gltf.primitive-count.tooltip = The number of primitives contained in this glTF mesh.
+property.gltf.vertex-count = Vertex Count
+property.gltf.vertex-count.tooltip = The total number of vertices across this glTF mesh's primitives.
+property.gltf.material.tooltip = The read-only Material resource generated from this glTF material.
+property.gltf.samplers = Samplers
+property.gltf.samplers.tooltip = The sampler-to-texture bindings referenced by this glTF material.
+property.gltf.image.tooltip = The embedded or external image resource sampled by this glTF texture.
+property.gltf.min-filter = Min Filter
+property.gltf.min-filter.tooltip = The sampling filter used when this glTF texture is displayed smaller than its source image.
+property.gltf.mag-filter = Mag Filter
+property.gltf.mag-filter.tooltip = The sampling filter used when this glTF texture is displayed larger than its source image.
+property.gltf.wrap-s = Wrap S
+property.gltf.wrap-s.tooltip = Controls sampling outside the texture's horizontal coordinate range.
+property.gltf.wrap-t = Wrap T
+property.gltf.wrap-t.tooltip = Controls sampling outside the texture's vertical coordinate range.
+
 # Properties: gui
 
 property.gui.id.tooltip = The identifier used to find this node with `gui.get_node()`. It must be unique within the GUI scene; nodes from a template instance are prefixed with the template node's **Id** and a slash.

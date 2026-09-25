@@ -23,10 +23,12 @@
             [support.test-support :refer [with-clean-system]])
   (:import [com.google.protobuf ByteString]))
 
+(set! *warn-on-reflection* true)
+
 (deftest expansion-is-independent-of-workspace-resource-types
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")
         extension "embedded-test"]
-    (.addMethod resource/expand extension
+    (.addMethod ^clojure.lang.MultiFn resource/expand extension
                 (fn [source stream]
                   (assoc source :children [(resource/make-resource-entry source {:path "text" :ext "txt" :content (ByteString/readFrom stream)})])))
     (try

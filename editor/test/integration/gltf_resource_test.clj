@@ -41,7 +41,9 @@
            [java.util.zip ZipEntry ZipOutputStream]
            [javax.imageio ImageIO]))
 
-(def ^:private geometry-buffer-base64
+(set! *warn-on-reflection* true)
+
+(def ^:private ^String geometry-buffer-base64
   "AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAABAAIA")
 
 (def ^:private ^bytes geometry-buffer-bytes
@@ -99,7 +101,7 @@
   (let [bytes (ByteArrayOutputStream.)]
     (with-open [output (ZipOutputStream. bytes)]
       (run!
-        (fn [[entry-path content]]
+        (fn [[^String entry-path content]]
           (let [^bytes content (if (string? content)
                                  (.getBytes ^String content StandardCharsets/UTF_8)
                                  content)]

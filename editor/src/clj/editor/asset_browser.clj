@@ -377,11 +377,12 @@
           resource (first selection)
           src-files (.getFiles (Clipboard/getSystemClipboard))
           dest-path (.toPath (io/file (resource/abs-path resource)))]
-      (if-let [conflicting-file (some #(let [src-path (.toPath ^File %)]
-                                         (when (and (.startsWith dest-path src-path)
-                                                    (not= dest-path src-path))
-                                           %))
-                                      src-files)]
+      (if-let [conflicting-file (coll/first-where
+                                  (fn [^File src-file]
+                                    (let [src-path (.toPath src-file)]
+                                      (and (.startsWith dest-path src-path)
+                                           (not= dest-path src-path))))
+                                  src-files)]
         (let [res-proj-path (resource/proj-path resource)
               dest-proj-path (resource/file->proj-path (workspace/project-directory workspace) conflicting-file)]
           (notifications/show!

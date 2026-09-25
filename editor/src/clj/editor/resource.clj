@@ -22,7 +22,6 @@
             [editor.fs :as fs]
             [editor.settings-core :as settings-core]
             [editor.system :as system]
-            [editor.util :as util]
             [schema.core :as schema]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
@@ -515,17 +514,6 @@
 (defn file-resource? [resource]
   (instance? FileResource resource))
 
-(defn sort-resource-tree [{:keys [children] :as tree}]
-  (let [sorted-children (->> children
-                             (map sort-resource-tree)
-                             (sort
-                               (util/comparator-chain
-                                 (util/comparator-on file-resource?)
-                                 (util/comparator-on #({:folder 0 :file 1} (source-type %)))
-                                 (util/comparator-on util/natural-order resource-name)))
-                             vec)]
-    (assoc tree :children sorted-children)))
-
 (core/register-read-handler!
   "file-resource"
   (transit/read-handler
@@ -688,10 +676,6 @@
 (defmethod print-method ZipResource [zip-resource ^java.io.Writer w]
   (.write w (format "{:ZipResource %s}" (pr-str (proj-path zip-resource)))))
 
-(defn- embedded-input-stream
-  ^InputStream [{:keys [content]}]
-  (.newInput ^ByteString content))
-
 (defonce/record EmbeddedResource [source project-path ext source-type children content data editable loaded]
   Resource
   (children [_this] children)
@@ -714,7 +698,7 @@
   (loaded? [_this] loaded)
 
   io/IOFactory
-  (make-input-stream [this _opts] (embedded-input-stream this))
+  (make-input-stream [_this _opts] (.newInput ^ByteString content))
   (make-reader [this opts] (io/make-reader (io/make-input-stream this opts) opts))
   (make-output-stream [_this _opts] (throw (IOException. "Embedded resources are read-only")))
   (make-writer [_this _opts] (throw (IOException. "Embedded resources are read-only")))
@@ -730,7 +714,7 @@
   (content-type [this] (content-type this))
 
   http-server/->Connection
-  (->connection [this] (embedded-input-stream this)))
+  (->connection [this] (io/input-stream this)))
 
 (core/register-record-type! EmbeddedResource)
 
@@ -783,7 +767,7 @@
                    source
                    (try
                      (with-open [stream (io/input-stream source)]
-                       (sort-resource-tree (expand source stream)))
+                       (expand source stream))
                      (catch Exception exception
                        (log/warn :message (format "Failed to expand resources from '%s'" (proj-path source))
                                  :exception exception)

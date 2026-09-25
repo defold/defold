@@ -185,6 +185,17 @@ ordinary paths."
       (assoc build-resource
         :resource (resource/counterpart-memory-resource source-resource)))))
 
+(defn sort-resource-tree [{:keys [children] :as tree}]
+  (let [sorted-children (->> children
+                             (map sort-resource-tree)
+                             (sort
+                               (util/comparator-chain
+                                 (util/comparator-on resource/file-resource?)
+                                 (util/comparator-on #({:folder 0 :file 1} (resource/source-type %)))
+                                 (util/comparator-on util/natural-order resource/resource-name)))
+                             vec)]
+    (assoc tree :children sorted-children)))
+
 (defn canonical-view-type-id [view-type-id]
   (case view-type-id
     :cljfx-form-view :form
@@ -1052,7 +1063,7 @@ ordinary paths."
                      (let [project-directory (io/as-file project-directory-pathname)
                            resources (:resources new-value)
                            root-file-resource (resource/make-file-resource self project-directory-pathname project-directory resources editable-proj-path? unloaded-proj-path?)
-                           resource-tree (resource/sort-resource-tree root-file-resource)
+                           resource-tree (sort-resource-tree root-file-resource)
                            resource-list (vec (sort-by resource/proj-path util/natural-order (resource/resource-seq resource-tree)))
                            resource-map (coll/pair-map-by resource/proj-path resource-list)]
                        (g/set-properties self

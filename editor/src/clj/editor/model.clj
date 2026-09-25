@@ -57,8 +57,6 @@
 
 (def ^:private mesh-selection-file-types #{"glb" "gltf"})
 
-(declare create-material-binding-tx)
-
 (defn- gltf-source-resource?
   "True for glTF or GLB resources that support mesh selection."
   [resource]
@@ -160,55 +158,9 @@
   (when-let [tx-data-context (:tx-data-context evaluation-context)]
     (get-in @tx-data-context [::auto-fill-gltf-material-descriptors-by-node node-id])))
 
-(defn- replace-gltf-material-bindings-tx
-  "Creates transaction data replacing all model material bindings with the approved descriptors."
-  [evaluation-context model-node-id descriptors]
-  (let [material-binding-infos (g/node-value model-node-id :material-binding-infos evaluation-context)
-        material-binding-node-ids (if (g/error-value? material-binding-infos)
-                                    []
-                                    (mapv :_node-id material-binding-infos))
-        initial-tx-data (cond-> []
-                          (coll/not-empty material-binding-node-ids)
-                          (into (g/delete-nodes material-binding-node-ids)))]
-    (into initial-tx-data
-          (mapcat
-            (fn [{:keys [name material material-index textures]}]
-              (create-material-binding-tx model-node-id name material material-index textures {})))
-          descriptors)))
-
 (defn- model-mesh-choicebox [collision-meshes]
   {:type :choicebox
    :options (model-loader/named-mesh-choicebox-options collision-meshes)})
-
-(defn- set-mesh-index [evaluation-context self _old-value new-value]
-  (when (properties/user-edit? self :mesh-index evaluation-context)
-    (let [collision-meshes (g/node-value self :collision-meshes evaluation-context)
-          selected-mesh (resolve-selected-mesh collision-meshes new-value)
-          tx-data (g/set-property self :mesh-name (or (:name selected-mesh) ""))]
-      (if-let [descriptors (auto-fill-material-descriptors evaluation-context self)]
-        (into tx-data
-              (replace-gltf-material-bindings-tx evaluation-context self descriptors))
-        tx-data))))
-
-(defn- set-mesh [evaluation-context self old-value new-value]
-  (let [user-edit (properties/user-edit? self :mesh evaluation-context)
-        resource-setter-tx-data
-        (into []
-              (project/resource-setter evaluation-context self old-value new-value
-                                       [:resource :mesh-resource]
-                                       [:mesh-set-build-target :mesh-set-build-target]
-                                       [:content :mesh-content]
-                                       [:material-ids :mesh-material-ids]
-                                       [:collision-meshes :collision-meshes]
-                                       [:source-scene :scene]))
-        tx-data (into resource-setter-tx-data
-                      (when user-edit
-                        (g/set-properties self :mesh-name "" :mesh-index -1)))]
-    (if-let [descriptors (and user-edit
-                              (auto-fill-material-descriptors evaluation-context self))]
-      (into tx-data
-            (replace-gltf-material-bindings-tx evaluation-context self descriptors))
-      tx-data)))
 
 (defn- model-mesh-selection-error [node-id mesh mesh-name mesh-index collision-meshes]
   (cond
@@ -508,6 +460,52 @@
           (map (fn [{:keys [sampler texture]}]
                  (create-texture-binding-tx material-binding sampler texture)))
           textures)))
+
+(defn- replace-gltf-material-bindings-tx
+  "Creates transaction data replacing all model material bindings with the approved descriptors."
+  [evaluation-context model-node-id descriptors]
+  (let [material-binding-infos (g/node-value model-node-id :material-binding-infos evaluation-context)
+        material-binding-node-ids (if (g/error-value? material-binding-infos)
+                                    []
+                                    (mapv :_node-id material-binding-infos))
+        initial-tx-data (cond-> []
+                          (coll/not-empty material-binding-node-ids)
+                          (into (g/delete-nodes material-binding-node-ids)))]
+    (into initial-tx-data
+          (mapcat
+            (fn [{:keys [name material material-index textures]}]
+              (create-material-binding-tx model-node-id name material material-index textures {})))
+          descriptors)))
+
+(defn- set-mesh-index [evaluation-context self _old-value new-value]
+  (when (properties/user-edit? self :mesh-index evaluation-context)
+    (let [collision-meshes (g/node-value self :collision-meshes evaluation-context)
+          selected-mesh (resolve-selected-mesh collision-meshes new-value)
+          tx-data (g/set-property self :mesh-name (or (:name selected-mesh) ""))]
+      (if-let [descriptors (auto-fill-material-descriptors evaluation-context self)]
+        (into tx-data
+              (replace-gltf-material-bindings-tx evaluation-context self descriptors))
+        tx-data))))
+
+(defn- set-mesh [evaluation-context self old-value new-value]
+  (let [user-edit (properties/user-edit? self :mesh evaluation-context)
+        resource-setter-tx-data
+        (into []
+              (project/resource-setter evaluation-context self old-value new-value
+                                       [:resource :mesh-resource]
+                                       [:mesh-set-build-target :mesh-set-build-target]
+                                       [:content :mesh-content]
+                                       [:material-ids :mesh-material-ids]
+                                       [:collision-meshes :collision-meshes]
+                                       [:source-scene :scene]))
+        tx-data (into resource-setter-tx-data
+                      (when user-edit
+                        (g/set-properties self :mesh-name "" :mesh-index -1)))]
+    (if-let [descriptors (and user-edit
+                              (auto-fill-material-descriptors evaluation-context self))]
+      (into tx-data
+            (replace-gltf-material-bindings-tx evaluation-context self descriptors))
+      tx-data)))
 
 (def ^:private fake-resource
   (reify resource/Resource

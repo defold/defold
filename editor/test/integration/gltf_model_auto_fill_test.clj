@@ -26,6 +26,8 @@
             [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system]]))
 
+(set! *warn-on-reflection* true)
+
 (defn- gltf-content [scene-node-indices-json nodes-json meshes-json]
   (let [geometry-buffer-base64 "AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAABAAIA"
         image-base64 "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z6L8AAAAASUVORK5CYII="]

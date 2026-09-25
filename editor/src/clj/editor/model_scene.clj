@@ -37,6 +37,7 @@
             [editor.model-util :as model-util]
             [editor.outline :as outline]
             [editor.pose :as pose]
+            [editor.properties :as properties]
             [editor.render-util :as render-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -924,16 +925,23 @@
   (property outline-label g/Str
             (dynamic visible (g/constantly false)))
   (property index g/Int
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic label (properties/label-dynamic :gltf :index))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :index)))
   (property name g/Str
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :name)))
   (property name-generated g/Bool
             (dynamic read-only? (g/constantly true))
             (dynamic visible (g/constantly false)))
   (property primitive-count g/Int
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic label (properties/label-dynamic :gltf :primitive-count))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :primitive-count)))
   (property vertex-count g/Int
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic label (properties/label-dynamic :gltf :vertex-count))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :vertex-count)))
 
   (display-order [:index :name :name-generated :primitive-count :vertex-count])
 
@@ -958,18 +966,24 @@
   (property outline-label g/Str
             (dynamic visible (g/constantly false)))
   (property index g/Int
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic label (properties/label-dynamic :gltf :index))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :index)))
   (property name g/Str
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :name)))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource])))
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :material)))
   (property samplers g/Str
             (dynamic read-only? (g/constantly true))
-            (dynamic visible (g/fnk [samplers] (not (string/blank? samplers)))))
+            (dynamic visible (g/fnk [samplers] (not (string/blank? samplers))))
+            (dynamic label (properties/label-dynamic :gltf :samplers))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :samplers)))
 
   (display-order [:index :name :material :samplers])
 
@@ -992,15 +1006,19 @@
   (property outline-label g/Str
             (dynamic visible (g/constantly false)))
   (property index g/Int
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic label (properties/label-dynamic :gltf :index))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :index)))
   (property name g/Str
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :name)))
   (property image resource/Resource
             (value (gu/passthrough image-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :image-resource])))
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :image)))
   (property image-index g/Int
             (dynamic read-only? (g/constantly true))
             (dynamic visible (g/constantly false)))
@@ -1020,13 +1038,21 @@
             (dynamic read-only? (g/constantly true))
             (dynamic visible (g/constantly false)))
   (property min-filter g/Str
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic label (properties/label-dynamic :gltf :min-filter))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :min-filter)))
   (property mag-filter g/Str
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic label (properties/label-dynamic :gltf :mag-filter))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :mag-filter)))
   (property wrap-s g/Str
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic label (properties/label-dynamic :gltf :wrap-s))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :wrap-s)))
   (property wrap-t g/Str
-            (dynamic read-only? (g/constantly true)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic label (properties/label-dynamic :gltf :wrap-t))
+            (dynamic tooltip (properties/tooltip-dynamic :gltf :wrap-t)))
   (property basisu g/Bool
             (dynamic read-only? (g/constantly true))
             (dynamic visible (g/constantly false)))

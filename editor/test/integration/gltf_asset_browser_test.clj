@@ -40,7 +40,9 @@
            [javafx.scene.control TreeItem]
            [javafx.scene.layout VBox]))
 
-(def ^:private geometry-buffer-base64
+(set! *warn-on-reflection* true)
+
+(def ^:private ^String geometry-buffer-base64
   "AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAABAAIA")
 
 (def ^:private image-base64
@@ -380,9 +382,9 @@
               (let [archive (test-support/library-file (io/file project-path) library-uri "")]
                 (fs/create-parent-directories! archive)
                 (with-open [out (ZipOutputStream. (io/output-stream archive))]
-                  (doseq [[path content] [["game.project" "[library]\ninclude_dirs = defold-pbr\n"]
-                                          [(shader-paths 0) "void main() {}"]
-                                          [(shader-paths 1) "void main() {}"]]]
+                  (doseq [[^String path content] [["game.project" "[library]\ninclude_dirs = defold-pbr\n"]
+                                                  [(shader-paths 0) "void main() {}"]
+                                                  [(shader-paths 1) "void main() {}"]]]
                     (.putNextEntry out (ZipEntry. path))
                     (.write out (.getBytes ^String content StandardCharsets/UTF_8))
                     (.closeEntry out)))
