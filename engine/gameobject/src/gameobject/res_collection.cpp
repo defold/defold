@@ -32,16 +32,16 @@ namespace dmGameObject
         HCollection m_Collection;
     };
 
-    HCollection GetCollectionFromResource(CollectionResource* resource)
+    HCollection ResCollectionGetCollection(CollectionResource* resource)
     {
-        return resource ? resource->m_Collection : INVALID_COLLECTION;
+        return resource ? resource->m_Collection : 0;
     }
 
     static dmResource::Result AcquireResources(const char* name, dmResource::HFactory factory, dmGameObject::HRegister regist, dmGameObjectDDF::CollectionDesc* collection_desc, const char* filename, CollectionResource* collection_resource, HCollection* out_hcollection)
     {
         // NOTE: Be careful about control flow. See below with dmMutex::Unlock, return, etc
         dmResource::Result res = dmResource::RESULT_OK;
-        *out_hcollection = INVALID_COLLECTION;
+        *out_hcollection = 0;
 
         uint32_t created_instances = 0;
         uint32_t default_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
@@ -221,7 +221,7 @@ bail:
         {
             UnloadPropertyResources(factory, collection->m_PropertyResources);
             DeleteCollection(collection);
-            hcollection = INVALID_COLLECTION;
+            hcollection = 0;
         }
 
         *out_hcollection = hcollection;
@@ -274,7 +274,7 @@ bail:
         dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) params->m_PreloadData;
 
         CollectionResource* resource = new CollectionResource;
-        resource->m_Collection = INVALID_COLLECTION;
+        resource->m_Collection = 0;
 
         HCollection hcollection;
         dmResource::Result res = AcquireResources(collection_desc->m_Name, params->m_Factory, regist, collection_desc, params->m_Filename, resource, &hcollection);

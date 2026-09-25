@@ -93,7 +93,7 @@ namespace dmGameSystem
 
     inline static dmGameObject::HCollection GetCollection(CollectionProxyComponent* proxy)
     {
-        return dmGameObject::GetCollectionFromResource(proxy->m_CollectionResource);
+        return dmGameObject::ResCollectionGetCollection(proxy->m_CollectionResource);
     }
 
     struct CollectionProxyWorld

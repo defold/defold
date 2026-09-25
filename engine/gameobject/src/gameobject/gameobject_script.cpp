@@ -471,7 +471,7 @@ namespace dmGameObject
     static HGameObject ScriptInstanceGetGameObject(void* script_instance)
     {
         ScriptInstance* instance = (ScriptInstance*)script_instance;
-        return instance ? instance->m_Instance : INVALID_GAME_OBJECT;
+        return instance ? instance->m_Instance : 0;
     }
 
     static ScriptInstanceGameObjectResolver g_ScriptInstanceGameObjectResolver = { ScriptInstanceGetGameObject };
@@ -662,14 +662,14 @@ namespace dmGameObject
         if (lua_type(L, -1) != LUA_TUSERDATA)
         {
             lua_pop(L, 1);
-            return INVALID_GAME_OBJECT;
+            return 0;
         }
 
         uint32_t user_type_hash = dmScript::GetUserType(L, -1);
         if (script_instance_type_hash != 0 && user_type_hash != script_instance_type_hash)
         {
             lua_pop(L, 1);
-            return INVALID_GAME_OBJECT;
+            return 0;
         }
 
         if (user_type_hash == SCRIPTINSTANCE_TYPE_HASH)
@@ -683,7 +683,7 @@ namespace dmGameObject
         if (!lua_getmetatable(L, -1))
         {
             lua_pop(L, 1);
-            return INVALID_GAME_OBJECT;
+            return 0;
         }
 
         lua_pushlstring(L, META_TABLE_GET_GAME_OBJECT, sizeof(META_TABLE_GET_GAME_OBJECT) - 1);
@@ -692,7 +692,7 @@ namespace dmGameObject
         if (!lua_islightuserdata(L, -1) || resolver == 0 || resolver->m_GetInstance == 0)
         {
             lua_pop(L, 3);
-            return INVALID_GAME_OBJECT;
+            return 0;
         }
 
         void* script_instance = lua_touserdata(L, -3);

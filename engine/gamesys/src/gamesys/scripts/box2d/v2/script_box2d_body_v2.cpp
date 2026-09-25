@@ -379,7 +379,7 @@ namespace dmGameSystem
     dmGameObject::HGameObject GetBodyInstance(b2Body* body)
     {
         void* user_data = body->GetUserData(); // The component. See CompCollisionObjectCreate in comp_collision_object.cpp
-        return user_data ? CompCollisionObjectGetInstance(user_data) : dmGameObject::INVALID_GAME_OBJECT;
+        return user_data ? CompCollisionObjectGetInstance(user_data) : 0;
     }
 
     b2Fixture* GetFixtureByIndex(b2Body* body, int fixture_index)

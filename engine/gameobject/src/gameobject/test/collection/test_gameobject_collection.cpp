@@ -126,7 +126,7 @@ protected:
     {
         *resource = 0;
         dmResource::Result result = dmResource::Get(m_Factory, ref, (void**)resource);
-        *collection = dmGameObject::GetCollectionFromResource(*resource);
+        *collection = dmGameObject::ResCollectionGetCollection(*resource);
         return result;
     }
 
@@ -134,7 +134,7 @@ protected:
     {
         *resource = 0;
         dmResource::Result result = PreloaderGet(m_Factory, ref, (void**)resource);
-        *collection = dmGameObject::GetCollectionFromResource(*resource);
+        *collection = dmGameObject::ResCollectionGetCollection(*resource);
         return result;
     }
 
@@ -228,7 +228,7 @@ TEST_F(CollectionTest, Collection)
         else
             r = PreloaderGetCollectionResource("/test.collectionc", &resource, &coll);
         ASSERT_EQ(dmResource::RESULT_OK, r);
-        ASSERT_NE(dmGameObject::INVALID_COLLECTION, coll);
+        ASSERT_NE(0, coll);
 
         // A compiled collection contains only its initial objects, but the core
         // game-object storage is reserved from collection.max_instances.
@@ -268,7 +268,7 @@ TEST_F(CollectionTest, CollectionSpawning)
 
     dmResource::Result r = GetCollectionResource("/empty.collectionc", &resource, &coll);
     ASSERT_EQ(dmResource::RESULT_OK, r);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, coll);
+    ASSERT_NE(0, coll);
 
     dmGameObject::Init(coll);
 
@@ -376,7 +376,7 @@ TEST_F(CollectionTest, CollectionSpawningResults)
 
     dmResource::Result r = GetCollectionResource("/empty.collectionc", &resource, &coll);
     ASSERT_EQ(dmResource::RESULT_OK, r);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, coll);
+    ASSERT_NE(0, coll);
 
     dmGameObject::Init(coll);
 
@@ -418,13 +418,13 @@ TEST_F(CollectionTest, PostCollection)
         dmGameObject::HCollection coll1;
         r = GetCollectionResource("/post1.collectionc", &resource1, &coll1);
         ASSERT_EQ(dmResource::RESULT_OK, r);
-        ASSERT_NE(dmGameObject::INVALID_COLLECTION, coll1);
+        ASSERT_NE(0, coll1);
 
         dmGameObject::CollectionResource* resource2;
         dmGameObject::HCollection coll2;
         r = GetCollectionResource("/post2.collectionc", &resource2, &coll2);
         ASSERT_EQ(dmResource::RESULT_OK, r);
-        ASSERT_NE(dmGameObject::INVALID_COLLECTION, coll2);
+        ASSERT_NE(0, coll2);
         ASSERT_NE(resource1, resource2);
 
         bool ret;
@@ -501,7 +501,7 @@ TEST_F(CollectionTest, CollectionInCollection)
             r = PreloaderGetCollectionResource("/root1.collectionc", &resource, &coll);
 
         ASSERT_EQ(dmResource::RESULT_OK, r);
-        ASSERT_NE(dmGameObject::INVALID_COLLECTION, coll);
+        ASSERT_NE(0, coll);
 
         dmhash_t go01ident = dmHashString64("/go1");
         dmGameObject::HInstance go01 = dmGameObject::GetInstanceFromIdentifier(coll, go01ident);
@@ -608,7 +608,7 @@ TEST_F(CollectionTest, CollectionCapacity)
         else
             r = PreloaderGetCollectionResource("/test.collectionc", &resource, &coll);
         ASSERT_EQ(dmResource::RESULT_OK, r);
-        ASSERT_NE(dmGameObject::INVALID_COLLECTION, coll);
+        ASSERT_NE(0, coll);
 
         dmhash_t go01ident = dmHashString64("/go1");
         dmGameObject::HInstance go01 = dmGameObject::GetInstanceFromIdentifier(coll, go01ident);
@@ -636,7 +636,7 @@ TEST_F(CollectionTest, CollectionCapacity)
         else
             r = PreloaderGetCollectionResource("/test.collectionc", &resource, &coll);
         ASSERT_NE(dmResource::RESULT_OK, r);
-        ASSERT_EQ(dmGameObject::INVALID_COLLECTION, coll);
+        ASSERT_EQ(0, coll);
 
         dmGameObject::PostUpdate(m_Register);
     }
@@ -649,7 +649,7 @@ TEST_F(CollectionTest, CreateCallback)
     dmGameObject::HCollection coll;
     dmResource::Result r = GetCollectionResource("/test_create.collectionc", &resource, &coll);
     ASSERT_EQ(dmResource::RESULT_OK, r);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, coll);
+    ASSERT_NE(0, coll);
 
     dmResource::Release(m_Factory, resource);
 

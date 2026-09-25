@@ -78,12 +78,12 @@ namespace dmGameSystem
 
     inline dmGameObject::Result DoSpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection,
                                         dmhash_t id, const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
-                                        dmGameObject::HPropertyContainer properties, dmGameObject::HInstance* out_instance)
+                                        dmGameObject::HPropertyContainer properties, dmGameObject::HGameObject* out_instance)
     {
         if (!out_instance)
             return dmGameObject::RESULT_INVALID_OPERATION;
 
-        *out_instance = dmGameObject::INVALID_GAME_OBJECT;
+        *out_instance = 0;
         if (!dmGameObject::GetRegister(collection))
             return dmGameObject::RESULT_INVALID_INSTANCE;
 
@@ -487,7 +487,7 @@ namespace dmGameSystem
 
     dmGameObject::Result CompFactorySpawn(HFactoryWorld world, HFactoryComponent component, dmGameObject::HCollection collection, dmhash_t id,
                                                 const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale,
-                                                dmGameObject::HPropertyContainer properties, dmGameObject::HInstance* out_instance)
+                                                dmGameObject::HPropertyContainer properties, dmGameObject::HGameObject* out_instance)
     {
         return DoSpawn(world, component, collection, id, position, rotation, scale, properties, out_instance);
     }

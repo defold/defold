@@ -152,7 +152,7 @@ namespace dmGameObject
         if (g_Register->m_FirstFreeCollection == INVALID_COLLECTION_INDEX)
             GrowCollectionRegistry();
         if (g_Register->m_FirstFreeCollection == INVALID_COLLECTION_INDEX)
-            return INVALID_COLLECTION;
+            return 0;
 
         uint16_t index = g_Register->m_FirstFreeCollection;
         CollectionRegistrySlot& slot = g_Register->m_CollectionRegistry[index];
@@ -165,7 +165,7 @@ namespace dmGameObject
 
     static void UnregisterCollection(HCollection collection)
     {
-        if (collection == INVALID_COLLECTION)
+        if (collection == 0)
             return;
 
         DM_MUTEX_SCOPED_LOCK(g_Register->m_Mutex);
@@ -185,7 +185,7 @@ namespace dmGameObject
 
     Collection* GetCollectionFromHandle(HCollection collection)
     {
-        if (!g_Register || collection == INVALID_COLLECTION)
+        if (!g_Register || collection == 0)
             return 0;
 
         uint16_t index = GetCollectionIndex(collection);
@@ -202,15 +202,15 @@ namespace dmGameObject
     HGameObject GetInstanceHandle(Collection* collection, const Instance* instance)
     {
         if (!collection || !instance || instance->m_Index == INVALID_INSTANCE_INDEX || instance->m_Generation == 0)
-            return INVALID_GAME_OBJECT;
+            return 0;
 
         uint16_t collection_index = GetCollectionIndex(collection->m_HCollection);
         if (!g_Register || collection_index >= g_Register->m_CollectionRegistry.Size() || instance->m_Index >= MAX_INSTANCE_COUNT)
-            return INVALID_GAME_OBJECT;
+            return 0;
 
         CollectionRegistrySlot& slot = g_Register->m_CollectionRegistry[collection_index];
         if (slot.m_Collection != collection)
-            return INVALID_GAME_OBJECT;
+            return 0;
         return MakeInstanceHandle(collection_index, instance->m_Index, instance->m_Generation);
     }
 
@@ -823,11 +823,11 @@ namespace dmGameObject
         collection->m_NameHash = dmHashString64(name); // Same as the socket name
 
         HCollection hcollection = RegisterCollection(collection);
-        if (hcollection == INVALID_COLLECTION)
+        if (hcollection == 0)
         {
             dmMutex::Delete(collection->m_Mutex);
             delete collection;
-            return INVALID_COLLECTION;
+            return 0;
         }
         collection->m_HCollection = hcollection;
 
@@ -1269,7 +1269,7 @@ namespace dmGameObject
     HInstance New(HCollection hcollection, const char* prototype_name) {
         Collection* collection = GetCollectionFromHandle(hcollection);
         if (!collection)
-            return INVALID_GAME_OBJECT;
+            return 0;
         Prototype* proto;
         dmResource::HFactory factory = collection->m_Factory;
         if (prototype_name != 0x0)
@@ -1376,7 +1376,7 @@ namespace dmGameObject
             return RESULT_IDENTIFIER_ALREADY_SET;
 
         HGameObject hinstance = GetInstanceHandle(collection, instance);
-        assert(hinstance != INVALID_GAME_OBJECT);
+        assert(hinstance != 0);
         instance->m_Identifier = id;
         collection->m_IDToInstance.Put(id, hinstance);
 
@@ -1597,7 +1597,7 @@ namespace dmGameObject
         if (!out_instance)
             return RESULT_INVALID_OPERATION;
 
-        *out_instance = INVALID_GAME_OBJECT;
+        *out_instance = 0;
         Collection* collection = GetCollectionFromHandle(hcollection);
         if (!collection)
             return RESULT_INVALID_INSTANCE;
@@ -2057,17 +2057,17 @@ namespace dmGameObject
     {
         Collection* collection = GetCollectionFromHandle(hcollection);
         if (!collection)
-            return INVALID_GAME_OBJECT;
+            return 0;
         if (proto == 0x0) {
             dmLogError("No prototype to spawn from.");
-            return INVALID_GAME_OBJECT;
+            return 0;
         }
 
         Instance* instance;
         Result result = SpawnInternal(collection, proto, prototype_name, id, property_container, position, rotation, scale, &instance);
         if (result != RESULT_OK) {
             dmLogError("Could not spawn an instance of prototype %s.", prototype_name);
-            return INVALID_GAME_OBJECT;
+            return 0;
         }
 
         return GetInstanceHandle(collection, instance);
@@ -2518,10 +2518,10 @@ namespace dmGameObject
     static HGameObject GetInstanceHandleFromIdentifier(Collection* collection, dmhash_t identifier)
     {
         if (!collection)
-            return INVALID_GAME_OBJECT;
+            return 0;
 
         HGameObject* hinstance = collection->m_IDToInstance.Get(identifier);
-        return hinstance ? *hinstance : INVALID_GAME_OBJECT;
+        return hinstance ? *hinstance : 0;
     }
 
     Instance* GetInstanceFromIdentifier(Collection* collection, dmhash_t identifier)
@@ -3576,7 +3576,7 @@ namespace dmGameObject
     HCollection GetCollection(HInstance instance)
     {
         Collection* collection = 0;
-        return GetInstanceFromHandle(instance, &collection) ? collection->m_HCollection : INVALID_COLLECTION;
+        return GetInstanceFromHandle(instance, &collection) ? collection->m_HCollection : 0;
     }
 
     dmResource::HFactory GetFactory(HInstance instance)
@@ -3942,8 +3942,8 @@ namespace dmGameObject
     {
         Collection* collection = 0;
         Instance* child = GetInstanceFromHandle(hchild, &collection);
-        Instance* parent = hparent == INVALID_GAME_OBJECT ? 0 : GetInstanceFromHandle(collection, hparent);
-        if (!child || (hparent != INVALID_GAME_OBJECT && !parent))
+        Instance* parent = hparent == 0 ? 0 : GetInstanceFromHandle(collection, hparent);
+        if (!child || (hparent != 0 && !parent))
             return RESULT_INVALID_INSTANCE;
         return SetParent(collection, child, parent);
     }

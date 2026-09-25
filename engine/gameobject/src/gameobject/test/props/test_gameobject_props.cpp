@@ -133,7 +133,7 @@ protected:
     {
         *resource = 0;
         dmResource::Result result = dmResource::Get(m_Factory, path, (void**)resource);
-        *collection = dmGameObject::GetCollectionFromResource(*resource);
+        *collection = dmGameObject::ResCollectionGetCollection(*resource);
         return result;
     }
 

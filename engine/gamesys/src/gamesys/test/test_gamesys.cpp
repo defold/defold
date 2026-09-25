@@ -103,7 +103,7 @@ CollectionProxyComponentRef GetCollectionProxyComponentRef(dmGameObject::HInstan
 dmGameObject::HCollection GetCollectionByName(dmGameObject::HRegister regist, const char* name)
 {
     dmGameObject::HCollection collection = dmGameObject::GetCollectionByHash(regist, dmHashString64(name));
-    EXPECT_NE(dmGameObject::INVALID_COLLECTION, collection);
+    EXPECT_NE(0, collection);
     return collection;
 }
 
@@ -1562,9 +1562,9 @@ TEST_F(CollectionProxyComponentTest, CollectionProxySetCollectionRecursiveLoadIn
     // Try to create a cyclic graph
     ConfigureCollectionProxy(level3_proxy, "/collection_proxy/set_collection_cpp_cycle_level1.collectionc", dmGameObject::RESULT_ALREADY_REGISTERED);
 
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, GetCollectionByName(m_Register, "set_collection_cpp_cycle_level1"));
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, GetCollectionByName(m_Register, "set_collection_cpp_cycle_level2"));
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, GetCollectionByName(m_Register, "set_collection_cpp_cycle_level3"));
+    ASSERT_NE(0, GetCollectionByName(m_Register, "set_collection_cpp_cycle_level1"));
+    ASSERT_NE(0, GetCollectionByName(m_Register, "set_collection_cpp_cycle_level2"));
+    ASSERT_NE(0, GetCollectionByName(m_Register, "set_collection_cpp_cycle_level3"));
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));

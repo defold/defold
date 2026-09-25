@@ -117,8 +117,8 @@ TEST_F(IdTest, TestHierarchies)
 {
     dmGameObject::CollectionResource* collection_resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/root.collectionc", (void**)&collection_resource));
-    dmGameObject::HCollection collection = dmGameObject::GetCollectionFromResource(collection_resource);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, collection);
+    dmGameObject::HCollection collection = dmGameObject::ResCollectionGetCollection(collection_resource);
+    ASSERT_NE(0, collection);
     dmhash_t id = dmHashString64("/go");
     dmhash_t sub1_id = dmHashString64("/sub/go1");
     dmhash_t sub2_id = dmHashString64("/sub/go2");
@@ -187,7 +187,7 @@ TEST_F(IdTest, TestPackedHandlesAndStaleGameObject)
     dmGameObject::HInstance maximum_encoding = UINT64_MAX;
     ASSERT_EQ(UINT32_MAX, dmGameObject::GetInstanceGeneration(maximum_encoding));
     ASSERT_FALSE(dmGameObject::IsValid(maximum_encoding));
-    ASSERT_EQ(dmGameObject::INVALID_COLLECTION, dmGameObject::GetCollection(maximum_encoding));
+    ASSERT_EQ(0, dmGameObject::GetCollection(maximum_encoding));
 
     dmGameObject::Delete(m_Collection, game_object, false);
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
@@ -225,8 +225,8 @@ TEST_F(IdTest, TestWrongCollectionAndStaleCollection)
 {
     dmGameObject::HCollection first = dmGameObject::NewCollection("first", m_Factory, m_Register, 4, 0);
     dmGameObject::HCollection second = dmGameObject::NewCollection("second", m_Factory, m_Register, 4, 0);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, first);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, second);
+    ASSERT_NE(0, first);
+    ASSERT_NE(0, second);
     ASSERT_NE(0U, first >> 16);
     ASSERT_NE(0U, second >> 16);
 
@@ -252,7 +252,7 @@ TEST_F(IdTest, TestWrongCollectionAndStaleCollection)
     dmGameObject::DeleteCollection(first);
     dmGameObject::PostUpdate(m_Register);
     ASSERT_FALSE(dmGameObject::IsValid(first_object));
-    ASSERT_EQ(dmGameObject::INVALID_COLLECTION, dmGameObject::GetCollection(first_object));
+    ASSERT_EQ(0, dmGameObject::GetCollection(first_object));
     ASSERT_EQ(0, dmGameObject::GetInstanceFromIdentifier(first, shared_identifier));
 
     dmGameObject::HCollection reused = dmGameObject::NewCollection("reused", m_Factory, m_Register, 4, 0);
@@ -273,7 +273,7 @@ TEST_F(IdTest, TestInvalidHandleDefaults)
     ASSERT_FALSE(dmGameObject::IsValid(invalid_generation));
     ASSERT_EQ(0U, dmGameObject::GetIdentifier(invalid_generation));
     ASSERT_EQ(0U, dmGameObject::GetInstanceGeneration(invalid_generation));
-    ASSERT_EQ(dmGameObject::INVALID_COLLECTION, dmGameObject::GetCollection(invalid_generation));
+    ASSERT_EQ(0, dmGameObject::GetCollection(invalid_generation));
     ASSERT_EQ(dmGameObject::RESULT_INVALID_INSTANCE, dmGameObject::SetIdentifier(m_Collection, invalid_generation, "invalid"));
 
     dmVMath::Point3 position = dmGameObject::GetPosition(invalid_generation);
@@ -321,7 +321,7 @@ TEST_F(IdTest, TestInvalidHandleDefaults)
     dmGameObject::SetBone(invalid_generation, true);
     dmGameObject::Delete(m_Collection, invalid_generation, true);
 
-    const dmGameObject::HCollection invalid_collection = dmGameObject::INVALID_COLLECTION;
+    const dmGameObject::HCollection invalid_collection = 0;
     dmGameObject::PropertyDesc property_desc;
     dmGameObject::PropertyOptions property_options;
     uint32_t component_type = 1;
@@ -424,7 +424,7 @@ TEST_F(IdTest, TestSceneTraversalRejectsStaleHandles)
     ASSERT_FALSE(dmGameObject::TraverseIteratePropertiesNext(&component_properties));
 
     dmGameObject::HCollection other_collection = dmGameObject::NewCollection("scene_stale_other", m_Factory, m_Register, 1, 0);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, other_collection);
+    ASSERT_NE(0, other_collection);
     dmGameObject::HInstance other_object = dmGameObject::New(other_collection, 0);
     component_node.m_Instance = other_object;
     component_children = dmGameObject::TraverseIterateChildren(&component_node);
@@ -441,13 +441,13 @@ TEST_F(IdTest, TestGameObjectsAcrossLegacyIndexBoundary)
 {
     const uint32_t object_count = 100000;
     dmGameObject::HCollection collection = dmGameObject::NewCollection("large", m_Factory, m_Register, object_count, 0);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, collection);
+    ASSERT_NE(0, collection);
 
-    dmGameObject::HInstance first = dmGameObject::INVALID_GAME_OBJECT;
-    dmGameObject::HInstance low = dmGameObject::INVALID_GAME_OBJECT;
-    dmGameObject::HInstance boundary = dmGameObject::INVALID_GAME_OBJECT;
-    dmGameObject::HInstance above_boundary = dmGameObject::INVALID_GAME_OBJECT;
-    dmGameObject::HInstance last = dmGameObject::INVALID_GAME_OBJECT;
+    dmGameObject::HInstance first = 0;
+    dmGameObject::HInstance low = 0;
+    dmGameObject::HInstance boundary = 0;
+    dmGameObject::HInstance above_boundary = 0;
+    dmGameObject::HInstance last = 0;
     dmhash_t first_id = dmHashString64("large-first");
     for (uint32_t i = 0; i < object_count; ++i)
     {
@@ -546,7 +546,7 @@ TEST_F(IdTest, TestGameObjectsAcrossLegacyIndexBoundary)
 
     dmGameObject::HPrototype prototype = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/go.goc", (void**)&prototype));
-    dmGameObject::HInstance reused = dmGameObject::INVALID_GAME_OBJECT;
+    dmGameObject::HInstance reused = 0;
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::Spawn(collection, prototype, "/go.goc",
             dmHashString64("/large-reused"), 0, dmVMath::Point3(), dmVMath::Quat::identity(),
             dmVMath::Vector3(1.0f), &reused));

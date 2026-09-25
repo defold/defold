@@ -103,23 +103,11 @@ namespace dmGameObject
     /*#
      * Opaque gameobject collection handle.
      * This is not a collection resource pointer. Load collection resources into
-     * a CollectionResource* and use GetCollectionFromResource to obtain this handle.
+     * a CollectionResource* and use ResCollectionGetCollection to obtain this handle.
      * @typedef
      * @name HCollection
      */
     typedef uint32_t HCollection;
-
-    /*# invalid game object handle
-     * @constant
-     * @name dmGameObject::INVALID_GAME_OBJECT [type: dmGameObject::HGameObject]
-     */
-    const HGameObject INVALID_GAME_OBJECT = 0;
-
-    /*# invalid collection handle
-     * @constant
-     * @name dmGameObject::INVALID_COLLECTION [type: dmGameObject::HCollection]
-     */
-    const HCollection INVALID_COLLECTION = 0;
 
     /*#
      * Handle to a list of properties (gameobject_props.h)
@@ -572,7 +560,7 @@ namespace dmGameObject
      * @param position [type: dmVMath::Vector3] Position of the spawed object
      * @param rotation [type: dmVMath::Quat] Rotation of the spawned object
      * @param scale [type: dmVMath::Vector3] Scale of the spawned object
-     * @return instance [type: HInstance] the spawned instance, or dmGameObject::INVALID_GAME_OBJECT at failure
+     * @return instance [type: HInstance] the spawned instance, or 0 at failure
      */
     HInstance Spawn(HCollection collection, HPrototype prototype, const char* prototype_name, dmhash_t id,
                       HPropertyContainer properties, const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale);
@@ -581,7 +569,7 @@ namespace dmGameObject
      * Retrieve a collection from the specified instance
      * @name GetCollection
      * @param instance [type: dmGameObject::HInstance] Game object instance
-     * @return collection [type: dmGameObject::HCollection] The collection the specified instance belongs to, or dmGameObject::INVALID_COLLECTION if the instance is invalid or stale
+     * @return collection [type: dmGameObject::HCollection] The collection the specified instance belongs to, or 0 if the instance is invalid or stale
      */
     HCollection GetCollection(HInstance instance);
 
@@ -591,7 +579,7 @@ namespace dmGameObject
      * @name GetCollectionByHash
      * @param regist [type: dmGameObject::HRegister] Register
      * @param socket_name [type: dmhash_t] The socket name
-     * @return collection [type: dmGameObject::HCollection] The collection if successful, or dmGameObject::INVALID_COLLECTION otherwise.
+     * @return collection [type: dmGameObject::HCollection] The collection if successful, or 0 otherwise.
      */
     HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name);
 
@@ -601,7 +589,7 @@ namespace dmGameObject
      * @name New
      * @param collection [type: dmGameObject::HCollection] Gameobject collection
      * @param prototype_name [type: const char*] Prototype file name. May be 0.
-     * @return instance [type: dmGameObject::HInstance] New gameobject instance, or dmGameObject::INVALID_GAME_OBJECT if an error occurred
+     * @return instance [type: dmGameObject::HInstance] New gameobject instance, or 0 if an error occurred
      */
     HInstance New(HCollection collection, const char* name);
 
@@ -684,7 +672,7 @@ namespace dmGameObject
      * @name GetInstanceFromIdentifier
      * @param collection [type: dmGameObject::HCollection] Collection
      * @param identifier [type: dmhash_t] Identifier
-     * @return instance [type: dmGameObject::HInstance] Instance, or dmGameObject::INVALID_GAME_OBJECT if the collection or identifier is not found.
+     * @return instance [type: dmGameObject::HInstance] Instance, or 0 if the collection or identifier is not found.
      */
     HInstance GetInstanceFromIdentifier(HCollection collection, dmhash_t identifier);
 
@@ -890,7 +878,7 @@ namespace dmGameObject
      * Get parent instance if it exists
      * @name GetParent
      * @param instance [type: dmGameObject::HInstance] Gameobject instance
-     * @return parent [type: dmGameObject::HInstance] Parent instance, or dmGameObject::INVALID_GAME_OBJECT if the instance is invalid, stale, or a root
+     * @return parent [type: dmGameObject::HInstance] Parent instance, or 0 if the instance is invalid, stale, or a root
      */
     HInstance GetParent(HInstance instance);
 

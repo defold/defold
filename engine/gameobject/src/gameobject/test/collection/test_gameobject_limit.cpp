@@ -91,7 +91,7 @@ TEST_F(CollectionLimitTest, CreateAndHitLimitAndSetGetPosition)
     const uint32_t max_instances = 65537;
 
     m_Collection = dmGameObject::NewCollection("limit_col", m_Factory, m_Register, max_instances, 0x0);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, m_Collection);
+    ASSERT_NE(0, m_Collection);
 
     // Create max_instances objects and set position.x to 1..max_instances
     dmArray<dmGameObject::HInstance> instances;
@@ -119,7 +119,7 @@ TEST_F(CollectionLimitTest, CreateAndHitLimitAndSetGetPosition)
 TEST_F(CollectionLimitTest, RejectsCollectionAboveHandleCapacity)
 {
     m_Collection = dmGameObject::NewCollection("too_large", m_Factory, m_Register, (1U << 20) + 1, 0x0);
-    ASSERT_EQ(dmGameObject::INVALID_COLLECTION, m_Collection);
+    ASSERT_EQ(0, m_Collection);
 }
 
 TEST_F(CollectionLimitTest, CollectionRegistryExhaustion)
@@ -133,7 +133,7 @@ TEST_F(CollectionLimitTest, CollectionRegistryExhaustion)
         char name[32];
         dmSnPrintf(name, sizeof(name), "registry_%u", i);
         dmGameObject::HCollection collection = dmGameObject::NewCollection(name, m_Factory, m_Register, 1, 0x0);
-        ASSERT_NE(dmGameObject::INVALID_COLLECTION, collection);
+        ASSERT_NE(0, collection);
         ASSERT_LT((uint32_t)(collection & 0xffff), collection_count);
         collections.Push(collection);
         dmGameObject::Collection* internal_collection = dmGameObject::GetCollectionFromHandle(collection);
@@ -141,7 +141,7 @@ TEST_F(CollectionLimitTest, CollectionRegistryExhaustion)
         dmGameObject::DetachCollection(internal_collection, false);
     }
 
-    ASSERT_EQ(dmGameObject::INVALID_COLLECTION,
+    ASSERT_EQ(0,
               dmGameObject::NewCollection("registry_overflow", m_Factory, m_Register, 1, 0x0));
 
     for (uint32_t i = 0; i < collections.Size(); ++i)

@@ -3538,10 +3538,10 @@ namespace dmGameSystem
     {
         dmGui::HScene scene = (dmGui::HScene)script_instance;
         if (!scene)
-            return dmGameObject::INVALID_GAME_OBJECT;
+            return 0;
 
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
-        return component ? component->m_Instance : dmGameObject::INVALID_GAME_OBJECT;
+        return component ? component->m_Instance : 0;
     }
 
     static dmGameObject::ScriptInstanceGameObjectResolver g_GuiScriptInstanceGameObjectResolver = { GuiScriptInstanceGetGameObject };

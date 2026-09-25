@@ -561,7 +561,7 @@ namespace dmGameObject
         PropertyOptions property_opt;
         AddPropertyOptionsIndex(&property_opt, 0);
 
-        if (collection == INVALID_COLLECTION || GetCollection(instance) != collection)
+        if (collection == 0 || GetCollection(instance) != collection)
             return PROPERTY_RESULT_INVALID_INSTANCE;
 
         PropertyResult prop_result = GetProperty(instance, component_id, property_id, property_opt, prop_desc);
@@ -628,7 +628,7 @@ namespace dmGameObject
     {
         if (property_id == 0)
         {
-            if (collection == INVALID_COLLECTION || GetCollection(instance) != collection)
+            if (collection == 0 || GetCollection(instance) != collection)
                 return PROPERTY_RESULT_INVALID_INSTANCE;
             AnimWorld* world = GetWorld(collection);
             StopAnimations(world, world->m_InstanceToIndex.Get(instance), component_id, 0);
@@ -638,7 +638,7 @@ namespace dmGameObject
         PropertyDesc prop_desc;
         PropertyOptions property_opt;
         AddPropertyOptionsIndex(&property_opt, 0);
-        if (collection == INVALID_COLLECTION || GetCollection(instance) != collection)
+        if (collection == 0 || GetCollection(instance) != collection)
             return PROPERTY_RESULT_INVALID_INSTANCE;
         PropertyResult prop_result = GetProperty(instance, component_id, property_id, property_opt, prop_desc);
         if (prop_result != PROPERTY_RESULT_OK)

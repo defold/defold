@@ -27,7 +27,7 @@ namespace dmGameObject
 {
     /**
      * Native resolver stored in a script-instance metatable to expose game object ownership.
-     * The resolver must outlive the script context and return INVALID_GAME_OBJECT if ownership cannot be resolved.
+     * The resolver must outlive the script context and return 0 if ownership cannot be resolved.
      */
     struct ScriptInstanceGameObjectResolver
     {

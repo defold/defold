@@ -981,7 +981,7 @@ TEST_F(ParticleFxTest, PlayWithOverridesAfterComponentStorageGrowth)
     collection_desc.m_ComponentTypes.m_Count = sizeof(component_types) / sizeof(component_types[0]);
 
     m_Collection = dmGameObject::NewCollection(collection_desc.m_Name, m_Factory, m_Register, m_projectOptions.m_MaxInstances, &collection_desc);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, m_Collection);
+    ASSERT_NE(0, m_Collection);
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/particlefx/valid_particlefx.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));

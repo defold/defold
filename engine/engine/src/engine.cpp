@@ -492,7 +492,7 @@ namespace dmEngine
 
     static dmGameObject::HCollection GetMainCollection(HEngine engine)
     {
-        return dmGameObject::GetCollectionFromResource(engine->m_MainCollectionResource);
+        return dmGameObject::ResCollectionGetCollection(engine->m_MainCollectionResource);
     }
 
     void Delete(HEngine engine)

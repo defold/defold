@@ -125,7 +125,7 @@ static dmGameObject::CompScriptWorld* GetScriptWorld(dmGameObject::HCollection c
 TEST_F(ScriptTest, WorldStorageUsesConfiguredCapacity)
 {
     dmGameObject::HCollection large_collection = dmGameObject::NewCollection("large_script_storage", m_Factory, m_Register, 100000, 0x0);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, large_collection);
+    ASSERT_NE(0, large_collection);
     dmGameObject::CompScriptWorld* script_world = GetScriptWorld(large_collection);
     ASSERT_NE((dmGameObject::CompScriptWorld*)0, script_world);
     ASSERT_EQ(100000U, script_world->m_Instances.Capacity());

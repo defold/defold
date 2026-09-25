@@ -47,22 +47,22 @@ namespace dmGameObject
      * ownership of the resource reference and must release the original resource
      * pointer with dmResource::Release. The returned handle may change when the
      * resource is reloaded; call this function again after a reload.
-     * @name GetCollectionFromResource
+     * @name ResCollectionGetCollection
      * @param resource [type: dmGameObject::CollectionResource*] Live collection resource returned by dmResource::Get.
-     * @return collection [type: dmGameObject::HCollection] Collection handle, or dmGameObject::INVALID_COLLECTION if resource is null.
+     * @return collection [type: dmGameObject::HCollection] Collection handle, or 0 if resource is null.
      * @examples
      * ```cpp
      * dmGameObject::CollectionResource* resource = 0;
      * dmResource::Result result = dmResource::Get(factory, "/main.collectionc", (void**)&resource);
      * if (result == dmResource::RESULT_OK)
      * {
-     *     dmGameObject::HCollection collection = dmGameObject::GetCollectionFromResource(resource);
+     *     dmGameObject::HCollection collection = dmGameObject::ResCollectionGetCollection(resource);
      *     // Use collection with the game-object API.
      *     dmResource::Release(factory, resource);
      * }
      * ```
      */
-    HCollection GetCollectionFromResource(CollectionResource* resource);
+    HCollection ResCollectionGetCollection(CollectionResource* resource);
 }
 
 #endif // DMSDK_GAMEOBJECT_RES_COLLECTION_H

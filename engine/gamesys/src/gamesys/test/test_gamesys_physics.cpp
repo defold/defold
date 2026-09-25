@@ -516,14 +516,14 @@ TEST_F(Bullet3DComponentTest, Bullet3DStaleIdentitiesDoNotRecycle)
     lua_State*        L = dmScript::GetLuaState(m_ScriptContext);
 
     btCollisionObject collision_object;
-    dmGameSystem::PushBullet3DCollisionObject(L, &collision_object, dmGameObject::INVALID_GAME_OBJECT);
+    dmGameSystem::PushBullet3DCollisionObject(L, &collision_object, 0);
     lua_setglobal(L, "bullet3d_stale_collision_object");
     dmGameSystem::ScriptBullet3DInvalidateCollisionObject(&collision_object);
 
     bool collision_object_revived = false;
     for (uint32_t i = 0; i < previous_generation_count; ++i)
     {
-        dmGameSystem::PushBullet3DCollisionObject(L, &collision_object, dmGameObject::INVALID_GAME_OBJECT);
+        dmGameSystem::PushBullet3DCollisionObject(L, &collision_object, 0);
         lua_getglobal(L, "bullet3d_stale_collision_object");
         collision_object_revived |= dmGameSystem::IsBullet3DCollisionObjectValid(L, -1);
         lua_pop(L, 1);
@@ -618,7 +618,7 @@ TEST_F(Bullet3DComponentTest, Bullet3DHandlesInvalidatedOnCollectionTeardown)
                                                                        m_Register,
                                                                        32,
                                                                        0x0);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, collection);
+    ASSERT_NE(0, collection);
 
     dmGameObject::HInstance go = Spawn(m_Factory, collection, "/collision_object/bullet3d_lifetime_test.goc", dmHashString64("/bullet3d_lifetime_teardown"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE(0, go);

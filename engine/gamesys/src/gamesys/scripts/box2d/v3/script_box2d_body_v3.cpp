@@ -185,7 +185,7 @@ namespace dmGameSystem
     dmGameObject::HGameObject GetBodyInstance(b2BodyId body)
     {
         void* user_data = b2Body_GetUserData(body);
-        return user_data ? CompCollisionObjectGetInstance(user_data) : dmGameObject::INVALID_GAME_OBJECT;
+        return user_data ? CompCollisionObjectGetInstance(user_data) : 0;
     }
 
     dmhash_t GetBodyInstanceId(lua_State* L, int index)

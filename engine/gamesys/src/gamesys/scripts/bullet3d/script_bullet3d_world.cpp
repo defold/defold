@@ -197,10 +197,10 @@ namespace dmGameSystem
     {
         if (!object || !object->getUserPointer())
         {
-            return dmGameObject::INVALID_GAME_OBJECT;
+            return 0;
         }
         dmGameObject::HGameObject instance = CompCollisionObjectGetInstance(object->getUserPointer());
-        return dmGameObject::IsValid(instance) ? instance : dmGameObject::INVALID_GAME_OBJECT;
+        return dmGameObject::IsValid(instance) ? instance : 0;
     }
 
     static bool IsIgnoredObject(const Bullet3DQueryFilter* filter, const btCollisionObject* object)
@@ -237,7 +237,7 @@ namespace dmGameSystem
         {
             return false;
         }
-        return GetCollisionObjectOwner(object) != dmGameObject::INVALID_GAME_OBJECT;
+        return GetCollisionObjectOwner(object) != 0;
     }
 
     static bool HasResultCapacity(uint32_t result_count, int max_results)

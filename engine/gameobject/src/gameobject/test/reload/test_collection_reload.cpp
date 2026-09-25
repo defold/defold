@@ -243,7 +243,7 @@ dmGameObject::CreateResult ReloadCollectionTest::CompReloadTargetCreate(const dm
     ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
     self->m_Stats.m_CreateCount++;
     dmGameObject::HCollection hcollection = dmGameObject::GetCollection(params.m_Instance);
-    if (hcollection == dmGameObject::INVALID_COLLECTION || !dmGameObject::IsValid(params.m_Instance))
+    if (hcollection == 0 || !dmGameObject::IsValid(params.m_Instance))
     {
         self->m_Stats.m_HandleMismatchCount++;
     }
@@ -337,9 +337,9 @@ TEST_F(ReloadCollectionTest, TestCollectionReload)
     ResetWorldCounters(&m_Stats);
     dmGameObject::CollectionResource* collection_resource = 0;
     dmResource::Get(m_Factory, "/test.collectionc", (void**)&collection_resource);
-    m_Collection = dmGameObject::GetCollectionFromResource(collection_resource);
-    ASSERT_NE(dmGameObject::INVALID_COLLECTION, m_Collection);
-    ASSERT_EQ(m_Collection, dmGameObject::GetCollectionFromResource(collection_resource));
+    m_Collection = dmGameObject::ResCollectionGetCollection(collection_resource);
+    ASSERT_NE(0, m_Collection);
+    ASSERT_EQ(m_Collection, dmGameObject::ResCollectionGetCollection(collection_resource));
     ASSERT_EQ(0, m_Stats.m_MissingCollectionResourceCount);
 
     ResetWorldCounters(&m_Stats);
@@ -357,10 +357,10 @@ TEST_F(ReloadCollectionTest, TestCollectionReload)
     ASSERT_NE(0, old_game_object);
     dmResource::Result rr = dmResource::ReloadResource(m_Factory, "/test.collectionc", 0);
     ASSERT_EQ(dmResource::RESULT_OK, rr);
-    m_Collection = dmGameObject::GetCollectionFromResource(collection_resource);
+    m_Collection = dmGameObject::ResCollectionGetCollection(collection_resource);
     ASSERT_NE(old_collection, m_Collection);
     ASSERT_EQ((dmGameObject::HRegister)0, dmGameObject::GetRegister(old_collection));
-    ASSERT_EQ(dmGameObject::INVALID_COLLECTION, dmGameObject::GetCollection(old_game_object));
+    ASSERT_EQ(0, dmGameObject::GetCollection(old_game_object));
     ASSERT_FALSE(dmGameObject::IsValid(old_game_object));
     ASSERT_EQ(0, m_Stats.m_MissingCollectionResourceCount);
 
@@ -406,10 +406,10 @@ TEST_F(ReloadCollectionTest, TestCollectionReload)
     ASSERT_NE(0, old_game_object);
     rr = dmResource::ReloadResource(m_Factory, "/test.collectionc", 0);
     ASSERT_EQ(dmResource::RESULT_OK, rr);
-    m_Collection = dmGameObject::GetCollectionFromResource(collection_resource);
+    m_Collection = dmGameObject::ResCollectionGetCollection(collection_resource);
     ASSERT_NE(old_collection, m_Collection);
     ASSERT_EQ((dmGameObject::HRegister)0, dmGameObject::GetRegister(old_collection));
-    ASSERT_EQ(dmGameObject::INVALID_COLLECTION, dmGameObject::GetCollection(old_game_object));
+    ASSERT_EQ(0, dmGameObject::GetCollection(old_game_object));
     ASSERT_FALSE(dmGameObject::IsValid(old_game_object));
     ASSERT_EQ(0, m_Stats.m_MissingCollectionResourceCount);
 
@@ -435,7 +435,7 @@ TEST_F(ReloadCollectionTest, TestCollectionReloadCreateFailureRestoresStableHand
 {
     dmGameObject::CollectionResource* collection_resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test.collectionc", (void**)&collection_resource));
-    m_Collection = dmGameObject::GetCollectionFromResource(collection_resource);
+    m_Collection = dmGameObject::ResCollectionGetCollection(collection_resource);
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance old_game_object = dmGameObject::GetInstanceFromIdentifier(m_Collection, dmHashString64("/go1"));
@@ -447,7 +447,7 @@ TEST_F(ReloadCollectionTest, TestCollectionReloadCreateFailureRestoresStableHand
     dmResource::Result result = dmResource::ReloadResource(m_Factory, "/test.collectionc", 0);
     ASSERT_NE(dmResource::RESULT_OK, result);
 
-    ASSERT_EQ(m_Collection, dmGameObject::GetCollectionFromResource(collection_resource));
+    ASSERT_EQ(m_Collection, dmGameObject::ResCollectionGetCollection(collection_resource));
     ASSERT_TRUE(dmGameObject::IsValid(old_game_object));
     ASSERT_EQ(old_game_object, dmGameObject::GetInstanceFromIdentifier(m_Collection, dmHashString64("/go1")));
     ASSERT_EQ(0, m_Stats.m_HandleMismatchCount);
@@ -466,7 +466,7 @@ TEST_F(ReloadCollectionTest, TestCollectionReloadInitFailureRestoresStableHandle
 {
     dmGameObject::CollectionResource* collection_resource = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/test.collectionc", (void**)&collection_resource));
-    m_Collection = dmGameObject::GetCollectionFromResource(collection_resource);
+    m_Collection = dmGameObject::ResCollectionGetCollection(collection_resource);
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance old_game_object = dmGameObject::GetInstanceFromIdentifier(m_Collection, dmHashString64("/go1"));
@@ -478,7 +478,7 @@ TEST_F(ReloadCollectionTest, TestCollectionReloadInitFailureRestoresStableHandle
     dmResource::Result result = dmResource::ReloadResource(m_Factory, "/test.collectionc", 0);
     ASSERT_NE(dmResource::RESULT_OK, result);
 
-    ASSERT_EQ(m_Collection, dmGameObject::GetCollectionFromResource(collection_resource));
+    ASSERT_EQ(m_Collection, dmGameObject::ResCollectionGetCollection(collection_resource));
     ASSERT_TRUE(dmGameObject::IsValid(old_game_object));
     ASSERT_EQ(old_game_object, dmGameObject::GetInstanceFromIdentifier(m_Collection, dmHashString64("/go1")));
     ASSERT_EQ(0, m_Stats.m_HandleMismatchCount);
