@@ -1176,6 +1176,7 @@ namespace dmGraphics
             context->m_ASTCArrayTextureSupport = 1;
             SetContextASTCTextureFormatsSupported(&context->m_BaseContext);
         }
+        SetASTC3DTextureSupport(&context->m_BaseContext, context->m_PhysicalDevice.m_Device, vkGetPhysicalDeviceImageFormatProperties);
 
         TextureFormat texture_formats[] = { TEXTURE_FORMAT_LUMINANCE,
                                             TEXTURE_FORMAT_LUMINANCE_ALPHA,

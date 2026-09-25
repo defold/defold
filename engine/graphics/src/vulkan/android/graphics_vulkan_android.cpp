@@ -38,6 +38,7 @@ PFN_vkGetPhysicalDeviceProperties vkGetPhysicalDeviceProperties;
 PFN_vkEnumerateDeviceExtensionProperties vkEnumerateDeviceExtensionProperties;
 PFN_vkEnumerateDeviceLayerProperties vkEnumerateDeviceLayerProperties;
 PFN_vkGetPhysicalDeviceFormatProperties vkGetPhysicalDeviceFormatProperties;
+PFN_vkGetPhysicalDeviceImageFormatProperties vkGetPhysicalDeviceImageFormatProperties;
 PFN_vkGetPhysicalDeviceFeatures vkGetPhysicalDeviceFeatures;
 PFN_vkGetPhysicalDeviceFeatures2 vkGetPhysicalDeviceFeatures2;
 PFN_vkGetPhysicalDeviceQueueFamilyProperties vkGetPhysicalDeviceQueueFamilyProperties;
@@ -452,6 +453,7 @@ namespace dmGraphics
         vkEnumerateDeviceExtensionProperties = (PFN_vkEnumerateDeviceExtensionProperties) vkGetInstanceProcAddr(vk_instance, "vkEnumerateDeviceExtensionProperties");
         vkEnumerateDeviceLayerProperties = (PFN_vkEnumerateDeviceLayerProperties) vkGetInstanceProcAddr(vk_instance, "vkEnumerateDeviceLayerProperties");
         vkGetPhysicalDeviceFormatProperties = (PFN_vkGetPhysicalDeviceFormatProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceFormatProperties");
+        vkGetPhysicalDeviceImageFormatProperties = (PFN_vkGetPhysicalDeviceImageFormatProperties) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceImageFormatProperties");
         vkGetPhysicalDeviceFeatures = (PFN_vkGetPhysicalDeviceFeatures) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceFeatures");
         vkGetPhysicalDeviceFeatures2 = (PFN_vkGetPhysicalDeviceFeatures2) vkGetInstanceProcAddr(vk_instance, "vkGetPhysicalDeviceFeatures2");
         if (!vkGetPhysicalDeviceFeatures2)

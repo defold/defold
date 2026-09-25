@@ -601,6 +601,50 @@ namespace dmGraphics
     QueueFamily           GetQueueFamily(PhysicalDevice* device, const VkSurfaceKHR surface);
     const VkFormat        GetSupportedTilingFormat(VkPhysicalDevice vk_physical_device, const VkFormat* vk_format_candidates, uint32_t vk_num_format_candidates, VkImageTiling vk_tiling_type, VkFormatFeatureFlags vk_format_flags);
     void                  GetFormatProperties(VkPhysicalDevice vk_physical_device, VkFormat vk_format, VkFormatProperties* properties);
+
+    static inline void SetASTC3DTextureSupport(GraphicsContext* context, VkPhysicalDevice vk_physical_device, PFN_vkGetPhysicalDeviceImageFormatProperties get_image_format_properties)
+    {
+        // ASTC LDR guarantees 2D support only. Override the default feature mask even
+        // when ASTC is unavailable, and require volume support for every exposed format.
+        context->m_ContextFeatureSupport &= ~(1U << CONTEXT_FEATURE_ASTC_3D_TEXTURES);
+        if (!IsTextureFormatSupported((HContext) context, TEXTURE_FORMAT_RGBA_ASTC_4X4))
+        {
+            return;
+        }
+
+        const VkFormat formats[] = {
+            VK_FORMAT_ASTC_4x4_UNORM_BLOCK,
+            VK_FORMAT_ASTC_5x4_UNORM_BLOCK,
+            VK_FORMAT_ASTC_5x5_UNORM_BLOCK,
+            VK_FORMAT_ASTC_6x5_UNORM_BLOCK,
+            VK_FORMAT_ASTC_6x6_UNORM_BLOCK,
+            VK_FORMAT_ASTC_8x5_UNORM_BLOCK,
+            VK_FORMAT_ASTC_8x6_UNORM_BLOCK,
+            VK_FORMAT_ASTC_8x8_UNORM_BLOCK,
+            VK_FORMAT_ASTC_10x5_UNORM_BLOCK,
+            VK_FORMAT_ASTC_10x6_UNORM_BLOCK,
+            VK_FORMAT_ASTC_10x8_UNORM_BLOCK,
+            VK_FORMAT_ASTC_10x10_UNORM_BLOCK,
+            VK_FORMAT_ASTC_12x10_UNORM_BLOCK,
+            VK_FORMAT_ASTC_12x12_UNORM_BLOCK,
+        };
+
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(formats); ++i)
+        {
+            VkImageFormatProperties properties;
+            // Match sampled textures created by VulkanSetTextureInternal/CreateTexture.
+            VkResult result = get_image_format_properties(vk_physical_device, formats[i], VK_IMAGE_TYPE_3D,
+                VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT, &properties);
+            if (result != VK_SUCCESS)
+            {
+                return;
+            }
+        }
+
+        SetContextFeatureSupported(context, CONTEXT_FEATURE_ASTC_3D_TEXTURES);
+    }
+
     VkSampleCountFlags GetSupportedSampleCountFlags(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits);
     VkSampleCountFlagBits GetClosestSampleCountFlag(PhysicalDevice* physicalDevice, uint32_t bufferFlagBits, uint8_t sampleCount);
 
