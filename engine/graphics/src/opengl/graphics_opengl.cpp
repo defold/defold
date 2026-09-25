@@ -2433,7 +2433,7 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-    #if defined(GL_SHADER_STORAGE_BUFFER)
+    #if defined(GL_SHADER_STORAGE_BUFFER) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
         buffer->m_BaseStorageBuffer.m_Size = size;
@@ -2460,7 +2460,7 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
     {
-    #if defined(GL_SHADER_STORAGE_BUFFER)
+    #if defined(GL_SHADER_STORAGE_BUFFER) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
         assert(offset + size <= buffer->m_BaseStorageBuffer.m_Size);
@@ -4360,7 +4360,7 @@ static void LogFrameBufferError(GLenum status)
         {
             OpenGLScratchUniformBuffer& buffer = program->m_UniformBuffers[i];
             GLuint id = GetGLHandle(context, buffer.m_Id);
-            glDeleteBuffers(1, &id);
+            glDeleteBuffersARB(1, &id);
             CleanupGLHandle(context, buffer.m_Id);
             delete[] buffer.m_BlockMemory;
         }
