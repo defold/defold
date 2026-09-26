@@ -28,10 +28,16 @@ also use the per-instance port.
 The selected stack frame's DAP ID is used for console evaluation. Locals and
 upvalues load when selecting a frame. The global scope appears as an expandable
 `_G` entry; globals and table children load when expanded. The console accepts
-expressions and Lua statements. Inspection runs
-off the JavaFX thread, and responses from a previous stop or frame selection are
-discarded. Engine console output still uses the existing log stream; DAP output
-events supply debugger messages and logpoints.
+expressions and Lua statements. Expanded variable paths, selection, and scroll
+position are retained when stepping, hitting another breakpoint, switching
+frames, or refreshing after evaluation. Matching names reopen even in a different
+file or function. Reopened tables use fresh DAP references and values; only the
+previously opened paths are loaded, so cyclic tables do not expand indefinitely.
+Each table request still loads all its direct children without pagination.
+
+Inspection runs off the JavaFX thread, and responses from a previous stop or
+frame selection are discarded. Engine console output still uses the existing
+log stream; DAP output events supply debugger messages and logpoints.
 
 Detach closes the DAP session and leaves the engine running. Stop first detaches
 so a paused engine can process its exit request, then uses the editor's existing
@@ -63,13 +69,14 @@ port, with port forwarding when the engine still binds to loopback.
 From `editor`, run:
 
 ```sh
-lein test editor.debugging.dap-test editor.debug-view-test editor.engine-test editor.targets-test
+lein test editor.debugging.dap-test editor.debugging.variables-test editor.debug-view-test editor.engine-test editor.targets-test
 ```
 
 The protocol tests use a local TCP adapter to check initialization ordering,
 UTF-8 framing, out-of-order responses, breakpoint replacement, inspection,
 control, cancellation, and disconnects. The JavaFX tests exercise stale session,
-stack, and variable responses.
+stack, and variable responses, restoring expanded paths with fresh values, cyclic
+tables, and preserving the viewport when table entries change.
 
 To additionally run the editor client against a built native Lua test host, set
 the JVM property `defold.dap.debuggee` to the absolute path of `dap_debuggee`,
