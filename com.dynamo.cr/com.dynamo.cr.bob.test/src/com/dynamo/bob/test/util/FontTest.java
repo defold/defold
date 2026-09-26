@@ -383,16 +383,14 @@ public class FontTest {
         assertEquals(glyphBank.getCacheWidth(), fontMap.getCacheWidth());
         assertEquals(glyphBank.getCacheHeight(), fontMap.getCacheHeight());
         assertEquals(glyphBank.getPadding(), fontMap.getPadding());
-        assertEquals(glyphBank.getGlyphsCount(), editorFontMap.glyphCellWidths.length);
-        assertEquals(glyphBank.getGlyphsCount(), editorFontMap.glyphCellHeights.length);
 
         long expectedOffset = 0;
         int maxAscent = 0;
         int maxDescent = 0;
         for (int i = 0; i < glyphBank.getGlyphsCount(); ++i) {
             Glyph glyph = glyphBank.getGlyphs(i);
-            long expectedSize = (long)editorFontMap.glyphCellWidths[i]
-                              * editorFontMap.glyphCellHeights[i]
+            long expectedSize = glyph.getWidth() == 0 ? 0 : (long)(glyph.getWidth() + 2)
+                              * (glyph.getAscent() + glyph.getDescent() + 2)
                               * glyphBank.getGlyphChannels();
             assertEquals(expectedOffset, glyph.getGlyphDataOffset());
             assertEquals(expectedSize, glyph.getGlyphDataSize());
@@ -489,8 +487,6 @@ public class FontTest {
         GlyphBank glyphBank = editorFontMap.glyphBank;
         assertEquals(1499, glyphBank.getGlyphsCount());
         assertEquals(0, glyphBank.getGlyphData().size());
-        assertEquals(glyphBank.getGlyphsCount(), editorFontMap.glyphCellWidths.length);
-        assertEquals(glyphBank.getGlyphsCount(), editorFontMap.glyphCellHeights.length);
         int previousCodepoint = -1;
         for (Glyph glyph : glyphBank.getGlyphsList()) {
             assertTrue(glyph.getCharacter() > previousCodepoint);

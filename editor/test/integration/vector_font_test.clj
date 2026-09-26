@@ -83,7 +83,10 @@
                     (test-util/mouse-click! view x y)
                     (is (test-util/selected? app-view component-node))))
                 (test-util/mouse-click! view 5 5)
-                (is (test-util/selected? app-view go-node)))
+                (is (test-util/selected? app-view go-node))
+                (test-util/with-prop [label-node :text ""]
+                  (is (coll/empty? (image-points (g/valid-node-value view :frame) #(= 0xff00ff %)))))
+                (is (= face (image-points (g/valid-node-value view :frame) #(= 0xff00ff %)))))
               (finally
                 (#'scene/dispose-preview view)
                 (test-util/close-tab! project app-view "/fonts/vector_preview.go")))))))))

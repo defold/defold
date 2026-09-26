@@ -50,7 +50,7 @@
       (test-util/with-prop [node-id :font nil]
         (is (nil? (g/node-value node-id :font-map)))
         (let [text-layout (g/node-value node-id :text-layout)]
-          (is (= [] (:lines text-layout)))
+          (is (= 0 (:line-count text-layout)))
           (is (= 0 (:height text-layout))))
         (let [scene (g/node-value node-id :scene)]
           (is (map? scene))
@@ -93,7 +93,7 @@
         (is (= node-id (:node-id scene)))
         (is (= node-id (some-> scene :renderable :select-batch-key)))
         (is (= :blend-mode-alpha (some-> scene :renderable :batch-key :blend-mode)))
-        (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :lines first)))
+        (is (= "Label" (some-> scene :renderable :user-data :text-data :text-layout :text)))
         (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/vertex-shader-source) "gl_Position"))
         (is (string/includes? (some-> scene :renderable :user-data :material-shader shader/fragment-shader-source) "gl_FragColor"))))))
 

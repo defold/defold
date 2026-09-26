@@ -27,6 +27,7 @@
             [editor.editor-extensions.node-types :as node-types]
             [editor.editor-extensions.runtime :as rt]
             [editor.font :as font]
+            [editor.font-shader :as font-shader]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.pass :as pass]
@@ -200,6 +201,7 @@
         blend-mode (get user-data :blend-mode)
         render-pass (:pass render-args)
         vb (gen-vb gl renderables render-args)
+        render-args (font-shader/preview-render-args gl render-args (:vector-textures font-data))
         vcount (count vb)]
     (when (> vcount 0)
       (condp = render-pass
@@ -209,8 +211,7 @@
                                (vtx2/use-with ::tris vb shader)
                                (vtx/use-with ::tris vb shader))]
           (gl/with-gl-bindings gl render-args (into [shader vertex-binding gpu-texture] (:vector-textures font-data))
-            (if (:vector? font-data)
-              (font/set-vector-uniforms! gl shader font-data)
+            (when-not (:vector? font-data)
               (shader/set-samplers-by-index shader gl 0 (:texture-units gpu-texture)))
             (clipping/setup-gl gl clipping-state)
             (gl/set-blend-mode gl blend-mode)
@@ -224,8 +225,7 @@
                                (vtx2/use-with ::tris vb id-shader)
                                (vtx/use-with ::tris vb id-shader))]
           (gl/with-gl-bindings gl (assoc render-args (if (:vector? font-data) :id :id-color) (scene-picking/renderable-picking-id-uniform (first renderables))) (into [id-shader vertex-binding gpu-texture] (:vector-textures font-data))
-            (if (:vector? font-data)
-              (font/set-vector-uniforms! gl id-shader font-data)
+            (when-not (:vector? font-data)
               (shader/set-samplers-by-index id-shader gl 0 (:texture-units gpu-texture)))
             (clipping/setup-gl gl clipping-state)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
@@ -2266,28 +2266,18 @@
   (output aabb g/Any :cached (g/fnk [pivot manual-size] (calc-aabb pivot manual-size)))
   (output aabb-size g/Any :cached (g/fnk [text-layout]
                                     [(:width text-layout) (:height text-layout) 0]))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color alpha outline outline-alpha shadow shadow-alpha aabb-size manual-size pivot]
-                                   (let [text-data {:text-layout text-layout
-                                                    :font-data font-data
-                                                    :color (assoc color 3 alpha)
-                                                    :outline (assoc outline 3 outline-alpha)
-                                                    :shadow (assoc shadow 3 shadow-alpha)
-                                                    :font-size (when (:vector? font-data) font-size)
-                                                    :align (pivot->h-align pivot)}]
-                                     (cond
-                                       (nil? font-data)
-                                       text-data
-
-                                       (get-in font-data [:font-map :native-renderer-spec])
-                                       (assoc text-data
-                                         :box-height (second manual-size)
-                                         :offset (pivot-offset pivot manual-size)
-                                         :vertical-align (pivot->v-align pivot))
-
-                                       :else
-                                       (assoc text-data :offset (let [[x y] (pivot-offset pivot aabb-size)
-                                                                      h (second aabb-size)]
-                                                                  [x (+ y (- h (:max-ascent text-layout)))]))))))
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color alpha outline outline-alpha shadow shadow-alpha manual-size pivot]
+                                   (cond-> {:text-layout text-layout
+                                            :font-data font-data
+                                            :color (assoc color 3 alpha)
+                                            :outline (assoc outline 3 outline-alpha)
+                                            :shadow (assoc shadow 3 shadow-alpha)
+                                            :font-size (when (:vector? font-data) font-size)
+                                            :align (pivot->h-align pivot)}
+                                     font-data
+                                     (assoc :box-height (second manual-size)
+                                            :offset (pivot-offset pivot manual-size)
+                                            :vertical-align (pivot->v-align pivot)))))
   (output own-build-errors g/Any
           (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node font ^:try markup-error costly-gui-scene-info layout->prop->value]
             (let [font-names (:font-names basic-gui-scene-info)

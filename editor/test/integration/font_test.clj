@@ -488,22 +488,25 @@
             (is (> w'' w'))
             (is (> h'' h'))))))))
 
-(deftest legacy-text-splitting
+(deftest text-wrapping
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/fonts/score.font")
-          font-map (dissoc (g/node-value node-id :font-map) :native-renderer-spec)
-          {hello-width :width :keys [lines]} (font/layout-text font-map "hello" false 0 0 0 nil)]
-      (is (= ["hello"] lines))
+          font-map (g/valid-node-value node-id :font-map)
+          {hello-width :width hello-height :height :keys [line-count]} (font/layout-text font-map "hello" false 0 0 1 nil)]
+      (is (= 1 line-count))
       (testing "If the line is too long and does not have spaces, we don't wrap"
-        (is (= ["hellohello"] (:lines (font/layout-text font-map "hellohello" true hello-width 0 0 nil)))))
-      (testing "If the line is too long and has spaces, we wrap"
-        (is (= ["hello" "hello"] (:lines (font/layout-text font-map "hello hello" true hello-width 0 0 nil)))))
-      (testing "The whitespace at the beginning and end of lines is trimmed"
-        (is (= ["hello" "hello"] (:lines (font/layout-text font-map "  \u200B  hello    \u200Bhello    " true hello-width 0 0 nil)))))
-      (testing "Tailing empty lines are trimmed"
-        (is (= ["hello" "hello"] (:lines (font/layout-text font-map "hello hello\n \n   \n\n  \n  \n " true hello-width 0 0 nil)))))
-      (testing "We always split on \r?\n"
-        (is (= ["hello" "hello" "hello"] (:lines (font/layout-text font-map "hello\r\nhello\nhello" true hello-width 0 0 nil))))))))
+        (let [layout (font/layout-text font-map "hellohello" true hello-width 0 1 nil)]
+          (is (= 1 (:line-count layout)))
+          (is (> (:width layout) hello-width))))
+      (doseq [[text expected-line-count] [["hello hello" 2]
+                                        ["hello\u200Bhello" 2]
+                                        ["hello\r\nhello\nhello" 3]
+                                        ["hello\n\nhello" 3]]]
+        (testing (pr-str text)
+          (let [layout (font/layout-text font-map text true hello-width 0 1 nil)]
+            (is (= expected-line-count (:line-count layout)))
+            (is (= hello-width (:width layout)))
+            (is (= (* expected-line-count hello-height) (:height layout)))))))))
 
 (deftest preview-text
   (test-util/with-loaded-project

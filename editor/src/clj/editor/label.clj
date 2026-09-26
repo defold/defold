@@ -18,6 +18,7 @@
             [editor.colors :as colors]
             [editor.defold-project :as project]
             [editor.font :as font]
+            [editor.font-shader :as font-shader]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.light :as light]
@@ -106,6 +107,7 @@
         gpu-texture (or (get user-data :gpu-texture) @texture/white-pixel)
         render-pass (:pass render-args)
         vb (gen-vb gl renderables render-args)
+        render-args (font-shader/preview-render-args gl render-args (:vector-textures font-data))
         vcount (count vb)]
     (when (> vcount 0)
       (condp = render-pass
@@ -115,7 +117,6 @@
               shader (or material-shader shader)
               vertex-binding (vtx/use-with ::tris vb shader)]
           (gl/with-gl-bindings gl render-args (into [shader vertex-binding gpu-texture] (:vector-textures font-data))
-            (font/set-vector-uniforms! gl shader font-data)
             (light/bind-preview-lights-for-shader! gl shader render-args)
             (gl/set-blend-mode gl blend-mode)
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
@@ -125,7 +126,6 @@
         (let [id-shader (or (:selection-shader font-data) id-shader)
               vertex-binding (vtx/use-with ::tris-selection vb id-shader)]
           (gl/with-gl-bindings gl (assoc render-args :id (scene-picking/renderable-picking-id-uniform renderable)) (into [id-shader vertex-binding gpu-texture] (:vector-textures font-data))
-            (font/set-vector-uniforms! gl id-shader font-data)
             (when-not (:vector? font-data)
               (shader/set-uniform id-shader gl "color" (scene-picking/renderable-picking-id-uniform renderable)))
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)))))))
@@ -337,29 +337,18 @@
   (output text-layout g/Any :cached (g/fnk [size font-map font-data font-size text line-break leading tracking style]
                                       (font/layout-text (some-> font-map (assoc :style style)) text line-break (first size) tracking leading
                                                         (when (:vector? font-data) font-size))))
-  (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size line-break color outline shadow pivot size]
-                                   (let [text-size [(:width text-layout) (:height text-layout) 0]
-                                         text-data {:text-layout text-layout
-                                                    :font-data font-data
-                                                    :color color
-                                                    :outline outline
-                                                    :shadow shadow
-                                                    :font-size (when (:vector? font-data) font-size)
-                                                    :align (pivot->h-align pivot)}]
-                                     (cond
-                                       (nil? font-data)
-                                       text-data
-
-                                       (get-in font-data [:font-map :native-renderer-spec])
-                                       (assoc text-data
-                                         :box-height (second size)
-                                         :offset (pivot-offset pivot size)
-                                         :vertical-align (pivot->v-align pivot))
-
-                                       :else
-                                       (assoc text-data :offset (let [[x y] (pivot-offset pivot text-size)
-                                                                      h (second text-size)]
-                                                                  [x (+ y (- h (:max-ascent text-layout)))]))))))
+  (output text-data g/KeywordMap (g/fnk [text-layout font-data font-size color outline shadow pivot size]
+                                   (cond-> {:text-layout text-layout
+                                            :font-data font-data
+                                            :color color
+                                            :outline outline
+                                            :shadow shadow
+                                            :font-size (when (:vector? font-data) font-size)
+                                            :align (pivot->h-align pivot)}
+                                     font-data
+                                     (assoc :box-height (second size)
+                                            :offset (pivot-offset pivot size)
+                                            :vertical-align (pivot->v-align pivot)))))
   (output aabb g/Any :cached (g/fnk [pivot size]
                                (let [offset-fn (partial mapv + (pivot-offset pivot size))
                                      [min-x min-y _] (offset-fn [0 0 0])

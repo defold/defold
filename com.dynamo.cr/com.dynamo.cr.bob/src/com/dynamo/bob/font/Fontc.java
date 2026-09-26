@@ -73,14 +73,10 @@ public class Fontc {
     public static final class EditorFontMap {
         public final FontMap fontMap;
         public final GlyphBank glyphBank;
-        public final int[] glyphCellWidths;
-        public final int[] glyphCellHeights;
 
-        private EditorFontMap(FontMap fontMap, GlyphBank glyphBank, int[] glyphCellWidths, int[] glyphCellHeights) {
+        private EditorFontMap(FontMap fontMap, GlyphBank glyphBank) {
             this.fontMap = fontMap;
             this.glyphBank = glyphBank;
-            this.glyphCellWidths = glyphCellWidths;
-            this.glyphCellHeights = glyphCellHeights;
         }
     }
 
@@ -615,14 +611,6 @@ public class Fontc {
         boolean metadataOnly = fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD && !isBitmapFont(fontDesc);
         compile(fontStream, fontDesc, false, bitmapPath, bitmapStream, false, metadataOnly);
         GlyphBank glyphBank = getGlyphBank();
-        int count = glyphBank.getGlyphsCount();
-        int[] widths = new int[count];
-        int[] heights = new int[count];
-        for (int i = 0; i < count; ++i) {
-            Glyph glyph = glyphs.get(i);
-            widths[i] = glyph.width == 0 ? 0 : glyph.width + 2;
-            heights[i] = glyph.pixelHeight == 0 ? 0 : glyph.pixelHeight + 2;
-        }
         FontMap fontMap = FontMap.newBuilder()
             .setMaterial(ResourceUtil.minifyPathAndReplaceExt(fontDesc.getMaterial(), ".material", ".materialc"))
             .setSize(fontDesc.getSize()).setAntialias(fontDesc.getAntialias())
@@ -635,7 +623,7 @@ public class Fontc {
             .setCacheWidth(glyphBank.getCacheWidth()).setCacheHeight(glyphBank.getCacheHeight())
             .setSdfSpread(glyphBank.getSdfSpread()).setSdfOutline(glyphBank.getSdfOutline())
             .setSdfShadow(glyphBank.getSdfShadow()).setPadding(glyphBank.getPadding()).build();
-        return new EditorFontMap(fontMap, glyphBank, widths, heights);
+        return new EditorFontMap(fontMap, glyphBank);
     }
 
     /**

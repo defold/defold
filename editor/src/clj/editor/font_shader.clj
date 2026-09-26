@@ -15,10 +15,24 @@
 (ns editor.font-shader
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [editor.gl.shader :as shader]))
+            [editor.gl.shader :as shader]
+            [editor.gl.texture :as texture])
+  (:import [com.jogamp.opengl GL2]
+           [com.jogamp.opengl.util.texture Texture]
+           [javax.vecmath Vector4d]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(defn preview-render-args
+  "Adds the GL 2 adapter's texture sizes after vertex generation has updated the atlases."
+  [^GL2 gl render-args vector-textures]
+  (into render-args
+        (mapv (fn [gpu-texture uniform-key]
+                (let [^Texture tex (texture/->texture gpu-texture gl 0)]
+                  [uniform-key (Vector4d. (/ 1.0 (.getWidth tex)) (/ 1.0 (.getHeight tex)) 0.0 0.0)]))
+              vector-textures
+              [::curve-texture-size-recip ::band-texture-size-recip])))
 
 (defn preview-shader-info
   "Adapts the built-in Slug shader to the editor's GL 2 texture representation.
@@ -50,5 +64,10 @@
           strip-resource-binding-namespace-regex-str)]
 
     (shader/make-shader-lifecycle [node-id :vector picking] request-data attribute-reflection-infos
-                                  {"view_proj" :view-proj "id" :id
-                                   "effect_bitmap" 0 "curve_texture" 1 "band_texture" 2})))
+                                  {"view_proj" :view-proj
+                                   "id" :id
+                                   "effect_bitmap" 0
+                                   "curve_texture" 1
+                                   "band_texture" 2
+                                   "curve_texture_size_recip" ::curve-texture-size-recip
+                                   "band_texture_size_recip" ::band-texture-size-recip})))
