@@ -27,11 +27,9 @@ static dmExtension::Params g_Params;
 
 static void                LogListener(LogSeverity, const char*, const char* message)
 {
-    const char* prefix = "Lua DAP debugger listening on 127.0.0.1:";
-    const char* port = strstr(message, prefix);
-    if (port)
+    if (strstr(message, "Lua DAP debugger listening on "))
     {
-        printf("PORT %u\n", (unsigned int)strtoul(port + strlen(prefix), 0, 10));
+        printf("%s\n", message);
         fflush(stdout);
     }
 }
@@ -114,6 +112,13 @@ int main(int argc, char** argv)
         argc -= 2;
         argv += 2;
     }
+    const char* startup_address = 0;
+    if (argc > 2 && strcmp(argv[1], "--startup-address") == 0)
+    {
+        startup_address = argv[2];
+        argc -= 2;
+        argv += 2;
+    }
     bool late_attach = argc > 1 && strcmp(argv[1], "--late-attach") == 0;
     if (late_attach)
     {
@@ -129,7 +134,7 @@ int main(int argc, char** argv)
     ExtensionParamsInitialize(&g_Params);
     LuaDebugger();
 
-    if (!startup_port)
+    if (!startup_port && !startup_address)
     {
         // No debugger.enabled setting: initialization must leave the Lua hook free.
         dmConfigFile::HConfig disabled = Config("[project]\ntitle=DAP test\n");
@@ -141,9 +146,9 @@ int main(int argc, char** argv)
 
     // A failed startup must be the first initialization: a preceding successful
     // initialization would mask an extension whose update callback stays disabled.
-    char startup_config[128];
-    snprintf(startup_config, sizeof(startup_config), "[debugger]\nenabled=1\nport=%s\nwait=%d\n", startup_port ? startup_port : "0", !no_wait);
-    dmConfigFile::HConfig config = Config(late_attach ? "[debugger]\nport=0\n" : startup_config);
+    char startup_config[512];
+    snprintf(startup_config, sizeof(startup_config), "[debugger]\nenabled=%d\nport=%s\nwait=%d\n%s%s\n", !late_attach, startup_port ? startup_port : "0", !late_attach && !no_wait, startup_address ? "address=" : "", startup_address ? startup_address : "");
+    dmConfigFile::HConfig config = Config(startup_config);
     dmScript::HContext    contexts[2];
     for (int i = 1; i < argc; ++i)
         contexts[i - 1] = Create(config, prelude);
