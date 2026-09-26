@@ -46,7 +46,7 @@
 (defn- horizontal-scroll-bar
   ^ScrollBar [^TreeView view]
   (coll/first-where #(= Orientation/HORIZONTAL (.getOrientation ^ScrollBar %))
-                   (.lookupAll view ".scroll-bar")))
+                    (.lookupAll view ".scroll-bar")))
 
 (defn- capture-scroll-position [^TreeView view]
   (let [skin (.getSkin view)]
@@ -65,18 +65,18 @@
   (reduce (fn [^TreeItem parent part]
             (when parent
               (coll/first-where #(= part (peek (:path (.getValue ^TreeItem %))))
-                               (.getChildren parent))))
+                                (.getChildren parent))))
           root
           path))
 
 (defn- restore-scroll-position! [^TreeView view {:keys [path index offset horizontal selection]}]
   (.applyCss view)
   (.layout view)
-  (when-let [skin (.getSkin view)]
+  (let [skin (.getSkin view)]
     (when (instance? ExtendedTreeViewSkin skin)
       (let [flow (.getVirtualFlowInstance ^ExtendedTreeViewSkin skin)
             item (find-item (.getRoot view) path)
-            row (if item (.getRow view item) -1)]
+            row (if-not item -1 (.getRow view item))]
         (when-let [selected-item (when selection (find-item (.getRoot view) selection))]
           (.select (.getSelectionModel view) selected-item))
         (.scrollToTop flow (int (if (neg? row) index row)))
@@ -108,7 +108,10 @@
       (fn [[items occurrences] {:keys [name value variablesReference] :as variable}]
         (let [occurrence (get occurrences name 0)
               path (conj parent-path [name occurrence])
-              item (TreeItem. (assoc variable :path path :display-name name :display-value value))
+              item (TreeItem. (assoc variable
+                                :path path
+                                :display-name name
+                                :display-value value))
               loaded (volatile! false)]
           (when (pos? variablesReference)
             (.add (.getChildren item) (TreeItem.))
@@ -130,7 +133,10 @@
 (defn- load-children! [{:keys [pending scroll-to-restore ^TreeView view] :as context} ^TreeItem parent path fetch]
   (vswap! pending inc)
   (future/io
-    (let [result (try (fetch) (catch Exception exception exception))]
+    (let [result (try
+                   (fetch)
+                   (catch Exception exception
+                     exception))]
       (ui/run-later
         (try
           (when (current-load? context)
