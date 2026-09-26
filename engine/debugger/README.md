@@ -48,8 +48,8 @@ running project:
 local port = debugger.start()
 ```
 
-The code can be sent through the engine's existing `run_script` service, the same
-mechanism the editor uses to start MobDebug when attaching.
+The code can be sent through the engine's existing `run_script` service, which
+the editor uses when attaching.
 
 `debugger.start([port [, address]])` returns the listening port immediately; it
 does not wait for a client or pause the project. An omitted port uses
@@ -111,6 +111,10 @@ connects directly to Defold's DAP listener; `address` satisfies Lua Debug's
 attach configuration. If you change the listening port, update both values.
 For a remote engine, forward its DAP port to localhost before attaching from
 VS Code, or use a DAP client that connects to the remote host directly.
+
+The editor uses this DAP server for Lua debugging. See the
+[editor integration notes](../../editor/README_DAP.md) for startup, attachment,
+tests, and remote connections. Other DAP clients can also connect.
 
 ## DAP support
 
