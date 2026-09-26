@@ -725,11 +725,12 @@ namespace dmGraphics
             SetContextTextureFormatSupported(&context->m_BaseContext, TEXTURE_FORMAT_RGBA_ETC2);
         }
 
-        // ASTC support
-        if (context->m_Device->supportsFamily(MTL::GPUFamilyApple3))
+        // 2D ASTC is supported from Apple2, including the iOS simulator.
+        if (context->m_Device->supportsFamily(MTL::GPUFamilyApple2))
         {
             context->m_ASTCSupport = 1;
-            context->m_ASTCArrayTextureSupport = 1;
+            // This feature also gates 3D textures, which require Apple3.
+            context->m_ASTCArrayTextureSupport = context->m_Device->supportsFamily(MTL::GPUFamilyApple3);
             SetContextASTCTextureFormatsSupported(&context->m_BaseContext);
         }
 
