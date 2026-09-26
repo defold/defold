@@ -1529,6 +1529,7 @@ struct StorageBufferTest : ITest
     {
         dmGraphics::ShaderDesc desc = {};
         dmGraphics::AdapterFamily family = dmGraphics::GetInstalledAdapterFamily();
+        const bool shared_stages = !compute && HasArgument("ssbo-shared-stages");
         dmGraphics::ShaderDesc::Language language = family == dmGraphics::ADAPTER_FAMILY_METAL
             ? dmGraphics::ShaderDesc::LANGUAGE_MSL_22 : family == dmGraphics::ADAPTER_FAMILY_VULKAN
             ? dmGraphics::ShaderDesc::LANGUAGE_SPIRV : dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430;
@@ -1546,7 +1547,30 @@ struct StorageBufferTest : ITest
         }
         else
         {
-            if (vertex_reads)
+            if (shared_stages)
+            {
+                // A shared logical binding can occupy a different argument id in
+                // each independently compiled Metal stage. This used to overwrite
+                // one mapping and encode both stages using the vertex layout.
+                static const char vertex[] =
+                    "#include <metal_stdlib>\nusing namespace metal;\n"
+                    "struct Data {float4 member1;};\n"
+                    "struct Args {const device Data* data [[id(0)]];};\n"
+                    "struct In {float2 pos [[attribute(0)]];};\n"
+                    "struct Out {float4 position [[position]];float4 color [[user(locn0)]];};\n"
+                    "vertex Out main0(In in [[stage_in]],constant Args& args [[buffer(1)]])"
+                    "{Out out;out.position=float4(in.pos,0,1);out.color=args.data[1].member1;return out;}\n";
+                static const char fragment[] =
+                    "#include <metal_stdlib>\nusing namespace metal;\n"
+                    "struct Data {float4 member1;};\n"
+                    "struct Args {const device Data* data [[id(2)]];};\n"
+                    "struct In {float4 color [[user(locn0)]];};\n"
+                    "fragment float4 main0(In in [[stage_in]],constant Args& args [[buffer(1)]])"
+                    "{return float4((in.color.rgb+args.data[1].member1.rgb)*0.5,1);}\n";
+                AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, language, (uint8_t*) vertex, sizeof(vertex));
+                AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, language, (uint8_t*) fragment, sizeof(fragment));
+            }
+            else if (vertex_reads)
             {
                 ADD_SSBO_SHADER(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, vertex_read);
                 ADD_SSBO_SHADER(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, fragment_varying);
@@ -1572,7 +1596,9 @@ struct StorageBufferTest : ITest
         dmGraphics::ShaderDesc::ResourceTypeInfo* data = AddShaderType(&desc, "Data");
         AddShaderTypeMember(&desc, data, "member1", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, 0, 1);
         AddShaderResource(&desc, "Test", 0, STORAGE_BINDING, STORAGE_SET, BINDING_TYPE_STORAGE_BUFFER,
-            compute ? dmGraphics::SHADER_STAGE_FLAG_COMPUTE : vertex_reads ? dmGraphics::SHADER_STAGE_FLAG_VERTEX : dmGraphics::SHADER_STAGE_FLAG_FRAGMENT);
+            compute ? dmGraphics::SHADER_STAGE_FLAG_COMPUTE : shared_stages ?
+                dmGraphics::SHADER_STAGE_FLAG_VERTEX | dmGraphics::SHADER_STAGE_FLAG_FRAGMENT :
+                vertex_reads ? dmGraphics::SHADER_STAGE_FLAG_VERTEX : dmGraphics::SHADER_STAGE_FLAG_FRAGMENT);
         desc.m_Reflection.m_StorageBuffers.m_Data[0].m_ResourceAccessFlags = compute || writes
             ? dmGraphics::SHADER_RESOURCE_ACCESS_WRITE : dmGraphics::SHADER_RESOURCE_ACCESS_READ;
 
@@ -1587,6 +1613,13 @@ struct StorageBufferTest : ITest
         storage_shader.m_WorkGroupSize.m_X = 1;
         storage_shader.m_WorkGroupSize.m_Y = 1;
         storage_shader.m_WorkGroupSize.m_Z = 1;
+        dmGraphics::ShaderDesc::MSLResourceMapping vertex_mapping = mapping;
+        if (shared_stages)
+        {
+            desc.m_Shaders.m_Data[0].m_MslResourceMapping.m_Data = &vertex_mapping;
+            desc.m_Shaders.m_Data[0].m_MslResourceMapping.m_Count = 1;
+            mapping.m_MslIndex = 2;
+        }
 
         char error_buffer[1024] = {};
         dmGraphics::HProgram program = dmGraphics::NewProgram(engine->m_GraphicsContext, &desc, error_buffer, sizeof(error_buffer));
@@ -1605,6 +1638,12 @@ struct StorageBufferTest : ITest
         dmGraphics::AdapterFamily family = dmGraphics::GetInstalledAdapterFamily();
         m_TestUpdates = HasArgument("ssbo-updates");
         m_TestHazards = HasArgument("ssbo-hazards");
+        if (HasArgument("ssbo-shared-stages") && family != dmGraphics::ADAPTER_FAMILY_METAL)
+        {
+            dmLogError("The shared Metal argument layout regression requires the Metal adapter");
+            engine->m_Failed = true;
+            return;
+        }
         if ((family != dmGraphics::ADAPTER_FAMILY_OPENGL && family != dmGraphics::ADAPTER_FAMILY_VULKAN && family != dmGraphics::ADAPTER_FAMILY_METAL) ||
             !dmGraphics::IsContextFeatureSupported(context, dmGraphics::CONTEXT_FEATURE_STORAGE_BUFFER) ||
             (!m_TestUpdates && !dmGraphics::IsContextFeatureSupported(context, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER)))
@@ -1940,7 +1979,7 @@ static void* EngineCreate(int argc, char** argv)
         engine->m_Failed = true;
     }
 
-    if (HasArgument("ssbo") || HasArgument("ssbo-updates") || HasArgument("ssbo-hazards"))
+    if (HasArgument("ssbo") || HasArgument("ssbo-updates") || HasArgument("ssbo-hazards") || HasArgument("ssbo-shared-stages"))
     {
         dmLogInfo("test_app_graphics: running StorageBufferTest%s", HasArgument("ssbo-hazards") ? " (GPU hazards)" : HasArgument("ssbo-updates") ? " (update ordering)" : "");
         engine->m_Test = new StorageBufferTest();

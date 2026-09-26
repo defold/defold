@@ -29,6 +29,7 @@
 #include "test_graphics_util.h"
 
 #include "null/graphics_null_private.h"
+#include "dx12/graphics_dx12_storage_buffer.h"
 
 #define APP_TITLE "GraphicsTest"
 #define WIDTH 8u
@@ -73,6 +74,38 @@ TEST(StorageBuffer, FlatBindingsAcrossSetsAndStages)
     const uint32_t expected[] = {3, 2, 0, 3, 1};
     for (uint32_t i = 0; i < resources.Size(); ++i)
         ASSERT_EQ(expected[i], dmGraphics::GetStorageBufferBindingIndex(resources, i));
+}
+
+TEST(StorageBuffer, DX12MixedAccessAliases)
+{
+    using namespace dmGraphics;
+    int buffer_a, buffer_b;
+    uint32_t first = 99, second = 99;
+    ASSERT_FALSE(FindDX12StorageBufferAliasConflict(0, 0, first, second));
+    const uint8_t flags[] = {SHADER_RESOURCE_ACCESS_NONE, SHADER_RESOURCE_ACCESS_READ,
+                            SHADER_RESOURCE_ACCESS_WRITE, SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE};
+    for (uint32_t a = 0; a < DM_ARRAY_SIZE(flags); ++a)
+    {
+        for (uint32_t b = 0; b < DM_ARRAY_SIZE(flags); ++b)
+        {
+            DX12StorageBufferAccess accesses[] = {
+                {&buffer_a, flags[a], 0, 3}, {&buffer_b, flags[b], 1, 3}, {&buffer_a, flags[b], 2, 7}
+            };
+            // Distinct buffers are valid for every combination of access flags.
+            ASSERT_FALSE(FindDX12StorageBufferAliasConflict(accesses, 2, first, second));
+            // Read/read and UAV/UAV aliases are legal; SRV/UAV aliases are not.
+            // Both binding orders and absent access metadata are included.
+            const bool conflict = (flags[a] == SHADER_RESOURCE_ACCESS_READ) != (flags[b] == SHADER_RESOURCE_ACCESS_READ);
+            ASSERT_EQ(conflict, FindDX12StorageBufferAliasConflict(accesses, 3, first, second));
+            if (conflict)
+            {
+                ASSERT_EQ(0u, first);
+                ASSERT_EQ(2u, second);
+            }
+            accesses[2].m_Resource = 0;
+            ASSERT_FALSE(FindDX12StorageBufferAliasConflict(accesses, 3, first, second));
+        }
+    }
 }
 
 #define ASSERT_VECF(exp, act, num_values) \

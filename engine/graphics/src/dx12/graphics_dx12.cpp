@@ -42,6 +42,7 @@
 #include "../graphics_adapter.h"
 
 #include "graphics_dx12_private.h"
+#include "graphics_dx12_storage_buffer.h"
 
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
 DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
@@ -3004,6 +3005,43 @@ namespace dmGraphics
         context->m_CommandList->RSSetScissorRects(1, &scissor);
     }
 
+    static bool ValidateStorageBufferAliases(DX12Context* context)
+    {
+        DX12ShaderProgram* program = context->m_CurrentProgram;
+        assert(program);
+        DX12StorageBufferAccess accesses[MAX_SET_COUNT * MAX_BINDINGS_PER_SET_COUNT];
+        uint32_t count = 0;
+        bool visited[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
+        for (uint32_t i = 0; i < program->m_RootSignatureResources.Size(); ++i)
+        {
+            const DX12ResourceBinding& binding = program->m_RootSignatureResources[i];
+            const ProgramResourceBinding& resource = program->m_BaseProgram.m_ResourceBindings[binding.m_Set][binding.m_Binding];
+            if (resource.m_Res->m_BindingFamily != BINDING_FAMILY_STORAGE_BUFFER || visited[binding.m_Set][binding.m_Binding])
+                continue;
+            // Shared vertex/fragment bindings can have more than one root entry.
+            visited[binding.m_Set][binding.m_Binding] = true;
+            DX12StorageBuffer* buffer = context->m_CurrentStorageBuffers[binding.m_Set][binding.m_Binding];
+            if (!buffer || !buffer->m_DeviceBuffer.m_Resource)
+                continue;
+            assert(count < DM_ARRAY_SIZE(accesses));
+            accesses[count].m_Resource = buffer->m_DeviceBuffer.m_Resource;
+            accesses[count].m_AccessFlags = resource.m_Res->m_AccessFlags;
+            accesses[count].m_Set = binding.m_Set;
+            accesses[count].m_Binding = binding.m_Binding;
+            ++count;
+        }
+
+        uint32_t first, second;
+        if (FindDX12StorageBufferAliasConflict(accesses, count, first, second))
+        {
+            dmLogError("Skipping DX12 draw/dispatch: storage buffer at set %u, binding %u and set %u, binding %u "
+                       "is bound as both readonly (SRV) and writable (UAV). Use separate buffers or writable declarations for both bindings.",
+                       accesses[first].m_Set, accesses[first].m_Binding, accesses[second].m_Set, accesses[second].m_Binding);
+            return false;
+        }
+        return true;
+    }
+
     static void CommitUniforms(DX12Context* context, DX12FrameResource& frame_resources, DX12PipelineType pipeline_type)
     {
         DX12ShaderProgram* program = context->m_CurrentProgram;
@@ -3193,6 +3231,8 @@ namespace dmGraphics
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
 
         DX12Context* context = (DX12Context*) _context;
+        if (!ValidateStorageBufferAliases(context))
+            return;
         DrawSetup(context, prim_type);
 
         DX12IndexBuffer* ix_buffer   = (DX12IndexBuffer*) index_buffer;
@@ -3212,6 +3252,8 @@ namespace dmGraphics
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
 
         DX12Context* context = (DX12Context*) _context;
+        if (!ValidateStorageBufferAliases(context))
+            return;
         DrawSetup(context, prim_type);
 
         context->m_CommandList->DrawInstanced(count, dmMath::Max((uint32_t) 1, instance_count), first, 0);
@@ -3222,7 +3264,9 @@ namespace dmGraphics
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DispatchCalls, 1);
 
-         DX12Context* context = (DX12Context*) _context;
+        DX12Context* context = (DX12Context*) _context;
+        if (!ValidateStorageBufferAliases(context))
+            return;
 
         // From graphics_vulkan.cpp
         if (IsRenderTargetbound(context, context->m_CurrentRenderTarget))

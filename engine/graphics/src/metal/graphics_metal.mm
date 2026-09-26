@@ -3279,143 +3279,152 @@ namespace dmGraphics
         else
             renc = (MTL::RenderCommandEncoder*) encoder_raw;
 
-        for (int i = 0; i < program->m_BaseProgram.m_MaxSet; ++i)
+        const uint32_t first_stage = is_compute ? ShaderDesc::SHADER_TYPE_COMPUTE : ShaderDesc::SHADER_TYPE_VERTEX;
+        const uint32_t last_stage = is_compute ? ShaderDesc::SHADER_TYPE_COMPUTE : ShaderDesc::SHADER_TYPE_FRAGMENT;
+        for (uint32_t stage = first_stage; stage <= last_stage; ++stage)
         {
-            if (program->m_ArgumentEncoders[i])
+            for (int i = 0; i < program->m_BaseProgram.m_MaxSet; ++i)
             {
-                program->m_ArgumentBufferBindings[i] = argument_buffer_pool->Bind(context, program->m_ArgumentEncoders[i]);
+                if (program->m_ArgumentEncoders[stage][i])
+                {
+                    program->m_ArgumentBufferBindings[stage][i] = argument_buffer_pool->Bind(context, program->m_ArgumentEncoders[stage][i]);
+                }
             }
-        }
 
-        ProgramResourceBindingIterator it(&program->m_BaseProgram);
-        const ProgramResourceBinding* next;
-        while ((next = it.Next()))
-        {
-            ShaderResourceBinding* res        = next->m_Res;
-            MTL::ArgumentEncoder* arg_encoder = program->m_ArgumentEncoders[res->m_Set];
-
-            uint32_t msl_index = program->m_ResourceToMslIndex[res->m_Set][res->m_Binding];
-
-            switch (res->m_BindingFamily)
+            ProgramResourceBindingIterator it(&program->m_BaseProgram);
+            const ProgramResourceBinding* next;
+            while ((next = it.Next()))
             {
-                case BINDING_FAMILY_UNIFORM_BUFFER:
-                {
-                    MetalUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[res->m_Set][res->m_Binding];
+                ShaderResourceBinding* res        = next->m_Res;
+                MTL::ArgumentEncoder* arg_encoder = program->m_ArgumentEncoders[stage][res->m_Set];
 
-                    if (bound_ubo)
+                uint32_t msl_index = program->m_ResourceToMslIndex[stage][res->m_Set][res->m_Binding];
+
+                if (!arg_encoder || msl_index == UINT32_MAX)
+                    continue;
+
+                switch (res->m_BindingFamily)
+                {
+                    case BINDING_FAMILY_UNIFORM_BUFFER:
                     {
-                        UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
-                        if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout,
-                                                             bound_ubo->m_BaseUniformBuffer.m_Size,
-                                                             *pgm_layout,
-                                                             res->m_BindingInfo.m_BlockSize))
+                        MetalUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[res->m_Set][res->m_Binding];
+
+                        if (bound_ubo)
                         {
-                            dmLogWarning("Uniform buffer with hash %u has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%u)",
-                                bound_ubo->m_BaseUniformBuffer.m_Layout,
-                                res->m_Name,
-                                *pgm_layout);
-                            MetalDisableUniformBuffer((HContext) context, (HUniformBuffer) bound_ubo);
-                            bound_ubo = 0;
+                            UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
+                            if (!IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout,
+                                                                 bound_ubo->m_BaseUniformBuffer.m_Size,
+                                                                 *pgm_layout,
+                                                                 res->m_BindingInfo.m_BlockSize))
+                            {
+                                dmLogWarning("Uniform buffer with hash %u has an incompatible layout with the currently bound program at the shader binding '%s' (hash=%u)",
+                                    bound_ubo->m_BaseUniformBuffer.m_Layout,
+                                    res->m_Name,
+                                    *pgm_layout);
+                                MetalDisableUniformBuffer((HContext) context, (HUniformBuffer) bound_ubo);
+                                bound_ubo = 0;
+                            }
                         }
-                    }
 
-                    if (bound_ubo)
-                    {
-                        arg_encoder->setBuffer(bound_ubo->m_DeviceBuffer.m_Buffer, 0, (NSUInteger) msl_index);
+                        if (bound_ubo)
+                        {
+                            arg_encoder->setBuffer(bound_ubo->m_DeviceBuffer.m_Buffer, 0, (NSUInteger) msl_index);
 
-                        if (is_compute)
-                            UseResourceCached(context, cenc, bound_ubo->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
+                            if (is_compute)
+                                UseResourceCached(context, cenc, bound_ubo->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
+                            else
+                                UseResourceCached(context, renc, bound_ubo->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
+                        }
                         else
-                            UseResourceCached(context, renc, bound_ubo->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
-                    }
-                    else
+                        {
+                            const uint32_t uniform_size = DM_ALIGN(res->m_BindingInfo.m_BlockSize, alignment);
+                            uint32_t offset = DM_ALIGN(scratch_buffer->m_MappedDataCursor, alignment);
+
+                            memcpy(reinterpret_cast<uint8_t*>(scratch_buffer->m_DeviceBuffer.m_Buffer->contents()) + offset,
+                                   &program->m_UniformData[next->m_UniformBufferOffset],
+                                   res->m_BindingInfo.m_BlockSize);
+
+                            arg_encoder->setBuffer(scratch_buffer->m_DeviceBuffer.m_Buffer, (NSUInteger) offset, (NSUInteger) msl_index);
+                            scratch_buffer->m_MappedDataCursor = offset + uniform_size;
+                        }
+                    } break;
+
+                    case BINDING_FAMILY_TEXTURE:
                     {
-                        const uint32_t uniform_size = DM_ALIGN(res->m_BindingInfo.m_BlockSize, alignment);
-                        uint32_t offset = DM_ALIGN(scratch_buffer->m_MappedDataCursor, alignment);
+                        MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_TextureUnits[next->m_TextureUnit]);
 
-                        memcpy(reinterpret_cast<uint8_t*>(scratch_buffer->m_DeviceBuffer.m_Buffer->contents()) + offset,
-                               &program->m_UniformData[next->m_UniformBufferOffset],
-                               res->m_BindingInfo.m_BlockSize);
+                        if (texture == 0x0)
+                        {
+                            texture = GetDefaultTexture(context, res->m_Type.m_ShaderType);
+                        }
 
-                        arg_encoder->setBuffer(scratch_buffer->m_DeviceBuffer.m_Buffer, (NSUInteger) offset, (NSUInteger) msl_index);
-                        scratch_buffer->m_MappedDataCursor = offset + uniform_size;
-                    }
-                } break;
-
-                case BINDING_FAMILY_TEXTURE:
-                {
-                    MetalTexture* texture = GetAssetFromContainer<MetalTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_TextureUnits[next->m_TextureUnit]);
-
-                    if (texture == 0x0)
-                    {
-                        texture = GetDefaultTexture(context, res->m_Type.m_ShaderType);
-                    }
-
-                    if (res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
-                    {
-                        MetalTextureSampler* sampler = &context->m_TextureSamplers[texture->m_TextureSamplerIndex];
-                        arg_encoder->setSamplerState(sampler->m_Sampler, msl_index);
-                    }
-                    else
-                    {
-                        arg_encoder->setTexture(texture->m_Texture, msl_index);
-
-                        // Handle combined sampler types
-                        if (RequiresSampler(res->m_Type.m_ShaderType))
+                        if (res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
                         {
                             MetalTextureSampler* sampler = &context->m_TextureSamplers[texture->m_TextureSamplerIndex];
-                            arg_encoder->setSamplerState(sampler->m_Sampler, msl_index + 1);
+                            arg_encoder->setSamplerState(sampler->m_Sampler, msl_index);
                         }
-                    }
+                        else
+                        {
+                            arg_encoder->setTexture(texture->m_Texture, msl_index);
 
-                    if (is_compute)
-                        UseResourceCached(context, cenc, texture->m_Texture, texture->m_Usage);
-                    else
-                        UseResourceCached(context, renc, texture->m_Texture, texture->m_Usage);
-                } break;
+                            // Handle combined sampler types
+                            if (RequiresSampler(res->m_Type.m_ShaderType))
+                            {
+                                MetalTextureSampler* sampler = &context->m_TextureSamplers[texture->m_TextureSamplerIndex];
+                                arg_encoder->setSamplerState(sampler->m_Sampler, msl_index + 1);
+                            }
+                        }
 
-                case BINDING_FAMILY_STORAGE_BUFFER:
-                {
-                    MetalStorageBufferBinding binding = context->m_CurrentStorageBuffers[res->m_Set][res->m_Binding];
-                    MetalStorageBuffer* buffer = (MetalStorageBuffer*) binding.m_Buffer;
-                    assert(buffer);
-                    arg_encoder->setBuffer(buffer->m_DeviceBuffer.m_Buffer, binding.m_BufferOffset, (NSUInteger) msl_index);
-                    uint8_t access_flags = res->m_AccessFlags;
+                        if (is_compute)
+                            UseResourceCached(context, cenc, texture->m_Texture, texture->m_Usage);
+                        else
+                            UseResourceCached(context, renc, texture->m_Texture, texture->m_Usage);
+                    } break;
 
-                    if (access_flags == SHADER_RESOURCE_ACCESS_NONE)
+                    case BINDING_FAMILY_STORAGE_BUFFER:
                     {
-                        access_flags = SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE;
-                    }
+                        MetalStorageBufferBinding binding = context->m_CurrentStorageBuffers[res->m_Set][res->m_Binding];
+                        MetalStorageBuffer* buffer = (MetalStorageBuffer*) binding.m_Buffer;
+                        assert(buffer);
+                        arg_encoder->setBuffer(buffer->m_DeviceBuffer.m_Buffer, binding.m_BufferOffset, (NSUInteger) msl_index);
+                        uint8_t access_flags = res->m_AccessFlags;
 
-                    MTL::ResourceUsage usage = (MTL::ResourceUsage) 0;
-                    if (access_flags & SHADER_RESOURCE_ACCESS_READ)
-                    {
-                        usage = (MTL::ResourceUsage)(usage | MTL::ResourceUsageRead);
-                    }
-                    if (access_flags & SHADER_RESOURCE_ACCESS_WRITE)
-                    {
-                        usage = (MTL::ResourceUsage)(usage | MTL::ResourceUsageWrite);
-                    }
+                        if (access_flags == SHADER_RESOURCE_ACCESS_NONE)
+                        {
+                            access_flags = SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE;
+                        }
 
-                    if (is_compute)
-                        UseResourceCached(context, cenc, buffer->m_DeviceBuffer.m_Buffer, usage);
-                    else
-                    {
-                        MTL::RenderStages stages = 0;
-                        if (res->m_StageFlags & SHADER_STAGE_FLAG_VERTEX) stages |= MTL::RenderStageVertex;
-                        if (res->m_StageFlags & SHADER_STAGE_FLAG_FRAGMENT) stages |= MTL::RenderStageFragment;
-                        if (!stages) stages = MTL::RenderStageVertex | MTL::RenderStageFragment;
-                        // Declare each draw's actual access and stages; the
-                        // residency-only overload/cache cannot protect hazards.
-                        renc->useResource(buffer->m_DeviceBuffer.m_Buffer, usage, stages);
-                    }
-                } break;
-                case BINDING_FAMILY_GENERIC:
-                    break;
+                        MTL::ResourceUsage usage = (MTL::ResourceUsage) 0;
+                        if (access_flags & SHADER_RESOURCE_ACCESS_READ)
+                        {
+                            usage = (MTL::ResourceUsage)(usage | MTL::ResourceUsageRead);
+                        }
+                        if (access_flags & SHADER_RESOURCE_ACCESS_WRITE)
+                        {
+                            usage = (MTL::ResourceUsage)(usage | MTL::ResourceUsageWrite);
+                        }
 
-                default:
-                    break;
+                        if (is_compute)
+                            UseResourceCached(context, cenc, buffer->m_DeviceBuffer.m_Buffer, usage);
+                        else
+                        {
+                            MTL::RenderStages stages = 0;
+                            if (res->m_StageFlags & SHADER_STAGE_FLAG_VERTEX) stages |= MTL::RenderStageVertex;
+                            if (res->m_StageFlags & SHADER_STAGE_FLAG_FRAGMENT) stages |= MTL::RenderStageFragment;
+                            if (!stages) stages = MTL::RenderStageVertex | MTL::RenderStageFragment;
+                            // Declare each draw's actual access and stages; the
+                            // residency-only overload/cache cannot protect hazards.
+                            renc->useResource(buffer->m_DeviceBuffer.m_Buffer, usage, stages);
+                        }
+                    } break;
+                    case BINDING_FAMILY_GENERIC:
+                        break;
+
+                    default:
+                        break;
+                }
             }
+
         }
 
         // Uniform data placed in the scratch buffer is referenced indirectly through
@@ -3425,46 +3434,40 @@ namespace dmGraphics
         else
             UseResourceCached(context, renc, scratch_buffer->m_DeviceBuffer.m_Buffer, MTL::ResourceUsageRead);
 
-        for (uint32_t set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
+        for (uint32_t stage = first_stage; stage <= last_stage; ++stage)
         {
-            if (context->m_CurrentProgram->m_ArgumentEncoders[set])
+            for (uint32_t set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
             {
-                MetalArgumentBinding& arg_binding = context->m_CurrentProgram->m_ArgumentBufferBindings[set];
-
+                if (!program->m_ArgumentEncoders[stage][set])
+                    continue;
+                MetalArgumentBinding& arg_binding = program->m_ArgumentBufferBindings[stage][set];
                 if (is_compute)
                 {
-                    // Compute encoder uses only one stage
                     UseResourceCached(context, cenc, arg_binding.m_Buffer, MTL::ResourceUsageRead);
                     cenc->setBuffer(arg_binding.m_Buffer, arg_binding.m_Offset, set);
                 }
-                else
+                else if (stage == ShaderDesc::SHADER_TYPE_VERTEX)
                 {
-                    // SPIRV-Cross can emit argument-buffer parameters for either render
-                    // stage, so bind each descriptor set to both stages. Vertex attributes
-                    // use slots above the descriptor set/binding namespace and must not
-                    // overlap these set indices.
                     UseResourceCached(context, renc, arg_binding.m_Buffer, MTL::ResourceUsageRead);
-
                     if (context->m_CurrentVertexArgumentBuffer[set] != arg_binding.m_Buffer)
                     {
                         renc->setVertexBuffer(arg_binding.m_Buffer, arg_binding.m_Offset, set);
                         context->m_CurrentVertexArgumentBuffer[set] = arg_binding.m_Buffer;
                     }
                     else if (context->m_CurrentVertexArgumentBufferOffset[set] != arg_binding.m_Offset)
-                    {
                         renc->setVertexBufferOffset(arg_binding.m_Offset, set);
-                    }
                     context->m_CurrentVertexArgumentBufferOffset[set] = arg_binding.m_Offset;
-
+                }
+                else
+                {
+                    UseResourceCached(context, renc, arg_binding.m_Buffer, MTL::ResourceUsageRead);
                     if (context->m_CurrentFragmentArgumentBuffer[set] != arg_binding.m_Buffer)
                     {
                         renc->setFragmentBuffer(arg_binding.m_Buffer, arg_binding.m_Offset, set);
                         context->m_CurrentFragmentArgumentBuffer[set] = arg_binding.m_Buffer;
                     }
                     else if (context->m_CurrentFragmentArgumentBufferOffset[set] != arg_binding.m_Offset)
-                    {
                         renc->setFragmentBufferOffset(arg_binding.m_Offset, set);
-                    }
                     context->m_CurrentFragmentArgumentBufferOffset[set] = arg_binding.m_Offset;
                 }
             }
@@ -3548,7 +3551,8 @@ namespace dmGraphics
             }
         }
 
-        frame.m_ConstantScratchBuffer.EnsureSize(context, context->m_CurrentProgram->m_UniformDataSizeAligned);
+        // Shared uniform blocks are encoded independently for both render stages.
+        frame.m_ConstantScratchBuffer.EnsureSize(context, 2 * context->m_CurrentProgram->m_UniformDataSizeAligned);
 
         PipelineState pipeline_state_draw = context->m_PipelineState;
 
@@ -3838,14 +3842,17 @@ namespace dmGraphics
         program->m_FragmentModule = 0;
         program->m_ComputeModule = 0;
 
-        for (uint32_t i = 0; i < MAX_SET_COUNT; ++i)
+        for (uint32_t stage = 0; stage < 3; ++stage)
         {
-            if (program->m_ArgumentEncoders[i])
+            for (uint32_t i = 0; i < MAX_SET_COUNT; ++i)
             {
-                program->m_ArgumentEncoders[i]->release();
-                program->m_ArgumentEncoders[i] = 0;
+                if (program->m_ArgumentEncoders[stage][i])
+                {
+                    program->m_ArgumentEncoders[stage][i]->release();
+                    program->m_ArgumentEncoders[stage][i] = 0;
+                }
+                program->m_ArgumentBufferBindings[stage][i] = {};
             }
-            program->m_ArgumentBufferBindings[i] = {};
         }
 
         delete[] program->m_UniformData;
@@ -3855,7 +3862,7 @@ namespace dmGraphics
         program->m_UniformBufferCount = 0;
         program->m_StorageBufferCount = 0;
         program->m_TextureSamplerCount = 0;
-        memset(program->m_ResourceToMslIndex, 0, sizeof(program->m_ResourceToMslIndex));
+        memset(program->m_ResourceToMslIndex, 0xff, sizeof(program->m_ResourceToMslIndex));
         memset(program->m_WorkGroupSize, 0, sizeof(program->m_WorkGroupSize));
     }
 
@@ -3864,6 +3871,7 @@ namespace dmGraphics
         ProgramResourceBindingsInfo binding_info = {};
         FillProgramResourceBindings(&program->m_BaseProgram, bindings, UNIFORM_BUFFER_ALIGNMENT, STORAGE_BUFFER_ALIGNMENT, binding_info);
 
+        memset(program->m_ResourceToMslIndex, 0xff, sizeof(program->m_ResourceToMslIndex));
         for (int i = 0; i < num_shaders; ++i)
         {
             ShaderDesc::Shader* ddf = ddf_shaders[i];
@@ -3871,7 +3879,7 @@ namespace dmGraphics
             for (int j = 0; j < ddf->m_MslResourceMapping.m_Count; ++j)
             {
                 ShaderDesc::MSLResourceMapping* entry = &ddf->m_MslResourceMapping[j];
-                program->m_ResourceToMslIndex[entry->m_Set][entry->m_Binding] = entry->m_MslIndex;
+                program->m_ResourceToMslIndex[ddf->m_ShaderType][entry->m_Set][entry->m_Binding] = entry->m_MslIndex;
             }
         }
 
@@ -3916,36 +3924,21 @@ namespace dmGraphics
 
     static void CreateArgumentBuffers(MetalContext* context, MetalProgram* program)
     {
-        uint8_t set_stage_flags[MAX_SET_COUNT] = {0};
-
-        for (int i = 0; i < program->m_BaseProgram.m_MaxSet; ++i)
+        MetalShaderModule* modules[] = {program->m_VertexModule, program->m_FragmentModule, program->m_ComputeModule};
+        for (uint32_t stage = 0; stage < 3; ++stage)
         {
-            for (int j = 0; j < program->m_BaseProgram.m_MaxBinding; ++j)
-            {
-                ProgramResourceBinding* res = &program->m_BaseProgram.m_ResourceBindings[i][j];
-
-                if (res->m_Res)
-                {
-                    set_stage_flags[i] |= res->m_Res->m_StageFlags;
-                }
-            }
-
-            if (set_stage_flags[i] == 0)
-            {
+            if (!modules[stage])
                 continue;
-            }
-
-            if (set_stage_flags[i] & SHADER_STAGE_FLAG_VERTEX)
+            for (uint32_t set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
             {
-                program->m_ArgumentEncoders[i] = program->m_VertexModule->m_Function->newArgumentEncoder(i);
-            }
-            else if (set_stage_flags[i] & SHADER_STAGE_FLAG_FRAGMENT)
-            {
-                program->m_ArgumentEncoders[i] = program->m_FragmentModule->m_Function->newArgumentEncoder(i);
-            }
-            else if (set_stage_flags[i] & SHADER_STAGE_FLAG_COMPUTE)
-            {
-                program->m_ArgumentEncoders[i] = program->m_ComputeModule->m_Function->newArgumentEncoder(i);
+                for (uint32_t binding = 0; binding < program->m_BaseProgram.m_MaxBinding; ++binding)
+                {
+                    if (program->m_ResourceToMslIndex[stage][set][binding] != UINT32_MAX)
+                    {
+                        program->m_ArgumentEncoders[stage][set] = modules[stage]->m_Function->newArgumentEncoder(set);
+                        break;
+                    }
+                }
             }
         }
     }

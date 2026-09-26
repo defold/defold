@@ -506,6 +506,9 @@ namespace dmGraphics
     /*#
      * Bind a shader storage buffer to a reflected descriptor set and binding.
      * The set and binding must match the shader declaration.
+     * On DirectX 12, binding the same buffer to both readonly and writable
+     * declarations in one draw or dispatch is unsupported. The command is
+     * skipped with an error; use separate buffers or writable declarations for both bindings.
      * @name EnableStorageBuffer
      * @param context [type:dmGraphics::HContext] Graphics context
      * @param storage_buffer [type:dmGraphics::HStorageBuffer] Storage buffer
