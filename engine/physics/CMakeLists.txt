@@ -103,7 +103,6 @@ defold_add_sdk_headers_target(physics_sdk_headers
   FILES "${PHYSICS_SRC_DIR}/physics.h"
   DEPENDS physics dlib_sdk_headers)
 install(FILES "${PHYSICS_SRC_DIR}/physics.h" DESTINATION include/physics)
-install(FILES "${PHYSICS_SRC_DIR}/waf_physics.py" DESTINATION lib/python)
 if(BUILD_TESTS)
   add_subdirectory(src/physics/test)
 endif()

@@ -86,7 +86,7 @@ We compile (and ship) all our libraries with the `-O2` flag.
 Instead, we compartmentalize functionality into separate libraries, and during link time, either add `featureX_impl.a` or a `featureX_null.a` to the command line.
 
 If you _do_ need to build local libraries for better denug info, use the `--opt-level=0` flag on the command line.
-You can also use the `./scripts/submodule.sh` to rebuild a single library with `O0` and then relink the engine (usually the fastest option).
+After configuring the build, use CMake targets to rebuild individual libraries and relink the engine; see [Rebuilding the engine](../../README_BUILD.md#rebuilding-the-engine).
 
 ## Defines
 
@@ -116,7 +116,7 @@ Assets loaded with dmResource are cached locally. A non-standard batch-oriented 
 
 ### Engine Extensions
 
-Script extensions can be created using a simple extensions mechanism. To add a new extension to the engine the only required step is to link with the extension library and set "exported_symbols" in the wscript, see note below.
+Script extensions can be created using a simple extensions mechanism. To add a new extension to the engine the only required step is to link with the extension library and include its registration symbol in the list passed to `defold_create_exported_symbols_file` in `engine/engine/CMakeLists.txt`.
 
 We also use the same mechanic for our [native extensions](./NATIVE_EXTENSIONS.md).
 

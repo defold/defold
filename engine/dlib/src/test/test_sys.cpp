@@ -591,7 +591,7 @@ TEST(dmSys, LoadResourcePartial)
     r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists"), &nread);
     ASSERT_EQ(dmSys::RESULT_NOENT, r);
 
-    r = dmSys::LoadResourcePartial(dmTestUtil::MakeHostPath(path, sizeof(path), "wscript"), 0, 0, 0, &nread);
+    r = dmSys::LoadResourcePartial(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/test.config"), 0, 0, 0, &nread);
     ASSERT_EQ(dmSys::RESULT_INVAL, r);
 
     // Create a test file

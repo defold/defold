@@ -21,7 +21,7 @@ After installation of XCode (and each update!) you need to create a symbolic lin
 
 ### Setup XCode project
 
-* Make sure that you build with **--disable-ccache**. Otherwise lldb can't set breakpoints (all pending). The reason is currently unknown. The --disable-ccache option is available in waf and in build.py.
+* Make sure that you build with **--disable-ccache**. Otherwise lldb can't set breakpoints (all pending). The reason is currently unknown. The --disable-ccache option is available in build.py.
 * Create a new empty iOS project (Other/Empty)
 * Create a new scheme with Product -> Scheme -> New Scheme...
 * Select executable (dmengine.app)
@@ -47,8 +47,8 @@ or
 After completing [build setup](README_BUILD.md), install and build dependencies
 for each platform you will test (also repeat this after `distclean`):
 
-    $ ./scripts/build.py --platform=arm64-ios install_ext build_ext
-    $ ./scripts/build.py --platform=x86_64-ios install_ext build_ext
+    $ ./scripts/build.py --platform=arm64-ios install_ext
+    $ ./scripts/build.py --platform=x86_64-ios install_ext
 
 The top-level CMake `build_engine` flow can build, sign, install and run `arm64-ios`
 unit tests on a locally connected iOS device:
@@ -215,11 +215,11 @@ See the script [./scripts/package/package_xcode_and_sdks.sh](./scripts/package/p
 ### Build.py
 
 Update the sdk version(s).
-In ```install_ext```, update the commands if needed.
+In `install_sdk`, update the commands if needed.
 
-### waf_dynamo.py
+### build_tools/sdk.py
 
-Update the sdk version(s) at the top of the file
+Update the SDK versions at the top of the file.
 
 ### Native Extension
 
