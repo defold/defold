@@ -27,6 +27,7 @@
            [java.util.concurrent LinkedBlockingQueue TimeUnit]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn- await! [value]
   (let [result (deref value 10000 ::timeout)]
@@ -129,6 +130,8 @@
           (dap/close! session)
           (await! adapter))))))
 
+;; Verify UTF-8 Content-Length framing handles partial reads and consecutive
+;; messages, and rejects incomplete headers or bodies without losing framing.
 (deftest framing-test
   (let [message {:seq 1
                  :type "event"
@@ -142,7 +145,7 @@
       (let [index (atom -1)
             twice (byte-array (into (vec bytes) bytes))
             next-byte (fn []
-                        (let [i (swap! index inc)]
+                        (let [i (long (swap! index inc))]
                           (if (>= i (alength twice))
                             -1
                             (bit-and 255 (aget twice i)))))
@@ -150,7 +153,7 @@
                  (read
                    ([] (next-byte))
                    ([buffer offset length]
-                    (if (zero? length)
+                    (if (zero? (long length))
                       0
                       (let [value (next-byte)]
                         (if (= -1 value)
@@ -166,6 +169,8 @@
       (is (thrown? IOException
                    (#'dap/read-message! (ByteArrayInputStream. (.getBytes ^String text StandardCharsets/UTF_8))))))))
 
+;; Verify initialization precedes breakpoint configuration, changed sources replace
+;; their full breakpoint sets, and disconnect detaches without terminating Lua.
 (deftest configuration-and-breakpoints-test
   (with-adapter
     (fn [request _ out _]
@@ -193,6 +198,8 @@
       (dap/close! session)
       (is (nil? (.poll ^LinkedBlockingQueue events))))))
 
+;; Verify stack/scopes/evaluation and stepping use the correct frame and thread,
+;; globals load on demand, and inspection references are discarded after resume.
 (deftest inspection-and-control-test
   (with-adapter
     (fn [{:keys [command arguments] :as request} _ out _]
@@ -302,6 +309,8 @@
         (is (nil? (dap/suspension session)))
         (is (nil? (dap/stack session nil)))))))
 
+;; Verify out-of-order responses reach the correct requests, output events remain
+;; separate, request errors preserve the connection, and disconnect cancels pending work.
 (deftest responses-and-disconnect-test
   (with-adapter
     (fn [request in out ^Socket socket]
@@ -335,6 +344,8 @@
       (is (= :closed (dap/state session)))
       (is (= {} @(:pending session))))))
 
+;; Verify source mapping handles project boundaries, trailing separators, Windows
+;; paths and drive-letter casing, and frames without a source file.
 (deftest source-paths-test
   (doseq [[root path expected] [["/project" "/project/a.script" "/a.script"]
                                 ["/project/" "/project/a.script" "/a.script"]
@@ -343,6 +354,8 @@
                                 ["/project" nil nil]]]
     (is (= expected (#'dap/source-path->project-path root path)))))
 
+;; Verify disconnect cancels connection retries without reporting an error, and
+;; a queued stopped event cannot reopen the cancelled session.
 (deftest connection-cancellation-test
   (let [closed (promise)
         errors (atom [])
@@ -360,6 +373,8 @@
                                     :body {:threadId 7}})
       (is (= :closed (dap/state session))))))
 
+;; Verify a server closing during initialization reports connection failure and
+;; closes the session instead of leaving attachment pending.
 (deftest handshake-disconnect-test
   (with-open [server (ServerSocket. 0 1 (InetAddress/getLoopbackAddress))]
     (let [adapter (future/io
@@ -382,6 +397,8 @@
 
 ;; Set -Ddefold.dap.debuggee to a built dap_debuggee or dap_debuggee_engine
 ;; executable to exercise this editor client against the real native server.
+;; Verify real breakpoints, nested/global inspection, evaluation, fresh frame IDs
+;; after stepping, and detachment followed by normal Lua exit.
 (deftest native-debugger-test
   (when-let [binary (System/getProperty "defold.dap.debuggee")]
     (let [directory (.toFile (Files/createTempDirectory "editor-dap-" (make-array java.nio.file.attribute.FileAttribute 0)))

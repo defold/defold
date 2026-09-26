@@ -355,7 +355,7 @@
                         (fn [node selected-frames]
                           (let [selected-frame (single selected-frames)]
                             (let [{:keys [file line]} selected-frame]
-                              (when (and file line (pos? line))
+                              (when (and file line (pos? (long line)))
                                 (let [open-resource-fn (g/node-value debug-view :open-resource-fn)]
                                   (open-resource-fn file line))))
                             (load-frame-variables! debug-view))))
@@ -395,7 +395,7 @@
               (if-not path
                 result
                 (update result path (fnil conj [])
-                        (cond-> {:line (inc row)}
+                        (cond-> {:line (inc (long row))}
                           (not (string/blank? condition))
                           (assoc :condition condition))))))
           {}
@@ -518,7 +518,7 @@
   (let [workspace (project/workspace project)
         resolve-port (fn []
                        (if-let [port (:debugger-port (latest-target target))]
-                         (when (pos? port) port)
+                         (when (pos? (long port)) port)
                          (engine/debugger-port target)))]
     (ui/run-now
       (when-let [old (g/node-value debug-view :debug-session)]

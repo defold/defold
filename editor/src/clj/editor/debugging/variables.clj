@@ -25,6 +25,7 @@
            [javafx.scene.input KeyEvent MouseEvent ScrollEvent]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn- current-load? [{:keys [^TreeView view root session snapshot]}]
   (and (identical? root (.getRoot view))
@@ -76,7 +77,7 @@
     (when (instance? ExtendedTreeViewSkin skin)
       (let [flow (.getVirtualFlowInstance ^ExtendedTreeViewSkin skin)
             item (find-item (.getRoot view) path)
-            row (if-not item -1 (.getRow view item))]
+            row (if-not item -1 (long (.getRow view item)))]
         (when-let [selected-item (when selection (find-item (.getRoot view) selection))]
           (.select (.getSelectionModel view) selected-item))
         (.scrollToTop flow (int (if (neg? row) index row)))
@@ -106,14 +107,14 @@
   (first
     (reduce
       (fn [[items occurrences] {:keys [name value variablesReference] :as variable}]
-        (let [occurrence (get occurrences name 0)
+        (let [occurrence (long (get occurrences name 0))
               path (conj parent-path [name occurrence])
               item (TreeItem. (assoc variable
                                 :path path
                                 :display-name name
                                 :display-value value))
               loaded (volatile! false)]
-          (when (pos? variablesReference)
+          (when (pos? (long variablesReference))
             (.add (.getChildren item) (TreeItem.))
             (ui/observe (.expandedProperty item)
                         (fn [_ _ expanded]
@@ -131,7 +132,7 @@
       variables)))
 
 (defn- load-children! [{:keys [pending scroll-to-restore ^TreeView view] :as context} ^TreeItem parent path fetch]
-  (vswap! pending inc)
+  (vswap! pending #(inc (long %)))
   (future/io
     (let [result (try
                    (fetch)
@@ -144,9 +145,9 @@
               (console/append-console-entry! :eval-error (ex-message result))
               (.setAll (.getChildren parent) ^Collection (make-items context path result))))
           (finally
-            (when (and (zero? (vswap! pending dec)) @scroll-to-restore)
+            (when (and (zero? (long (vswap! pending #(dec (long %))))) @scroll-to-restore)
               (ui/run-later
-                (when (and (current-load? context) (zero? @pending))
+                (when (and (current-load? context) (zero? (long @pending)))
                   (when-let [position @scroll-to-restore]
                     (vreset! scroll-to-restore nil)
                     (restore-scroll-position! view position)))))))))))

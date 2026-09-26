@@ -20,6 +20,11 @@
             [editor.process :as process]
             [editor.system :as system]))
 
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
+
+;; Verify listener discovery accepts valid ports, rejects invalid/unrelated output,
+;; preserves engine service metadata, and computes per-instance attach ports.
 (deftest dap-listener-discovery-test
   (is (= 8172 (engine/debugger-port {})))
   (is (= 8175 (engine/debugger-port {:instance-index 3})))
@@ -37,6 +42,8 @@
                 "INFO:ENGINE: Engine service started on port 8001\n"
                 "INFO:DEBUGGER: Lua DAP debugger listening on 127.0.0.1:49152\n")))))
 
+;; Verify debug launches enable native DAP with an ephemeral port and startup wait,
+;; while ordinary launches omit the debugger arguments.
 (deftest debug-launch-test
   (let [launches (atom [])
         binary (.getAbsoluteFile (io/file "dmengine"))]

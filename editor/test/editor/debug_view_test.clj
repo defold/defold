@@ -25,6 +25,7 @@
            [javafx.scene.control ListView TreeItem TreeView]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn- await! [value]
   (let [result (deref value 10000 ::timeout)]
@@ -32,6 +33,8 @@
       (throw (ex-info "Timed out waiting for debugger UI test" {})))
     result))
 
+;; Verify callbacks from a closed session cannot clear a newer session, while
+;; closing the current session clears its debugger state.
 (deftest stale-session-callback-test
   (test-support/with-clean-system
     (let [old {:state (atom {:status :closed})}
@@ -52,6 +55,8 @@
         (is (nil? (g/node-value view :debug-session)))
         (is (nil? (g/node-value view :suspension-state)))))))
 
+;; Verify a stack response received after execution resumes cannot restore the
+;; old suspension state in the editor.
 (deftest stale-stack-response-test
   (test-support/with-clean-system
     (let [session {:state (atom {:status :suspended
@@ -75,6 +80,8 @@
           (ui/run-now
             (is (nil? (g/node-value view :suspension-state)))))))))
 
+;; Verify switching frames while a variables request is pending keeps the new
+;; frame's values, even when the old request finishes later.
 (deftest selected-frame-variables-test
   (test-support/with-clean-system
     (let [session {:state (atom {:status :suspended
@@ -116,6 +123,8 @@
                 (is (= "second" (:display-name (.getValue ^TreeItem (first items)))))
                 (is (= "false" (:display-value (.getValue ^TreeItem (first items)))))))))))))
 
+;; Verify selection listeners read the newly selected frame when JavaFX's
+;; selectedItem is still stale, including a fast step that replaces the stack.
 (deftest frame-selection-listener-test
   (test-support/with-clean-system
     (let [^ListView call-stack (ui/run-now (ListView.))
@@ -137,6 +146,8 @@
       (doseq [[notified selected] @selections]
         (is (= notified selected))))))
 
+;; Verify each step requests variables with the new frame ID and displays them
+;; immediately, guarding against Invalid frameId errors and an empty Variables view.
 (deftest stepping-refreshes-frame-variables-test
   (test-support/with-clean-system
     (let [session {:state (atom {:status :suspended
@@ -180,6 +191,8 @@
               (is (= (str frame-id) (some-> item .getValue :display-value))))))
         (is (= [] @errors))))))
 
+;; Verify editor breakpoints become sorted, one-based DAP lines with nonempty
+;; conditions preserved and empty conditions omitted.
 (deftest breakpoint-conversion-test
   (with-redefs [resource/proj-path :path]
     (is (= {"/main.script" [{:line 1}

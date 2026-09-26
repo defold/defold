@@ -27,6 +27,7 @@
            [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn- await-ui! [f]
   (let [deadline (+ (System/nanoTime) 10000000000)]
@@ -59,6 +60,8 @@
     (swap! (:state session) assoc :status :suspended :generation generation)
     (variables/show-frame! view session (dap/suspension session) frame-id)))
 
+;; Verify opened paths reload fresh values/references across stops, unopened and
+;; collapsed branches stay closed, and cycles reopen only to the saved depth.
 (deftest restore-expanded-paths-test
   (let [view (ui/run-now (doto (ExtendedTreeView.) (.setShowRoot false)))
         session {:state (atom {:status :suspended
@@ -66,12 +69,13 @@
                                :thread-id 7})}
         requests (atom [])]
     (with-redefs [dap/frame-variables (fn [_ {:keys [generation]} _]
-                                        [(variable "self" "table" (+ (* generation 100) 1))
-                                         (variable "_G" "table" (+ (* generation 100) 3))
-                                         (variable "unopened" "table" (+ (* generation 100) 99))])
+                                        (let [base (* (long generation) 100)]
+                                          [(variable "self" "table" (+ base 1))
+                                           (variable "_G" "table" (+ base 3))
+                                           (variable "unopened" "table" (+ base 99))]))
                   dap/variables (fn [_ {:keys [generation]} reference]
                                   (swap! requests conj [generation reference])
-                                  (let [base (* generation 100)]
+                                  (let [base (* (long generation) 100)]
                                     (cond
                                       (= reference (+ base 1))
                                       [(variable "[\"nested\"]" "table" (+ base 2))
@@ -122,6 +126,8 @@
         (is (= {[3 301] 2 [3 303] 1} (frequencies @requests))))
       (ui/run-now (variables/clear! view)))))
 
+;; Verify a saved path survives a variable becoming scalar or disappearing,
+;; without fetching children until a table with that name returns.
 (deftest changing-variable-shapes-test
   (let [view (ui/run-now (ExtendedTreeView.))
         session {:state (atom {:status :suspended
@@ -144,7 +150,7 @@
       (testing "A scalar or absent variable does not fetch children"
         (doseq [generation [2 3]]
           (pause! view session generation 42)
-          (await-ui! #(zero? @(:pending (ui/user-data view :editor.debugging.variables/context)))))
+          (await-ui! #(zero? (long @(:pending (ui/user-data view :editor.debugging.variables/context))))))
         (is (= [[1 1]] @requests)))
 
       (testing "The path reopens if a table with that name appears again"
@@ -155,6 +161,8 @@
         (is (= [[1 1] [4 4]] @requests)))
       (ui/run-now (variables/clear! view)))))
 
+;; Verify a table response from an earlier stop cannot overwrite the refreshed
+;; tree, even when that old request completes after the new one.
 (deftest stale-table-response-test
   (let [view (ui/run-now (ExtendedTreeView.))
         session {:state (atom {:status :suspended
@@ -180,7 +188,7 @@
           (pause! view session 2 99)
           (await-ui! #(item-at view ["self" "new"]))
           (deliver response [(variable "old" "1" 0)])
-          (await-ui! #(zero? @(:pending old-context)))
+          (await-ui! #(zero? (long @(:pending old-context))))
           (ui/run-now
             (is (nil? (item-at view ["self" "old"])))
             (is (= "2" (:value (.getValue (item-at view ["self" "new"])))))))
@@ -199,6 +207,8 @@
      :selection (:name (first (ui/selection view)))
      :horizontal (some-> bar .getValue)}))
 
+;; Verify selection and both scroll positions survive changed table rows, and
+;; user navigation takes precedence over a delayed viewport restoration.
 (deftest restore-scroll-position-test
   (let [[^TreeView view ^Stage stage]
         (ui/run-now
@@ -264,7 +274,7 @@
               (is (nil? @(:scroll-to-restore (ui/user-data view :editor.debugging.variables/context)))))
             (deliver response true)
             (await-ui! #(and (item-at view ["self" "field-99"])
-                             (zero? @(:pending (ui/user-data view :editor.debugging.variables/context)))))
+                             (zero? (long @(:pending (ui/user-data view :editor.debugging.variables/context))))))
             (ui/run-now
               (.layout view)
               (is (= "self" (:name (viewport view)))))))

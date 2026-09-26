@@ -37,7 +37,7 @@
 (def ^:const timeout 2000)
 
 (defn debugger-port [target]
-  (+ 8172 (:instance-index target 0)))
+  (+ 8172 (long (:instance-index target 0))))
 
 (defn- get-connection [^URI uri]
   (doto ^HttpURLConnection (.openConnection (.toURL uri))
