@@ -107,6 +107,77 @@ public class ShaderCompilers {
         return adapters;
     }
 
+    private static int readU32LE(byte[] data, int offset) {
+        return (data[offset] & 0xff) |
+               ((data[offset + 1] & 0xff) << 8) |
+               ((data[offset + 2] & 0xff) << 16) |
+               ((data[offset + 3] & 0xff) << 24);
+    }
+
+    private static boolean chunkFourCCEquals(byte[] data, int offset, String fourCC) {
+        return data[offset] == (byte) fourCC.charAt(0) &&
+               data[offset + 1] == (byte) fourCC.charAt(1) &&
+               data[offset + 2] == (byte) fourCC.charAt(2) &&
+               data[offset + 3] == (byte) fourCC.charAt(3);
+    }
+
+    private static boolean containsAscii(byte[] data, int begin, int end, String needle) {
+        if (begin < 0 || end > data.length || end - begin < needle.length()) {
+            return false;
+        }
+        for (int i = begin; i <= end - needle.length(); ++i) {
+            boolean matches = true;
+            for (int j = 0; j < needle.length(); ++j) {
+                if (data[i + j] != (byte) needle.charAt(j)) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hLSLShaderHasSVPositionInput(byte[] shaderData) {
+        // D3DCompiler stores input signatures in DXBC ISGN/ISG1 chunks. We only
+        // need to know whether the pixel shader consumes gl_FragCoord, which is
+        // represented as an SV_Position input semantic in that chunk.
+        if (shaderData == null || shaderData.length < 32 ||
+            !chunkFourCCEquals(shaderData, 0, "DXBC")) {
+            return false;
+        }
+
+        int chunkCount = readU32LE(shaderData, 28);
+        long chunkOffsetsEnd = 32L + (long) chunkCount * 4L;
+        if (chunkCount < 0 || chunkOffsetsEnd > shaderData.length) {
+            return false;
+        }
+
+        for (int i = 0; i < chunkCount; ++i) {
+            int chunkOffset = readU32LE(shaderData, 32 + i * 4);
+            if (chunkOffset < 0 || chunkOffset + 8 > shaderData.length) {
+                continue;
+            }
+            if (!chunkFourCCEquals(shaderData, chunkOffset, "ISGN") &&
+                !chunkFourCCEquals(shaderData, chunkOffset, "ISG1")) {
+                continue;
+            }
+
+            int chunkSize = readU32LE(shaderData, chunkOffset + 4);
+            int chunkBegin = chunkOffset + 8;
+            long chunkEnd = (long) chunkBegin + (long) chunkSize;
+            if (chunkSize < 0 || chunkEnd > shaderData.length) {
+                continue;
+            }
+            if (containsAscii(shaderData, chunkBegin, (int) chunkEnd, "SV_Position")) {
+                return true;
+            }
+        }
+
+        return false;
+    }
     public static class CommonShaderCompiler implements IShaderCompiler {
         private final Platform platform;
         private final ShaderCompilePipeline.Options baseOptions;
@@ -270,6 +341,18 @@ public class ShaderCompilers {
                     compiled_shader_variant_flags.add(variantTextureArray);
                 }
 
+                boolean hLSLMoveSVPositionToFront = false;
+                if (create_hlsl_root_signature && !isComputeType && compiled_shaders.size() > 1) {
+                    int fragmentShaderIndex = compiled_shader_types.indexOf(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+                    if (fragmentShaderIndex >= 0 && hLSLShaderHasSVPositionInput(compiled_shaders.get(fragmentShaderIndex).data)) {
+                        hLSLMoveSVPositionToFront = true;
+                        for (int i = 0; i < compiled_shaders.size(); ++i) {
+                            Shaderc.ShaderCompileResult recompiledShader = pipeline.crossCompileWithHLSLSVPositionFirst(compiled_shader_types.get(i), shaderLanguage);
+                            compiled_shaders.set(i, recompiledShader);
+                        }
+                    }
+                }
+
                 if (create_hlsl_root_signature) {
                     hlslRootSignature = pipeline.createRootSignature(shaderLanguage, compiled_shaders);
                     if (hlslRootSignature == null) {
@@ -281,7 +364,8 @@ public class ShaderCompilers {
 
                     // Xbox precompiled validation compares runtime root signature against each emplaced shader signature.
                     // Recompile all stages with the merged signature so both blobs carry the same emplaced signature.
-                    if (compiled_shaders.size() > 1 && hlslRootSignature.hLSLRootSignature != null && hlslRootSignature.hLSLRootSignature.length > 0) {
+                    boolean recompileWithMergedRootSignature = platform != Platform.X86Win32 && platform != Platform.X86_64Win32;
+                    if (recompileWithMergedRootSignature && compiled_shaders.size() > 1 && hlslRootSignature.hLSLRootSignature != null && hlslRootSignature.hLSLRootSignature.length > 0) {
                         String mergedRootSignatureText = ShadercJni.HLSLRootSignatureToString(hlslRootSignature.hLSLRootSignature);
                         if (mergedRootSignatureText == null || mergedRootSignatureText.isEmpty()) {
                             throw new CompileExceptionError("Failed to convert merged HLSL root signature to text for shared-root-signature recompile");
@@ -292,7 +376,8 @@ public class ShaderCompilers {
 
                         for (int i = 0; i < shaderModules.size(); ++i) {
                             ShaderCompilePipeline.ShaderModuleDesc shaderModule = shaderModules.get(i);
-                            Shaderc.ShaderCompileResult recompiledShader = pipeline.crossCompileWithRootSignature(shaderModule.type, shaderLanguage, mergedRootSignatureText);
+                            Shaderc.ShaderCompileResult recompiledShader = pipeline.crossCompileWithRootSignature(shaderModule.type, shaderLanguage, mergedRootSignatureText, hLSLMoveSVPositionToFront);
+                            recompiledShader.hLSLRootSignature = hlslRootSignature.hLSLRootSignature;
                             compiled_shaders.set(i, recompiledShader);
                         }
 

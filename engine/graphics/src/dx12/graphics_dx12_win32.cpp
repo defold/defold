@@ -33,16 +33,13 @@ static void SetupDX12Context(const ContextParams& params, DX12Context* context)
     context->m_BaseContext.m_Window                  = params.m_Window;
     context->m_BaseContext.m_Width                   = params.m_Width;
     context->m_BaseContext.m_Height                  = params.m_Height;
+    context->m_SwapInterval                         = params.m_SwapInterval;
     context->m_UseValidationLayers     = params.m_UseValidationLayers;
-    context->m_SwapInterval            = params.m_SwapInterval;
-    SetAllContextFeaturesSupported(&context->m_BaseContext);
-
-    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_LUMINANCE;
-    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_LUMINANCE_ALPHA;
-    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB;
-    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA;
-    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_16BPP;
-    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_16BPP;
+    const ContextFeature features[] = { CONTEXT_FEATURE_MULTI_TARGET_RENDERING, CONTEXT_FEATURE_TEXTURE_ARRAY,
+        CONTEXT_FEATURE_COMPUTE_SHADER, CONTEXT_FEATURE_VSYNC, CONTEXT_FEATURE_INSTANCING,
+        CONTEXT_FEATURE_3D_TEXTURES, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX, CONTEXT_FEATURE_BC_ARRAY_TEXTURES };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(features); ++i)
+        SetContextFeatureSupported(&context->m_BaseContext, features[i]);
 }
 
 static IDXGIFactory4* CreateDXGIFactory()
@@ -56,34 +53,40 @@ static IDXGIFactory4* CreateDXGIFactory()
     return factory;
 }
 
-static IDXGIAdapter1* CreateDeviceAdapter(IDXGIFactory4* dxgiFactory)
+static IDXGIAdapter1* CreateDeviceAdapter(IDXGIFactory4* factory)
 {
+    if (!factory) return 0;
     IDXGIAdapter1* adapter = 0;
-    int adapterIndex = 0;
-
-    // find first hardware gpu that supports d3d 12
-    while (dxgiFactory->EnumAdapters1(adapterIndex, &adapter) != DXGI_ERROR_NOT_FOUND)
+    for (UINT i = 0; factory->EnumAdapters1(i, &adapter) == S_OK; ++i)
     {
-        DXGI_ADAPTER_DESC1 desc;
+        DXGI_ADAPTER_DESC1 desc = {};
         adapter->GetDesc1(&desc);
+        if (!(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) && SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, __uuidof(ID3D12Device), NULL)))
+            return adapter;
+        adapter->Release();
+    }
+    return 0;
+}
 
-        if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
-        {
-            adapterIndex++;
-            continue;
-        }
-
-        // we want a device that is compatible with direct3d 12 (feature level 11 or higher)
-        HRESULT hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, _uuidof(ID3D12Device), NULL);
-        if (SUCCEEDED(hr))
-        {
-            break;
-        }
-
-        adapterIndex++;
+static bool DX12IsTearingSupported(IDXGIFactory4* factory)
+{
+    if (!factory)
+    {
+        return false;
     }
 
-    return adapter;
+    IDXGIFactory5* factory5 = 0;
+    HRESULT hr = factory->QueryInterface(IID_PPV_ARGS(&factory5));
+    if (FAILED(hr) || !factory5)
+    {
+        return false;
+    }
+
+    BOOL allow_tearing = FALSE;
+    hr = factory5->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allow_tearing, sizeof(allow_tearing));
+    factory5->Release();
+
+    return SUCCEEDED(hr) && allow_tearing;
 }
 
 static void SetupSampleDesc(DXGI_SAMPLE_DESC* sample_desc)
@@ -110,9 +113,11 @@ DX12Context* DX12NativeCreate(const struct ContextParams& params)
 
         context->m_DebugInterface->EnableDebugLayer();
         context->m_DebugInterface->Release();
+        context->m_DebugInterface = 0;
     }
 
     IDXGIFactory4* factory = CreateDXGIFactory();
+    context->m_AllowTearing = DX12IsTearingSupported(factory);
     IDXGIAdapter1* adapter = CreateDeviceAdapter(factory);
 
     hr = D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&context->m_Device));
@@ -145,10 +150,14 @@ DX12Context* DX12NativeCreate(const struct ContextParams& params)
     swap_chain_desc.OutputWindow         = dmPlatform::GetWindowsHWND(context->m_BaseContext.m_Window);
     swap_chain_desc.SampleDesc           = sample_desc;
     swap_chain_desc.Windowed             = true;
+    swap_chain_desc.Flags               = context->m_AllowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
 
     IDXGISwapChain* swap_chain_tmp = 0;
-    factory->CreateSwapChain(context->m_CommandQueue, &swap_chain_desc, &swap_chain_tmp);
-    context->m_SwapChain = static_cast<IDXGISwapChain3*>(swap_chain_tmp);
+    hr = factory->CreateSwapChain(context->m_CommandQueue, &swap_chain_desc, &swap_chain_tmp);
+    CHECK_HR_ERROR(hr);
+    hr = swap_chain_tmp->QueryInterface(IID_PPV_ARGS(&context->m_SwapChain));
+    swap_chain_tmp->Release();
+    CHECK_HR_ERROR(hr);
 
     factory->Release();
     factory = 0;
@@ -191,12 +200,9 @@ bool DX12NativeInitialize(DX12Context* context)
             D3D12_MESSAGE_ID messageId = D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE;
 
             // Set up a filter to ignore the warning
-            D3D12_MESSAGE_SEVERITY severities[] = { D3D12_MESSAGE_SEVERITY_WARNING };
-            D3D12_MESSAGE_ID denyIds[] = { messageId };
+            D3D12_MESSAGE_ID denyIds[] = { messageId, D3D12_MESSAGE_ID_CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE };
 
             D3D12_INFO_QUEUE_FILTER filter = {};
-            filter.DenyList.NumSeverities = _countof(severities);
-            filter.DenyList.pSeverityList = severities;
             filter.DenyList.NumIDs = _countof(denyIds);
             filter.DenyList.pIDList = denyIds;
 
@@ -217,13 +223,11 @@ void DX12NativeDestroy(DX12Context* context)
 
 bool DX12IsSupported()
 {
-    IDXGIAdapter1* adapter = CreateDeviceAdapter(CreateDXGIFactory());
-    if (adapter)
-    {
-        adapter->Release();
-        return true;
-    }
-    return false;
+    IDXGIFactory4* factory = CreateDXGIFactory();
+    IDXGIAdapter1* adapter = CreateDeviceAdapter(factory);
+    if (factory) factory->Release();
+    if (adapter) adapter->Release();
+    return adapter != 0;
 }
 
 void DX12NativeBeginFrame(DX12Context* context)
@@ -235,12 +239,9 @@ void DX12NativeBeginFrame(DX12Context* context)
 
 void DX12NativeEndFrame(DX12Context* context)
 {
-    // Present must use the effective interval selected by the engine; presenting
-    // with zero here would bypass vsync while reporting that DX12 provides it.
-    // DXGI accepts sync intervals from 0 through 4, while Defold allows larger
-    // values for backends that support them.
-    uint32_t sync_interval = dmMath::Min(context->m_SwapInterval, 4U);
-    HRESULT hr = context->m_SwapChain->Present(sync_interval, 0);
+    const uint32_t sync_interval = context->m_SwapInterval > 4 ? 4 : context->m_SwapInterval;
+    const uint32_t present_flags = sync_interval == 0 && context->m_AllowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0;
+    HRESULT hr = context->m_SwapChain->Present(sync_interval, present_flags);
     CHECK_HR_ERROR(hr);
 }
 

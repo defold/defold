@@ -254,6 +254,7 @@ public class Shaderc {
         public byte no420PackExtension = 0;
         public byte glslEmitUboAsPlainUniforms = 0;
         public byte glslEs = 0;
+        public byte hLSLMoveSVPositionToFront = 0;
         public String externalCompilerPath;
         public String externalCompilerArgs;
         public String rootSignatureOverride;
@@ -307,6 +308,7 @@ public class Shaderc {
     public static class HLSLResourceMapping {
         public String name;
         public long nameHash = 0;
+        public int rootParameterIndex = 0;
         public byte shaderResourceSet = 0;
         public byte shaderResourceBinding = 0;
     };
