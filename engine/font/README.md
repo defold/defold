@@ -41,19 +41,23 @@ closing/reopening preview contexts. Run it
 from `editor` with `lein test integration.vector-font-test` after rebuilding Bob's
 font renderer library and Java bindings.
 
-Vector contributes 56 captures across the four configurations:
+Vector contributes 72 captures across the four configurations:
 
 | Sources | Scenarios | Layout/parser configurations |
 | --- | --- | --- |
 | TTF and OTF runtime glyphs | Face only; face + outline + shadow; 2× font size | All four |
 | TTF and OTF Fontc glyph banks | Same three scenarios | All four |
 | All four Vector sources | Rich text color and 150% size override | Legacy/full with rich text |
+| All four Vector sources | Overlapping text at different world depths | All four |
 
 The Vector face uses analytical curves; outline and shadow sample the generated
 SDF effect atlas. Glyph data is generated at size 40, including the cases drawn
 at size 80. Captures assert that faces, blue outlines, and green shadows are
 present and fit within the fixed capture rectangle. Vector uses separate layer
 quads; manual Vector captures require `--layers multi`.
+The depth case draws coincident red foreground and green background text through
+a depth buffer and requires only the red text to remain. Its references also
+gate the full rendered result at 98% likeness.
 
 ```sh
 ./build/arm64-macos/src/test/test_font_bitmap_gen --case otf_vector_bank_multi_effects \
@@ -98,7 +102,7 @@ This writes `build/font-manual/legacy-rich/manual.png`. Use `--help` for all
 options. Manual options cannot be combined with `--case`. Layout/parser support
 is chosen by executable: `test_font_bitmap_gen_skribidi`,
 `test_font_bitmap_gen_plain`, or `test_font_bitmap_gen_skribidi_plain`.
-The CMake target runs all four (400 images) and then generates the report.
+The CMake target runs all four (464 images) and then generates the report.
 
 Rendered reference PNGs belong under
 `src/test/data/reference/<configuration>/`. They require visual

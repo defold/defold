@@ -93,6 +93,7 @@ def cases(full, rich):
         add(source, True, 'face_only', outline_alpha=0, outline=0)
         add(source, True, 'effects', shadow_alpha=1, shadow_blur=2, shadow_x=6, shadow_y=-6)
         add(source, True, 'scaled', text='Example', size=80, outline_alpha=0, outline=0)
+        add(source, True, 'depth_overlap', text='Depth', size=80, outline_alpha=0, outline=0)
         if rich:
             add(source, True, 'rich_style', text='<color=#ff8080><size=150%>AB</size></color>CD', markup=True, outline_alpha=0, outline=0)
     if full:

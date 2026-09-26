@@ -134,6 +134,7 @@ struct VectorImageResources
 static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext context, VectorImageResources& resources)
 {
     const bool  baked = strstr(c.m_Source, "_bank") != 0;
+    const bool  depth_overlap = strstr(c.m_Name, "_depth_overlap") != 0;
     const char* path = strncmp(c.m_Source, "otf", 3) == 0 ? "src/test/data/SourceCodePro-Regular.otf" : "src/test/data/WorkSans.ttf";
     HFont       source = resources.m_Source = FontLoadFromPath(path);
     ASSERT_NE((HFont)0, source);
@@ -275,13 +276,15 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     const uint32_t      width = g_Capture_vector.m_Width;
     const uint32_t      height = g_Capture_vector.m_Height;
     dmRender::TextEntry entry = {};
-    entry.m_Transform = dmVMath::Matrix4::translation(dmVMath::Vector3(g_Capture_vector.m_OriginX, height - g_Capture_vector.m_OriginTop, 0));
+    entry.m_Transform = dmVMath::Matrix4::translation(dmVMath::Vector3(g_Capture_vector.m_OriginX, height - g_Capture_vector.m_OriginTop, depth_overlap ? -0.5f : 0.0f));
     entry.m_TextLayout = layout;
     entry.m_FontSize = c.m_Size;
     entry.m_Width = settings.m_Width;
     entry.m_Leading = 1;
     entry.m_VAlign = dmRender::TEXT_VALIGN_TOP;
     entry.m_FaceColor = dmGraphics::PackRGBA(dmVMath::Vector4(1, 1, 1, c.m_FaceAlpha));
+    if (depth_overlap)
+        entry.m_FaceColor = dmGraphics::PackRGBA(dmVMath::Vector4(0, 1, 0, 1));
     entry.m_OutlineColor = dmGraphics::PackRGBA(dmVMath::Vector4(0, 0, 1, 1));
     entry.m_ShadowColor = dmGraphics::PackRGBA(dmVMath::Vector4(0, 1, 0, 1));
     entry.m_OutlineAlpha = 1.0f;
@@ -289,9 +292,21 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     dmArray<dmRender::FontDefaultVertex> vertices;
     vertices.SetCapacity(TextLayoutGetGlyphCount(layout) * 18);
     vertices.SetSize(vertices.Capacity());
-    const uint32_t count = dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)vertices.Begin(), vertices.Size());
+    uint32_t count = dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)vertices.Begin(), vertices.Size());
     ASSERT_GT(count, 0u);
     ASSERT_LE(count, vertices.Size());
+    if (depth_overlap)
+    {
+        // Draw green text behind identical red text, in that order. With LESS
+        // depth testing, losing world Z makes the second text disappear.
+        const uint32_t back_count = count;
+        vertices.SetCapacity(back_count * 2);
+        vertices.SetSize(vertices.Capacity());
+        entry.m_Transform.setCol3(dmVMath::Vector4(g_Capture_vector.m_OriginX, height - g_Capture_vector.m_OriginTop, 0.5f, 1));
+        entry.m_FaceColor = dmGraphics::PackRGBA(dmVMath::Vector4(1, 0, 0, 1));
+        count += dmRender::CreateFontVertexData(map, 1, "", entry, 1, 1, 1, (uint8_t*)(vertices.Begin() + back_count), back_count);
+        ASSERT_EQ(back_count * 2, count);
+    }
     bool face = false, outline = false, shadow = false;
     for (uint32_t i = 0; i < count; ++i)
     {
@@ -308,15 +323,30 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     rt.m_ColorBufferCreationParams[0].m_Height = rt.m_ColorBufferParams[0].m_Height = height;
     rt.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
     rt.m_SampleCount = 1;
-    dmGraphics::HRenderTarget      target = resources.m_Target = dmGraphics::NewRenderTarget(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, rt);
+    uint32_t buffer_flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
+    if (depth_overlap)
+    {
+        rt.m_DepthBufferCreationParams.m_Width = rt.m_DepthBufferParams.m_Width = width;
+        rt.m_DepthBufferCreationParams.m_Height = rt.m_DepthBufferParams.m_Height = height;
+        rt.m_DepthBufferParams.m_Format = dmGraphics::TEXTURE_FORMAT_DEPTH;
+        buffer_flags |= dmGraphics::BUFFER_TYPE_DEPTH_BIT;
+    }
+    dmGraphics::HRenderTarget      target = resources.m_Target = dmGraphics::NewRenderTarget(context, buffer_flags, rt);
     dmGraphics::HVertexBuffer      buffer = resources.m_Buffer = dmGraphics::NewVertexBuffer(context, count * sizeof(vertices[0]), vertices.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
     dmGraphics::HVertexDeclaration declaration = resources.m_Declaration = dmRender::CreateFontVertexDeclaration(context);
     dmGraphics::HTexture           textures[] = { map->m_Texture, map->m_VectorBandTexture, map->m_VectorSdfTexture ? map->m_VectorSdfTexture : map->m_Texture };
     dmGraphics::BeginFrame(context);
     dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
     dmGraphics::SetViewport(context, 0, 0, width, height);
-    dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1, 0);
+    dmGraphics::SetDepthMask(context, true);
+    dmGraphics::Clear(context, buffer_flags, 0, 0, 0, 255, 1, 0);
     dmGraphics::EnableState(context, dmGraphics::STATE_BLEND);
+    if (depth_overlap)
+    {
+        dmGraphics::DisableState(context, dmGraphics::STATE_BLEND);
+        dmGraphics::EnableState(context, dmGraphics::STATE_DEPTH_TEST);
+        dmGraphics::SetDepthFunc(context, dmGraphics::COMPARE_FUNC_LESS);
+    }
     dmGraphics::SetBlendFunc(context, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
     dmGraphics::EnableProgram(context, program);
     dmVMath::Matrix4 projection = dmVMath::Matrix4::orthographic(0, width, 0, height, -1, 1);
@@ -333,6 +363,7 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     pixels.SetCapacity(width * height * 4);
     pixels.SetSize(pixels.Capacity());
     dmGraphics::ReadPixels(context, 0, 0, width, height, pixels.Begin(), pixels.Size());
+    dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
     dmGraphics::DisableVertexDeclaration(context, declaration);
     dmGraphics::DisableVertexBuffer(context, buffer);
     for (uint32_t i = 0; i < 3; ++i)
@@ -345,17 +376,24 @@ static void RenderFontVectorImage(const FontImageCase& c, dmGraphics::HContext c
     // Inspect the actual BGRA readback, independently of optional baselines.
     uint32_t outline_pixels = 0;
     uint32_t shadow_pixels = 0;
+    uint32_t front_pixels = 0;
     for (uint32_t i = 0; i < pixels.Size(); i += 4)
     {
         const uint8_t* pixel = &pixels[i];
         outline_pixels += pixel[0] > pixel[1] + 16 && pixel[0] > pixel[2] + 16;
         shadow_pixels += pixel[1] > pixel[0] + 16 && pixel[1] > pixel[2] + 16;
+        front_pixels += pixel[2] > pixel[0] + 16 && pixel[2] > pixel[1] + 16;
     }
     if (outline)
         ASSERT_GT(outline_pixels, 0u);
     if (shadow)
         ASSERT_GT(shadow_pixels, 0u);
     WriteFontTestImage(c, width, height, pixels, metadata);
+    if (depth_overlap)
+    {
+        ASSERT_GT(front_pixels, 0u);
+        ASSERT_EQ(0u, shadow_pixels);
+    }
 }
 
 void TestFontVectorImage(const FontImageCase& c, dmGraphics::HContext context)

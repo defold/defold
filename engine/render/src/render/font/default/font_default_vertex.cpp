@@ -154,6 +154,7 @@ static void OutputGlyphVector(uint32_t vertexindex,
     (Vector4&)v6.m_Position = transform * Vector4(quad_left + width, quad_bottom + height, 0.0f, 1.0f);
 
     #define SET_VECTOR_VERTEX(v, u, vv) \
+        v.m_Position[3] = v.m_Position[2]; \
         v.m_VectorTexcoord[0] = u; \
         v.m_VectorTexcoord[1] = vv; \
         v.m_VectorTexcoord[2] = curve_count; \

@@ -35,5 +35,6 @@ void main()
     var_banding = effect_params;
     var_glyph = ivec4(header & 4095, header >> 12, band_max, band_max);
     var_curve_count = texcoord.z;
-    gl_Position = view_proj * vec4(position.xy, 0.0, 1.0);
+    // World Z is stored separately from the numeric glyph address.
+    gl_Position = view_proj * vec4(position.xy, position.w, 1.0);
 }
