@@ -524,13 +524,13 @@
       (when-let [old (g/node-value debug-view :debug-session)]
         (dap/close! old))
       (let [session (dap/connect! (:address target "localhost") resolve-port
-                                 {:target target
-                                  :local-root (.getAbsolutePath (workspace/project-directory workspace))
-                                  :stop-on-entry stop-on-entry
-                                  :breakpoints (breakpoints-by-path (collect-enabled-breakpoints project))}
-                                 (assoc (make-debugger-callbacks debug-view)
-                                        :on-error (fn [_session exception]
-                                                    (show-connect-failed-info! exception workspace))))]
+                                  {:target target
+                                   :local-root (.getAbsolutePath (workspace/project-directory workspace))
+                                   :stop-on-entry stop-on-entry
+                                   :breakpoints (breakpoints-by-path (collect-enabled-breakpoints project))}
+                                  (assoc (make-debugger-callbacks debug-view)
+                                    :on-error (fn [_session exception]
+                                                (show-connect-failed-info! exception workspace))))]
         (g/transact
           {:undoable false}
           (g/set-properties debug-view :debug-session session :suspension-state nil))
@@ -561,17 +561,20 @@
     false))
 
 (def ^:private debugger-init-script "/_defold/debugger/start.lua")
+(def ^:private debugger-remote-init-script "/_defold/debugger/start_remote.lua")
 
 (defn build-targets
   [project evaluation-context]
-  (let [start-script (project/get-resource-node project debugger-init-script evaluation-context)]
-    (g/node-value start-script :build-targets evaluation-context)))
+  (into []
+        (mapcat (fn [path]
+                  (let [start-script (project/get-resource-node project path evaluation-context)]
+                    (g/node-value start-script :build-targets evaluation-context))))
+        [debugger-init-script debugger-remote-init-script]))
 
 (defn- built-lua-module
   [build-artifacts path]
-  (let [build-artifact (->> build-artifacts
-                            (filter #(= (some-> % :resource :resource resource/proj-path) path))
-                            (first))]
+  (let [build-artifact (coll/first-where #(= (some-> % :resource :resource resource/proj-path) path)
+                                         build-artifacts)]
     (some->> build-artifact
              :resource
              io/file
@@ -581,7 +584,9 @@
 
 (defn attach!
   [debug-view project target build-artifacts]
-  (let [lua-module (built-lua-module build-artifacts debugger-init-script)]
+  (let [lua-module (built-lua-module build-artifacts (if (targets/launched-target? target)
+                                                       debugger-init-script
+                                                       debugger-remote-init-script))]
     (assert lua-module)
     (let [attach-successful? (try
                                (engine/run-script! target lua-module)
@@ -599,7 +604,7 @@
 
 (handler/defhandler :debugger.break :global
   (enabled? [debug-view evaluation-context]
-            (= :running (some-> (current-session debug-view evaluation-context) dap/state)))
+    (= :running (some-> (current-session debug-view evaluation-context) dap/state)))
   (run [debug-view] (dap/control! (current-session debug-view) "pause")))
 
 (handler/defhandler :debugger.continue :global
@@ -607,34 +612,34 @@
   ;; Only one of them can be active at a time. This creates the impression that
   ;; there is a single menu item whose label changes in various states.
   (active? [debug-view evaluation-context]
-           (debugging? debug-view evaluation-context))
+    (debugging? debug-view evaluation-context))
   (enabled? [debug-view evaluation-context]
-            (= :suspended (some-> (current-session debug-view evaluation-context) dap/state)))
+    (= :suspended (some-> (current-session debug-view evaluation-context) dap/state)))
   (run [debug-view] (dap/control! (current-session debug-view) "continue")))
 
 (handler/defhandler :debugger.step-over :global
   (enabled? [debug-view evaluation-context]
-            (= :suspended (some-> (current-session debug-view evaluation-context) dap/state)))
+    (= :suspended (some-> (current-session debug-view evaluation-context) dap/state)))
   (run [debug-view] (dap/control! (current-session debug-view) "next")))
 
 (handler/defhandler :debugger.step-into :global
   (enabled? [debug-view evaluation-context]
-            (= :suspended (some-> (current-session debug-view evaluation-context) dap/state)))
+    (= :suspended (some-> (current-session debug-view evaluation-context) dap/state)))
   (run [debug-view] (dap/control! (current-session debug-view) "stepIn")))
 
 (handler/defhandler :debugger.step-out :global
   (enabled? [debug-view evaluation-context]
-            (= :suspended (some-> (current-session debug-view evaluation-context) dap/state)))
+    (= :suspended (some-> (current-session debug-view evaluation-context) dap/state)))
   (run [debug-view] (dap/control! (current-session debug-view) "stepOut")))
 
 (handler/defhandler :debugger.detach :global
   (enabled? [debug-view evaluation-context]
-            (current-session debug-view evaluation-context))
+    (current-session debug-view evaluation-context))
   (run [debug-view] (dap/disconnect! (current-session debug-view))))
 
 (handler/defhandler :debugger.stop :global
   (enabled? [debug-view evaluation-context]
-            (current-session debug-view evaluation-context))
+    (current-session debug-view evaluation-context))
   (run [debug-view]
     (let [session (current-session debug-view)
           target (latest-target (:target session))]

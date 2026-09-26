@@ -17,10 +17,13 @@ enabled breakpoints, and sends `configurationDone`. Startup scripts then run wit
 their breakpoints installed. Breakpoint changes replace the complete set for each
 changed source, without pausing the project.
 
-Attaching to a running project sends `/_defold/debugger/start.lua` through the
-existing `run_script` engine service. The script calls the native
-`debugger.start()` API with port `8172 + project.instance_index` and prints the
-actual listener port, including when a listener already exists. The editor
+Attaching to a running project sends `/_defold/debugger/start.lua` for locally
+launched targets or `/_defold/debugger/start_remote.lua` for remote targets through
+the existing `run_script` engine service. Both scripts call the native
+`debugger.start()` API with port `8172 + project.instance_index` and print the
+actual listener port, including when a listener already exists. Local attachment
+uses the engine's configured address, which defaults to localhost. Remote
+attachment passes `0.0.0.0` to listen on the device's IPv4 interfaces. The editor
 discovers this output for launched targets. Targets without a local output stream
 use the per-instance port. Attachment stops at the next Lua line. Rebooted engines
 also use the per-instance port.
@@ -43,26 +46,20 @@ Detach closes the DAP session and leaves the engine running. Stop first detaches
 so a paused engine can process its exit request, then uses the editor's existing
 engine/process shutdown path.
 
-## Engine changes needed for remote devices
+## Remote devices
 
-The native engine extension currently starts its listener on `127.0.0.1`.
-The editor already connects to the selected target's address. To enable direct
-connections from the editor to another device:
+Remote attachment requires an engine supporting `debugger.start(port, address)`.
+Starting a project for debugging on a remote target also passes
+`debugger.address=0.0.0.0` when rebooting the engine. The editor connects to the
+selected device's actual address and the per-instance debugger port; no port
+forwarding is required. Locally launched targets retain the localhost default.
 
-1. Add a `debugger.address` configuration setting to
-   `engine/debugger/src/debugger_extension.cpp`, retaining `127.0.0.1` by default.
-2. Pass that address to `dmDebugger::New(port, address)`, which already accepts
-   a bind address. Allow runtime activation through `debugger.start()` to use
-   the configured address, or add an optional address argument for late attach.
-3. Log the actual bind address and port instead of a hardcoded loopback address.
-4. Set the address to `0.0.0.0` or the device's interface address when remote
-   debugging is explicitly enabled. The debugger can evaluate Lua, so this
-   listener should only be enabled on a trusted development network.
-
-For remote dynamic-port discovery, additionally expose the active listener port
-through the engine service or discovery metadata and refresh it after runtime
-activation and reboot. Until then, remote targets must use the per-instance
-port, with port forwarding when the engine still binds to loopback.
+An already running listener keeps its original address and port. Restart a remote
+engine if its listener was previously started on localhost or an unknown port.
+Remote dynamic-port discovery still requires exposing the active debugger port
+through engine service or discovery metadata. Use the per-instance port until
+that is supported. Enable network debugging only on a trusted development network,
+since the debugger can evaluate Lua.
 
 ## Validation
 
