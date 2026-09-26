@@ -799,6 +799,7 @@ public class FontTest {
             .setFont(tmpFnt)
             .setMaterial("font.material")
             .setSize(24)
+            .setAllChars(true) // Include the tab glyph outside the default printable ASCII range.
             .build();
 
         // temp output file
