@@ -18,7 +18,6 @@
 #include <string.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
-#include <dlib/time.h>
 #include <dmsdk/dlib/dstrings.h>
 #include <dmsdk/dlib/profile.h>
 
@@ -327,16 +326,16 @@ static ProfilerDummySample* AllocateSample(ProfilerDummyContext* ctx, uint64_t n
     return sample;
 }
 
-static ProfileResult ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
+static ProfileResult ScopeBegin(void* _ctx, const char* name, uint64_t name_hash)
 {
-    (void)ctx;
+    ProfilerDummyContext* ctx = (ProfilerDummyContext*)_ctx;
 
-    uint64_t tstart = dmTime::GetMonotonicTime();
+    uint64_t tstart = ctx->m_Time;
 
     if (name_hash == 0)
         name_hash = dmHashString64(name);
 
-    ProfilerDummySample* sample = AllocateSample((ProfilerDummyContext*)ctx, name_hash); // Adds it to the thread data
+    ProfilerDummySample* sample = AllocateSample(ctx, name_hash); // Adds it to the thread data
 
     if (sample->m_CallCount > 1) // we want to preserve the real start of this sample
         sample->m_TempStart = tstart;
@@ -350,7 +349,7 @@ static ProfileResult ScopeEnd(void* _ctx, const char* name, uint64_t name_hash)
 {
     ProfilerDummyContext* ctx = (ProfilerDummyContext*)_ctx;
 
-    uint64_t    end = dmTime::GetMonotonicTime();
+    uint64_t    end = ctx->m_Time;
 
     ProfilerDummySample* sample = ctx->m_CurrentSample;
 
