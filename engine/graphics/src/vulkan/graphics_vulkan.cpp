@@ -1146,12 +1146,22 @@ namespace dmGraphics
     {
     #if defined(__MACH__)
         // Check for optional extensions so that we can enable them if they exist
-        if (VulkanIsExtensionSupported((HContext) context, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
+        if (context->m_LogicalDevice.m_CopyMemoryToImage && VulkanIsExtensionSupported((HContext) context, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
         {
-            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
-            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
-            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
-            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
+            const TextureFormat formats[] = { TEXTURE_FORMAT_RGB_PVRTC_2BPPV1, TEXTURE_FORMAT_RGB_PVRTC_4BPPV1,
+                                              TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1, TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 };
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(formats); ++i)
+            {
+                VkFormatProperties3KHR properties3 = {};
+                properties3.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_3_KHR;
+                VkFormatProperties2 properties = {};
+                properties.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2;
+                properties.pNext = &properties3;
+                vkGetPhysicalDeviceFormatProperties2(context->m_PhysicalDevice.m_Device, GetVulkanFormatFromTextureFormat(formats[i]), &properties);
+                VkFormatFeatureFlags2KHR required = VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT_KHR | VK_FORMAT_FEATURE_2_HOST_IMAGE_TRANSFER_BIT_EXT;
+                if ((properties3.optimalTilingFeatures & required) == required)
+                    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << formats[i];
+            }
         }
     #endif
 
@@ -1329,6 +1339,7 @@ namespace dmGraphics
         VkPhysicalDevicePresentIdFeaturesKHR device_present_id_features = {};
         VkPhysicalDevicePresentWaitFeaturesKHR device_present_wait_features = {};
         VkPhysicalDeviceFeatures2 present_features = {};
+        VkPhysicalDeviceHostImageCopyFeaturesEXT host_image_copy_features = {};
 
         if (enable_runtime_optional_extensions)
         {
@@ -1371,6 +1382,28 @@ namespace dmGraphics
             }
 
     #if defined(__MACH__)
+            // Host image copies preserve the native swizzled PVRTC payload on MoltenVK.
+            if (IsDeviceExtensionSupported(selected_device, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME) &&
+                IsDeviceExtensionSupported(selected_device, VK_EXT_HOST_IMAGE_COPY_EXTENSION_NAME) &&
+                IsDeviceExtensionSupported(selected_device, VK_KHR_COPY_COMMANDS_2_EXTENSION_NAME) &&
+                IsDeviceExtensionSupported(selected_device, VK_KHR_FORMAT_FEATURE_FLAGS_2_EXTENSION_NAME))
+            {
+                host_image_copy_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_IMAGE_COPY_FEATURES_EXT;
+                VkPhysicalDeviceFeatures2 features = {};
+                features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+                features.pNext = &host_image_copy_features;
+                vkGetPhysicalDeviceFeatures2(selected_device->m_Device, &features);
+                if (host_image_copy_features.hostImageCopy)
+                {
+                    device_extensions.OffsetCapacity(3);
+                    device_extensions.Push(VK_EXT_HOST_IMAGE_COPY_EXTENSION_NAME);
+                    device_extensions.Push(VK_KHR_COPY_COMMANDS_2_EXTENSION_NAME);
+                    device_extensions.Push(VK_KHR_FORMAT_FEATURE_FLAGS_2_EXTENSION_NAME);
+                    host_image_copy_features.pNext = device_pNext_chain;
+                    device_pNext_chain = &host_image_copy_features;
+                }
+            }
+
             // Check for optional extensions so that we can enable them if they exist
             if (IsDeviceExtensionSupported(selected_device, VK_IMG_FORMAT_PVRTC_EXTENSION_NAME))
             {
@@ -1420,6 +1453,10 @@ namespace dmGraphics
         }
         else
         {
+            if (host_image_copy_features.hostImageCopy)
+            {
+                logical_device.m_CopyMemoryToImage = (PFN_vkCopyMemoryToImageEXT) vkGetDeviceProcAddr(logical_device.m_Device, "vkCopyMemoryToImageEXT");
+            }
             if (require_surface)
             {
                 dmLogInfo("Vulkan device selected: %s", selected_device->m_Properties.deviceName);
@@ -4883,6 +4920,64 @@ bail:
         context->m_BaseContext.m_AssetHandleContainer.Release(texture);
     }
 
+    static bool UseTextureStagingBuffer(VkFormat format)
+    {
+#if defined(__MACH__)
+        // MoltenVK's host-image upload accepts native swizzled PVRTC data.
+        return format != VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG && format != VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG;
+#else
+        return true;
+#endif
+    }
+
+    static void CopyToTextureFromHost(VulkanContext* context, VkCommandPool command_pool, VulkanTexture* texture,
+        const TextureParams& params, uint32_t size, const void* data)
+    {
+        LogicalDevice* device = &context->m_LogicalDevice;
+        // Async callers must keep the texture out of rendering until upload completion.
+        // Complete previous GPU reads before the synchronous host copy.
+        VkResult res = TransitionImageLayout(device, texture, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL,
+            params.m_MipMap, texture->m_LayerCount, command_pool);
+        CHECK_VK_ERROR(res);
+
+        uint8_t* zero_data = data ? 0 : new uint8_t[size]();
+        uint32_t slice_size = size / texture->m_LayerCount;
+        VkMemoryToImageCopyEXT* regions = new VkMemoryToImageCopyEXT[texture->m_LayerCount];
+        for (uint32_t layer = 0; layer < texture->m_LayerCount; ++layer)
+        {
+            VkMemoryToImageCopyEXT& region = regions[layer];
+            memset(&region, 0, sizeof(region));
+            region.sType = VK_STRUCTURE_TYPE_MEMORY_TO_IMAGE_COPY_EXT;
+            // Small PVRTC mips retain a minimum payload size per layer. Separate
+            // regions preserve that stride instead of Vulkan's tightly packed one.
+            region.pHostPointer = (const uint8_t*) (data ? data : zero_data) + layer * slice_size;
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.mipLevel = params.m_MipMap;
+            region.imageSubresource.baseArrayLayer = layer;
+            region.imageSubresource.layerCount = 1;
+            region.imageOffset.x = params.m_X;
+            region.imageOffset.y = params.m_Y;
+            region.imageOffset.z = params.m_Z;
+            region.imageExtent.width = params.m_Width;
+            region.imageExtent.height = params.m_Height;
+            region.imageExtent.depth = dmMath::Max(1U, (uint32_t)params.m_Depth);
+        }
+        VkCopyMemoryToImageInfoEXT copy = {};
+        copy.sType = VK_STRUCTURE_TYPE_COPY_MEMORY_TO_IMAGE_INFO_EXT;
+        copy.dstImage = texture->m_Handle.m_Image;
+        copy.dstImageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        copy.regionCount = texture->m_LayerCount;
+        copy.pRegions = regions;
+        res = device->m_CopyMemoryToImage(device->m_Device, &copy);
+        CHECK_VK_ERROR(res);
+        delete[] regions;
+        delete[] zero_data;
+
+        res = TransitionImageLayout(device, texture, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            params.m_MipMap, texture->m_LayerCount, command_pool);
+        CHECK_VK_ERROR(res);
+    }
+
     static void CopyToTextureLayerWithtStageBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, VkBufferImageCopy* copy_regions, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t layer_count, uint32_t slice_size)
     {
         for (int i = 0; i < layer_count; ++i)
@@ -4940,6 +5035,12 @@ bail:
         bool use_stage_buffer, uint32_t tex_data_size, void* tex_data_ptr, VulkanTexture* texture_out)
     {
         DM_PROFILE(__FUNCTION__);
+
+        if (!use_stage_buffer)
+        {
+            CopyToTextureFromHost(context, context->m_LogicalDevice.m_CommandPool, texture_out, params, tex_data_size, tex_data_ptr);
+            return;
+        }
 
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
         uint32_t layer_count = texture_out->m_LayerCount;
@@ -5118,18 +5219,8 @@ bail:
             SetTextureResourceSize(&texture->m_Base, sizeof(VulkanTexture));
         }
 
-        bool use_stage_buffer = true;
+        bool use_stage_buffer = UseTextureStagingBuffer(vk_format);
         bool memoryless = IsTextureMemoryless(texture);
-
-#if defined(DM_PLATFORM_IOS)
-        // Can't use a staging buffer for MoltenVK when we upload
-        // PVRTC textures.
-        if (vk_format == VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG ||
-            vk_format == VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG)
-        {
-            use_stage_buffer = false;
-        }
-#endif
 
         // If texture hasn't been used yet or if it has been changed
         if (texture->m_Destroyed || texture->m_Handle.m_Image == VK_NULL_HANDLE)
@@ -5142,7 +5233,7 @@ bail:
 
             if (!use_stage_buffer)
             {
-                vk_usage_flags = 0;
+                vk_usage_flags = VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT;
                 vk_memory_type = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             }
 
@@ -5327,6 +5418,13 @@ bail:
         }
 
         // Async texture uploading
+        if (!UseTextureStagingBuffer(tex->m_Format) && !IsTextureMemoryless(tex))
+        {
+            uint32_t size = GetTextureFormatDataSize(ap.m_Params.m_Format, ap.m_Params.m_Width, ap.m_Params.m_Height) * tex->m_LayerCount;
+            CopyToTextureFromHost(context, context->m_LogicalDevice.m_CommandPoolWorker, tex, ap.m_Params, size, ap.m_Params.m_Data);
+            SetTextureResourceSizeExact(&tex->m_Base, sizeof(VulkanTexture), size);
+        }
+        else
         {
             VkCommandBuffer cmd_buffer = BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker);
 
@@ -5510,6 +5608,12 @@ bail:
             if (format_orig == TEXTURE_FORMAT_RGB)
             {
                 vk_format = VK_FORMAT_R8G8B8A8_UNORM;
+            }
+
+            if (!UseTextureStagingBuffer(vk_format))
+            {
+                vk_usage_flags = VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT;
+                vk_memory_type = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             }
 
             vk_usage_flags |= texture->m_UsageFlags;
