@@ -1982,7 +1982,7 @@ bail:
             }
         }
 
-        HProfile profile = ProfileFrameBegin();
+        HProfile profile = dmProfiler::BeginFrame();
         {
             DM_PROFILE("Frame");
 

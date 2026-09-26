@@ -34,6 +34,8 @@ namespace dmProfiler
     void SetUpdateFrequency(uint32_t update_frequency);
     void ToggleProfiler();
 
+    HProfile BeginFrame();
+
     // Clear the previous property snapshot before collecting the next frame.
     ProfileResult EndFrame(HProfile profile);
 

@@ -317,6 +317,11 @@ struct ThreadSortPred
 };
 
 
+HProfile BeginFrame()
+{
+    return ProfileFrameBegin();
+}
+
 ProfileResult EndFrame(HProfile profile)
 {
     if (g_ProfilerCurrentFrame)
